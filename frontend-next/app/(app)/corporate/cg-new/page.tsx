@@ -1,11 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ExternalLink, ToggleLeft, ToggleRight, ChevronRight, ChevronDown, CheckCircle2, Pencil } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, ExternalLink, ToggleLeft, ToggleRight, ChevronRight, ChevronDown, CheckCircle2, Pencil, Building2, Users, Network, GitBranch } from "lucide-react";
 import { api } from "@/lib/api";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import { type TableColumn, type TableRow } from "@/components/table/types";
 
 interface Membership {
   id: number;
@@ -40,8 +43,69 @@ interface GroupedContact {
   memberships: Membership[];
 }
 
+// Structure endpoint types
+interface StructureShareholder {
+  id: number;
+  shareholder_type: string;
+  shareholder_id: number;
+  shareholder_name: string;
+  shares: number;
+  percentage: number;
+  share_class: string;
+  beneficially_held: boolean;
+}
+
+interface StructureCompany {
+  id: number;
+  name: string;
+  code: string | null;
+  acn: string | null;
+  abn: string | null;
+  status: string;
+  entity_type: string | null;
+  is_trustee: boolean;
+  trust_name: string | null;
+  hierarchy_level: number | null;
+  shareholders: StructureShareholder[];
+  investments: unknown[];
+  children: StructureCompany[];
+  is_trust_of_trustee?: boolean;
+}
+
+interface StructurePerson {
+  id: number;
+  contact_id: number;
+  name: string;
+  email: string | null;
+  membership_type: string;
+  is_active: boolean;
+  roles: Array<{
+    type: string;
+    company_id: number;
+    company_name: string;
+    position?: string;
+    is_current?: boolean;
+    shares?: number;
+    percentage?: number;
+  }>;
+}
+
+interface StructureData {
+  group: { id: number; name: string };
+  companies: StructureCompany[];
+  people: StructurePerson[];
+  stats: {
+    total_companies: number;
+    top_level_count: number;
+    trustees_count: number;
+    trusts_count: number;
+    people_count: number;
+  };
+}
+
 export default function CGNewPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = React.useState(true);
   const [groups, setGroups] = React.useState<CompanyGroup[]>([]);
   const [groupsMap, setGroupsMap] = React.useState<Record<number, string>>({});
@@ -50,6 +114,13 @@ export default function CGNewPage() {
   const [loadingMemberships, setLoadingMemberships] = React.useState(false);
   const [groupByEntityType, setGroupByEntityType] = React.useState(false);
   const [expandedContacts, setExpandedContacts] = React.useState<Set<number>>(new Set());
+
+  // Tab state
+  const [activeTab, setActiveTab] = React.useState(searchParams.get("tab") || "memberships");
+
+  // Structure tab state
+  const [structureData, setStructureData] = React.useState<StructureData | null>(null);
+  const [loadingStructure, setLoadingStructure] = React.useState(false);
 
   // Load groups
   React.useEffect(() => {
@@ -109,6 +180,113 @@ export default function CGNewPage() {
       loadMemberships();
     }
   }, [selectedGroupId, groups, groupsMap]);
+
+  // Load structure when group is selected and structure tab is active
+  React.useEffect(() => {
+    const loadStructure = async () => {
+      if (selectedGroupId === null) {
+        setStructureData(null);
+        return;
+      }
+
+      try {
+        setLoadingStructure(true);
+        const response = await api.get<{ success: boolean; data: StructureData }>(
+          `/api/v1/company_groups/${selectedGroupId}/structure`
+        );
+        setStructureData(response.data || null);
+      } catch (error) {
+        console.error("Failed to load structure:", error);
+        setStructureData(null);
+      } finally {
+        setLoadingStructure(false);
+      }
+    };
+
+    if (activeTab === "structure" && selectedGroupId !== null) {
+      loadStructure();
+    }
+  }, [selectedGroupId, activeTab]);
+
+  // Flatten hierarchy for table display
+  const flattenHierarchy = React.useCallback((companies: StructureCompany[], level = 0, parentPath = ""): TableRow[] => {
+    const rows: TableRow[] = [];
+
+    companies.forEach((company, index) => {
+      const path = parentPath ? `${parentPath}.${index}` : `${index}`;
+      const prefix = level > 0 ? "└─".padStart(level * 3, "  ") : "";
+
+      rows.push({
+        id: company.id,
+        _level: level,
+        _path: path,
+        _prefix: prefix,
+        name: company.name,
+        display_name: `${prefix} ${company.name}`.trim(),
+        code: company.code || "—",
+        acn: company.acn || "—",
+        abn: company.abn || "—",
+        status: company.status,
+        entity_type: company.entity_type || "Company",
+        is_trustee: company.is_trustee ? "Yes" : "No",
+        trust_name: company.trust_name || "—",
+        is_trust_of_trustee: company.is_trust_of_trustee || false,
+        shareholders_count: company.shareholders.length,
+        children_count: company.children.length,
+      });
+
+      // Recursively add children
+      if (company.children.length > 0) {
+        rows.push(...flattenHierarchy(company.children, level + 1, path));
+      }
+    });
+
+    return rows;
+  }, []);
+
+  // Structure table columns
+  const structureColumns: TableColumn[] = React.useMemo(() => [
+    { key: "display_name", label: "Entity Name", width: 300, sortable: true, filterable: true },
+    { key: "entity_type", label: "Type", width: 100, sortable: true, filterable: true, filterType: "dropdown" },
+    { key: "code", label: "Code", width: 80, sortable: true },
+    { key: "acn", label: "ACN", width: 120, sortable: true },
+    { key: "abn", label: "ABN", width: 140, sortable: true },
+    { key: "status", label: "Status", width: 100, sortable: true, filterable: true, filterType: "dropdown" },
+    { key: "is_trustee", label: "Trustee", width: 80, sortable: true, filterable: true, filterType: "dropdown" },
+    { key: "trust_name", label: "Trust Name", width: 150, sortable: true },
+    { key: "shareholders_count", label: "Shareholders", width: 100, sortable: true },
+    { key: "children_count", label: "Subsidiaries", width: 100, sortable: true },
+  ], []);
+
+  // Structure table data
+  const structureRows: TableRow[] = React.useMemo(() => {
+    if (!structureData) return [];
+    return flattenHierarchy(structureData.companies);
+  }, [structureData, flattenHierarchy]);
+
+  // People table columns
+  const peopleColumns: TableColumn[] = React.useMemo(() => [
+    { key: "name", label: "Name", width: 200, sortable: true, filterable: true },
+    { key: "email", label: "Email", width: 200, sortable: true, filterable: true },
+    { key: "membership_type", label: "Membership", width: 120, sortable: true, filterable: true, filterType: "dropdown" },
+    { key: "roles_summary", label: "Roles", width: 300, sortable: false, filterable: true },
+    { key: "is_active", label: "Active", width: 80, sortable: true, filterable: true, filterType: "dropdown" },
+  ], []);
+
+  // People table data
+  const peopleRows: TableRow[] = React.useMemo(() => {
+    if (!structureData) return [];
+    return structureData.people.map(p => ({
+      id: p.id,
+      contact_id: p.contact_id,
+      name: p.name,
+      email: p.email || "—",
+      membership_type: p.membership_type,
+      is_active: p.is_active ? "Yes" : "No",
+      roles_summary: p.roles.map(r => `${r.type} @ ${r.company_name}`).join(", ") || "—",
+      roles: p.roles,
+    }));
+  }, [structureData]);
 
   const getEntityTypeBadgeColor = (type: string | null) => {
     switch (type?.toLowerCase()) {
@@ -357,9 +535,9 @@ export default function CGNewPage() {
     <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="border-b pb-4">
-        <h1 className="text-2xl font-bold tracking-tight font-serif">Company Group Memberships (SSoT)</h1>
+        <h1 className="text-2xl font-bold tracking-tight font-serif">Company Group SSoT</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          ContactCompanyGroupMembership table - links Contacts to Company Groups
+          Single Source of Truth - Contacts, Companies, and Group Structure
         </p>
       </div>
 
@@ -390,8 +568,22 @@ export default function CGNewPage() {
         ))}
       </div>
 
-      {/* Contacts Table */}
-      <Card>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="memberships" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Memberships
+          </TabsTrigger>
+          <TabsTrigger value="structure" className="flex items-center gap-2">
+            <Network className="h-4 w-4" />
+            Structure
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Memberships Tab */}
+        <TabsContent value="memberships" className="mt-4">
+          <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">
             Contacts ({uniqueContactCount}) · {memberships.length} memberships
@@ -492,6 +684,205 @@ export default function CGNewPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        {/* Structure Tab */}
+        <TabsContent value="structure" className="mt-4 space-y-6">
+          {selectedGroupId === null ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center text-muted-foreground">
+                  <Network className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">Select a Company Group</p>
+                  <p className="text-sm mt-1">Choose a group above to view its structure</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : loadingStructure ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : structureData ? (
+            <>
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <Card>
+                  <CardContent className="py-4">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-blue-600" />
+                      <div>
+                        <p className="text-2xl font-bold">{structureData.stats.total_companies}</p>
+                        <p className="text-xs text-muted-foreground">Total Entities</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="py-4">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="h-5 w-5 text-purple-600" />
+                      <div>
+                        <p className="text-2xl font-bold">{structureData.stats.top_level_count}</p>
+                        <p className="text-xs text-muted-foreground">Top Level</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="py-4">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-indigo-600" />
+                      <div>
+                        <p className="text-2xl font-bold">{structureData.stats.trustees_count}</p>
+                        <p className="text-xs text-muted-foreground">Trustees</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="py-4">
+                    <div className="flex items-center gap-2">
+                      <Network className="h-5 w-5 text-rose-600" />
+                      <div>
+                        <p className="text-2xl font-bold">{structureData.stats.trusts_count}</p>
+                        <p className="text-xs text-muted-foreground">Trusts</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="py-4">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-teal-600" />
+                      <div>
+                        <p className="text-2xl font-bold">{structureData.stats.people_count}</p>
+                        <p className="text-xs text-muted-foreground">People</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Companies/Trusts Hierarchy Table */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-blue-600" />
+                    Companies & Trusts Hierarchy
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <TeeemTableView
+                    entries={structureRows}
+                    columns={structureColumns}
+                    tableName={`${structureData.group.name} Structure`}
+                    viewOnly={true}
+                    onRowClick={(row) => router.push(`/corporate/companies/${row.id}`)}
+                    customCellRenderer={(entry, columnKey) => {
+                      if (columnKey === "display_name") {
+                        const level = entry._level as number;
+                        const isTrust = (entry.entity_type as string)?.toLowerCase() === "trust";
+                        const isTrustee = entry.is_trustee === "Yes";
+                        return (
+                          <div className="flex items-center gap-2">
+                            {level > 0 && (
+                              <span className="text-muted-foreground text-xs" style={{ marginLeft: (level - 1) * 16 }}>
+                                └─
+                              </span>
+                            )}
+                            {isTrust ? (
+                              <Network className="h-4 w-4 text-rose-500 flex-shrink-0" />
+                            ) : isTrustee ? (
+                              <Building2 className="h-4 w-4 text-indigo-500 flex-shrink-0" />
+                            ) : (
+                              <Building2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                            )}
+                            <span className={isTrust ? "text-rose-700 dark:text-rose-400" : isTrustee ? "text-indigo-700 dark:text-indigo-400" : ""}>
+                              {entry.name as string}
+                            </span>
+                          </div>
+                        );
+                      }
+                      if (columnKey === "entity_type") {
+                        const type = entry.entity_type as string;
+                        return (
+                          <Badge className={getEntityTypeBadgeColor(type?.toLowerCase() === "trust" ? "trust" : "company")}>
+                            {type || "Company"}
+                          </Badge>
+                        );
+                      }
+                      if (columnKey === "status") {
+                        const status = entry.status as string;
+                        return (
+                          <Badge variant={status === "active" ? "default" : "secondary"}>
+                            {status}
+                          </Badge>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* People Table */}
+              {peopleRows.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Users className="h-5 w-5 text-teal-600" />
+                      People in Group ({peopleRows.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <TeeemTableView
+                      entries={peopleRows}
+                      columns={peopleColumns}
+                      tableName={`${structureData.group.name} People`}
+                      viewOnly={true}
+                      onRowClick={(row) => router.push(`/contacts/${row.contact_id}`)}
+                      customCellRenderer={(entry, columnKey) => {
+                        if (columnKey === "name") {
+                          return (
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4 text-teal-500 flex-shrink-0" />
+                              <span>{entry.name as string}</span>
+                            </div>
+                          );
+                        }
+                        if (columnKey === "membership_type") {
+                          return (
+                            <Badge className={getMembershipTypeBadgeColor(entry.membership_type as string)}>
+                              {entry.membership_type as string}
+                            </Badge>
+                          );
+                        }
+                        if (columnKey === "is_active") {
+                          return (
+                            <Badge variant={(entry.is_active as string) === "Yes" ? "default" : "secondary"}>
+                              {entry.is_active as string}
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          ) : (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center text-muted-foreground">
+                  <Network className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No structure data available</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
