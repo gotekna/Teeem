@@ -219,6 +219,8 @@ module Api
       # SSoT: Serialize full membership data
       def serialize_membership(membership)
         contact = membership.contact
+        # Check if this contact has a linked Company record
+        linked_company = Company.find_by(contact_id: contact.id)
         {
           id: membership.id,
           contact_id: contact.id,
@@ -232,6 +234,8 @@ module Api
           can_view_confidential: membership.can_view_confidential,
           can_edit: membership.can_edit,
           is_active: membership.is_active,
+          has_linked_company: linked_company.present?,
+          linked_company_id: linked_company&.id,
           created_at: membership.created_at,
           updated_at: membership.updated_at
         }

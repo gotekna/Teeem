@@ -47,6 +47,9 @@ import {
   Eye,
   AlertTriangle,
   BarChart3,
+  Database,
+  HardDrive,
+  RefreshCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -74,6 +77,7 @@ const DOCUMENT_TABS = [
   { id: "registry", name: "REGISTRY", icon: FileText },
   { id: "trust", name: "TRUST", icon: Users },
   { id: "documents", name: "Documents", icon: FileText },
+  { id: "data", name: "Data", icon: Database },
   { id: "activity", name: "Activity", icon: Clock },
 ];
 
@@ -3070,7 +3074,7 @@ export default function CompanyDetailPage() {
           )}
 
           {/* Document Category Tabs */}
-          {DOCUMENT_TABS.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && (
+          {DOCUMENT_TABS.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && activeTab !== "data" && (
             <>
               {/* Show Xero connection and transactions on BANK tab */}
               {activeTab === "bank" && (
@@ -3096,6 +3100,7 @@ export default function CompanyDetailPage() {
           {activeTab === "documents" && (
             <CompanyDocumentsTab companyId={companyId} company={company} category="all" />
           )}
+          {activeTab === "data" && <DataWarehouseTab companyId={companyId} />}
           {activeTab === "activity" && <ActivityTab />}
         </CardContent>
       </Card>

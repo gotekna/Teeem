@@ -20,6 +20,7 @@ class Job < ApplicationRecord
   has_many :contacts, through: :job_contacts
   has_many :rain_logs, dependent: :destroy
   has_many :external_invoices, dependent: :nullify
+  has_many :job_documents, dependent: :destroy
 
   # SM Gantt associations (Schedule Master v2)
   has_many :sm_tasks, dependent: :destroy

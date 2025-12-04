@@ -7,6 +7,11 @@ module Api
       def index
         @document_types = DocumentType.all
 
+        # Filter by scope (company, job, both)
+        if params[:scope].present?
+          @document_types = @document_types.by_scope(params[:scope])
+        end
+
         # Filter by category
         if params[:category].present?
           @document_types = @document_types.by_category(params[:category])
@@ -117,7 +122,10 @@ module Api
           :primary_tab,
           :naming_format,
           :abbreviation,
-          tabs: []
+          :scope,
+          :target_folder,
+          tabs: [],
+          file_extensions: []
         )
       end
 
@@ -127,6 +135,7 @@ module Api
           name: document_type.name,
           abbreviation: document_type.abbreviation,
           naming_format: document_type.naming_format,
+          title_preview: document_type.title_preview,
           category: document_type.category,
           folder: document_type.folder,
           description: document_type.description,
@@ -135,6 +144,9 @@ module Api
           active: document_type.active,
           tabs: document_type.tabs || [],
           primary_tab: document_type.primary_tab,
+          scope: document_type.scope,
+          file_extensions: document_type.file_extensions || [],
+          target_folder: document_type.target_folder,
           documents_count: document_type.company_documents.count,
           created_at: document_type.created_at,
           updated_at: document_type.updated_at

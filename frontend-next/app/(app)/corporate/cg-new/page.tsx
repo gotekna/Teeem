@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ExternalLink, ToggleLeft, ToggleRight, ChevronRight, ChevronDown } from "lucide-react";
+import { Loader2, ExternalLink, ToggleLeft, ToggleRight, ChevronRight, ChevronDown, CheckCircle2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface Membership {
@@ -21,6 +21,8 @@ interface Membership {
   can_view_confidential: boolean;
   can_edit: boolean;
   is_active: boolean;
+  has_linked_company: boolean;
+  linked_company_id: number | null;
 }
 
 interface CompanyGroup {
@@ -33,6 +35,8 @@ interface GroupedContact {
   contact_name: string;
   contact_email: string | null;
   contact_entity_type: string | null;
+  has_linked_company: boolean;
+  linked_company_id: number | null;
   memberships: Membership[];
 }
 
@@ -144,6 +148,8 @@ export default function CGNewPage() {
           contact_name: m.contact_name,
           contact_email: m.contact_email,
           contact_entity_type: m.contact_entity_type,
+          has_linked_company: m.has_linked_company || false,
+          linked_company_id: m.linked_company_id || null,
           memberships: [],
         });
       }
@@ -238,6 +244,13 @@ export default function CGNewPage() {
             </Badge>
           </td>
           <td className="py-2 px-3">
+            {contact.has_linked_company ? (
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+            ) : (
+              <span className="text-muted-foreground">-</span>
+            )}
+          </td>
+          <td className="py-2 px-3">
             {hasMultipleMemberships ? (
               <span className="text-muted-foreground text-sm">
                 {contact.memberships.length} memberships
@@ -278,6 +291,9 @@ export default function CGNewPage() {
             </td>
             <td className="py-1.5 px-3">
               <span className="text-xs text-muted-foreground">Membership {idx + 1}</span>
+            </td>
+            <td className="py-1.5 px-3">
+              {/* Empty cell for Linked column alignment */}
             </td>
             <td className="py-1.5 px-3">
               <Badge className={getMembershipTypeBadgeColor(m.membership_type)}>
@@ -415,6 +431,7 @@ export default function CGNewPage() {
                           <tr className="border-b bg-muted/30">
                             <th className="text-left py-2 px-3 font-medium">Contact</th>
                             <th className="text-left py-2 px-3 font-medium">Entity Type</th>
+                            <th className="text-left py-2 px-3 font-medium">Linked</th>
                             <th className="text-left py-2 px-3 font-medium">Membership</th>
                             <th className="text-left py-2 px-3 font-medium">Group</th>
                             <th className="text-left py-2 px-3 font-medium">Link</th>
@@ -437,6 +454,7 @@ export default function CGNewPage() {
                   <tr className="border-b">
                     <th className="text-left py-2 px-3 font-medium">Contact</th>
                     <th className="text-left py-2 px-3 font-medium">Entity Type</th>
+                    <th className="text-left py-2 px-3 font-medium">Linked</th>
                     <th className="text-left py-2 px-3 font-medium">Membership</th>
                     <th className="text-left py-2 px-3 font-medium">Group</th>
                     <th className="text-left py-2 px-3 font-medium">Link</th>
