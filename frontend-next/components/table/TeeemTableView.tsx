@@ -184,7 +184,7 @@ import { DataHealthWidget } from "./DataHealthWidget";
 import { ColumnEditorModal } from "./ColumnEditorModal";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { MergeModal } from "./MergeModal";
-import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalViewsManager";
+import { ViewManagerSheet } from "./views";
 import { sortColumnsForModal } from "./column-utils";
 
 // ============================================================================
@@ -3720,7 +3720,7 @@ export default function TeeemTableView({
         const boolValue = typeof value === "boolean" ? value : value === "true" || value === true || value === 1;
 
         // Special case: Link to CG column - show clickable button when linked
-        if (column.column_name === "link_to_cg") {
+        if (column.key === "link_to_cg") {
           if (boolValue) {
             // For company-type contacts, link to the Company page
             if (entry.linked_company_id) {
@@ -6072,10 +6072,10 @@ export default function TeeemTableView({
         />
       )}
 
-      {/* Global Views Manager - auto-enabled when foundationIdNumeric is set */}
-      {/* Per GOLD_STANDARD_TABLE.md: Tables with foundationIdNumeric get Filters button + GlobalViewsManager */}
+      {/* View Manager Sheet - auto-enabled when foundationIdNumeric is set */}
+      {/* Per GOLD_STANDARD_TABLE.md: Tables with foundationIdNumeric get Filters button + ViewManagerSheet */}
       {foundationIdNumeric && (
-        <GlobalViewsManager
+        <ViewManagerSheet
           open={showGlobalViewsManager}
           onOpenChange={setShowGlobalViewsManager}
           foundationId={foundationIdNumeric}

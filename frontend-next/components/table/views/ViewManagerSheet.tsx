@@ -14,10 +14,8 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,7 +62,6 @@ import {
   X,
   ChevronDown,
   ChevronRight,
-  ChevronUp,
   Filter,
   ArrowUpDown,
   Columns3,
@@ -77,47 +74,15 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { sortHiddenColumnsAlphabetically } from "@/components/table/column-utils";
+import { sortHiddenColumnsAlphabetically } from "../column-utils";
+import type { SavedView, CascadeFilter, FilterGroup, SortColumn } from "../types";
 
-// Types
-interface CascadeFilter {
-  id: string | number;
-  column: string;
-  value: string | number | boolean | null;
-  operator: string;
-  label?: string;
-  groupId?: string;
-}
+import { SortableViewItem } from "./SortableViewItem";
+import { SortableColumnItem } from "./SortableColumnItem";
+import { SortableSortByItem } from "./SortableSortByItem";
+import { SortableGroupByItem } from "./SortableGroupByItem";
 
-interface FilterGroup {
-  id: string;
-  logic: "AND" | "OR";
-}
-
-interface SortColumn {
-  column: string;
-  dir: "asc" | "desc" | "custom";
-  customOrder?: string[]; // Custom order of values for lookup columns
-}
-
-interface SavedView {
-  id: number | string;
-  name: string;
-  is_global?: boolean;
-  filters?: CascadeFilter[];
-  filterGroups?: FilterGroup[];
-  interGroupLogic?: "AND" | "OR";
-  visibleColumns?: Record<string, boolean>;
-  columnOrder?: string[];
-  columnWidths?: Record<string, number>;
-  sortColumns?: SortColumn[];
-  groupByColumn?: string | null;
-  groupByColumns?: string[];
-  autoFitColumns?: boolean;
-  showTotals?: boolean;
-  display_order?: number;
-}
-
+// Column interface for view manager
 interface Column {
   id: number;
   column_name: string;
@@ -129,514 +94,29 @@ interface Column {
   available_choices?: { id: number; value: string }[] | string[];
 }
 
-interface GlobalViewsManagerProps {
+interface ViewManagerSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   foundationId: number;
   columns: Column[];
   onViewsChange?: () => void;
-  onApplyView?: (view: SavedView) => void; // Apply view to the table
-  onAutoFitChange?: (enabled: boolean) => void; // Immediately trigger auto-fit in table
-  onShowTotalsChange?: (enabled: boolean) => void; // Immediately toggle totals in table
-  rows?: Record<string, unknown>[]; // For custom sort order values
+  onApplyView?: (view: SavedView) => void;
+  onAutoFitChange?: (enabled: boolean) => void;
+  onShowTotalsChange?: (enabled: boolean) => void;
+  rows?: Record<string, unknown>[];
 }
 
-// Sortable View Item
-function SortableViewItem({
-  view,
-  isActive,
-  onSelect,
-  onEdit,
-  onDelete,
-  onApply,
-}: {
-  view: SavedView;
-  isActive: boolean;
-  onSelect: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  onApply?: () => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: view.id });
+// Known lookup column mappings (column_name -> foundation_id and custom endpoint)
+const KNOWN_LOOKUP_MAPPINGS: Record<string, { foundationId: number; displayColumn: string; apiEndpoint?: string; responseKey?: string }> = {
+  job_type_id: { foundationId: 344, displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
+  job_type: { foundationId: 344, displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
+  job_status_id: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_statuses', responseKey: 'job_statuses' },
+  job_status: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_statuses', responseKey: 'job_statuses' },
+  design_id: { foundationId: 368, displayColumn: 'name' },
+  contact_id: { foundationId: 214, displayColumn: 'full_name' },
+};
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  // Check if this is an unsaved new view
-  const isUnsaved = typeof view.id === "string" && view.id.startsWith("new_");
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      onClick={onSelect}
-      className={cn(
-        "flex items-center gap-1.5 p-2 rounded border cursor-pointer transition-all",
-        isActive
-          ? "bg-primary/10 border-primary"
-          : "bg-background border-border hover:border-primary/50",
-        isDragging && "opacity-50 shadow-lg",
-        isUnsaved && "border-dashed border-orange-400 bg-orange-50 dark:bg-orange-950/20"
-      )}
-    >
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none shrink-0"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
-      </div>
-
-      <div className="flex-1 min-w-0 overflow-hidden">
-        <div className="flex items-center gap-1.5">
-          {view.is_global ? (
-            <Globe className="h-3 w-3 text-blue-500 shrink-0" />
-          ) : (
-            <User className="h-3 w-3 text-muted-foreground shrink-0" />
-          )}
-          <span className="text-sm font-medium truncate">{view.name}</span>
-          {isUnsaved && (
-            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 text-orange-600 border-orange-400 shrink-0">
-              unsaved
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-1 mt-0.5">
-          <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
-            {view.filters?.length || 0}f
-          </Badge>
-          <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
-            {view.sortColumns?.length || 0}s
-          </Badge>
-        </div>
-      </div>
-
-      <div className="flex items-center shrink-0">
-        {onApply && !isUnsaved && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-primary hover:text-primary"
-            onClick={(e) => {
-              e.stopPropagation();
-              onApply();
-            }}
-            title="Apply this view"
-          >
-            <Eye className="h-3 w-3" />
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit();
-          }}
-        >
-          <Pencil className="h-3 w-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 text-destructive hover:text-destructive"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-        >
-          <Trash2 className="h-3 w-3" />
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// Sortable Column Item for visibility/order
-function SortableColumnItem({
-  id,
-  column,
-  isVisible,
-  onToggleVisibility,
-  index,
-  totalVisible,
-  onReorder,
-  showWidthInput,
-  width,
-  onWidthChange,
-}: {
-  id: string;
-  column: Column;
-  isVisible: boolean;
-  onToggleVisibility: () => void;
-  index?: number;
-  totalVisible?: number;
-  onReorder?: (newIndex: number) => void;
-  showWidthInput?: boolean;
-  width?: number;
-  onWidthChange?: (width: number) => void;
-}) {
-  const [isEditingPosition, setIsEditingPosition] = React.useState(false);
-  const [positionValue, setPositionValue] = React.useState(String(index || 1));
-  const inputRef = React.useRef<HTMLInputElement>(null);
-
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  const isSystemColumn = ['id', 'created_at', 'updated_at'].includes(column.column_name);
-
-  // Focus input when editing starts
-  React.useEffect(() => {
-    if (isEditingPosition && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditingPosition]);
-
-  const handlePositionClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onReorder && index !== undefined) {
-      setPositionValue(String(index));
-      setIsEditingPosition(true);
-    }
-  };
-
-  const handlePositionSubmit = () => {
-    const newPos = parseInt(positionValue, 10);
-    if (!isNaN(newPos) && newPos >= 1 && newPos <= (totalVisible || 999) && onReorder) {
-      onReorder(newPos);
-    }
-    setIsEditingPosition(false);
-  };
-
-  const handlePositionKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handlePositionSubmit();
-    } else if (e.key === 'Escape') {
-      setIsEditingPosition(false);
-      setPositionValue(String(index || 1));
-    }
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "flex items-center gap-1.5 px-2 py-1.5 rounded border transition-all",
-        isVisible ? "bg-background border-border" : "bg-muted/30 border-border",
-        isSystemColumn && "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900/50",
-        isDragging && "opacity-50 shadow-lg"
-      )}
-    >
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none"
-      >
-        <GripVertical className="h-3 w-3 text-muted-foreground" />
-      </div>
-      {index !== undefined && (
-        isEditingPosition ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={positionValue}
-            onChange={(e) => setPositionValue(e.target.value)}
-            onBlur={handlePositionSubmit}
-            onKeyDown={handlePositionKeyDown}
-            className="w-6 h-5 text-[10px] font-medium text-center bg-background border border-primary rounded focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        ) : (
-          <button
-            onClick={handlePositionClick}
-            className="flex items-center justify-center w-5 h-5 text-[9px] font-medium bg-muted hover:bg-primary/20 hover:text-primary rounded cursor-pointer transition-colors"
-            title="Click to change position"
-          >
-            {index}
-          </button>
-        )
-      )}
-      <button
-        onClick={onToggleVisibility}
-        className="flex items-center gap-1 flex-1 text-left hover:opacity-70 min-w-0"
-      >
-        {isVisible ? (
-          <Check className="h-3 w-3 text-primary shrink-0" />
-        ) : (
-          <EyeOff className="h-3 w-3 text-muted-foreground shrink-0" />
-        )}
-        <span className={cn("text-xs font-medium truncate", !isVisible && "text-muted-foreground font-normal")}>
-          {column.name || column.column_name}
-        </span>
-      </button>
-      {showWidthInput && isVisible && (
-        <input
-          type="number"
-          value={width || ""}
-          onChange={(e) => onWidthChange?.(parseInt(e.target.value, 10) || 0)}
-          placeholder="150"
-          className="w-14 h-5 text-[10px] text-center bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
-          title="Column width in pixels"
-          onClick={(e) => e.stopPropagation()}
-          min={40}
-          max={500}
-        />
-      )}
-    </div>
-  );
-}
-
-// Sortable Sort By Item
-function SortableSortByItem({
-  id,
-  sort,
-  columns,
-  onChangeColumn,
-  onChangeDir,
-  onChangeCustomOrder,
-  onRemove,
-  allRows,
-}: {
-  id: string;
-  sort: SortColumn;
-  columns: Column[];
-  onChangeColumn: (col: string) => void;
-  onChangeDir: (dir: "asc" | "desc" | "custom") => void;
-  onChangeCustomOrder?: (order: string[]) => void;
-  onRemove: () => void;
-  allRows?: Record<string, unknown>[];
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  // Get unique values for the selected column (for custom sort)
-  const uniqueValues = React.useMemo(() => {
-    if (!allRows || !sort.column) return [];
-    const values = new Set<string>();
-    allRows.forEach(row => {
-      const val = row[sort.column];
-      if (val !== null && val !== undefined) {
-        // Handle object values (lookup columns)
-        if (typeof val === 'object') {
-          const objVal = val as { display?: string; name?: string; id?: number };
-          const displayVal = objVal.display || objVal.name || String(objVal.id || '');
-          if (displayVal) values.add(displayVal);
-        } else {
-          values.add(String(val));
-        }
-      }
-    });
-    return Array.from(values).sort();
-  }, [allRows, sort.column]);
-
-  // Initialize custom order with unique values if not set
-  const currentOrder = sort.customOrder || uniqueValues;
-
-  const handleCustomOrderChange = (fromIndex: number, toIndex: number) => {
-    if (!onChangeCustomOrder) return;
-    const newOrder = [...currentOrder];
-    const [moved] = newOrder.splice(fromIndex, 1);
-    newOrder.splice(toIndex, 0, moved);
-    onChangeCustomOrder(newOrder);
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "space-y-2",
-        isDragging && "opacity-50"
-      )}
-    >
-      <div className="flex items-center gap-2">
-        <div
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing touch-none"
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
-        <div className="flex-1">
-          <ComboboxDropdown
-            items={columns.map(c => ({
-              id: c.column_name,
-              label: c.name || c.column_name,
-            }))}
-            selectedItem={sort.column ? {
-              id: sort.column,
-              label: columns.find(c => c.column_name === sort.column)?.name || sort.column,
-            } : undefined}
-            onSelect={(item) => onChangeColumn(item.id)}
-            placeholder="Search column..."
-            searchPlaceholder="Search columns..."
-          />
-        </div>
-        <Select value={sort.dir} onValueChange={(v) => onChangeDir(v as "asc" | "desc" | "custom")}>
-          <SelectTrigger className="w-[110px] h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="asc">A → Z</SelectItem>
-            <SelectItem value="desc">Z → A</SelectItem>
-            <SelectItem value="custom">Custom</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-          onClick={onRemove}
-        >
-          <X className="h-3 w-3" />
-        </Button>
-      </div>
-
-      {/* Custom order editor */}
-      {sort.dir === "custom" && uniqueValues.length > 0 && (
-        <div className="ml-6 p-2 bg-muted/50 rounded border space-y-1">
-          <p className="text-xs text-muted-foreground mb-2">Drag to reorder:</p>
-          {currentOrder.map((value, index) => (
-            <div
-              key={value}
-              className="flex items-center gap-2 p-1.5 bg-background rounded border text-sm"
-            >
-              <span className="text-muted-foreground w-4 text-center">{index + 1}</span>
-              <span className="flex-1">{value}</span>
-              <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  disabled={index === 0}
-                  onClick={() => handleCustomOrderChange(index, index - 1)}
-                >
-                  <ChevronUp className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  disabled={index === currentOrder.length - 1}
-                  onClick={() => handleCustomOrderChange(index, index + 1)}
-                >
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Sortable Group By Item
-function SortableGroupByItem({
-  id,
-  columnName,
-  columns,
-  onChangeColumn,
-  onRemove,
-}: {
-  id: string;
-  columnName: string;
-  columns: Column[];
-  onChangeColumn: (col: string) => void;
-  onRemove: () => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "flex items-center gap-2",
-        isDragging && "opacity-50"
-      )}
-    >
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none"
-      >
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
-      </div>
-      <div className="flex-1">
-        <ComboboxDropdown
-          items={columns.map(c => ({
-            id: c.column_name,
-            label: c.name || c.column_name,
-          }))}
-          selectedItem={{
-            id: id,
-            label: columnName,
-          }}
-          onSelect={(item) => onChangeColumn(item.id)}
-          placeholder="Search column..."
-          searchPlaceholder="Search columns..."
-        />
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-        onClick={onRemove}
-      >
-        <X className="h-3 w-3" />
-      </Button>
-    </div>
-  );
-}
-
-export function GlobalViewsManager({
+export function ViewManagerSheet({
   open,
   onOpenChange,
   foundationId,
@@ -646,7 +126,7 @@ export function GlobalViewsManager({
   onAutoFitChange,
   onShowTotalsChange,
   rows,
-}: GlobalViewsManagerProps) {
+}: ViewManagerSheetProps) {
   const { toast } = useToast();
 
   // State
@@ -701,14 +181,11 @@ export function GlobalViewsManager({
   }, [open, foundationId]);
 
   const loadViews = async (selectViewByName?: string) => {
-    console.log('[GlobalViewsManager] loadViews called, selectViewByName:', selectViewByName);
     try {
       setLoading(true);
       const response = await api.get<{ success: boolean; views: SavedView[] }>(
         `/api/v1/foundation_views?foundation_id=${foundationId}`
       );
-
-      console.log('[GlobalViewsManager] loadViews response:', response);
 
       if (response.success && response.views) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -721,47 +198,39 @@ export function GlobalViewsManager({
           columnOrder: v.columns?.order || [],
           columnWidths: v.columns?.widths || {},
           autoFitColumns: v.columns?.autoFitColumns === true,
-          showTotals: v.columns?.showTotals !== false, // Default to true
+          showTotals: v.columns?.showTotals !== false,
           sortColumns: Array.isArray(v.sort_order) ? v.sort_order : [],
           groupByColumns: v.group_by_columns || [],
         })) as SavedView[];
 
-        console.log('[GlobalViewsManager] Loaded', mappedViews.length, 'views:', mappedViews.map(v => ({ id: v.id, name: v.name })));
         setViews(mappedViews);
 
-        // If a view name was specified (for newly created views), select it
         if (selectViewByName) {
-          console.log('[GlobalViewsManager] Looking for view by name:', selectViewByName);
           const newView = mappedViews.find(v => v.name === selectViewByName);
-          console.log('[GlobalViewsManager] Found view:', newView ? { id: newView.id, name: newView.name } : 'NOT FOUND');
           if (newView) {
             setActiveViewId(newView.id);
             loadViewIntoEditor(newView);
-            setIsEditing(false); // Exit edit mode after save
+            setIsEditing(false);
             return;
           }
         }
 
-        // If we have an active view, reload it from the fresh data
         if (activeViewId) {
-          console.log('[GlobalViewsManager] Reloading active view:', activeViewId);
           const currentView = mappedViews.find(v => v.id === activeViewId);
           if (currentView) {
             loadViewIntoEditor(currentView);
-            setIsEditing(false); // Exit edit mode after save
+            setIsEditing(false);
           }
           return;
         }
 
-        // Auto-select first view if none selected
         if (!activeViewId && mappedViews.length > 0) {
-          console.log('[GlobalViewsManager] Auto-selecting first view');
           setActiveViewId(mappedViews[0].id);
           loadViewIntoEditor(mappedViews[0]);
         }
       }
     } catch (error) {
-      console.error("[GlobalViewsManager] Failed to load views:", error);
+      console.error("[ViewManagerSheet] Failed to load views:", error);
       toast({
         title: "Error",
         description: "Failed to load saved views",
@@ -782,7 +251,6 @@ export function GlobalViewsManager({
     setEditSortColumns(view.sortColumns || []);
     setEditGroupByColumns(view.groupByColumns || []);
 
-    // If visibleColumns is empty or missing, default all columns to visible
     const hasVisibleColumns = view.visibleColumns && Object.keys(view.visibleColumns).length > 0;
     const visibleColumnsToSet = hasVisibleColumns
       ? view.visibleColumns
@@ -792,12 +260,11 @@ export function GlobalViewsManager({
     setEditColumnOrder(view.columnOrder || columns.map(c => c.column_name));
     setEditColumnWidths(view.columnWidths || {});
     setEditAutoFitColumns(view.autoFitColumns || false);
-    setEditShowTotals(view.showTotals !== false); // Default to true
+    setEditShowTotals(view.showTotals !== false);
   };
 
   const handleSelectView = (view: SavedView) => {
     setActiveViewId(view.id);
-    // Just select, don't edit - load into editor but keep editing disabled
     loadViewIntoEditor(view);
     setIsEditing(false);
   };
@@ -816,7 +283,6 @@ export function GlobalViewsManager({
   };
 
   const handleConfirmCreate = () => {
-    // Find the base view if one was selected
     const baseView = newViewBaseId !== "blank"
       ? views.find(v => String(v.id) === newViewBaseId)
       : null;
@@ -837,23 +303,15 @@ export function GlobalViewsManager({
       showTotals: baseView?.showTotals ?? true,
     };
 
-    console.log('[GlobalViewsManager] Creating new view:', newView.id, newView.name);
-
-    // Add new view to the list so it appears in the sidebar
     setViews(prev => [...prev, newView]);
     setActiveViewId(newView.id);
     loadViewIntoEditor(newView);
-    setIsEditing(true); // Enable editing for new views
+    setIsEditing(true);
     setShowCreateDialog(false);
   };
 
   const handleSaveView = async () => {
     if (!editingView) return;
-
-    console.log('[GlobalViewsManager] handleSaveView called');
-    console.log('[GlobalViewsManager] editingView.id:', editingView.id);
-    console.log('[GlobalViewsManager] editName:', editName);
-    console.log('[GlobalViewsManager] editIsGlobal:', editIsGlobal);
 
     setSaving(true);
     try {
@@ -880,26 +338,16 @@ export function GlobalViewsManager({
       };
 
       let response: { success: boolean; error?: string; view?: { id: number } } | null;
-
-      // Wrap data in foundation_view for Rails strong params
       const wrappedData = { foundation_view: viewData };
-
       const isNewView = typeof editingView.id === "string" && editingView.id.startsWith("new_");
-      console.log('[GlobalViewsManager] isNewView:', isNewView);
 
       if (isNewView) {
-        // Create new view
         const endpoint = editIsGlobal ? "/api/v1/foundation_views/save_global" : "/api/v1/foundation_views";
-        console.log('[GlobalViewsManager] Creating new view via POST to:', endpoint);
         response = await api.post<{ success: boolean; error?: string; view?: { id: number } }>(endpoint, wrappedData);
       } else {
-        // Update existing view
         const endpoint = `/api/v1/foundation_views/${editingView.id}`;
-        console.log('[GlobalViewsManager] Updating existing view via PATCH to:', endpoint);
         response = await api.patch<{ success: boolean; error?: string; view?: { id: number } }>(endpoint, wrappedData);
       }
-
-      console.log('[GlobalViewsManager] API response:', response);
 
       if (response?.success) {
         toast({
@@ -907,11 +355,8 @@ export function GlobalViewsManager({
           description: editIsGlobal ? "Global view saved for all users" : "View saved successfully",
         });
 
-        // Reload views list - if this was a new view, pass the name so we can select it
-        console.log('[GlobalViewsManager] Reloading views, selectByName:', isNewView ? editName : 'none');
         await loadViews(isNewView ? editName : undefined);
 
-        // Apply the saved view to the table immediately
         const savedView: SavedView = {
           id: isNewView && response.view?.id ? response.view.id : editingView.id,
           name: editName,
@@ -933,7 +378,7 @@ export function GlobalViewsManager({
         throw new Error(response?.error || "Failed to save view");
       }
     } catch (error) {
-      console.error("[GlobalViewsManager] Failed to save view:", error);
+      console.error("[ViewManagerSheet] Failed to save view:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to save view",
@@ -955,7 +400,6 @@ export function GlobalViewsManager({
       setShowDeleteConfirm(false);
       setViewToDelete(null);
 
-      // Clear editor if deleted view was being edited
       if (editingView?.id === viewToDelete.id) {
         setEditingView(null);
         setActiveViewId(null);
@@ -980,7 +424,6 @@ export function GlobalViewsManager({
     const reorderedViews = arrayMove(views, oldIndex, newIndex);
     setViews(reorderedViews);
 
-    // Save new order
     const orders = reorderedViews.map((v, idx) => ({
       id: v.id,
       display_order: idx,
@@ -1038,49 +481,24 @@ export function GlobalViewsManager({
     setEditFilters(editFilters.filter(f => f.groupId !== groupId));
   };
 
-  // Known lookup column mappings (column_name -> foundation_id and custom endpoint)
-  // This is used when columns don't have lookup_foundation_id set, or need a custom API endpoint
-  const KNOWN_LOOKUP_MAPPINGS: Record<string, { foundationId: number; displayColumn: string; apiEndpoint?: string; responseKey?: string }> = {
-    job_type_id: { foundationId: 344, displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
-    job_type: { foundationId: 344, displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
-    job_status_id: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_statuses', responseKey: 'job_statuses' },
-    job_status: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_statuses', responseKey: 'job_statuses' },
-    design_id: { foundationId: 368, displayColumn: 'name' },
-    contact_id: { foundationId: 214, displayColumn: 'full_name' },
-  };
-
   // Fetch lookup options for a column
   const fetchLookupOptions = async (column: Column) => {
     if (!column.lookup_foundation_id) return;
 
     const cacheKey = `${column.lookup_foundation_id}`;
-
-    // Check if already cached
     if (lookupOptionsCache[cacheKey]) return;
-
-    // Check if already loading
     if (lookupLoadingColumns.has(cacheKey)) return;
 
     setLookupLoadingColumns(prev => new Set([...prev, cacheKey]));
 
     try {
-      // Check if there's a known mapping with a custom endpoint
       const knownMapping = Object.values(KNOWN_LOOKUP_MAPPINGS).find(
         m => m.foundationId === column.lookup_foundation_id
       );
 
-      console.log('[GlobalViewsManager] fetchLookupOptions:', {
-        column_name: column.column_name,
-        lookup_foundation_id: column.lookup_foundation_id,
-        knownMapping: knownMapping,
-        hasApiEndpoint: !!knownMapping?.apiEndpoint,
-      });
-
       let options: { id: number; display: string }[] = [];
 
       if (knownMapping?.apiEndpoint) {
-        // Use the custom API endpoint
-        console.log('[GlobalViewsManager] Using custom endpoint:', knownMapping.apiEndpoint);
         const response = await api.get<Record<string, { id: number; name?: string; [key: string]: unknown }[]>>(
           knownMapping.apiEndpoint
         );
@@ -1094,7 +512,6 @@ export function GlobalViewsManager({
           }));
         }
       } else {
-        // Use the generic foundations endpoint
         const response = await api.get<{ entries?: { id: number; [key: string]: unknown }[] }>(
           `/api/v1/foundations/${column.lookup_foundation_id}/entries`
         );
@@ -1108,18 +525,12 @@ export function GlobalViewsManager({
         }
       }
 
-      console.log('[GlobalViewsManager] fetchLookupOptions result:', {
-        cacheKey,
-        optionsCount: options.length,
-        options: options.slice(0, 5), // First 5 options for debugging
-      });
-
       setLookupOptionsCache(prev => ({
         ...prev,
         [cacheKey]: options,
       }));
     } catch (error) {
-      console.error('[GlobalViewsManager] Failed to fetch lookup options:', error);
+      console.error('[ViewManagerSheet] Failed to fetch lookup options:', error);
     } finally {
       setLookupLoadingColumns(prev => {
         const next = new Set(prev);
@@ -1131,42 +542,22 @@ export function GlobalViewsManager({
 
   // Render the filter value input based on column type
   const renderFilterValueInput = (filter: CascadeFilter, column: Column | undefined) => {
-    // For _id columns, try to find the base column (e.g., job_type_id -> job_type)
     let resolvedColumn = column;
     if (!column && filter.column.endsWith('_id')) {
       const baseColumnName = filter.column.replace(/_id$/, '');
       resolvedColumn = columns.find(c => c.column_name === baseColumnName);
     }
-
-    // Use resolved column for the rest of the function
     column = resolvedColumn;
 
-    // Get known lookup mapping if available
     const knownMapping = KNOWN_LOOKUP_MAPPINGS[filter.column];
 
-    // Debug: Log full details for job_status_id or job_type_id
-    if (filter.column.includes('job_status') || filter.column.includes('job_type')) {
-      console.log('[GlobalViewsManager] FILTER DEBUG:', {
-        filterColumn: filter.column,
-        columnFound: !!column,
-        column_type: column?.column_type,
-        available_choices: column?.available_choices,
-        choices_length: column?.available_choices?.length,
-        knownMapping: knownMapping,
-        all_columns: columns.map(c => c.column_name),
-      });
-    }
-
     if (!column) {
-      // Even without a column, check if we have a known mapping
       if (knownMapping) {
         const cacheKey = `${knownMapping.foundationId}`;
         const options = lookupOptionsCache[cacheKey] || [];
         const isLoading = lookupLoadingColumns.has(cacheKey);
 
-        // Trigger fetch if not cached
         if (!lookupOptionsCache[cacheKey] && !isLoading) {
-          // Create a fake column with the known mapping to fetch options
           fetchLookupOptions({
             id: 0,
             column_name: filter.column,
@@ -1177,7 +568,6 @@ export function GlobalViewsManager({
           });
         }
 
-        // Convert options to ComboboxItem format
         const knownMappingItems: ComboboxItem[] = options.map((opt) => ({
           id: opt.display,
           label: opt.display,
@@ -1220,17 +610,6 @@ export function GlobalViewsManager({
     const isChoiceColumn = columnType === 'choice';
     const isBooleanColumn = columnType === 'boolean';
 
-    // Debug logging for all filter columns
-    console.log('[GlobalViewsManager] Filter column:', {
-      column_name: column.column_name,
-      column_type: column.column_type,
-      isLookupColumn,
-      isChoiceColumn,
-      available_choices: column.available_choices,
-      lookup_foundation_id: column.lookup_foundation_id,
-    });
-
-    // Boolean dropdown
     if (isBooleanColumn) {
       return (
         <Select
@@ -1248,14 +627,12 @@ export function GlobalViewsManager({
       );
     }
 
-    // Choice dropdown - also handle available_choices on any column type
     const hasAvailableChoices = column.available_choices && column.available_choices.length > 0;
 
     if (isChoiceColumn || hasAvailableChoices) {
       const choices = column.available_choices || [];
       if (choices.length > 0) {
-        // Convert choices to ComboboxItem format
-        const choiceItems: ComboboxItem[] = choices.map((choice, idx) => {
+        const choiceItems: ComboboxItem[] = choices.map((choice) => {
           const value = typeof choice === 'string' ? choice : (choice.value || String(choice.id));
           return { id: value, label: value };
         });
@@ -1273,7 +650,6 @@ export function GlobalViewsManager({
           </div>
         );
       } else if (isChoiceColumn) {
-        // Choice column with no choices defined - show text input with hint
         return (
           <Input
             value={String(filter.value || "")}
@@ -1286,7 +662,6 @@ export function GlobalViewsManager({
       }
     }
 
-    // Lookup dropdown - check for lookup_foundation_id or known mapping
     const effectiveLookupFoundationId = column.lookup_foundation_id || knownMapping?.foundationId;
     const effectiveDisplayColumn = column.lookup_display_column || knownMapping?.displayColumn || 'name';
 
@@ -1296,7 +671,6 @@ export function GlobalViewsManager({
         const options = lookupOptionsCache[cacheKey] || [];
         const isLoading = lookupLoadingColumns.has(cacheKey);
 
-        // Trigger fetch if not cached
         if (!lookupOptionsCache[cacheKey] && !isLoading) {
           fetchLookupOptions({
             ...column,
@@ -1305,7 +679,6 @@ export function GlobalViewsManager({
           });
         }
 
-        // Convert options to ComboboxItem format
         const lookupItems: ComboboxItem[] = options.map((opt) => ({
           id: opt.display,
           label: opt.display,
@@ -1333,7 +706,6 @@ export function GlobalViewsManager({
           </div>
         );
       } else {
-        // Lookup without foundation_id - show text input with hint
         return (
           <Input
             value={String(filter.value || "")}
@@ -1346,7 +718,6 @@ export function GlobalViewsManager({
       }
     }
 
-    // Default text input
     return (
       <Input
         value={String(filter.value || "")}
@@ -1385,7 +756,6 @@ export function GlobalViewsManager({
       ...editVisibleColumns,
       [columnName]: newVisible,
     });
-    // If making visible and not in order, add to order
     if (newVisible && !editColumnOrder.includes(columnName)) {
       setEditColumnOrder([...editColumnOrder, columnName]);
     }
@@ -1393,7 +763,6 @@ export function GlobalViewsManager({
 
   const showAllColumns = () => {
     setEditVisibleColumns(Object.fromEntries(columns.map(c => [c.column_name, true])));
-    // Ensure all columns are in the order array
     const allColumnNames = columns.map(c => c.column_name);
     const missingFromOrder = allColumnNames.filter(name => !editColumnOrder.includes(name));
     if (missingFromOrder.length > 0) {
@@ -1426,21 +795,17 @@ export function GlobalViewsManager({
     const currentIndex = visibleCols.findIndex(c => c.column_name === columnName);
     if (currentIndex === -1) return;
 
-    // Convert to 0-based index
     const targetIndex = Math.max(0, Math.min(newPosition - 1, visibleCols.length - 1));
     if (currentIndex === targetIndex) return;
 
-    // Create new order array for visible columns
     const newVisibleOrder = visibleCols.map(c => c.column_name);
     const [moved] = newVisibleOrder.splice(currentIndex, 1);
     newVisibleOrder.splice(targetIndex, 0, moved);
 
-    // Now rebuild the full column order, preserving hidden columns in their relative positions
     const hiddenCols = getSortedColumns()
       .filter(col => editVisibleColumns[col.column_name] !== true)
       .map(c => c.column_name);
 
-    // Put visible columns first, then hidden columns
     setEditColumnOrder([...newVisibleOrder, ...hiddenCols]);
   };
 
@@ -1450,59 +815,40 @@ export function GlobalViewsManager({
   const getDefaultColumnWidth = (col: Column): number => {
     const type = col.column_type?.toLowerCase() || 'text';
     switch (type) {
-      case 'id':
-        return 60;
-      case 'boolean':
-        return 80;
-      case 'date':
-        return 100;
+      case 'id': return 60;
+      case 'boolean': return 80;
+      case 'date': return 100;
       case 'date_time':
-      case 'datetime':
-        return 150;
+      case 'datetime': return 150;
       case 'currency':
       case 'percentage':
       case 'number':
       case 'decimal':
-      case 'whole_number':
-        return 100;
+      case 'whole_number': return 100;
       case 'phone':
-      case 'mobile':
-        return 120;
+      case 'mobile': return 120;
       case 'email':
-      case 'url':
-        return 200;
+      case 'url': return 200;
       case 'choice':
       case 'lookup':
-      case 'relation':
-        return 150;
-      case 'multiple_lookups':
-        return 200;
+      case 'relation': return 150;
+      case 'multiple_lookups': return 200;
       case 'text':
-      case 'single_line_text':
-        return 150;
+      case 'single_line_text': return 150;
       case 'multiple_lines_text':
-      case 'textarea':
-        return 250;
-      case 'color_picker':
-        return 100;
-      case 'file_upload':
-        return 150;
-      case 'gps_coordinates':
-        return 180;
-      case 'user':
-        return 150;
-      default:
-        return 150;
+      case 'textarea': return 250;
+      case 'color_picker': return 100;
+      case 'file_upload': return 150;
+      case 'gps_coordinates': return 180;
+      case 'user': return 150;
+      default: return 150;
     }
   };
 
-  // Handle auto-fit toggle - populate default widths when turning off
   const handleAutoFitChange = (enabled: boolean) => {
     setEditAutoFitColumns(enabled);
-    // Immediately trigger auto-fit in the table
     onAutoFitChange?.(enabled);
     if (!enabled && Object.keys(editColumnWidths).length === 0) {
-      // Populate default widths for all visible columns
       const defaultWidths: Record<string, number> = {};
       columns.forEach(col => {
         if (editVisibleColumns[col.column_name]) {
@@ -1513,7 +859,6 @@ export function GlobalViewsManager({
     }
   };
 
-  // Handle show totals toggle - immediately update table
   const handleShowTotalsChange = (enabled: boolean) => {
     setEditShowTotals(enabled);
     onShowTotalsChange?.(enabled);
@@ -1522,13 +867,13 @@ export function GlobalViewsManager({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex flex-col p-0" side="right-full" title="Global Views Manager">
+        <SheetContent className="flex flex-col p-0" side="right-full" title="View Manager">
           <SheetHeader className="px-6 pt-6 pb-4 border-b">
             <div className="flex items-center justify-between">
               <SheetTitle>
                 <span className="flex items-center gap-2">
                   <Filter className="h-5 w-5" />
-                  Global Views Manager
+                  View Manager
                 </span>
               </SheetTitle>
               <Button
@@ -1541,7 +886,7 @@ export function GlobalViewsManager({
               </Button>
             </div>
             <SheetDescription>
-              Create and manage saved views for the Gold Standard table. Global views are shared with all users.
+              Create and manage saved views for this table. Global views are shared with all users.
             </SheetDescription>
           </SheetHeader>
 
@@ -1584,7 +929,7 @@ export function GlobalViewsManager({
                             }}
                             onApply={onApplyView ? () => {
                               onApplyView(view);
-                              onOpenChange(false); // Close the manager after applying
+                              onOpenChange(false);
                             } : undefined}
                           />
                         ))}
@@ -1661,7 +1006,6 @@ export function GlobalViewsManager({
 
                     {/* Editor Content - Two Column Layout */}
                     <div className={cn("flex-1 flex overflow-hidden relative", !isEditing && "opacity-50 pointer-events-none")}>
-                      {/* Disabled overlay hint */}
                       {!isEditing && (
                         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/30">
                           <p className="text-muted-foreground text-sm">Click &quot;Edit View&quot; to make changes</p>
@@ -1788,7 +1132,7 @@ export function GlobalViewsManager({
                                           ) : (
                                             groupFilters.map(filter => (
                                               <div key={filter.id} className="flex flex-wrap items-center gap-2 p-2 bg-background rounded border">
-                                                {/* Column Select - Searchable in trigger */}
+                                                {/* Column Select */}
                                                 <div className="w-[140px]">
                                                   <ComboboxDropdown
                                                     items={filteredColumns.map(col => ({
@@ -1809,7 +1153,7 @@ export function GlobalViewsManager({
                                                 {/* Operator Select */}
                                                 <Select
                                                   value={filter.operator}
-                                                  onValueChange={(v) => updateFilter(filter.id, { operator: v })}
+                                                  onValueChange={(v) => updateFilter(filter.id, { operator: v as CascadeFilter["operator"] })}
                                                 >
                                                   <SelectTrigger className="w-[90px] h-8">
                                                     <SelectValue />
@@ -1822,13 +1166,13 @@ export function GlobalViewsManager({
                                                     <SelectItem value="<">{"<"}</SelectItem>
                                                     <SelectItem value=">=">≥</SelectItem>
                                                     <SelectItem value="<=">≤</SelectItem>
-                                                    <SelectItem value="empty">empty</SelectItem>
-                                                    <SelectItem value="notEmpty">not empty</SelectItem>
+                                                    <SelectItem value="is_empty">empty</SelectItem>
+                                                    <SelectItem value="is_not_empty">not empty</SelectItem>
                                                   </SelectContent>
                                                 </Select>
 
-                                                {/* Value Input - renders dropdown for lookup/choice/boolean columns */}
-                                                {filter.operator !== "empty" && filter.operator !== "notEmpty" && (
+                                                {/* Value Input */}
+                                                {filter.operator !== "is_empty" && filter.operator !== "is_not_empty" && (
                                                   renderFilterValueInput(filter, columns.find(c => c.column_name === filter.column))
                                                 )}
 
