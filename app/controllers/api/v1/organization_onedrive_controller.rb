@@ -1591,6 +1591,55 @@ module Api
         attachments
       end
 
+      # Recursively list all files in a job folder
+      # Similar to JobDocumentMigrationService but for the job's own folder
+      def list_all_job_files_recursive(client, credential, root_folder_id, max_depth: 5, max_time: 25)
+        files = []
+        folders_to_process = [[root_folder_id, 0, '']] # [folder_id, depth, path]
+        start_time = Time.now
+
+        while folders_to_process.any?
+          # Check if we've exceeded the time limit
+          if Time.now - start_time > max_time
+            Rails.logger.warn("[Job All Files] Recursive listing timed out after #{max_time}s with #{files.length} files found")
+            break
+          end
+
+          current_id, depth, current_path = folders_to_process.shift
+
+          begin
+            url = "/drives/#{credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+            result = client.get(url)
+
+            result['value']&.each do |item|
+              if item['file']
+                files << {
+                  id: item['id'],
+                  name: item['name'],
+                  size: item['size'],
+                  web_url: item['webUrl'],
+                  modified: item['lastModifiedDateTime'],
+                  type: 'file',
+                  folder_path: current_path,
+                  mime_type: item.dig('file', 'mimeType')
+                }
+              elsif item['folder'] && depth < max_depth
+                folder_name = item['name']
+                new_path = current_path.empty? ? folder_name : "#{current_path}/#{folder_name}"
+                folders_to_process << [item['id'], depth + 1, new_path]
+              end
+            end
+          rescue MicrosoftGraphClient::APIError => e
+            Rails.logger.warn("[Job All Files] Failed to list folder #{current_id}: #{e.message}")
+          end
+        end
+
+        Rails.logger.info("[Job All Files] Listing completed: #{files.length} files in #{(Time.now - start_time).round(2)}s")
+
+        # Sort by folder path then name
+        files.sort_by { |f| [f[:folder_path].to_s.downcase, f[:name].downcase] }
+      end
+
       # Dynamically determine the frontend URL from the request
       # This ensures OAuth redirects work correctly across different environments
       def get_frontend_url_from_request
