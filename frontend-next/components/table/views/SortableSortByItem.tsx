@@ -123,7 +123,8 @@ export function SortableSortByItem({
             } : undefined}
             onSelect={(item) => onChangeColumn(item.id)}
             placeholder="Search column..."
-            searchPlaceholder="Search columns..."
+            searchInTrigger={true}
+            popoverProps={{ className: "w-[200px]" }}
           />
         </div>
         <Select value={sort.dir} onValueChange={(v) => onChangeDir(v as "asc" | "desc" | "custom")}>

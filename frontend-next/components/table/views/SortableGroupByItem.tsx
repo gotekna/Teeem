@@ -72,7 +72,8 @@ export function SortableGroupByItem({
           }}
           onSelect={(item) => onChangeColumn(item.id)}
           placeholder="Search column..."
-          searchPlaceholder="Search columns..."
+          searchInTrigger={true}
+          popoverProps={{ className: "w-[200px]" }}
         />
       </div>
       <Button

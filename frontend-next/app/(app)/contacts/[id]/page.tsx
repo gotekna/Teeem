@@ -36,11 +36,14 @@ import {
   Share2,
   FolderOpen,
   Percent,
+  Table,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyContactName } from "@/lib/url-utils";
 import { cn } from "@/lib/utils";
 import { ContactEditModal } from "@/components/contacts/ContactEditModal";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import { type TableColumn } from "@/components/table/types";
 
 // Helper function to format ABN as XX XXX XXX XXX
 const formatABN = (abn: string | null) => {
@@ -409,6 +412,11 @@ export default function ContactDetailPage() {
       loadShareholdings();
     } else if (activeTab === "relationships" && !trustRoles && !loadingTrustRoles) {
       loadTrustRoles();
+    } else if (activeTab === "roles-table") {
+      // Load all data for the combined table view
+      if (directorships.length === 0 && !loadingDirectorships) loadDirectorships();
+      if (shareholdings.length === 0 && !loadingShareholdings) loadShareholdings();
+      if (!trustRoles && !loadingTrustRoles) loadTrustRoles();
     }
   }, [activeTab, contact?.id]);
 
@@ -522,6 +530,10 @@ export default function ContactDetailPage() {
             {trustRoles && trustRoles.total_count > 0 && (
               <Badge variant="secondary" className="ml-1.5">{trustRoles.total_count}</Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="roles-table">
+            <Table className="h-3.5 w-3.5 mr-1" />
+            Roles Table
           </TabsTrigger>
           <TabsTrigger value="coms">Communications</TabsTrigger>
           {contact["is_supplier?"] && (
@@ -1633,6 +1645,198 @@ export default function ContactDetailPage() {
               </Card>
             )}
           </div>
+        </TabsContent>
+
+        {/* Roles Table Tab - Combined TeeemTableView */}
+        <TabsContent value="roles-table" className="mt-6">
+          {(loadingDirectorships || loadingShareholdings || loadingTrustRoles) ? (
+            <Card>
+              <CardContent className="py-8">
+                <div className="flex items-center justify-center">
+                  <Loader />
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {/* Directorships Table */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-green-600" />
+                    Directorships ({directorships.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {directorships.length > 0 ? (
+                    <TeeemTableView
+                      entries={directorships.map(d => ({
+                        id: d.id,
+                        company_id: d.company_id,
+                        company_name: d.company_name,
+                        position: d.formatted_position || d.position,
+                        company_group: d.company_group_name || "-",
+                        status: d.is_current ? "Current" : "Former",
+                        appointed: d.appointment_date ? new Date(d.appointment_date).toLocaleDateString() : "-",
+                        resigned: d.resignation_date ? new Date(d.resignation_date).toLocaleDateString() : "-",
+                      }))}
+                      columns={[
+                        { key: "company_name", label: "Company", column_type: "text" },
+                        { key: "position", label: "Position", column_type: "text" },
+                        { key: "company_group", label: "Group", column_type: "text" },
+                        { key: "status", label: "Status", column_type: "text" },
+                        { key: "appointed", label: "Appointed", column_type: "text" },
+                        { key: "resigned", label: "Resigned", column_type: "text" },
+                      ] as TableColumn[]}
+                      tableName="Directorships"
+                      viewOnly={true}
+                      onRowClick={(row) => router.push(`/corporate/companies/${row.company_id}`)}
+                      customCellRenderer={(entry, columnKey) => {
+                        if (columnKey === "status") {
+                          const status = entry.status as string;
+                          return (
+                            <Badge className={status === "Current" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
+                              {status}
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">No directorships found.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Shareholdings Table */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Percent className="h-5 w-5 text-blue-600" />
+                    Shareholdings ({shareholdings.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {shareholdings.length > 0 ? (
+                    <TeeemTableView
+                      entries={shareholdings.map(sh => ({
+                        id: sh.id,
+                        company_id: sh.company_id,
+                        company_name: sh.company_name,
+                        share_class: sh.share_class || "Ordinary",
+                        shares: sh.number_of_shares?.toLocaleString() || "-",
+                        percentage: sh.percentage_of_total != null ? `${sh.percentage_of_total.toFixed(1)}%` : "-",
+                        company_group: sh.company_group_name || "-",
+                        status: !sh.disposal_date ? "Current" : "Disposed",
+                        acquired: sh.acquisition_date ? new Date(sh.acquisition_date).toLocaleDateString() : "-",
+                      }))}
+                      columns={[
+                        { key: "company_name", label: "Company", column_type: "text" },
+                        { key: "share_class", label: "Class", column_type: "text" },
+                        { key: "shares", label: "Shares", column_type: "text" },
+                        { key: "percentage", label: "%", column_type: "text" },
+                        { key: "company_group", label: "Group", column_type: "text" },
+                        { key: "status", label: "Status", column_type: "text" },
+                        { key: "acquired", label: "Acquired", column_type: "text" },
+                      ] as TableColumn[]}
+                      tableName="Shareholdings"
+                      viewOnly={true}
+                      onRowClick={(row) => router.push(`/corporate/companies/${row.company_id}`)}
+                      customCellRenderer={(entry, columnKey) => {
+                        if (columnKey === "status") {
+                          const status = entry.status as string;
+                          return (
+                            <Badge className={status === "Current" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}>
+                              {status}
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">No shareholdings found.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Trust Roles Table */}
+              {trustRoles && trustRoles.total_count > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-purple-600" />
+                      Trust Roles ({trustRoles.total_count})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <TeeemTableView
+                      entries={[
+                        ...trustRoles.trustee_roles.map(r => ({
+                          id: r.id,
+                          trust_id: r.trust_id,
+                          trust_name: r.trust_name,
+                          role: "Trustee",
+                          entitlement: "-",
+                          status: r.is_active ? "Active" : "Inactive",
+                          since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
+                        })),
+                        ...trustRoles.beneficiary_roles.map(r => ({
+                          id: r.id,
+                          trust_id: r.trust_id,
+                          trust_name: r.trust_name,
+                          role: "Beneficiary",
+                          entitlement: r.ownership_percentage != null ? `${r.ownership_percentage.toFixed(1)}%` : "-",
+                          status: r.is_active ? "Active" : "Inactive",
+                          since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
+                        })),
+                        ...trustRoles.appointor_roles.map(r => ({
+                          id: r.id,
+                          trust_id: r.trust_id,
+                          trust_name: r.trust_name,
+                          role: "Appointor",
+                          entitlement: "-",
+                          status: r.is_active ? "Active" : "Inactive",
+                          since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
+                        })),
+                      ]}
+                      columns={[
+                        { key: "trust_name", label: "Trust", column_type: "text" },
+                        { key: "role", label: "Role", column_type: "text" },
+                        { key: "entitlement", label: "Entitlement", column_type: "text" },
+                        { key: "status", label: "Status", column_type: "text" },
+                        { key: "since", label: "Since", column_type: "text" },
+                      ] as TableColumn[]}
+                      tableName="Trust Roles"
+                      viewOnly={true}
+                      onRowClick={(row) => router.push(`/corporate/companies/${row.trust_id}`)}
+                      customCellRenderer={(entry, columnKey) => {
+                        if (columnKey === "role") {
+                          const role = entry.role as string;
+                          const colorClass = role === "Trustee"
+                            ? "bg-purple-100 text-purple-700"
+                            : role === "Beneficiary"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-amber-100 text-amber-700";
+                          return <Badge className={colorClass}>{role}</Badge>;
+                        }
+                        if (columnKey === "status") {
+                          const status = entry.status as string;
+                          return (
+                            <Badge className={status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
+                              {status}
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
         </TabsContent>
 
         {/* Communications Tab */}
