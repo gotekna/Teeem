@@ -1311,6 +1311,7 @@ Rails.application.routes.draw do
           post :auto_resolve_duplicates
           get :marked_for_deletion
           post :permanently_delete
+          get :counts
         end
         member do
           get :download

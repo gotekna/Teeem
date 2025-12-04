@@ -387,8 +387,31 @@ module Api
 
       def record_params
         # Get all column names for this foundation
-        column_names = @foundation.columns.pluck(:column_name)
-        params.require(:record).permit(*column_names)
+        columns = @foundation.columns
+
+        # Build permit list - arrays need special handling
+        permit_list = columns.map do |col|
+          if col.column_type == 'multiple_lookups'
+            # multiple_lookups columns accept arrays of IDs
+            { col.column_name.to_sym => [] }
+          else
+            col.column_name.to_sym
+          end
+        end
+
+        permitted = params.require(:record).permit(*permit_list)
+
+        # Convert multiple_lookups arrays to JSON strings for storage in TEXT columns
+        columns.each do |col|
+          if col.column_type == 'multiple_lookups' && permitted.key?(col.column_name)
+            value = permitted[col.column_name]
+            if value.is_a?(Array)
+              permitted[col.column_name] = value.to_json
+            end
+          end
+        end
+
+        permitted
       end
 
       # Apply default values for required fields that are blank
