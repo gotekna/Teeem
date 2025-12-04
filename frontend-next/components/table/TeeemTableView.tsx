@@ -42,7 +42,6 @@ import React, {
   useRef,
   useCallback,
   memo,
-  startTransition,
 } from "react";
 import {
   DndContext,
@@ -1124,6 +1123,12 @@ export default function TeeemTableView({
   const [activeViewId, setActiveViewId] = useState<number | string | null>(null);
   const viewsLoadingRef = useRef(false); // Prevent duplicate view fetches
   const initialViewLoadedRef = useRef(false); // Prevent re-loading views after initial load
+
+  // Row rendering limit for performance (render 100 rows initially, load more on demand)
+  const INITIAL_ROW_LIMIT = 100;
+  const [rowLimit, setRowLimit] = useState(INITIAL_ROW_LIMIT);
+  const [showAllRows, setShowAllRows] = useState(false);
+
   const [groupByColumn, setGroupByColumn] = useState<string | null>(initialGroupByColumn);
   const [groupByColumns, setGroupByColumns] = useState<string[]>(
     initialGroupByColumn ? [initialGroupByColumn] : []
@@ -2311,7 +2316,7 @@ export default function TeeemTableView({
     loadSavedViews();
   }, [foundationIdNumeric, preloadedViews]);
 
-  // Load view state helper - uses startTransition for non-urgent updates to avoid blocking UI
+  // Load view state helper - applies saved view configuration to current state
   // skipUrlUpdate: set to true when loading from URL to avoid redundant URL updates that can cause loops
   const loadViewState = useCallback(
     (view: SavedView, skipUrlUpdate = false) => {
@@ -2322,79 +2327,84 @@ export default function TeeemTableView({
           id: f.id || `filter_${Date.now()}_${idx}`,
         }));
 
-      console.log('[loadViewState] Loading view:', view.name, 'filters:', view.filters, 'visibleColumns:', view.visibleColumns);
+      console.log('[loadViewState] Loading view:', view.name, 'groupByColumns:', view.groupByColumns?.length || 0);
 
-      // Wrap all state updates in startTransition to mark them as non-urgent
-      // This allows React to interrupt the update if user interacts again
-      startTransition(() => {
-        // Handle filters - may be array (legacy) or object with cascadeFilters (current)
-        if (view.filters) {
-          if (Array.isArray(view.filters)) {
-            setCascadeFilters(ensureFilterIds(view.filters));
-          } else if (typeof view.filters === 'object' && view.filters !== null) {
-            // New format: filters is an object containing cascadeFilters
-            const filtersObj = view.filters as { cascadeFilters?: CascadeFilter[]; filterGroups?: FilterGroup[]; interGroupLogic?: "AND" | "OR" };
-            if (Array.isArray(filtersObj.cascadeFilters)) {
-              setCascadeFilters(ensureFilterIds(filtersObj.cascadeFilters));
-            }
-            if (Array.isArray(filtersObj.filterGroups)) {
-              setFilterGroups(filtersObj.filterGroups);
-            }
-            if (filtersObj.interGroupLogic) {
-              setInterGroupLogic(filtersObj.interGroupLogic);
-            }
+      // Apply all view state updates (removed startTransition - was causing 800ms delay)
+      // Handle filters - may be array (legacy) or object with cascadeFilters (current)
+      if (view.filters) {
+        if (Array.isArray(view.filters)) {
+          setCascadeFilters(ensureFilterIds(view.filters));
+        } else if (typeof view.filters === 'object' && view.filters !== null) {
+          // New format: filters is an object containing cascadeFilters
+          const filtersObj = view.filters as { cascadeFilters?: CascadeFilter[]; filterGroups?: FilterGroup[]; interGroupLogic?: "AND" | "OR" };
+          if (Array.isArray(filtersObj.cascadeFilters)) {
+            setCascadeFilters(ensureFilterIds(filtersObj.cascadeFilters));
+          }
+          if (Array.isArray(filtersObj.filterGroups)) {
+            setFilterGroups(filtersObj.filterGroups);
+          }
+          if (filtersObj.interGroupLogic) {
+            setInterGroupLogic(filtersObj.interGroupLogic);
           }
         }
-        // Legacy support for separate filterGroups field
-        if (view.filterGroups) {
-          setFilterGroups(view.filterGroups);
-        }
-        if (view.interGroupLogic) {
-          setInterGroupLogic(view.interGroupLogic);
-        }
-        if (view.visibleColumns) {
-          setVisibleColumns(view.visibleColumns);
-        }
-        if (view.columnOrder) {
-          setColumnOrder(view.columnOrder);
-        }
-        // Only load saved column widths if auto-fit is NOT enabled
-        // Check both direct property and columns object (API format varies)
-        const viewAny = view as SavedView & { columns?: { autoFitColumns?: boolean; showTotals?: boolean } };
-        const viewAutoFit = view.autoFitColumns === true ||
-          (viewAny.columns && viewAny.columns.autoFitColumns === true);
-        if (view.columnWidths && !viewAutoFit) {
-          setColumnWidths((prev) => ({ ...prev, ...view.columnWidths }));
-        }
-        if (view.sortColumns) {
-          setSortColumns(view.sortColumns);
-        }
-        if (view.groupByColumns) {
-          setGroupByColumns(view.groupByColumns);
-          setGroupByColumn(view.groupByColumns[0] || null);
-        } else if (view.groupByColumn) {
-          setGroupByColumn(view.groupByColumn);
-          setGroupByColumns(view.groupByColumn ? [view.groupByColumn] : []);
-        }
-        // Handle showTotals - check both direct property and columns object
-        if (typeof view.showTotals === 'boolean') {
-          setShowTotals(view.showTotals);
-        } else if (viewAny.columns && typeof viewAny.columns.showTotals === 'boolean') {
-          setShowTotals(viewAny.columns.showTotals);
-        }
-        // Handle autoFitColumns - check both direct property and columns object
-        if (typeof view.autoFitColumns === 'boolean') {
-          setAutoFitColumns(view.autoFitColumns);
-        } else if (viewAny.columns && typeof viewAny.columns.autoFitColumns === 'boolean') {
-          setAutoFitColumns(viewAny.columns.autoFitColumns);
-        }
-        // Hide filter editor when loading a saved view (user can click Filters button to show)
-        setShowFilters(false);
-        if (view.id) {
-          setActiveViewId(view.id);
-        }
-      });
-
+      }
+      // Legacy support for separate filterGroups field
+      if (view.filterGroups) {
+        setFilterGroups(view.filterGroups);
+      }
+      if (view.interGroupLogic) {
+        setInterGroupLogic(view.interGroupLogic);
+      }
+      if (view.visibleColumns) {
+        setVisibleColumns(view.visibleColumns);
+      }
+      if (view.columnOrder) {
+        setColumnOrder(view.columnOrder);
+      }
+      // Only load saved column widths if auto-fit is NOT enabled
+      // Check both direct property and columns object (API format varies)
+      const viewAny = view as SavedView & { columns?: { autoFitColumns?: boolean; showTotals?: boolean } };
+      const viewAutoFit = view.autoFitColumns === true ||
+        (viewAny.columns && viewAny.columns.autoFitColumns === true);
+      if (view.columnWidths && !viewAutoFit) {
+        setColumnWidths((prev) => ({ ...prev, ...view.columnWidths }));
+      }
+      if (view.sortColumns) {
+        setSortColumns(view.sortColumns);
+      }
+      if (view.groupByColumns && view.groupByColumns.length > 0) {
+        setGroupByColumns(view.groupByColumns);
+        setGroupByColumn(view.groupByColumns[0] || null);
+        // Collapse all groups by default for performance (user can expand as needed)
+        // This prevents rendering all rows when grouping is enabled
+        setCollapsedGroups(new Set(['__collapse_all_pending__'])); // Marker to collapse after groupedEntries is computed
+      } else if (view.groupByColumn) {
+        setGroupByColumn(view.groupByColumn);
+        setGroupByColumns(view.groupByColumn ? [view.groupByColumn] : []);
+        setCollapsedGroups(new Set(['__collapse_all_pending__']));
+      } else {
+        // Clear grouping
+        setGroupByColumns([]);
+        setGroupByColumn(null);
+        setCollapsedGroups(new Set());
+      }
+      // Handle showTotals - check both direct property and columns object
+      if (typeof view.showTotals === 'boolean') {
+        setShowTotals(view.showTotals);
+      } else if (viewAny.columns && typeof viewAny.columns.showTotals === 'boolean') {
+        setShowTotals(viewAny.columns.showTotals);
+      }
+      // Handle autoFitColumns - check both direct property and columns object
+      if (typeof view.autoFitColumns === 'boolean') {
+        setAutoFitColumns(view.autoFitColumns);
+      } else if (viewAny.columns && typeof viewAny.columns.autoFitColumns === 'boolean') {
+        setAutoFitColumns(viewAny.columns.autoFitColumns);
+      }
+      // Hide filter editor when loading a saved view (user can click Filters button to show)
+      setShowFilters(false);
+      if (view.id) {
+        setActiveViewId(view.id);
+      }
       // URL update is kept outside startTransition as it's a side effect
       // Skip URL update when loading from URL to avoid redundant updates/loops
       if (view.id && view.name && !skipUrlUpdate) {
@@ -2679,6 +2689,20 @@ export default function TeeemTableView({
     evaluateFilter,
   ]);
 
+  // Limit displayed rows for performance (initial render shows INITIAL_ROW_LIMIT rows)
+  const displayedRows = useMemo(() => {
+    if (showAllRows || filteredAndSortedEntries.length <= INITIAL_ROW_LIMIT) {
+      return filteredAndSortedEntries;
+    }
+    return filteredAndSortedEntries.slice(0, rowLimit);
+  }, [filteredAndSortedEntries, rowLimit, showAllRows, INITIAL_ROW_LIMIT]);
+
+  // Reset row limit when filters/sort change
+  useEffect(() => {
+    setRowLimit(INITIAL_ROW_LIMIT);
+    setShowAllRows(false);
+  }, [cascadeFilters, sortColumns, search, INITIAL_ROW_LIMIT]);
+
   // Helper to extract display value from a cell (handles objects with display/name properties)
   const getDisplayValue = useCallback((value: unknown): string => {
     if (value === null || value === undefined) return "No Value";
@@ -2759,8 +2783,17 @@ export default function TeeemTableView({
     }
   }, [search, groupedEntries]);
 
+  // Handle pending collapse-all when groupedEntries is ready
+  useEffect(() => {
+    if (groupedEntries && collapsedGroups.has('__collapse_all_pending__')) {
+      const allKeys = getAllGroupKeys(groupedEntries);
+      setCollapsedGroups(new Set(allKeys));
+    }
+  }, [groupedEntries, collapsedGroups, getAllGroupKeys]);
+
   // Get visible columns in order
   const visibleColumnsInOrder = useMemo(() => {
+    const startTime = performance.now();
     // Start with columns from columnOrder that are visible
     const orderedVisible = columnOrder
       .filter((key) => visibleColumns[key] === true)
@@ -2786,6 +2819,8 @@ export default function TeeemTableView({
       console.warn('[visibleColumnsInOrder] No visible columns! columnOrder:', columnOrder.length, 'visibleColumns:', Object.keys(visibleColumns).length, 'COLUMNS:', COLUMNS.length);
     }
 
+    const elapsed = performance.now() - startTime;
+    if (elapsed > 10) console.log('[visibleColumnsInOrder] took', elapsed.toFixed(0), 'ms');
     return orderedVisible;
   }, [columnOrder, visibleColumns, COLUMNS]);
 
@@ -5121,6 +5156,16 @@ export default function TeeemTableView({
   const renderGroupedTable = () => {
     if (!groupedEntries) return null;
 
+    // Don't render full table while waiting for collapse-all to complete
+    // This prevents rendering all rows expanded on first render
+    if (collapsedGroups.has('__collapse_all_pending__')) {
+      return (
+        <div className="flex items-center justify-center h-32 text-muted-foreground">
+          Loading grouped view...
+        </div>
+      );
+    }
+
     const allKeys = getAllGroupKeys(groupedEntries);
     const allCollapsed = allKeys.length > 0 && allKeys.every(k => collapsedGroups.has(k));
     const allExpanded = collapsedGroups.size === 0;
@@ -5263,66 +5308,93 @@ export default function TeeemTableView({
               </TableCell>
             </TableRow>
           ) : (
-            filteredAndSortedEntries.map((row, rowIndex) => (
-              <TableRow
-                key={`${row.id}-${rowIndex}`}
-                className={cn(
-                  selectedRows.has(row.id) && "bg-muted/50",
-                  editingRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
-                  "hover:bg-muted/30 cursor-pointer"
-                )}
-                onClick={(e) => {
-                  if (!editingRowIds.has(row.id) && onRowClick) {
-                    onRowClick(row);
+            <>
+              {displayedRows.map((row, rowIndex) => (
+                <TableRow
+                  key={`${row.id}-${rowIndex}`}
+                  className={cn(
+                    selectedRows.has(row.id) && "bg-muted/50",
+                    editingRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
+                    "hover:bg-muted/30 cursor-pointer"
+                  )}
+                  onClick={(e) => {
+                    if (!editingRowIds.has(row.id) && onRowClick) {
+                      onRowClick(row);
+                    }
+                  }}
+                  onDoubleClick={() =>
+                    !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
                   }
-                }}
-                onDoubleClick={() =>
-                  !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
-                }
-              >
-                {visibleColumnsInOrder.map((column, colIndex) => {
-                  const isSystemGen = isSystemGeneratedColumn(column);
-                  return (
+                >
+                  {visibleColumnsInOrder.map((column, colIndex) => {
+                    const isSystemGen = isSystemGeneratedColumn(column);
+                    return (
+                    <TableCell
+                      key={`${column.key}-${colIndex}`}
+                      style={{
+                        width: columnWidths[column.key] || column.width,
+                        minWidth: columnWidths[column.key] || column.width,
+                        ...(column.key === "select" && {
+                          position: 'sticky',
+                          left: 0,
+                          zIndex: 10,
+                          background: 'hsl(40, 11%, 95%)', // Light tint - between white and muted
+                          boxShadow: '1px 0 0 #d4d4d4', // Right border
+                          textAlign: 'center',
+                          verticalAlign: 'middle'
+                        }),
+                        ...(column.key === "actions" && {
+                          position: 'sticky',
+                          right: 0,
+                          zIndex: 10,
+                          background: 'hsl(40, 11%, 95%)', // Light tint - between white and muted
+                          boxShadow: '-1px 0 0 #d4d4d4', // Left border
+                        }),
+                        ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
+                          backgroundColor: SYSTEM_COLUMN_BG,
+                        })
+                      }}
+                      className={cn(
+                        column.key === "select" && "!border-r-0 !p-0 !h-full",
+                        column.key === "actions" && "!border-l-0"
+                      )}
+                    >
+                      {renderCellValue(row, column)}
+                    </TableCell>
+                  );
+                  })}
+                </TableRow>
+              ))}
+              {/* Show "Load More" row if there are more rows to display */}
+              {!showAllRows && displayedRows.length < filteredAndSortedEntries.length && (
+                <TableRow>
                   <TableCell
-                    key={`${column.key}-${colIndex}`}
-                    style={{
-                      width: columnWidths[column.key] || column.width,
-                      minWidth: columnWidths[column.key] || column.width,
-                      ...(column.key === "select" && {
-                        position: 'sticky',
-                        left: 0,
-                        zIndex: 10,
-                        background: 'hsl(40, 11%, 95%)', // Light tint - between white and muted
-                        boxShadow: '1px 0 0 #d4d4d4', // Right border
-                        textAlign: 'center',
-                        verticalAlign: 'middle'
-                      }),
-                      ...(column.key === "actions" && {
-                        position: 'sticky',
-                        right: 0,
-                        zIndex: 10,
-                        background: 'hsl(40, 11%, 95%)', // Light tint - between white and muted
-                        boxShadow: '-1px 0 0 #d4d4d4', // Left border
-                      }),
-                      ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
-                        backgroundColor: SYSTEM_COLUMN_BG,
-                      })
-                    }}
-                    className={cn(
-                      column.key === "select" && "!border-r-0 !p-0 !h-full",
-                      column.key === "actions" && "!border-l-0"
-                    )}
+                    colSpan={visibleColumnsInOrder.length}
+                    className="h-12 text-center"
                   >
-                    {renderCellValue(row, column)}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRowLimit(prev => prev + INITIAL_ROW_LIMIT)}
+                    >
+                      Load more ({filteredAndSortedEntries.length - displayedRows.length} remaining)
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-2"
+                      onClick={() => setShowAllRows(true)}
+                    >
+                      Show all {filteredAndSortedEntries.length}
+                    </Button>
                   </TableCell>
-                );
-                })}
-              </TableRow>
-            ))
+                </TableRow>
+              )}
+            </>
           )}
         </TableBody>
       </Table>
-  );
+    );
   };
 
   // Get active view name
@@ -5331,6 +5403,7 @@ export default function TeeemTableView({
   // ============================================================================
   // MAIN RENDER
   // ============================================================================
+
 
   return (
     <div className="flex flex-col h-full gap-4">

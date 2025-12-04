@@ -410,9 +410,9 @@ export default function ContactsPage() {
           )}
         </TabsContent>
 
-        {/* All/Persons/Companies/Suppliers Tab Content - Use TeeemTableView */}
-        {["all", "persons", "companies", "trusts", "suppliers"].map((tabValue) => (
-          <TabsContent key={tabValue} value={tabValue} className="mt-4">
+        {/* All/Persons/Companies/Suppliers Tab Content - Single TeeemTableView for performance */}
+        {activeTab !== "duplicates" && (
+          <TabsContent value={activeTab} className="mt-4" forceMount>
             <TeeemTableView
               entries={filteredRecords}
               columns={columns}
@@ -429,7 +429,7 @@ export default function ContactsPage() {
               leftActions={leftActions}
             />
           </TabsContent>
-        ))}
+        )}
       </Tabs>
 
       {/* Merge Modal */}
