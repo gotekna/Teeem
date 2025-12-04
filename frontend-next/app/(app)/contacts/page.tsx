@@ -425,6 +425,7 @@ export default function ContactsPage() {
               tableName={foundation?.name || "Contacts"}
               enableExport={true}
               enableImport={true}
+              showDataHealth={true}
               onRefresh={refresh}
               onRowClick={handleRowClick}
               onRowDoubleClick={handleRowDoubleClick}

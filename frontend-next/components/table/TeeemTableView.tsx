@@ -180,7 +180,7 @@ import {
   SEVERITY_COLORS,
 } from "./types";
 import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, getColumnTypeValidationRules, COLUMN_TYPES } from "@/lib/column-types";
-import { DataHealthWidget } from "./DataHealthWidget";
+import { DataHealthWidget, HealthIndicatorButton } from "./DataHealthWidget";
 import { ColumnEditorModal } from "./ColumnEditorModal";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { MergeModal } from "./MergeModal";
@@ -1114,6 +1114,7 @@ export default function TeeemTableView({
   const [groupViewMode, setGroupViewMode] = useState<"inline" | "panel">("inline"); // inline = groups as rows in table (default), panel = groups above header
   const [showTotals, setShowTotals] = useState(initialShowTotals); // Show column totals in footer
   const [autoFitColumns, setAutoFitColumns] = useState(false); // Auto-fit column widths to content
+  const [healthPanelOpen, setHealthPanelOpen] = useState(false); // Show health check panel
   const [editingRowIds, setEditingRowIds] = useState<Set<number | string>>(new Set()); // Multi-row editing
   const [editingData, setEditingData] = useState<Record<string | number, Record<string, unknown>>>({}); // keyed by row id
   const [validationErrors, setValidationErrors] = useState<Record<string, Record<string, string>>>({}); // {rowId: {columnKey: errorMessage}}
@@ -4873,11 +4874,12 @@ export default function TeeemTableView({
 
   return (
     <div className="flex flex-col h-full gap-4">
-      {/* Data Health Widget */}
-      {showDataHealth && foundationIdNumeric && (
+      {/* Data Health Widget - shown when button clicked or showDataHealth prop is true */}
+      {(healthPanelOpen || showDataHealth) && foundationIdNumeric && (
         <DataHealthWidget
           foundationId={foundationIdNumeric}
-          compact
+          compact={!healthPanelOpen}
+          forceShow={healthPanelOpen}
           onIssueClick={onDataHealthIssueClick}
           onDataChanged={onRefresh}
         />
@@ -4895,10 +4897,17 @@ export default function TeeemTableView({
               onClick={onAddRow}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add
+              Add Record
             </Button>
           )}
           {leftActions}
+          {/* Health Indicator Button - shows if table has health checks */}
+          {foundationIdNumeric && (
+            <HealthIndicatorButton
+              foundationId={foundationIdNumeric}
+              onClick={() => setHealthPanelOpen(!healthPanelOpen)}
+            />
+          )}
           <SearchInput
           onSearch={handleSearchFromInput}
           onSearchAllChange={handleSearchAllChange}

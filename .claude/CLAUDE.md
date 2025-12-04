@@ -10,15 +10,14 @@
 - ✅ Wait for user confirmation before committing
 - ✅ Only commit/push when user says: "commit", "push", "ship it", "looks good, push it", etc.
 
-## 🔴 CRITICAL: Git Branch Protection
+## 🔴 CRITICAL: Git Branch - Rob Works on Live
 
-**NEVER push directly to the `Live` branch.** This is our production branch (equivalent to main/master).
+**Rob works directly on the `Live` branch.** No feature branches needed for Rob.
 
-- ALWAYS work on feature branches (like `rob`, `jake`, etc.)
-- NEVER run `git push origin Live` or `git push --force` to Live
-- If asked to push, push to the current feature branch only
-- NEVER ask the user to create PRs or merge to Live - they will handle this themselves
-- NEVER mention "ready for PR" or "create a PR" - just push to the feature branch and move on
+- ✅ Rob commits and pushes directly to `Live`
+- ✅ Test locally or deploy to `teeemlive` (production) for testing
+- ✅ Use `/l` command to deploy Live branch to production
+- Other developers (jake, etc.) should still use feature branches
 
 ## 🔴 CRITICAL: Heroku App Restriction
 
@@ -29,55 +28,29 @@
 - ✅ Use `--app teeem-rob-dev` for staging
 - ✅ Use `--app teeemlive` for production
 
-## 🔴 CRITICAL: Production Deployment Restriction
+## 🔴 Production Deployment
 
-**ONLY deploy to production (`teeemlive`) using the `/l` command.**
-
-- ❌ NEVER manually run `git push heroku-teeemlive` or `git subtree push` to production
-- ❌ NEVER deploy to production outside of the `/l` command workflow
-- ✅ Use `/l` command to deploy Live branch to production
-- ✅ The `/l` command ensures proper workflow: checkout Live → pull latest → git subtree deploy
-
-### After Pushing to Rob Branch - Deploy to Heroku
-
-When you push to the `rob` branch, deploy directly to Heroku using git subtree:
-
-**IMPORTANT: git subtree commands MUST run from repo root `/Users/robertharder/GitHub/teeem`**
+**Deploy to production (`teeemlive`) using the `/l` command or manually:**
 
 ```bash
-# 1. Push to GitHub first
-git push origin rob
+# Using /l command (recommended)
+/l
 
-# 2. Deploy backend to Heroku via subtree (MUST run from repo root)
+# Or manually deploy backend to Heroku:
 cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend -b temp-backend-deploy
-git push heroku-rob-dev temp-backend-deploy:main --force
+git push heroku-teeemlive temp-backend-deploy:main --force
 git branch -D temp-backend-deploy
-
-# 3. Sync local version to match staging
-cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
 ```
-
-**Note:** Version only increments if backend code changed. Frontend-only deploys won't change the version.
-
-### Heroku Git Remote Setup
-
-The `heroku-rob-dev` remote must be configured:
-```bash
-git remote add heroku-rob-dev https://git.heroku.com/teeem-rob-dev.git
-```
-
-Verify with: `git remote -v | grep heroku`
 
 ### Heroku Environments
 
 | Environment | Heroku App | Branch | Frontend |
 |-------------|-----------|--------|----------|
 | **Production** | `teeemlive` | Live | https://teeemlive.vercel.app |
-| **Staging/Dev** | `teeem-rob-dev` | rob | https://teeemrob.vercel.app |
 
-**Staging URLs:**
-- Backend: https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/
-- Frontend: https://teeemrob.vercel.app/
+**Production URLs:**
+- Backend: https://teeem-backend-39604ccca45a.herokuapp.com/
+- Frontend: https://teeemlive.vercel.app/
 
 ---
 

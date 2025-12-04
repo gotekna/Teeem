@@ -62,6 +62,7 @@ interface HealthData {
 interface DataHealthWidgetProps {
   foundationId: number;
   compact?: boolean;
+  forceShow?: boolean; // Always show even if no issues (for explicit open via button)
   onIssueClick?: (item: HealthCheckItem, check: HealthCheck) => void;
   onDataChanged?: () => void;
 }
@@ -75,6 +76,7 @@ interface DataHealthWidgetProps {
 export function DataHealthWidget({
   foundationId,
   compact = false,
+  forceShow = false,
   onIssueClick,
   onDataChanged,
 }: DataHealthWidgetProps) {
@@ -84,6 +86,11 @@ export function DataHealthWidget({
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [expanded, setExpanded] = useState(!compact);
   const [expandedCheck, setExpandedCheck] = useState<number | null>(null);
+
+  // Update expanded state when compact prop changes
+  useEffect(() => {
+    setExpanded(!compact);
+  }, [compact]);
 
   // Load health data from API
   const loadHealthData = useCallback(async () => {
@@ -154,8 +161,8 @@ export function DataHealthWidget({
     return null;
   }
 
-  // Don't render if no issues
-  if (!loading && healthData && !healthData.has_issues) {
+  // Don't render if no issues (unless forceShow is true)
+  if (!forceShow && !loading && healthData && !healthData.has_issues) {
     return null;
   }
 
@@ -370,3 +377,86 @@ export function DataHealthWidget({
 }
 
 export default DataHealthWidget;
+
+/**
+ * HealthIndicatorButton - Compact health indicator for toolbar
+ * Shows a small button with hospital cross icon colored by health score
+ * Red: <75%, Orange: 75-99%, Green: 100%
+ */
+interface HealthIndicatorButtonProps {
+  foundationId: number;
+  onClick?: () => void;
+}
+
+export function HealthIndicatorButton({
+  foundationId,
+  onClick,
+}: HealthIndicatorButtonProps) {
+  const [loading, setLoading] = useState(true);
+  const [healthData, setHealthData] = useState<HealthData | null>(null);
+
+  const loadHealthData = useCallback(async () => {
+    if (!foundationId) return;
+
+    try {
+      setLoading(true);
+      const data = await api.get<HealthData>(
+        `/api/v1/foundations/${foundationId}/health`
+      );
+      setHealthData(data);
+    } catch (err) {
+      console.error("Failed to load health data:", err);
+      setHealthData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [foundationId]);
+
+  useEffect(() => {
+    loadHealthData();
+  }, [loadHealthData]);
+
+  // Don't render if no health checks for this table
+  if (!loading && (!healthData || healthData.checks?.length === 0)) {
+    return null;
+  }
+
+  // Get color based on health score
+  const getHealthColor = (score: number) => {
+    if (score >= 100) return "text-green-600 bg-green-50 border-green-200 hover:bg-green-100";
+    if (score >= 75) return "text-orange-600 bg-orange-50 border-orange-200 hover:bg-orange-100";
+    return "text-red-600 bg-red-50 border-red-200 hover:bg-red-100";
+  };
+
+  const score = healthData?.overall_health ?? 0;
+  const issues = healthData?.total_issues ?? 0;
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onClick}
+      className={cn(
+        "relative gap-1.5 font-medium",
+        loading ? "opacity-50" : getHealthColor(score)
+      )}
+      title={`Data Health: ${score}% (${issues} issues)`}
+    >
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <>
+          {/* Hospital Cross Icon */}
+          <svg
+            className="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" />
+          </svg>
+          <span>{score}%</span>
+        </>
+      )}
+    </Button>
+  );
+}
