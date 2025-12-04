@@ -403,10 +403,12 @@ module Api
 
         # Convert multiple_lookups arrays to JSON strings for storage in TEXT columns
         columns.each do |col|
-          if col.column_type == 'multiple_lookups' && permitted.key?(col.column_name)
-            value = permitted[col.column_name]
+          col_name = col.column_name
+          # Check both string and symbol keys
+          if col.column_type == 'multiple_lookups' && (permitted.key?(col_name) || permitted.key?(col_name.to_sym))
+            value = permitted[col_name] || permitted[col_name.to_sym]
             if value.is_a?(Array)
-              permitted[col.column_name] = value.to_json
+              permitted[col_name] = value.to_json
             end
           end
         end

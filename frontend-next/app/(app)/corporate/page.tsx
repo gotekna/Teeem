@@ -277,6 +277,10 @@ export default function CorporateDashboardPage() {
   const [structureData, setStructureData] = React.useState<StructureData | null>(null);
   const [loadingStructure, setLoadingStructure] = React.useState(false);
 
+  // People tab state
+  const [people, setPeople] = React.useState<TableRow[]>([]);
+  const [loadingPeople, setLoadingPeople] = React.useState(false);
+
   // Load initial data
   React.useEffect(() => {
     loadDashboardData();
@@ -434,6 +438,29 @@ export default function CorporateDashboardPage() {
       loadStructure();
     }
   }, [selectedGroupId, activeTab]);
+
+  // Load people when people tab is active
+  React.useEffect(() => {
+    const loadPeople = async () => {
+      try {
+        setLoadingPeople(true);
+        // Get all contacts with entity_type = 'person'
+        const response = await api.get<{ contacts: TableRow[] }>("/api/v1/contacts", {
+          params: { entity_type: "person" }
+        });
+        setPeople(response.contacts || []);
+      } catch (error) {
+        console.error("Failed to load people:", error);
+        setPeople([]);
+      } finally {
+        setLoadingPeople(false);
+      }
+    };
+
+    if (activeTab === "people" && people.length === 0) {
+      loadPeople();
+    }
+  }, [activeTab, people.length]);
 
   // ===== HANDLERS =====
 
@@ -881,7 +908,7 @@ export default function CorporateDashboardPage() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+        <TabsList className="grid w-full grid-cols-5 max-w-3xl">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             Dashboard
@@ -889,6 +916,10 @@ export default function CorporateDashboardPage() {
           <TabsTrigger value="companies" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             Companies
+          </TabsTrigger>
+          <TabsTrigger value="people" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            People
           </TabsTrigger>
           <TabsTrigger value="memberships" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
@@ -974,6 +1005,88 @@ export default function CorporateDashboardPage() {
               </Button>
             }
           />
+        </TabsContent>
+
+        {/* People Tab */}
+        <TabsContent value="people" className="mt-4">
+          {loadingPeople ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="h-5 w-5 text-teal-600" />
+                  People ({people.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {people.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-8">
+                    No people found
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2 px-3 font-medium">Name</th>
+                          <th className="text-left py-2 px-3 font-medium">Email</th>
+                          <th className="text-left py-2 px-3 font-medium">Phone</th>
+                          <th className="text-left py-2 px-3 font-medium">Company Groups</th>
+                          <th className="text-left py-2 px-3 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {people.map((person) => (
+                          <tr key={person.id} className="border-b hover:bg-muted/50">
+                            <td className="py-2 px-3">
+                              <div className="flex items-center gap-2">
+                                <Users className="h-4 w-4 text-teal-500" />
+                                <div>
+                                  <div className="font-medium">{person.full_name || person.name}</div>
+                                  {person.position && (
+                                    <div className="text-xs text-muted-foreground">{person.position}</div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-muted-foreground">
+                              {person.email || "—"}
+                            </td>
+                            <td className="py-2 px-3 text-muted-foreground">
+                              {person.mobile_phone || person.phone || "—"}
+                            </td>
+                            <td className="py-2 px-3">
+                              {person.company_group_memberships_count > 0 ? (
+                                <Badge variant="secondary">
+                                  {person.company_group_memberships_count} group{person.company_group_memberships_count !== 1 ? 's' : ''}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => router.push(`/contacts/${person.id}`)}
+                                  className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                  View
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Memberships Tab (SSoT) */}
