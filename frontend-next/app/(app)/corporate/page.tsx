@@ -439,16 +439,61 @@ export default function CorporateDashboardPage() {
     }
   }, [selectedGroupId, activeTab]);
 
-  // Load people when people tab is active
+  // Load people when people tab is active - only people linked to company groups
   React.useEffect(() => {
     const loadPeople = async () => {
       try {
         setLoadingPeople(true);
-        // Get all contacts with entity_type = 'person'
-        const response = await api.get<{ contacts: TableRow[] }>("/api/v1/contacts", {
-          params: { entity_type: "person" }
-        });
-        setPeople(response.contacts || []);
+        // Get all people from all company groups (people who have memberships)
+        const allPeople: TableRow[] = [];
+        const seenIds = new Set<number>();
+
+        for (const group of groups) {
+          const response = await api.get<{ success: boolean; data: Membership[] }>(
+            `/api/v1/company_groups/${group.id}/contacts`
+          );
+          const memberships = response.data || [];
+          // Filter for people only (not company_entity or trust_entity)
+          const peopleInGroup = memberships.filter(m =>
+            m.contact_entity_type === 'person' ||
+            (!['company_entity', 'trust_entity'].includes(m.membership_type) &&
+             !['company', 'trust'].includes(m.contact_entity_type || ''))
+          );
+
+          for (const m of peopleInGroup) {
+            if (!seenIds.has(m.contact_id)) {
+              seenIds.add(m.contact_id);
+              allPeople.push({
+                id: m.contact_id,
+                full_name: m.contact_name,
+                email: m.contact_email,
+                entity_type: m.contact_entity_type,
+                company_group_memberships_count: 1, // Will be updated below
+                membership_types: [m.membership_type],
+                company_group_names: [groupsMap[group.id] || group.name],
+              });
+            } else {
+              // Update existing entry with additional membership info
+              const existing = allPeople.find(p => p.id === m.contact_id);
+              if (existing) {
+                existing.company_group_memberships_count = ((existing.company_group_memberships_count as number) || 0) + 1;
+                const types = existing.membership_types as string[];
+                if (!types.includes(m.membership_type)) {
+                  types.push(m.membership_type);
+                }
+                const groupNames = existing.company_group_names as string[];
+                const groupName = groupsMap[group.id] || group.name;
+                if (!groupNames.includes(groupName)) {
+                  groupNames.push(groupName);
+                }
+              }
+            }
+          }
+        }
+
+        // Sort by name
+        allPeople.sort((a, b) => ((a.full_name as string) || '').localeCompare((b.full_name as string) || ''));
+        setPeople(allPeople);
       } catch (error) {
         console.error("Failed to load people:", error);
         setPeople([]);
@@ -457,10 +502,10 @@ export default function CorporateDashboardPage() {
       }
     };
 
-    if (activeTab === "people" && people.length === 0) {
+    if (activeTab === "people" && people.length === 0 && groups.length > 0) {
       loadPeople();
     }
-  }, [activeTab, people.length]);
+  }, [activeTab, people.length, groups, groupsMap]);
 
   // ===== HANDLERS =====
 
@@ -1033,7 +1078,7 @@ export default function CorporateDashboardPage() {
                         <tr className="border-b">
                           <th className="text-left py-2 px-3 font-medium">Name</th>
                           <th className="text-left py-2 px-3 font-medium">Email</th>
-                          <th className="text-left py-2 px-3 font-medium">Phone</th>
+                          <th className="text-left py-2 px-3 font-medium">Roles</th>
                           <th className="text-left py-2 px-3 font-medium">Company Groups</th>
                           <th className="text-left py-2 px-3 font-medium">Actions</th>
                         </tr>
@@ -1042,36 +1087,36 @@ export default function CorporateDashboardPage() {
                         {people.map((person) => {
                           const name = (person.full_name || person.name || "Unknown") as string;
                           const email = (person.email || "—") as string;
-                          const phone = (person.mobile_phone || person.phone || "—") as string;
-                          const position = person.position as string | undefined;
-                          const groupCount = (person.company_group_memberships_count || 0) as number;
+                          const membershipTypes = (person.membership_types || []) as string[];
+                          const groupNames = (person.company_group_names || []) as string[];
                           return (
                             <tr key={person.id} className="border-b hover:bg-muted/50">
                               <td className="py-2 px-3">
                                 <div className="flex items-center gap-2">
                                   <Users className="h-4 w-4 text-teal-500" />
-                                  <div>
-                                    <div className="font-medium">{name}</div>
-                                    {position && (
-                                      <div className="text-xs text-muted-foreground">{position}</div>
-                                    )}
-                                  </div>
+                                  <div className="font-medium">{name}</div>
                                 </div>
                               </td>
                               <td className="py-2 px-3 text-muted-foreground">
                                 {email}
                               </td>
-                              <td className="py-2 px-3 text-muted-foreground">
-                                {phone}
+                              <td className="py-2 px-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {membershipTypes.map((type, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs">
+                                      {type.replace('_', ' ')}
+                                    </Badge>
+                                  ))}
+                                </div>
                               </td>
                               <td className="py-2 px-3">
-                                {groupCount > 0 ? (
-                                  <Badge variant="secondary">
-                                    {groupCount} group{groupCount !== 1 ? 's' : ''}
-                                  </Badge>
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )}
+                                <div className="flex flex-wrap gap-1">
+                                  {groupNames.map((gn, idx) => (
+                                    <Badge key={idx} variant="secondary" className="text-xs">
+                                      {gn}
+                                    </Badge>
+                                  ))}
+                                </div>
                               </td>
                               <td className="py-2 px-3">
                                 <div className="flex items-center gap-2">
