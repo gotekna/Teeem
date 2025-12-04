@@ -346,6 +346,42 @@ module Api
       def destroy
         # Comprehensive safety checks before deletion
 
+        # Check for Company Group links (SSoT protection)
+        if @contact.link_to_cg
+          if @contact.linked_company_id.present?
+            # This contact is linked to a Company record
+            company = Company.find_by(id: @contact.linked_company_id)
+            return render json: {
+              success: false,
+              error: "Cannot delete contact linked to Company '#{company&.name || 'Unknown'}'. Unlink from Company Group first.",
+              reason: "linked_to_company",
+              linked_company_id: @contact.linked_company_id
+            }, status: :unprocessable_entity
+          else
+            # This is a person with Company Group memberships
+            membership_count = ContactCompanyGroupMembership.where(contact_id: @contact.id).count
+            if membership_count > 0
+              return render json: {
+                success: false,
+                error: "Cannot delete contact with #{membership_count} Company Group membership(s). Remove memberships first.",
+                reason: "has_company_group_memberships",
+                count: membership_count
+              }, status: :unprocessable_entity
+            end
+          end
+        end
+
+        # Check if this contact has a Company record pointing to it
+        linked_company = Company.find_by(contact_id: @contact.id)
+        if linked_company.present?
+          return render json: {
+            success: false,
+            error: "Cannot delete contact - Company '#{linked_company.name}' is linked to this contact. Unlink from Corporate first.",
+            reason: "company_linked_to_contact",
+            linked_company_id: linked_company.id
+          }, status: :unprocessable_entity
+        end
+
         # Check for linked suppliers
         if @contact.suppliers.any?
           suppliers_with_pos = @contact.suppliers.joins(:purchase_orders).distinct
@@ -781,6 +817,39 @@ module Api
             PricebookItem.where(supplier_id: source.id).update_all(supplier_id: target_id)
             PurchaseOrder.where(supplier_id: source.id).update_all(supplier_id: target_id)
             PriceHistory.where(supplier_id: source.id).update_all(supplier_id: target_id)
+
+            # Transfer Company Group links from source to target (SSoT)
+            if source.link_to_cg
+              # Transfer linked_company_id if source has one and target doesn't
+              if source.linked_company_id.present? && target_contact.linked_company_id.blank?
+                # Update the Company record to point to target contact
+                Company.where(contact_id: source.id).update_all(contact_id: target_id)
+                target_contact.update(linked_company_id: source.linked_company_id, link_to_cg: true)
+              end
+
+              # Transfer Company Group memberships to target
+              ContactCompanyGroupMembership.where(contact_id: source.id).each do |membership|
+                # Check if target already has this membership
+                existing = ContactCompanyGroupMembership.find_by(
+                  contact_id: target_id,
+                  company_group_id: membership.company_group_id
+                )
+                if existing
+                  # Merge permissions - keep the higher permission level
+                  existing.update(
+                    can_view_confidential: existing.can_view_confidential || membership.can_view_confidential,
+                    can_edit: existing.can_edit || membership.can_edit
+                  )
+                  membership.destroy
+                else
+                  # Transfer membership to target
+                  membership.update(contact_id: target_id)
+                end
+              end
+
+              # Mark target as linked to CG if source was
+              target_contact.update(link_to_cg: true) unless target_contact.link_to_cg
+            end
 
             # Delete the source contact
             source.destroy
