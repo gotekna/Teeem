@@ -1403,30 +1403,22 @@ module Api
         end
 
         begin
-          service = JobDocumentMigrationService.new
-          result = service.import_files_to_job(job, file_ids)
+          # Queue the import as a background job to avoid HTTP timeouts
+          # Large imports can take several minutes
+          ImportLegacyFilesJob.perform_later(job.id, file_ids, current_user&.id)
 
-          if result[:success]
-            render json: {
-              success: true,
-              message: "Imported #{result[:imported].length} files to job folder",
-              job_id: job.id,
-              imported: result[:imported],
-              errors: result[:errors]
-            }
-          else
-            render json: {
-              success: false,
-              error: result[:error],
-              imported: result[:imported] || [],
-              errors: result[:errors] || []
-            }, status: :unprocessable_entity
-          end
+          render json: {
+            success: true,
+            message: "Import of #{file_ids.length} files has been queued. Files will appear in the job folder shortly.",
+            job_id: job.id,
+            queued: true,
+            file_count: file_ids.length
+          }
 
         rescue StandardError => e
           Rails.logger.error "[Import Legacy] Exception: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to import files: #{e.message}" }, status: :internal_server_error
+          render json: { error: "Failed to queue import: #{e.message}" }, status: :internal_server_error
         end
       end
 
