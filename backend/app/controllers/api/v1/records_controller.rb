@@ -416,6 +416,28 @@ module Api
           end
         end
 
+        # Special handling for Contact model's contact_types column
+        # It stores string values like ["customer", "supplier"] but receives lookup IDs
+        if @foundation.model_class == 'Contact' && permitted.key?('contact_types')
+          value = permitted['contact_types']
+          if value.is_a?(Array) && value.first.is_a?(Integer)
+            # Map lookup IDs to their string values from the ContactType lookup table
+            contact_type_col = columns.find { |c| c.column_name == 'contact_types' }
+            if contact_type_col&.lookup_foundation_id.present?
+              lookup_foundation = Foundation.find_by(id: contact_type_col.lookup_foundation_id)
+              if lookup_foundation
+                lookup_model = lookup_foundation.dynamic_model
+                display_col = contact_type_col.lookup_display_column || 'display_name'
+                # Fetch the display values and convert to lowercase snake_case
+                string_values = lookup_model.where(id: value).pluck(display_col).map do |display|
+                  display.to_s.downcase.gsub(' ', '_')
+                end
+                permitted['contact_types'] = string_values
+              end
+            end
+          end
+        end
+
         permitted
       end
 
