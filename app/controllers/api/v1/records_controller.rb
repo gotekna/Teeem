@@ -402,13 +402,16 @@ module Api
         permitted = params.require(:record).permit(*permit_list)
 
         # Convert multiple_lookups arrays to JSON strings for storage in TEXT columns
-        columns.each do |col|
-          col_name = col.column_name
-          # Check both string and symbol keys
-          if col.column_type == 'multiple_lookups' && (permitted.key?(col_name) || permitted.key?(col_name.to_sym))
-            value = permitted[col_name] || permitted[col_name.to_sym]
-            if value.is_a?(Array)
-              permitted[col_name] = value.to_json
+        # BUT NOT for system tables - they use native PostgreSQL arrays
+        unless @foundation.table_type == 'system' && @foundation.model_class.present?
+          columns.each do |col|
+            col_name = col.column_name
+            # Check both string and symbol keys
+            if col.column_type == 'multiple_lookups' && (permitted.key?(col_name) || permitted.key?(col_name.to_sym))
+              value = permitted[col_name] || permitted[col_name.to_sym]
+              if value.is_a?(Array)
+                permitted[col_name] = value.to_json
+              end
             end
           end
         end
