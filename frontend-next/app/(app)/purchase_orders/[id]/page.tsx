@@ -189,6 +189,18 @@ export default function PurchaseOrderDetailPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
+  // Original state for change tracking
+  const [originalState, setOriginalState] = useState<{
+    description: string;
+    status: string;
+    budget: string;
+    requiredDate: string;
+    orderedDate: string;
+    notes: string;
+    selectedSupplier: Supplier | null;
+    lineItems: LineItem[];
+  } | null>(null);
+
   // Load purchase order
   useEffect(() => {
     loadPurchaseOrder();
@@ -212,16 +224,37 @@ export default function PurchaseOrderDetailPage() {
       setPurchaseOrder(response);
 
       // Initialize editable fields
-      setDescription(response.description || "");
-      setStatus(response.status || "draft");
-      setBudget(response.budget?.toString() || "");
-      setRequiredDate(response.required_date || "");
-      setOrderedDate(response.ordered_date || "");
-      setNotes(response.special_instructions || "");
-      setSelectedSupplier(response.supplier || null);
+      const desc = response.description || "";
+      const stat = response.status || "draft";
+      const budg = response.budget?.toString() || "";
+      const reqDate = response.required_date || "";
+      const ordDate = response.ordered_date || "";
+      const note = response.special_instructions || "";
+      const supp = response.supplier || null;
       // Ensure there's always one blank line at the end
       const items = response.line_items || [];
-      setLineItems([...items, { description: "", quantity: 0, unit_price: 0 }]);
+      const itemsWithBlank = [...items, { description: "", quantity: 0, unit_price: 0 }];
+
+      setDescription(desc);
+      setStatus(stat);
+      setBudget(budg);
+      setRequiredDate(reqDate);
+      setOrderedDate(ordDate);
+      setNotes(note);
+      setSelectedSupplier(supp);
+      setLineItems(itemsWithBlank);
+
+      // Store original state for change tracking
+      setOriginalState({
+        description: desc,
+        status: stat,
+        budget: budg,
+        requiredDate: reqDate,
+        orderedDate: ordDate,
+        notes: note,
+        selectedSupplier: supp,
+        lineItems: itemsWithBlank,
+      });
     } catch (err) {
       console.error("Failed to load purchase order:", err);
       setError("Failed to load purchase order");
@@ -321,6 +354,73 @@ export default function PurchaseOrderDetailPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Check if changes have been made
+  const hasChanges = useCallback(() => {
+    if (!originalState) return false;
+
+    // Compare simple fields
+    if (
+      description !== originalState.description ||
+      status !== originalState.status ||
+      budget !== originalState.budget ||
+      requiredDate !== originalState.requiredDate ||
+      orderedDate !== originalState.orderedDate ||
+      notes !== originalState.notes ||
+      selectedSupplier?.id !== originalState.selectedSupplier?.id
+    ) {
+      return true;
+    }
+
+    // Compare line items (excluding the blank line at the end)
+    const currentItems = lineItems.filter((item) => !isBlankLineItem(item) || item.id);
+    const originalItems = originalState.lineItems.filter((item) => !isBlankLineItem(item) || item.id);
+
+    if (currentItems.length !== originalItems.length) return true;
+
+    for (let i = 0; i < currentItems.length; i++) {
+      const curr = currentItems[i];
+      const orig = originalItems[i];
+
+      if (
+        curr.description !== orig.description ||
+        curr.quantity !== orig.quantity ||
+        curr.unit_price !== orig.unit_price ||
+        curr.gst_code !== orig.gst_code ||
+        curr.notes !== orig.notes ||
+        curr.pricebook_item_id !== orig.pricebook_item_id ||
+        curr._destroy !== orig._destroy
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }, [
+    description,
+    status,
+    budget,
+    requiredDate,
+    orderedDate,
+    notes,
+    selectedSupplier,
+    lineItems,
+    originalState,
+  ]);
+
+  // Discard changes
+  const handleDiscard = () => {
+    if (!originalState) return;
+
+    setDescription(originalState.description);
+    setStatus(originalState.status);
+    setBudget(originalState.budget);
+    setRequiredDate(originalState.requiredDate);
+    setOrderedDate(originalState.orderedDate);
+    setNotes(originalState.notes);
+    setSelectedSupplier(originalState.selectedSupplier);
+    setLineItems([...originalState.lineItems]);
   };
 
   // Line item handlers
@@ -550,16 +650,25 @@ export default function PurchaseOrderDetailPage() {
           </div>
         </div>
 
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? (
+        <div className="flex gap-2">
+          {hasChanges() && (
             <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Saving...
+              <Button onClick={handleDiscard} variant="outline" disabled={saving}>
+                Discard Changes
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
             </>
-          ) : (
-            "Save Changes"
           )}
-        </Button>
+        </div>
       </div>
 
       {error && (
@@ -717,23 +826,29 @@ export default function PurchaseOrderDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[150px]">CODE</TableHead>
-                  <TableHead>DESCRIPTION</TableHead>
-                  <TableHead className="w-[70px] text-right">QTY</TableHead>
-                  <TableHead className="w-[100px] text-right">UNIT PRICE</TableHead>
-                  <TableHead className="w-[100px]">GST TYPE</TableHead>
-                  <TableHead className="w-[100px] text-right">SUBTOTAL</TableHead>
-                  <TableHead className="w-[80px] text-right">GST</TableHead>
-                  <TableHead className="w-[100px] text-right">TOTAL</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead className="w-[150px] py-2">CODE</TableHead>
+                  <TableHead className="py-2">DESCRIPTION</TableHead>
+                  <TableHead className="w-[70px] text-right py-2">QTY</TableHead>
+                  <TableHead className="w-[100px] text-right py-2">UNIT PRICE</TableHead>
+                  <TableHead className="w-[100px] py-2">GST TYPE</TableHead>
+                  <TableHead className="w-[100px] text-right py-2">SUBTOTAL</TableHead>
+                  <TableHead className="w-[80px] text-right py-2">GST</TableHead>
+                  <TableHead className="w-[100px] text-right py-2">TOTAL</TableHead>
+                  <TableHead className="w-[50px] py-2"></TableHead>
                 </TableRow>
               </TableHeader>
             <TableBody>
               {lineItems
                 .filter((item) => !item._destroy)
-                .map((item, index) => (
-                  <TableRow key={item.id || `new-${index}`}>
-                    <TableCell>
+                .map((item, index) => {
+                  const activeItems = lineItems.filter((item) => !item._destroy);
+                  const isLastItem = index === activeItems.length - 1;
+                  const isBlank = isBlankLineItem(item);
+                  const shouldGreyOut = isLastItem && isBlank;
+
+                  return (
+                  <TableRow key={item.id || `new-${index}`} className="h-auto" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
+                    <TableCell className="py-1 border-b" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
                       <Popover
                         open={pricebookOpenFor === index}
                         onOpenChange={(open) => {
@@ -745,7 +860,8 @@ export default function PurchaseOrderDetailPage() {
                           <Button
                             variant="outline"
                             role="combobox"
-                            className="w-full justify-between"
+                            className="w-full justify-between border-0 rounded-none h-10 focus-visible:ring-0 focus-visible:ring-offset-0"
+                            style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}
                           >
                             {item.pricebook_item?.item_code || (
                               <span className="text-muted-foreground">-</span>
@@ -796,37 +912,47 @@ export default function PurchaseOrderDetailPage() {
                         </PopoverContent>
                       </Popover>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-1 border-b" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
                       <Input
                         value={item.description}
                         onChange={(e) => updateLineItem(index, "description", e.target.value)}
                         placeholder="Item description"
+                        className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-10"
+                        style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-1 border-b" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
                       <Input
                         type="number"
                         value={item.quantity}
                         onChange={(e) =>
                           updateLineItem(index, "quantity", parseFloat(e.target.value) || 0)
                         }
-                        className="text-right"
+                        className={cn(
+                          "text-right text-sm h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+                          shouldGreyOut && "text-muted-foreground"
+                        )}
+                        style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}
                         min={0}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-1 border-b" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
                       <Input
                         type="number"
                         value={item.unit_price}
                         onChange={(e) =>
                           updateLineItem(index, "unit_price", parseFloat(e.target.value) || 0)
                         }
-                        className="text-right"
+                        className={cn(
+                          "text-right text-sm h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+                          shouldGreyOut && "text-muted-foreground"
+                        )}
+                        style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}
                         min={0}
                         step={0.01}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-1 border-b" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
                       {/* GST Type selector - disabled if pricebook item is selected */}
                       <Popover>
                         <PopoverTrigger asChild>
@@ -834,9 +960,11 @@ export default function PurchaseOrderDetailPage() {
                             variant="outline"
                             role="combobox"
                             className={cn(
-                              "w-full justify-between text-xs",
-                              item.pricebook_item_id && "opacity-60"
+                              "w-full justify-between text-xs border-0 rounded-none h-10 focus-visible:ring-0 focus-visible:ring-offset-0",
+                              item.pricebook_item_id && "opacity-60",
+                              shouldGreyOut && "text-muted-foreground"
                             )}
+                            style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}
                             disabled={!!item.pricebook_item_id}
                           >
                             {GST_CODES.find((c) => c.value === (item.gst_code || "GST"))?.label || "GST"}
@@ -874,16 +1002,16 @@ export default function PurchaseOrderDetailPage() {
                         )}
                       </Popover>
                     </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
+                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
                       {formatCurrency((item.quantity || 0) * (item.unit_price || 0))}
                     </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
+                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
                       {formatCurrency((item.quantity || 0) * (item.unit_price || 0) * getGstRate(item.gst_code))}
                     </TableCell>
-                    <TableCell className="text-right font-medium">
+                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "font-medium")} style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
                       {formatCurrency((item.quantity || 0) * (item.unit_price || 0) * (1 + getGstRate(item.gst_code)))}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-1 border-b" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -894,7 +1022,8 @@ export default function PurchaseOrderDetailPage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
             </TableBody>
             </Table>
           </div>
@@ -902,11 +1031,11 @@ export default function PurchaseOrderDetailPage() {
           {/* Totals Summary */}
           <div className="flex justify-end mt-6">
             <div className="w-[350px] space-y-3">
-              <div className="flex justify-between text-base">
+              <div className="flex justify-between text-lg">
                 <span className="text-muted-foreground">Subtotal (Ex GST)</span>
                 <span className="font-medium">{formatCurrency(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-base">
+              <div className="flex justify-between text-lg">
                 <span className="text-muted-foreground">GST</span>
                 <span className="font-medium">{formatCurrency(gst)}</span>
               </div>
