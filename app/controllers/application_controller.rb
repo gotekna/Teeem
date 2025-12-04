@@ -23,9 +23,12 @@ class ApplicationController < ActionController::API
     end
 
     # Require authentication - no default user fallback
+    # Use throw :abort to properly halt the filter chain in Rails API mode
     unless @current_user
       render json: { error: 'Unauthorized' }, status: :unauthorized
+      return false  # Explicitly halt the filter chain
     end
+    true
   end
 
   def current_user
