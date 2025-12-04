@@ -54,7 +54,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
-import { RefreshCw, Link2, Unlink, Sparkles, Pencil } from "lucide-react";
+import { RefreshCw, Link2, Unlink, Sparkles, Pencil, GitMerge } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
@@ -170,6 +170,9 @@ interface Company {
   group_name?: string;
   parent_company_id?: number;
   parent_company?: { id: number; name: string };
+  // Consolidation
+  consolidation_parent_id?: number;
+  consolidation_parent?: { id: number; name: string };
   // Corporate details
   corporate_key?: string;
   asic_username?: string;
@@ -1773,6 +1776,33 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
           </p>
         </CardContent>
       </Card>
+
+      {/* Consolidated Under Banner */}
+      {company.consolidation_parent && (
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                <GitMerge className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  This entity is consolidated under{" "}
+                  <button
+                    onClick={() => router.push(`/corporate/companies/${company.consolidation_parent!.id}`)}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                  >
+                    {company.consolidation_parent.name}
+                  </button>
+                </p>
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  Financial results are reported through the consolidation parent
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between">

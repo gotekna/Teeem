@@ -1764,7 +1764,6 @@ export default function TeeemTableView({
 
     const isLookup = selectedCol.column_type === 'lookup' || selectedCol.column_type === 'multiple_lookups' || selectedCol.lookup_config;
     if (isLookup && !lookupOptions[bulkUpdateColumn] && !lookupLoading[bulkUpdateColumn]) {
-      console.log('[BulkUpdate] Fetching lookup options for:', bulkUpdateColumn);
       fetchLookupOptions(selectedCol);
     }
   }, [bulkUpdateColumn, COLUMNS, lookupOptions, lookupLoading, fetchLookupOptions]);
@@ -1777,7 +1776,7 @@ export default function TeeemTableView({
   const isDropdownColumn = useCallback((column: TableColumn): boolean => {
     const colType = column.column_type || '';
     const hasChoices = column.choices && column.choices.length > 0;
-    const isLookup = colType === 'lookup' || colType === 'relation' || !!column.lookup_config;
+    const isLookup = colType === 'lookup' || colType === 'relation' || colType === 'multiple_lookups' || !!column.lookup_config;
     const isChoice = colType === 'choice' || colType === 'single_select' || colType === 'multi_select';
     const isBoolean = colType === 'boolean';
     return hasChoices || isLookup || isChoice || isBoolean;
@@ -1802,7 +1801,7 @@ export default function TeeemTableView({
     setEditingCellValue(row[column.key]);
 
     // Pre-fetch lookup options if needed
-    if (column.column_type === 'lookup' || column.column_type === 'relation') {
+    if (column.column_type === 'lookup' || column.column_type === 'relation' || column.column_type === 'multiple_lookups') {
       if (column.lookup_config?.target_table_id) {
         fetchLookupOptions(column);
       }
@@ -2023,7 +2022,6 @@ export default function TeeemTableView({
           // Map API format to frontend format and filter/sort
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const mappedViews = (data.views as any[]).map((v) => {
-            console.log('[TeeemTableView] View raw data:', { id: v.id, name: v.name, columns: v.columns, visibleColumns: v.visibleColumns });
             return {
             ...v,
             // Map columns.visible to visibleColumns (API format -> frontend format)
@@ -2041,8 +2039,6 @@ export default function TeeemTableView({
             groupByColumns: v.group_by_columns || v.groupByColumns || [],
           };
           }) as SavedView[];
-
-          console.log('[TeeemTableView] Mapped views with autoFitColumns:', mappedViews.map(v => ({ id: v.id, name: v.name, autoFitColumns: v.autoFitColumns, showTotals: v.showTotals })));
 
           // Sort views by display_order
           const filteredViews = mappedViews
@@ -3167,8 +3163,6 @@ export default function TeeemTableView({
         if (columnType === 'lookup' || columnType === 'relation') {
           const options = lookupOptions[column.key] || [];
           const isLoading = lookupLoading[column.key];
-          console.log('[Lookup Edit] column:', column.key, 'options:', options.length, 'lookup_config:', column.lookup_config, 'isLoading:', isLoading);
-
           // Get current value - could be an object with id or just an id
           const currentValue = rowEditingData[column.key];
           const currentId = typeof currentValue === 'object' && currentValue !== null
@@ -3629,6 +3623,84 @@ export default function TeeemTableView({
               placeholder="Select..."
               searchPlaceholder="Search choices..."
             />
+          );
+        }
+
+        // Multiple Lookups - Multi-select checkboxes for selecting multiple related records
+        if (columnType === 'multiple_lookups') {
+          const options = lookupOptions[column.key] || [];
+          const isLoading = lookupLoading[column.key];
+          // Current value is an array of IDs or objects with IDs
+          const currentValue = editingCellValue;
+          const selectedIds: string[] = Array.isArray(currentValue)
+            ? currentValue.map((v: unknown) => {
+                if (typeof v === 'object' && v !== null && 'id' in v) {
+                  return String((v as { id: number | string }).id);
+                }
+                return String(v);
+              })
+            : [];
+
+          return (
+            <div className="border rounded-md p-2 bg-background shadow-lg min-w-[200px] max-h-[250px] overflow-y-auto">
+              {isLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground p-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading options...
+                </div>
+              ) : options.length === 0 ? (
+                <p className="text-muted-foreground text-sm p-2">No options available</p>
+              ) : (
+                <>
+                  {options.map((option) => (
+                    <label
+                      key={option.id}
+                      className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1.5 rounded text-sm"
+                    >
+                      <Checkbox
+                        checked={selectedIds.includes(String(option.id))}
+                        onCheckedChange={(checked) => {
+                          const newIds = checked
+                            ? [...selectedIds, String(option.id)]
+                            : selectedIds.filter(id => id !== String(option.id));
+                          setEditingCellValue(newIds.map(id => parseInt(id, 10)));
+                        }}
+                      />
+                      <span>{option.display}</span>
+                    </label>
+                  ))}
+                  <div className="flex justify-end gap-1 mt-2 pt-2 border-t">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-xs"
+                      onClick={() => {
+                        setEditingCell(null);
+                        setEditingCellValue(null);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-6 text-xs"
+                      onClick={() => {
+                        if (onRowUpdate) {
+                          const idsToSave = Array.isArray(editingCellValue)
+                            ? (editingCellValue as (number | string)[]).map(id => typeof id === 'string' ? parseInt(id, 10) : id)
+                            : [];
+                          onRowUpdate(entry.id, column.key, idsToSave);
+                        }
+                        setEditingCell(null);
+                        setEditingCellValue(null);
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
           );
         }
 
@@ -4817,7 +4889,6 @@ export default function TeeemTableView({
 
   // Render flat table
   const renderFlatTable = () => {
-    console.log('[TeeemTableView] renderFlatTable columnWidths:', columnWidths);
     return (
     <Table className="w-full" style={{ tableLayout: 'fixed', width: `${totalTableWidth}px` }}>
         <colgroup>
@@ -4849,7 +4920,6 @@ export default function TeeemTableView({
                   "hover:bg-muted/30 cursor-pointer"
                 )}
                 onClick={(e) => {
-                  console.log('Row clicked', row.id, 'target:', e.target, 'onRowClick:', !!onRowClick);
                   if (!editingRowIds.has(row.id) && onRowClick) {
                     onRowClick(row);
                   }

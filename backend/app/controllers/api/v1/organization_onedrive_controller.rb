@@ -1346,6 +1346,57 @@ module Api
         end
       end
 
+      # GET /api/v1/organization_onedrive/job_all_files
+      # List ALL files from the job's OneDrive folder recursively
+      # Used for the "All Files" tab to show complete folder contents
+      def job_all_files
+        job = Job.find(params[:job_id])
+
+        credential = get_onedrive_credential
+
+        unless credential
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Find the job folder
+          job_folder = client.find_job_folder(job)
+
+          unless job_folder
+            return render json: {
+              success: false,
+              error: 'Job folder not found. Please create the folder structure first.',
+              job_folder_exists: false,
+              items: []
+            }, status: :ok
+          end
+
+          # Recursively list all files in the job folder
+          files = list_all_job_files_recursive(client, credential, job_folder['id'])
+
+          render json: {
+            success: true,
+            job_id: job.id,
+            job_title: job.title,
+            items: files,
+            count: files.length,
+            job_folder_id: job_folder['id'],
+            job_folder_web_url: job_folder['webUrl']
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "[Job All Files] Exception: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: { error: "Failed to list files: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/organization_onedrive/legacy_files
       # List files from the legacy "Old House Data/00 Active" folder that match a job
       # Used for importing legacy job documents into the new job folder structure

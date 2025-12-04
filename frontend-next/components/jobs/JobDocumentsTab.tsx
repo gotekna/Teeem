@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -517,13 +517,16 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   };
 
   // Toggle file selection (files only, not folders)
-  const toggleFileSelection = (fileId: string) => {
-    setSelectedLegacyFiles((prev) =>
-      prev.includes(fileId)
+  const toggleFileSelection = useCallback((fileId: string) => {
+    console.log('[Legacy Import] toggleFileSelection called with:', fileId);
+    setSelectedLegacyFiles((prev) => {
+      const newSelection = prev.includes(fileId)
         ? prev.filter((id) => id !== fileId)
-        : [...prev, fileId]
-    );
-  };
+        : [...prev, fileId];
+      console.log('[Legacy Import] Selection updated:', newSelection.length, 'files');
+      return newSelection;
+    });
+  }, []);
 
   // Select all files (only files, not folders)
   const selectAllFiles = () => {
