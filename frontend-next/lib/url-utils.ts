@@ -170,7 +170,7 @@ export const urls = {
   jobs: (tab?: string) => buildTableUrl("jobs", tab),
   tasks: (tab?: string) => buildTableUrl("tasks", tab),
   contacts: (tab?: string) => buildTableUrl("contacts", tab),
-  pricebook: (tab?: string) => buildTableUrl("pricebook", tab),
+  pricebook: (tab?: string) => tab ? `/pricebook?tab=${tab}` : "/pricebook", // Custom route, not using _GOD_LOVES_YOU_ suffix
   companies: (tab?: string) => buildTableUrl("companies", tab),
   goldStandard: (tab?: string) => buildTableUrl("gold_standard_items", tab),
   features: (tab?: string) => buildTableUrl("features_tracking", tab),
@@ -241,7 +241,9 @@ export function slugifyContactName(firstName?: string, lastName?: string, compan
 }
 
 export function slugifyPricebookCode(code: string): string {
-  return `${slugify(code)}${URL_SUFFIX}`;
+  // Use URL encoding instead of slugify to preserve periods and special characters
+  // Backend will decode this and search by exact item_code
+  return `${encodeURIComponent(code)}${URL_SUFFIX}`;
 }
 
 export default urls;

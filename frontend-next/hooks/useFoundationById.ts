@@ -1,7 +1,7 @@
 'use client';
 
 import { useFoundationBySlug } from './useFoundationBySlug';
-import type { UseFoundationDataReturn } from './useFoundationData';
+import type { UseFoundationBySlugReturn } from './useFoundationBySlug';
 
 /**
  * Hook for loading foundation data by ID
@@ -16,7 +16,7 @@ export function useFoundationById(
     perPage?: number;
     autoLoad?: boolean;
   } = {}
-): UseFoundationDataReturn {
+): UseFoundationBySlugReturn {
   // Convert ID to string for the slug-based hook (API accepts both)
   const slug = foundationId ? String(foundationId) : null;
   return useFoundationBySlug(slug, options);

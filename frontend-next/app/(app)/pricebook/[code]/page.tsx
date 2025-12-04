@@ -140,6 +140,16 @@ export default function PriceBookItemDetailPage() {
     date_effective: "",
     change_reason: "",
   });
+  // New price entry (inline)
+  const [newPriceEntry, setNewPriceEntry] = useState<{
+    price: string;
+    date_effective: string;
+    lga: string;
+  }>({
+    price: "",
+    date_effective: new Date().toISOString().split('T')[0],
+    lga: "",
+  });
 
   useEffect(() => {
     loadItem();
@@ -287,13 +297,49 @@ export default function PriceBookItemDetailPage() {
     if (!historyToEdit) return;
 
     try {
-      await api.patch(`/api/v1/pricebook/${id}/price_histories/${historyToEdit.id}`, editFormData);
+      await api.patch(`/api/v1/pricebook/${code}/price_histories/${historyToEdit.id}`, editFormData);
       setIsEditModalOpen(false);
       setHistoryToEdit(null);
       await loadItem();
     } catch (err) {
       console.error("Failed to update price history:", err);
       alert("Failed to update price history. Please try again.");
+    }
+  };
+
+  // Helper to check if new price entry is blank
+  const isBlankNewPrice = () => {
+    return !newPriceEntry.price || parseFloat(newPriceEntry.price) <= 0;
+  };
+
+  // Update new price entry field
+  const updateNewPriceEntry = (field: keyof typeof newPriceEntry, value: string) => {
+    setNewPriceEntry((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Handle adding new price (triggered on blur or when form is filled)
+  const handleAddNewPrice = async () => {
+    if (isBlankNewPrice()) return; // Don't save if blank
+
+    try {
+      await api.post(`/api/v1/pricebook/${code}/add_price`, {
+        price: parseFloat(newPriceEntry.price),
+        supplier_id: item?.default_supplier_id || undefined,
+        lga: newPriceEntry.lga || undefined,
+        date_effective: newPriceEntry.date_effective || undefined,
+      });
+
+      // Reset form for next entry
+      setNewPriceEntry({
+        price: "",
+        date_effective: new Date().toISOString().split('T')[0],
+        lga: "",
+      });
+
+      await loadItem();
+    } catch (err) {
+      console.error("Failed to add price:", err);
+      alert("Failed to add price. Please try again.");
     }
   };
 
@@ -337,6 +383,16 @@ export default function PriceBookItemDetailPage() {
 
   return (
     <div className="min-h-screen">
+      <style jsx global>{`
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type="number"] {
+          -moz-appearance: textfield;
+        }
+      `}</style>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -474,127 +530,148 @@ export default function PriceBookItemDetailPage() {
                     <BarChart3 className="h-5 w-5 text-primary" />
                     Price History
                   </CardTitle>
-                  <div className="flex items-center gap-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowAllPrices(!showAllPrices)}
-                    >
-                      {showAllPrices ? "Hide Old Prices" : "Show All Prices"}
-                    </Button>
-                    <Button size="sm">
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add Price
-                    </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAllPrices(!showAllPrices)}
+                  >
+                    {showAllPrices ? "Hide Old Prices" : "Show All Prices"}
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {item.price_histories && item.price_histories.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Old Price</TableHead>
-                        <TableHead>New Price</TableHead>
-                        <TableHead>Change</TableHead>
-                        <TableHead className="text-center">Default</TableHead>
-                        <TableHead>Supplier</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {item.price_histories.slice(0, showAllPrices ? undefined : 10).map((history) => {
-                        const change = history.new_price - (history.old_price || 0);
-                        const changePercent = history.old_price
-                          ? ((change / history.old_price) * 100).toFixed(1)
-                          : "0";
-                        const isDefaultSupplier =
-                          history.supplier?.id === item.default_supplier_id;
-                        const isActive = activePriceHistory && history.id === activePriceHistory.id;
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[140px]">Date</TableHead>
+                      <TableHead className="w-[100px]">Price</TableHead>
+                      <TableHead className="w-[100px]">LGA</TableHead>
+                      <TableHead>Supplier</TableHead>
+                      <TableHead className="w-[80px] text-center">Default</TableHead>
+                      <TableHead className="w-[80px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {/* Existing price histories */}
+                    {item.price_histories && item.price_histories.slice(0, showAllPrices ? undefined : 10).map((history) => {
+                      const isDefaultSupplier = history.supplier?.id === item.default_supplier_id;
+                      const isActive = activePriceHistory && history.id === activePriceHistory.id;
 
-                        return (
-                          <TableRow key={history.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                {formatDate(history.date_effective || history.created_at)}
-                                {isActive && (
-                                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                                    Active
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {history.old_price ? formatCurrency(history.old_price) : "-"}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {formatCurrency(history.new_price)}
-                            </TableCell>
-                            <TableCell>
-                              <span
-                                className={cn(
-                                  change > 0 && "text-red-600",
-                                  change < 0 && "text-green-600",
-                                  change === 0 && "text-muted-foreground"
-                                )}
+                      return (
+                        <TableRow key={history.id}>
+                          <TableCell className="py-2">
+                            <div className="flex items-center gap-2 text-sm">
+                              {formatDate(history.date_effective || history.created_at)}
+                              {isActive && (
+                                <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
+                                  Active
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-2 font-medium">
+                            {formatCurrency(history.new_price)}
+                          </TableCell>
+                          <TableCell className="py-2 text-sm text-muted-foreground">
+                            -
+                          </TableCell>
+                          <TableCell className="py-2">
+                            {history.supplier ? (
+                              <Link
+                                href={`/contacts/${history.supplier.id}`}
+                                className="text-sm text-primary hover:underline"
                               >
-                                {change > 0 ? "+" : ""}
-                                {formatCurrency(change)}
-                                {parseFloat(changePercent) !== 0 &&
-                                  ` (${change > 0 ? "+" : ""}${changePercent}%)`}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {history.supplier && (
-                                <Switch checked={isDefaultSupplier} disabled={isDefaultSupplier} />
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {history.supplier ? (
-                                <Link
-                                  href={`/contacts/${history.supplier.id}`}
-                                  className="text-primary hover:underline"
+                                {history.supplier.name}
+                              </Link>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="py-2 text-center">
+                            {history.supplier && (
+                              <Checkbox checked={isDefaultSupplier} disabled />
+                            )}
+                          </TableCell>
+                          <TableCell className="py-2 text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleEditPriceHistory(history)}>
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => handleDeletePriceHistory(history)}
                                 >
-                                  {history.supplier.name}
-                                </Link>
-                              ) : (
-                                <span className="text-muted-foreground">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon">
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => handleEditPriceHistory(history)}>
-                                    <Pencil className="h-4 w-4 mr-2" />
-                                    Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={() => handleDeletePriceHistory(history)}
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <div className="text-center py-12">
-                    <Clock className="mx-auto h-12 w-12 text-muted-foreground" />
-                    <p className="mt-2 text-sm text-muted-foreground">No price changes recorded yet</p>
-                  </div>
-                )}
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+
+                    {/* Blank row for adding new price */}
+                    <TableRow style={{ backgroundColor: '#f1f5f9' }}>
+                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                        <Input
+                          type="date"
+                          value={newPriceEntry.date_effective}
+                          onChange={(e) => updateNewPriceEntry('date_effective', e.target.value)}
+                          className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-sm text-muted-foreground"
+                          style={{ backgroundColor: '#f1f5f9' }}
+                        />
+                      </TableCell>
+                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={newPriceEntry.price}
+                          onChange={(e) => updateNewPriceEntry('price', e.target.value)}
+                          onBlur={handleAddNewPrice}
+                          className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-sm text-muted-foreground"
+                          style={{ backgroundColor: '#f1f5f9' }}
+                        />
+                      </TableCell>
+                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                        <Input
+                          type="text"
+                          placeholder="LGA"
+                          value={newPriceEntry.lga}
+                          onChange={(e) => updateNewPriceEntry('lga', e.target.value)}
+                          className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-sm text-muted-foreground"
+                          style={{ backgroundColor: '#f1f5f9' }}
+                        />
+                      </TableCell>
+                      <TableCell className="py-1 border-b text-sm text-muted-foreground" style={{ backgroundColor: '#f1f5f9' }}>
+                        {item.default_supplier?.name || '-'}
+                      </TableCell>
+                      <TableCell className="py-1 border-b text-center" style={{ backgroundColor: '#f1f5f9' }}>
+                        <Checkbox checked={true} disabled />
+                      </TableCell>
+                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                        {!isBlankNewPrice() && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={handleAddNewPrice}
+                          >
+                            <Plus className="h-4 w-4 text-green-600" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </div>

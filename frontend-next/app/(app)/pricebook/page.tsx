@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -31,8 +31,8 @@ const PRICEBOOK_FOUNDATION_ID = 205;
 export default function PriceBookPage() {
   const router = useRouter();
 
-  // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(PRICEBOOK_FOUNDATION_ID);
+  // Use foundation hook for TeeemTableView with server-side stats
+  const { foundation, columns, records, originalRecords, totalCount, isLoading, error, refresh, serverSearch, isSearching } = useFoundationById(PRICEBOOK_FOUNDATION_ID);
 
   const [activeTab, setActiveTab] = useState("all");
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
@@ -46,9 +46,16 @@ export default function PriceBookPage() {
 
   // Handle row click - navigate to detail page
   const handleRowClick = useCallback((row: TableRow) => {
+    console.log("[PricebookPage] Row clicked:", row);
     const item = row as { id: number; item_code?: string };
+    console.log("[PricebookPage] item_code:", item.item_code, "id:", item.id);
     if (item.item_code) {
-      router.push(`/pricebook/${slugifyPricebookCode(item.item_code)}`);
+      const slug = slugifyPricebookCode(item.item_code);
+      console.log("[PricebookPage] Navigating to:", `/pricebook/${slug}`);
+      router.push(`/pricebook/${slug}`);
+    } else {
+      console.warn("[PricebookPage] No item_code found, falling back to ID:", item.id);
+      router.push(`/pricebook/${item.id}_GOD_LOVES_YOU_`);
     }
   }, [router]);
 
@@ -65,14 +72,28 @@ export default function PriceBookPage() {
     }
   }, [refresh]);
 
-  // Calculate stats from records
-  const stats = {
-    total: records.length,
-    active: records.filter((i) => i.is_active).length,
-    needsReview: records.filter((i) => i.needs_pricing_review).length,
-    withImages: records.filter((i) => i.image_url).length,
-    categoriesCount: new Set(records.map((i) => i.category).filter(Boolean)).size,
-  };
+  // Calculate stats - use server totalCount if available, otherwise fall back to loaded records
+  const stats = useMemo(() => {
+    // If we have all records loaded, calculate detailed stats from them
+    if (originalRecords.length >= (totalCount ?? 0)) {
+      return {
+        total: originalRecords.length,
+        active: originalRecords.filter((i) => i.is_active).length,
+        needsReview: originalRecords.filter((i) => i.needs_pricing_review).length,
+        withImages: originalRecords.filter((i) => i.image_url).length,
+        categoriesCount: new Set(originalRecords.map((i) => i.category).filter(Boolean)).size,
+      };
+    }
+
+    // Otherwise use server total count and calculate from loaded subset
+    return {
+      total: totalCount ?? originalRecords.length,
+      active: originalRecords.filter((i) => i.is_active).length,
+      needsReview: originalRecords.filter((i) => i.needs_pricing_review).length,
+      withImages: originalRecords.filter((i) => i.image_url).length,
+      categoriesCount: new Set(originalRecords.map((i) => i.category).filter(Boolean)).size,
+    };
+  }, [originalRecords, totalCount]);
 
   // Filter records based on active tab
   const getFilteredRecords = () => {
@@ -222,6 +243,8 @@ export default function PriceBookPage() {
               onRowClick={handleRowClick}
               onRowDoubleClick={handleRowDoubleClick}
               onRowUpdate={handleRowUpdate}
+              onServerSearch={serverSearch}
+              serverSearchLoading={isSearching}
             />
           </TabsContent>
         ))}
