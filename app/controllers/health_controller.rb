@@ -11,11 +11,15 @@ class HealthController < ApplicationController
   end
 
   def version
-    render json: {
+    response = {
       version: Version.current_version_string,
-      timestamp: Time.current,
-      heroku_release: ENV['HEROKU_RELEASE_VERSION']
+      timestamp: Time.current
     }
+    # Only include heroku_release if available (requires dyno metadata feature)
+    if ENV['HEROKU_RELEASE_VERSION'].present?
+      response[:heroku_release] = ENV['HEROKU_RELEASE_VERSION']
+    end
+    render json: response
   end
 
   def increment_version
