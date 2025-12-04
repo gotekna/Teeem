@@ -997,6 +997,7 @@ Rails.application.routes.draw do
       post 'organization_onedrive/import_legacy', to: 'organization_onedrive#import_legacy'
       post 'organization_onedrive/run_migration', to: 'organization_onedrive#run_migration'
       get 'organization_onedrive/job_all_files', to: 'organization_onedrive#job_all_files'
+      post 'organization_onedrive/sync_job_documents', to: 'organization_onedrive#sync_job_documents'
 
       # Organization-wide data stats
       get 'organization/data_stats', to: 'organization#data_stats'
