@@ -519,21 +519,37 @@ export function FoldersTab() {
     // Auto-save to backend
     setSaving(true);
     try {
-      await api.patch(`/api/v1/folder_templates/${updatedTemplate.id}`, {
-        folder_template: {
-          name: updatedTemplate.name,
-          folder_template_items_attributes: updatedTemplate.items.map((item) => ({
-            id: item.id > 1000000 ? undefined : item.id, // New items have large temp IDs
-            name: item.name,
-            level: getItemLevel(item, updatedTemplate.items),
-            order: item.order,
-            parent_id: item.parent_id,
-          })),
-        },
-      });
-    } catch (error) {
+      const response = await api.patch<{ folder_template: FolderTemplate }>(
+        `/api/v1/folder_templates/${updatedTemplate.id}`,
+        {
+          folder_template: {
+            name: updatedTemplate.name,
+            folder_template_items_attributes: updatedTemplate.items.map((item) => ({
+              id: item.id > 1000000 ? undefined : item.id, // New items have large temp IDs
+              name: item.name,
+              level: getItemLevel(item, updatedTemplate.items),
+              order: item.order,
+              parent_id: item.parent_id,
+            })),
+          },
+        }
+      );
+      // Reload templates to get fresh IDs for any newly created items
+      await loadTemplates();
+    } catch (error: unknown) {
       console.error("Failed to save template:", error);
-      toast({ title: "Error", description: "Failed to save changes", variant: "destructive" });
+      const errorMessage = error instanceof Error ? error.message : "Failed to save changes";
+      // If we get a 404, it might be stale item IDs - reload and try again
+      if (errorMessage.includes("not found") || errorMessage.includes("404")) {
+        toast({
+          title: "Sync Error",
+          description: "Template data was out of sync. Please try your change again.",
+          variant: "destructive",
+        });
+        await loadTemplates();
+      } else {
+        toast({ title: "Error", description: errorMessage, variant: "destructive" });
+      }
     } finally {
       setSaving(false);
     }
