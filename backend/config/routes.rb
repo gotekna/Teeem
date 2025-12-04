@@ -370,6 +370,8 @@ Rails.application.routes.draw do
       resources :chat_messages, only: [:index, :create, :destroy] do
         collection do
           get :unread_count
+          get :online_users
+          get :conversations
           post :mark_as_read
           post :save_conversation_to_job
         end

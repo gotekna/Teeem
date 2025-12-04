@@ -13,7 +13,8 @@ class HealthController < ApplicationController
   def version
     render json: {
       version: Version.current_version_string,
-      timestamp: Time.current
+      timestamp: Time.current,
+      heroku_release: ENV['HEROKU_RELEASE_VERSION']
     }
   end
 

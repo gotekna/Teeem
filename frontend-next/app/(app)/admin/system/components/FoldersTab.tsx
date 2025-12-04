@@ -37,7 +37,9 @@ import {
   ExternalLink,
   Settings2,
   Cloud,
+  FolderOpen,
 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -474,6 +476,9 @@ export function FoldersTab() {
   const [deleting, setDeleting] = React.useState<number | null>(null);
   const [selectedTemplate, setSelectedTemplate] = React.useState<FolderTemplate | null>(null);
   const [sharePointConfig, setSharePointConfig] = React.useState<SharePointConfig | null>(null);
+  const [folderDialogOpen, setFolderDialogOpen] = React.useState(false);
+  const [newFolderPath, setNewFolderPath] = React.useState("");
+  const [savingFolder, setSavingFolder] = React.useState(false);
 
   React.useEffect(() => {
     loadTemplates();
@@ -484,10 +489,38 @@ export function FoldersTab() {
     try {
       const response = await api.get<{ sharepoint: SharePointConfig }>("/api/v1/microsoft/connections");
       setSharePointConfig(response?.sharepoint || null);
+      // Set initial folder path for edit dialog
+      if (response?.sharepoint?.root_folder) {
+        setNewFolderPath(response.sharepoint.root_folder);
+      }
     } catch (error) {
       console.error("Failed to load SharePoint config:", error);
       // Not connected - that's OK
       setSharePointConfig({ connected: false });
+    }
+  };
+
+  const handleChangeFolderPath = async () => {
+    if (!newFolderPath.trim()) {
+      toast({ title: "Error", description: "Please enter a folder path", variant: "destructive" });
+      return;
+    }
+
+    setSavingFolder(true);
+    try {
+      await api.patch("/api/v1/organization_onedrive/change_root_folder", {
+        folder_name: newFolderPath.trim(),
+      });
+      toast({ title: "Success", description: "Root folder updated successfully" });
+      setFolderDialogOpen(false);
+      // Reload config to show updated path
+      await loadSharePointConfig();
+    } catch (error: unknown) {
+      console.error("Failed to change folder path:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to update folder path";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    } finally {
+      setSavingFolder(false);
     }
   };
 
@@ -692,15 +725,70 @@ export function FoldersTab() {
                 size="sm"
                 variant="outline"
                 className="shrink-0"
-                onClick={() => window.location.href = "/settings/integrations/microsoft"}
+                onClick={() => {
+                  setNewFolderPath(sharePointConfig.root_folder || "TEEEM Jobs");
+                  setFolderDialogOpen(true);
+                }}
               >
-                <Settings2 className="h-4 w-4 mr-2" />
-                Edit
+                <FolderOpen className="h-4 w-4 mr-2" />
+                Change Folder
               </Button>
             )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Change Folder Dialog */}
+      <Dialog open={folderDialogOpen} onOpenChange={setFolderDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Change Jobs Root Folder</DialogTitle>
+            <DialogDescription>
+              Enter the folder path in SharePoint where job folders will be created.
+              Use forward slashes for nested paths (e.g., "TEEEM/Jobs").
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="folder-path">Folder Path</Label>
+              <Input
+                id="folder-path"
+                value={newFolderPath}
+                onChange={(e) => setNewFolderPath(e.target.value)}
+                placeholder="TEEEM Jobs"
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                This folder will be created if it doesn't exist. Job folders will be created inside this folder.
+              </p>
+            </div>
+            <div className="bg-muted/50 rounded-md p-3 text-xs">
+              <div className="font-medium mb-1">Preview:</div>
+              <div className="font-mono text-muted-foreground">
+                Shared Documents / <span className="text-foreground">{newFolderPath || "TEEEM Jobs"}</span> / [Job Code] - [Project Name] / ...
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFolderDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleChangeFolderPath} disabled={savingFolder}>
+              {savingFolder ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Save
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Template List */}

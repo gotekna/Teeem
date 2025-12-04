@@ -24,12 +24,14 @@
 ================================================
 DEPLOYED: [Brisbane Time - e.g., 2025-12-05 3:45 PM AEST]
 Backend:  v[number] (teeemlive)
+Heroku:   v[release number] (e.g., v130)
 Frontend: v[number] (teeemlive.vercel.app)
 ================================================
 ```
 
 To get version numbers:
-- Backend: `heroku releases --app teeemlive -n 1` or check release output
+- Backend version: `curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version | jq -r '.version'`
+- Heroku release: `heroku releases --app teeemlive -n 1` (shows vXXX)
 - Frontend: Check Vercel deployment or `git log --oneline -1` for frontend
 
 **Examples of when NOT to commit/deploy:**

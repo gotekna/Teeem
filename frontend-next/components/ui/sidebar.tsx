@@ -100,6 +100,7 @@ export function Sidebar() {
   const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
   const [badges, setBadges] = useState<Record<string, number>>({});
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
+  const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -114,8 +115,11 @@ export function Sidebar() {
   useEffect(() => {
     const loadVersion = async () => {
       try {
-        const response = await api.get<{ version: string }>("/version");
+        const response = await api.get<{ version: string; heroku_release?: string }>("/version");
         setBackendVersion(response.version);
+        if (response.heroku_release) {
+          setHerokuRelease(response.heroku_release);
+        }
       } catch (error) {
         console.debug("Failed to load backend version:", error);
       }
@@ -252,6 +256,7 @@ export function Sidebar() {
               {process.env.NEXT_PUBLIC_BUILD_NUMBER && (
                 <span>Frontend: v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
               )}
+              {herokuRelease && <span>Heroku: {herokuRelease}</span>}
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
@@ -259,6 +264,7 @@ export function Sidebar() {
               {process.env.NEXT_PUBLIC_BUILD_NUMBER && (
                 <span>v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
               )}
+              {herokuRelease && <span>{herokuRelease}</span>}
             </div>
           )}
         </div>
