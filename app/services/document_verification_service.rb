@@ -218,6 +218,9 @@ class DocumentVerificationService
     end
   end
 
+  MAX_RETRIES = 3
+  INITIAL_RETRY_DELAY = 2 # seconds
+
   def analyze_with_claude(text, pdf_content = nil)
     api_key = ENV['ANTHROPIC_API_KEY']
     raise VerificationError, "ANTHROPIC_API_KEY not configured" unless api_key
@@ -225,23 +228,40 @@ class DocumentVerificationService
     client = Anthropic::Client.new(access_token: api_key)
     prompt = build_prompt(text)
 
-    # If no text was extracted but we have PDF content, use vision
-    if text.nil? && pdf_content.present?
-      response = analyze_with_vision(client, prompt, pdf_content)
-    else
-      response = client.messages(
-        parameters: {
-          model: MODEL,
-          max_tokens: 1024,
-          messages: [{ role: "user", content: prompt }]
-        }
-      )
-    end
+    retries = 0
+    begin
+      # If no text was extracted but we have PDF content, use vision
+      if text.nil? && pdf_content.present?
+        response = analyze_with_vision(client, prompt, pdf_content)
+      else
+        response = client.messages(
+          parameters: {
+            model: MODEL,
+            max_tokens: 1024,
+            messages: [{ role: "user", content: prompt }]
+          }
+        )
+      end
 
-    parse_response(response)
-  rescue Anthropic::Error => e
-    Rails.logger.error("Anthropic API error: #{e.message}")
-    raise VerificationError, "Claude API error: #{e.message}"
+      parse_response(response)
+    rescue Anthropic::Error => e
+      # Check for rate limit (429) errors
+      if e.message.include?('429') || e.message.downcase.include?('rate limit')
+        retries += 1
+        if retries <= MAX_RETRIES
+          delay = INITIAL_RETRY_DELAY * (2 ** (retries - 1)) # Exponential backoff: 2, 4, 8 seconds
+          Rails.logger.warn("Rate limited by Anthropic API (attempt #{retries}/#{MAX_RETRIES}). Retrying in #{delay}s...")
+          sleep(delay)
+          retry
+        else
+          Rails.logger.error("Anthropic API rate limit exceeded after #{MAX_RETRIES} retries")
+          raise VerificationError, "Claude API rate limited - please try again later"
+        end
+      else
+        Rails.logger.error("Anthropic API error: #{e.message}")
+        raise VerificationError, "Claude API error: #{e.message}"
+      end
+    end
   end
 
   def analyze_with_vision(client, prompt, pdf_content)
@@ -605,8 +625,16 @@ class DocumentVerificationService
 
     # Only populate FY if the suggested name explicitly contains "FY"
     suggested_name = json["suggested_name"] || ""
-    raw_suggested_fy = if suggested_name.match?(/FY\d{2}/i)
-      json["suggested_fy"] || []
+    raw_suggested_fy = if suggested_name.match?(/FY(\d{2})/i)
+      # Extract FY from filename if Claude didn't provide it or provided nil
+      claude_fy = json["suggested_fy"]
+      if claude_fy.present? && claude_fy.is_a?(Array) && claude_fy.any?
+        claude_fy
+      else
+        # Extract from filename: "FY24" -> [2024]
+        fy_match = suggested_name.match(/FY(\d{2})/i)
+        fy_match ? [2000 + fy_match[1].to_i] : []
+      end
     else
       [] # No FY in filename = no FY in column
     end

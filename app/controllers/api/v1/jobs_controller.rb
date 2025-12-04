@@ -117,6 +117,21 @@ module Api
           @jobs = @jobs.where.not(latitude: nil).where.not(longitude: nil)
         end
 
+        # Search functionality
+        if params[:search].present?
+          search_term = "%#{params[:search].downcase}%"
+          if params[:search_all].to_s == 'true'
+            # Search across multiple columns
+            @jobs = @jobs.where(
+              "LOWER(jobs.title) LIKE ? OR LOWER(jobs.address) LIKE ? OR CAST(jobs.id AS TEXT) LIKE ?",
+              search_term, search_term, search_term
+            )
+          else
+            # Default: search title only
+            @jobs = @jobs.where("LOWER(jobs.title) LIKE ?", search_term)
+          end
+        end
+
         # Pagination
         page = params[:page]&.to_i || 1
         per_page = params[:per_page]&.to_i || 500
@@ -294,11 +309,14 @@ module Api
 
       # GET /api/v1/jobs/:id/documentation_tabs
       def documentation_tabs
+        # Return hierarchical tabs - only root tabs, each with their children
         @tabs = @job.job_documentation_tabs
+                            .root_tabs
                             .active
                             .ordered
+                            .includes(:children)
 
-        render json: @tabs
+        render json: @tabs.map(&:as_nested_json)
       end
 
       # POST /api/v1/jobs/:id/import_xero_bills

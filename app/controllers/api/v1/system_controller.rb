@@ -2,15 +2,57 @@ module Api
   module V1
     class SystemController < ApplicationController
       # GET /api/v1/system/health
+      # Comprehensive system health including infrastructure and data quality
       def health
-        render json: {
-          status: 'healthy',
-          timestamp: Time.current,
+        # Get data health from new service architecture
+        data_health = HealthChecks::Registry.system_health
+
+        # Calculate overall status
+        infrastructure = {
           database: check_database,
           redis: check_redis,
           storage: check_storage,
           memory: check_memory,
           claude: check_claude
+        }
+
+        infra_healthy = infrastructure.values.all? { |v| v[:status] != 'error' }
+        data_healthy = data_health[:status] != 'critical'
+
+        overall_status = if infra_healthy && data_healthy
+                          'healthy'
+                        elsif infra_healthy
+                          'degraded'
+                        else
+                          'unhealthy'
+                        end
+
+        render json: {
+          success: true,
+          status: overall_status,
+          timestamp: Time.current,
+          overall_health: data_health[:overall_health],
+
+          # Infrastructure health
+          infrastructure: infrastructure,
+
+          # Data quality health (from HealthChecks::Registry)
+          data_health: {
+            overall_health: data_health[:overall_health],
+            status: data_health[:status],
+            summary: data_health[:summary],
+            checks: data_health[:checks]
+          },
+
+          # Quick stats
+          stats: {
+            jobs_count: Job.count,
+            contacts_count: Contact.count,
+            pricebook_items_count: PricebookItem.count,
+            companies_count: Company.count,
+            pending_jobs: get_pending_jobs_count,
+            failed_jobs: get_failed_jobs_count
+          }
         }
       end
 

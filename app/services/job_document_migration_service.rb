@@ -96,24 +96,165 @@ class JobDocumentMigrationService
   end
 
   # List legacy files for a specific job (used by API)
-  # Returns files from the old location that might belong to this job
-  def list_legacy_files_for_job(job)
+  # ULTRA-OPTIMIZED: Uses cached folder ID and single-level listing for speed
+  # @param job [Job] The job to find legacy files for
+  # @param folder_id [String, nil] Optional folder ID to navigate into (for subfolder navigation)
+  # @param recursive [Boolean] If true, recursively list ALL files from all subfolders
+  # @return [Array<Hash>] Array of items (files and folders) with type field
+  def list_legacy_files_for_job(job, folder_id: nil, recursive: false)
     return [] unless @credential && @client
 
-    source_folder = find_folder_by_path(SOURCE_FOLDER_PATH)
-    return [] unless source_folder
-
-    # Find folder matching this job
-    job_folders = list_subfolders(source_folder['id'])
-
-    matching_folder = job_folders.find do |folder|
-      folder_matches_job?(folder['name'], job)
+    # If folder_id provided, just list that folder directly (for subfolder navigation)
+    if folder_id.present?
+      if recursive
+        return list_all_files_recursive(folder_id)
+      else
+        return list_folder_contents_fast(folder_id)
+      end
     end
 
+    # Find the job's legacy folder using cached source folder ID
+    matching_folder = find_legacy_folder_for_job(job)
     return [] unless matching_folder
 
-    # Return all files in this folder
-    list_files_recursive(matching_folder['id'])
+    # If recursive, get ALL files from all subfolders
+    if recursive
+      return list_all_files_recursive(matching_folder['id'])
+    end
+
+    # Return top-level contents only (files + folders as navigable items)
+    list_folder_contents_fast(matching_folder['id'])
+  end
+
+  # Recursively list ALL files from a folder and all subfolders
+  # Returns flat list of files with folder_path for context
+  # Has a 25 second timeout to avoid Heroku's 30 second limit
+  def list_all_files_recursive(root_folder_id, max_depth: 5, max_time: 25)
+    files = []
+    folders_to_process = [[root_folder_id, 0, '']] # [folder_id, depth, path]
+    start_time = Time.now
+    timed_out = false
+
+    while folders_to_process.any?
+      # Check if we've exceeded the time limit
+      if Time.now - start_time > max_time
+        Rails.logger.warn("[JobDocumentMigration] Recursive listing timed out after #{max_time}s with #{files.length} files found, #{folders_to_process.length} folders remaining")
+        timed_out = true
+        break
+      end
+
+      current_id, depth, current_path = folders_to_process.shift
+
+      begin
+        url = "/drives/#{@credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+        result = @client.get(url)
+
+        result['value']&.each do |item|
+          if item['file']
+            files << {
+              id: item['id'],
+              name: item['name'],
+              size: item['size'],
+              web_url: item['webUrl'],
+              modified: item['lastModifiedDateTime'],
+              type: 'file',
+              folder_path: current_path
+            }
+          elsif item['folder'] && depth < max_depth
+            folder_name = item['name']
+            new_path = current_path.empty? ? folder_name : "#{current_path}/#{folder_name}"
+            folders_to_process << [item['id'], depth + 1, new_path]
+          end
+        end
+      rescue MicrosoftGraphClient::APIError => e
+        Rails.logger.warn("[JobDocumentMigration] Failed to list folder #{current_id}: #{e.message}")
+      end
+    end
+
+    Rails.logger.info("[JobDocumentMigration] Recursive listing completed: #{files.length} files in #{(Time.now - start_time).round(2)}s#{timed_out ? ' (partial due to timeout)' : ''}")
+
+    # Sort by folder path then name
+    files.sort_by { |f| [f[:folder_path].downcase, f[:name].downcase] }
+  end
+
+  # Find the legacy folder matching a job (cached in instance for speed)
+  def find_legacy_folder_for_job(job)
+    # Use instance variable to cache source folder ID (avoid repeated path navigation)
+    @source_folder_id ||= begin
+      folder = find_folder_by_path(SOURCE_FOLDER_PATH)
+      folder&.dig('id')
+    end
+
+    return nil unless @source_folder_id
+
+    # Get job folders (also cache in instance)
+    @job_folders ||= list_subfolders(@source_folder_id)
+
+    # Find matching folder
+    @job_folders.find { |folder| folder_matches_job?(folder['name'], job) }
+  end
+
+  # List folder contents in a single API call (files + subfolders)
+  # Returns items with type: 'file' or 'folder' for navigation
+  def list_folder_contents_fast(folder_id)
+    items = []
+
+    begin
+      url = "/drives/#{@credential.drive_id}/items/#{folder_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+      result = @client.get(url)
+
+      result['value']&.each do |item|
+        items << {
+          id: item['id'],
+          name: item['name'],
+          size: item['size'],
+          web_url: item['webUrl'],
+          modified: item['lastModifiedDateTime'],
+          type: item['file'] ? 'file' : 'folder',
+          child_count: item.dig('folder', 'childCount')
+        }
+      end
+    rescue MicrosoftGraphClient::APIError => e
+      Rails.logger.warn("[JobDocumentMigration] Failed to list folder #{folder_id}: #{e.message}")
+    end
+
+    # Sort: folders first, then files
+    items.sort_by { |i| [i[:type] == 'folder' ? 0 : 1, i[:name].downcase] }
+  end
+
+  # Fast file listing - gets files with folder structure in fewer API calls
+  # Uses $select to reduce payload and limits depth
+  def list_files_fast(folder_id, max_depth: 2)
+    files = []
+    folders_to_process = [[folder_id, 0]] # [folder_id, depth]
+
+    while folders_to_process.any?
+      current_id, depth = folders_to_process.shift
+
+      begin
+        # Get items with minimal fields for speed - include query params in URL
+        url = "/drives/#{@credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+        result = @client.get(url)
+
+        result['value']&.each do |item|
+          if item['file']
+            files << {
+              id: item['id'],
+              name: item['name'],
+              size: item['size'],
+              web_url: item['webUrl'],
+              modified: item['lastModifiedDateTime']
+            }
+          elsif item['folder'] && depth < max_depth
+            folders_to_process << [item['id'], depth + 1]
+          end
+        end
+      rescue MicrosoftGraphClient::APIError => e
+        Rails.logger.warn("[JobDocumentMigration] Failed to list folder #{current_id}: #{e.message}")
+      end
+    end
+
+    files
   end
 
   # Import specific files from legacy location to a job
@@ -125,8 +266,9 @@ class JobDocumentMigrationService
 
     results = { success: true, imported: [], errors: [] }
 
-    # Ensure job has OneDrive folder
-    ensure_job_folder(job)
+    # Ensure job has OneDrive folder - returns folder ID or nil
+    job_folder_id = ensure_job_folder(job)
+    return { success: false, error: 'Could not find or create job folder in OneDrive' } unless job_folder_id
 
     file_ids.each do |file_id|
       begin
@@ -379,12 +521,14 @@ class JobDocumentMigrationService
     files
   end
 
-  # Ensure job has a OneDrive folder
+  # Ensure job has a OneDrive folder and return its ID
+  # Uses MicrosoftGraphClient.find_job_folder instead of storing ID on job model
   def ensure_job_folder(job)
-    return if job.onedrive_folder_id.present?
+    # First check if job folder already exists
+    existing_folder = @client.find_job_folder(job)
+    return existing_folder['id'] if existing_folder
 
     # Create folder structure for job
-    # This should use the same logic as OrganizationOneDriveController#create_job_folders
     job_folder_name = job.title.gsub(/[\/\\:*?"<>|]/, '-').strip
     root_folder = get_or_create_jobs_root_folder
 
@@ -394,8 +538,10 @@ class JobDocumentMigrationService
       '@microsoft.graph.conflictBehavior': 'rename'
     })
 
-    job.update(onedrive_folder_id: folder['id'], onedrive_folder_path: folder['webUrl'])
-    folder
+    # Mark job as having folders created
+    job.update(onedrive_folder_creation_status: 'completed', onedrive_folders_created_at: Time.current)
+
+    folder['id']
   rescue MicrosoftGraphClient::APIError => e
     Rails.logger.error("Failed to create job folder: #{e.message}")
     nil
@@ -460,11 +606,12 @@ class JobDocumentMigrationService
 
   # Find or create a category subfolder within job folder
   def find_or_create_category_folder(job, category)
-    return job.onedrive_folder_id unless category.present?
+    # First get the job's OneDrive folder
+    job_folder = @client.find_job_folder(job)
+    return nil unless job_folder
 
-    # Get job folder ID
-    job_folder_id = job.onedrive_folder_id
-    return job_folder_id unless job_folder_id
+    job_folder_id = job_folder['id']
+    return job_folder_id unless category.present?
 
     # Check if category folder exists
     result = @client.get("/drives/#{@credential.drive_id}/items/#{job_folder_id}/children")

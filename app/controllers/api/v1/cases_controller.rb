@@ -6,7 +6,7 @@ module Api
         :actions, :documents, :emails, :timeline, :contacts, :companies, :jobs,
         :warehouse_summary, :search_emails, :search_documents, :financial_analysis,
         :add_document, :add_email, :add_contact, :add_company, :add_job,
-        :run_action
+        :run_action, :relationship_graph, :update_contact_position, :create_child
       ]
 
       # GET /api/v1/cases
@@ -85,6 +85,27 @@ module Api
       def destroy
         @case.destroy
         render json: { success: true }
+      end
+
+      # POST /api/v1/cases/:id/create_child
+      # Create a sub-case under this case
+      def create_child
+        child_attrs = child_case_params.to_h
+        child_attrs[:created_by] = current_user
+
+        child = @case.create_child_case(child_attrs)
+
+        render json: {
+          success: true,
+          data: serialize_case_detail(child),
+          message: "Sub-case '#{child.title}' created under #{@case.case_number}"
+        }, status: :created
+
+      rescue ActiveRecord::RecordInvalid => e
+        render json: {
+          success: false,
+          errors: e.record.errors.full_messages
+        }, status: :unprocessable_entity
       end
 
       # ============================================
@@ -346,6 +367,37 @@ module Api
       end
 
       # ============================================
+      # RELATIONSHIP GRAPH
+      # ============================================
+
+      # GET /api/v1/cases/:id/relationship_graph
+      # Returns nodes and edges for the relationship visualization chart
+      def relationship_graph
+        service = CaseRelationshipService.new(@case)
+        graph = service.build_relationship_graph
+
+        render json: {
+          success: true,
+          data: graph
+        }
+      end
+
+      # PATCH /api/v1/cases/:id/contacts/:contact_id/position
+      # Update a contact's position on the relationship chart
+      def update_contact_position
+        case_contact = @case.case_contacts.find_by!(contact_id: params[:contact_id])
+
+        case_contact.update_chart_position!(
+          x: params[:x].to_f,
+          y: params[:y].to_f
+        )
+
+        render json: { success: true }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
+      end
+
+      # ============================================
       # RUN ACTIONS
       # ============================================
 
@@ -398,7 +450,17 @@ module Api
           :contact_id, :company_id, :company_group_id,
           :deadline, :assigned_to_id,
           :investigation_start_date, :investigation_end_date,
+          :parent_case_id,
           metadata: {}
+        )
+      end
+
+      def child_case_params
+        # For creating child cases - title is required, others are optional
+        # (will inherit from parent if not provided)
+        params.require(:case).permit(
+          :title, :case_type, :description, :status, :priority,
+          :deadline, :assigned_to_id
         )
       end
 
@@ -525,8 +587,39 @@ module Api
           companies_count: c.case_companies.count,
           jobs_count: c.case_jobs.count,
           timeline_events_count: c.case_timeline_events.count,
-          updated_at: c.updated_at
+          updated_at: c.updated_at,
+
+          # Hierarchy info
+          parent_case_id: c.parent_case_id,
+          parent_case_number: c.parent_case&.case_number,
+          parent_case_title: c.parent_case&.title,
+          hierarchy_level: c.hierarchy_level,
+          is_child_case: c.child_case?,
+          has_children: c.has_children?,
+          child_cases_count: c.child_cases.count,
+          child_cases_summary: c.child_cases_summary,
+          child_cases: c.child_cases.recent_first.map { |child| serialize_child_case(child) }
         )
+      end
+
+      def serialize_child_case(c)
+        {
+          id: c.id,
+          case_number: c.case_number,
+          title: c.title,
+          case_type: c.case_type,
+          formatted_case_type: c.formatted_case_type,
+          status: c.status,
+          formatted_status: c.formatted_status,
+          priority: c.priority,
+          formatted_priority: c.formatted_priority,
+          deadline: c.deadline,
+          overdue: c.overdue?,
+          assigned_to: c.assigned_to&.name,
+          has_children: c.has_children?,
+          child_cases_count: c.child_cases.count,
+          created_at: c.created_at
+        }
       end
 
       def serialize_action(a)
@@ -623,11 +716,19 @@ module Api
           contact_id: cc.contact_id,
           contact_name: cc.contact.full_name,
           contact_email: cc.contact.email,
+          contact_phone: cc.contact.mobile_phone || cc.contact.work_phone,
+          contact_company: cc.contact.company_name_or_trust,
           contact_entity_type: cc.contact.entity_type,
           role: cc.role,
           formatted_role: cc.formatted_role,
+          relationship_type: cc.relationship_type,
+          formatted_relationship_type: cc.formatted_relationship_type,
+          relationship_color: cc.relationship_color,
+          relationship_icon: cc.relationship_icon,
+          relationship_description: cc.relationship_description,
           notes: cc.notes,
-          is_primary: cc.is_primary
+          is_primary: cc.is_primary,
+          display_position: cc.display_position
         }
       end
 

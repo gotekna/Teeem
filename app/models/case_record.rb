@@ -17,6 +17,10 @@ class CaseRecord < ApplicationRecord
   belongs_to :assigned_to, class_name: 'User', optional: true
   belongs_to :created_by, class_name: 'User', optional: true
 
+  # Parent/child case hierarchy (self-referential)
+  belongs_to :parent_case, class_name: 'CaseRecord', optional: true, foreign_key: :parent_case_id
+  has_many :child_cases, class_name: 'CaseRecord', foreign_key: :parent_case_id, dependent: :nullify
+
   # Related entities (many-to-many)
   has_many :case_contacts, foreign_key: :case_id, dependent: :destroy
   has_many :contacts, through: :case_contacts
@@ -52,6 +56,7 @@ class CaseRecord < ApplicationRecord
   # ============================================
 
   before_validation :generate_case_number, on: :create
+  before_save :set_hierarchy_level
 
   # ============================================
   # SCOPES
@@ -66,6 +71,11 @@ class CaseRecord < ApplicationRecord
   scope :due_soon, -> { where(deadline: Date.current..7.days.from_now).open_cases }
   scope :assigned_to_user, ->(user_id) { where(assigned_to_id: user_id) }
   scope :recent_first, -> { order(created_at: :desc) }
+
+  # Hierarchy scopes
+  scope :root_cases, -> { where(parent_case_id: nil) }
+  scope :child_cases_of, ->(parent_id) { where(parent_case_id: parent_id) }
+  scope :with_children, -> { where(id: CaseRecord.select(:parent_case_id).distinct) }
 
   # ============================================
   # CONSTANTS
@@ -246,6 +256,82 @@ class CaseRecord < ApplicationRecord
     action
   end
 
+  # ============================================
+  # HIERARCHY METHODS
+  # ============================================
+
+  def root_case?
+    parent_case_id.nil?
+  end
+
+  def has_children?
+    child_cases.exists?
+  end
+
+  def child_case?
+    parent_case_id.present?
+  end
+
+  # Get the root case (top of hierarchy)
+  def root_case
+    return self if root_case?
+    parent_case.root_case
+  end
+
+  # Get all ancestors (parent, grandparent, etc.)
+  def ancestors
+    return [] if root_case?
+    [parent_case] + parent_case.ancestors
+  end
+
+  # Get all descendants (children, grandchildren, etc.)
+  def descendants
+    child_cases.flat_map { |child| [child] + child.descendants }
+  end
+
+  # Get sibling cases (same parent)
+  def siblings
+    return CaseRecord.root_cases.where.not(id: id) if root_case?
+    parent_case.child_cases.where.not(id: id)
+  end
+
+  # Get all cases in the same family tree
+  def family_tree
+    root = root_case
+    [root] + root.descendants
+  end
+
+  # Count of open child cases
+  def open_child_cases_count
+    child_cases.open_cases.count
+  end
+
+  # Summary stats for child cases
+  def child_cases_summary
+    {
+      total: child_cases.count,
+      open: child_cases.open_cases.count,
+      closed: child_cases.closed_cases.count,
+      overdue: child_cases.overdue.count
+    }
+  end
+
+  # Create a sub-case inheriting relevant attributes
+  def create_child_case(attributes = {})
+    child_cases.create!(
+      {
+        contact_id: contact_id,
+        company_id: company_id,
+        company_group_id: company_group_id,
+        case_type: case_type,
+        priority: priority,
+        assigned_to_id: assigned_to_id,
+        investigation_start_date: investigation_start_date,
+        investigation_end_date: investigation_end_date
+      }.merge(attributes)
+    )
+  end
+
   private
 
   def generate_case_number
@@ -254,5 +340,9 @@ class CaseRecord < ApplicationRecord
     date_part = Date.current.strftime('%Y%m%d')
     sequence = CaseRecord.where('case_number LIKE ?', "CASE-#{date_part}-%").count + 1
     self.case_number = "CASE-#{date_part}-#{sequence.to_s.rjust(3, '0')}"
+  end
+
+  def set_hierarchy_level
+    self.hierarchy_level = parent_case ? parent_case.hierarchy_level + 1 : 0
   end
 end

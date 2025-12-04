@@ -1,6 +1,7 @@
 class DocumentType < ApplicationRecord
   # Associations
   has_many :company_documents, dependent: :nullify
+  has_many :job_documents, dependent: :nullify
 
   # Validations
   validates :name, presence: true, uniqueness: true
@@ -10,6 +11,9 @@ class DocumentType < ApplicationRecord
   scope :active, -> { where(active: true) }
   scope :by_folder, ->(folder) { where(folder: folder) }
   scope :by_category, ->(category) { where(category: category) }
+  scope :by_scope, ->(scope_name) { where(scope: scope_name) }
+  scope :for_company, -> { where(scope: %w[company both]) }
+  scope :for_job, -> { where(scope: %w[job both]) }
   scope :requiring_filing, -> { where(requires_filing: true) }
 
   # Default aliases for common document types - maps alternative names to canonical names
@@ -145,5 +149,84 @@ class DocumentType < ApplicationRecord
   # Group document types by folder
   def self.grouped_by_folder
     active.order(:folder, :name).group_by(&:folder)
+  end
+
+  # Generate a preview title showing what the document will look like when named
+  # Replaces placeholders with example values, date in AU format (DD-MM-YYYY)
+  def title_preview
+    return nil if naming_format.blank?
+
+    # Australian date format (DD-MM-YYYY)
+    au_date = Date.current.strftime('%d-%m-%Y')
+
+    format = naming_format.dup
+
+    # Replace all placeholders with example values
+    # Corporate placeholders
+    format.gsub!('{CompanyCode}', abbreviation.presence || 'DOC')
+    format.gsub!('{LoanID}', 'L001')
+    format.gsub!('{LenderCode}', 'NAB')
+    format.gsub!('{AssetCode}', 'PROP1')
+    format.gsub!('{FY}', '2025')
+    format.gsub!('{YY}', '25')
+    format.gsub!('{Period}', 'Q1')
+    format.gsub!('{PrintDate}', au_date)
+    format.gsub!('{Signed}', '')
+
+    # Job placeholders
+    format.gsub!('{JobCode}', 'J069')
+    format.gsub!('{JobTitle}', '83 West Ridge')
+    format.gsub!('{CertType}', 'Occupancy')
+    format.gsub!('{Consultant}', 'ABC Eng')
+    format.gsub!('{Number}', '01')
+
+    # Common placeholders - use document type name for description
+    format.gsub!('{Description}', '{Description}')
+    format.gsub!('{Date}', au_date)
+
+    format.strip
+  end
+
+  # Generate proposed filename for a specific job
+  # Uses actual job data instead of placeholder values
+  def generate_proposed_name(job:, file_extension: nil, description: nil, number: nil)
+    return nil if naming_format.blank?
+
+    # Australian date format (DD-MM-YYYY)
+    au_date = Date.current.strftime('%d-%m-%Y')
+
+    format = naming_format.dup
+
+    # Job placeholders with actual data
+    job_code = "J#{job.id.to_s.rjust(3, '0')}"
+    job_title = job.title.to_s.split(',').first.to_s.strip.gsub(/[^\w\s-]/, '').strip[0..30] # First part of address, sanitized
+
+    format.gsub!('{JobCode}', job_code)
+    format.gsub!('{JobTitle}', job_title)
+    format.gsub!('{CertType}', description.presence || 'Cert')
+    format.gsub!('{Consultant}', description.presence || 'Consultant')
+    format.gsub!('{Number}', number.to_s.rjust(2, '0'))
+
+    # Corporate placeholders (use abbreviation or defaults)
+    format.gsub!('{CompanyCode}', abbreviation.presence || 'DOC')
+    format.gsub!('{LoanID}', 'L001')
+    format.gsub!('{LenderCode}', 'NAB')
+    format.gsub!('{AssetCode}', 'PROP1')
+    format.gsub!('{FY}', Date.current.month >= 7 ? (Date.current.year + 1).to_s : Date.current.year.to_s)
+    format.gsub!('{YY}', Date.current.month >= 7 ? (Date.current.year + 1).to_s[-2..] : Date.current.year.to_s[-2..])
+    format.gsub!('{Period}', 'Q1')
+    format.gsub!('{PrintDate}', au_date)
+    format.gsub!('{Signed}', '')
+
+    # Common placeholders
+    format.gsub!('{Description}', description.presence || name.to_s.split(' - ').last.to_s)
+    format.gsub!('{Date}', au_date)
+
+    result = format.strip
+
+    # Add file extension if provided
+    result += ".#{file_extension}" if file_extension.present?
+
+    result
   end
 end

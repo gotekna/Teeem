@@ -56,7 +56,7 @@ module Api
               system_searchable = {
                 'contacts' => %w[full_name first_name last_name email company_name_or_trust mobile_phone office_phone notes],
                 'constructions' => %w[name description address status],
-                'jobs' => %w[name description address status]
+                'jobs' => %w[title location ted_number]
               }
               table_name = model.table_name
               system_searchable[table_name] || model.columns.select { |c| [:string, :text].include?(c.type) && !c.array }.map(&:name).first(5)
@@ -225,6 +225,26 @@ module Api
           return render json: { error: 'No valid columns to update' }, status: :unprocessable_entity
         end
 
+        # Special handling for Contact model's contact_types column
+        # Convert lookup IDs to string values (same as single record update)
+        if @foundation.model_class == 'Contact' && filtered_updates.key?('contact_types')
+          value = filtered_updates['contact_types']
+          if value.is_a?(Array) && value.first.is_a?(Integer)
+            contact_type_col = @foundation.columns.find_by(column_name: 'contact_types')
+            if contact_type_col&.lookup_foundation_id.present?
+              lookup_foundation = Foundation.find_by(id: contact_type_col.lookup_foundation_id)
+              if lookup_foundation
+                lookup_model = lookup_foundation.dynamic_model
+                display_col = contact_type_col.lookup_display_column || 'display_name'
+                string_values = lookup_model.where(id: value).pluck(display_col).map do |display|
+                  display.to_s.downcase.gsub(' ', '_')
+                end
+                filtered_updates['contact_types'] = string_values
+              end
+            end
+          end
+        end
+
         updated_count = 0
         errors = []
 
@@ -387,8 +407,58 @@ module Api
 
       def record_params
         # Get all column names for this foundation
-        column_names = @foundation.columns.pluck(:column_name)
-        params.require(:record).permit(*column_names)
+        columns = @foundation.columns
+
+        # Build permit list - arrays need special handling
+        permit_list = columns.map do |col|
+          if col.column_type == 'multiple_lookups'
+            # multiple_lookups columns accept arrays of IDs
+            { col.column_name.to_sym => [] }
+          else
+            col.column_name.to_sym
+          end
+        end
+
+        permitted = params.require(:record).permit(*permit_list)
+
+        # Convert multiple_lookups arrays to JSON strings for storage in TEXT columns
+        # BUT NOT for system tables - they use native PostgreSQL arrays
+        unless @foundation.table_type == 'system' && @foundation.model_class.present?
+          columns.each do |col|
+            col_name = col.column_name
+            # Check both string and symbol keys
+            if col.column_type == 'multiple_lookups' && (permitted.key?(col_name) || permitted.key?(col_name.to_sym))
+              value = permitted[col_name] || permitted[col_name.to_sym]
+              if value.is_a?(Array)
+                permitted[col_name] = value.to_json
+              end
+            end
+          end
+        end
+
+        # Special handling for Contact model's contact_types column
+        # It stores string values like ["customer", "supplier"] but receives lookup IDs
+        if @foundation.model_class == 'Contact' && permitted.key?('contact_types')
+          value = permitted['contact_types']
+          if value.is_a?(Array) && value.first.is_a?(Integer)
+            # Map lookup IDs to their string values from the ContactType lookup table
+            contact_type_col = columns.find { |c| c.column_name == 'contact_types' }
+            if contact_type_col&.lookup_foundation_id.present?
+              lookup_foundation = Foundation.find_by(id: contact_type_col.lookup_foundation_id)
+              if lookup_foundation
+                lookup_model = lookup_foundation.dynamic_model
+                display_col = contact_type_col.lookup_display_column || 'display_name'
+                # Fetch the display values and convert to lowercase snake_case
+                string_values = lookup_model.where(id: value).pluck(display_col).map do |display|
+                  display.to_s.downcase.gsub(' ', '_')
+                end
+                permitted['contact_types'] = string_values
+              end
+            end
+          end
+        end
+
+        permitted
       end
 
       # Apply default values for required fields that are blank
@@ -398,7 +468,8 @@ module Api
         # Handle Job model specifically
         if model == Job
           attrs[:title] = 'New Job' if attrs[:title].blank?
-          attrs[:status] = 'Active' if attrs[:status].blank?
+          # Note: job_status_id is a lookup field - don't set a default here
+          # The user should select a status from the lookup dropdown
           attrs[:site_supervisor_name] = 'TBA' if attrs[:site_supervisor_name].blank?
         end
 
@@ -449,6 +520,45 @@ module Api
               rescue => e
                 Rails.logger.warn "Error expanding #{association_name}: #{e.message}"
               end
+            end
+          end
+
+          # Expand multiple_lookups columns for system tables (e.g., contact_types)
+          @foundation.columns.where(column_type: 'multiple_lookups').each do |column|
+            value = json[column.column_name]
+            next if value.blank?
+
+            begin
+              # Parse the stored value - could be JSON string or array
+              parsed_values = if value.is_a?(String)
+                JSON.parse(value) rescue []
+              else
+                Array(value)
+              end
+
+              # For Contact model's contact_types, values are strings like ["corporate", "supplier"]
+              if parsed_values.any? && parsed_values.first.is_a?(String)
+                json[column.column_name] = parsed_values.map do |str_value|
+                  { id: str_value, display_value: str_value.to_s.titleize }
+                end
+              elsif parsed_values.any? && column.lookup_foundation.present?
+                # Values are IDs - look up display values
+                lookup_model = column.lookup_foundation.dynamic_model
+                display_col = column.lookup_display_column || 'name'
+                related_records = lookup_model.where(id: parsed_values).index_by(&:id)
+
+                json[column.column_name] = parsed_values.map do |lookup_id|
+                  related = related_records[lookup_id.to_i]
+                  {
+                    id: lookup_id,
+                    display_value: related ? related.send(display_col).to_s : "[Deleted ##{lookup_id}]"
+                  }
+                end
+              else
+                json[column.column_name] = []
+              end
+            rescue => e
+              Rails.logger.error "Error expanding multiple_lookups #{column.column_name}: #{e.message}"
             end
           end
 
@@ -504,6 +614,43 @@ module Api
             rescue => e
               Rails.logger.error "Error loading lookup value for #{column.column_name}: #{e.message}"
               json[column.column_name] = { id: value, display: "[Error]" }
+            end
+          # Handle multiple_lookups columns - return array of objects with id and display
+          elsif column.column_type == 'multiple_lookups' && value.present?
+            begin
+              # Parse the stored value - could be JSON string or array
+              parsed_values = if value.is_a?(String)
+                JSON.parse(value) rescue []
+              else
+                Array(value)
+              end
+
+              # For Contact model's contact_types, values are strings like ["corporate", "supplier"]
+              # Convert them to display format for the frontend
+              if parsed_values.any? && parsed_values.first.is_a?(String)
+                # Values are already strings (like contact_types) - display as-is
+                json[column.column_name] = parsed_values.map do |str_value|
+                  { id: str_value, display_value: str_value.to_s.titleize }
+                end
+              elsif parsed_values.any? && column.lookup_foundation.present?
+                # Values are IDs - look up display values from the lookup table
+                lookup_model = column.lookup_foundation.dynamic_model
+                display_col = column.lookup_display_column || 'name'
+                related_records = lookup_model.where(id: parsed_values).index_by(&:id)
+
+                json[column.column_name] = parsed_values.map do |lookup_id|
+                  related = related_records[lookup_id.to_i]
+                  {
+                    id: lookup_id,
+                    display_value: related ? related.send(display_col).to_s : "[Deleted ##{lookup_id}]"
+                  }
+                end
+              else
+                json[column.column_name] = []
+              end
+            rescue => e
+              Rails.logger.error "Error loading multiple_lookups value for #{column.column_name}: #{e.message}"
+              json[column.column_name] = []
             end
           else
             json[column.column_name] = value

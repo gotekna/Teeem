@@ -3,11 +3,16 @@ class ChatMessage < ApplicationRecord
   belongs_to :project, optional: true
   belongs_to :recipient_user, class_name: 'User', optional: true
   belongs_to :job, optional: true
+  belongs_to :contact, optional: true
+  belongs_to :legal_case, class_name: 'Case', foreign_key: 'case_id', optional: true
 
   validates :content, presence: true
 
   scope :in_channel, ->(channel) { where(channel: channel).order(created_at: :asc) }
   scope :for_project, ->(project_id) { where(project_id: project_id).order(created_at: :asc) }
+  scope :for_job, ->(job_id) { where(job_id: job_id).order(created_at: :asc) }
+  scope :for_contact, ->(contact_id) { where(contact_id: contact_id).order(created_at: :asc) }
+  scope :for_case, ->(case_id) { where(case_id: case_id).order(created_at: :asc) }
   scope :general, -> { where(channel: 'general', project_id: nil, recipient_user_id: nil).order(created_at: :asc) }
   scope :recent, ->(limit = 100) { order(created_at: :desc).limit(limit).reverse }
   scope :between_users, ->(user1_id, user2_id) {
@@ -21,7 +26,9 @@ class ChatMessage < ApplicationRecord
     super(options.merge(
       include: {
         user: { only: [:id, :email, :name] },
-        job: { only: [:id, :title] }
+        job: { only: [:id, :title] },
+        contact: { only: [:id, :full_name] },
+        legal_case: { only: [:id, :case_number, :title] }
       },
       methods: [:formatted_timestamp]
     ))

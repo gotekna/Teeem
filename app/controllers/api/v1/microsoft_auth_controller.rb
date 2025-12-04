@@ -128,6 +128,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
   # GET /api/v1/microsoft/status
   # Check current user's Microsoft connection status
+  # Auto-refreshes token if needed, returns needs_reconnect if refresh fails
   def status
     microsoft_token = current_user.microsoft_token
 
@@ -144,19 +145,34 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     end
 
     # Use new unified token if available, otherwise fall back to legacy
-    if microsoft_token&.status == 'connected'
+    if microsoft_token.present?
+      # Auto-refresh if token is expired or about to expire
+      needs_reconnect = false
+      if microsoft_token.needs_refresh? && microsoft_token.refresh_token.present?
+        Rails.logger.info "[Microsoft Status] Token needs refresh for user #{current_user.id}, attempting auto-refresh..."
+        unless microsoft_token.refresh_access_token!
+          Rails.logger.warn "[Microsoft Status] Auto-refresh failed for user #{current_user.id}: #{microsoft_token.sync_error}"
+          needs_reconnect = true
+        end
+        microsoft_token.reload
+      end
+
+      # If token is in error state, it needs reconnect
+      needs_reconnect = true if microsoft_token.status == 'error'
+
       render json: {
-        connected: true,
+        connected: microsoft_token.status == 'connected',
         email: microsoft_token.email,
         status: microsoft_token.status,
         expires_at: microsoft_token.token_expires_at,
         needs_refresh: microsoft_token.needs_refresh?,
+        needs_reconnect: needs_reconnect,
         last_sync_at: microsoft_token.last_sync_at,
         sync_error: microsoft_token.sync_error,
         services: {
-          outlook: true,
-          onedrive: true,
-          sharepoint: true
+          outlook: microsoft_token.status == 'connected',
+          onedrive: microsoft_token.status == 'connected',
+          sharepoint: microsoft_token.status == 'connected'
         }
       }
     elsif outlook_credential.present?
@@ -223,6 +239,75 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     outlook_credential&.destroy
 
     render json: { success: true, message: 'Microsoft account disconnected successfully' }
+  end
+
+  # GET /api/v1/microsoft/my_data_stats
+  # Get personal data warehouse stats for current user
+  def my_data_stats
+    microsoft_token = current_user.microsoft_token
+    user_email = microsoft_token&.email || current_user.email
+
+    # Email sync stats for this user
+    email_sync_status = EmailSyncStatus.find_by(user: current_user)
+
+    # Count emails synced by this user
+    emails_synced_by_user = EmailWarehouse.where(synced_by_user_id: current_user.id).count
+
+    # Get user's email sync stats
+    email_stats = {
+      total_synced: email_sync_status&.total_emails_synced || 0,
+      last_sync: email_sync_status&.last_sync_at,
+      sync_status: email_sync_status&.status || 'not_started',
+      emails_in_warehouse: emails_synced_by_user
+    }
+
+    # Calendar events (upcoming in next 7 days)
+    calendar_stats = {
+      upcoming_events: 0,  # Would need Graph API call
+      last_sync: nil
+    }
+
+    # OneDrive personal storage stats (would need Graph API call)
+    onedrive_stats = {
+      files_accessed: 0,
+      last_activity: nil
+    }
+
+    render json: {
+      user_email: user_email,
+      connected: microsoft_token&.status == 'connected',
+      connected_at: microsoft_token&.created_at,
+      email: email_stats,
+      calendar: calendar_stats,
+      onedrive: onedrive_stats
+    }
+  end
+
+  # GET /api/v1/microsoft/connections
+  # Get detailed connection info for all 4 Microsoft services
+  def connections
+    microsoft_token = current_user.microsoft_token
+    user_email = microsoft_token&.email || current_user.email
+
+    # Get organization SharePoint credential
+    org_credential = OrganizationOneDriveCredential.active_credential
+    sharepoint_info = build_sharepoint_connection_info(org_credential)
+
+    # Get personal OneDrive info (requires user's token)
+    onedrive_info = build_onedrive_connection_info(microsoft_token, user_email)
+
+    # Email connection info
+    email_info = build_email_connection_info(microsoft_token, user_email)
+
+    # Calendar connection info
+    calendar_info = build_calendar_connection_info(microsoft_token, user_email)
+
+    render json: {
+      sharepoint: sharepoint_info,
+      onedrive: onedrive_info,
+      email: email_info,
+      calendar: calendar_info
+    }
   end
 
   # GET /api/v1/microsoft/admin_consent_url
@@ -568,5 +653,79 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       </div>
       <p style="margin-top: 16px; font-size: 14px; color: #6b7280;">Tenant ID: #{tenant}</p>
     HTML
+  end
+
+  def build_sharepoint_connection_info(org_credential)
+    return { connected: false, name: 'TEEEM SharePoint', auth_type: 'organization' } unless org_credential
+
+    # Get the actual authenticated user from Graph API
+    authenticated_as = nil
+    begin
+      client = MicrosoftGraphClient.new(org_credential)
+      me = client.get('/me')
+      authenticated_as = me['mail'] || me['userPrincipalName']
+    rescue StandardError => e
+      Rails.logger.warn "[Connections] Failed to get SharePoint auth user: #{e.message}"
+    end
+
+    # Use the document library URL (Shared Documents), not the site home page
+    documents_url = 'https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents'
+
+    {
+      connected: true,
+      name: 'TEEEM SharePoint',
+      url: documents_url,
+      document_library: 'Shared Documents',
+      root_folder: org_credential.root_folder_path,
+      authenticated_as: authenticated_as,
+      auth_type: 'organization',
+      drive_id: org_credential.drive_id
+    }
+  end
+
+  def build_onedrive_connection_info(microsoft_token, user_email)
+    connected = microsoft_token&.status == 'connected'
+
+    # Build personal OneDrive URL from email
+    # Format: gotekna-my.sharepoint.com/personal/robert_tekna_com_au
+    onedrive_url = nil
+
+    if user_email.present?
+      # Convert email to OneDrive path format: robert@tekna.com.au -> robert_tekna_com_au
+      email_path = user_email.gsub('@', '_').gsub('.', '_')
+      onedrive_url = "https://gotekna-my.sharepoint.com/personal/#{email_path}/Documents"
+    end
+
+    {
+      connected: connected,
+      name: 'Personal OneDrive',
+      url: onedrive_url,
+      authenticated_as: connected ? user_email : nil,
+      auth_type: 'personal'
+    }
+  end
+
+  def build_email_connection_info(microsoft_token, user_email)
+    connected = microsoft_token&.status == 'connected'
+
+    {
+      connected: connected,
+      name: 'Outlook Email',
+      url: 'https://outlook.office.com/mail/',
+      authenticated_as: connected ? user_email : nil,
+      auth_type: 'personal'
+    }
+  end
+
+  def build_calendar_connection_info(microsoft_token, user_email)
+    connected = microsoft_token&.status == 'connected'
+
+    {
+      connected: connected,
+      name: 'Outlook Calendar',
+      url: 'https://outlook.office.com/calendar/',
+      authenticated_as: connected ? user_email : nil,
+      auth_type: 'personal'
+    }
   end
 end

@@ -16,6 +16,17 @@ class MicrosoftGraphClient
     ensure_valid_token!
   end
 
+  # Returns the correct drive path prefix based on credential type
+  # If organization credential with drive_id: "/drives/{drive_id}"
+  # If user token (no drive_id): "/me/drive"
+  def drive_path
+    if @credential.drive_id.present?
+      "/drives/#{@credential.drive_id}"
+    else
+      "/me/drive"
+    end
+  end
+
   # OAuth Methods
 
   # Get authorization URL for user to consent
@@ -264,7 +275,7 @@ class MicrosoftGraphClient
 
   # Find a folder by exact name in the drive root
   def find_folder_in_drive_root(folder_name)
-    results = get("/drives/#{@credential.drive_id}/root/children")
+    results = get("#{drive_path}/root/children")
     results['value']&.find { |item| item['name'] == folder_name && item['folder'] }
   rescue APIError => e
     Rails.logger.warn "[SharePoint] Error searching for folder '#{folder_name}' in drive root: #{e.message}"
@@ -276,9 +287,9 @@ class MicrosoftGraphClient
     path = if drive_id && !parent_id
       "/drives/#{drive_id}/root/children"
     elsif parent_id
-      "/drives/#{@credential.drive_id}/items/#{parent_id}/children"
+      "#{drive_path}/items/#{parent_id}/children"
     else
-      "/drives/#{@credential.drive_id}/root/children"
+      "#{drive_path}/root/children"
     end
 
     post(path, {
@@ -350,9 +361,9 @@ class MicrosoftGraphClient
     path = if drive_id && !parent_id
       "/drives/#{drive_id}/root/children"
     elsif parent_id
-      "/drives/#{@credential.drive_id}/items/#{parent_id}/children"
+      "#{drive_path}/items/#{parent_id}/children"
     else
-      "/drives/#{@credential.drive_id}/root/children"
+      "#{drive_path}/root/children"
     end
 
     post(path, {
@@ -371,7 +382,7 @@ class MicrosoftGraphClient
       raise APIError, "No folder ID provided and no root folder configured"
     end
 
-    path = "/drives/#{@credential.drive_id}/items/#{folder_id}/children"
+    path = "#{drive_path}/items/#{folder_id}/children"
     path += "?$expand=thumbnails" if include_thumbnails
     get(path)
   end
@@ -379,7 +390,7 @@ class MicrosoftGraphClient
   # Get folder by path
   def get_folder_by_path(path)
     encoded_path = path.split('/').map { |segment| CGI.escape(segment) }.join('/')
-    get("/drives/#{@credential.drive_id}/root:/#{encoded_path}")
+    get("#{drive_path}/root:/#{encoded_path}")
   rescue APIError => e
     return nil if e.message.include?('itemNotFound')
     raise
@@ -400,7 +411,7 @@ class MicrosoftGraphClient
     # If no root folder set, try to find "TEEEM Jobs" folder in the drive root
     if search_folder_id.blank?
       begin
-        root_results = get("/drives/#{@credential.drive_id}/root/children")
+        root_results = get("#{drive_path}/root/children")
         teeem_jobs_folder = root_results['value']&.find { |item| item['folder'] && item['name'] == 'TEEEM Jobs' }
         search_folder_id = teeem_jobs_folder['id'] if teeem_jobs_folder
         Rails.logger.info "[find_job_folder] Found TEEEM Jobs folder: #{search_folder_id}" if teeem_jobs_folder
@@ -413,7 +424,7 @@ class MicrosoftGraphClient
     folders = []
     if search_folder_id.present?
       begin
-        results = get("/drives/#{@credential.drive_id}/items/#{search_folder_id}/children")
+        results = get("#{drive_path}/items/#{search_folder_id}/children")
         folders = results['value']&.select { |item| item['folder'] } || []
         Rails.logger.info "[find_job_folder] Found #{folders.length} folders in search location"
 
@@ -457,7 +468,7 @@ class MicrosoftGraphClient
   # Search for folder by name in drive root
   def find_folder_by_name(folder_name)
     # Search in drive root
-    results = get("/drives/#{@credential.drive_id}/root/children")
+    results = get("#{drive_path}/root/children")
 
     # Find exact match
     results['value']&.find { |item| item['name'] == folder_name && item['folder'] }
@@ -470,7 +481,7 @@ class MicrosoftGraphClient
     filename ||= File.basename(file.path)
 
     post(
-      "/drives/#{@credential.drive_id}/items/#{parent_folder_id}:/#{filename}:/content",
+      "#{drive_path}/items/#{parent_folder_id}:/#{filename}:/content",
       File.read(file),
       { 'Content-Type' => 'application/octet-stream' }
     )
@@ -479,7 +490,7 @@ class MicrosoftGraphClient
   # Create upload session for large files (>= 4MB)
   def create_upload_session(parent_folder_id, filename, file_size)
     post(
-      "/drives/#{@credential.drive_id}/items/#{parent_folder_id}:/#{filename}:/createUploadSession",
+      "#{drive_path}/items/#{parent_folder_id}:/#{filename}:/createUploadSession",
       {
         item: {
           "@microsoft.graph.conflictBehavior": "rename",
@@ -492,7 +503,7 @@ class MicrosoftGraphClient
   # Download file
   def download_file(file_id)
     response = HTTParty.get(
-      "#{GRAPH_API_BASE}/drives/#{@credential.drive_id}/items/#{file_id}/content",
+      "#{GRAPH_API_BASE}#{drive_path}/items/#{file_id}/content",
       headers: auth_headers,
       follow_redirects: true
     )
@@ -503,7 +514,7 @@ class MicrosoftGraphClient
 
   # Get file metadata
   def get_file(file_id)
-    get("/drives/#{@credential.drive_id}/items/#{file_id}")
+    get("#{drive_path}/items/#{file_id}")
   end
 
   # Alias for get_file
@@ -514,7 +525,7 @@ class MicrosoftGraphClient
   # Update file content (replace existing file)
   def update_file_content(file_id, content)
     put(
-      "/drives/#{@credential.drive_id}/items/#{file_id}/content",
+      "#{drive_path}/items/#{file_id}/content",
       content,
       { 'Content-Type' => 'application/octet-stream' }
     )
@@ -523,7 +534,7 @@ class MicrosoftGraphClient
   # Rename a file in SharePoint/OneDrive
   def rename_file(file_id, new_name)
     patch(
-      "/drives/#{@credential.drive_id}/items/#{file_id}",
+      "#{drive_path}/items/#{file_id}",
       { name: new_name }
     )
   end
@@ -533,7 +544,7 @@ class MicrosoftGraphClient
     # URL-encode the filename to handle spaces and special characters
     encoded_filename = URI.encode_www_form_component(filename)
     response = HTTParty.put(
-      "#{GRAPH_API_BASE}/drives/#{@credential.drive_id}/items/#{parent_folder_id}:/#{encoded_filename}:/content",
+      "#{GRAPH_API_BASE}#{drive_path}/items/#{parent_folder_id}:/#{encoded_filename}:/content",
       body: content,
       headers: auth_headers.merge({ 'Content-Type' => 'application/octet-stream' })
     )
@@ -549,7 +560,7 @@ class MicrosoftGraphClient
   def get_preview_url(file_id)
     # Try the preview endpoint first (works for most file types)
     begin
-      response = post("/drives/#{@credential.drive_id}/items/#{file_id}/preview", {})
+      response = post("#{drive_path}/items/#{file_id}/preview", {})
       return response['getUrl'] if response['getUrl'].present?
     rescue APIError => e
       Rails.logger.warn "Preview endpoint failed for file #{file_id}: #{e.message}"
@@ -558,7 +569,7 @@ class MicrosoftGraphClient
     # Fallback: Create an anonymous view sharing link
     # This creates a link that anyone can use to view (not edit) the file
     begin
-      response = post("/drives/#{@credential.drive_id}/items/#{file_id}/createLink", {
+      response = post("#{drive_path}/items/#{file_id}/createLink", {
         type: "view",
         scope: "anonymous"
       })
@@ -573,7 +584,7 @@ class MicrosoftGraphClient
 
   # Delete file or folder
   def delete_item(item_id)
-    delete("/drives/#{@credential.drive_id}/items/#{item_id}")
+    delete("#{drive_path}/items/#{item_id}")
   end
 
   # Alias for delete_item (for consistency with file operations)
@@ -582,9 +593,9 @@ class MicrosoftGraphClient
   # Search for files
   def search(query, folder_id = nil)
     path = if folder_id
-      "/drives/#{@credential.drive_id}/items/#{folder_id}/search(q='#{CGI.escape(query)}')"
+      "#{drive_path}/items/#{folder_id}/search(q='#{CGI.escape(query)}')"
     else
-      "/drives/#{@credential.drive_id}/root/search(q='#{CGI.escape(query)}')"
+      "#{drive_path}/root/search(q='#{CGI.escape(query)}')"
     end
 
     get(path)

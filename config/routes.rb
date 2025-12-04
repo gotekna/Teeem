@@ -317,6 +317,10 @@ Rails.application.routes.draw do
           get :categories
           get :internal_messages
           get :company_group_memberships
+          get :directorships
+          get :shareholdings
+          get :trust_roles
+          get :ownership_chain
           post :copy_price_history
           delete :remove_from_categories
           post :bulk_update_prices
@@ -366,6 +370,8 @@ Rails.application.routes.draw do
       resources :chat_messages, only: [:index, :create, :destroy] do
         collection do
           get :unread_count
+          get :online_users
+          get :conversations
           post :mark_as_read
           post :save_conversation_to_job
         end
@@ -410,6 +416,8 @@ Rails.application.routes.draw do
           get :auth_url
           get :callback
           get :status
+          get :connections
+          get :my_data_stats
           post :refresh
           delete :disconnect
           # Admin consent for organization-wide permissions
@@ -453,6 +461,18 @@ Rails.application.routes.draw do
 
       # Email Job Proposals (AI-powered job creation from emails)
       resources :email_job_proposals, only: [:index, :show, :create] do
+        member do
+          post :approve
+          post :reject
+          post :re_extract
+        end
+      end
+
+      # Email Case Proposals (AI-powered case creation from emails)
+      resources :email_case_proposals, only: [:index, :show, :create] do
+        collection do
+          get :relationship_types
+        end
         member do
           post :approve
           post :reject
@@ -534,8 +554,12 @@ Rails.application.routes.draw do
       get 'permissions/user/:id', to: 'permissions#user_permissions'
       post 'permissions/grant', to: 'permissions#grant'
 
-      # Contact types
-      resources :contact_types, only: [:index]
+      # Contact types (full CRUD for admin management)
+      resources :contact_types do
+        collection do
+          post :reorder
+        end
+      end
 
       # Legacy routes for backwards compatibility
       resources :documentation_entries, controller: 'trinity' do
@@ -989,6 +1013,17 @@ Rails.application.routes.draw do
       get 'organization_onedrive/legacy_files', to: 'organization_onedrive#legacy_files'
       post 'organization_onedrive/import_legacy', to: 'organization_onedrive#import_legacy'
       post 'organization_onedrive/run_migration', to: 'organization_onedrive#run_migration'
+      get 'organization_onedrive/job_all_files', to: 'organization_onedrive#job_all_files'
+      post 'organization_onedrive/sync_job_documents', to: 'organization_onedrive#sync_job_documents'
+
+      # AI document analysis endpoints
+      post 'organization_onedrive/analyze_job_documents', to: 'organization_onedrive#analyze_job_documents'
+      get 'organization_onedrive/documents_needing_review', to: 'organization_onedrive#documents_needing_review'
+      post 'organization_onedrive/approve_document_rename', to: 'organization_onedrive#approve_document_rename'
+      post 'organization_onedrive/bulk_approve_renames', to: 'organization_onedrive#bulk_approve_renames'
+
+      # Organization-wide data stats
+      get 'organization/data_stats', to: 'organization#data_stats'
 
       # Schema information
       get 'schema', to: 'schema#index'
@@ -1096,6 +1131,7 @@ Rails.application.routes.draw do
           get :shareholders
           get :investments
           get :trust_roles  # SSoT: Trustee, Beneficiaries, Appointor for Trust/Superfund entities
+          get :data_stats   # Data warehouse statistics for this company
         end
 
         # Bank Accounts (nested under companies)
@@ -1177,6 +1213,9 @@ Rails.application.routes.draw do
           get :companies
           get :jobs
 
+          # Relationship visualization
+          get :relationship_graph
+
           # Warehouse integration
           get :warehouse_summary
           get :search_emails
@@ -1193,6 +1232,12 @@ Rails.application.routes.draw do
 
           # Run actions
           post :run_action
+
+          # Contact positions for chart
+          patch 'contacts/:contact_id/position', action: :update_contact_position
+
+          # Create sub-case
+          post :create_child
         end
       end
 
@@ -1300,6 +1345,7 @@ Rails.application.routes.draw do
           post :auto_resolve_duplicates
           get :marked_for_deletion
           post :permanently_delete
+          get :counts
         end
         member do
           get :download
@@ -1568,6 +1614,24 @@ Rails.application.routes.draw do
         collection do
           get :stats
         end
+      end
+
+      # Data Warehouse API
+      namespace :warehouse do
+        # Metadata (data dictionary)
+        get '/', to: 'warehouse_metadata#index', as: :metadata_index
+        get 'metadata', to: 'warehouse_metadata#index', as: :metadata
+        get 'metadata/:id', to: 'warehouse_metadata#show', as: :metadata_show
+
+        # Export endpoints
+        get 'export', to: 'warehouse_exports#index', as: :export
+        get 'export/:id', to: 'warehouse_exports#show', as: :export_view
+
+        # Status and health
+        get 'status', to: 'warehouse_status#index', as: :status
+        get 'status/:id', to: 'warehouse_status#show', as: :status_view
+        get 'health', to: 'warehouse_status#health', as: :health
+        post 'refresh', to: 'warehouse_status#refresh', as: :refresh
       end
 
       # External integrations (API endpoints for third-party systems)

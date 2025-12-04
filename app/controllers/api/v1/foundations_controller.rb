@@ -91,40 +91,39 @@ module Api
       # GET /api/v1/foundations/:id/health
       # Returns all health checks for this table with their current status
       def health
-        # Find health checks for this foundation
-        # Try by foundation_id first, then by table_name
-        checks = TableHealthCheck.for_table_or_foundation(@foundation.id)
+        # Use new HealthChecks::Registry service
+        result = HealthChecks::Registry.run_all(
+          foundation_id: @foundation.id,
+          table_name: @foundation.database_table_name
+        )
 
-        # If no checks found by ID, try by table name (for system tables)
-        if checks.empty? && @foundation.database_table_name.present?
-          checks = TableHealthCheck.for_table_or_foundation(@foundation.database_table_name)
+        # If no checks from service, fall back to database-configured checks
+        if result[:checks].empty?
+          checks = TableHealthCheck.for_table_or_foundation(@foundation.id)
+          if checks.empty? && @foundation.database_table_name.present?
+            checks = TableHealthCheck.for_table_or_foundation(@foundation.database_table_name)
+          end
+
+          if checks.any?
+            # Use legacy execution through TableHealthCheck model
+            results = checks.map(&:execute)
+            result = {
+              success: true,
+              foundation_id: @foundation.id,
+              table_name: @foundation.name,
+              overall_health: HealthChecks::BaseCheck.calculate_health_score(results),
+              total_issues: results.sum { |r| r[:count] || 0 },
+              has_issues: results.any? { |r| (r[:count] || 0) > 0 },
+              checks: HealthChecks::BaseCheck.sort_by_severity(results),
+              checked_at: Time.current.iso8601
+            }
+          end
         end
 
-        # Execute each check and collect results
-        results = checks.map(&:execute)
-
-        # Calculate overall health score
-        total_issues = results.sum { |r| r[:count] }
-        critical_issues = results.select { |r| r[:severity] == 'critical' }.sum { |r| r[:count] }
-        warning_issues = results.select { |r| r[:severity] == 'warning' }.sum { |r| r[:count] }
-
-        # Health score: 100% if no issues, reduced based on severity
-        # Critical issues: -10 points each (capped at -50)
-        # Warning issues: -2 points each (capped at -30)
-        health_score = 100
-        health_score -= [critical_issues * 10, 50].min
-        health_score -= [warning_issues * 2, 30].min
-        health_score = [health_score, 0].max
-
-        render json: {
-          success: true,
+        render json: result.merge(
           foundation_id: @foundation.id,
-          table_name: @foundation.name,
-          overall_health: health_score,
-          total_issues: total_issues,
-          has_issues: total_issues > 0,
-          checks: results.sort_by { |r| TableHealthCheck::SEVERITY_ORDER[r[:severity]] || 99 }
-        }
+          table_name: @foundation.name
+        )
       end
 
       # GET /api/v1/foundations/:id/schema
