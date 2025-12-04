@@ -32,23 +32,26 @@ module Api
           .map { |d| { type: d.document_type, abbreviation: d.abbreviation, count: d.doc_count } }
 
         # Email statistics with detailed breakdown
+        # Note: email_warehouse table only has job_id for linking (no contact_id, company_id, etc.)
         email_stats = if defined?(EmailWarehouse)
           total_size = EmailWarehouse.sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
+          linked_to_job = EmailWarehouse.where.not(job_id: nil).count
+          size_by_job = EmailWarehouse.where.not(job_id: nil).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
           {
             total_emails: EmailWarehouse.count,
             total_size: total_size,
-            linked_to_contact: EmailWarehouse.where.not(contact_id: nil).count,
-            linked_to_job: EmailWarehouse.where.not(job_id: nil).count,
-            linked_to_company: EmailWarehouse.where.not(company_id: nil).count,
-            linked_to_company_group: EmailWarehouse.where.not(company_group_id: nil).count,
-            junk_emails: EmailWarehouse.where(is_junk: true).count,
-            unprocessed: EmailWarehouse.where(processed: false).count,
-            last_sync: EmailWarehouse.maximum(:created_at),
+            linked_to_contact: 0,  # Not tracked in email_warehouse
+            linked_to_job: linked_to_job,
+            linked_to_company: 0,  # Not tracked in email_warehouse
+            linked_to_company_group: 0,  # Not tracked in email_warehouse
+            junk_emails: 0,  # Not tracked in email_warehouse
+            unprocessed: 0,  # Not tracked in email_warehouse
+            last_sync: EmailWarehouse.maximum(:last_synced_at) || EmailWarehouse.maximum(:created_at),
             # Size breakdown by category
-            size_by_contact: EmailWarehouse.where.not(contact_id: nil).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0,
-            size_by_job: EmailWarehouse.where.not(job_id: nil).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0,
-            size_by_company: EmailWarehouse.where.not(company_id: nil).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0,
-            size_junk: EmailWarehouse.where(is_junk: true).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
+            size_by_contact: 0,
+            size_by_job: size_by_job,
+            size_by_company: 0,
+            size_junk: 0
           }
         else
           {
