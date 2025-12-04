@@ -91,11 +91,9 @@ class ColumnTypeValidator
         end
 
       when 'number', 'currency'
+        # Note: Currency and number can be negative (e.g., variances, refunds, credits)
         begin
-          num = Float(str_value)
-          if num < 0
-            return "must be 0 or greater"
-          end
+          Float(str_value)
         rescue ArgumentError
           return "must be a number"
         end

@@ -77,12 +77,18 @@ class PricebookItem < ApplicationRecord
     # Sanitize the query for ILIKE pattern matching
     sanitized_query = PricebookItem.sanitize_sql_like(query)
 
-    # Search in both the tsvector column AND supplier name (contact full_name)
-    # We do a simple ILIKE search on supplier name (joined) and tsquery on searchable_text
+    # Search in multiple ways:
+    # 1. Full-text search via tsvector (for complete word matches)
+    # 2. ILIKE on item_code (for partial code matches like "AIRSI" → "AIRSI25")
+    # 3. ILIKE on item_name (for partial name matches)
+    # 4. ILIKE on supplier name (joined contact full_name)
     # Note: Using distinct is important because left_joins can create duplicates if multiple suppliers match
     left_joins(:supplier)
       .where(
-        "pricebook.searchable_text @@ plainto_tsquery('english', :query) OR contacts.full_name ILIKE :like_query",
+        "pricebook.searchable_text @@ plainto_tsquery('english', :query) " \
+        "OR pricebook.item_code ILIKE :like_query " \
+        "OR pricebook.item_name ILIKE :like_query " \
+        "OR contacts.full_name ILIKE :like_query",
         query: query,
         like_query: "%#{sanitized_query}%"
       )
