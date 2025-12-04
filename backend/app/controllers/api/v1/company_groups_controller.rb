@@ -91,18 +91,19 @@ module Api
       # GET /api/v1/company_groups/:id/structure
       def structure
         # Get top-level companies (no parent) in this group
-        # Exclude Trust entities that have a Trustee company (they'll be shown under the Trustee)
+        # Exclude Trustee companies (is_trustee: true) - they'll be shown under their Trust
         all_top_level = @company_group.companies.where(parent_company_id: nil).order(:name)
 
-        # Find trusts/superfunds that have a trustee company in this group
-        # Match by Trust/Superfund's name (not trust_name field) since trustee's trust_name = Trust's name
-        trusts_with_trustees = @company_group.companies
-          .where(entity_type: ['Trust', 'Superfund'])
-          .select { |trust| @company_group.companies.exists?(is_trustee: true, trust_name: trust.name) }
+        # Find trustee companies that have a matching Trust entity in this group
+        # These should NOT appear at top level (they'll appear under their Trust)
+        trustee_companies_with_trusts = @company_group.companies
+          .where(is_trustee: true)
+          .where.not(trust_name: [nil, ''])
+          .select { |trustee| @company_group.companies.exists?(entity_type: ['Trust', 'Superfund'], name: trustee.trust_name) }
           .map(&:id)
 
-        # Exclude those trusts from top level (they'll appear under their trustee)
-        top_level = all_top_level.where.not(id: trusts_with_trustees)
+        # Exclude those trustee companies from top level (they'll appear under their Trust)
+        top_level = all_top_level.where.not(id: trustee_companies_with_trusts)
 
         # SSoT: Get people in this group via memberships
         people = @company_group.contact_memberships
@@ -350,29 +351,49 @@ module Api
           .order(:name)
           .map { |s| build_hierarchy_tree(s, company_group) }
 
-        # If this company is a trustee, add the Trust/Superfund entity as a child
-        # Match by Trust/Superfund's name (the trustee's trust_name = Trust entity's name)
-        if company.is_trustee && company.trust_name.present? && company_group
-          trust_entity = company_group.companies.where(entity_type: ['Trust', 'Superfund']).find_by(name: company.trust_name)
-          if trust_entity
-            # Add the trust at the beginning of children
-            trust_node = {
-              id: trust_entity.id,
-              name: trust_entity.name,
-              code: trust_entity.code,
-              acn: trust_entity.acn,
-              abn: trust_entity.abn,
-              status: trust_entity.status,
-              entity_type: trust_entity.entity_type,
-              is_trustee: false,
-              trust_name: trust_entity.trust_name,
-              hierarchy_level: trust_entity.hierarchy_level,
-              shareholders: [],
+        # If this entity is a Trust/Superfund, find and add its Trustee company as a child
+        # The trustee company has is_trustee: true and trust_name matching this Trust's name
+        if ['Trust', 'Superfund'].include?(company.entity_type) && company_group
+          trustee_company = company_group.companies.find_by(is_trustee: true, trust_name: company.name)
+          if trustee_company
+            # Build trustee node (don't recurse to avoid infinite loop - trustee shouldn't have the trust as child again)
+            trustee_shareholders = trustee_company.company_shareholdings.includes(:shareholder).map do |sh|
+              shareholder_name = if sh.shareholder.respond_to?(:name)
+                                   sh.shareholder&.name
+                                 elsif sh.shareholder.respond_to?(:full_name)
+                                   sh.shareholder&.full_name
+                                 else
+                                   "Unknown"
+                                 end
+              {
+                id: sh.id,
+                shareholder_type: sh.shareholder_type,
+                shareholder_id: sh.shareholder_id,
+                shareholder_name: shareholder_name,
+                shares: sh.number_of_shares,
+                percentage: sh.percentage_of_total,
+                share_class: sh.share_class,
+                beneficially_held: sh.beneficially_held
+              }
+            end
+
+            trustee_node = {
+              id: trustee_company.id,
+              name: trustee_company.name,
+              code: trustee_company.code,
+              acn: trustee_company.acn,
+              abn: trustee_company.abn,
+              status: trustee_company.status,
+              entity_type: trustee_company.entity_type,
+              is_trustee: true,
+              trust_name: trustee_company.trust_name,
+              hierarchy_level: trustee_company.hierarchy_level,
+              shareholders: trustee_shareholders,
               investments: [],
               children: [],
-              is_trust_of_trustee: true  # Flag to indicate this is the trust managed by the parent trustee
+              is_trustee_of_trust: true  # Flag to indicate this company is the trustee of the parent trust
             }
-            children.unshift(trust_node)
+            children.unshift(trustee_node)
           end
         end
 

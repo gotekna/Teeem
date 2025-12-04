@@ -153,6 +153,7 @@ interface StructureCompany {
   investments: unknown[];
   children: StructureCompany[];
   is_trust_of_trustee?: boolean;
+  is_trustee_of_trust?: boolean;
 }
 
 interface StructurePerson {
@@ -701,6 +702,7 @@ export default function CorporateDashboardPage() {
         is_trustee: company.is_trustee ? "Yes" : "No",
         trust_name: company.trust_name || "—",
         is_trust_of_trustee: company.is_trust_of_trustee || false,
+        is_trustee_of_trust: company.is_trustee_of_trust || false,
         shareholders_count: company.shareholders.length,
         children_count: company.children.length,
       });

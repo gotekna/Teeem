@@ -3642,7 +3642,10 @@ export default function TeeemTableView({
             : [];
 
           return (
-            <div className="border rounded-md p-2 bg-background shadow-lg min-w-[200px] max-h-[250px] overflow-y-auto">
+            <div
+              className="border rounded-md p-2 bg-background shadow-lg min-w-[200px] max-h-[250px] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
               {isLoading ? (
                 <div className="flex items-center gap-2 text-muted-foreground p-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -3656,6 +3659,7 @@ export default function TeeemTableView({
                     <label
                       key={option.id}
                       className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1.5 rounded text-sm"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <Checkbox
                         checked={selectedIds.includes(String(option.id))}
@@ -3674,7 +3678,8 @@ export default function TeeemTableView({
                       size="sm"
                       variant="ghost"
                       className="h-6 text-xs"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setEditingCell(null);
                         setEditingCellValue(null);
                       }}
@@ -3684,7 +3689,8 @@ export default function TeeemTableView({
                     <Button
                       size="sm"
                       className="h-6 text-xs"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (onRowUpdate) {
                           const idsToSave = Array.isArray(editingCellValue)
                             ? (editingCellValue as (number | string)[]).map(id => typeof id === 'string' ? parseInt(id, 10) : id)
