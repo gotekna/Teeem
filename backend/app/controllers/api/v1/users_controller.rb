@@ -92,7 +92,7 @@ class Api::V1::UsersController < ApplicationController
     params.require(:user).permit(:name, :email, :mobile_phone, :role, assigned_roles: [])
   end
 
-  # Returns user data with presence status
+  # Returns user data with presence status and integration info
   def user_with_presence(user)
     last_seen = user.last_seen_at
     presence_status = if last_seen.nil?
@@ -105,8 +105,19 @@ class Api::V1::UsersController < ApplicationController
                         'offline'
                       end
 
+    # Count Microsoft integrations
+    microsoft_token = UserMicrosoftToken.find_by(user_id: user.id)
+    outlook_credential = UserOutlookCredential.find_by(user_id: user.id)
+
+    integrations = []
+    integrations << 'microsoft' if microsoft_token.present?
+    integrations << 'outlook' if outlook_credential.present?
+
     user.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at, :last_seen_at]).merge(
-      presence_status: presence_status
+      presence_status: presence_status,
+      integrations: integrations,
+      integrations_count: integrations.count,
+      status: presence_status == 'online' ? 'active' : (user.last_login_at.present? ? 'active' : 'pending')
     )
   end
 end

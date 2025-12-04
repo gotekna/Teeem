@@ -61,8 +61,30 @@ interface User {
   email: string;
   role: string;
   status: string;
-  last_sign_in_at: string | null;
+  last_login_at: string | null;
+  last_seen_at: string | null;
+  presence_status: 'online' | 'away' | 'offline';
+  integrations: string[];
+  integrations_count: number;
   created_at: string;
+}
+
+// Format relative time (e.g., "2 hours ago", "Yesterday", "Dec 3")
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
 }
 
 interface Role {
@@ -177,26 +199,61 @@ function UsersManagementTab() {
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Last Sign In</TableHead>
+              <TableHead>Integrations</TableHead>
+              <TableHead>Last Login</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredUsers.map((user) => (
               <TableRow key={user.id}>
-                <TableCell className="font-medium">{user.name}</TableCell>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    <div className={cn(
+                      "h-2 w-2 rounded-full",
+                      user.presence_status === 'online' && "bg-green-500",
+                      user.presence_status === 'away' && "bg-yellow-500",
+                      user.presence_status === 'offline' && "bg-gray-300"
+                    )} />
+                    {user.name}
+                  </div>
+                </TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
-                  <Badge variant="outline">{user.role || "User"}</Badge>
+                  <Badge variant="outline">{user.role || "user"}</Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={user.status === "active" ? "default" : "secondary"}>
-                    {user.status || "Active"}
+                  <Badge
+                    variant={user.status === "active" ? "default" : "secondary"}
+                    className={cn(
+                      user.presence_status === 'online' && "bg-green-500 hover:bg-green-600"
+                    )}
+                  >
+                    {user.presence_status === 'online' ? 'Online' :
+                     user.status === "active" ? "Active" : "Pending"}
                   </Badge>
                 </TableCell>
+                <TableCell>
+                  {user.integrations_count > 0 ? (
+                    <div className="flex gap-1">
+                      {user.integrations?.includes('microsoft') && (
+                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                          MS
+                        </Badge>
+                      )}
+                      {user.integrations?.includes('outlook') && (
+                        <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200">
+                          Email
+                        </Badge>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">None</span>
+                  )}
+                </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
-                  {user.last_sign_in_at
-                    ? new Date(user.last_sign_in_at).toLocaleDateString()
+                  {user.last_login_at
+                    ? formatRelativeTime(user.last_login_at)
                     : "Never"}
                 </TableCell>
                 <TableCell>
