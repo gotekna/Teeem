@@ -82,7 +82,7 @@ const navigationItems: NavigationItem[] = [
   { name: "Price Book", href: urls.pricebook(), icon: Package },
   { name: "Documents", href: "/documents", icon: FolderOpen },
   { name: "Corporate", href: "/corporate", icon: Building2 },
-  { name: "Cases", href: "/cases", icon: Scale },
+  { name: "Cases", href: "/cases", icon: Scale, badgeKey: "pendingCaseProposals" },
   { name: "CG NEW", href: "/corporate/cg-new", icon: Network },
   { name: "Portal", href: "/portal", icon: ExternalLink },
   { name: "Admin", href: "/admin", icon: Wrench },
@@ -131,15 +131,25 @@ export function Sidebar() {
   useEffect(() => {
     const loadBadgeCounts = async () => {
       try {
-        // Load pending email proposals count
-        const response = await api.get<{ proposals: Array<{ status: string }> }>(
+        // Load pending email job proposals count (for Leads)
+        const jobResponse = await api.get<{ proposals: Array<{ status: string }> }>(
           "/api/v1/email_job_proposals?status=pending"
         );
-        const pendingCount = (response.proposals || []).filter(p => p.status === "pending").length;
-        setBadges(prev => ({ ...prev, pendingProposals: pendingCount }));
+        const pendingJobCount = (jobResponse.proposals || []).filter(p => p.status === "pending").length;
+        setBadges(prev => ({ ...prev, pendingProposals: pendingJobCount }));
       } catch (error) {
-        // Silently fail - badge just won't show
-        console.debug("Failed to load badge counts:", error);
+        console.debug("Failed to load job proposal badge counts:", error);
+      }
+
+      try {
+        // Load pending email case proposals count (for Cases)
+        const caseResponse = await api.get<{ proposals: Array<{ status: string }> }>(
+          "/api/v1/email_case_proposals?status=pending"
+        );
+        const pendingCaseCount = (caseResponse.proposals || []).filter(p => p.status === "pending").length;
+        setBadges(prev => ({ ...prev, pendingCaseProposals: pendingCaseCount }));
+      } catch (error) {
+        console.debug("Failed to load case proposal badge counts:", error);
       }
     };
 

@@ -421,7 +421,7 @@ export default function PricebookHealthPage() {
     if (!missingItems[key]) {
       try {
         setLoadingMissingItems(true);
-        const response = await api.get(`/api/v1/health/pricebook/missing_items?supplier_id=${supplierId}&category=${encodeURIComponent(category)}`);
+        const response = await api.get<{ items: PricebookItem[] }>(`/api/v1/health/pricebook/missing_items?supplier_id=${supplierId}&category=${encodeURIComponent(category)}`);
         setMissingItems((prev) => ({ ...prev, [key]: response.items }));
       } catch (error) {
         console.error("Failed to load missing items:", error);
