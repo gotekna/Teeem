@@ -381,7 +381,7 @@ export default function PricebookHealthPage() {
 
   const loadXeroInvoiceSyncHealth = async () => {
     try {
-      const response = await api.get("/api/v1/external_invoices/sync_status");
+      const response = await api.get<{ success: boolean; data: XeroInvoiceSyncHealth }>("/api/v1/external_invoices/sync_status");
       if (response.success) {
         setXeroInvoiceSyncHealth(response.data);
       }
@@ -402,7 +402,7 @@ export default function PricebookHealthPage() {
   const loadDuplicateContacts = async () => {
     try {
       setLoadingDuplicates(true);
-      const response = await api.get("/api/v1/contacts/possible_duplicates");
+      const response = await api.get<DuplicateContacts>("/api/v1/contacts/possible_duplicates");
       setDuplicateContacts(response);
     } catch (error) {
       console.error("Failed to load duplicate contacts:", error);
