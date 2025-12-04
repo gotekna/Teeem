@@ -50,6 +50,7 @@ interface RelationshipNode {
     phone?: string;
     company?: string;
     relationship_type?: string;
+    alignment?: string;
     is_primary?: boolean;
     contact_id?: number;
     case_id?: number;
@@ -109,6 +110,15 @@ const RELATIONSHIP_STYLES: Record<string, { color: string; bgColor: string; icon
 
 const DEFAULT_STYLE = { color: "#6b7280", bgColor: "bg-gray-500", icon: User };
 
+// Alignment styles - which side the contact is on
+const ALIGNMENT_STYLES: Record<string, { color: string; borderColor: string; label: string }> = {
+  friendly: { color: "#22c55e", borderColor: "border-green-500", label: "Friendly" },
+  neutral: { color: "#6b7280", borderColor: "border-gray-400", label: "Neutral" },
+  opposing: { color: "#ef4444", borderColor: "border-red-500", label: "Opposing" },
+};
+
+const DEFAULT_ALIGNMENT = { color: "#6b7280", borderColor: "border-gray-400", label: "Neutral" };
+
 // Custom node component for case (central node)
 function CaseNode({ data }: { data: CaseNodeData }) {
   const { label, caseNumber, caseType, onClick } = data;
@@ -153,8 +163,9 @@ interface CaseNodeData {
 
 // Custom node component for contacts
 function ContactNode({ data }: { data: ContactNodeData }) {
-  const { label, email, phone, company, relationshipType, isPrimary, onClick } = data;
+  const { label, email, phone, company, relationshipType, alignment, isPrimary, onClick } = data;
   const style = RELATIONSHIP_STYLES[relationshipType || ""] || DEFAULT_STYLE;
+  const alignmentStyle = ALIGNMENT_STYLES[alignment || ""] || DEFAULT_ALIGNMENT;
   const Icon = style.icon;
 
   return (
@@ -163,10 +174,9 @@ function ContactNode({ data }: { data: ContactNodeData }) {
         "min-w-[260px] max-w-[320px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow text-base",
         isPrimary
           ? "ring-2 ring-blue-500 ring-offset-2"
-          : "",
-        `border-[${style.color}]/50`
+          : ""
       )}
-      style={{ borderColor: `${style.color}80` }}
+      style={{ borderColor: alignmentStyle.color }}
       onClick={onClick}
     >
       <Handle type="target" position={Position.Top} className="!bg-gray-400" />
@@ -190,11 +200,21 @@ function ContactNode({ data }: { data: ContactNodeData }) {
             {relationshipType?.replace(/_/g, " ") || "Contact"}
           </div>
         </div>
-        {isPrimary && (
-          <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
-            Primary
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-1">
+          {isPrimary && (
+            <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+              Primary
+            </span>
+          )}
+          {alignment && alignment !== 'neutral' && (
+            <span
+              className="px-2 py-0.5 text-xs rounded-full text-white"
+              style={{ backgroundColor: alignmentStyle.color }}
+            >
+              {alignmentStyle.label}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="px-4 py-3 space-y-1 bg-white dark:bg-gray-900">
@@ -218,6 +238,7 @@ interface ContactNodeData {
   phone?: string;
   company?: string;
   relationshipType?: string;
+  alignment?: string;
   isPrimary?: boolean;
   onClick?: () => void;
 }
@@ -468,6 +489,7 @@ export default function CaseRelationshipChart({
         nodeData.onClick = () => onContactClick(node.data.contact_id!);
         nodeData.label = node.data.name;
         nodeData.relationshipType = node.data.relationship_type;
+        nodeData.alignment = node.data.alignment;
         nodeData.isPrimary = node.data.is_primary;
       } else if (node.type === "company" && onCompanyClick && node.data.company_id) {
         nodeData.onClick = () => onCompanyClick(node.data.company_id!);
