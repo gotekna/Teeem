@@ -2,9 +2,21 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Building2,
@@ -28,6 +40,8 @@ import {
   ToggleLeft,
   ToggleRight,
   Pencil,
+  FolderOpen,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -73,6 +87,15 @@ interface ComplianceItem {
 interface CompanyGroup {
   id: number;
   name: string;
+  description?: string;
+  default_registered_office?: string;
+  default_principal_place?: string;
+  default_accountant?: string;
+  default_accountant_contact?: string;
+  active?: boolean;
+  companies_count?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface Membership {
@@ -280,6 +303,19 @@ export default function CorporateDashboardPage() {
   // People tab state
   const [people, setPeople] = React.useState<TableRow[]>([]);
   const [loadingPeople, setLoadingPeople] = React.useState(false);
+
+  // Groups tab state
+  const [showCreateGroupDialog, setShowCreateGroupDialog] = React.useState(false);
+  const [editingGroup, setEditingGroup] = React.useState<CompanyGroup | null>(null);
+  const [savingGroup, setSavingGroup] = React.useState(false);
+  const [newGroupForm, setNewGroupForm] = React.useState({
+    name: "",
+    description: "",
+    default_registered_office: "",
+    default_principal_place: "",
+    default_accountant: "",
+    default_accountant_contact: "",
+  });
 
   // Load initial data
   React.useEffect(() => {
@@ -536,6 +572,109 @@ export default function CorporateDashboardPage() {
     } catch (err) {
       console.error("Failed to bulk delete companies:", err);
     }
+  };
+
+  // ===== GROUP HANDLERS =====
+
+  const resetGroupForm = () => {
+    setNewGroupForm({
+      name: "",
+      description: "",
+      default_registered_office: "",
+      default_principal_place: "",
+      default_accountant: "",
+      default_accountant_contact: "",
+    });
+    setEditingGroup(null);
+  };
+
+  const handleCreateGroup = async () => {
+    if (!newGroupForm.name.trim()) {
+      alert("Group name is required");
+      return;
+    }
+
+    try {
+      setSavingGroup(true);
+      const response = await api.post<{ success: boolean; data: CompanyGroup }>("/api/v1/company_groups", {
+        company_group: newGroupForm,
+      });
+
+      if (response.success && response.data) {
+        setGroups([...groups, response.data].sort((a, b) => a.name.localeCompare(b.name)));
+        setGroupsMap(prev => ({ ...prev, [response.data.id]: response.data.name }));
+        setShowCreateGroupDialog(false);
+        resetGroupForm();
+      }
+    } catch (err) {
+      console.error("Failed to create group:", err);
+      alert("Failed to create group. Please try again.");
+    } finally {
+      setSavingGroup(false);
+    }
+  };
+
+  const handleUpdateGroup = async () => {
+    if (!editingGroup || !newGroupForm.name.trim()) {
+      alert("Group name is required");
+      return;
+    }
+
+    try {
+      setSavingGroup(true);
+      const response = await api.patch<{ success: boolean; data: CompanyGroup }>(
+        `/api/v1/company_groups/${editingGroup.id}`,
+        { company_group: newGroupForm }
+      );
+
+      if (response.success && response.data) {
+        setGroups(groups.map(g => g.id === editingGroup.id ? response.data : g).sort((a, b) => a.name.localeCompare(b.name)));
+        setGroupsMap(prev => ({ ...prev, [response.data.id]: response.data.name }));
+        setShowCreateGroupDialog(false);
+        resetGroupForm();
+      }
+    } catch (err) {
+      console.error("Failed to update group:", err);
+      alert("Failed to update group. Please try again.");
+    } finally {
+      setSavingGroup(false);
+    }
+  };
+
+  const handleDeleteGroup = async (group: CompanyGroup) => {
+    if (group.companies_count && group.companies_count > 0) {
+      alert(`Cannot delete group with ${group.companies_count} companies. Reassign companies first.`);
+      return;
+    }
+
+    if (!confirm(`Delete group "${group.name}"? This cannot be undone.`)) return;
+
+    try {
+      await api.delete(`/api/v1/company_groups/${group.id}`);
+      setGroups(groups.filter(g => g.id !== group.id));
+      const newMap = { ...groupsMap };
+      delete newMap[group.id];
+      setGroupsMap(newMap);
+      if (selectedGroupId === group.id) {
+        setSelectedGroupId(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete group:", err);
+      alert("Failed to delete group. Please try again.");
+    }
+  };
+
+  const openEditGroupDialog = (group: CompanyGroup) => {
+    setEditingGroup(group);
+    setNewGroupForm({
+      name: group.name,
+      description: group.description || "",
+      default_registered_office: group.default_registered_office || "",
+      default_principal_place: group.default_principal_place || "",
+      default_accountant: group.default_accountant || "",
+      default_accountant_contact: group.default_accountant_contact || "",
+    });
+    setShowCreateGroupDialog(true);
   };
 
   // ===== STRUCTURE HELPERS =====
@@ -953,10 +1092,14 @@ export default function CorporateDashboardPage() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 max-w-3xl">
+        <TabsList className="grid w-full grid-cols-6 max-w-4xl">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="groups" className="flex items-center gap-2">
+            <FolderOpen className="h-4 w-4" />
+            Groups
           </TabsTrigger>
           <TabsTrigger value="companies" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
@@ -1025,6 +1168,199 @@ export default function CorporateDashboardPage() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Groups Tab */}
+        <TabsContent value="groups" className="mt-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FolderOpen className="h-5 w-5 text-indigo-600" />
+                  Company Groups ({groups.length})
+                </CardTitle>
+                <CardDescription>
+                  Manage company groups to organize related entities
+                </CardDescription>
+              </div>
+              <Dialog open={showCreateGroupDialog} onOpenChange={(open) => {
+                setShowCreateGroupDialog(open);
+                if (!open) resetGroupForm();
+              }}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Group
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>{editingGroup ? "Edit Group" : "Create New Group"}</DialogTitle>
+                    <DialogDescription>
+                      {editingGroup
+                        ? "Update the group details below."
+                        : "Create a new company group to organize related companies and trusts."
+                      }
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="group-name">Name *</Label>
+                      <Input
+                        id="group-name"
+                        placeholder="e.g., Smith Family Group"
+                        value={newGroupForm.name}
+                        onChange={(e) => setNewGroupForm({ ...newGroupForm, name: e.target.value })}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="group-description">Description</Label>
+                      <Textarea
+                        id="group-description"
+                        placeholder="Optional description of this group"
+                        value={newGroupForm.description}
+                        onChange={(e) => setNewGroupForm({ ...newGroupForm, description: e.target.value })}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="group-registered-office">Default Registered Office</Label>
+                      <Input
+                        id="group-registered-office"
+                        placeholder="Address for registered office"
+                        value={newGroupForm.default_registered_office}
+                        onChange={(e) => setNewGroupForm({ ...newGroupForm, default_registered_office: e.target.value })}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="group-principal-place">Default Principal Place of Business</Label>
+                      <Input
+                        id="group-principal-place"
+                        placeholder="Address for principal place"
+                        value={newGroupForm.default_principal_place}
+                        onChange={(e) => setNewGroupForm({ ...newGroupForm, default_principal_place: e.target.value })}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="group-accountant">Default Accountant</Label>
+                        <Input
+                          id="group-accountant"
+                          placeholder="Accountant name"
+                          value={newGroupForm.default_accountant}
+                          onChange={(e) => setNewGroupForm({ ...newGroupForm, default_accountant: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="group-accountant-contact">Accountant Contact</Label>
+                        <Input
+                          id="group-accountant-contact"
+                          placeholder="Contact details"
+                          value={newGroupForm.default_accountant_contact}
+                          onChange={(e) => setNewGroupForm({ ...newGroupForm, default_accountant_contact: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => {
+                      setShowCreateGroupDialog(false);
+                      resetGroupForm();
+                    }}>
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={editingGroup ? handleUpdateGroup : handleCreateGroup}
+                      disabled={savingGroup || !newGroupForm.name.trim()}
+                    >
+                      {savingGroup && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      {editingGroup ? "Save Changes" : "Create Group"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              {groups.length === 0 ? (
+                <div className="text-center text-muted-foreground py-12">
+                  <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">No groups yet</p>
+                  <p className="text-sm mt-1">Create your first company group to get started</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {groups.map((group) => (
+                    <Card
+                      key={group.id}
+                      className="hover:shadow-md transition-shadow cursor-pointer"
+                      onClick={() => {
+                        setSelectedGroupId(group.id);
+                        setActiveTab("structure");
+                      }}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <FolderOpen className="h-5 w-5 text-indigo-600" />
+                              <h3 className="font-medium">{group.name}</h3>
+                            </div>
+                            {group.description && (
+                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                                {group.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-4 mt-3">
+                              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                <Building2 className="h-4 w-4" />
+                                <span>{group.companies_count || 0} companies</span>
+                              </div>
+                              {group.active === false && (
+                                <Badge variant="secondary">Inactive</Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditGroupDialog(group);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteGroup(group);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        {(group.default_accountant || group.default_registered_office) && (
+                          <div className="mt-3 pt-3 border-t text-xs text-muted-foreground space-y-1">
+                            {group.default_accountant && (
+                              <div>Accountant: {group.default_accountant}</div>
+                            )}
+                            {group.default_registered_office && (
+                              <div className="truncate">Office: {group.default_registered_office}</div>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Companies Tab */}

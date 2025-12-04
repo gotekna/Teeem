@@ -1455,7 +1455,6 @@ export default function TeeemTableView({
       }
 
       const displayColumn = column.lookup_config?.display_column || 'name';
-      console.log('[fetchLookupOptions] targetTableId:', targetTableId, 'records:', records.length, 'displayColumn:', displayColumn);
 
       const options = records.map((record) => ({
         id: record.id as number,
@@ -1477,14 +1476,10 @@ export default function TeeemTableView({
     setEditingData({ [row.id]: { ...row } });
 
     // Pre-fetch lookup options for lookup columns
-    console.log('[startEditing] Checking columns for lookup options...');
     COLUMNS.forEach(col => {
       if (col.column_type === 'lookup' || col.column_type === 'relation') {
-        console.log('[startEditing] Found lookup column:', col.key, 'lookup_config:', col.lookup_config);
         if (col.lookup_config?.target_table_id) {
           fetchLookupOptions(col);
-        } else {
-          console.warn('[startEditing] Lookup column missing lookup_config.target_table_id:', col.key);
         }
       }
     });
@@ -2630,10 +2625,8 @@ export default function TeeemTableView({
 
   // Apply auto-fit widths when enabled
   useEffect(() => {
-    console.log('[TeeemTableView] Auto-fit effect running, autoFitColumns:', autoFitColumns, 'entries:', filteredAndSortedEntries.length);
     if (autoFitColumns && filteredAndSortedEntries.length > 0) {
       const autoWidths = calculateAutoFitWidths();
-      console.log('[TeeemTableView] Auto-fit widths calculated:', autoWidths);
       // Replace widths entirely when auto-fit is on (not merge)
       setColumnWidths(autoWidths);
     }
@@ -5467,7 +5460,7 @@ export default function TeeemTableView({
                   const isMultipleLookups = selectedCol?.column_type === 'multiple_lookups';
                   const isChoice = selectedCol?.column_type === 'choice' || selectedCol?.column_type === 'single_select';
 
-                  console.log('[BulkUpdate] Column:', bulkUpdateColumn, 'hasChoices:', hasChoices, 'isLookup:', isLookup, 'isMultipleLookups:', isMultipleLookups, 'choices:', selectedCol?.choices, 'column_type:', selectedCol?.column_type, 'lookupOptions:', lookupOptions[bulkUpdateColumn]);
+                  // Debug logging removed to prevent console flooding
 
                   // For multiple_lookups columns, show checkboxes for multi-select
                   if (isMultipleLookups) {
@@ -5541,7 +5534,7 @@ export default function TeeemTableView({
                   if (hasChoices || isChoice) {
                     // Dropdown for choice columns with predefined options
                     const options = selectedCol?.choices || [];
-                    console.log('[BulkUpdate] Rendering choice dropdown with options:', options);
+                    // Debug logging removed to prevent console flooding
                     return (
                       <Select
                         value={bulkUpdateValue}
