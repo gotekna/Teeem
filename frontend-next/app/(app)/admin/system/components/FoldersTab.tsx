@@ -694,9 +694,7 @@ export function FoldersTab() {
                   <div>
                     <h3 className="font-semibold">{selectedTemplate.name}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {selectedTemplate.template_type === "system"
-                        ? "System template (duplicate to edit)"
-                        : "Click folders to rename, drag to reorder"}
+                      Click folders to rename, drag to reorder
                     </p>
                   </div>
                   <Badge variant={selectedTemplate.template_type === "system" ? "secondary" : "outline"}>
@@ -706,7 +704,7 @@ export function FoldersTab() {
                 <FolderTreeEditor
                   template={selectedTemplate}
                   onUpdate={handleTemplateUpdate}
-                  isEditable={selectedTemplate.template_type !== "system"}
+                  isEditable={true}
                 />
               </CardContent>
             </Card>
