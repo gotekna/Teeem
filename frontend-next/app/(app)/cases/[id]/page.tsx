@@ -508,6 +508,8 @@ export default function CaseDetailPage() {
         throw new Error("Failed to create sub-case");
       }
 
+      const newCaseId = response.data.id;
+
       // Refresh case data to show new child case
       const caseResponse = await api.get<{ success: boolean; data: CaseDetail }>(
         `/api/v1/cases/${caseId}`
@@ -520,7 +522,7 @@ export default function CaseDetailPage() {
       setShowCreateSubCase(false);
 
       // Navigate to the new sub-case
-      router.push(`/cases/${response.data.id}`);
+      router.push(`/cases/${newCaseId}`);
     } catch (error) {
       console.error("Failed to create sub-case:", error);
     } finally {

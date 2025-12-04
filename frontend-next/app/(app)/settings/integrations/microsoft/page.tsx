@@ -177,7 +177,7 @@ export default function MicrosoftIntegrationPage() {
       {/* Main Status Card - Collapsible */}
       <Collapsible open={mainOpen} onOpenChange={setMainOpen}>
         <Card>
-          <CollapsibleTrigger asChild>
+          <CollapsibleTrigger className="w-full text-left">
             <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -278,7 +278,7 @@ export default function MicrosoftIntegrationPage() {
       {connections && (
         <Collapsible open={servicesOpen} onOpenChange={setServicesOpen}>
           <Card>
-            <CollapsibleTrigger asChild>
+            <CollapsibleTrigger className="w-full text-left">
               <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
