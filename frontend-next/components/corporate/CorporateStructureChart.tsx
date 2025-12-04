@@ -86,6 +86,7 @@ interface CorporateStructureChartProps {
     directors: boolean;
     secretary: boolean;
     corporateOfficer: boolean;
+    ownershipLinks: boolean;
   };
   onEntityClick?: (entityId: number, entityType: "company" | "person") => void;
 }
@@ -104,6 +105,45 @@ function formatABN(abn: string | null): string {
   const digits = abn.replace(/\D/g, "");
   if (digits.length !== 11) return abn;
   return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)} ${digits.slice(8, 11)}`;
+}
+
+// Custom node component for person
+function PersonNode({ data }: { data: PersonNodeData }) {
+  const { label, email, roles, onClick } = data;
+
+  return (
+    <div
+      className="min-w-[280px] max-w-[350px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow text-base bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700"
+      onClick={onClick}
+    >
+      {/* Connection handles */}
+      <Handle type="target" position={Position.Top} className="!bg-gray-400" />
+      <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
+
+      {/* Header */}
+      <div className="px-5 py-4 rounded-t-md flex items-center gap-3 bg-amber-100 dark:bg-amber-900/50">
+        <User className="h-5 w-5 text-amber-600" />
+        <span className="font-bold text-lg">{label}</span>
+      </div>
+
+      {/* Body */}
+      <div className="px-5 py-4 text-base space-y-2">
+        {email && (
+          <div className="text-sm text-muted-foreground">{email}</div>
+        )}
+        <div className="text-sm text-amber-700 dark:text-amber-400">
+          {roles} roles
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface PersonNodeData {
+  label: string;
+  email: string | null;
+  roles: number;
+  onClick?: () => void;
 }
 
 // Custom node component for entities
@@ -324,6 +364,7 @@ interface EntityNodeData {
 // Node types registration
 const nodeTypes = {
   entity: EntityNode,
+  person: PersonNode,
 };
 
 export default function CorporateStructureChart({
@@ -460,6 +501,167 @@ export default function CorporateStructureChart({
     data.companies.forEach((company, index) => {
       processCompany(company, null, startX, 20, index, topLevelCount, 1);
     });
+
+    // Add ownership/shareholding links if filter is enabled
+    if (filters.ownershipLinks) {
+      // Collect all company IDs that have nodes
+      const nodeCompanyIds = new Set(nodes.map(n => n.id.startsWith('company-') ? parseInt(n.id.replace('company-', '')) : -1));
+
+      // Helper to collect all shareholdings from all companies in the tree
+      const collectShareholdings = (company: StructureCompany): Array<{
+        ownerType: 'Company' | 'Contact';
+        ownerId: number;
+        ownerName: string;
+        ownedId: number;
+        percentage: number;
+      }> => {
+        const shareholdings: Array<{ ownerType: 'Company' | 'Contact'; ownerId: number; ownerName: string; ownedId: number; percentage: number }> = [];
+
+        // Check all shareholders (both Company and Contact types)
+        company.shareholders?.forEach(sh => {
+          if (sh.shareholder_type === 'Company' && nodeCompanyIds.has(sh.shareholder_id)) {
+            shareholdings.push({
+              ownerType: 'Company',
+              ownerId: sh.shareholder_id,
+              ownerName: sh.shareholder_name,
+              ownedId: company.id,
+              percentage: sh.percentage || 0,
+            });
+          } else if (sh.shareholder_type === 'Contact') {
+            shareholdings.push({
+              ownerType: 'Contact',
+              ownerId: sh.shareholder_id,
+              ownerName: sh.shareholder_name,
+              ownedId: company.id,
+              percentage: sh.percentage || 0,
+            });
+          }
+        });
+
+        // Recursively collect from children
+        company.children?.forEach(child => {
+          shareholdings.push(...collectShareholdings(child));
+        });
+
+        return shareholdings;
+      };
+
+      // Collect all shareholdings from all companies
+      const allShareholdings: Array<{ ownerType: 'Company' | 'Contact'; ownerId: number; ownerName: string; ownedId: number; percentage: number }> = [];
+      data.companies.forEach(company => {
+        allShareholdings.push(...collectShareholdings(company));
+      });
+
+      // Group person shareholdings by contact_id to create person nodes
+      const personShareholdings = new Map<number, { name: string; companyIds: Array<{ companyId: number; percentage: number }> }>();
+      allShareholdings.filter(sh => sh.ownerType === 'Contact').forEach(sh => {
+        if (!personShareholdings.has(sh.ownerId)) {
+          personShareholdings.set(sh.ownerId, { name: sh.ownerName, companyIds: [] });
+        }
+        personShareholdings.get(sh.ownerId)!.companyIds.push({ companyId: sh.ownedId, percentage: sh.percentage });
+      });
+
+      // Find the leftmost and rightmost company positions to place people
+      let minX = Infinity, maxX = -Infinity, maxY = 0;
+      nodes.forEach(n => {
+        if (n.position.x < minX) minX = n.position.x;
+        if (n.position.x + 400 > maxX) maxX = n.position.x + 400;
+        if (n.position.y > maxY) maxY = n.position.y;
+      });
+
+      // Add person nodes to the left of the chart
+      const personSpacing = 200;
+      let personY = 20;
+      personShareholdings.forEach((personData, contactId) => {
+        const personNodeId = `person-${contactId}`;
+        nodes.push({
+          id: personNodeId,
+          type: "person",
+          position: { x: minX - 450, y: personY },
+          data: {
+            label: personData.name,
+            email: null,
+            roles: personData.companyIds.length,
+            onClick: () => onEntityClick?.(contactId, "person"),
+          },
+        });
+
+        // Add edges from person to each company they own shares in
+        personData.companyIds.forEach((ownership, idx) => {
+          const targetId = `company-${ownership.companyId}`;
+          if (nodes.some(n => n.id === targetId)) {
+            edges.push({
+              id: `person-ownership-${personNodeId}-${targetId}-${idx}`,
+              source: personNodeId,
+              target: targetId,
+              type: "smoothstep",
+              animated: true,
+              style: {
+                stroke: "#f59e0b", // Amber for person ownership
+                strokeWidth: 2,
+                strokeDasharray: "5,5",
+              },
+              label: `${ownership.percentage}%`,
+              labelStyle: {
+                fill: "#f59e0b",
+                fontWeight: 600,
+                fontSize: 12,
+              },
+              labelBgStyle: {
+                fill: "#ffffff",
+                fillOpacity: 0.9,
+              },
+              labelBgPadding: [4, 4] as [number, number],
+              labelBgBorderRadius: 4,
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+                color: "#f59e0b",
+              },
+            });
+          }
+        });
+
+        personY += personSpacing;
+      });
+
+      // Create company-to-company ownership edges (green dashed lines)
+      allShareholdings.filter(sh => sh.ownerType === 'Company').forEach((sh, index) => {
+        const sourceId = `company-${sh.ownerId}`;
+        const targetId = `company-${sh.ownedId}`;
+
+        // Only add edge if both nodes exist
+        if (nodes.some(n => n.id === sourceId) && nodes.some(n => n.id === targetId)) {
+          edges.push({
+            id: `ownership-${sourceId}-${targetId}-${index}`,
+            source: sourceId,
+            target: targetId,
+            type: "smoothstep",
+            animated: true,
+            style: {
+              stroke: "#10b981", // Emerald green
+              strokeWidth: 2,
+              strokeDasharray: "5,5",
+            },
+            label: `${sh.percentage}%`,
+            labelStyle: {
+              fill: "#10b981",
+              fontWeight: 600,
+              fontSize: 12,
+            },
+            labelBgStyle: {
+              fill: "#ffffff",
+              fillOpacity: 0.9,
+            },
+            labelBgPadding: [4, 4] as [number, number],
+            labelBgBorderRadius: 4,
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: "#10b981",
+            },
+          });
+        }
+      });
+    }
 
     return { initialNodes: nodes, initialEdges: edges, maxDepth };
   }, [data, filters, onEntityClick]);

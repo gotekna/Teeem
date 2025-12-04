@@ -55,10 +55,15 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import dynamic from "next/dynamic";
 
-// Dynamically import the chart to avoid SSR issues with React Flow
+// Dynamically import the charts to avoid SSR issues with React Flow
 const CorporateStructureChart = dynamic(
   () => import("@/components/corporate/CorporateStructureChart"),
   { ssr: false, loading: () => <div className="h-[600px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div> }
+);
+
+const PersonStructureChart = dynamic(
+  () => import("@/components/corporate/PersonStructureChart"),
+  { ssr: false, loading: () => <div className="h-[400px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div> }
 );
 
 // Import from centralized utilities
@@ -317,6 +322,7 @@ export default function CorporateDashboardPage() {
     shareholders: true,
     directors: true,
     secretary: true,
+    ownershipLinks: true,
     corporateOfficer: true,
   });
   const [structureViewMode, setStructureViewMode] = React.useState<"chart" | "table">("chart");
@@ -1676,9 +1682,6 @@ export default function CorporateDashboardPage() {
                                 <Users className="h-4 w-4 text-purple-600" />
                                 <div>
                                   <span className="font-medium text-purple-700 dark:text-purple-300">Director</span>
-                                  {role.position && role.position !== "director" && (
-                                    <span className="text-sm text-muted-foreground ml-1">({role.position})</span>
-                                  )}
                                   {role.is_current === false && (
                                     <Badge variant="secondary" className="ml-2 text-xs">Former</Badge>
                                   )}
@@ -1713,9 +1716,6 @@ export default function CorporateDashboardPage() {
                                 <Key className="h-4 w-4 text-green-600" />
                                 <div>
                                   <span className="font-medium text-green-700 dark:text-green-300">Public Officer</span>
-                                  {role.position && (
-                                    <span className="text-sm text-muted-foreground ml-1">({role.position})</span>
-                                  )}
                                 </div>
                               </div>
                             ))}
@@ -2048,6 +2048,16 @@ export default function CorporateDashboardPage() {
                       />
                       <span className="text-sm text-green-700 dark:text-green-400">Officer</span>
                     </label>
+                    <span className="text-gray-300 dark:text-gray-600">|</span>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={structureFilters.ownershipLinks}
+                        onChange={(e) => setStructureFilters(prev => ({ ...prev, ownershipLinks: e.target.checked }))}
+                        className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="text-sm text-emerald-700 dark:text-emerald-400">Ownership Links</span>
+                    </label>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -2258,9 +2268,9 @@ export default function CorporateDashboardPage() {
                             >
                               {role.company_name}
                             </button>
-                            <p className="text-sm text-muted-foreground">
-                              {role.position || "Director"} {role.is_current === false && "(Former)"}
-                            </p>
+                            {role.is_current === false && (
+                              <p className="text-sm text-muted-foreground">(Former)</p>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -2330,7 +2340,6 @@ export default function CorporateDashboardPage() {
                             >
                               {role.company_name}
                             </button>
-                            <p className="text-sm text-muted-foreground">{role.position}</p>
                           </div>
                         ))}
                       </div>

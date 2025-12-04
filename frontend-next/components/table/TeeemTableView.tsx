@@ -1737,7 +1737,14 @@ export default function TeeemTableView({
         valueToSend = bulkUpdateValue.split(',').filter(Boolean).map(id => parseInt(id, 10));
       }
 
-      if (onRowUpdate) {
+      // Use bulk_update API endpoint if foundationIdNumeric is available (much faster)
+      if (foundationIdNumeric) {
+        await api.post(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_update`, {
+          record_ids: ids,
+          updates: { [bulkUpdateColumn]: valueToSend }
+        });
+      } else if (onRowUpdate) {
+        // Fallback to individual updates
         for (const id of ids) {
           await onRowUpdate(id, bulkUpdateColumn, valueToSend);
         }
@@ -1753,7 +1760,7 @@ export default function TeeemTableView({
     } finally {
       setBulkUpdateSaving(false);
     }
-  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, onRowUpdate, onRefresh, COLUMNS]);
+  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, foundationIdNumeric, onRowUpdate, onRefresh, COLUMNS]);
 
   // Fetch lookup options when bulk update column changes to a lookup column
   useEffect(() => {
@@ -1839,6 +1846,9 @@ export default function TeeemTableView({
     // Don't interfere with row selection checkbox or actions
     if (column.key === 'select' || column.key === 'actions') return;
 
+    // Only allow cell editing if the row is in edit mode (pencil button clicked)
+    if (!editingRowIds.has(row.id)) return;
+
     // If already editing this cell, let the editor handle clicks
     if (editingCell?.rowId === row.id && editingCell?.columnKey === column.key) return;
 
@@ -1847,19 +1857,22 @@ export default function TeeemTableView({
       e.stopPropagation(); // Prevent row selection
       startCellEdit(row.id, column);
     }
-  }, [editingCell, isDropdownColumn, onRowUpdate, startCellEdit]);
+  }, [editingCell, editingRowIds, isDropdownColumn, onRowUpdate, startCellEdit]);
 
   // Handle cell double-click - for text columns
   const handleCellDoubleClick = useCallback((e: React.MouseEvent, row: TableRowType, column: TableColumn) => {
     // Don't interfere with row selection checkbox or actions
     if (column.key === 'select' || column.key === 'actions') return;
 
+    // Only allow cell editing if the row is in edit mode (pencil button clicked)
+    if (!editingRowIds.has(row.id)) return;
+
     // For non-dropdown columns, start editing on double click
     if (!isDropdownColumn(column) && onRowUpdate) {
       e.stopPropagation(); // Prevent row navigation
       startCellEdit(row.id, column);
     }
-  }, [isDropdownColumn, onRowUpdate, startCellEdit]);
+  }, [editingRowIds, isDropdownColumn, onRowUpdate, startCellEdit]);
 
   // ============================================================================
   // SCHEMA HANDLERS
@@ -3630,16 +3643,66 @@ export default function TeeemTableView({
         if (columnType === 'multiple_lookups') {
           const options = lookupOptions[column.key] || [];
           const isLoading = lookupLoading[column.key];
-          // Current value is an array of IDs or objects with IDs
+
+          // Current value could be:
+          // 1. Array of objects with {id, display_value} from API
+          // 2. Array of numeric IDs (after editing)
+          // 3. Array of string values (legacy format like "corporate")
           const currentValue = editingCellValue;
-          const selectedIds: string[] = Array.isArray(currentValue)
-            ? currentValue.map((v: unknown) => {
-                if (typeof v === 'object' && v !== null && 'id' in v) {
-                  return String((v as { id: number | string }).id);
+
+          // Build a set of selected option IDs
+          // Handle both string values (like "corporate") and numeric IDs
+          const getSelectedOptionIds = (): Set<number> => {
+            if (!Array.isArray(currentValue)) return new Set();
+
+            const selectedSet = new Set<number>();
+
+            for (const v of currentValue) {
+              if (typeof v === 'number') {
+                // Already a numeric ID
+                selectedSet.add(v);
+              } else if (typeof v === 'object' && v !== null && 'id' in v) {
+                const objId = (v as { id: number | string }).id;
+                if (typeof objId === 'number') {
+                  selectedSet.add(objId);
+                } else if (typeof objId === 'string') {
+                  // String ID - could be numeric string or a name like "corporate"
+                  const numId = parseInt(objId, 10);
+                  if (!isNaN(numId)) {
+                    selectedSet.add(numId);
+                  } else {
+                    // It's a string name - find matching option by display name
+                    const normalizedValue = objId.toLowerCase().replace(/\s+/g, '_');
+                    const matchingOption = options.find(opt =>
+                      opt.display.toLowerCase().replace(/\s+/g, '_') === normalizedValue
+                    );
+                    if (matchingOption) {
+                      selectedSet.add(matchingOption.id);
+                    }
+                  }
                 }
-                return String(v);
-              })
-            : [];
+              } else if (typeof v === 'string') {
+                // String value - could be numeric string or a name like "corporate"
+                const numId = parseInt(v, 10);
+                if (!isNaN(numId)) {
+                  selectedSet.add(numId);
+                } else {
+                  // It's a string name - find matching option by display name
+                  const normalizedValue = v.toLowerCase().replace(/\s+/g, '_');
+                  const matchingOption = options.find(opt =>
+                    opt.display.toLowerCase().replace(/\s+/g, '_') === normalizedValue
+                  );
+                  if (matchingOption) {
+                    selectedSet.add(matchingOption.id);
+                  }
+                }
+              }
+            }
+
+            return selectedSet;
+          };
+
+          const selectedOptionIds = getSelectedOptionIds();
 
           return (
             <div
@@ -3662,12 +3725,16 @@ export default function TeeemTableView({
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Checkbox
-                        checked={selectedIds.includes(String(option.id))}
+                        checked={selectedOptionIds.has(option.id)}
                         onCheckedChange={(checked) => {
-                          const newIds = checked
-                            ? [...selectedIds, String(option.id)]
-                            : selectedIds.filter(id => id !== String(option.id));
-                          setEditingCellValue(newIds.map(id => parseInt(id, 10)));
+                          const newIds = new Set(selectedOptionIds);
+                          if (checked) {
+                            newIds.add(option.id);
+                          } else {
+                            newIds.delete(option.id);
+                          }
+                          // Store as array of numeric IDs
+                          setEditingCellValue(Array.from(newIds));
                         }}
                       />
                       <span>{option.display}</span>
@@ -3692,17 +3759,13 @@ export default function TeeemTableView({
                       onClick={async (e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        console.log('[MultipleLookups Save] clicked, entry.id:', entry.id, 'column.key:', column.key, 'editingCellValue:', editingCellValue, 'onRowUpdate:', !!onRowUpdate);
                         if (onRowUpdate) {
-                          const idsToSave = Array.isArray(editingCellValue)
-                            ? (editingCellValue as (number | string)[]).map(id => typeof id === 'string' ? parseInt(id, 10) : id)
-                            : [];
-                          console.log('[MultipleLookups Save] calling onRowUpdate with idsToSave:', idsToSave);
+                          // Send numeric IDs - backend will convert to string names if needed
+                          const idsToSave = Array.from(selectedOptionIds);
                           try {
                             await onRowUpdate(entry.id, column.key, idsToSave);
-                            console.log('[MultipleLookups Save] onRowUpdate completed successfully');
                           } catch (err) {
-                            console.error('[MultipleLookups Save] onRowUpdate failed:', err);
+                            console.error('[MultipleLookups Save] failed:', err);
                           }
                         }
                         setEditingCell(null);
