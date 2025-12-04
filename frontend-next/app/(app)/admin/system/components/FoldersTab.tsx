@@ -38,7 +38,10 @@ import {
   Settings2,
   Cloud,
   FolderOpen,
+  Search,
 } from "lucide-react";
+import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -479,6 +482,12 @@ export function FoldersTab() {
   const [folderDialogOpen, setFolderDialogOpen] = React.useState(false);
   const [newFolderPath, setNewFolderPath] = React.useState("");
   const [savingFolder, setSavingFolder] = React.useState(false);
+  const [selectedBrowserFolder, setSelectedBrowserFolder] = React.useState<{
+    id: string;
+    name: string;
+    path: string;
+  } | null>(null);
+  const [folderSelectionMode, setFolderSelectionMode] = React.useState<"browse" | "type">("browse");
 
   React.useEffect(() => {
     loadTemplates();
@@ -501,18 +510,30 @@ export function FoldersTab() {
   };
 
   const handleChangeFolderPath = async () => {
-    if (!newFolderPath.trim()) {
-      toast({ title: "Error", description: "Please enter a folder path", variant: "destructive" });
-      return;
+    // Check if we have a valid selection based on mode
+    if (folderSelectionMode === "browse") {
+      if (!selectedBrowserFolder) {
+        toast({ title: "Error", description: "Please select a folder from the browser", variant: "destructive" });
+        return;
+      }
+    } else {
+      if (!newFolderPath.trim()) {
+        toast({ title: "Error", description: "Please enter a folder path", variant: "destructive" });
+        return;
+      }
     }
 
     setSavingFolder(true);
     try {
-      await api.patch("/api/v1/organization_onedrive/change_root_folder", {
-        folder_name: newFolderPath.trim(),
-      });
+      // Use folder_id if from browser, folder_name if typed
+      const payload = folderSelectionMode === "browse" && selectedBrowserFolder
+        ? { folder_id: selectedBrowserFolder.id }
+        : { folder_name: newFolderPath.trim() };
+
+      await api.patch("/api/v1/organization_onedrive/change_root_folder", payload);
       toast({ title: "Success", description: "Root folder updated successfully" });
       setFolderDialogOpen(false);
+      setSelectedBrowserFolder(null);
       // Reload config to show updated path
       await loadSharePointConfig();
     } catch (error: unknown) {
@@ -739,41 +760,93 @@ export function FoldersTab() {
       </Card>
 
       {/* Change Folder Dialog */}
-      <Dialog open={folderDialogOpen} onOpenChange={setFolderDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+      <Dialog open={folderDialogOpen} onOpenChange={(open) => {
+        setFolderDialogOpen(open);
+        if (!open) {
+          setSelectedBrowserFolder(null);
+          setFolderSelectionMode("browse");
+        }
+      }}>
+        <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
             <DialogTitle>Change Jobs Root Folder</DialogTitle>
             <DialogDescription>
-              Enter the folder path in SharePoint where job folders will be created.
-              Use forward slashes for nested paths (e.g., "TEEEM/Jobs").
+              Select the folder in SharePoint where job folders will be created.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="folder-path">Folder Path</Label>
-              <Input
-                id="folder-path"
-                value={newFolderPath}
-                onChange={(e) => setNewFolderPath(e.target.value)}
-                placeholder="TEEEM Jobs"
-                className="font-mono"
+
+          <Tabs value={folderSelectionMode} onValueChange={(v) => setFolderSelectionMode(v as "browse" | "type")}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="browse">
+                <Search className="h-4 w-4 mr-2" />
+                Browse Folders
+              </TabsTrigger>
+              <TabsTrigger value="type">
+                <Edit2 className="h-4 w-4 mr-2" />
+                Type Path
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="browse" className="mt-4">
+              <SharePointFolderBrowser
+                onSelect={(folder, path) => {
+                  if (folder) {
+                    setSelectedBrowserFolder({ id: folder.id, name: folder.name, path });
+                  } else {
+                    setSelectedBrowserFolder(null);
+                  }
+                }}
+                selectedFolderId={selectedBrowserFolder?.id}
               />
-              <p className="text-xs text-muted-foreground">
-                This folder will be created if it doesn't exist. Job folders will be created inside this folder.
-              </p>
-            </div>
-            <div className="bg-muted/50 rounded-md p-3 text-xs">
-              <div className="font-medium mb-1">Preview:</div>
-              <div className="font-mono text-muted-foreground">
-                Shared Documents / <span className="text-foreground">{newFolderPath || "TEEEM Jobs"}</span> / [Job Code] - [Project Name] / ...
+              {selectedBrowserFolder && (
+                <div className="bg-primary/5 border border-primary/20 rounded-md p-3 mt-3 text-xs">
+                  <div className="font-medium mb-1 text-primary">Selected Folder:</div>
+                  <div className="font-mono text-foreground">
+                    {selectedBrowserFolder.path}
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="type" className="mt-4">
+              <div className="grid gap-2">
+                <Label htmlFor="folder-path">Folder Path</Label>
+                <Input
+                  id="folder-path"
+                  value={newFolderPath}
+                  onChange={(e) => setNewFolderPath(e.target.value)}
+                  placeholder="TEEEM Jobs"
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This folder will be created if it doesn&apos;t exist. Use forward slashes for nested paths (e.g., &quot;TEEEM/Jobs&quot;).
+                </p>
               </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* Preview */}
+          <div className="bg-muted/50 rounded-md p-3 text-xs">
+            <div className="font-medium mb-1">Preview:</div>
+            <div className="font-mono text-muted-foreground">
+              Shared Documents /{" "}
+              <span className="text-foreground">
+                {folderSelectionMode === "browse"
+                  ? (selectedBrowserFolder?.path || "Select a folder...")
+                  : (newFolderPath || "TEEEM Jobs")}
+              </span>{" "}
+              / [Job Code] - [Project Name] / ...
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setFolderDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleChangeFolderPath} disabled={savingFolder}>
+            <Button
+              onClick={handleChangeFolderPath}
+              disabled={savingFolder || (folderSelectionMode === "browse" && !selectedBrowserFolder)}
+            >
               {savingFolder ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

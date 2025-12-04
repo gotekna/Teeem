@@ -130,6 +130,7 @@ interface CaseProposal {
     document_requests?: string[];
     missing_info?: string[];
     confidence_score?: number;
+    filing_folder?: string;
   };
   folder_paths?: string[];
   email?: {
@@ -292,11 +293,13 @@ export function CaseProposalApprovalDialog({
     }
     setSearchingJobs(true);
     try {
-      const response = await api.get(`/jobs?search=${encodeURIComponent(query)}&limit=10`);
-      const jobs = (response.data.jobs || response.data || []).map((j: Record<string, unknown>) => ({
-        job_id: j.id,
-        job_title: j.title || j.name,
-        address: j.address,
+      const response = await api.get<{ jobs?: Array<Record<string, unknown>>; data?: Array<Record<string, unknown>> }>(`/jobs?search=${encodeURIComponent(query)}&limit=10`);
+      const responseData = response as { jobs?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+      const jobsArray = Array.isArray(responseData) ? responseData : (responseData.jobs || []);
+      const jobs: RelatedJob[] = jobsArray.map((j: Record<string, unknown>) => ({
+        job_id: j.id as number,
+        job_title: (j.title || j.name) as string | undefined,
+        address: j.address as string | undefined,
         job_found: true,
       }));
       setJobSearchResults(jobs);
@@ -316,13 +319,15 @@ export function CaseProposalApprovalDialog({
     }
     setSearchingCompanies(true);
     try {
-      const response = await api.get(`/companies?search=${encodeURIComponent(query)}&limit=10`);
-      const companies = (response.data.companies || response.data || []).map((c: Record<string, unknown>) => ({
-        company_id: c.id,
-        name: c.name,
-        entity_type: c.entity_type,
-        abn: c.abn,
-        acn: c.acn,
+      const response = await api.get<{ companies?: Array<Record<string, unknown>> }>(`/companies?search=${encodeURIComponent(query)}&limit=10`);
+      const responseData = response as { companies?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+      const companiesArray = Array.isArray(responseData) ? responseData : (responseData.companies || []);
+      const companies: RelatedCompany[] = companiesArray.map((c: Record<string, unknown>) => ({
+        company_id: c.id as number | undefined,
+        name: c.name as string,
+        entity_type: c.entity_type as string | undefined,
+        abn: c.abn as string | undefined,
+        acn: c.acn as string | undefined,
         company_found: true,
       }));
       setCompanySearchResults(companies);
