@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -169,8 +169,8 @@ export default function ContactsPage() {
     withXero: records.filter((c) => c.xero_id || c.xero_synced).length,
   };
 
-  // Filter records based on active tab
-  const getFilteredRecords = () => {
+  // Filter records based on active tab - memoized to prevent re-filtering on every render
+  const filteredRecords = useMemo(() => {
     switch (activeTab) {
       case "persons":
         return records.filter((c) => c.entity_type === "person");
@@ -183,7 +183,7 @@ export default function ContactsPage() {
       default:
         return records;
     }
-  };
+  }, [records, activeTab]);
 
   if (isLoading) {
     return (

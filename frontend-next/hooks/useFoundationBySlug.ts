@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
 import type { Foundation } from './useFoundationData';
@@ -84,7 +84,17 @@ export function useFoundationBySlug(
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  // Prevent duplicate concurrent fetches (React StrictMode causes double-mount)
+  const fetchInProgressRef = useRef(false);
+  const lastFetchSlugRef = useRef<string | null>(null);
+
   const loadData = useCallback(async () => {
+    // Prevent duplicate fetches for the same slug
+    if (fetchInProgressRef.current && lastFetchSlugRef.current === slug) {
+      console.log('[useFoundationBySlug] Skipping duplicate fetch for:', slug);
+      return;
+    }
+
     const startTime = performance.now();
     console.log('[useFoundationBySlug] loadData starting for slug:', slug);
 
@@ -93,6 +103,8 @@ export function useFoundationBySlug(
       return;
     }
 
+    fetchInProgressRef.current = true;
+    lastFetchSlugRef.current = slug;
     setIsLoading(true);
     setError(null);
 
@@ -125,6 +137,7 @@ export function useFoundationBySlug(
       setError(err instanceof Error ? err : new Error('Failed to load data'));
     } finally {
       setIsLoading(false);
+      fetchInProgressRef.current = false;
     }
   }, [slug, perPage]);
 
