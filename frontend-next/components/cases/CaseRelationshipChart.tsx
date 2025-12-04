@@ -42,7 +42,7 @@ import { api } from "@/lib/api";
 // Types for relationship data
 interface RelationshipNode {
   id: string;
-  type: "contact" | "company" | "case" | "job";
+  type: "contact" | "company" | "case" | "job" | "parent_case" | "child_case";
   position: { x: number; y: number };
   data: {
     name: string;
