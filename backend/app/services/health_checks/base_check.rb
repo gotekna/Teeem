@@ -75,8 +75,20 @@ module HealthChecks
     # @param icon [String] Heroicon name for UI
     # @param action_path [String] Path template for fixing items (use :id as placeholder)
     def build_result(name:, severity:, items:, description: nil, limit: 10, icon: nil, action_path: nil)
-      items_array = items.respond_to?(:to_a) ? items.to_a : Array(items)
-      count = items.respond_to?(:count) ? items.count : items_array.size
+      # Get count efficiently - use count(:all) for relations to avoid issues with custom select
+      count = if items.is_a?(Array)
+                items.size
+              elsif items.respond_to?(:count)
+                begin
+                  items.count(:all)
+                rescue
+                  items.to_a.size
+                end
+              else
+                items.to_a.size
+              end
+
+      items_array = items.respond_to?(:limit) ? items.limit(limit).to_a : Array(items).first(limit)
 
       {
         check_type: self.class.check_type,
@@ -86,7 +98,7 @@ module HealthChecks
         icon: icon,
         action_path: action_path,
         count: count,
-        items: format_items(items_array.first(limit)),
+        items: format_items(items_array),
         success: true
       }
     rescue StandardError => e
