@@ -560,7 +560,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                 <TabsTrigger
                   key={subCat.id}
                   value={String(subCat.id)}
-                  className="border border-border data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                  className="border border-border bg-muted text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                 >
                   {subCat.name}
                 </TabsTrigger>
