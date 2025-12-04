@@ -244,8 +244,17 @@ export default function CGNewPage() {
             </Badge>
           </td>
           <td className="py-2 px-3">
-            {contact.has_linked_company ? (
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
+            {contact.has_linked_company && contact.linked_company_id ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/corporate/companies/${contact.linked_company_id}`);
+                }}
+                className="text-green-600 hover:text-green-800"
+                title="View linked Company"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+              </button>
             ) : (
               <span className="text-muted-foreground">-</span>
             )}
