@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_04_003523) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_04_010536) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1065,6 +1065,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_003523) do
     t.bigint "company_group_id"
     t.integer "xero_invoice_count", default: 0
     t.boolean "xero_disconnect", default: false
+    t.boolean "link_to_cg", default: false
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin

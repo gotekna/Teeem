@@ -2085,6 +2085,7 @@ export function GlobalViewsManager({
                                     <div className="grid grid-cols-3 gap-1">
                                       {getSortedColumns()
                                         .filter(col => editVisibleColumns[col.column_name] !== true)
+                                        .sort((a, b) => (a.name || a.column_name).localeCompare(b.name || b.column_name))
                                         .map(col => (
                                           <SortableColumnItem
                                             key={col.column_name}
