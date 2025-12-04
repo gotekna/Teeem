@@ -152,32 +152,38 @@ class DocumentType < ApplicationRecord
   end
 
   # Generate a preview title showing what the document will look like when named
-  # This helps users understand the naming format with example values
+  # Replaces placeholders with example values, date in AU format (DD-MM-YYYY)
   def title_preview
     return nil if naming_format.blank?
 
+    # Australian date format (DD-MM-YYYY)
+    au_date = Date.current.strftime('%d-%m-%Y')
+
     format = naming_format.dup
 
-    # Corporate document placeholders
-    format.gsub!('{CompanyCode}', 'GTEKA')
+    # Replace all placeholders with example values
+    # Corporate placeholders
+    format.gsub!('{CompanyCode}', abbreviation.presence || 'DOC')
     format.gsub!('{LoanID}', 'L001')
     format.gsub!('{LenderCode}', 'NAB')
-    format.gsub!('{AssetCode}', 'P001')
+    format.gsub!('{AssetCode}', 'PROP1')
     format.gsub!('{FY}', '2025')
     format.gsub!('{YY}', '25')
     format.gsub!('{Period}', 'Q1')
+    format.gsub!('{PrintDate}', au_date)
+    format.gsub!('{Signed}', '')
 
-    # Job document placeholders
-    format.gsub!('{JobCode}', '69')
+    # Job placeholders
+    format.gsub!('{JobCode}', 'J069')
     format.gsub!('{JobTitle}', '83 West Ridge')
     format.gsub!('{CertType}', 'Occupancy')
-    format.gsub!('{Consultant}', 'ABC Consulting')
-    format.gsub!('{Number}', '1')
+    format.gsub!('{Consultant}', 'ABC Eng')
+    format.gsub!('{Number}', '01')
 
-    # Common placeholders
-    format.gsub!('{Date}', Date.current.to_s)
-    format.gsub!('{Description}', 'Example Document')
+    # Common placeholders - use document type name for description
+    format.gsub!('{Description}', '{Description}')
+    format.gsub!('{Date}', au_date)
 
-    format
+    format.strip
   end
 end
