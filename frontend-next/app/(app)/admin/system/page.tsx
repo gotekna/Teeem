@@ -63,6 +63,7 @@ import { UserManualTab } from "./components/UserManualTab";
 import { InspiringQuotesTab } from "./components/InspiringQuotesTab";
 import { PerformanceTab } from "./components/PerformanceTab";
 import { DataWarehouseTab } from "./components/DataWarehouseTab";
+import { DocumentTypesTab } from "./components/DocumentTypesTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -82,6 +83,7 @@ const TIMEZONES = [
 const MAIN_TABS = [
   { id: "company", label: "Company", icon: Building2 },
   { id: "data-warehouse", label: "Data Warehouse", icon: Database },
+  { id: "document-types", label: "Document Types", icon: FileText },
   { id: "gold-standard", label: "Gold Standard View", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
@@ -439,10 +441,17 @@ function SystemAdminPageContent() {
         <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 justify-start">
           {MAIN_TABS.map((tab) => {
             const Icon = tab.icon;
+            const isActive = currentTab === tab.id;
             return (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
+                ref={(el) => {
+                  // Auto-scroll active tab into view on mount
+                  if (isActive && el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+                  }
+                }}
                 className="text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 data-[state=active]:bg-background"
               >
                 <Icon className="h-4 w-4" />
@@ -458,6 +467,9 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="data-warehouse">
             <DataWarehouseTab />
+          </TabsContent>
+          <TabsContent value="document-types">
+            <DocumentTypesTab />
           </TabsContent>
           <TabsContent value="schedule-master">
             <ScheduleMasterTab />

@@ -77,6 +77,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { sortHiddenColumnsAlphabetically } from "@/components/table/column-utils";
 
 // Types
 interface CascadeFilter {
@@ -2083,10 +2084,9 @@ export function GlobalViewsManager({
                                   </div>
                                   {getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true).length > 0 ? (
                                     <div className="grid grid-cols-3 gap-1">
-                                      {getSortedColumns()
-                                        .filter(col => editVisibleColumns[col.column_name] !== true)
-                                        .sort((a, b) => (a.name || a.column_name).localeCompare(b.name || b.column_name))
-                                        .map(col => (
+                                      {sortHiddenColumnsAlphabetically(
+                                        getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true)
+                                      ).map(col => (
                                           <SortableColumnItem
                                             key={col.column_name}
                                             id={col.column_name}

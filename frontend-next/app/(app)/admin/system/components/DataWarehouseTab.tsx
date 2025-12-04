@@ -45,12 +45,23 @@ interface OrgDataStats {
   document_types: Array<{ type: string; abbreviation: string; count: number }>;
   emails: {
     total_emails: number;
-    by_job: number;
+    total_size: number;
+    linked_to_contact: number;
+    linked_to_job: number;
+    linked_to_company: number;
+    linked_to_company_group: number;
+    junk_emails: number;
     unprocessed: number;
     last_sync: string | null;
+    size_by_contact: number;
+    size_by_job: number;
+    size_by_company: number;
+    size_junk: number;
   };
-  onedrive: {
+  sharepoint: {
     connected: boolean;
+    site_url: string | null;
+    site_path: string | null;
     total_synced: number;
     last_sync: string | null;
   };
@@ -116,12 +127,23 @@ export function DataWarehouseTab() {
         ],
         emails: {
           total_emails: 12453,
-          by_job: 8234,
+          total_size: 524288000,
+          linked_to_contact: 8234,
+          linked_to_job: 5123,
+          linked_to_company: 3456,
+          linked_to_company_group: 1234,
+          junk_emails: 892,
           unprocessed: 127,
           last_sync: new Date().toISOString(),
+          size_by_contact: 312000000,
+          size_by_job: 198000000,
+          size_by_company: 156000000,
+          size_junk: 45000000,
         },
-        onedrive: {
+        sharepoint: {
           connected: true,
+          site_url: "gotekna.sharepoint.com/sites/TEEEM",
+          site_path: "/Shared Documents",
           total_synced: 1532,
           last_sync: new Date().toISOString(),
         },
@@ -262,18 +284,18 @@ export function DataWarehouseTab() {
 
       {/* Integrations Status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* SharePoint/OneDrive */}
+        {/* SharePoint */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Cloud className="h-4 w-4" />
-              SharePoint / OneDrive
+              SharePoint
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Status</span>
-              {stats.onedrive.connected ? (
+              {stats.sharepoint.connected ? (
                 <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   Connected
@@ -285,13 +307,29 @@ export function DataWarehouseTab() {
                 </Badge>
               )}
             </div>
+            {stats.sharepoint.site_url && (
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-muted-foreground">Site</span>
+                <span className="text-xs font-mono bg-muted px-2 py-1 rounded truncate">
+                  {stats.sharepoint.site_url}
+                </span>
+              </div>
+            )}
+            {stats.sharepoint.site_path && (
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-muted-foreground">Path</span>
+                <span className="text-xs font-mono bg-muted px-2 py-1 rounded truncate">
+                  {stats.sharepoint.site_path}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Synced Files</span>
-              <span className="font-medium">{stats.onedrive.total_synced.toLocaleString()}</span>
+              <span className="font-medium">{stats.sharepoint.total_synced.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Last Sync</span>
-              <span className="text-sm">{formatDate(stats.onedrive.last_sync)}</span>
+              <span className="text-sm">{formatDate(stats.sharepoint.last_sync)}</span>
             </div>
             <Button variant="outline" size="sm" className="w-full" asChild>
               <a href="/settings/integrations/microsoft" className="flex items-center justify-center">
@@ -348,6 +386,54 @@ export function DataWarehouseTab() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Email Warehouse Breakdown */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Mail className="h-4 w-4" />
+            Email Warehouse Breakdown
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+            <div className="text-center p-3 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold text-purple-600">{stats.emails.total_emails.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Total Emails</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.total_size)}</p>
+            </div>
+            <div className="text-center p-3 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold text-blue-600">{stats.emails.linked_to_contact.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Linked to Contact</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_by_contact)}</p>
+            </div>
+            <div className="text-center p-3 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold text-green-600">{stats.emails.linked_to_job.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Linked to Job</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_by_job)}</p>
+            </div>
+            <div className="text-center p-3 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold text-orange-600">{stats.emails.linked_to_company.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Linked to Company</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_by_company)}</p>
+            </div>
+            <div className="text-center p-3 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold text-cyan-600">{stats.emails.linked_to_company_group.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Linked to Group</p>
+              <p className="text-xs text-muted-foreground mt-1">-</p>
+            </div>
+            <div className="text-center p-3 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold text-red-600">{stats.emails.junk_emails.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Junk Emails</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_junk)}</p>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+            <span>Unprocessed: {stats.emails.unprocessed.toLocaleString()}</span>
+            <span>Last Sync: {formatDate(stats.emails.last_sync)}</span>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* AI Verification Progress */}
       <Card>
@@ -450,19 +536,41 @@ export function DataWarehouseTab() {
             <CardTitle className="text-base">Documents by Source</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {Object.entries(stats.documents.by_source).map(([source, count]) => (
-                <div key={source} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {source === "onedrive" && <Cloud className="h-4 w-4 text-blue-500" />}
-                    {source === "upload" && <FolderOpen className="h-4 w-4 text-green-500" />}
-                    {source === "xero" && <BarChart3 className="h-4 w-4 text-cyan-500" />}
-                    {source === "email" && <Mail className="h-4 w-4 text-purple-500" />}
-                    <span className="text-sm capitalize">{source}</span>
+            <div className="space-y-3">
+              {Object.entries(stats.documents.by_source).map(([source, count]) => {
+                const isSharePoint = source === "onedrive";
+                const sharePointUrl = isSharePoint && stats.sharepoint.site_url
+                  ? `https://${stats.sharepoint.site_url}${stats.sharepoint.site_path || ''}`
+                  : null;
+
+                return (
+                  <div key={source} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {isSharePoint && <Cloud className="h-4 w-4 text-blue-500 flex-shrink-0" />}
+                      {source === "upload" && <FolderOpen className="h-4 w-4 text-green-500 flex-shrink-0" />}
+                      {source === "xero" && <BarChart3 className="h-4 w-4 text-cyan-500 flex-shrink-0" />}
+                      {source === "email" && <Mail className="h-4 w-4 text-purple-500 flex-shrink-0" />}
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-medium">
+                          {isSharePoint ? "SharePoint" : source.charAt(0).toUpperCase() + source.slice(1)}
+                        </span>
+                        {isSharePoint && stats.sharepoint.site_url && (
+                          <a
+                            href={sharePointUrl || "#"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 hover:underline truncate flex items-center gap-1"
+                          >
+                            {stats.sharepoint.site_url}{stats.sharepoint.site_path}
+                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="flex-shrink-0 ml-2">{count.toLocaleString()}</Badge>
                   </div>
-                  <Badge variant="secondary">{count.toLocaleString()}</Badge>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

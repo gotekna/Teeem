@@ -16,7 +16,6 @@ import {
   Calendar,
   FileText,
   Key,
-  FolderOpen,
   ExternalLink,
   Loader2,
   CheckCircle2,
@@ -313,7 +312,7 @@ export default function CorporateDashboardPage() {
             <QuickAction label="Minute Templates" icon={FileText} href="/corporate/minute-templates" />
             <QuickAction label="Xero Integration" icon={ExternalLink} href="/xero" />
             <QuickAction label="ASIC Logins" icon={Key} href="/corporate/asic-logins" />
-            <QuickAction label="Document Types" icon={FolderOpen} href="/corporate/document-types" />
+            <QuickAction label="Document Types" icon={FileText} href="/admin/system?tab=document-types" />
             <QuickAction label="Consolidation" icon={ArrowLeftRight} href="/corporate/consolidation" />
           </div>
         </CardContent>

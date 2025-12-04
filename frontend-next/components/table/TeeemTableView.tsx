@@ -1207,27 +1207,10 @@ export default function TeeemTableView({
   }, [visibleColumns]);
 
   // Get columns sorted by current columnOrder for the modal
-  // Visible columns sorted by order first, then hidden columns sorted alphabetically
+  // Uses shared utility: visible columns by order first, then hidden columns alphabetically
   const getSortedColumnsForModal = useCallback(() => {
     const dataColumns = COLUMNS.filter(c => c.key !== "select" && c.key !== "actions");
-    const orderMap = new Map(columnOrder.map((key, idx) => [key, idx]));
-
-    // Separate visible and hidden columns
-    const visibleCols = dataColumns.filter(c => visibleColumns[c.key] === true);
-    const hiddenCols = dataColumns.filter(c => visibleColumns[c.key] !== true);
-
-    // Sort visible columns by their order
-    visibleCols.sort((a, b) => {
-      const aIdx = orderMap.get(a.key) ?? 999;
-      const bIdx = orderMap.get(b.key) ?? 999;
-      return aIdx - bIdx;
-    });
-
-    // Sort hidden columns alphabetically by label
-    hiddenCols.sort((a, b) => (a.label || a.key).localeCompare(b.label || b.key));
-
-    // Return visible first, then hidden
-    return [...visibleCols, ...hiddenCols];
+    return sortColumnsForModal(dataColumns, visibleColumns, columnOrder);
   }, [COLUMNS, columnOrder, visibleColumns]);
 
   // ============================================================================
@@ -3735,6 +3718,41 @@ export default function TeeemTableView({
       // Handle boolean
       if (typeof value === "boolean" || column.column_type === "boolean") {
         const boolValue = typeof value === "boolean" ? value : value === "true" || value === true || value === 1;
+
+        // Special case: Link to CG column - show clickable button when linked
+        if (column.column_name === "link_to_cg") {
+          if (boolValue) {
+            // For company-type contacts, link to the Company page
+            if (entry.linked_company_id) {
+              return (
+                <a
+                  href={`/corporate/companies/${entry.linked_company_id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-700 rounded border border-green-200 hover:bg-green-100 hover:border-green-300 transition-colors text-xs font-medium"
+                  title="View linked Company"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  View
+                </a>
+              );
+            }
+            // For person-type contacts, link to the SSoT page (cg-new)
+            return (
+              <a
+                href="/corporate/cg-new"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-colors text-xs font-medium"
+                title="View Company Group Memberships"
+              >
+                <ExternalLink className="h-3 w-3" />
+                View
+              </a>
+            );
+          }
+          // Not linked - show dash
+          return <span className="text-muted-foreground">-</span>;
+        }
+
         return boolValue ? (
           <Check className="h-4 w-4 text-green-600" />
         ) : (
