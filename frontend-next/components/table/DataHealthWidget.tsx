@@ -186,7 +186,8 @@ export function DataHealthWidget({
   }
 
   const overallColor = getHealthColor(healthData.overall_health);
-  const checksWithIssues = healthData.checks?.filter((c) => c.count > 0) || [];
+  const allChecks = healthData.checks || [];
+  const checksWithIssues = allChecks.filter((c) => c.count > 0);
 
   return (
     <div className="bg-background border rounded-lg overflow-hidden">
@@ -217,7 +218,7 @@ export function DataHealthWidget({
             <div>
               <h3 className="text-sm font-semibold">Data Health</h3>
               <p className="text-xs text-muted-foreground">
-                {healthData.total_issues.toLocaleString()} issues found • Click to fix
+                {allChecks.length} health check{allChecks.length !== 1 ? 's' : ''} • {healthData.total_issues} issue{healthData.total_issues !== 1 ? 's' : ''}
               </p>
             </div>
             <div className="flex items-center gap-3 ml-auto">
@@ -255,8 +256,8 @@ export function DataHealthWidget({
         {/* Expanded Details */}
         <CollapsibleContent>
           <div className="border-t divide-y">
-            {checksWithIssues.map((check) => {
-              const color = getSeverityColor(check.severity);
+            {allChecks.map((check) => {
+              const color = check.count > 0 ? getSeverityColor(check.severity) : "green";
               const isExpanded = expandedCheck === check.id;
               const hasItems = check.count > 0;
 
@@ -299,29 +300,38 @@ export function DataHealthWidget({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                      <span
-                        className={cn(
-                          "text-sm font-medium",
-                          color === "orange" && "text-orange-600 dark:text-orange-400",
-                          color === "red" && "text-red-600 dark:text-red-400",
-                          color === "blue" && "text-blue-600 dark:text-blue-400",
-                          color === "gray" && "text-muted-foreground"
-                        )}
-                      >
-                        {check.count} {check.count === 1 ? "issue" : "issues"}
-                      </span>
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "text-xs uppercase",
-                          color === "red" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-                          color === "orange" && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-                          color === "blue" && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-                          color === "gray" && "bg-secondary text-secondary-foreground"
-                        )}
-                      >
-                        {check.severity}
-                      </Badge>
+                      {check.count === 0 ? (
+                        <span className="text-sm font-medium text-green-600 dark:text-green-400 flex items-center gap-1">
+                          <CheckCircle className="h-4 w-4" />
+                          Passed
+                        </span>
+                      ) : (
+                        <>
+                          <span
+                            className={cn(
+                              "text-sm font-medium",
+                              color === "orange" && "text-orange-600 dark:text-orange-400",
+                              color === "red" && "text-red-600 dark:text-red-400",
+                              color === "blue" && "text-blue-600 dark:text-blue-400",
+                              color === "gray" && "text-muted-foreground"
+                            )}
+                          >
+                            {check.count} {check.count === 1 ? "issue" : "issues"}
+                          </span>
+                          <Badge
+                            variant="secondary"
+                            className={cn(
+                              "text-xs uppercase",
+                              color === "red" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                              color === "orange" && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+                              color === "blue" && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                              color === "gray" && "bg-secondary text-secondary-foreground"
+                            )}
+                          >
+                            {check.severity}
+                          </Badge>
+                        </>
+                      )}
                     </div>
                   </div>
 

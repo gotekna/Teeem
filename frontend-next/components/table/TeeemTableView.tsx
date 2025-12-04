@@ -4917,38 +4917,127 @@ export default function TeeemTableView({
         />
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          {/* Saved Views - show as many as fit, rest in dropdown */}
+        {/* Actions - right side with saved views and buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Saved Views - responsive: hide on small screens, show progressively on larger */}
           {savedViews.length > 0 && (
-            <div className="flex items-center gap-1 flex-1 min-w-0">
-              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
-                {savedViews.map((view) => (
-                  <TooltipProvider key={view.id}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant={activeViewId === view.id ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => loadViewState(view)}
-                          className={cn(
-                            "shrink-0 whitespace-nowrap",
-                            view.is_global && "border-blue-300 dark:border-blue-700"
-                          )}
-                        >
-                          {view.is_global && (
-                            <Globe className="h-3 w-3 mr-1 text-blue-500" />
-                          )}
-                          {view.name}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {view.is_global ? "Global view" : "Personal view"}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ))}
-              </div>
+            <div className="flex items-center gap-1">
+              {/* Show views responsively based on screen size */}
+              {savedViews.slice(0, 2).map((view) => (
+                <TooltipProvider key={view.id}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={activeViewId === view.id ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => loadViewState(view)}
+                        className={cn(
+                          "shrink-0 whitespace-nowrap hidden sm:inline-flex",
+                          view.is_global && "border-blue-300 dark:border-blue-700"
+                        )}
+                      >
+                        {view.is_global && (
+                          <Globe className="h-3 w-3 mr-1 text-blue-500" />
+                        )}
+                        {view.name}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {view.is_global ? "Global view" : "Personal view"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ))}
+              {/* Show more on medium screens */}
+              {savedViews.slice(2, 4).map((view) => (
+                <TooltipProvider key={view.id}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={activeViewId === view.id ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => loadViewState(view)}
+                        className={cn(
+                          "shrink-0 whitespace-nowrap hidden md:inline-flex",
+                          view.is_global && "border-blue-300 dark:border-blue-700"
+                        )}
+                      >
+                        {view.is_global && (
+                          <Globe className="h-3 w-3 mr-1 text-blue-500" />
+                        )}
+                        {view.name}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {view.is_global ? "Global view" : "Personal view"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ))}
+              {/* Show even more on large screens */}
+              {savedViews.slice(4, 6).map((view) => (
+                <TooltipProvider key={view.id}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={activeViewId === view.id ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => loadViewState(view)}
+                        className={cn(
+                          "shrink-0 whitespace-nowrap hidden lg:inline-flex",
+                          view.is_global && "border-blue-300 dark:border-blue-700"
+                        )}
+                      >
+                        {view.is_global && (
+                          <Globe className="h-3 w-3 mr-1 text-blue-500" />
+                        )}
+                        {view.name}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {view.is_global ? "Global view" : "Personal view"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ))}
+              {/* Dropdown for remaining views - show count based on screen size */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn(
+                    "shrink-0",
+                    // Hide on small screens if no views to show in dropdown
+                    savedViews.length === 0 && "hidden",
+                    // Hide on lg screens if 6 or fewer views
+                    savedViews.length <= 6 && "lg:hidden",
+                    // Hide on md screens if 4 or fewer views
+                    savedViews.length <= 4 && "md:hidden",
+                    // Hide on sm screens if 2 or fewer views
+                    savedViews.length <= 2 && "sm:hidden"
+                  )}>
+                    {/* Show different counts based on screen size */}
+                    <span className="sm:hidden">+{savedViews.length}</span>
+                    <span className="hidden sm:inline md:hidden">+{savedViews.length - 2}</span>
+                    <span className="hidden md:inline lg:hidden">+{savedViews.length - 4}</span>
+                    <span className="hidden lg:inline">+{savedViews.length - 6}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {savedViews.map((view) => (
+                    <DropdownMenuItem
+                      key={view.id}
+                      onClick={() => loadViewState(view)}
+                      className={cn(
+                        activeViewId === view.id && "bg-accent"
+                      )}
+                    >
+                      {view.is_global && (
+                        <Globe className="h-3 w-3 mr-2 text-blue-500" />
+                      )}
+                      {view.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
 

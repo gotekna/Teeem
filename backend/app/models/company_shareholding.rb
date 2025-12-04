@@ -13,6 +13,9 @@ class CompanyShareholding < ApplicationRecord
   scope :preference, -> { where(share_class: 'preference') }
   scope :beneficially_held, -> { where(beneficially_held: true) }
 
+  # Callbacks
+  after_create :ensure_ssot_shareholder_membership
+
   # Calculate percentage of total shares
   def percentage_of_total
     return 0 unless company.shares_on_issue.to_i > 0
@@ -28,5 +31,23 @@ class CompanyShareholding < ApplicationRecord
     else
       'Unknown'
     end
+  end
+
+  private
+
+  # SSoT: Automatically create ContactCompanyGroupMembership for shareholders
+  def ensure_ssot_shareholder_membership
+    return unless company&.company_group_id.present?
+    return unless shareholder_type == 'Contact' && shareholder_id.present?
+
+    ContactCompanyGroupMembership.find_or_create_by!(
+      contact_id: shareholder_id,
+      company_group_id: company.company_group_id,
+      membership_type: 'shareholder'
+    ) do |m|
+      m.is_active = true
+    end
+  rescue StandardError => e
+    Rails.logger.error("CompanyShareholding##{id}: SSoT shareholder membership creation failed - #{e.message}")
   end
 end

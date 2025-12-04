@@ -21,7 +21,9 @@ class CompanyDirector < ApplicationRecord
   # Callbacks
   before_save :update_current_status
   after_create :create_appointment_activity
+  after_create :ensure_ssot_director_membership
   after_update :create_resignation_activity, if: :saved_change_to_resignation_date?
+  after_update :update_ssot_director_membership, if: :saved_change_to_is_current?
 
   # Instance methods
   def active_duration
@@ -67,5 +69,34 @@ class CompanyDirector < ApplicationRecord
       description: "#{contact.display_name} resigned as #{formatted_position}",
       user: user
     )
+  end
+
+  # SSoT: Automatically create ContactCompanyGroupMembership for directors
+  def ensure_ssot_director_membership
+    return unless company&.company_group_id.present?
+    return unless contact_id.present?
+
+    ContactCompanyGroupMembership.find_or_create_by!(
+      contact_id: contact_id,
+      company_group_id: company.company_group_id,
+      membership_type: 'director'
+    ) do |m|
+      m.is_active = is_current
+    end
+  rescue StandardError => e
+    Rails.logger.error("CompanyDirector##{id}: SSoT director membership creation failed - #{e.message}")
+  end
+
+  def update_ssot_director_membership
+    return unless company&.company_group_id.present?
+
+    membership = ContactCompanyGroupMembership.find_by(
+      contact_id: contact_id,
+      company_group_id: company.company_group_id,
+      membership_type: 'director'
+    )
+    membership&.update!(is_active: is_current)
+  rescue StandardError => e
+    Rails.logger.error("CompanyDirector##{id}: SSoT director membership update failed - #{e.message}")
   end
 end
