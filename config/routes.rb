@@ -1618,18 +1618,18 @@ Rails.application.routes.draw do
       namespace :warehouse do
         # Metadata (data dictionary)
         get '/', to: 'warehouse_metadata#index', as: :metadata_index
-        get 'metadata', to: 'warehouse_metadata#index'
-        get 'metadata/:id', to: 'warehouse_metadata#show'
+        get 'metadata', to: 'warehouse_metadata#index', as: :metadata
+        get 'metadata/:id', to: 'warehouse_metadata#show', as: :metadata_show
 
         # Export endpoints
-        get 'export', to: 'warehouse_exports#index'
-        get 'export/:id', to: 'warehouse_exports#show'
+        get 'export', to: 'warehouse_exports#index', as: :export
+        get 'export/:id', to: 'warehouse_exports#show', as: :export_view
 
         # Status and health
-        get 'status', to: 'warehouse_status#index'
-        get 'status/:id', to: 'warehouse_status#show'
-        get 'health', to: 'warehouse_status#health'
-        post 'refresh', to: 'warehouse_status#refresh'
+        get 'status', to: 'warehouse_status#index', as: :status
+        get 'status/:id', to: 'warehouse_status#show', as: :status_view
+        get 'health', to: 'warehouse_status#health', as: :health
+        post 'refresh', to: 'warehouse_status#refresh', as: :refresh
       end
 
       # External integrations (API endpoints for third-party systems)
