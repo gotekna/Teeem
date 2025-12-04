@@ -6,6 +6,7 @@ class RefreshMaterializedViewsJob < ApplicationJob
   # Available materialized views
   # Note: Views with unique indexes can use CONCURRENTLY, others cannot
   VIEWS = {
+    # Core views
     job_summary: { name: 'mv_job_summary', concurrent: true },
     financial_summary: { name: 'mv_financial_summary', concurrent: false },
     document_summary: { name: 'mv_document_summary', concurrent: false },
@@ -13,7 +14,12 @@ class RefreshMaterializedViewsJob < ApplicationJob
     invoice_po_reconciliation: { name: 'mv_invoice_po_reconciliation', concurrent: true },
     resource_utilization: { name: 'mv_resource_utilization', concurrent: false },
     job_document_status: { name: 'mv_job_document_status', concurrent: true },
-    task_metrics: { name: 'mv_task_metrics', concurrent: false }
+    task_metrics: { name: 'mv_task_metrics', concurrent: false },
+    # Time-based rollup views
+    financial_summary_weekly: { name: 'mv_financial_summary_weekly', concurrent: false },
+    financial_summary_quarterly: { name: 'mv_financial_summary_quarterly', concurrent: false },
+    financial_summary_yearly: { name: 'mv_financial_summary_yearly', concurrent: false },
+    job_summary_monthly: { name: 'mv_job_summary_monthly', concurrent: false }
   }.freeze
 
   # Refresh one or all materialized views
