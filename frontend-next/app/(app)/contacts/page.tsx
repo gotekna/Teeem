@@ -158,8 +158,8 @@ export default function ContactsPage() {
     }
   }, [refresh]);
 
-  // Calculate stats from records
-  const stats = {
+  // Calculate stats from records - memoized to prevent recalculating on every render
+  const stats = useMemo(() => ({
     total: records.length,
     active: records.filter((c) => c.is_active).length,
     persons: records.filter((c) => c.entity_type === "person").length,
@@ -167,7 +167,7 @@ export default function ContactsPage() {
     trusts: records.filter((c) => c.entity_type === "trust").length,
     suppliers: records.filter((c) => c.entity_type === "default_supplier").length,
     withXero: records.filter((c) => c.xero_id || c.xero_synced).length,
-  };
+  }), [records]);
 
   // Filter records based on active tab - memoized to prevent re-filtering on every render
   const filteredRecords = useMemo(() => {
@@ -411,10 +411,10 @@ export default function ContactsPage() {
         </TabsContent>
 
         {/* All/Persons/Companies/Suppliers Tab Content - Use TeeemTableView */}
-        {["all", "persons", "companies", "suppliers"].map((tabValue) => (
+        {["all", "persons", "companies", "trusts", "suppliers"].map((tabValue) => (
           <TabsContent key={tabValue} value={tabValue} className="mt-4">
             <TeeemTableView
-              entries={getFilteredRecords()}
+              entries={filteredRecords}
               columns={columns}
               foundationId="contacts"
               foundationIdNumeric={foundation?.id}
