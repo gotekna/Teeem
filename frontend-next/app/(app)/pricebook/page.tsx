@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Image as ImageIcon,
   CheckCircle,
+  Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";

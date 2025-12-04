@@ -1262,7 +1262,7 @@ export default function CaseDetailPage() {
               <EntityChat
                 entityType="case"
                 entityId={parseInt(caseId)}
-                entityName={caseDetail?.title}
+                entityName={caseData?.title}
                 showOnlineUsers={true}
                 maxHeight="500px"
               />
