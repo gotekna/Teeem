@@ -530,6 +530,7 @@ module Api
         update_params[:date_effective] = params[:date_effective] if params[:date_effective].present?
         update_params[:change_reason] = params[:change_reason] if params[:change_reason].present?
         update_params[:lga] = params[:lga] if params[:lga].present?
+        update_params[:supplier_id] = params[:supplier_id] if params[:supplier_id].present?
 
         if price_history.update(update_params)
           # Recalculate the item's current_price based on active price history
