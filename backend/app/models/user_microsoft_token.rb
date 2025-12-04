@@ -104,4 +104,23 @@ class UserMicrosoftToken < ApplicationRecord
     end
     access_token
   end
+
+  # Compatibility with OrganizationOneDriveCredential interface
+  # These are used by MicrosoftGraphClient when user tokens are used as a fallback
+
+  def root_folder_id
+    nil # User tokens don't have organization-configured root folders
+  end
+
+  def drive_id
+    nil # Will use /me/drive by default
+  end
+
+  def valid_credential?
+    connected?
+  end
+
+  def metadata
+    {} # User tokens don't store metadata hash
+  end
 end
