@@ -25,11 +25,11 @@ module Api
         # Document types breakdown
         doc_type_stats = documents
           .joins("LEFT JOIN document_types ON document_types.name = company_documents.document_type")
-          .select("company_documents.document_type, document_types.abbreviation, COUNT(*) as count")
+          .select("company_documents.document_type, document_types.abbreviation, COUNT(*) as doc_count")
           .group("company_documents.document_type, document_types.abbreviation")
-          .order("count DESC")
+          .order("doc_count DESC")
           .limit(15)
-          .map { |d| { type: d.document_type, abbreviation: d.abbreviation, count: d.count } }
+          .map { |d| { type: d.document_type, abbreviation: d.abbreviation, count: d.doc_count } }
 
         # Email statistics with detailed breakdown
         email_stats = if defined?(EmailWarehouse)
