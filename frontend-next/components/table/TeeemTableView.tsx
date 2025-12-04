@@ -185,6 +185,7 @@ import { ColumnEditorModal } from "./ColumnEditorModal";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { MergeModal } from "./MergeModal";
 import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalViewsManager";
+import { sortColumnsForModal } from "./column-utils";
 
 // ============================================================================
 // HELPER FUNCTIONS
