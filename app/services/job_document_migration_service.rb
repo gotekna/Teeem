@@ -116,23 +116,21 @@ class JobDocumentMigrationService
     list_folder_contents_fast(matching_folder['id'])
   end
 
-  # Find the legacy folder matching a job (cached for speed)
+  # Find the legacy folder matching a job (cached in instance for speed)
   def find_legacy_folder_for_job(job)
-    # Use Rails cache to store source folder ID (avoid repeated path navigation)
-    source_folder_id = Rails.cache.fetch('legacy_source_folder_id', expires_in: 1.hour) do
+    # Use instance variable to cache source folder ID (avoid repeated path navigation)
+    @source_folder_id ||= begin
       folder = find_folder_by_path(SOURCE_FOLDER_PATH)
       folder&.dig('id')
     end
 
-    return nil unless source_folder_id
+    return nil unless @source_folder_id
 
-    # Get job folders (also cache this list for 5 minutes)
-    job_folders = Rails.cache.fetch('legacy_job_folders', expires_in: 5.minutes) do
-      list_subfolders(source_folder_id)
-    end
+    # Get job folders (also cache in instance)
+    @job_folders ||= list_subfolders(@source_folder_id)
 
     # Find matching folder
-    job_folders.find { |folder| folder_matches_job?(folder['name'], job) }
+    @job_folders.find { |folder| folder_matches_job?(folder['name'], job) }
   end
 
   # List folder contents in a single API call (files + subfolders)

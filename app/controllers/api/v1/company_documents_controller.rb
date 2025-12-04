@@ -711,6 +711,27 @@ module Api
         render json: { success: true, **result }
       end
 
+      # GET /api/v1/company_documents/counts
+      # Returns document counts per tab/category for a company
+      def counts
+        return render json: { success: false, error: 'company_id required' }, status: :bad_request unless params[:company_id].present?
+
+        base_documents = CompanyDocument.where(company_id: params[:company_id])
+
+        # Define all tabs to count
+        tabs = %w[advice asic assets-docs ato bank company dividends-docs financials general insurance loans-docs minutes-docs registry trust]
+
+        counts = {}
+        tabs.each do |tab|
+          counts[tab] = base_documents.by_tab(tab).count
+        end
+
+        # Total count
+        counts['total'] = base_documents.count
+
+        render json: { success: true, counts: counts }
+      end
+
       private
 
       def set_document
