@@ -1137,13 +1137,18 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                   >
                     <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">{item.name}</p>
                         {item.folder_path && (
-                          <span className="text-blue-600 dark:text-blue-400">{item.folder_path}/</span>
+                          <Badge variant="secondary" className="text-xs shrink-0">
+                            <Folder className="h-3 w-3 mr-1" />
+                            {item.folder_path}
+                          </Badge>
                         )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
                         {item.size ? formatFileSize(item.size) : ""}
-                        {item.modified && ` • Modified ${new Date(item.modified).toLocaleDateString()}`}
+                        {item.modified && `${item.size ? ' • ' : ''}Modified ${new Date(item.modified).toLocaleDateString()}`}
                       </p>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
