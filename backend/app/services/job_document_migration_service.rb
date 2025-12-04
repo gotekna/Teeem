@@ -205,8 +205,9 @@ class JobDocumentMigrationService
 
     results = { success: true, imported: [], errors: [] }
 
-    # Ensure job has OneDrive folder
-    ensure_job_folder(job)
+    # Ensure job has OneDrive folder - returns folder ID or nil
+    job_folder_id = ensure_job_folder(job)
+    return { success: false, error: 'Could not find or create job folder in OneDrive' } unless job_folder_id
 
     file_ids.each do |file_id|
       begin
@@ -459,12 +460,14 @@ class JobDocumentMigrationService
     files
   end
 
-  # Ensure job has a OneDrive folder
+  # Ensure job has a OneDrive folder and return its ID
+  # Uses MicrosoftGraphClient.find_job_folder instead of storing ID on job model
   def ensure_job_folder(job)
-    return if job.onedrive_folder_id.present?
+    # First check if job folder already exists
+    existing_folder = @client.find_job_folder(job)
+    return existing_folder['id'] if existing_folder
 
     # Create folder structure for job
-    # This should use the same logic as OrganizationOneDriveController#create_job_folders
     job_folder_name = job.title.gsub(/[\/\\:*?"<>|]/, '-').strip
     root_folder = get_or_create_jobs_root_folder
 
@@ -474,8 +477,10 @@ class JobDocumentMigrationService
       '@microsoft.graph.conflictBehavior': 'rename'
     })
 
-    job.update(onedrive_folder_id: folder['id'], onedrive_folder_path: folder['webUrl'])
-    folder
+    # Mark job as having folders created
+    job.update(onedrive_folder_creation_status: 'completed', onedrive_folders_created_at: Time.current)
+
+    folder['id']
   rescue MicrosoftGraphClient::APIError => e
     Rails.logger.error("Failed to create job folder: #{e.message}")
     nil
@@ -540,11 +545,12 @@ class JobDocumentMigrationService
 
   # Find or create a category subfolder within job folder
   def find_or_create_category_folder(job, category)
-    return job.onedrive_folder_id unless category.present?
+    # First get the job's OneDrive folder
+    job_folder = @client.find_job_folder(job)
+    return nil unless job_folder
 
-    # Get job folder ID
-    job_folder_id = job.onedrive_folder_id
-    return job_folder_id unless job_folder_id
+    job_folder_id = job_folder['id']
+    return job_folder_id unless category.present?
 
     # Check if category folder exists
     result = @client.get("/drives/#{@credential.drive_id}/items/#{job_folder_id}/children")
