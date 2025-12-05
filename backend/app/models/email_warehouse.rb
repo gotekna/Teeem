@@ -27,8 +27,15 @@ class EmailWarehouse < ApplicationRecord
   }
 
   # Search by email address (from, to, or cc)
-  scope :involving_email, ->(email) {
-    where('from_email = ? OR ? = ANY(to_emails) OR ? = ANY(cc_emails)', email, email, email)
+  # Can accept a single email string or an array of emails
+  scope :involving_email, ->(emails) {
+    emails = Array(emails).compact
+    return none if emails.empty?
+
+    conditions = emails.map do |email|
+      sanitize_sql_array(['from_email = ? OR ? = ANY(to_emails) OR ? = ANY(cc_emails)', email, email, email])
+    end
+    where(conditions.join(' OR '))
   }
 
   # Callbacks
