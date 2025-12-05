@@ -140,7 +140,7 @@ export default function CasesPage() {
     try {
       const response = await api.delete<{ success: boolean }>(`/api/v1/cases/${caseId}`);
 
-      if (response.success) {
+      if (response?.success) {
         toast({
           title: "Success",
           description: "Case deleted successfully",
