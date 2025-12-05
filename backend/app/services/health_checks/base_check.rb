@@ -130,15 +130,7 @@ module HealthChecks
 
     # Get display name for an item - override in subclass
     def item_display_name(item)
-      if item.respond_to?(:name)
-        item.name
-      elsif item.respond_to?(:title)
-        item.title
-      elsif item.respond_to?(:full_name)
-        item.full_name
-      else
-        "Item ##{item.id}"
-      end
+      DisplayValueResolver.resolve(item)
     end
 
     # Calculate health score from check results

@@ -149,15 +149,7 @@ module Api
 
       def serialize_shareholding(shareholding, include_details: false)
         shareholder = shareholding.shareholder
-        shareholder_name = if shareholder.respond_to?(:full_name) && shareholder.full_name.present?
-                             shareholder.full_name
-                           elsif shareholder.respond_to?(:display_name)
-                             shareholder&.display_name
-                           elsif shareholder.respond_to?(:name)
-                             shareholder&.name
-                           else
-                             "Unknown"
-                           end
+        shareholder_name = DisplayValueResolver.resolve(shareholder)
 
         data = {
           id: shareholding.id,

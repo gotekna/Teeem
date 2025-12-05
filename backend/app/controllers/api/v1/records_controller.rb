@@ -516,16 +516,8 @@ module Api
               begin
                 related = record.send(association_name)
                 if related
-                  # Find display column - prefer name, display_name, title, then fall back to ID
-                  display_value = if related.respond_to?(:name)
-                    related.name
-                  elsif related.respond_to?(:display_name)
-                    related.display_name
-                  elsif related.respond_to?(:title)
-                    related.title
-                  else
-                    related.id.to_s
-                  end
+                  # Use centralized DisplayValueResolver (SSoT for display values)
+                  display_value = DisplayValueResolver.resolve(related)
                   json[id_column] = { id: json[id_column], display: display_value }
                 end
               rescue => e
