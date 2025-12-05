@@ -194,7 +194,14 @@ export const applyViewAtom = atom(
     if (view.columnOrder) {
       set(currentColumnOrderAtom, view.columnOrder);
     }
-    if (view.columnWidths) {
+
+    // Only load saved column widths if auto-fit is NOT enabled
+    // Check both direct property and columns object (API format varies)
+    const viewAny = view as SavedView & { columns?: { autoFitColumns?: boolean; showTotals?: boolean } };
+    const viewAutoFit = view.autoFitColumns === true ||
+      (viewAny.columns && viewAny.columns.autoFitColumns === true);
+
+    if (view.columnWidths && !viewAutoFit) {
       set(currentColumnWidthsAtom, view.columnWidths);
     }
 
