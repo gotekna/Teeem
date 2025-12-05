@@ -48,7 +48,7 @@ function TablePageContent() {
   const rawSlug = params.slug as string;
   const tab = searchParams.get("tab");
 
-  // Strip the _GOD_LOVES_YOU_ suffix to get the clean slug
+  // Strip any legacy suffix if present (for backwards compatibility)
   const cleanSlug = stripUrlSuffix(rawSlug);
 
   const [activeTab, setActiveTab] = useState(tab || "data");
@@ -86,10 +86,10 @@ function TablePageContent() {
   // Get UI configuration for this table
   const uiConfig = getTableUIConfig(tableId);
 
-  // Validate URL has _GOD_LOVES_YOU_ suffix
+  // Redirect legacy URLs with suffix to clean URLs
   useEffect(() => {
-    if (rawSlug && !rawSlug.includes("_GOD_LOVES_YOU_")) {
-      router.replace(`/${cleanSlug}_GOD_LOVES_YOU_${tab ? `?tab=${tab}` : ''}`);
+    if (rawSlug && rawSlug.includes("_GOD_LOVES_YOU_")) {
+      router.replace(`/${cleanSlug}${tab ? `?tab=${tab}` : ''}`);
     }
   }, [rawSlug, cleanSlug, tab, router]);
 
@@ -99,7 +99,7 @@ function TablePageContent() {
   // Handle tab changes - update URL
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab);
-    router.replace(`/${cleanSlug}_GOD_LOVES_YOU_?tab=${newTab}`, { scroll: false });
+    router.replace(`/${cleanSlug}?tab=${newTab}`, { scroll: false });
   };
 
   // Set initial tab from URL or config
@@ -157,7 +157,7 @@ function TablePageContent() {
         break;
       default:
         // For other tables, use the slug-based URL with item ID
-        router.push(`/${cleanSlug}/${row.id}_GOD_LOVES_YOU_`);
+        router.push(`/${cleanSlug}/${row.id}`);
     }
   };
 

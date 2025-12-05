@@ -78,7 +78,7 @@ const VIEWS_CACHE_TTL = 60000; // 1 minute
 
 /**
  * Hook for loading foundation data by slug (not ID)
- * Used for slug-based URLs like /jobs_GOD_LOVES_YOU_ instead of /204/jobs_GOD_LOVES_YOU_
+ * Used for slug-based URLs like /jobs, /pricebook, /contacts
  *
  * @param slug - The foundation slug (e.g., 'jobs', 'pricebook', 'contacts')
  * @param options - Additional options for data loading

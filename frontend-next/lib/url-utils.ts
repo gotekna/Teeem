@@ -1,10 +1,8 @@
 // URL Utility Functions
-// All URLs in TEEEM use format: /{slug}_GOD_LOVES_YOU_?tab={tab}
+// All URLs in TEEEM use clean format: /{slug}?tab={tab}
 // Note: tableId has been removed from URLs - we use slug-based routing now
 
 import { getTableIds, getTableSlug, initTableIds } from '@/hooks/useTableIds';
-
-const URL_SUFFIX = "_GOD_LOVES_YOU_";
 
 // Initialize table IDs from API on module load
 // This runs once when the module is first imported
@@ -63,14 +61,14 @@ export function slugify(text: string, maxLength = 50): string {
 }
 
 /**
- * Build a table URL with the format: /{slug}_GOD_LOVES_YOU_?tab={tab}
+ * Build a table URL with the format: /{slug}?tab={tab}
  * @param slug - The database_table_name (e.g., "jobs", "sm_tasks", "gold_standard_items")
  * @param tab - Optional tab name
  */
 export function buildTableUrl(slug: string, tab?: string): string {
   // Use the slug directly - it should already be a database_table_name (lowercase with underscores)
   const baseSlug = slug.toLowerCase();
-  const base = `/${baseSlug}${URL_SUFFIX}`;
+  const base = `/${baseSlug}`;
   return tab ? `${base}?tab=${tab}` : base;
 }
 
@@ -79,12 +77,12 @@ export function buildTableUrl(slug: string, tab?: string): string {
  */
 export function buildTableUrlLegacy(tableId: number, slug: string, tab?: string): string {
   const baseSlug = slugify(slug);
-  const base = `/${tableId}/${baseSlug}${URL_SUFFIX}`;
+  const base = `/${tableId}/${baseSlug}`;
   return tab ? `${base}?tab=${tab}` : base;
 }
 
 /**
- * Build a table item URL: /{tableSlug}/{itemId}_GOD_LOVES_YOU_?tab={tab}
+ * Build a table item URL: /{tableSlug}/{itemId}?tab={tab}
  * @param tableSlug - The table slug (e.g., "jobs", "contacts")
  * @param itemId - The item ID or slug
  * @param itemName - Optional item name for readable URL
@@ -96,8 +94,8 @@ export function buildItemUrl(
   itemName?: string,
   tab?: string
 ): string {
-  // For item URLs, we use /{tableSlug}/{itemId}_GOD_LOVES_YOU_
-  const base = `/${slugify(tableSlug)}/${itemId}${URL_SUFFIX}`;
+  // For item URLs, we use /{tableSlug}/{itemId}
+  const base = `/${slugify(tableSlug)}/${itemId}`;
   return tab ? `${base}?tab=${tab}` : base;
 }
 
@@ -128,8 +126,8 @@ export function parseTableUrl(pathname: string, searchParams?: URLSearchParams):
   tab: string | null;
   itemId: string | null;
 } {
-  // Match /{tableId}/{slug}_GOD_LOVES_YOU_
-  const match = pathname.match(/^\/(\d+)\/(.+)_GOD_LOVES_YOU_$/i);
+  // Match /{tableId}/{slug}
+  const match = pathname.match(/^\/(\d+)\/(.+)$/i);
   if (!match) {
     return { tableId: null, slug: null, tab: null, itemId: null };
   }
@@ -146,10 +144,11 @@ export function parseTableUrl(pathname: string, searchParams?: URLSearchParams):
 }
 
 /**
- * Strips the _GOD_LOVES_YOU_ suffix from a slug
+ * Strips any legacy URL suffix from a slug (for backwards compatibility)
+ * @deprecated No longer needed - URLs are clean now
  */
 export function stripUrlSuffix(slug: string): string {
-  return slug.replace(new RegExp(`${URL_SUFFIX}$`, "i"), "");
+  return slug.replace(/_GOD_LOVES_YOU_$/i, "");
 }
 
 /**
@@ -161,7 +160,7 @@ export function isNumericId(value: string): boolean {
 
 /**
  * URL builder helpers for common routes
- * Format: /{slug}_GOD_LOVES_YOU_?tab={tab}
+ * Format: /{slug}?tab={tab}
  */
 export const urls = {
   // === TABLE LIST PAGES ===
@@ -232,18 +231,18 @@ export function slugifyJobTitle(text: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .substring(0, 50);
-  return `${slug}${URL_SUFFIX}`;
+  return slug;
 }
 
 export function slugifyContactName(firstName?: string, lastName?: string, companyName?: string): string {
   const name = [firstName, lastName].filter(Boolean).join(" ") || companyName || "unknown";
-  return `${slugify(name)}${URL_SUFFIX}`;
+  return slugify(name);
 }
 
 export function slugifyPricebookCode(code: string): string {
   // Use URL encoding instead of slugify to preserve periods and special characters
   // Backend will decode this and search by exact item_code
-  return `${encodeURIComponent(code)}${URL_SUFFIX}`;
+  return encodeURIComponent(code);
 }
 
 export default urls;

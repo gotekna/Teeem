@@ -51,7 +51,7 @@ export default function PriceBookPage() {
       router.push(`/pricebook/${slug}`);
     } else {
       console.warn("[PricebookPage] No item_code found, falling back to ID:", item.id);
-      router.push(`/pricebook/${item.id}_GOD_LOVES_YOU_`);
+      router.push(`/pricebook/${item.id}`);
     }
   }, [router]);
 
