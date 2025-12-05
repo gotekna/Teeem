@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_05_115752) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_05_234407) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -938,6 +938,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_115752) do
     t.index ["contact_id"], name: "index_contact_company_group_memberships_on_contact_id"
   end
 
+  create_table "contact_emails", force: :cascade do |t|
+    t.bigint "contact_id", null: false
+    t.string "email", null: false
+    t.boolean "is_primary", default: false, null: false
+    t.string "label"
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id", "is_primary"], name: "index_contact_emails_on_primary", where: "(is_primary = true)"
+    t.index ["contact_id", "position"], name: "index_contact_emails_on_contact_id_and_position"
+    t.index ["contact_id"], name: "index_contact_emails_on_contact_id"
+  end
+
   create_table "contact_external_links", force: :cascade do |t|
     t.bigint "contact_id", null: false
     t.string "tenant_id", null: false
@@ -997,6 +1010,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_115752) do
     t.index ["contact_id"], name: "index_contact_persons_on_contact_id"
     t.index ["email"], name: "index_contact_persons_on_email"
     t.index ["xero_contact_person_id"], name: "index_contact_persons_on_xero_contact_person_id"
+  end
+
+  create_table "contact_phones", force: :cascade do |t|
+    t.bigint "contact_id", null: false
+    t.string "phone_number", null: false
+    t.string "phone_type", default: "mobile", null: false
+    t.boolean "is_primary", default: false, null: false
+    t.string "label"
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id", "is_primary"], name: "index_contact_phones_on_primary", where: "(is_primary = true)"
+    t.index ["contact_id", "position"], name: "index_contact_phones_on_contact_id_and_position"
+    t.index ["contact_id"], name: "index_contact_phones_on_contact_id"
   end
 
   create_table "contact_relationships", force: :cascade do |t|
@@ -4476,10 +4503,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_115752) do
   add_foreign_key "contact_company_group_memberships", "companies"
   add_foreign_key "contact_company_group_memberships", "company_groups"
   add_foreign_key "contact_company_group_memberships", "contacts"
+  add_foreign_key "contact_emails", "contacts"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"
   add_foreign_key "contact_persons", "contacts"
+  add_foreign_key "contact_phones", "contacts"
   add_foreign_key "contact_relationships", "contacts", column: "related_contact_id"
   add_foreign_key "contact_relationships", "contacts", column: "source_contact_id"
   add_foreign_key "contacts", "company_groups"

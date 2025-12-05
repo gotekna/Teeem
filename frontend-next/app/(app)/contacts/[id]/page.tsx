@@ -93,6 +93,25 @@ interface ContactGroup {
   name: string;
 }
 
+interface ContactEmail {
+  id?: number;
+  email: string;
+  is_primary: boolean;
+  label: string | null;
+  position: number;
+  _destroy?: boolean;
+}
+
+interface ContactPhone {
+  id?: number;
+  phone_number: string;
+  phone_type: 'mobile' | 'office' | 'fax' | 'home';
+  is_primary: boolean;
+  label: string | null;
+  position: number;
+  _destroy?: boolean;
+}
+
 interface Contact {
   id: number;
   full_name: string;
@@ -106,6 +125,9 @@ interface Contact {
   address: string | null;
   notes: string | null;
   is_active: boolean;
+  // Multiple emails and phones
+  contact_emails?: ContactEmail[];
+  contact_phones?: ContactPhone[];
   "is_supplier?": boolean;
   "is_customer?": boolean;
   "is_director?": boolean;
@@ -143,8 +165,24 @@ interface Contact {
   entity_type: string | null;
   // Company/Employee linking
   primary_company_id?: number | null;
-  primary_company?: { id: number; name: string } | null;
-  employees?: Array<{ id: number; full_name: string; email: string | null }>;
+  primary_company?: {
+    id: number;
+    name: string;
+    email?: string;
+    website?: string;
+    address?: string;
+    contact_emails?: ContactEmail[];
+    contact_phones?: ContactPhone[];
+  } | null;
+  employees?: Array<{
+    id: number;
+    full_name: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    mobile_phone: string | null;
+    primary_role: string | null;
+  }>;
   // Director companies
   director_companies?: DirectorCompany[];
   // Additional companies via relationships
@@ -403,6 +441,45 @@ export default function ContactDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [id]);
 
+  // Initialize contact_emails and contact_phones from legacy fields if needed
+  useEffect(() => {
+    if (contact && (!contact.contact_emails || contact.contact_emails.length === 0)) {
+      const emails: ContactEmail[] = [];
+      if (contact.email) {
+        emails.push({
+          email: contact.email,
+          is_primary: true,
+          label: null,
+          position: 0
+        });
+      }
+      setContact({ ...contact, contact_emails: emails });
+    }
+
+    if (contact && (!contact.contact_phones || contact.contact_phones.length === 0)) {
+      const phones: ContactPhone[] = [];
+      if (contact.mobile_phone) {
+        phones.push({
+          phone_number: contact.mobile_phone,
+          phone_type: 'mobile',
+          is_primary: true,
+          label: null,
+          position: 0
+        });
+      }
+      if (contact.office_phone) {
+        phones.push({
+          phone_number: contact.office_phone,
+          phone_type: 'office',
+          is_primary: !contact.mobile_phone, // Primary only if no mobile
+          label: null,
+          position: 1
+        });
+      }
+      setContact({ ...contact, contact_phones: phones });
+    }
+  }, [contact?.id]);
+
   // Load memberships when contact loads
   useEffect(() => {
     if (contact?.id) {
@@ -580,8 +657,48 @@ export default function ContactDetailPage() {
     setSaving(true);
     try {
       const full_name = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || "Unknown";
+
+      // Prepare contact_emails_attributes (filtering out destroyed items for new records)
+      const contact_emails_attributes = (contact.contact_emails || [])
+        .filter(e => e.id || (!e.id && !e._destroy)) // Keep if has ID or is new and not destroyed
+        .map(e => ({
+          id: e.id,
+          email: e.email,
+          is_primary: e.is_primary,
+          label: e.label,
+          position: e.position,
+          _destroy: e._destroy
+        }));
+
+      // Prepare contact_phones_attributes (filtering out destroyed items for new records)
+      const contact_phones_attributes = (contact.contact_phones || [])
+        .filter(p => p.id || (!p.id && !p._destroy)) // Keep if has ID or is new and not destroyed
+        .map(p => ({
+          id: p.id,
+          phone_number: p.phone_number,
+          phone_type: p.phone_type,
+          is_primary: p.is_primary,
+          label: p.label,
+          position: p.position,
+          _destroy: p._destroy
+        }));
+
+      // Backward compatibility: sync primary email/phone to legacy fields
+      const primaryEmail = contact.contact_emails?.find(e => e.is_primary && !e._destroy);
+      const primaryMobile = contact.contact_phones?.find(p => p.phone_type === 'mobile' && p.is_primary && !p._destroy);
+      const primaryOffice = contact.contact_phones?.find(p => p.phone_type === 'office' && p.is_primary && !p._destroy);
+
       await api.patch(`/api/v1/contacts/${contact.id}`, {
-        contact: { ...formData, full_name },
+        contact: {
+          ...formData,
+          full_name,
+          // Keep legacy fields in sync for backwards compatibility
+          email: primaryEmail?.email || formData.email,
+          mobile_phone: primaryMobile?.phone_number || formData.mobile_phone,
+          office_phone: primaryOffice?.phone_number || formData.office_phone,
+          contact_emails_attributes,
+          contact_phones_attributes
+        },
       });
       setHasChanges(false);
       loadContact();
@@ -768,87 +885,442 @@ export default function ContactDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main Edit Form Column */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Basic Info Card */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <User className="h-5 w-5" />
-                    Basic Information
-                  </CardTitle>
-                  {hasChanges && (
-                    <Button onClick={handleSave} disabled={saving} size="sm">
-                      {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                      Save
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="first_name">{formData.entity_type === "person" ? "First Name" : "Name"}</Label>
-                      <Input id="first_name" value={formData.first_name} onChange={(e) => handleInputChange("first_name", e.target.value)} />
-                    </div>
-                    {formData.entity_type === "person" && (
+              {/* Basic Info and Contact Details - Side by Side */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Basic Info Card */}
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <User className="h-5 w-5" />
+                      Basic Information
+                    </CardTitle>
+                    {hasChanges && (
+                      <Button onClick={handleSave} disabled={saving} size="sm">
+                        {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                        Save
+                      </Button>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="last_name">Last Name</Label>
-                        <Input id="last_name" value={formData.last_name} onChange={(e) => handleInputChange("last_name", e.target.value)} />
+                        <Label htmlFor="first_name">{formData.entity_type === "person" ? "First Name" : "Name"}</Label>
+                        <Input id="first_name" value={formData.first_name} onChange={(e) => handleInputChange("first_name", e.target.value)} />
+                      </div>
+                      {formData.entity_type === "person" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="last_name">Last Name</Label>
+                          <Input id="last_name" value={formData.last_name} onChange={(e) => handleInputChange("last_name", e.target.value)} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="entity_type">Entity Type</Label>
+                      <select id="entity_type" value={formData.entity_type} onChange={(e) => handleInputChange("entity_type", e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                        <option value="person">Person</option>
+                        <option value="company">Company</option>
+                        <option value="trust">Trust</option>
+                      </select>
+                    </div>
+                    {/* Linked Company - show for company/trust entity types */}
+                    {(formData.entity_type === 'company' || formData.entity_type === 'trust') && contact.linked_company && (
+                      <div className="space-y-2">
+                        <Label>Linked {formData.entity_type === 'trust' ? 'Trust' : 'Company'}</Label>
+                        <div className="flex items-center gap-2 p-3 rounded-md border bg-muted/30">
+                          <Building2 className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{contact.linked_company.name}</p>
+                            {(contact.linked_company.acn || contact.linked_company.abn) && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                {contact.linked_company.acn && `ACN: ${contact.linked_company.acn}`}
+                                {contact.linked_company.acn && contact.linked_company.abn && ' • '}
+                                {contact.linked_company.abn && `ABN: ${contact.linked_company.abn}`}
+                              </p>
+                            )}
+                          </div>
+                          <Link href={`/corporate/companies/${contact.linked_company.id}`}>
+                            <Button variant="ghost" size="sm">
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                        </div>
                       </div>
                     )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="entity_type">Entity Type</Label>
-                    <select id="entity_type" value={formData.entity_type} onChange={(e) => handleInputChange("entity_type", e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                      <option value="person">Person</option>
-                      <option value="company">Company</option>
-                      <option value="trust">Trust</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center justify-between py-2">
-                    <div><Label>Active</Label><p className="text-xs text-muted-foreground">Is this contact active?</p></div>
-                    <Switch checked={formData.is_active} onCheckedChange={(c) => handleInputChange("is_active", c)} />
-                  </div>
-                  {formData.entity_type === "person" && (
+                    {/* Primary Company - show for person entity type */}
+                    {formData.entity_type === 'person' && contact.primary_company && (
+                      <div className="space-y-2">
+                        <Label>Works For</Label>
+                        <div className="flex items-center gap-2 p-3 rounded-md border bg-muted/30">
+                          <Building2 className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{contact.primary_company.name}</p>
+                            {contact.position && (
+                              <p className="text-xs text-muted-foreground truncate">{contact.position}</p>
+                            )}
+                          </div>
+                          <Link href={`/contacts/${contact.primary_company.id}`}>
+                            <Button variant="ghost" size="sm">
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between py-2">
-                      <div><Label>Family Member</Label></div>
-                      <Switch checked={formData.is_family_member} onCheckedChange={(c) => handleInputChange("is_family_member", c)} />
+                      <div><Label>Active</Label><p className="text-xs text-muted-foreground">Is this contact active?</p></div>
+                      <Switch checked={formData.is_active} onCheckedChange={(c) => handleInputChange("is_active", c)} />
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                    {formData.entity_type === "person" && (
+                      <div className="flex items-center justify-between py-2">
+                        <div><Label>Family Member</Label></div>
+                        <Switch checked={formData.is_family_member} onCheckedChange={(c) => handleInputChange("is_family_member", c)} />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-              {/* Contact Details Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Phone className="h-5 w-5" />
-                    Contact Details
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" value={formData.email} onChange={(e) => handleInputChange("email", e.target.value)} placeholder="email@example.com" />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Contact Details Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Phone className="h-5 w-5" />
+                      Contact Details
+                      {formData.entity_type === 'person' && contact.primary_company && (
+                        <Badge variant="outline" className="ml-2">
+                          <Building2 className="h-3 w-3 mr-1" />
+                          Company Details
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Company Contact Details - Show when person has a primary company */}
+                    {formData.entity_type === 'person' && contact.primary_company && (
+                      <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <Building2 className="h-4 w-4" />
+                          {contact.primary_company.name} Contact Info
+                        </div>
+
+                        {/* Company Emails */}
+                        {contact.primary_company.contact_emails && contact.primary_company.contact_emails.length > 0 && (
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Emails</Label>
+                            {contact.primary_company.contact_emails
+                              .sort((a, b) => {
+                                if (a.is_primary && !b.is_primary) return -1;
+                                if (!a.is_primary && b.is_primary) return 1;
+                                return a.position - b.position;
+                              })
+                              .map((email, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-sm">
+                                  <Mail className="h-3 w-3 text-muted-foreground" />
+                                  <span>{email.email}</span>
+                                  {email.is_primary && <Badge variant="secondary" className="text-xs">Primary</Badge>}
+                                </div>
+                              ))}
+                          </div>
+                        )}
+
+                        {/* Company Phones */}
+                        {contact.primary_company.contact_phones && contact.primary_company.contact_phones.length > 0 && (
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Phones</Label>
+                            {contact.primary_company.contact_phones
+                              .sort((a, b) => {
+                                if (a.is_primary && !b.is_primary) return -1;
+                                if (!a.is_primary && b.is_primary) return 1;
+                                return a.position - b.position;
+                              })
+                              .map((phone, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-sm">
+                                  <Phone className="h-3 w-3 text-muted-foreground" />
+                                  <Badge variant="outline" className="text-xs">{phone.phone_type}</Badge>
+                                  <span>{phone.phone_number}</span>
+                                  {phone.is_primary && <Badge variant="secondary" className="text-xs">Primary</Badge>}
+                                </div>
+                              ))}
+                          </div>
+                        )}
+
+                        {/* Company Website */}
+                        {contact.primary_company.website && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Globe className="h-3 w-3 text-muted-foreground" />
+                            <a href={contact.primary_company.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                              {contact.primary_company.website}
+                            </a>
+                          </div>
+                        )}
+
+                        {/* Company Address */}
+                        {contact.primary_company.address && (
+                          <div className="flex items-start gap-2 text-sm">
+                            <MapPin className="h-3 w-3 text-muted-foreground mt-0.5" />
+                            <span className="whitespace-pre-line">{contact.primary_company.address}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Direct/Personal Contact Details Section */}
+                    {formData.entity_type === 'person' && contact.primary_company && (
+                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground border-t pt-4">
+                        <User className="h-4 w-4" />
+                        Direct Contact (Personal)
+                      </div>
+                    )}
+
+                    {/* Emails Section */}
                     <div className="space-y-2">
-                      <Label htmlFor="mobile_phone">Mobile Phone</Label>
-                      <Input id="mobile_phone" value={formData.mobile_phone} onChange={(e) => handleInputChange("mobile_phone", e.target.value)} placeholder="0400 000 000" />
+                      <div className="flex items-center justify-between">
+                        <Label>Emails</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newEmail: ContactEmail = {
+                              email: '',
+                              is_primary: (contact.contact_emails?.length || 0) === 0,
+                              label: null,
+                              position: (contact.contact_emails?.length || 0)
+                            };
+                            const updated = [...(contact.contact_emails || []), newEmail];
+                            setContact({ ...contact, contact_emails: updated });
+                            setHasChanges(true);
+                          }}
+                        >
+                          <Mail className="h-3 w-3 mr-1" />
+                          Add Email
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {(contact.contact_emails || [])
+                          .filter(e => !e._destroy)
+                          .sort((a, b) => {
+                            if (a.is_primary && !b.is_primary) return -1;
+                            if (!a.is_primary && b.is_primary) return 1;
+                            return a.position - b.position;
+                          })
+                          .map((email, index) => (
+                          <div key={index} className="flex items-center gap-2">
+                            <Input
+                              type="email"
+                              value={email.email}
+                              onChange={(e) => {
+                                const updated = [...(contact.contact_emails || [])];
+                                updated[index] = { ...updated[index], email: e.target.value };
+                                setContact({ ...contact, contact_emails: updated });
+                                setHasChanges(true);
+                              }}
+                              placeholder="email@example.com"
+                              className={email.is_primary ? 'border-primary' : ''}
+                            />
+                            <Button
+                              type="button"
+                              variant={email.is_primary ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => {
+                                const updated = (contact.contact_emails || []).map((e, i) => ({
+                                  ...e,
+                                  is_primary: i === index
+                                }));
+                                setContact({ ...contact, contact_emails: updated });
+                                setHasChanges(true);
+                              }}
+                              title="Set as primary"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const updated = [...(contact.contact_emails || [])];
+                                if (email.id) {
+                                  updated[index] = { ...updated[index], _destroy: true };
+                                } else {
+                                  updated.splice(index, 1);
+                                }
+                                setContact({ ...contact, contact_emails: updated });
+                                setHasChanges(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Phones Section */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Phones</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newPhone: ContactPhone = {
+                              phone_number: '',
+                              phone_type: 'mobile',
+                              is_primary: (contact.contact_phones?.length || 0) === 0,
+                              label: null,
+                              position: (contact.contact_phones?.length || 0)
+                            };
+                            const updated = [...(contact.contact_phones || []), newPhone];
+                            setContact({ ...contact, contact_phones: updated });
+                            setHasChanges(true);
+                          }}
+                        >
+                          <Phone className="h-3 w-3 mr-1" />
+                          Add Phone
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {(contact.contact_phones || [])
+                          .filter(p => !p._destroy)
+                          .sort((a, b) => {
+                            if (a.is_primary && !b.is_primary) return -1;
+                            if (!a.is_primary && b.is_primary) return 1;
+                            return a.position - b.position;
+                          })
+                          .map((phone, index) => (
+                          <div key={index} className="flex items-center gap-2">
+                            <select
+                              value={phone.phone_type}
+                              onChange={(e) => {
+                                const updated = [...(contact.contact_phones || [])];
+                                updated[index] = { ...updated[index], phone_type: e.target.value as ContactPhone['phone_type'] };
+                                setContact({ ...contact, contact_phones: updated });
+                                setHasChanges(true);
+                              }}
+                              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                              <option value="mobile">Mobile</option>
+                              <option value="office">Office</option>
+                              <option value="fax">Fax</option>
+                              <option value="home">Home</option>
+                            </select>
+                            <Input
+                              type="tel"
+                              value={phone.phone_number}
+                              onChange={(e) => {
+                                const updated = [...(contact.contact_phones || [])];
+                                updated[index] = { ...updated[index], phone_number: e.target.value };
+                                setContact({ ...contact, contact_phones: updated });
+                                setHasChanges(true);
+                              }}
+                              placeholder="0400 000 000"
+                              className={phone.is_primary ? 'border-primary' : ''}
+                            />
+                            <Button
+                              type="button"
+                              variant={phone.is_primary ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => {
+                                const updated = (contact.contact_phones || []).map((p, i) => ({
+                                  ...p,
+                                  is_primary: i === index
+                                }));
+                                setContact({ ...contact, contact_phones: updated });
+                                setHasChanges(true);
+                              }}
+                              title="Set as primary"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const updated = [...(contact.contact_phones || [])];
+                                if (phone.id) {
+                                  updated[index] = { ...updated[index], _destroy: true };
+                                } else {
+                                  updated.splice(index, 1);
+                                }
+                                setContact({ ...contact, contact_phones: updated });
+                                setHasChanges(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="website">Website</Label>
+                      <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} placeholder="https://example.com" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="office_phone">Office Phone</Label>
-                      <Input id="office_phone" value={formData.office_phone} onChange={(e) => handleInputChange("office_phone", e.target.value)} placeholder="07 0000 0000" />
+                      <Label htmlFor="address">Address</Label>
+                      <Textarea id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Full address" rows={2} />
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="website">Website</Label>
-                    <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} placeholder="https://example.com" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
-                    <Textarea id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Full address" rows={2} />
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Associated People Card - for company/trust entity types */}
+              {(formData.entity_type === 'company' || formData.entity_type === 'trust') && contact.employees && contact.employees.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      People
+                      <Badge variant="secondary" className="ml-2">{contact.employees.length}</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {contact.employees.map((employee) => (
+                        <div key={employee.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                              <User className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <Link href={`/contacts/${employee.id}`} className="text-sm font-medium hover:underline">
+                                {employee.full_name}
+                              </Link>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                                {employee.email && (
+                                  <span className="flex items-center gap-1">
+                                    <Mail className="h-3 w-3" />
+                                    {employee.email}
+                                  </span>
+                                )}
+                                {employee.mobile_phone && (
+                                  <span className="flex items-center gap-1">
+                                    <Phone className="h-3 w-3" />
+                                    {employee.mobile_phone}
+                                  </span>
+                                )}
+                              </div>
+                              {employee.primary_role && (
+                                <Badge variant="outline" className="mt-1 text-xs">
+                                  {employee.primary_role}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <Link href={`/contacts/${employee.id}`}>
+                            <Button variant="ghost" size="sm">
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Business & Tax Card */}
               <Card>

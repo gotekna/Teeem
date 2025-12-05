@@ -43,6 +43,14 @@ Rails.application.routes.draw do
       # CSV Import routes
       post 'csv_imports/job_with_pos', to: 'csv_imports#import_job_with_pos'
 
+      # Email to Contacts extraction
+      resources :email_to_contacts, only: [] do
+        collection do
+          post :analyze
+          post :bulk_create
+        end
+      end
+
       # Grok AI integration
       post 'grok/chat', to: 'grok#chat'
       get 'grok/suggest-features', to: 'grok#suggest_features'

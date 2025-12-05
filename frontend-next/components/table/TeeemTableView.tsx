@@ -95,6 +95,7 @@ import {
   GitMerge,
   ChevronsDownUp,
   ChevronsUpDown,
+  UserPlus,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -191,6 +192,7 @@ import { DataHealthWidget, HealthIndicatorButton } from "./DataHealthWidget";
 import { ColumnEditorModal } from "./ColumnEditorModal";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { MergeModal } from "./MergeModal";
+import { EmailToContactsModal } from "../emails/EmailToContactsModal";
 import { ViewManagerSheet } from "./views";
 import { sortColumnsForModal } from "./column-utils";
 import { EditModeToggle } from "./EditModeToggle";
@@ -1134,6 +1136,14 @@ export default function TeeemTableView({
     return result;
   }, [columns]);
 
+  // Detect if table has email columns for Email to Contacts extraction feature
+  const hasEmailColumns = useMemo(() => {
+    return COLUMNS.some(col =>
+      col.column_type === 'email' ||
+      col.key.toLowerCase().includes('email')
+    );
+  }, [COLUMNS]);
+
   // Sticky columns configuration - columns that stay fixed on horizontal scroll
   // Order matters: select first (leftmost), then id, then name
   const STICKY_COLUMNS = useMemo(() => ['select', 'id', 'name'], []);
@@ -1291,6 +1301,9 @@ export default function TeeemTableView({
   const [showExportModal, setShowExportModal] = useAtom(showExportModalAtom);
   const [exportScope, setExportScope] = useAtom(exportScopeAtom);
   const [exportFormat, setExportFormat] = useAtom(exportFormatAtom);
+
+  // Email to Contacts modal state (local state)
+  const [showEmailToContactsModal, setShowEmailToContactsModal] = useState(false);
 
   // Global Views Manager state managed by atom (SSoT)
   const [showGlobalViewsManager, setShowGlobalViewsManager] = useAtom(showGlobalViewsManagerAtom);
@@ -5672,6 +5685,20 @@ export default function TeeemTableView({
                 </DropdownMenuItem>
               )}
 
+              {/* Email to Contacts Section - auto-enabled when table has email columns */}
+              {hasEmailColumns && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
+                    CONTACTS
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => setShowEmailToContactsModal(true)}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Extract Contacts from Emails
+                  </DropdownMenuItem>
+                </>
+              )}
+
               {/* Table Info Section */}
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
@@ -6751,6 +6778,19 @@ export default function TeeemTableView({
           secondaryColumns={mergeSecondaryColumns}
           entityName={tableName?.replace(/s$/, '') || "Record"}
           onMergeComplete={handleMergeComplete}
+        />
+      )}
+
+      {/* Email to Contacts Modal - auto-enabled when table has email columns */}
+      {hasEmailColumns && (
+        <EmailToContactsModal
+          open={showEmailToContactsModal}
+          onOpenChange={setShowEmailToContactsModal}
+          emailData={filteredAndSortedEntries}
+          onComplete={() => {
+            onRefresh?.();
+            setShowEmailToContactsModal(false);
+          }}
         />
       )}
 

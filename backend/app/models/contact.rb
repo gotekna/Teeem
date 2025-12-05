@@ -9,6 +9,14 @@ class Contact < ApplicationRecord
   # Company group for document filing (family members)
   belongs_to :company_group, optional: true
 
+  # Multiple emails and phones
+  has_many :contact_emails, -> { order(:position) }, dependent: :destroy
+  has_many :contact_phones, -> { order(:position) }, dependent: :destroy
+
+  # Enable nested attributes for emails and phones
+  accepts_nested_attributes_for :contact_emails, allow_destroy: true
+  accepts_nested_attributes_for :contact_phones, allow_destroy: true
+
   # Xero-related associations
   has_many :contact_persons, dependent: :destroy
   has_many :contact_addresses, dependent: :destroy
