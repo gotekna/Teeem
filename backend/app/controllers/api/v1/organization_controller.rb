@@ -3,6 +3,36 @@ module Api
     class OrganizationController < ApplicationController
       # Note: authorize_request is already called by ApplicationController
 
+      # GET /api/v1/organization_settings
+      # Returns organization settings including job folder name format
+      def settings
+        company_setting = CompanySetting.instance
+
+        render json: {
+          success: true,
+          job_folder_name_format: company_setting.job_folder_name_format || {
+            fields: ["street_number", "street_name", "suburb"],
+            separators: { "0" => " ", "1" => ", " }
+          }
+        }
+      end
+
+      # PATCH /api/v1/organization_settings
+      # Updates organization settings
+      def update_settings
+        company_setting = CompanySetting.instance
+
+        if params[:job_folder_name_format].present?
+          company_setting.job_folder_name_format = params[:job_folder_name_format].to_unsafe_h
+        end
+
+        if company_setting.save
+          render json: { success: true, message: "Settings updated successfully" }
+        else
+          render json: { success: false, errors: company_setting.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
       # GET /api/v1/organization/data_stats
       # Returns organization-wide data warehouse statistics
       def data_stats

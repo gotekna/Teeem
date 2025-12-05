@@ -6,7 +6,10 @@ module Api
         :actions, :documents, :emails, :timeline, :contacts, :companies, :jobs,
         :warehouse_summary, :search_emails, :search_documents, :financial_analysis,
         :add_document, :add_email, :add_contact, :add_company, :add_job,
-        :run_action, :relationship_graph, :update_contact_position, :create_child
+        :run_action, :relationship_graph, :update_contact_position, :create_child,
+        :qa_pairs, :duplicates, :resolve_duplicate, :processing_status,
+        :reprocess_documents, :update_qa_pair, :update_folder_settings,
+        :folder_info, :create_folder, :get_case_contact, :update_case_contact
       ]
 
       # GET /api/v1/cases
@@ -397,6 +400,273 @@ module Api
         render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
       end
 
+      # GET /api/v1/cases/:id/contacts/:contact_id
+      # Get case contact details for editing
+      def get_case_contact
+        case_contact = @case.case_contacts.includes(:contact).find_by!(contact_id: params[:contact_id])
+        contact = case_contact.contact
+
+        render json: {
+          success: true,
+          case_contact: {
+            id: case_contact.id,
+            contact_id: contact.id,
+            contact_name: contact.display_name,
+            contact_email: contact.email,
+            relationship_type: case_contact.relationship_type,
+            alignment: case_contact.alignment,
+            role: case_contact.role,
+            is_primary: case_contact.is_primary,
+            notes: case_contact.notes
+          },
+          relationship_types: CaseContact::RELATIONSHIP_TYPES.map { |k, v| { value: k, label: v[:name] } },
+          alignments: CaseContact::ALIGNMENTS.map { |k, v| { value: k, label: v[:name] } },
+          roles: CaseContact::ROLES.map { |k, v| { value: k, label: v } }
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
+      end
+
+      # PATCH /api/v1/cases/:id/contacts/:contact_id
+      # Update case contact relationship details
+      def update_case_contact
+        case_contact = @case.case_contacts.find_by!(contact_id: params[:contact_id])
+
+        if case_contact.update(case_contact_params)
+          render json: {
+            success: true,
+            case_contact: {
+              id: case_contact.id,
+              contact_id: case_contact.contact_id,
+              relationship_type: case_contact.relationship_type,
+              formatted_relationship_type: case_contact.formatted_relationship_type,
+              alignment: case_contact.alignment,
+              formatted_alignment: case_contact.formatted_alignment,
+              role: case_contact.role,
+              formatted_role: case_contact.formatted_role,
+              is_primary: case_contact.is_primary,
+              notes: case_contact.notes
+            }
+          }
+        else
+          render json: {
+            success: false,
+            errors: case_contact.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
+      end
+
+      # ============================================
+      # DOCUMENT MANAGEMENT ENDPOINTS
+      # ============================================
+
+      # GET /api/v1/cases/:id/qa_pairs
+      def qa_pairs
+        qa = @case.case_email_qas.includes(:case_email, :email_warehouse).order(created_at: :desc)
+
+        qa = qa.answered if params[:answered] == 'true'
+        qa = qa.unanswered if params[:answered] == 'false'
+        qa = qa.important if params[:important] == 'true'
+        qa = qa.by_category(params[:category]) if params[:category].present?
+
+        render json: {
+          success: true,
+          data: qa.map { |q| serialize_qa_pair(q) },
+          meta: {
+            total: qa.count,
+            unanswered: @case.case_email_qas.unanswered.count,
+            important_unanswered: @case.case_email_qas.unanswered.important.count
+          }
+        }
+      end
+
+      # GET /api/v1/cases/:id/duplicates
+      def duplicates
+        reviews = @case.document_duplicate_reviews.includes(:existing_document, :new_document, :resolved_by)
+
+        reviews = reviews.pending if params[:status] == 'pending'
+        reviews = reviews.resolved if params[:status] == 'resolved'
+
+        render json: {
+          success: true,
+          data: reviews.map { |r| serialize_duplicate_review(r) },
+          meta: {
+            total: reviews.count,
+            pending: @case.document_duplicate_reviews.pending.count,
+            resolved: @case.document_duplicate_reviews.resolved.count
+          }
+        }
+      end
+
+      # POST /api/v1/cases/:id/resolve_duplicate
+      def resolve_duplicate
+        review = @case.document_duplicate_reviews.find(params[:review_id])
+
+        case params[:resolution]
+        when 'keep_existing'
+          review.keep_existing!(current_user)
+        when 'replace'
+          review.replace!(current_user)
+        when 'keep_both'
+          new_doc = CompanyDocument.create!(
+            company_id: @case.company_id,
+            title: review.new_file_name,
+            filename: review.new_file_name,
+            onedrive_id: params[:new_onedrive_id],
+            onedrive_path: review.new_file_path,
+            content_hash: review.new_file_hash,
+            file_size: review.new_file_size
+          )
+          review.keep_both!(current_user, new_doc)
+        else
+          render json: { success: false, error: 'Invalid resolution' }, status: :unprocessable_entity
+          return
+        end
+
+        render json: { success: true, data: serialize_duplicate_review(review) }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Duplicate review not found' }, status: :not_found
+      end
+
+      # GET /api/v1/cases/:id/processing_status
+      def processing_status
+        render json: {
+          success: true,
+          data: {
+            status: @case.document_processing_status,
+            documents_count: @case.case_documents.count,
+            emails_count: @case.case_emails.count,
+            unanswered_questions_count: @case.unanswered_questions_count,
+            pending_duplicates_count: @case.document_duplicate_reviews.pending.count,
+            source_folder_paths: @case.source_folder_paths,
+            filing_folder_paths: @case.filing_folder_paths,
+            file_action: @case.file_action
+          }
+        }
+      end
+
+      # POST /api/v1/cases/:id/reprocess_documents
+      def reprocess_documents
+        @case.update!(document_processing_status: 'pending')
+        CaseDocumentProcessingJob.perform_later(@case.id)
+
+        render json: { success: true, message: 'Document processing job queued' }
+      end
+
+      # PATCH /api/v1/cases/:id/folder_settings
+      # Update source/filing folder configuration
+      def update_folder_settings
+        @case.update!(
+          source_folder_paths: params[:source_folder_paths] || @case.source_folder_paths,
+          filing_folder_paths: params[:filing_folder_paths] || @case.filing_folder_paths,
+          file_action: params[:file_action] || @case.file_action
+        )
+
+        render json: {
+          success: true,
+          data: {
+            source_folder_paths: @case.source_folder_paths,
+            filing_folder_paths: @case.filing_folder_paths,
+            file_action: @case.file_action
+          },
+          message: 'Folder settings updated'
+        }
+      end
+
+      # PATCH /api/v1/cases/:id/qa_pairs/:qa_id
+      def update_qa_pair
+        qa = @case.case_email_qas.find(params[:qa_id])
+
+        if params[:is_answered].present?
+          if ActiveModel::Type::Boolean.new.cast(params[:is_answered])
+            qa.mark_answered!(answer: params[:answer], answer_from: params[:answer_from])
+          else
+            qa.update!(is_answered: false, answer: nil, answer_from: nil, answer_date: nil)
+          end
+        end
+
+        if params[:is_important].present?
+          if ActiveModel::Type::Boolean.new.cast(params[:is_important])
+            qa.mark_important!
+          else
+            qa.update!(is_important: false)
+          end
+        end
+
+        render json: { success: true, data: serialize_qa_pair(qa) }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Q&A pair not found' }, status: :not_found
+      end
+
+      # ============================================
+      # ONEDRIVE FOLDER MANAGEMENT
+      # ============================================
+
+      # POST /api/v1/cases/:id/create_folder
+      # Creates a dedicated OneDrive folder for this case under Corporate/Case Info
+      def create_folder
+        service = CaseFolderService.new(@case)
+        folder = service.create_case_folder
+
+        if folder
+          render json: {
+            success: true,
+            data: {
+              folder_id: folder['id'],
+              folder_name: folder['name'],
+              folder_path: @case.onedrive_folder_path,
+              web_url: folder['webUrl']
+            },
+            message: 'Case folder created successfully'
+          }
+        else
+          render json: {
+            success: false,
+            error: 'Failed to create folder. Make sure OneDrive is connected.'
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/cases/:id/folder_info
+      # Get information about the case's OneDrive folder
+      def folder_info
+        if @case.onedrive_folder_id.blank?
+          render json: {
+            success: true,
+            data: { has_folder: false }
+          }
+          return
+        end
+
+        service = CaseFolderService.new(@case)
+        folder = service.get_case_folder
+
+        if folder
+          render json: {
+            success: true,
+            data: {
+              has_folder: true,
+              folder_id: folder['id'],
+              folder_name: folder['name'],
+              folder_path: @case.onedrive_folder_path,
+              web_url: folder['webUrl']
+            }
+          }
+        else
+          # Folder ID exists but folder not found (may have been deleted)
+          render json: {
+            success: true,
+            data: {
+              has_folder: false,
+              folder_missing: true,
+              message: 'Folder was deleted from OneDrive'
+            }
+          }
+        end
+      end
+
       # ============================================
       # RUN ACTIONS
       # ============================================
@@ -464,6 +734,12 @@ module Api
         )
       end
 
+      def case_contact_params
+        params.require(:case_contact).permit(
+          :relationship_type, :alignment, :role, :is_primary, :notes
+        )
+      end
+
       def parse_date_range
         return nil unless params[:start_date] || params[:end_date]
         {
@@ -526,6 +802,8 @@ module Api
                       service.find_inconsistencies
                     when 'summary_report'
                       service.generate_summary
+                    when 'full_analysis'
+                      execute_full_analysis(action, service)
                     else
                       { message: "Action type '#{action.action_type}' not implemented" }
                     end
@@ -543,6 +821,176 @@ module Api
       # ============================================
       # SERIALIZERS
       # ============================================
+
+      # Execute full case analysis - imports emails, extracts entities, Q&A, timeline, links
+      def execute_full_analysis(action, warehouse_service)
+        results = {
+          emails_imported: 0,
+          emails_skipped: 0,
+          entities_extracted: { contacts: 0, companies: 0 },
+          qa_extracted: { total: 0, unanswered: 0 },
+          timeline_events: 0,
+          links_found: [],
+          steps_completed: []
+        }
+
+        # Step 1: Import relevant emails from warehouse based on case entities
+        Rails.logger.info "[FullAnalysis] Step 1: Importing emails for case #{@case.id}"
+        emails = warehouse_service.search_emails(query: nil) # Gets all by related entities
+        emails.each do |email|
+          # Skip if already linked to case
+          if @case.case_emails.exists?(email_warehouse_id: email.id)
+            results[:emails_skipped] += 1
+            next
+          end
+
+          @case.add_email(email, relevance: 'supporting', added_by: current_user)
+          results[:emails_imported] += 1
+        end
+        results[:steps_completed] << 'email_import'
+
+        # Step 2: Extract entities (contacts/companies) from imported emails using AI
+        Rails.logger.info "[FullAnalysis] Step 2: Extracting entities for case #{@case.id}"
+        @case.case_emails.includes(:email_warehouse).each do |case_email|
+          email = case_email.email_warehouse
+          next unless email
+
+          # Extract contacts from email addresses
+          extract_contacts_from_email(email, results)
+        end
+        results[:steps_completed] << 'entity_extraction'
+
+        # Step 3: Extract Q&A from emails
+        Rails.logger.info "[FullAnalysis] Step 3: Extracting Q&A for case #{@case.id}"
+        begin
+          qa_service = CaseQaExtractionService.new(@case)
+          qa_results = qa_service.extract_all
+          results[:qa_extracted] = {
+            total: qa_results[:questions_found],
+            unanswered: qa_results[:unanswered]
+          }
+        rescue => e
+          Rails.logger.error "[FullAnalysis] Q&A extraction failed: #{e.message}"
+          results[:qa_extracted][:error] = e.message
+        end
+        results[:steps_completed] << 'qa_extraction'
+
+        # Step 4: Build timeline from all sources
+        Rails.logger.info "[FullAnalysis] Step 4: Building timeline for case #{@case.id}"
+        timeline = warehouse_service.build_timeline
+        timeline.each do |event|
+          next if event[:date].blank?
+
+          # Skip duplicates
+          existing = @case.case_timeline_events.find_by(
+            event_date: event[:date],
+            event_type: event[:type],
+            source_type: event[:source_type],
+            source_id: event[:source_id]
+          )
+          next if existing
+
+          @case.case_timeline_events.create!(
+            event_date: event[:date],
+            event_time: event[:time],
+            event_type: event[:type],
+            title: event[:title],
+            description: event[:description],
+            source_type: event[:source_type],
+            source_id: event[:source_id],
+            icon: event[:icon],
+            color: event[:color],
+            is_auto_generated: true,
+            metadata: event[:metadata]
+          )
+          results[:timeline_events] += 1
+        end
+        results[:steps_completed] << 'timeline_build'
+
+        # Step 5: Extract links/URLs from email bodies
+        Rails.logger.info "[FullAnalysis] Step 5: Extracting links for case #{@case.id}"
+        results[:links_found] = extract_links_from_case_emails
+        results[:steps_completed] << 'link_extraction'
+
+        Rails.logger.info "[FullAnalysis] Complete for case #{@case.id}: #{results.inspect}"
+        results
+      end
+
+      # Extract contacts from email addresses and add to case
+      def extract_contacts_from_email(email, results)
+        # Collect all email addresses from this email
+        all_emails = [email.from_email]
+        all_emails += email.to_emails if email.to_emails.present?
+        all_emails += email.cc_emails if email.cc_emails.present?
+        all_emails = all_emails.compact.uniq
+
+        all_emails.each do |email_address|
+          next if email_address.blank?
+
+          # Skip if contact already linked to case
+          contact = Contact.find_by(email: email_address)
+
+          if contact
+            # Link existing contact to case if not already linked
+            unless @case.case_contacts.exists?(contact_id: contact.id)
+              @case.add_contact(contact, role: 'related_party')
+              results[:entities_extracted][:contacts] += 1
+            end
+          end
+        end
+      end
+
+      # Extract HTTP/HTTPS URLs and file paths from case emails
+      def extract_links_from_case_emails
+        links = []
+
+        @case.case_emails.includes(:email_warehouse).each do |case_email|
+          email = case_email.email_warehouse
+          next unless email
+
+          body = email.body_text.presence || email.body_html
+          next if body.blank?
+
+          # Extract HTTP/HTTPS URLs
+          urls = body.scan(%r{https?://[^\s<>"']+})
+          urls.each do |url|
+            # Clean up trailing punctuation
+            clean_url = url.gsub(/[.,;:!?)]+$/, '')
+            links << {
+              type: 'url',
+              value: clean_url,
+              email_id: email.id,
+              email_subject: email.subject
+            }
+          end
+
+          # Extract OneDrive/SharePoint links specifically
+          onedrive_links = body.scan(%r{https://[^\s]*(?:sharepoint\.com|onedrive\.live\.com)[^\s<>"']*})
+          onedrive_links.each do |link|
+            clean_link = link.gsub(/[.,;:!?)]+$/, '')
+            links << {
+              type: 'onedrive',
+              value: clean_link,
+              email_id: email.id,
+              email_subject: email.subject
+            }
+          end
+
+          # Extract file path references (Windows and Unix style)
+          # Looks for paths like C:\..., \\server\..., /path/to/...
+          file_paths = body.scan(%r{(?:[A-Za-z]:\\[^\s<>"']+|\\\\[^\s<>"']+|/(?:Users|home|var|tmp|documents?|files?)/[^\s<>"']+)}i)
+          file_paths.each do |path|
+            links << {
+              type: 'file_path',
+              value: path,
+              email_id: email.id,
+              email_subject: email.subject
+            }
+          end
+        end
+
+        links.uniq { |l| l[:value] }
+      end
 
       def serialize_case_list(c)
         {
@@ -598,7 +1046,12 @@ module Api
           has_children: c.has_children?,
           child_cases_count: c.child_cases.count,
           child_cases_summary: c.child_cases_summary,
-          child_cases: c.child_cases.recent_first.map { |child| serialize_child_case(child) }
+          child_cases: c.child_cases.recent_first.map { |child| serialize_child_case(child) },
+
+          # Folder settings
+          source_folder_paths: c.source_folder_paths || [],
+          filing_folder_paths: c.filing_folder_paths || [],
+          file_action: c.file_action || 'copy'
         )
       end
 
@@ -716,7 +1169,7 @@ module Api
           contact_id: cc.contact_id,
           contact_name: cc.contact.full_name,
           contact_email: cc.contact.email,
-          contact_phone: cc.contact.mobile_phone || cc.contact.work_phone,
+          contact_phone: cc.contact.mobile_phone || cc.contact.office_phone,
           contact_company: cc.contact.company_name_or_trust,
           contact_entity_type: cc.contact.entity_type,
           role: cc.role,
@@ -780,6 +1233,52 @@ module Api
           job_id: e.job_id,
           conversation_id: e.conversation_id,
           thread_count: e.thread_count
+        }
+      end
+
+      def serialize_qa_pair(qa)
+        {
+          id: qa.id,
+          question: qa.question,
+          answer: qa.answer,
+          question_from: qa.question_from,
+          answer_from: qa.answer_from,
+          question_date: qa.question_date,
+          answer_date: qa.answer_date,
+          is_answered: qa.is_answered,
+          is_important: qa.is_important,
+          category: qa.category,
+          formatted_category: qa.category&.titleize,
+          case_email_id: qa.case_email_id,
+          email_subject: qa.email_warehouse&.subject,
+          email_short_code: qa.case_email&.short_code,
+          created_at: qa.created_at
+        }
+      end
+
+      def serialize_duplicate_review(r)
+        existing = r.existing_document
+        new_doc = r.new_document
+        {
+          id: r.id,
+          status: r.status,
+          resolution: r.resolution,
+          existing_document_id: r.existing_document_id,
+          existing_title: existing&.title,
+          existing_filename: existing&.filename,
+          existing_onedrive_path: existing&.onedrive_path,
+          existing_file_size: existing&.file_size,
+          existing_document_date: existing&.document_date,
+          new_file_path: r.new_file_path,
+          new_file_name: r.new_file_name,
+          new_file_hash: r.new_file_hash,
+          new_file_size: r.new_file_size,
+          source_type: r.source_type,
+          new_document_id: r.new_document_id,
+          new_document_title: new_doc&.title,
+          resolved_by: r.resolved_by&.name,
+          resolved_at: r.resolved_at,
+          created_at: r.created_at
         }
       end
     end

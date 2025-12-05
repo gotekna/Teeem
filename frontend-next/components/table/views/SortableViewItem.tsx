@@ -19,6 +19,7 @@ import type { SavedView } from "../types";
 interface SortableViewItemProps {
   view: SavedView;
   isActive: boolean;
+  index: number;
   onSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -28,6 +29,7 @@ interface SortableViewItemProps {
 export function SortableViewItem({
   view,
   isActive,
+  index,
   onSelect,
   onEdit,
   onDelete,
@@ -72,6 +74,10 @@ export function SortableViewItem({
       >
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </div>
+
+      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 min-w-[20px] justify-center shrink-0 font-mono">
+        {index}
+      </Badge>
 
       <div className="flex-1 min-w-0 overflow-hidden">
         <div className="flex items-center gap-1.5">

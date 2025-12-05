@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -21,12 +22,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { ChevronsUpDown, Check } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   CheckCircle,
   User,
+  UserCheck,
+  UserX,
+  UserMinus,
   Mail,
   Phone,
   Building2,
@@ -35,11 +53,22 @@ import {
   Sparkles,
   AlertTriangle,
   FolderOpen,
+  FolderInput,
+  FolderOutput,
+  Copy,
+  Move,
   Calculator,
   Scale,
   Briefcase,
   Users,
+  Search,
+  X,
+  Loader2,
+  Pencil,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
+import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { api } from "@/lib/api";
 
 interface InvolvedParty {
@@ -48,10 +77,32 @@ interface InvolvedParty {
   phone?: string;
   company?: string;
   relationship_type: string;
+  alignment?: string;
   is_primary?: boolean;
   contact_exists?: boolean;
   contact_id?: number;
   skip_create?: boolean;
+  seen_before?: boolean;
+  seen_count?: number;
+  known_party_id?: number;
+}
+
+interface RelatedJob {
+  job_id: number;
+  job_title?: string;
+  address?: string;
+  job_found?: boolean;
+  address_match?: string;
+}
+
+interface RelatedCompany {
+  company_id?: number;
+  name: string;
+  entity_type?: string;
+  abn?: string;
+  acn?: string;
+  company_found?: boolean;
+  role?: string;
 }
 
 interface CaseProposal {
@@ -83,6 +134,7 @@ interface CaseProposal {
     document_requests?: string[];
     missing_info?: string[];
     confidence_score?: number;
+    filing_folder?: string;
   };
   folder_paths?: string[];
   email?: {
@@ -112,6 +164,7 @@ const CASE_TYPES = [
   { value: "due_diligence", label: "Due Diligence" },
   { value: "fraud_investigation", label: "Fraud Investigation" },
   { value: "insolvency", label: "Insolvency" },
+  { value: "bankruptcy", label: "Bankruptcy" },
   { value: "other", label: "Other" },
 ];
 
@@ -130,12 +183,24 @@ const RELATIONSHIP_TYPES = [
   { value: "advisor", label: "Advisor", icon: Users, color: "bg-teal-500" },
   { value: "opposing_party", label: "Opposing Party", icon: AlertTriangle, color: "bg-orange-500" },
   { value: "witness", label: "Witness", icon: User, color: "bg-yellow-500" },
+  { value: "related_party", label: "Related Party", icon: Users, color: "bg-slate-500" },
   { value: "ato_officer", label: "ATO Officer", icon: Building2, color: "bg-red-500" },
+  { value: "afsa_officer", label: "AFSA Officer", icon: Building2, color: "bg-red-600" },
+  { value: "inspector_general", label: "Inspector-General", icon: Building2, color: "bg-red-700" },
+  { value: "trustee", label: "Trustee (Bankruptcy)", icon: Briefcase, color: "bg-amber-600" },
   { value: "director", label: "Director", icon: Briefcase, color: "bg-indigo-500" },
   { value: "shareholder", label: "Shareholder", icon: Users, color: "bg-pink-500" },
   { value: "bank_manager", label: "Bank Manager", icon: Building2, color: "bg-cyan-500" },
   { value: "insurer", label: "Insurer", icon: Building2, color: "bg-emerald-500" },
   { value: "broker", label: "Broker", icon: Users, color: "bg-violet-500" },
+  { value: "creditor", label: "Creditor", icon: Building2, color: "bg-orange-600" },
+  { value: "debtor", label: "Debtor", icon: User, color: "bg-rose-500" },
+];
+
+const ALIGNMENTS = [
+  { value: "friendly", label: "Friendly", icon: UserCheck, color: "bg-green-500", textColor: "text-green-700" },
+  { value: "neutral", label: "Neutral", icon: UserMinus, color: "bg-gray-400", textColor: "text-gray-600" },
+  { value: "opposing", label: "Opposing", icon: UserX, color: "bg-red-500", textColor: "text-red-700" },
 ];
 
 export function CaseProposalApprovalDialog({
@@ -153,8 +218,31 @@ export function CaseProposalApprovalDialog({
   const [description, setDescription] = useState(data.description || "");
   const [priority, setPriority] = useState(data.priority || "medium");
   const [parties, setParties] = useState<InvolvedParty[]>(data.involved_parties || []);
-  const [folderPaths, setFolderPaths] = useState<string[]>(proposal.folder_paths || []);
-  const [newFolderPath, setNewFolderPath] = useState("");
+  const [sourceFolders, setSourceFolders] = useState<string[]>(proposal.folder_paths || []);
+  const [newSourceFolder, setNewSourceFolder] = useState("");
+  const [filingFolders, setFilingFolders] = useState<string[]>(
+    proposal.extracted_data?.filing_folder ? [proposal.extracted_data.filing_folder] : []
+  );
+  const [fileAction, setFileAction] = useState<"copy" | "move">("copy");
+
+  // Related items state
+  const [relatedJobs, setRelatedJobs] = useState<RelatedJob[]>([]);
+  const [relatedCompanies, setRelatedCompanies] = useState<RelatedCompany[]>([]);
+  const [jobSearch, setJobSearch] = useState("");
+  const [companySearch, setCompanySearch] = useState("");
+  const [jobSearchResults, setJobSearchResults] = useState<RelatedJob[]>([]);
+  const [companySearchResults, setCompanySearchResults] = useState<RelatedCompany[]>([]);
+  const [searchingJobs, setSearchingJobs] = useState(false);
+  const [searchingCompanies, setSearchingCompanies] = useState(false);
+
+  // Folder browser state
+  const [showSourceFolderBrowser, setShowSourceFolderBrowser] = useState(false);
+  const [showFilingFolderBrowser, setShowFilingFolderBrowser] = useState(false);
+  const [sourceFolderInputMode, setSourceFolderInputMode] = useState<"browse" | "type">("browse");
+  const [filingFolderInputMode, setFilingFolderInputMode] = useState<"browse" | "type">("browse");
+  const [newFilingFolder, setNewFilingFolder] = useState("");
+  const [sourceFolderFullscreen, setSourceFolderFullscreen] = useState(false);
+  const [filingFolderFullscreen, setFilingFolderFullscreen] = useState(false);
 
   // Reset form when proposal changes
   useEffect(() => {
@@ -164,7 +252,21 @@ export function CaseProposalApprovalDialog({
     setDescription(newData.description || "");
     setPriority(newData.priority || "medium");
     setParties(newData.involved_parties || []);
-    setFolderPaths(proposal.folder_paths || []);
+    setSourceFolders(proposal.folder_paths || []);
+    setFilingFolders(newData.filing_folder ? [newData.filing_folder] : []);
+    // Initialize related items from AI extraction
+    setRelatedJobs((newData.related_jobs || []).map((j: Record<string, unknown>) => ({
+      job_id: j.job_id as number,
+      job_title: j.job_title as string,
+      job_found: j.job_found as boolean,
+      address_match: j.address_match as string,
+    })).filter((j: RelatedJob) => j.job_id));
+    setRelatedCompanies((newData.related_companies || []).map((c: Record<string, unknown>) => ({
+      company_id: c.company_id as number,
+      name: c.name as string,
+      company_found: c.company_found as boolean,
+      role: c.role as string,
+    })));
   }, [proposal]);
 
   const updateParty = (index: number, updates: Partial<InvolvedParty>) => {
@@ -182,21 +284,133 @@ export function CaseProposalApprovalDialog({
       phone: "",
       company: "",
       relationship_type: "client",
+      alignment: "neutral",
       is_primary: false,
       contact_exists: false,
     }]);
   };
 
-  const addFolderPath = () => {
-    if (newFolderPath.trim()) {
-      setFolderPaths(prev => [...prev, newFolderPath.trim()]);
-      setNewFolderPath("");
+  const addSourceFolder = () => {
+    if (newSourceFolder.trim()) {
+      setSourceFolders(prev => [...prev, newSourceFolder.trim()]);
+      setNewSourceFolder("");
     }
   };
 
-  const removeFolderPath = (index: number) => {
-    setFolderPaths(prev => prev.filter((_, i) => i !== index));
+  const removeSourceFolder = (index: number) => {
+    setSourceFolders(prev => prev.filter((_, i) => i !== index));
   };
+
+  const addFilingFolder = () => {
+    if (newFilingFolder.trim() && !filingFolders.includes(newFilingFolder.trim())) {
+      setFilingFolders(prev => [...prev, newFilingFolder.trim()]);
+      setNewFilingFolder("");
+    }
+  };
+
+  const removeFilingFolder = (index: number) => {
+    setFilingFolders(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Search for jobs
+  const searchJobs = async (query: string) => {
+    if (!query.trim() || query.length < 2) {
+      setJobSearchResults([]);
+      return;
+    }
+    setSearchingJobs(true);
+    try {
+      const response = await api.get<{ jobs?: Array<Record<string, unknown>>; data?: Array<Record<string, unknown>> }>(`/jobs?search=${encodeURIComponent(query)}&limit=10`);
+      const responseData = response as { jobs?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+      const jobsArray = Array.isArray(responseData) ? responseData : (responseData.jobs || []);
+      const jobs: RelatedJob[] = jobsArray.map((j: Record<string, unknown>) => ({
+        job_id: j.id as number,
+        job_title: (j.title || j.name) as string | undefined,
+        address: j.address as string | undefined,
+        job_found: true,
+      }));
+      setJobSearchResults(jobs);
+    } catch (error) {
+      console.error("Error searching jobs:", error);
+      setJobSearchResults([]);
+    } finally {
+      setSearchingJobs(false);
+    }
+  };
+
+  // Search for companies
+  const searchCompanies = async (query: string) => {
+    if (!query.trim() || query.length < 2) {
+      setCompanySearchResults([]);
+      return;
+    }
+    setSearchingCompanies(true);
+    try {
+      const response = await api.get<{ companies?: Array<Record<string, unknown>> }>(`/companies?search=${encodeURIComponent(query)}&limit=10`);
+      const responseData = response as { companies?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+      const companiesArray = Array.isArray(responseData) ? responseData : (responseData.companies || []);
+      const companies: RelatedCompany[] = companiesArray.map((c: Record<string, unknown>) => ({
+        company_id: c.id as number | undefined,
+        name: c.name as string,
+        entity_type: c.entity_type as string | undefined,
+        abn: c.abn as string | undefined,
+        acn: c.acn as string | undefined,
+        company_found: true,
+      }));
+      setCompanySearchResults(companies);
+    } catch (error) {
+      console.error("Error searching companies:", error);
+      setCompanySearchResults([]);
+    } finally {
+      setSearchingCompanies(false);
+    }
+  };
+
+  // Add job to related items
+  const addRelatedJob = (job: RelatedJob) => {
+    if (!relatedJobs.find(j => j.job_id === job.job_id)) {
+      setRelatedJobs(prev => [...prev, job]);
+    }
+    setJobSearch("");
+    setJobSearchResults([]);
+  };
+
+  // Remove job from related items
+  const removeRelatedJob = (jobId: number) => {
+    setRelatedJobs(prev => prev.filter(j => j.job_id !== jobId));
+  };
+
+  // Add company to related items
+  const addRelatedCompany = (company: RelatedCompany) => {
+    if (company.company_id && !relatedCompanies.find(c => c.company_id === company.company_id)) {
+      setRelatedCompanies(prev => [...prev, company]);
+    } else if (!company.company_id) {
+      // New company to create
+      setRelatedCompanies(prev => [...prev, company]);
+    }
+    setCompanySearch("");
+    setCompanySearchResults([]);
+  };
+
+  // Remove company from related items
+  const removeRelatedCompany = (index: number) => {
+    setRelatedCompanies(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (jobSearch) searchJobs(jobSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [jobSearch]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (companySearch) searchCompanies(companySearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [companySearch]);
 
   const handleApprove = async () => {
     const userEdits = {
@@ -205,7 +419,12 @@ export function CaseProposalApprovalDialog({
       description,
       priority,
       involved_parties: parties.filter(p => !p.skip_create && p.name.trim()),
-      folder_paths: folderPaths,
+      source_folders: sourceFolders,
+      filing_folders: filingFolders,
+      file_action: fileAction,
+      job_ids: relatedJobs.map(j => j.job_id),
+      company_ids: relatedCompanies.filter(c => c.company_id).map(c => c.company_id),
+      new_companies: relatedCompanies.filter(c => !c.company_id),
     };
     await onApprove(proposal.id, userEdits);
   };
@@ -214,8 +433,13 @@ export function CaseProposalApprovalDialog({
   const confidencePercent = Math.round(confidenceScore * 100);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className={
+        (sourceFolderFullscreen || filingFolderFullscreen)
+          ? "!fixed !inset-4 !max-w-none !max-h-none !w-[calc(100vw-2rem)] !h-[calc(100vh-2rem)] !translate-x-0 !translate-y-0 !top-4 !left-4 overflow-hidden flex flex-col z-[100] bg-background border rounded-lg shadow-lg"
+          : "max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+      }>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <span>Review & Approve Case Proposal</span>
@@ -228,6 +452,9 @@ export function CaseProposalApprovalDialog({
               {confidencePercent}% confidence
             </Badge>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Review AI-extracted case information and approve to create the case
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="details" className="flex-1 overflow-hidden flex flex-col">
@@ -317,47 +544,354 @@ export function CaseProposalApprovalDialog({
                   </div>
                 )}
 
-                {/* Folder Paths for Indexing */}
+                {/* Source Folders - where documents currently are */}
                 <div className="grid gap-2">
                   <Label className="flex items-center gap-2">
-                    <FolderOpen className="w-4 h-4" />
-                    Folders to Index (OneDrive paths)
+                    <FolderInput className="w-4 h-4 text-blue-500" />
+                    Source Folders (where documents are now)
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Add OneDrive/SharePoint folder paths containing relevant documents to index
+                    OneDrive/SharePoint folders containing existing case documents to index
                   </p>
-                  <div className="space-y-2">
-                    {folderPaths.map((path, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <Input value={path} readOnly className="flex-1 bg-muted" />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeFolderPath(idx)}
-                        >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
+
+                  {/* Selected source folders */}
+                  {sourceFolders.length > 0 && (
+                    <div className="space-y-2 mb-2">
+                      {sourceFolders.map((path, idx) => (
+                        <div key={idx} className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                          <FolderOpen className="w-4 h-4 text-amber-500" />
+                          <span className="flex-1 text-sm truncate">{path}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeSourceFolder(idx)}
+                          >
+                            <Trash2 className="w-3 h-3 text-red-500" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Folder browser or input toggle */}
+                  {showSourceFolderBrowser ? (
+                    <div className={sourceFolderFullscreen
+                      ? "flex-1 min-h-0 flex flex-col space-y-4"
+                      : "border rounded-lg p-4 space-y-4"
+                    }>
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-sm">Select Source Folder</h4>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSourceFolderFullscreen(!sourceFolderFullscreen)}
+                            title={sourceFolderFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                          >
+                            {sourceFolderFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setShowSourceFolderBrowser(false);
+                              setSourceFolderFullscreen(false);
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                    ))}
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={newFolderPath}
-                        onChange={(e) => setNewFolderPath(e.target.value)}
-                        placeholder="/path/to/folder or OneDrive URL"
-                        className="flex-1"
-                        onKeyDown={(e) => e.key === "Enter" && addFolderPath()}
-                      />
+
+                      {/* Browse / Type tabs */}
+                      <div className="flex rounded-lg border overflow-hidden">
+                        <button
+                          type="button"
+                          className={`flex-1 px-4 py-2 text-sm flex items-center justify-center gap-2 ${
+                            sourceFolderInputMode === "browse"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                          onClick={() => setSourceFolderInputMode("browse")}
+                        >
+                          <Search className="w-4 h-4" />
+                          Browse Folders
+                        </button>
+                        <button
+                          type="button"
+                          className={`flex-1 px-4 py-2 text-sm flex items-center justify-center gap-2 ${
+                            sourceFolderInputMode === "type"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                          onClick={() => setSourceFolderInputMode("type")}
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Type Path
+                        </button>
+                      </div>
+
+                      {sourceFolderInputMode === "browse" ? (
+                        <div className={sourceFolderFullscreen ? "flex-1 min-h-0 flex flex-col" : ""}>
+                          <SharePointFolderBrowser
+                            onSelect={(folder, path) => {
+                              if (path && !sourceFolders.includes(path)) {
+                                setSourceFolders(prev => [...prev, path]);
+                              }
+                            }}
+                            className={sourceFolderFullscreen ? "flex-1 min-h-0" : "max-h-[250px]"}
+                          />
+                          <div className="flex justify-between items-center pt-2 border-t shrink-0">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSourceFolderFullscreen(!sourceFolderFullscreen)}
+                            >
+                              {sourceFolderFullscreen ? <Minimize2 className="w-4 h-4 mr-1" /> : <Maximize2 className="w-4 h-4 mr-1" />}
+                              {sourceFolderFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setShowSourceFolderBrowser(false);
+                                setSourceFolderFullscreen(false);
+                              }}
+                            >
+                              Done
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={newSourceFolder}
+                            onChange={(e) => setNewSourceFolder(e.target.value)}
+                            placeholder="e.g. /Shared Documents/Clients/Smith"
+                            className="flex-1"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && newSourceFolder.trim()) {
+                                addSourceFolder();
+                              }
+                            }}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={addSourceFolder}
+                            disabled={!newSourceFolder.trim()}
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => setShowSourceFolderBrowser(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Source Folder
+                    </Button>
+                  )}
+                </div>
+
+                {/* Filing Folders - where to save new documents */}
+                <div className="grid gap-2">
+                  <Label className="flex items-center gap-2">
+                    <FolderOutput className="w-4 h-4 text-green-500" />
+                    Filing Folders (where to save case documents)
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    New documents will be saved to these locations. Add multiple if documents need to be filed in different places.
+                  </p>
+
+                  {/* Selected filing folders */}
+                  {filingFolders.length > 0 && (
+                    <div className="space-y-2 mb-2">
+                      {filingFolders.map((path, idx) => (
+                        <div key={idx} className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                          <FolderOpen className="w-4 h-4 text-green-500" />
+                          <span className="flex-1 text-sm truncate">{path}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeFilingFolder(idx)}
+                          >
+                            <Trash2 className="w-3 h-3 text-red-500" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Folder browser or input toggle */}
+                  {showFilingFolderBrowser ? (
+                    <div className={filingFolderFullscreen
+                      ? "flex-1 min-h-0 flex flex-col space-y-4"
+                      : "border rounded-lg p-4 space-y-4"
+                    }>
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-sm">Select Filing Folder</h4>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setFilingFolderFullscreen(!filingFolderFullscreen)}
+                            title={filingFolderFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                          >
+                            {filingFolderFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setShowFilingFolderBrowser(false);
+                              setFilingFolderFullscreen(false);
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Browse / Type tabs */}
+                      <div className="flex rounded-lg border overflow-hidden">
+                        <button
+                          type="button"
+                          className={`flex-1 px-4 py-2 text-sm flex items-center justify-center gap-2 ${
+                            filingFolderInputMode === "browse"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                          onClick={() => setFilingFolderInputMode("browse")}
+                        >
+                          <Search className="w-4 h-4" />
+                          Browse Folders
+                        </button>
+                        <button
+                          type="button"
+                          className={`flex-1 px-4 py-2 text-sm flex items-center justify-center gap-2 ${
+                            filingFolderInputMode === "type"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                          onClick={() => setFilingFolderInputMode("type")}
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Type Path
+                        </button>
+                      </div>
+
+                      {filingFolderInputMode === "browse" ? (
+                        <div className={filingFolderFullscreen ? "flex-1 min-h-0 flex flex-col" : ""}>
+                          <SharePointFolderBrowser
+                            onSelect={(folder, path) => {
+                              if (path && !filingFolders.includes(path)) {
+                                setFilingFolders(prev => [...prev, path]);
+                              }
+                            }}
+                            className={filingFolderFullscreen ? "flex-1 min-h-0" : "max-h-[250px]"}
+                          />
+                          <div className="flex justify-between items-center pt-2 border-t shrink-0">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setFilingFolderFullscreen(!filingFolderFullscreen)}
+                            >
+                              {filingFolderFullscreen ? <Minimize2 className="w-4 h-4 mr-1" /> : <Maximize2 className="w-4 h-4 mr-1" />}
+                              {filingFolderFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setShowFilingFolderBrowser(false);
+                                setFilingFolderFullscreen(false);
+                              }}
+                            >
+                              Done
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={newFilingFolder}
+                            onChange={(e) => setNewFilingFolder(e.target.value)}
+                            placeholder="e.g. /Shared Documents/Cases/Smith ATO Audit 2025"
+                            className="flex-1"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && newFilingFolder.trim()) {
+                                addFilingFolder();
+                              }
+                            }}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={addFilingFolder}
+                            disabled={!newFilingFolder.trim()}
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => setShowFilingFolderBrowser(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Filing Folder
+                    </Button>
+                  )}
+                </div>
+
+                {/* Copy or Move toggle */}
+                {sourceFolders.length > 0 && filingFolders.length > 0 && (
+                  <div className="grid gap-2">
+                    <Label className="text-sm">File Action</Label>
+                    <p className="text-xs text-muted-foreground">
+                      What to do with files from source folders
+                    </p>
+                    <div className="flex gap-2">
                       <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={addFolderPath}
-                        disabled={!newFolderPath.trim()}
+                        type="button"
+                        variant={fileAction === "copy" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFileAction("copy")}
+                        className={fileAction === "copy" ? "bg-blue-600 hover:bg-blue-700" : ""}
                       >
-                        <Plus className="w-4 h-4" />
+                        <Copy className="w-4 h-4 mr-1" />
+                        Copy Files
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={fileAction === "move" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFileAction("move")}
+                        className={fileAction === "move" ? "bg-amber-600 hover:bg-amber-700" : ""}
+                      >
+                        <Move className="w-4 h-4 mr-1" />
+                        Move Files
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      {fileAction === "copy"
+                        ? "Files will be copied to the filing folder (originals remain in source)"
+                        : "Files will be moved to the filing folder (removed from source)"}
+                    </p>
                   </div>
-                </div>
+                )}
               </div>
             </TabsContent>
 
@@ -398,47 +932,89 @@ export function CaseProposalApprovalDialog({
             {/* Related Items Tab */}
             <TabsContent value="related" className="space-y-4 m-0">
               {/* Related Jobs */}
-              {data.related_jobs && data.related_jobs.length > 0 && (
-                <Card>
-                  <CardContent className="pt-4">
-                    <h4 className="font-medium mb-3 flex items-center gap-2">
-                      <Briefcase className="w-4 h-4" />
-                      Related Jobs
-                    </h4>
-                    <div className="space-y-2">
-                      {data.related_jobs.map((job, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
-                          {job.job_found ? (
-                            <>
-                              <CheckCircle className="w-4 h-4 text-green-500" />
-                              <span className="font-medium">Job #{job.job_id}</span>
-                              <span className="text-muted-foreground">- {job.job_title}</span>
-                            </>
-                          ) : (
-                            <>
-                              <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                              <span className="text-muted-foreground">
-                                Address match: {job.address_match}
-                              </span>
-                            </>
-                          )}
+              <Card>
+                <CardContent className="pt-4">
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <Briefcase className="w-4 h-4" />
+                    Related Jobs
+                  </h4>
+
+                  {/* Added jobs */}
+                  {relatedJobs.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {relatedJobs.map((job) => (
+                        <div key={job.job_id} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <span className="font-medium">Job #{job.job_id}</span>
+                          <span className="text-muted-foreground flex-1">- {job.job_title}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeRelatedJob(job.job_id)}
+                          >
+                            <X className="w-3 h-3 text-red-500" />
+                          </Button>
                         </div>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  )}
 
-              {/* Related Companies */}
-              {data.related_companies && data.related_companies.length > 0 && (
-                <Card>
-                  <CardContent className="pt-4">
-                    <h4 className="font-medium mb-3 flex items-center gap-2">
-                      <Building2 className="w-4 h-4" />
-                      Related Companies
-                    </h4>
-                    <div className="space-y-2">
-                      {data.related_companies.map((company, idx) => (
+                  {/* Job search */}
+                  <div className="relative">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          value={jobSearch}
+                          onChange={(e) => setJobSearch(e.target.value)}
+                          placeholder="Search jobs by name or address..."
+                          className="pl-8"
+                        />
+                        {searchingJobs && (
+                          <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Search results dropdown */}
+                    {jobSearchResults.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-auto">
+                        {jobSearchResults.map((job) => (
+                          <button
+                            key={job.job_id}
+                            className="w-full text-left px-3 py-2 hover:bg-muted text-sm flex items-center gap-2"
+                            onClick={() => addRelatedJob(job)}
+                          >
+                            <Briefcase className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-medium">#{job.job_id}</span>
+                            <span className="text-muted-foreground truncate">{job.job_title}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {relatedJobs.length === 0 && !jobSearch && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Search and add jobs related to this case
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Related Companies/Trusts */}
+              <Card>
+                <CardContent className="pt-4">
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <Building2 className="w-4 h-4" />
+                    Related Companies & Trusts
+                  </h4>
+
+                  {/* Added companies */}
+                  {relatedCompanies.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {relatedCompanies.map((company, idx) => (
                         <div key={idx} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
                           {company.company_found ? (
                             <CheckCircle className="w-4 h-4 text-green-500" />
@@ -446,18 +1022,93 @@ export function CaseProposalApprovalDialog({
                             <AlertTriangle className="w-4 h-4 text-yellow-500" />
                           )}
                           <span className="font-medium">{company.name}</span>
+                          {company.entity_type && (
+                            <Badge variant="outline" className="text-xs">{company.entity_type}</Badge>
+                          )}
                           {company.role && (
-                            <Badge variant="outline" className="text-xs">{company.role}</Badge>
+                            <Badge variant="secondary" className="text-xs">{company.role}</Badge>
                           )}
                           {!company.company_found && (
                             <span className="text-xs text-muted-foreground">(will be created)</span>
                           )}
+                          <div className="flex-1" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeRelatedCompany(idx)}
+                          >
+                            <X className="w-3 h-3 text-red-500" />
+                          </Button>
                         </div>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  )}
+
+                  {/* Company search */}
+                  <div className="relative">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          value={companySearch}
+                          onChange={(e) => setCompanySearch(e.target.value)}
+                          placeholder="Search companies, trusts by name or ABN..."
+                          className="pl-8"
+                        />
+                        {searchingCompanies && (
+                          <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Search results dropdown */}
+                    {companySearchResults.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-auto">
+                        {companySearchResults.map((company) => (
+                          <button
+                            key={company.company_id}
+                            className="w-full text-left px-3 py-2 hover:bg-muted text-sm flex items-center gap-2"
+                            onClick={() => addRelatedCompany(company)}
+                          >
+                            <Building2 className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-medium">{company.name}</span>
+                            {company.entity_type && (
+                              <Badge variant="outline" className="text-xs">{company.entity_type}</Badge>
+                            )}
+                            {company.abn && (
+                              <span className="text-xs text-muted-foreground">ABN: {company.abn}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Option to create new */}
+                    {companySearch.length >= 2 && !searchingCompanies && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2 text-xs"
+                        onClick={() => addRelatedCompany({
+                          name: companySearch,
+                          company_found: false,
+                          role: 'subject'
+                        })}
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Create new: "{companySearch}"
+                      </Button>
+                    )}
+                  </div>
+
+                  {relatedCompanies.length === 0 && !companySearch && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Search and add companies or trusts related to this case
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Key Dates */}
               {data.key_dates && data.key_dates.length > 0 && (
@@ -493,12 +1144,6 @@ export function CaseProposalApprovalDialog({
                 </Card>
               )}
 
-              {!data.related_jobs?.length && !data.related_companies?.length &&
-               !data.key_dates?.length && !data.document_requests?.length && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>No related items detected</p>
-                </div>
-              )}
             </TabsContent>
 
             {/* Email Tab */}
@@ -553,6 +1198,8 @@ export function CaseProposalApprovalDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    </>
   );
 }
 
@@ -564,21 +1211,24 @@ interface PartyEditorProps {
 }
 
 function PartyEditor({ party, index, onChange, onRemove }: PartyEditorProps) {
+  const [relationshipOpen, setRelationshipOpen] = useState(false);
   const relType = RELATIONSHIP_TYPES.find(r => r.value === party.relationship_type);
-  const Icon = relType?.icon || User;
+  const alignmentType = ALIGNMENTS.find(a => a.value === party.alignment) || ALIGNMENTS[1]; // default neutral
+  const AlignmentIcon = alignmentType.icon;
+  const RelIcon = relType?.icon || User;
 
   return (
     <Card className={party.skip_create ? "opacity-50" : ""}>
       <CardContent className="pt-4">
         <div className="flex items-start gap-4">
-          {/* Icon */}
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${relType?.color || "bg-gray-500"}`}>
-            <Icon className="w-5 h-5" />
+          {/* Icon - shows alignment */}
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${alignmentType.color}`}>
+            <AlignmentIcon className="w-5 h-5" />
           </div>
 
           {/* Fields */}
           <div className="flex-1 grid gap-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="grid gap-1">
                 <Label className="text-xs">Name</Label>
                 <Input
@@ -589,17 +1239,65 @@ function PartyEditor({ party, index, onChange, onRemove }: PartyEditorProps) {
               </div>
               <div className="grid gap-1">
                 <Label className="text-xs">Relationship</Label>
+                <Popover open={relationshipOpen} onOpenChange={setRelationshipOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={relationshipOpen}
+                      className="justify-between font-normal"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <RelIcon className="w-3 h-3 shrink-0" />
+                        {relType?.label || "Select..."}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[220px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search relationship..." />
+                      <CommandList>
+                        <CommandEmpty>No relationship found.</CommandEmpty>
+                        <CommandGroup>
+                          {RELATIONSHIP_TYPES.map((type) => {
+                            const TypeIcon = type.icon;
+                            return (
+                              <CommandItem
+                                key={type.value}
+                                value={type.label}
+                                onSelect={() => {
+                                  onChange(index, { relationship_type: type.value });
+                                  setRelationshipOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={`mr-2 h-4 w-4 ${party.relationship_type === type.value ? "opacity-100" : "opacity-0"}`}
+                                />
+                                <TypeIcon className="mr-2 h-4 w-4" />
+                                {type.label}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="grid gap-1">
+                <Label className="text-xs">Alignment</Label>
                 <Select
-                  value={party.relationship_type}
-                  onValueChange={(v) => onChange(index, { relationship_type: v })}
+                  value={party.alignment || "neutral"}
+                  onValueChange={(v) => onChange(index, { alignment: v })}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {RELATIONSHIP_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
+                    {ALIGNMENTS.map((align) => (
+                      <SelectItem key={align.value} value={align.value}>
+                        <span className={align.textColor}>{align.label}</span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -661,6 +1359,20 @@ function PartyEditor({ party, index, onChange, onRemove }: PartyEditorProps) {
               ) : (
                 <Badge variant="outline" className="text-xs">
                   Will create new contact
+                </Badge>
+              )}
+
+              {party.company && !party.contact_exists && (
+                <Badge className="bg-blue-100 text-blue-800 text-xs">
+                  <Building2 className="w-3 h-3 mr-1" />
+                  + Company
+                </Badge>
+              )}
+
+              {party.seen_before && (
+                <Badge className="bg-purple-100 text-purple-800 text-xs" title={`Seen in ${party.seen_count} previous case${party.seen_count === 1 ? '' : 's'}`}>
+                  <User className="w-3 h-3 mr-1" />
+                  Seen {party.seen_count}x
                 </Badge>
               )}
 

@@ -70,8 +70,10 @@ interface ContactPerson {
   first_name: string;
   last_name: string;
   email: string | null;
-  phone: string | null;
+  mobile: string | null;
+  role: string | null;
   is_primary: boolean;
+  include_in_emails: boolean;
 }
 
 interface ContactGroup {
@@ -127,6 +129,10 @@ interface Contact {
   lgas: string[];
   // Entity type for SSoT
   entity_type: string | null;
+  // Company/Employee linking
+  primary_company_id?: number | null;
+  primary_company?: { id: number; name: string } | null;
+  employees?: Array<{ id: number; full_name: string; email: string | null }>;
   // Director companies
   director_companies?: DirectorCompany[];
   // Additional companies via relationships
@@ -689,9 +695,9 @@ export default function ContactDetailPage() {
                                     {person.email}
                                   </a>
                                 )}
-                                {person.phone && (
-                                  <a href={`tel:${person.phone}`} className="hover:underline">
-                                    {person.phone}
+                                {person.mobile && (
+                                  <a href={`tel:${person.mobile}`} className="hover:underline">
+                                    {person.mobile}
                                   </a>
                                 )}
                               </div>

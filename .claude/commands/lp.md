@@ -1,24 +1,23 @@
-# Live Push - Deploy to Production
+# Deploy ALL Changes to Production
 
-**Shortcut:** `/lp` (Live Push)
+**Shortcut:** `/lp` (Live Push - Everything)
 
-Commits ALL pending changes and deploys to production. Same as `/l`.
+Commits ALL pending changes from ALL chat sessions and deploys to production.
 
-**Run from teeem root. Auto-generate commit messages.**
+**Use `/l` to commit and deploy only THIS chat's changes instead.**
 
 ## PRODUCTION DEPLOY
 
-This command deploys directly to PRODUCTION:
+This deploys directly to **PRODUCTION**:
 - Backend: https://teeem-backend-39604ccca45a.herokuapp.com/
 - Frontend: https://teeemlive.vercel.app/
 
-## Complete Workflow
+## Instructions
 
-### Step 1 - Pre-Flight Checks (RUN IN PARALLEL)
+### Step 1 - Pre-Flight Checks
 ```bash
 git branch --show-current
 git status --short
-cd backend && bin/rails db:migrate:status
 ```
 
 ### Step 2 - Ensure on Live Branch
@@ -27,9 +26,18 @@ git checkout Live
 git pull origin Live
 ```
 
-### Step 3 - Auto-Generate Commit Message and Commit
+### Step 3 - Pop Any Stashed Changes
 
-**Analyze git status and auto-generate message:**
+**Include any stashed work from other chats:**
+```bash
+git stash list
+# If there are stashes from other chats, pop them:
+git stash pop
+```
+
+### Step 4 - Auto-Generate Commit Message and Commit
+
+**Analyze ALL changes and auto-generate message:**
 
 Rules (in priority order):
 1. Only `package.json` version → `chore: Bump version to X.X.X`
@@ -40,7 +48,7 @@ Rules (in priority order):
 6. Multiple types → Combine appropriately
 7. Default → `chore: Update project files`
 
-**Auto-commit ALL changes:**
+**Auto-commit ALL changes (including untracked):**
 ```bash
 git add -A
 git commit -m "[auto-generated message]
@@ -50,12 +58,12 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 4 - Push to GitHub (Live branch)
+### Step 5 - Push to GitHub (Live branch)
 ```bash
 git push origin Live
 ```
 
-### Step 5 - Deploy Backend to Production via Git Subtree
+### Step 6 - Deploy Backend to Production via Git Subtree
 
 **IMPORTANT: All git subtree commands MUST run from repo root `/Users/robertharder/GitHub/teeem`**
 
@@ -65,21 +73,26 @@ git push heroku-teeemlive temp-live-deploy:main --force
 git branch -D temp-live-deploy
 ```
 
-### Step 6 - Verify Production Deploy
+### Step 7 - Verify Deploy
 ```bash
 sleep 10
 curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
+heroku releases --app teeemlive -n 1
 ```
 
-### Step 7 - Report Status
+### Step 8 - Report Status
 
-**Production (Live):**
-- ✅ Branch: Live
-- ✅ Commit: [hash + message]
-- ✅ Backend deployed to: teeemlive (production)
-- ✅ Version: [version from /version endpoint]
-- ✅ Production Backend: https://teeem-backend-39604ccca45a.herokuapp.com/
-- ✅ Production Frontend: https://teeemlive.vercel.app/
+**Show Brisbane time:**
+```
+========================================
+DEPLOYED: HH:MM DD/MM (Brisbane)
+Commit: [hash] - [message]
+Backend: v[XXX]
+Frontend: Pushed to Vercel (auto-deploy)
+Heroku: v[XXX]
+Files: [count] files changed
+========================================
+```
 
 ## Error Handling
 
@@ -88,10 +101,11 @@ If any step fails:
 2. Stay on Live branch
 3. Provide recovery instructions
 
-## Heroku Remote Required
+## Heroku Remote Setup
 
+The `heroku-teeemlive` remote must be configured:
 ```bash
 git remote add heroku-teeemlive https://git.heroku.com/teeemlive.git
 ```
 
-Verify with: `git remote -v | grep heroku`
+Verify with: `git remote -v | grep teeemlive`

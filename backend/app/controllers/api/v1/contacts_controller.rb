@@ -145,7 +145,7 @@ module Api
             :sys_type_id, :deleted, :parent_id, :parent,
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
             :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
-            :entity_type, :primary_role, :employment_status,
+            :entity_type, :primary_role, :employment_status, :primary_company_id,
             # Family/Director flags
             :is_family_member, :is_potential_director, :company_group_id,
             # Xero fields
@@ -160,7 +160,7 @@ module Api
             :residential_address, :drivers_licence, :passport_number, :photo_url
           ],
           include: {
-            contact_persons: { only: [:id, :first_name, :last_name, :email, :include_in_emails, :is_primary, :xero_contact_person_id] },
+            contact_persons: { only: [:id, :first_name, :last_name, :email, :mobile, :role, :include_in_emails, :is_primary, :xero_contact_person_id] },
             contact_addresses: { only: [:id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary] },
             contact_groups: { only: [:id, :name, :status, :xero_contact_group_id] },
             portal_user: { only: [:id, :email, :portal_type, :active, :last_login_at, :created_at] },
@@ -217,6 +217,24 @@ module Api
             employment_status: @contact.employment_status,
             start_date: @contact.employment_start_date
           }
+        end
+
+        # Add employees for company contacts (people whose primary_company_id points to this contact)
+        if @contact.entity_type == 'company'
+          contact_json[:employees] = Contact.where(primary_company_id: @contact.id)
+            .where(entity_type: 'person')
+            .order(:full_name)
+            .map do |employee|
+              {
+                id: employee.id,
+                full_name: employee.full_name,
+                first_name: employee.first_name,
+                last_name: employee.last_name,
+                email: employee.email,
+                mobile_phone: employee.mobile_phone,
+                primary_role: employee.primary_role
+              }
+            end
         end
 
         # Add additional companies via relationships
@@ -1953,7 +1971,7 @@ module Api
       def contact_params
         # Exclude Xero read-only fields from manual updates
         # These fields are synced from Xero and should not be edited directly in TEEEM
-        params.require(:contact).permit(
+        permitted = params.require(:contact).permit(
           :full_name,
           :first_name,
           :last_name,
@@ -1986,6 +2004,8 @@ module Api
           :is_family_member,
           :is_potential_director,
           :company_group_id,
+          # Company/Employee linking
+          :primary_company_id,
           # NOTE: Xero accounting fields (bank details, payment terms, balances) are READ-ONLY
           # They are synced from Xero and cannot be edited in TEEEM
           # See Contact::XERO_READ_ONLY_FIELDS for the full list
@@ -1998,6 +2018,31 @@ module Api
           # Nested attributes for contact addresses
           contact_addresses_attributes: [:id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary, :_destroy]
         )
+
+        # Convert contact_types from integer IDs to names if needed
+        # Frontend may send [1, 2] (IDs) instead of ['customer', 'supplier'] (names)
+        if permitted[:contact_types].present?
+          permitted[:contact_types] = convert_contact_type_ids_to_names(permitted[:contact_types])
+        end
+
+        permitted
+      end
+
+      # Convert contact type IDs to names
+      # Accepts: [1, 2] -> ['customer', 'supplier']
+      # Also accepts: ['customer', 'supplier'] -> ['customer', 'supplier'] (no change)
+      def convert_contact_type_ids_to_names(types)
+        return [] if types.blank?
+
+        types.map do |type|
+          if type.is_a?(Integer) || (type.is_a?(String) && type.match?(/^\d+$/))
+            # It's an ID, look up the name
+            ContactType.find_by(id: type.to_i)&.name
+          else
+            # It's already a name
+            type
+          end
+        end.compact
       end
     end
   end

@@ -38,7 +38,18 @@ import {
   Settings2,
   Cloud,
   FolderOpen,
+  Search,
+  AlertTriangle,
+  AlertCircle,
+  RefreshCw,
+  CheckCircle2,
+  Type,
+  Hash,
+  MapPin,
+  Building,
 } from "lucide-react";
+import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -72,6 +83,212 @@ interface SharePointConfig {
   authenticated_as?: string;
   auth_type?: "organization" | "personal";
   drive_id?: string;
+}
+
+interface FolderValidation {
+  valid: boolean;
+  error?: string;
+  error_type?: "not_configured" | "not_found" | "api_error";
+  folder_id?: string;
+  name?: string;
+  web_url?: string;
+  current_path?: string;
+  stored_path?: string;
+  stored_name?: string;
+  name_changed?: boolean;
+  path_changed?: boolean;
+  auto_updated?: boolean;
+  message?: string;
+}
+
+// Job Name Format types
+interface JobNameField {
+  id: string;
+  label: string;
+  placeholder: string;
+  icon: React.ReactNode;
+}
+
+// Job Number is always included as prefix - these are the optional fields for the rest of the folder name
+const JOB_NAME_FIELDS: JobNameField[] = [
+  { id: "lot_number", label: "Lot Number", placeholder: "Lot 12", icon: <Hash className="h-3 w-3" /> },
+  { id: "street_number", label: "Street Number", placeholder: "83", icon: <Hash className="h-3 w-3" /> },
+  { id: "street_name", label: "Street Name", placeholder: "West Ridge", icon: <Type className="h-3 w-3" /> },
+  { id: "street_type", label: "Street Type", placeholder: "Street", icon: <Type className="h-3 w-3" /> },
+  { id: "street_type_abbr", label: "Street Type (Abbr)", placeholder: "St", icon: <Type className="h-3 w-3" /> },
+  { id: "suburb", label: "Suburb", placeholder: "Malbon", icon: <MapPin className="h-3 w-3" /> },
+  { id: "state", label: "State", placeholder: "QLD", icon: <Building className="h-3 w-3" /> },
+];
+
+// Separator options for between fields
+const SEPARATORS = [
+  { id: "space", label: "Space", value: " " },
+  { id: "dash", label: "-", value: " - " },
+  { id: "comma", label: ",", value: ", " },
+  { id: "slash", label: "/", value: " / " },
+];
+
+interface JobNameFormatBuilderProps {
+  value: string[];  // Array of field IDs in order
+  separators: Record<number, string>;  // Index -> separator value
+  onChange: (fields: string[], separators: Record<number, string>) => void;
+}
+
+function JobNameFormatBuilder({ value, separators, onChange }: JobNameFormatBuilderProps) {
+  // Get available fields (not yet in the format)
+  const availableFields = JOB_NAME_FIELDS.filter(f => !value.includes(f.id));
+
+  // Get selected fields with their data
+  const selectedFields = value.map(id => JOB_NAME_FIELDS.find(f => f.id === id)!).filter(Boolean);
+
+  const handleAddField = (fieldId: string) => {
+    if (!value.includes(fieldId)) {
+      onChange([...value, fieldId], separators);
+    }
+  };
+
+  const handleRemoveField = (fieldId: string) => {
+    const newFields = value.filter(id => id !== fieldId);
+    onChange(newFields, separators);
+  };
+
+  const handleOrderChange = (fieldId: string, newOrder: number) => {
+    // newOrder is 1-based from user input
+    const currentIndex = value.indexOf(fieldId);
+    if (currentIndex === -1) return;
+
+    // Clamp to valid range
+    const targetIndex = Math.max(0, Math.min(value.length - 1, newOrder - 1));
+    if (targetIndex === currentIndex) return;
+
+    const newFields = [...value];
+    // Remove from current position
+    newFields.splice(currentIndex, 1);
+    // Insert at new position
+    newFields.splice(targetIndex, 0, fieldId);
+
+    onChange(newFields, separators);
+  };
+
+  const handleSeparatorChange = (index: number, sep: string) => {
+    const newSeparators = { ...separators, [index]: sep };
+    onChange(value, newSeparators);
+  };
+
+  // Generate preview
+  const preview = selectedFields.map((field, idx) => {
+    const sep = idx < selectedFields.length - 1 ? (separators[idx] || " ") : "";
+    return field.placeholder + sep;
+  }).join("");
+
+  return (
+    <div className="space-y-4">
+      {/* Available Fields */}
+      <div>
+        <Label className="text-xs text-muted-foreground mb-2 block">Available Fields (click to add)</Label>
+        <div className="flex flex-wrap gap-2">
+          {availableFields.map(field => (
+            <button
+              key={field.id}
+              type="button"
+              onClick={() => handleAddField(field.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border bg-background cursor-pointer",
+                "hover:border-primary hover:bg-primary/5 transition-colors text-sm"
+              )}
+            >
+              <Plus className="h-3 w-3 text-muted-foreground" />
+              {field.icon}
+              <span>{field.label}</span>
+            </button>
+          ))}
+          {availableFields.length === 0 && (
+            <span className="text-xs text-muted-foreground italic">All fields added</span>
+          )}
+        </div>
+      </div>
+
+      {/* Format Builder with Order Numbers */}
+      <div>
+        <Label className="text-xs text-muted-foreground mb-2 block">Folder Name Format (type number to reorder)</Label>
+        <div
+          className={cn(
+            "min-h-[60px] border rounded-lg p-3 bg-muted/30",
+            value.length === 0 && "flex items-center justify-center"
+          )}
+        >
+          {value.length === 0 ? (
+            <span className="text-sm text-muted-foreground">Click fields above to build folder name...</span>
+          ) : (
+            <div className="space-y-2">
+              {selectedFields.map((field, idx) => (
+                <div key={field.id} className="flex items-center gap-2">
+                  {/* Order Number Input */}
+                  <Input
+                    type="number"
+                    min={1}
+                    max={value.length}
+                    value={idx + 1}
+                    onChange={(e) => {
+                      const newOrder = parseInt(e.target.value);
+                      if (!isNaN(newOrder) && newOrder >= 1 && newOrder <= value.length) {
+                        handleOrderChange(field.id, newOrder);
+                      }
+                    }}
+                    className="w-12 h-8 text-center text-sm px-1"
+                  />
+
+                  {/* Field Badge */}
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-primary/10 border border-primary/30 text-sm flex-1">
+                    {field.icon}
+                    <span className="font-medium">{field.label}</span>
+                    <span className="text-muted-foreground ml-auto text-xs">{field.placeholder}</span>
+                  </div>
+
+                  {/* Separator (between fields, not after last) */}
+                  {idx < selectedFields.length - 1 && (
+                    <select
+                      value={separators[idx] || " "}
+                      onChange={(e) => handleSeparatorChange(idx, e.target.value)}
+                      className="h-8 text-xs bg-background border rounded px-2 cursor-pointer"
+                    >
+                      {SEPARATORS.map(sep => (
+                        <option key={sep.id} value={sep.value}>{sep.label}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Remove Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveField(field.id)}
+                    className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Preview */}
+      {value.length > 0 && (
+        <div className="bg-muted/50 rounded-md p-3">
+          <Label className="text-xs text-muted-foreground mb-1 block">Preview</Label>
+          <div className="font-mono text-sm">
+            <span className="text-emerald-600 dark:text-emerald-400">[Job Code]</span>
+            <span className="text-muted-foreground"> - </span>
+            <span className="text-blue-600 dark:text-blue-400">{preview || "[Project Name]"}</span>
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">
+            Example: <code className="bg-background px-1 rounded">047 - {preview || "Project Name"}</code>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function buildTree(items: FolderTemplateItem[]): FolderTemplateItem[] {
@@ -393,7 +610,9 @@ function FolderTreeEditor({ template, onUpdate, isEditable }: FolderTreeEditorPr
 
     const siblings = template.items.filter((i) => i.parent_id === newFolderParentId);
     const maxOrder = Math.max(0, ...siblings.map((i) => i.order));
-    const newId = Math.max(0, ...template.items.map((i) => i.id)) + 1;
+    // Generate a temporary ID > 1000000 so handleTemplateUpdate knows this is a new item
+    // and sends id: undefined to the backend for creation
+    const newId = Date.now();
 
     const newItem: FolderTemplateItem = {
       id: newId,
@@ -479,11 +698,41 @@ export function FoldersTab() {
   const [folderDialogOpen, setFolderDialogOpen] = React.useState(false);
   const [newFolderPath, setNewFolderPath] = React.useState("");
   const [savingFolder, setSavingFolder] = React.useState(false);
+  const [selectedBrowserFolder, setSelectedBrowserFolder] = React.useState<{
+    id: string;
+    name: string;
+    path: string;
+  } | null>(null);
+  const [folderSelectionMode, setFolderSelectionMode] = React.useState<"browse" | "type">("browse");
+
+  // Folder validation state
+  const [folderValidation, setFolderValidation] = React.useState<FolderValidation | null>(null);
+  const [validatingFolder, setValidatingFolder] = React.useState(false);
+
+  // Job Name Format state
+  const [jobNameFormatDialogOpen, setJobNameFormatDialogOpen] = React.useState(false);
+  const [jobNameFormatFields, setJobNameFormatFields] = React.useState<string[]>(["street_number", "street_name", "suburb"]);
+  const [jobNameFormatSeparators, setJobNameFormatSeparators] = React.useState<Record<number, string>>({ 0: " ", 1: ", " });
+  const [savingJobNameFormat, setSavingJobNameFormat] = React.useState(false);
 
   React.useEffect(() => {
     loadTemplates();
     loadSharePointConfig();
+    loadJobNameFormat();
   }, []);
+
+  const loadJobNameFormat = async () => {
+    try {
+      const response = await api.get<{ job_folder_name_format?: { fields: string[]; separators: Record<number, string> } }>("/api/v1/organization_settings");
+      if (response?.job_folder_name_format) {
+        setJobNameFormatFields(response.job_folder_name_format.fields || []);
+        setJobNameFormatSeparators(response.job_folder_name_format.separators || {});
+      }
+    } catch (error) {
+      console.error("Failed to load job name format:", error);
+      // Use defaults - already set in state initialization
+    }
+  };
 
   const loadSharePointConfig = async () => {
     try {
@@ -500,19 +749,65 @@ export function FoldersTab() {
     }
   };
 
+  // Validate the root folder in SharePoint
+  const validateFolder = async () => {
+    setValidatingFolder(true);
+    try {
+      const result = await api.get<FolderValidation>("/api/v1/organization_onedrive/validate_folder");
+      setFolderValidation(result);
+
+      // If auto-updated, show a toast and reload config
+      if (result.auto_updated) {
+        toast({
+          title: "Folder Location Updated",
+          description: result.message || "The folder path was updated to match the current SharePoint location.",
+        });
+        await loadSharePointConfig();
+      }
+    } catch (error) {
+      console.error("Failed to validate folder:", error);
+      setFolderValidation({
+        valid: false,
+        error: error instanceof Error ? error.message : "Failed to validate folder",
+        error_type: "api_error"
+      });
+    } finally {
+      setValidatingFolder(false);
+    }
+  };
+
+  // Validate folder when SharePoint config is loaded and connected
+  React.useEffect(() => {
+    if (sharePointConfig?.connected && sharePointConfig?.root_folder) {
+      validateFolder();
+    }
+  }, [sharePointConfig?.connected, sharePointConfig?.root_folder]);
+
   const handleChangeFolderPath = async () => {
-    if (!newFolderPath.trim()) {
-      toast({ title: "Error", description: "Please enter a folder path", variant: "destructive" });
-      return;
+    // Check if we have a valid selection based on mode
+    if (folderSelectionMode === "browse") {
+      if (!selectedBrowserFolder) {
+        toast({ title: "Error", description: "Please select a folder from the browser", variant: "destructive" });
+        return;
+      }
+    } else {
+      if (!newFolderPath.trim()) {
+        toast({ title: "Error", description: "Please enter a folder path", variant: "destructive" });
+        return;
+      }
     }
 
     setSavingFolder(true);
     try {
-      await api.patch("/api/v1/organization_onedrive/change_root_folder", {
-        folder_name: newFolderPath.trim(),
-      });
+      // Use folder_id if from browser, folder_name if typed
+      const payload = folderSelectionMode === "browse" && selectedBrowserFolder
+        ? { folder_id: selectedBrowserFolder.id }
+        : { folder_name: newFolderPath.trim() };
+
+      await api.patch("/api/v1/organization_onedrive/change_root_folder", payload);
       toast({ title: "Success", description: "Root folder updated successfully" });
       setFolderDialogOpen(false);
+      setSelectedBrowserFolder(null);
       // Reload config to show updated path
       await loadSharePointConfig();
     } catch (error: unknown) {
@@ -572,11 +867,12 @@ export function FoldersTab() {
     } catch (error: unknown) {
       console.error("Failed to save template:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to save changes";
-      // If we get a 404, it might be stale item IDs - reload and try again
-      if (errorMessage.includes("not found") || errorMessage.includes("404")) {
+      // If we get a 404 or 409 (out of sync), reload and let user try again
+      if (errorMessage.includes("not found") || errorMessage.includes("404") ||
+          errorMessage.includes("out of sync") || errorMessage.includes("409")) {
         toast({
           title: "Sync Error",
-          description: "Template data was out of sync. Please try your change again.",
+          description: "Template data was out of sync. Reloading... please try your change again.",
           variant: "destructive",
         });
         await loadTemplates();
@@ -691,7 +987,21 @@ export function FoldersTab() {
                         <span className="text-muted-foreground">/</span>
                         <span>{sharePointConfig.root_folder || "TEEEM Jobs"}</span>
                         <span className="text-muted-foreground">/</span>
-                        <span className="text-emerald-600 dark:text-emerald-400">{"[Job Code] - [Project Name]"}</span>
+                        <button
+                          onClick={() => setJobNameFormatDialogOpen(true)}
+                          className="text-emerald-600 dark:text-emerald-400 hover:underline hover:text-emerald-700 dark:hover:text-emerald-300 cursor-pointer"
+                          title="Click to configure job folder name format"
+                        >
+                          {"[Job Code] - "}
+                          {jobNameFormatFields.length > 0
+                            ? jobNameFormatFields.map((id, idx) => {
+                                const field = JOB_NAME_FIELDS.find(f => f.id === id);
+                                const sep = idx < jobNameFormatFields.length - 1 ? (jobNameFormatSeparators[idx] || " ") : "";
+                                return `[${field?.label || id}]${sep}`;
+                              }).join("")
+                            : "[Project Name]"
+                          }
+                        </button>
                         <span className="text-muted-foreground">/</span>
                         <span className="text-muted-foreground italic">{"[template folders...]"}</span>
                       </div>
@@ -704,6 +1014,75 @@ export function FoldersTab() {
                     <p className="text-xs text-muted-foreground">
                       Example: <code className="bg-muted px-1 rounded">047 - Malbon Street/02 PreCon/Estimation/</code>
                     </p>
+
+                    {/* Folder Validation Status */}
+                    {validatingFolder ? (
+                      <div className="flex items-center gap-2 mt-3 p-2 bg-muted/50 rounded-md text-xs">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        <span className="text-muted-foreground">Validating folder location...</span>
+                      </div>
+                    ) : folderValidation && !folderValidation.valid ? (
+                      <div className={cn(
+                        "flex items-start gap-2 mt-3 p-3 rounded-md text-xs",
+                        folderValidation.error_type === "not_found"
+                          ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800"
+                          : "bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800"
+                      )}>
+                        {folderValidation.error_type === "not_found" ? (
+                          <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                        )}
+                        <div className="flex-1">
+                          <p className={folderValidation.error_type === "not_found" ? "text-red-700 dark:text-red-300 font-medium" : "text-amber-700 dark:text-amber-300 font-medium"}>
+                            {folderValidation.error_type === "not_found"
+                              ? "Folder Not Found"
+                              : folderValidation.error_type === "not_configured"
+                              ? "Folder Not Configured"
+                              : "Validation Error"}
+                          </p>
+                          <p className={folderValidation.error_type === "not_found" ? "text-red-600 dark:text-red-400 mt-1" : "text-amber-600 dark:text-amber-400 mt-1"}>
+                            {folderValidation.error}
+                          </p>
+                          {folderValidation.stored_path && (
+                            <p className="text-muted-foreground mt-1">
+                              Expected: <code className="bg-muted px-1 rounded">{folderValidation.stored_path}</code>
+                            </p>
+                          )}
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7"
+                              onClick={() => {
+                                setNewFolderPath(sharePointConfig?.root_folder || "");
+                                setFolderDialogOpen(true);
+                              }}
+                            >
+                              <FolderOpen className="h-3 w-3 mr-1" />
+                              Select New Folder
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7"
+                              onClick={validateFolder}
+                            >
+                              <RefreshCw className="h-3 w-3 mr-1" />
+                              Retry
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : folderValidation?.valid ? (
+                      <div className="flex items-center gap-2 mt-3 p-2 bg-green-50 dark:bg-green-950/30 rounded-md text-xs border border-green-200 dark:border-green-800">
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <span className="text-green-700 dark:text-green-300">Folder verified in SharePoint</span>
+                        {folderValidation.auto_updated && (
+                          <Badge variant="outline" className="ml-auto text-xs">Updated</Badge>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 mt-2 text-amber-600 dark:text-amber-400">
@@ -739,41 +1118,93 @@ export function FoldersTab() {
       </Card>
 
       {/* Change Folder Dialog */}
-      <Dialog open={folderDialogOpen} onOpenChange={setFolderDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+      <Dialog open={folderDialogOpen} onOpenChange={(open) => {
+        setFolderDialogOpen(open);
+        if (!open) {
+          setSelectedBrowserFolder(null);
+          setFolderSelectionMode("browse");
+        }
+      }}>
+        <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
             <DialogTitle>Change Jobs Root Folder</DialogTitle>
             <DialogDescription>
-              Enter the folder path in SharePoint where job folders will be created.
-              Use forward slashes for nested paths (e.g., "TEEEM/Jobs").
+              Select the folder in SharePoint where job folders will be created.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="folder-path">Folder Path</Label>
-              <Input
-                id="folder-path"
-                value={newFolderPath}
-                onChange={(e) => setNewFolderPath(e.target.value)}
-                placeholder="TEEEM Jobs"
-                className="font-mono"
+
+          <Tabs value={folderSelectionMode} onValueChange={(v) => setFolderSelectionMode(v as "browse" | "type")}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="browse">
+                <Search className="h-4 w-4 mr-2" />
+                Browse Folders
+              </TabsTrigger>
+              <TabsTrigger value="type">
+                <Edit2 className="h-4 w-4 mr-2" />
+                Type Path
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="browse" className="mt-4">
+              <SharePointFolderBrowser
+                onSelect={(folder, path) => {
+                  if (folder) {
+                    setSelectedBrowserFolder({ id: folder.id, name: folder.name, path });
+                  } else {
+                    setSelectedBrowserFolder(null);
+                  }
+                }}
+                selectedFolderId={selectedBrowserFolder?.id}
               />
-              <p className="text-xs text-muted-foreground">
-                This folder will be created if it doesn't exist. Job folders will be created inside this folder.
-              </p>
-            </div>
-            <div className="bg-muted/50 rounded-md p-3 text-xs">
-              <div className="font-medium mb-1">Preview:</div>
-              <div className="font-mono text-muted-foreground">
-                Shared Documents / <span className="text-foreground">{newFolderPath || "TEEEM Jobs"}</span> / [Job Code] - [Project Name] / ...
+              {selectedBrowserFolder && (
+                <div className="bg-primary/5 border border-primary/20 rounded-md p-3 mt-3 text-xs">
+                  <div className="font-medium mb-1 text-primary">Selected Folder:</div>
+                  <div className="font-mono text-foreground">
+                    {selectedBrowserFolder.path}
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="type" className="mt-4">
+              <div className="grid gap-2">
+                <Label htmlFor="folder-path">Folder Path</Label>
+                <Input
+                  id="folder-path"
+                  value={newFolderPath}
+                  onChange={(e) => setNewFolderPath(e.target.value)}
+                  placeholder="TEEEM Jobs"
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This folder will be created if it doesn&apos;t exist. Use forward slashes for nested paths (e.g., &quot;TEEEM/Jobs&quot;).
+                </p>
               </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* Preview */}
+          <div className="bg-muted/50 rounded-md p-3 text-xs">
+            <div className="font-medium mb-1">Preview:</div>
+            <div className="font-mono text-muted-foreground">
+              Shared Documents /{" "}
+              <span className="text-foreground">
+                {folderSelectionMode === "browse"
+                  ? (selectedBrowserFolder?.path || "Select a folder...")
+                  : (newFolderPath || "TEEEM Jobs")}
+              </span>{" "}
+              / [Job Code] - [Project Name] / ...
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setFolderDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleChangeFolderPath} disabled={savingFolder}>
+            <Button
+              onClick={handleChangeFolderPath}
+              disabled={savingFolder || (folderSelectionMode === "browse" && !selectedBrowserFolder)}
+            >
               {savingFolder ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -783,6 +1214,68 @@ export function FoldersTab() {
                 <>
                   <Check className="h-4 w-4 mr-2" />
                   Save
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Job Name Format Dialog */}
+      <Dialog open={jobNameFormatDialogOpen} onOpenChange={setJobNameFormatDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Configure Job Folder Name Format</DialogTitle>
+            <DialogDescription>
+              Configure how job folders are named in SharePoint.
+              Job Number (e.g., 047) is always included as a prefix.
+            </DialogDescription>
+          </DialogHeader>
+
+          <JobNameFormatBuilder
+            value={jobNameFormatFields}
+            separators={jobNameFormatSeparators}
+            onChange={(fields, seps) => {
+              setJobNameFormatFields(fields);
+              setJobNameFormatSeparators(seps);
+            }}
+          />
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setJobNameFormatDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                setSavingJobNameFormat(true);
+                try {
+                  // TODO: Save to organization settings via API
+                  await api.patch("/api/v1/organization_settings", {
+                    job_folder_name_format: {
+                      fields: jobNameFormatFields,
+                      separators: jobNameFormatSeparators
+                    }
+                  });
+                  toast({ title: "Success", description: "Job folder name format saved" });
+                  setJobNameFormatDialogOpen(false);
+                } catch (error) {
+                  console.error("Failed to save job name format:", error);
+                  toast({ title: "Error", description: "Failed to save format", variant: "destructive" });
+                } finally {
+                  setSavingJobNameFormat(false);
+                }
+              }}
+              disabled={savingJobNameFormat || jobNameFormatFields.length === 0}
+            >
+              {savingJobNameFormat ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Save Format
                 </>
               )}
             </Button>

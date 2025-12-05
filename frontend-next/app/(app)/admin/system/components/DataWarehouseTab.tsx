@@ -354,6 +354,16 @@ export function DataWarehouseTab() {
     window.open(`/api/v1/warehouse/export/${viewName}.${format}`, "_blank");
   };
 
+  // Get all views for the browse tab - MUST be before any early returns
+  const allViews = React.useMemo(() => {
+    if (!warehouseMetadata) return [];
+    return [
+      ...warehouseMetadata.materialized_views.map(v => ({ ...v, type: "Materialized View" })),
+      ...warehouseMetadata.fact_tables.map(v => ({ ...v, type: "Fact Table" })),
+      ...warehouseMetadata.warehouse_tables.map(v => ({ ...v, type: "Warehouse Table" })),
+    ];
+  }, [warehouseMetadata]);
+
   const formatBytes = (bytes: number) => {
     if (!bytes) return "0 B";
     const k = 1024;
@@ -386,16 +396,6 @@ export function DataWarehouseTab() {
   const verificationRate = stats.documents.total_documents > 0
     ? Math.round((stats.documents.verified_count / stats.documents.total_documents) * 100)
     : 0;
-
-  // Get all views for the browse tab
-  const allViews = React.useMemo(() => {
-    if (!warehouseMetadata) return [];
-    return [
-      ...warehouseMetadata.materialized_views.map(v => ({ ...v, type: "Materialized View" })),
-      ...warehouseMetadata.fact_tables.map(v => ({ ...v, type: "Fact Table" })),
-      ...warehouseMetadata.warehouse_tables.map(v => ({ ...v, type: "Warehouse Table" })),
-    ];
-  }, [warehouseMetadata]);
 
   // Format cell value for display
   const formatCellValue = (value: unknown): string => {

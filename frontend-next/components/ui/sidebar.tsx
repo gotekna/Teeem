@@ -101,6 +101,7 @@ export function Sidebar() {
   const [badges, setBadges] = useState<Record<string, number>>({});
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
+  const [deployedAt, setDeployedAt] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -115,10 +116,38 @@ export function Sidebar() {
   useEffect(() => {
     const loadVersion = async () => {
       try {
-        const response = await api.get<{ version: string; heroku_release?: string }>("/version");
+        const response = await api.get<{ version: string; heroku_release?: string; timestamp?: string }>("/version");
         setBackendVersion(response.version);
         if (response.heroku_release) {
           setHerokuRelease(response.heroku_release);
+        }
+        // Compare backend deploy time with frontend build time, show most recent
+        const backendTime = response.timestamp ? new Date(response.timestamp) : null;
+        const frontendTime = process.env.NEXT_PUBLIC_BUILD_TIME ? new Date(process.env.NEXT_PUBLIC_BUILD_TIME) : null;
+
+        // Use whichever is more recent
+        let mostRecentTime = backendTime;
+        if (frontendTime && (!backendTime || frontendTime > backendTime)) {
+          mostRecentTime = frontendTime;
+        }
+
+        if (mostRecentTime) {
+          // Format in Brisbane timezone (Australia/Brisbane)
+          const brisbaneTime = mostRecentTime.toLocaleString('en-AU', {
+            timeZone: 'Australia/Brisbane',
+            hour: 'numeric',
+            minute: '2-digit',
+            day: 'numeric',
+            month: 'numeric',
+            hour12: false
+          });
+          // Parse "5/12, 15:50" format to "15:50 5/12"
+          const parts = brisbaneTime.split(', ');
+          if (parts.length === 2) {
+            setDeployedAt(`${parts[1]} ${parts[0]}`);
+          } else {
+            setDeployedAt(brisbaneTime);
+          }
         }
       } catch (error) {
         console.debug("Failed to load backend version:", error);
@@ -267,6 +296,7 @@ export function Sidebar() {
                 <span>Frontend: v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
               )}
               {herokuRelease && <span>Heroku: {herokuRelease}</span>}
+              {deployedAt && <span>D: {deployedAt}</span>}
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
