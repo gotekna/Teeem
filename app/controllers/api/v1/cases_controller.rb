@@ -802,6 +802,8 @@ module Api
                       service.find_inconsistencies
                     when 'summary_report'
                       service.generate_summary
+                    when 'full_analysis'
+                      execute_full_analysis(action, service)
                     else
                       { message: "Action type '#{action.action_type}' not implemented" }
                     end
@@ -819,6 +821,176 @@ module Api
       # ============================================
       # SERIALIZERS
       # ============================================
+
+      # Execute full case analysis - imports emails, extracts entities, Q&A, timeline, links
+      def execute_full_analysis(action, warehouse_service)
+        results = {
+          emails_imported: 0,
+          emails_skipped: 0,
+          entities_extracted: { contacts: 0, companies: 0 },
+          qa_extracted: { total: 0, unanswered: 0 },
+          timeline_events: 0,
+          links_found: [],
+          steps_completed: []
+        }
+
+        # Step 1: Import relevant emails from warehouse based on case entities
+        Rails.logger.info "[FullAnalysis] Step 1: Importing emails for case #{@case.id}"
+        emails = warehouse_service.search_emails(query: nil) # Gets all by related entities
+        emails.each do |email|
+          # Skip if already linked to case
+          if @case.case_emails.exists?(email_warehouse_id: email.id)
+            results[:emails_skipped] += 1
+            next
+          end
+
+          @case.add_email(email, relevance: 'supporting', added_by: current_user)
+          results[:emails_imported] += 1
+        end
+        results[:steps_completed] << 'email_import'
+
+        # Step 2: Extract entities (contacts/companies) from imported emails using AI
+        Rails.logger.info "[FullAnalysis] Step 2: Extracting entities for case #{@case.id}"
+        @case.case_emails.includes(:email_warehouse).each do |case_email|
+          email = case_email.email_warehouse
+          next unless email
+
+          # Extract contacts from email addresses
+          extract_contacts_from_email(email, results)
+        end
+        results[:steps_completed] << 'entity_extraction'
+
+        # Step 3: Extract Q&A from emails
+        Rails.logger.info "[FullAnalysis] Step 3: Extracting Q&A for case #{@case.id}"
+        begin
+          qa_service = CaseQaExtractionService.new(@case)
+          qa_results = qa_service.extract_all
+          results[:qa_extracted] = {
+            total: qa_results[:questions_found],
+            unanswered: qa_results[:unanswered]
+          }
+        rescue => e
+          Rails.logger.error "[FullAnalysis] Q&A extraction failed: #{e.message}"
+          results[:qa_extracted][:error] = e.message
+        end
+        results[:steps_completed] << 'qa_extraction'
+
+        # Step 4: Build timeline from all sources
+        Rails.logger.info "[FullAnalysis] Step 4: Building timeline for case #{@case.id}"
+        timeline = warehouse_service.build_timeline
+        timeline.each do |event|
+          next if event[:date].blank?
+
+          # Skip duplicates
+          existing = @case.case_timeline_events.find_by(
+            event_date: event[:date],
+            event_type: event[:type],
+            source_type: event[:source_type],
+            source_id: event[:source_id]
+          )
+          next if existing
+
+          @case.case_timeline_events.create!(
+            event_date: event[:date],
+            event_time: event[:time],
+            event_type: event[:type],
+            title: event[:title],
+            description: event[:description],
+            source_type: event[:source_type],
+            source_id: event[:source_id],
+            icon: event[:icon],
+            color: event[:color],
+            is_auto_generated: true,
+            metadata: event[:metadata]
+          )
+          results[:timeline_events] += 1
+        end
+        results[:steps_completed] << 'timeline_build'
+
+        # Step 5: Extract links/URLs from email bodies
+        Rails.logger.info "[FullAnalysis] Step 5: Extracting links for case #{@case.id}"
+        results[:links_found] = extract_links_from_case_emails
+        results[:steps_completed] << 'link_extraction'
+
+        Rails.logger.info "[FullAnalysis] Complete for case #{@case.id}: #{results.inspect}"
+        results
+      end
+
+      # Extract contacts from email addresses and add to case
+      def extract_contacts_from_email(email, results)
+        # Collect all email addresses from this email
+        all_emails = [email.from_email]
+        all_emails += email.to_emails if email.to_emails.present?
+        all_emails += email.cc_emails if email.cc_emails.present?
+        all_emails = all_emails.compact.uniq
+
+        all_emails.each do |email_address|
+          next if email_address.blank?
+
+          # Skip if contact already linked to case
+          contact = Contact.find_by(email: email_address)
+
+          if contact
+            # Link existing contact to case if not already linked
+            unless @case.case_contacts.exists?(contact_id: contact.id)
+              @case.add_contact(contact, role: 'related_party')
+              results[:entities_extracted][:contacts] += 1
+            end
+          end
+        end
+      end
+
+      # Extract HTTP/HTTPS URLs and file paths from case emails
+      def extract_links_from_case_emails
+        links = []
+
+        @case.case_emails.includes(:email_warehouse).each do |case_email|
+          email = case_email.email_warehouse
+          next unless email
+
+          body = email.body_text.presence || email.body_html
+          next if body.blank?
+
+          # Extract HTTP/HTTPS URLs
+          urls = body.scan(%r{https?://[^\s<>"']+})
+          urls.each do |url|
+            # Clean up trailing punctuation
+            clean_url = url.gsub(/[.,;:!?)]+$/, '')
+            links << {
+              type: 'url',
+              value: clean_url,
+              email_id: email.id,
+              email_subject: email.subject
+            }
+          end
+
+          # Extract OneDrive/SharePoint links specifically
+          onedrive_links = body.scan(%r{https://[^\s]*(?:sharepoint\.com|onedrive\.live\.com)[^\s<>"']*})
+          onedrive_links.each do |link|
+            clean_link = link.gsub(/[.,;:!?)]+$/, '')
+            links << {
+              type: 'onedrive',
+              value: clean_link,
+              email_id: email.id,
+              email_subject: email.subject
+            }
+          end
+
+          # Extract file path references (Windows and Unix style)
+          # Looks for paths like C:\..., \\server\..., /path/to/...
+          file_paths = body.scan(%r{(?:[A-Za-z]:\\[^\s<>"']+|\\\\[^\s<>"']+|/(?:Users|home|var|tmp|documents?|files?)/[^\s<>"']+)}i)
+          file_paths.each do |path|
+            links << {
+              type: 'file_path',
+              value: path,
+              email_id: email.id,
+              email_subject: email.subject
+            }
+          end
+        end
+
+        links.uniq { |l| l[:value] }
+      end
 
       def serialize_case_list(c)
         {
