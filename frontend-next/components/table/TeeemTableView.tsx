@@ -219,15 +219,7 @@ import { selectDefaultView, slugifyViewName } from '@/lib/view-loading-utils';
 // HELPER FUNCTIONS
 // ============================================================================
 
-// Convert view name to URL-safe slug
-const slugifyViewName = (name: string): string => {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '') // Remove special characters
-    .replace(/\s+/g, '-') // Replace spaces with hyphens
-    .replace(/-+/g, '-'); // Remove consecutive hyphens
-};
+// Note: slugifyViewName is now imported from view-loading-utils.ts
 
 // Column types that are system-generated/computed (user cannot manually enter)
 const SYSTEM_GENERATED_TYPES = [
@@ -2124,7 +2116,59 @@ export default function TeeemTableView({
   // SAVED VIEWS
   // ============================================================================
 
-  // Load saved views
+  // Atom actions
+  const loadViews = useSetAtom(loadFoundationViewsAtom);
+  const applyView = useSetAtom(applyViewAtom);
+  const invalidateCache = useSetAtom(invalidateViewsCacheAtom);
+
+  // Load view state helper - applies saved view configuration to current state
+  // skipUrlUpdate: set to true when loading from URL to avoid redundant URL updates that can cause loops
+  // NOTE: This function is now simplified - atoms handle the atomic state updates
+  const loadViewState = useCallback(
+    (view: SavedView, skipUrlUpdate = false) => {
+      console.log('[loadViewState] Loading view:', view.name, 'groupByColumns:', view.groupByColumns?.length || 0);
+
+      // Apply view state atomically via Jotai atom
+      // This replaces 100+ lines of individual setters with a single atomic update
+      applyView(view);
+
+      // Handle local component state that isn't in atoms
+      if (view.groupByColumns && view.groupByColumns.length > 0) {
+        setGroupByColumn(view.groupByColumns[0] || null);
+        // Collapse all groups by default for performance
+        setCollapsedGroups(new Set(['__collapse_all_pending__']));
+      } else if (view.groupByColumn) {
+        setGroupByColumn(view.groupByColumn);
+        setCollapsedGroups(new Set(['__collapse_all_pending__']));
+      } else {
+        setGroupByColumn(null);
+        setCollapsedGroups(new Set());
+      }
+
+      // Hide filter editor when loading a saved view
+      setShowFilters(false);
+
+      // URL update (skip if loading from URL to avoid loops)
+      if (view.id && view.name && !skipUrlUpdate) {
+        const currentUrlViewSlug = searchParams.get('view');
+        const newViewSlug = slugifyViewName(view.name);
+        if (currentUrlViewSlug !== newViewSlug) {
+          const currentParams = new URLSearchParams(searchParams.toString());
+          currentParams.set('view', newViewSlug);
+          const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
+          router.replace(newUrl, { scroll: false });
+        }
+      }
+
+      // Handle apiParams for server-side filtering
+      if (view.filters && onViewApiParamsChange) {
+        onViewApiParamsChange(null);
+      }
+    },
+    [applyView, onViewApiParamsChange, searchParams, router]
+  );
+
+  // Load saved views (simplified using atoms)
   useEffect(() => {
     const loadSavedViews = async () => {
       if (!foundationIdNumeric) return;
@@ -2146,186 +2190,29 @@ export default function TeeemTableView({
       console.log('[loadSavedViews] Starting for foundation:', foundationIdNumeric);
 
       try {
-        // Check preloaded views cache first (populated by useFoundationBySlug in parallel)
-        const preloadedEntry = preloadedViewsCache[foundationIdNumeric];
-        const now = Date.now();
-        if (preloadedEntry && (now - preloadedEntry.timestamp) < VIEWS_CACHE_TTL && !viewsCache[foundationIdNumeric]) {
-          console.log('[loadSavedViews] Using preloaded views from useFoundationBySlug, age:', (now - preloadedEntry.timestamp), 'ms');
+        // Load views using atom (handles caching, mapping, sorting automatically)
+        const result = await loadViews(foundationIdNumeric);
 
-          // Map the raw API views to frontend format (same mapping as below)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const mappedViews = (preloadedEntry.views as any[]).map((v) => ({
-            ...v,
-            visibleColumns: v.columns?.visible || v.visibleColumns || {},
-            columnOrder: v.columns?.order || v.columnOrder || [],
-            columnWidths: v.columns?.widths || v.columnWidths || {},
-            autoFitColumns: v.columns?.autoFitColumns === true || v.autoFitColumns === true,
-            showTotals: v.columns?.showTotals !== false && v.showTotals !== false,
-            filters: v.filters?.cascadeFilters || v.filters || [],
-            filterGroups: v.filters?.filterGroups || v.filterGroups || [{ id: "default", logic: "AND" }],
-            interGroupLogic: v.filters?.interGroupLogic || v.interGroupLogic || "OR",
-            sortColumns: Array.isArray(v.sort_order) ? v.sort_order : (v.sortColumns || []),
-            groupByColumns: v.group_by_columns || v.groupByColumns || [],
-          })) as SavedView[];
-
-          // Sort views by display_order
-          const sortedViews = mappedViews.sort((a, b) => {
-            if (a.is_global && !b.is_global) return -1;
-            if (!a.is_global && b.is_global) return 1;
-            return (a.display_order ?? 999) - (b.display_order ?? 999);
-          });
-
-          // Copy to local cache
-          viewsCache[foundationIdNumeric] = {
-            views: sortedViews,
-            timestamp: preloadedEntry.timestamp
-          };
-        }
-
-        // Check module-level cache (includes preloaded views now)
-        const cachedEntry = viewsCache[foundationIdNumeric];
-        if (cachedEntry && (now - cachedEntry.timestamp) < VIEWS_CACHE_TTL) {
-          console.log('[loadSavedViews] Using cached views, age:', (now - cachedEntry.timestamp), 'ms');
-          const filteredViews = cachedEntry.views;
-          setSavedViews(filteredViews);
-
-          // Auto-apply default view logic (duplicated from below)
-          const urlViewSlug = searchParams.get('view');
-          if (urlViewSlug) {
-            const urlView = filteredViews.find((v) => slugifyViewName(v.name) === urlViewSlug);
-            if (urlView) {
-              // Skip URL update since we're loading from URL
-              loadViewState(urlView, true);
-              initialViewLoadedRef.current = true;
-              viewsLoadingRef.current = false;
-              return;
-            }
-          }
-          if (!activeViewId && filteredViews.length > 0) {
-            const defaultView =
-              filteredViews.find((v: SavedView) => v.isDefault && v.is_global) ||
-              filteredViews.find((v: SavedView) => v.isDefault) ||
-              filteredViews.find((v: SavedView) => v.is_global && v.display_order === 0) ||
-              filteredViews.find((v: SavedView) => v.display_order === 0) ||
-              filteredViews[0];
-            if (defaultView) {
-              // Skip URL update for initial default view load (URL will update on user interaction)
-              loadViewState(defaultView, true);
-              initialViewLoadedRef.current = true;
-            }
-          }
-          viewsLoadingRef.current = false;
+        if (!result.success) {
+          console.error('[loadSavedViews] Failed to load views:', result.error);
           return;
         }
 
-        // Check if there's an in-flight request for this foundation
-        if (viewsFetchPromises[foundationIdNumeric]) {
-          console.log('[loadSavedViews] Waiting for in-flight request');
-          const views = await viewsFetchPromises[foundationIdNumeric];
-          setSavedViews(views || []);
-          initialViewLoadedRef.current = true;
-          viewsLoadingRef.current = false;
-          return;
-        }
+        const filteredViews = result.views || [];
+        console.log('[loadSavedViews] Views loaded in', (performance.now() - startTime).toFixed(0), 'ms, count:', filteredViews.length, 'source:', result.source);
 
-        // Create the fetch promise
-        const fetchPromise = (async () => {
-          let data;
-          if (preloadedViews && preloadedViews.length > 0) {
-            const firstViewTableId = preloadedViews[0]?.foundation_id;
-            if (firstViewTableId === foundationIdNumeric) {
-              data = { success: true, views: preloadedViews };
-            } else {
-              data = await api.get<{ success: boolean; views: SavedView[] }>(
-                `/api/v1/foundation_views`,
-                { params: { foundation_id: foundationIdNumeric } }
-              );
-            }
-          } else {
-            data = await api.get<{ success: boolean; views: SavedView[] }>(
-              `/api/v1/foundation_views`,
-              { params: { foundation_id: foundationIdNumeric } }
-            );
-          }
-
-          if (data.success && data.views) {
-            // Map API format to frontend format and filter/sort
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const mappedViews = (data.views as any[]).map((v) => {
-              return {
-              ...v,
-              // Map columns.visible to visibleColumns (API format -> frontend format)
-              visibleColumns: v.columns?.visible || v.visibleColumns || {},
-              columnOrder: v.columns?.order || v.columnOrder || [],
-              columnWidths: v.columns?.widths || v.columnWidths || {},
-              autoFitColumns: v.columns?.autoFitColumns === true || v.autoFitColumns === true,
-              showTotals: v.columns?.showTotals !== false && v.showTotals !== false, // Default to true
-              // Map filters format
-              filters: v.filters?.cascadeFilters || v.filters || [],
-              filterGroups: v.filters?.filterGroups || v.filterGroups || [{ id: "default", logic: "AND" }],
-              interGroupLogic: v.filters?.interGroupLogic || v.interGroupLogic || "OR",
-              // Map sort and group
-              sortColumns: Array.isArray(v.sort_order) ? v.sort_order : (v.sortColumns || []),
-              groupByColumns: v.group_by_columns || v.groupByColumns || [],
-            };
-            }) as SavedView[];
-
-            // Sort views by display_order
-            const filteredViews = mappedViews
-              .sort((a, b) => {
-                // Global views first
-                if (a.is_global && !b.is_global) return -1;
-                if (!a.is_global && b.is_global) return 1;
-                // Then by display_order
-                return (a.display_order ?? 999) - (b.display_order ?? 999);
-              });
-
-            return filteredViews;
-          }
-          return [];
-        })();
-
-        viewsFetchPromises[foundationIdNumeric] = fetchPromise;
-        const filteredViews = await fetchPromise;
-
-        // Cache the results
-        viewsCache[foundationIdNumeric] = {
-          views: filteredViews,
-          timestamp: Date.now()
-        };
-        delete viewsFetchPromises[foundationIdNumeric];
-
-        console.log('[loadSavedViews] Views loaded in', (performance.now() - startTime).toFixed(0), 'ms, count:', filteredViews.length);
-
-        setSavedViews(filteredViews);
-
-        // Auto-apply default view - prioritize global views, then display_order
-        // Check URL for view parameter first (matches by slugified name)
+        // Auto-apply default view using consolidated utility
         const urlViewSlug = searchParams.get('view');
-        if (urlViewSlug) {
-          const urlView = filteredViews.find((v) => slugifyViewName(v.name) === urlViewSlug);
-          if (urlView) {
-            // Skip URL update since we're loading from URL
-            loadViewState(urlView, true);
-            initialViewLoadedRef.current = true;
-            return;
-          }
-        }
+        const defaultView = selectDefaultView(filteredViews, {
+          urlViewSlug,
+          preferGlobal: true,
+        });
 
-        if (!activeViewId && filteredViews.length > 0) {
-          // Find the best default: first check for explicit isDefault, then first global, then first by display_order
-          const defaultView =
-            filteredViews.find((v: SavedView) => v.isDefault && v.is_global) ||
-            filteredViews.find((v: SavedView) => v.isDefault) ||
-            filteredViews.find((v: SavedView) => v.is_global && v.display_order === 0) ||
-            filteredViews.find((v: SavedView) => v.display_order === 0) ||
-            filteredViews[0]; // Fallback to first view
-
-          if (defaultView) {
-            // Skip URL update for initial default view load (URL will update on user interaction)
-            loadViewState(defaultView, true);
-            initialViewLoadedRef.current = true;
-          }
+        if (defaultView) {
+          // Skip URL update if loading from URL (avoid redundant updates)
+          const skipUrlUpdate = !!urlViewSlug;
+          loadViewState(defaultView, skipUrlUpdate);
+          initialViewLoadedRef.current = true;
         }
       } catch (error) {
         console.error("Error loading saved views:", error);
@@ -2336,118 +2223,7 @@ export default function TeeemTableView({
     };
 
     loadSavedViews();
-  }, [foundationIdNumeric, preloadedViews]);
-
-  // Load view state helper - applies saved view configuration to current state
-  // skipUrlUpdate: set to true when loading from URL to avoid redundant URL updates that can cause loops
-  const loadViewState = useCallback(
-    (view: SavedView, skipUrlUpdate = false) => {
-      // Helper to ensure filters have unique ids
-      const ensureFilterIds = (filters: CascadeFilter[]) =>
-        filters.map((f, idx) => ({
-          ...f,
-          id: f.id || `filter_${Date.now()}_${idx}`,
-        }));
-
-      console.log('[loadViewState] Loading view:', view.name, 'groupByColumns:', view.groupByColumns?.length || 0);
-
-      // Apply all view state updates (removed startTransition - was causing 800ms delay)
-      // Handle filters - may be array (legacy) or object with cascadeFilters (current)
-      if (view.filters) {
-        if (Array.isArray(view.filters)) {
-          setCascadeFilters(ensureFilterIds(view.filters));
-        } else if (typeof view.filters === 'object' && view.filters !== null) {
-          // New format: filters is an object containing cascadeFilters
-          const filtersObj = view.filters as { cascadeFilters?: CascadeFilter[]; filterGroups?: FilterGroup[]; interGroupLogic?: "AND" | "OR" };
-          if (Array.isArray(filtersObj.cascadeFilters)) {
-            setCascadeFilters(ensureFilterIds(filtersObj.cascadeFilters));
-          }
-          if (Array.isArray(filtersObj.filterGroups)) {
-            setFilterGroups(filtersObj.filterGroups);
-          }
-          if (filtersObj.interGroupLogic) {
-            setInterGroupLogic(filtersObj.interGroupLogic);
-          }
-        }
-      }
-      // Legacy support for separate filterGroups field
-      if (view.filterGroups) {
-        setFilterGroups(view.filterGroups);
-      }
-      if (view.interGroupLogic) {
-        setInterGroupLogic(view.interGroupLogic);
-      }
-      if (view.visibleColumns) {
-        setVisibleColumns(view.visibleColumns);
-      }
-      if (view.columnOrder) {
-        setColumnOrder(view.columnOrder);
-      }
-      // Only load saved column widths if auto-fit is NOT enabled
-      // Check both direct property and columns object (API format varies)
-      const viewAny = view as SavedView & { columns?: { autoFitColumns?: boolean; showTotals?: boolean } };
-      const viewAutoFit = view.autoFitColumns === true ||
-        (viewAny.columns && viewAny.columns.autoFitColumns === true);
-      if (view.columnWidths && !viewAutoFit) {
-        setColumnWidths((prev) => ({ ...prev, ...view.columnWidths }));
-      }
-      if (view.sortColumns) {
-        setSortColumns(view.sortColumns);
-      }
-      if (view.groupByColumns && view.groupByColumns.length > 0) {
-        setGroupByColumns(view.groupByColumns);
-        setGroupByColumn(view.groupByColumns[0] || null);
-        // Collapse all groups by default for performance (user can expand as needed)
-        // This prevents rendering all rows when grouping is enabled
-        setCollapsedGroups(new Set(['__collapse_all_pending__'])); // Marker to collapse after groupedEntries is computed
-      } else if (view.groupByColumn) {
-        setGroupByColumn(view.groupByColumn);
-        setGroupByColumns(view.groupByColumn ? [view.groupByColumn] : []);
-        setCollapsedGroups(new Set(['__collapse_all_pending__']));
-      } else {
-        // Clear grouping
-        setGroupByColumns([]);
-        setGroupByColumn(null);
-        setCollapsedGroups(new Set());
-      }
-      // Handle showTotals - check both direct property and columns object
-      if (typeof view.showTotals === 'boolean') {
-        setShowTotals(view.showTotals);
-      } else if (viewAny.columns && typeof viewAny.columns.showTotals === 'boolean') {
-        setShowTotals(viewAny.columns.showTotals);
-      }
-      // Handle autoFitColumns - check both direct property and columns object
-      if (typeof view.autoFitColumns === 'boolean') {
-        setAutoFitColumns(view.autoFitColumns);
-      } else if (viewAny.columns && typeof viewAny.columns.autoFitColumns === 'boolean') {
-        setAutoFitColumns(viewAny.columns.autoFitColumns);
-      }
-      // Hide filter editor when loading a saved view (user can click Filters button to show)
-      setShowFilters(false);
-      if (view.id) {
-        setActiveViewId(view.id);
-      }
-      // URL update is kept outside startTransition as it's a side effect
-      // Skip URL update when loading from URL to avoid redundant updates/loops
-      if (view.id && view.name && !skipUrlUpdate) {
-        const currentUrlViewSlug = searchParams.get('view');
-        const newViewSlug = slugifyViewName(view.name);
-        // Only update URL if the slug is actually different
-        if (currentUrlViewSlug !== newViewSlug) {
-          const currentParams = new URLSearchParams(searchParams.toString());
-          currentParams.set('view', newViewSlug);
-          const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
-          router.replace(newUrl, { scroll: false });
-        }
-      }
-
-      // Handle apiParams for server-side filtering
-      if (view.filters && onViewApiParamsChange) {
-        onViewApiParamsChange(null);
-      }
-    },
-    [onViewApiParamsChange, searchParams, router]
-  );
+  }, [foundationIdNumeric, preloadedViews, loadViews, loadViewState, searchParams]);
 
   // Expose loadViewState to parent via callback
   useEffect(() => {
@@ -2497,7 +2273,7 @@ export default function TeeemTableView({
       if (response?.success && response.view) {
         // Invalidate the views cache so next load gets fresh data
         if (foundationIdNumeric) {
-          delete viewsCache[foundationIdNumeric];
+          invalidateCache(foundationIdNumeric);
         }
         // Insert global views at the beginning, personal views at the end
         if (saveAsGlobal) {

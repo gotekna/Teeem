@@ -996,8 +996,7 @@ export function ViewManagerSheet({
                               <Button size="sm" onClick={async () => {
                                 await handleSaveView();
                                 setIsEditing(false);
-                                // Small delay to ensure view state is applied before closing
-                                await new Promise(resolve => setTimeout(resolve, 100));
+                                // No delay needed - atoms apply state atomically
                                 onOpenChange(false);
                               }} disabled={saving}>
                                 {saving ? (
