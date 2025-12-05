@@ -48,7 +48,7 @@ module Api
           searchable_columns = if @foundation.table_type == 'system'
             if search_all
               # Search all text columns from the model (slower but comprehensive)
-              # Exclude array columns (e.g., contact_types) as ILIKE doesn't work on arrays
+              # Exclude array columns (e.g., roles) as ILIKE doesn't work on arrays
               model.columns.select { |c| [:string, :text].include?(c.type) && !c.array }.map(&:name)
             else
               # For system tables, use a predefined list of key searchable columns (fast)
@@ -234,21 +234,21 @@ module Api
           return render json: { error: 'No valid columns to update' }, status: :unprocessable_entity
         end
 
-        # Special handling for Contact model's contact_types column
+        # Special handling for Contact model's roles column
         # Convert lookup IDs to string values (same as single record update)
-        if @foundation.model_class == 'Contact' && filtered_updates.key?('contact_types')
-          value = filtered_updates['contact_types']
+        if @foundation.model_class == 'Contact' && filtered_updates.key?('roles')
+          value = filtered_updates['roles']
           if value.is_a?(Array) && value.first.is_a?(Integer)
-            contact_type_col = @foundation.columns.find_by(column_name: 'contact_types')
-            if contact_type_col&.lookup_foundation_id.present?
-              lookup_foundation = Foundation.find_by(id: contact_type_col.lookup_foundation_id)
+            roles_col = @foundation.columns.find_by(column_name: 'roles')
+            if roles_col&.lookup_foundation_id.present?
+              lookup_foundation = Foundation.find_by(id: roles_col.lookup_foundation_id)
               if lookup_foundation
                 lookup_model = lookup_foundation.dynamic_model
-                display_col = contact_type_col.lookup_display_column || 'display_name'
+                display_col = roles_col.lookup_display_column || 'display_name'
                 string_values = lookup_model.where(id: value).pluck(display_col).map do |display|
                   display.to_s.downcase.gsub(' ', '_')
                 end
-                filtered_updates['contact_types'] = string_values
+                filtered_updates['roles'] = string_values
               end
             end
           end
@@ -457,23 +457,23 @@ module Api
           end
         end
 
-        # Special handling for Contact model's contact_types column
+        # Special handling for Contact model's roles column
         # It stores string values like ["customer", "supplier"] but receives lookup IDs
-        if @foundation.model_class == 'Contact' && permitted.key?('contact_types')
-          value = permitted['contact_types']
+        if @foundation.model_class == 'Contact' && permitted.key?('roles')
+          value = permitted['roles']
           if value.is_a?(Array) && value.first.is_a?(Integer)
-            # Map lookup IDs to their string values from the ContactType lookup table
-            contact_type_col = columns.find { |c| c.column_name == 'contact_types' }
-            if contact_type_col&.lookup_foundation_id.present?
-              lookup_foundation = Foundation.find_by(id: contact_type_col.lookup_foundation_id)
+            # Map lookup IDs to their string values from the ContactRole lookup table
+            roles_col = columns.find { |c| c.column_name == 'roles' }
+            if roles_col&.lookup_foundation_id.present?
+              lookup_foundation = Foundation.find_by(id: roles_col.lookup_foundation_id)
               if lookup_foundation
                 lookup_model = lookup_foundation.dynamic_model
-                display_col = contact_type_col.lookup_display_column || 'display_name'
+                display_col = roles_col.lookup_display_column || 'display_name'
                 # Fetch the display values and convert to lowercase snake_case
                 string_values = lookup_model.where(id: value).pluck(display_col).map do |display|
                   display.to_s.downcase.gsub(' ', '_')
                 end
-                permitted['contact_types'] = string_values
+                permitted['roles'] = string_values
               end
             end
           end
@@ -538,7 +538,7 @@ module Api
             end
           end
 
-          # Expand multiple_lookups columns for system tables (e.g., contact_types)
+          # Expand multiple_lookups columns for system tables (e.g., roles)
           @foundation.columns.where(column_type: 'multiple_lookups').each do |column|
             value = json[column.column_name]
             next if value.blank?
@@ -551,7 +551,7 @@ module Api
                 Array(value)
               end
 
-              # For Contact model's contact_types, values are strings like ["corporate", "supplier"]
+              # For Contact model's roles, values are strings like ["customer", "supplier"]
               if parsed_values.any? && parsed_values.first.is_a?(String)
                 json[column.column_name] = parsed_values.map do |str_value|
                   { id: str_value, display_value: str_value.to_s.titleize }
@@ -645,10 +645,10 @@ module Api
                 Array(value)
               end
 
-              # For Contact model's contact_types, values are strings like ["corporate", "supplier"]
+              # For Contact model's roles, values are strings like ["customer", "supplier"]
               # Convert them to display format for the frontend
               if parsed_values.any? && parsed_values.first.is_a?(String)
-                # Values are already strings (like contact_types) - display as-is
+                # Values are already strings (like roles) - display as-is
                 json[column.column_name] = parsed_values.map do |str_value|
                   { id: str_value, display_value: str_value.to_s.titleize }
                 end

@@ -51,8 +51,8 @@ module Api
           when 'suppliers'
             @contacts = @contacts.suppliers
           when 'both'
-            # Filter for contacts that have both 'customer' and 'supplier' in contact_types array
-            @contacts = @contacts.where("contact_types @> ARRAY['customer', 'supplier']::text[]")
+            # Filter for contacts that have both 'customer' and 'supplier' in roles array
+            @contacts = @contacts.where("roles @> ARRAY['customer', 'supplier']::text[]")
           end
         end
 
@@ -212,7 +212,7 @@ module Api
           contact_json[:primary_company] = {
             id: @contact.primary_company.id,
             name: @contact.primary_company.display_name,
-            contact_types: @contact.primary_company.contact_types,
+            roles: @contact.primary_company.roles,
             role: @contact.primary_role,
             employment_status: @contact.employment_status,
             start_date: @contact.employment_start_date
@@ -1799,7 +1799,7 @@ module Api
           last_name: contact.last_name,
           email: contact.email,
           entity_type: contact.entity_type,
-          contact_types: contact.contact_types,
+          roles: contact.roles,
           has_xero: contact.xero_id.present?
         }
       end
@@ -2009,7 +2009,7 @@ module Api
           # NOTE: Xero accounting fields (bank details, payment terms, balances) are READ-ONLY
           # They are synced from Xero and cannot be edited in TEEEM
           # See Contact::XERO_READ_ONLY_FIELDS for the full list
-          contact_types: [],
+          roles: [],
           lgas: [],
           contact_group_ids: [],
           new_contact_group_names: [],
