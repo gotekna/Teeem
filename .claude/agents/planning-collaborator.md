@@ -15,6 +15,8 @@ description: |
 model: sonnet
 color: blue
 type: planning
+category: planning
+author: Robert
 ---
 
 # Planning Collaborator Agent

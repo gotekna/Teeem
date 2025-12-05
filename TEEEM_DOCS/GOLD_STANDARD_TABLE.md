@@ -167,6 +167,57 @@ leftActions  always    saved views    customActions    auto when   dropdown
 
 ---
 
+## View-Only / Read-Only Tables
+
+Some tables display data where users cannot add, edit, or delete records. Use these patterns:
+
+### Option 1: Fully View-Only (No Actions)
+
+```tsx
+<TeeemTableView
+  entries={data}
+  columns={columns}
+  viewOnly={true}  // ← Disables ALL editing actions
+  tableName="Audit Log"
+/>
+```
+
+### Option 2: Selective - No Add Button, But Can Edit/Delete
+
+```tsx
+<TeeemTableView
+  entries={data}
+  columns={columns}
+  // onAddRow omitted = no [+ Add] button in toolbar
+  onEdit={handleEdit}
+  onDelete={handleDelete}
+/>
+```
+
+### Option 3: Can Add But Not Edit (Log Entries)
+
+```tsx
+<TeeemTableView
+  entries={data}
+  columns={columns}
+  onAddRow={handleAdd}  // ← Shows [+ Add] button
+  // onEdit omitted = no edit action in row menu
+/>
+```
+
+### Use Cases for View-Only Tables
+
+| Use Case | Pattern |
+|----------|---------|
+| Audit logs | `viewOnly={true}` |
+| History/activity feeds | `viewOnly={true}` |
+| Aggregated/computed data | `viewOnly={true}` |
+| Child records on parent page | Omit `onAddRow` |
+| Feature tracking/progress | `viewOnly={true}` |
+| System-generated records | `viewOnly={true}` |
+
+---
+
 ## Code Locations (Must Match This Spec)
 
 | What | File | Must Match |

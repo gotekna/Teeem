@@ -13,8 +13,9 @@ description: |
   ║  Est. Tokens:           ~3,500                            ║
   ╚═══════════════════════════════════════════════════════════╝
 model: sonnet
-color: red
+color: orange
 type: diagnostic
+category: development
 author: Jake
 ---
 

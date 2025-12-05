@@ -120,14 +120,8 @@ The sync task uses this priority for attribution:
 - Tracks violation metrics
 - Consolidates backend + frontend code review
 
-### 13. invoke-helper
-**Focus:** Agent Invocation Guide | **Created by:** Jake
-- Helper agent for invoking other agents
-- Provides agent shortcuts and invocation patterns
-- Manages run history tracking
-
-### 14. ssot-agent
-**Focus:** Single Source of Truth Validation | **Created by:** Jake
+### 13. ssot-agent
+**Focus:** Single Source of Truth Validation | **Created by:** Robert
 - Validates Dense Index ↔ CLAUDE.md consistency
 - Scans all .md files for conflicts with Trinity
 - Suggests archivable documentation (superseded by Trinity)
@@ -136,23 +130,23 @@ The sync task uses this priority for attribution:
 - Stops on conflicts and asks user to resolve
 - Updates Trinity with archive records
 
-### 15. gold-standard-sst
-**Focus:** Column Types SSoT Validation | **Created by:** Robert
-- Validates Trinity T19.xxx entries match Gold Standard columns
+### 14. gold-standard-sst
+**Focus:** Column Types SSoT Validation (31 types) | **Created by:** Robert
+- Validates Trinity T19.xxx entries match Gold Standard columns (31 types)
 - Checks SQL type sync across all sources
 - Audits for hardcoded column type duplicates
 - Verifies validation rules are defined
 - Enforces Bible Rule #19.37
 
-### 16. product-owner-analyst
-**Focus:** Product Decisions & Feature Planning | **Created by:** Jake
+### 15. product-owner-analyst
+**Focus:** Product Decisions & Feature Planning | **Created by:** Robert
 - Classifies features as PUBLIC-READY, INTERNAL-ONLY, or TECHNICAL-DEBT
 - Reviews code for public product readiness
 - Identifies Tekna-specific logic that needs isolation
 - Provides product strategy guidance
 - Guards against internal tools shipping to external users
 
-### 17. agent-creator
+### 16. agent-creator
 **Focus:** Automated Agent Creation Workflow | **Created by:** Robert
 - Guides through 7 multiple-choice questions
 - Generates box-format output mockup
@@ -160,7 +154,7 @@ The sync task uses this priority for attribution:
 - Syncs to database automatically
 - Updates README with new agent listing
 
-### 18. gold-std-table-integration
+### 17. gold-std-table-integration
 **Focus:** Sync Table Settings to Gold Standard | **Created by:** Robert
 - Detects current table from UI context
 - Fetches Gold Standard template configuration
@@ -169,6 +163,15 @@ The sync task uses this priority for attribution:
 - Compares edit functions (inline/bulk edit modes)
 - Shows preview of all changes before applying
 - Applies updates only after user confirmation
+
+### 18. agent-validation-checker
+**Focus:** Validate All Diagnostic Agents | **Created by:** Rob
+- Verifies Trinity consistency across agents
+- Checks inter-agent consistency (no conflicts)
+- Validates frontend/backend integration
+- Tracks agent run history and stale agents
+- Ensures standard output format
+- Validates category and token tracking
 
 ## How to Use
 
@@ -206,7 +209,7 @@ The sync task uses this priority for attribution:
 "allagent"
 ```
 
-This will run all 13 agents in parallel with health check tasks.
+This will run all 18 agents in parallel with health check tasks.
 
 ## Database Integration
 
@@ -299,12 +302,12 @@ Create a mockup of EXACTLY what the agent should produce. This becomes the contr
 
 ```
 ╔═══════════════════════════════════════════════════════════╗
-║  Trinity Entries:       21 types documented       [PASS]  ║
-║  Gold Standard Cols:    21 column types           [PASS]  ║
-║  Type Comparison:       21/21 matched             [PASS]  ║
-║  SQL Type Sync:         22/22 defined             [PASS]  ║
+║  Trinity Entries:       31 types documented       [PASS]  ║
+║  Gold Standard Cols:    31 column types           [PASS]  ║
+║  Type Comparison:       31/31 matched             [PASS]  ║
+║  SQL Type Sync:         32/32 defined             [PASS]  ║
 ║    (+1 action_buttons system-only)                        ║
-║  Column Validation:     21/21 have rules          [PASS]  ║
+║  Column Validation:     31/31 have rules          [PASS]  ║
 ║  Code Audit:            No unauthorized dupes     [PASS]  ║
 ╠═══════════════════════════════════════════════════════════╣
 ║  System Columns:        id, created_at, updated_at        ║

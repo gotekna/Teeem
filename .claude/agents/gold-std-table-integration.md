@@ -14,7 +14,7 @@ description: |
   ║  Focus: Sync table settings to Gold Standard template     ║
   ║  Bible Rule: #19.37 Column Types SSoT                     ║
   ╠═══════════════════════════════════════════════════════════╣
-  ║  Est. Tokens:           ~10,000                           ║
+  ║  Est. Tokens:           ~7,000                            ║
   ╚═══════════════════════════════════════════════════════════╝
 model: sonnet
 color: yellow
@@ -220,7 +220,7 @@ In-memory table indicators:
 - Changes take effect immediately
 
 **For In-memory/Config tables:**
-- Locate source file (e.g., `frontend/src/components/*/TEEEMTableView.jsx`)
+- Locate source file (e.g., `frontend-next/components/table/TeeemTableView.tsx`)
 - Find column definition array (e.g., `DEFAULT_TRINITY_COLUMNS`)
 - Use Edit tool to update column properties:
   ```javascript

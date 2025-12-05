@@ -17,6 +17,7 @@ description: |
 model: opus
 color: blue
 type: diagnostic
+category: validation
 author: Jake
 ---
 

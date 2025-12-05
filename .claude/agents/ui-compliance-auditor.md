@@ -15,6 +15,7 @@ description: |
 model: sonnet
 color: orange
 type: diagnostic
+category: validation
 author: Jake
 ---
 
@@ -71,8 +72,8 @@ curl -s 'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?categor
 ### Step 1: Scan All UI Components (Excluding Tables)
 
 Find ALL frontend files that need auditing:
-- All `.jsx` files in `frontend/src/pages/` (excluding *Table.jsx, *List.jsx)
-- All `.jsx` files in `frontend/src/components/` (excluding DataTable, Trinity tables)
+- All `.tsx` files in `frontend-next/app/` (excluding *Table.tsx, *List.tsx)
+- All `.tsx` files in `frontend-next/components/` (excluding DataTable, Trinity tables)
 - All form components
 - All modal/dialog components
 - All navigation components

@@ -15,6 +15,8 @@ description: |
 model: sonnet
 color: cyan
 type: deployment
+category: deployment
+author: Robert
 ---
 
 # Deploy Manager Agent

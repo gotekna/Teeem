@@ -16,6 +16,7 @@ description: |
 model: sonnet
 color: blue
 type: development
+category: development
 author: Jake
 ---
 

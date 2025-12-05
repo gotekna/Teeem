@@ -15,6 +15,8 @@ description: |
 model: sonnet
 color: green
 type: diagnostic
+category: validation
+author: Rob
 ---
 
 # Trinity Sync Validator Agent
@@ -82,7 +84,7 @@ Validates Trinity database integrity and ensures markdown exports are up-to-date
 
 ```bash
 # Check agent run history
-cat /Users/rob/Projects/teeem/.claude/agents/run-history.json
+cat .claude/agents/run-history.json
 ```
 
 **Decision logic:**
@@ -121,16 +123,16 @@ psql teeem_development -c "
 
 ```bash
 # Check Bible chapters in markdown
-grep "^# Chapter" /Users/rob/Projects/teeem/TEEEM_DOCS/TEEEM_BIBLE.md
+grep "^# Chapter" TEEEM_DOCS/TEEEM_BIBLE.md
 
 # Count rules per chapter
-grep "^## RULE #" /Users/rob/Projects/teeem/TEEEM_DOCS/TEEEM_BIBLE.md | wc -l
+grep "^## RULE #" TEEEM_DOCS/TEEEM_BIBLE.md | wc -l
 
 # Verify Chapter 21 exists
-grep "^# Chapter 21" /Users/rob/Projects/teeem/TEEEM_DOCS/TEEEM_BIBLE.md
+grep "^# Chapter 21" TEEEM_DOCS/TEEEM_BIBLE.md
 
 # Check markdown file timestamps
-ls -lah /Users/rob/Projects/teeem/TEEEM_DOCS/TEEEM_*.md
+ls -lah TEEEM_DOCS/TEEEM_*.md
 ```
 
 ### 3. Comparison Phase
@@ -150,10 +152,10 @@ ls -lah /Users/rob/Projects/teeem/TEEEM_DOCS/TEEEM_*.md
 
 ```bash
 # Check export task code
-grep -A 5 "0..21" /Users/rob/Projects/teeem/backend/lib/tasks/bible.rake
+grep -A 5 "0..21" backend/lib/tasks/bible.rake
 
 # Verify export includes all chapters
-grep "Group rules by chapter" /Users/rob/Projects/teeem/backend/lib/tasks/bible.rake
+grep "Group rules by chapter" backend/lib/tasks/bible.rake
 ```
 
 **Must verify:**
@@ -165,10 +167,10 @@ grep "Group rules by chapter" /Users/rob/Projects/teeem/backend/lib/tasks/bible.
 
 ```bash
 # Check import task uses correct model
-grep "Trinity.create\|BibleRule.create" /Users/rob/Projects/teeem/backend/lib/tasks/bible.rake
+grep "Trinity.create\|BibleRule.create" backend/lib/tasks/bible.rake
 
 # Verify chapter mapping includes 21
-grep "21 =>" /Users/rob/Projects/teeem/backend/lib/tasks/bible.rake
+grep "21 =>" backend/lib/tasks/bible.rake
 ```
 
 **Must verify:**
@@ -182,21 +184,19 @@ grep "21 =>" /Users/rob/Projects/teeem/backend/lib/tasks/bible.rake
 
 ```bash
 # Export Bible from database to markdown
-cd /Users/rob/Projects/teeem/backend
-bin/rails teeem:export_bible
+cd backend && bin/rails teeem:export_bible
 ```
 
 ### Fix 2: Database Missing Entries
 
 ```bash
 # Import markdown to database
-cd /Users/rob/Projects/teeem/backend
-bin/rails teeem:import_bible
+cd backend && bin/rails teeem:import_bible
 ```
 
 ### Fix 3: Export Task Stops at Chapter 20
 
-**Edit:** `/Users/rob/Projects/teeem/backend/lib/tasks/bible.rake`
+**Edit:** `backend/lib/tasks/bible.rake`
 
 Change:
 ```ruby
@@ -210,7 +210,7 @@ To:
 
 ### Fix 4: Import Task References BibleRule
 
-**Edit:** `/Users/rob/Projects/teeem/backend/lib/tasks/bible.rake`
+**Edit:** `backend/lib/tasks/bible.rake`
 
 Change all:
 ```ruby

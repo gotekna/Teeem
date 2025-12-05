@@ -10,11 +10,12 @@ description: |
   ║  Focus: Table component compliance auditing               ║
   ║  Bible Rule: Chapter 19 (Tables Section)                  ║
   ╠═══════════════════════════════════════════════════════════╣
-  ║  Est. Tokens:           ~4,500                            ║
+  ║  Est. Tokens:           ~6,500                            ║
   ╚═══════════════════════════════════════════════════════════╝
 model: sonnet
 color: purple
 type: diagnostic
+category: validation
 author: Jake
 ---
 

@@ -16,6 +16,8 @@ description: |
 model: sonnet
 color: orange
 type: diagnostic
+category: diagnostic
+author: Rob
 ---
 
 # Gantt Bug Hunter Agent
@@ -95,7 +97,7 @@ Check for violations:
 
 ```bash
 # Check agent run history
-cat /Users/rob/Projects/teeem/.claude/agents/run-history.json
+cat .claude/agents/run-history.json
 ```
 
 **Decision logic:**

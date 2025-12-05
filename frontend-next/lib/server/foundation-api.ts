@@ -69,7 +69,9 @@ const SYSTEM_COLUMNS = ['created_at', 'updated_at', 'deleted_at'];
  */
 async function getAuthToken(): Promise<string | null> {
   const cookieStore = await cookies();
-  return cookieStore.get('auth_token')?.value || null;
+  const token = cookieStore.get('auth_token')?.value || null;
+  console.log('[SSR] getAuthToken:', token ? `token found (${token.substring(0, 20)}...)` : 'no token');
+  return token;
 }
 
 /**
@@ -77,9 +79,11 @@ async function getAuthToken(): Promise<string | null> {
  * This runs during SSR and provides initial data to components
  */
 export async function fetchFoundationBySlug(slug: string): Promise<FoundationData> {
+  console.log('[SSR] fetchFoundationBySlug starting for:', slug);
   const token = await getAuthToken();
 
   if (!token) {
+    console.log('[SSR] No auth token - returning empty data');
     return {
       foundation: null,
       columns: [],
@@ -129,6 +133,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
     // Transform columns to TeeemTableView format
     const columns = transformColumns(foundation);
 
+    console.log('[SSR] Successfully fetched:', slug, '- records:', records.length);
     return {
       foundation,
       columns,
@@ -137,7 +142,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
       error: null,
     };
   } catch (err) {
-    console.error('[Server] Failed to fetch foundation data:', err);
+    console.error('[SSR] Failed to fetch foundation data:', err);
     return {
       foundation: null,
       columns: [],

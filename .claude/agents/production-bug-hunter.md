@@ -13,8 +13,10 @@ description: |
   ║  Est. Tokens:           ~5,500                            ║
   ╚═══════════════════════════════════════════════════════════╝
 model: sonnet
-color: red
+color: orange
 type: diagnostic
+category: diagnostic
+author: Robert
 ---
 
 # Production Bug Hunter Agent
@@ -67,7 +69,7 @@ Diagnoses production bugs, analyzes Heroku logs, reproduces errors, and works wi
 
 ```bash
 # Check agent run history
-cat /Users/rob/Projects/teeem/.claude/agents/run-history.json
+cat .claude/agents/run-history.json
 ```
 
 **Decision logic:**

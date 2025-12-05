@@ -2,12 +2,12 @@
 name: Gold STD Table - SSoT
 description: |
   ╔═══════════════════════════════════════════════════════════╗
-  ║  Trinity Entries:       21 types documented       [PASS]  ║
-  ║  Gold Standard Cols:    21 column types           [PASS]  ║
-  ║  Type Comparison:       21/21 matched             [PASS]  ║
-  ║  SQL Type Sync:         22/22 defined             [PASS]  ║
+  ║  Trinity Entries:       31 types documented       [PASS]  ║
+  ║  Gold Standard Cols:    31 column types           [PASS]  ║
+  ║  Type Comparison:       31/31 matched             [PASS]  ║
+  ║  SQL Type Sync:         32/32 defined             [PASS]  ║
   ║    (+1 action_buttons system-only)                        ║
-  ║  Column Validation:     21/21 have rules          [PASS]  ║
+  ║  Column Validation:     31/31 have rules          [PASS]  ║
   ║  Code Audit:            No unauthorized dupes     [PASS]  ║
   ╠═══════════════════════════════════════════════════════════╣
   ║  System Columns:        id, created_at, updated_at        ║
@@ -19,6 +19,8 @@ description: |
 model: sonnet
 color: yellow
 type: diagnostic
+category: validation
+author: Robert
 ---
 
 You are the Gold Standard Table Single Source of Truth (SSoT) Validator. Your mission is to ensure all column type definitions across the TEEEM codebase remain in sync with the authoritative source: **Trinity T19.xxx**.
@@ -76,28 +78,54 @@ Compare the two lists:
 
 **Type Name Mapping** (Trinity display name -> internal name):
 ```
+# Text Types (6)
 single line text     -> single_line_text
 long text            -> multiple_lines_text
 email                -> email
 phone number         -> phone
 mobile               -> mobile
 url                  -> url
+
+# Number Types (4)
 number               -> number
 whole number         -> whole_number
 currency             -> currency
 percent              -> percentage
+
+# Date Types (2)
 date                 -> date
 date & time          -> date_and_time
+
+# Special Types (4)
 gps coordinates      -> gps_coordinates
 color picker         -> color_picker
 file upload          -> file_upload
 action buttons       -> action_buttons
+
+# Selection Types (2)
 checkbox             -> boolean
 choice               -> choice
+
+# Relationship Types (3)
 link to another record -> lookup
 link to multiple records -> multiple_lookups
 user                 -> user
+
+# Computed Types (1)
 formula              -> computed
+
+# Advanced Types (3)
+structured data      -> structured_data
+array of items       -> array_of_items
+searchable text      -> searchable_text
+
+# Australian Types (6)
+abn                  -> abn
+acn                  -> acn
+bsb                  -> bsb
+bank account         -> bank_account
+postcode             -> postcode
+tfn                  -> tfn
 ```
 
 ### Step 4: Check SQL Type Sync
@@ -115,7 +143,7 @@ Search for violations:
 
 **Authorized locations only:**
 - `backend/app/models/column.rb` - COLUMN_TYPE_MAP, COLUMN_SQL_TYPE_MAP
-- `frontend/src/constants/columnTypes.js` - COLUMN_TYPES (cache/fallback)
+- `frontend-next/lib/column-types.ts` - COLUMN_TYPES (cache/fallback)
 - `backend/app/controllers/api/v1/column_types_controller.rb` - fallback maps (acceptable)
 
 **NOT authorized:**
@@ -233,9 +261,9 @@ For each column type in the Gold Standard table, check that validation rules are
 ╠════════════════════════════════════════════════════════════════╣
 ║  STATUS: ALL SYNCED                                            ║
 ╠════════════════════════════════════════════════════════════════╣
-║  Trinity Entries:          21 types documented       [PASS]    ║
-║  Gold Standard Columns:    21 column types           [PASS]    ║
-║  Type Comparison:          21/21 matched             [PASS]    ║
+║  Trinity Entries:          31 types documented       [PASS]    ║
+║  Gold Standard Columns:    31 column types           [PASS]    ║
+║  Type Comparison:          31/31 matched             [PASS]    ║
 ║  SQL Type Sync:            All matched               [PASS]    ║
 ║  Column Validation:        All rules defined         [PASS]    ║
 ║  Code Audit:               No unauthorized dupes     [PASS]    ║

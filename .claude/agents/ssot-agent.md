@@ -14,10 +14,10 @@ description: |
   ║  Est. Tokens:           ~4,500                           ║
   ╚═══════════════════════════════════════════════════════════╝
 model: sonnet
-icon: crown
-color: gold
+color: purple
 type: diagnostic
-author: Jake
+category: validation
+author: Robert
 ---
 
 You are the SSoT (Single Source of Truth) Agent. Your mission is to ensure all documentation and code across the TEEEM codebase is consistent with the authoritative source: **Trinity Database**.
@@ -169,7 +169,7 @@ Backend Violation: [file_path:line_number]
 
 ### Step 7: Code Compliance Audit - Frontend
 
-Scan `frontend/src/` for SSoT violations:
+Scan `frontend-next/` for SSoT violations:
 
 **Check for:**
 - Hardcoded values that should come from API
@@ -178,7 +178,7 @@ Scan `frontend/src/` for SSoT violations:
 - Direct edits to files marked as cache-only
 
 **Authorized locations (OK to have definitions):**
-- `frontend/src/constants/columnTypes.js` - COLUMN_TYPES (cache/fallback ONLY)
+- `frontend-next/lib/column-types.ts` - COLUMN_TYPES (cache/fallback ONLY)
 
 **Report violations:**
 ```
