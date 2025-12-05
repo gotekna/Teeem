@@ -12,12 +12,12 @@ class CaseRelationshipService
     # Add case node as center
     nodes << build_case_node
 
-    # Add contact nodes
-    contact_nodes, contact_edges = build_contact_nodes_and_edges
+    # Add contact nodes - now grouped by company
+    contact_nodes, contact_edges = build_contact_nodes_and_edges_grouped
     nodes.concat(contact_nodes)
     edges.concat(contact_edges)
 
-    # Add company nodes
+    # Add company nodes (only those not already shown via contact grouping)
     company_nodes, company_edges = build_company_nodes_and_edges
     nodes.concat(company_nodes)
     edges.concat(company_edges)
@@ -99,6 +99,148 @@ class CaseRelationshipService
         priority: @case.priority
       }
     }
+  end
+
+  # Group contacts by company - if 2+ contacts share the same company, show them in a company group node
+  def build_contact_nodes_and_edges_grouped
+    nodes = []
+    edges = []
+
+    contacts = @case.case_contacts.includes(:contact)
+
+    # Group contacts by company name
+    contacts_by_company = contacts.group_by { |cc| cc.contact&.company_name_or_trust.presence }
+
+    # Separate into groups (2+ contacts) and singles
+    company_groups = contacts_by_company.select { |company, contacts| company.present? && contacts.size >= 2 }
+    single_contacts = contacts_by_company.reject { |company, contacts| company.present? && contacts.size >= 2 }.values.flatten
+
+    # Track companies that are shown as groups (to avoid duplicating in company nodes)
+    @grouped_company_names = company_groups.keys
+
+    # Calculate total nodes for positioning
+    total_nodes = company_groups.count + single_contacts.count
+    radius = 280
+    angle_step = total_nodes > 0 ? (2 * Math::PI / total_nodes) : 0
+    node_index = 0
+
+    # Create company group nodes
+    company_groups.each do |company_name, company_contacts|
+      angle = angle_step * node_index - (Math::PI / 2)
+      position = {
+        x: 400 + (radius * Math.cos(angle)).round,
+        y: 300 + (radius * Math.sin(angle)).round
+      }
+
+      # Build employees data for this company group
+      employees = company_contacts.map do |case_contact|
+        contact = case_contact.contact
+        {
+          id: contact.id,
+          name: contact.full_name,
+          email: contact.email,
+          phone: contact.mobile_phone || contact.office_phone,
+          relationship_type: case_contact.relationship_type,
+          formatted_relationship_type: case_contact.formatted_relationship_type,
+          alignment: case_contact.alignment,
+          formatted_alignment: case_contact.formatted_alignment,
+          alignment_color: case_contact.alignment_color,
+          role: case_contact.role,
+          is_primary: case_contact.is_primary
+        }
+      end
+
+      # Determine overall alignment for the group (most common or first)
+      alignments = company_contacts.map { |cc| cc.alignment }.compact
+      group_alignment = alignments.tally.max_by { |_, count| count }&.first || 'neutral'
+
+      nodes << {
+        id: "company-group-#{company_name.parameterize}",
+        type: 'company_group',
+        position: position,
+        data: {
+          company_name: company_name,
+          employees: employees,
+          employee_count: employees.count,
+          alignment: group_alignment,
+          # Use relationship types for edge labeling
+          relationship_types: company_contacts.map { |cc| cc.formatted_relationship_type }.uniq
+        }
+      }
+
+      # Single edge from case to company group
+      edges << {
+        id: "edge-case-company-group-#{company_name.parameterize}",
+        source: "case-#{@case.id}",
+        target: "company-group-#{company_name.parameterize}",
+        type: 'company_group',
+        label: company_contacts.map { |cc| cc.formatted_relationship_type }.uniq.join(', '),
+        data: {
+          relationship_types: company_contacts.map { |cc| cc.relationship_type }.uniq,
+          color: 'indigo'
+        }
+      }
+
+      node_index += 1
+    end
+
+    # Create single contact nodes (not grouped)
+    single_contacts.each do |case_contact|
+      contact = case_contact.contact
+      next unless contact
+
+      angle = angle_step * node_index - (Math::PI / 2)
+      position = if case_contact.display_position.present? && case_contact.display_position['x'].present?
+        { x: case_contact.display_position['x'], y: case_contact.display_position['y'] }
+      else
+        {
+          x: 400 + (radius * Math.cos(angle)).round,
+          y: 300 + (radius * Math.sin(angle)).round
+        }
+      end
+
+      nodes << {
+        id: "contact-#{contact.id}",
+        type: 'contact',
+        position: position,
+        data: {
+          id: contact.id,
+          name: contact.full_name,
+          email: contact.email,
+          phone: contact.mobile_phone || contact.office_phone,
+          company: contact.company_name_or_trust,
+          relationship_type: case_contact.relationship_type,
+          formatted_relationship_type: case_contact.formatted_relationship_type,
+          relationship_color: case_contact.relationship_color,
+          relationship_icon: case_contact.relationship_icon,
+          alignment: case_contact.alignment,
+          formatted_alignment: case_contact.formatted_alignment,
+          alignment_color: case_contact.alignment_color,
+          alignment_icon: case_contact.alignment_icon,
+          role: case_contact.role,
+          formatted_role: case_contact.formatted_role,
+          is_primary: case_contact.is_primary,
+          notes: case_contact.notes
+        }
+      }
+
+      edges << {
+        id: "edge-case-contact-#{contact.id}",
+        source: "case-#{@case.id}",
+        target: "contact-#{contact.id}",
+        type: 'relationship',
+        animated: case_contact.is_primary,
+        label: case_contact.formatted_relationship_type,
+        data: {
+          relationship_type: case_contact.relationship_type,
+          color: case_contact.relationship_color
+        }
+      }
+
+      node_index += 1
+    end
+
+    [nodes, edges]
   end
 
   def build_contact_nodes_and_edges
