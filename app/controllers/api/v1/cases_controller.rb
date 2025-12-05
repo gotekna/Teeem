@@ -8,7 +8,8 @@ module Api
         :add_document, :add_email, :add_contact, :add_company, :add_job,
         :run_action, :relationship_graph, :update_contact_position, :create_child,
         :qa_pairs, :duplicates, :resolve_duplicate, :processing_status,
-        :reprocess_documents, :update_qa_pair, :update_folder_settings
+        :reprocess_documents, :update_qa_pair, :update_folder_settings,
+        :folder_info, :create_folder
       ]
 
       # GET /api/v1/cases
