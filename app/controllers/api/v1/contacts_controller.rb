@@ -1953,7 +1953,7 @@ module Api
       def contact_params
         # Exclude Xero read-only fields from manual updates
         # These fields are synced from Xero and should not be edited directly in TEEEM
-        params.require(:contact).permit(
+        permitted = params.require(:contact).permit(
           :full_name,
           :first_name,
           :last_name,
@@ -1998,6 +1998,31 @@ module Api
           # Nested attributes for contact addresses
           contact_addresses_attributes: [:id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary, :_destroy]
         )
+
+        # Convert contact_types from integer IDs to names if needed
+        # Frontend may send [1, 2] (IDs) instead of ['customer', 'supplier'] (names)
+        if permitted[:contact_types].present?
+          permitted[:contact_types] = convert_contact_type_ids_to_names(permitted[:contact_types])
+        end
+
+        permitted
+      end
+
+      # Convert contact type IDs to names
+      # Accepts: [1, 2] -> ['customer', 'supplier']
+      # Also accepts: ['customer', 'supplier'] -> ['customer', 'supplier'] (no change)
+      def convert_contact_type_ids_to_names(types)
+        return [] if types.blank?
+
+        types.map do |type|
+          if type.is_a?(Integer) || (type.is_a?(String) && type.match?(/^\d+$/))
+            # It's an ID, look up the name
+            ContactType.find_by(id: type.to_i)&.name
+          else
+            # It's already a name
+            type
+          end
+        end.compact
       end
     end
   end
