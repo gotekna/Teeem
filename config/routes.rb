@@ -1239,6 +1239,14 @@ Rails.application.routes.draw do
 
           # Create sub-case
           post :create_child
+
+          # Document management
+          get :qa_pairs
+          patch 'qa_pairs/:qa_id', action: :update_qa_pair
+          get :duplicates
+          post :resolve_duplicate
+          get :processing_status
+          post :reprocess_documents
         end
       end
 
