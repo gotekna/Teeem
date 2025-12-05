@@ -18,13 +18,20 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # GET /api/v1/microsoft_app/status
   # Check the org-wide Microsoft app credential status
   def status
+    # Check if env vars are configured
+    env_configured = ENV['OUTLOOK_CLIENT_ID'].present? &&
+                     ENV['OUTLOOK_CLIENT_SECRET'].present? &&
+                     ENV['OUTLOOK_TENANT_ID'].present?
+
     credential = OrganizationMicrosoftAppCredential.active_credential
 
     if credential.nil?
       render json: {
         configured: false,
         status: 'not_configured',
-        message: 'Organization-wide Microsoft access not configured'
+        message: 'Organization-wide Microsoft access not configured',
+        env_configured: env_configured,
+        tenant_id: ENV['OUTLOOK_TENANT_ID']
       }
     else
       render json: {
@@ -35,26 +42,37 @@ class Api::V1::MicrosoftAppController < ApplicationController
         admin_consent_granted_by: credential.admin_consent_granted_by,
         last_sync_at: credential.last_sync_at,
         last_error: credential.last_error,
-        token_valid: !credential.token_expired?
+        token_valid: !credential.token_expired?,
+        env_configured: env_configured
       }
     end
   end
 
   # POST /api/v1/microsoft_app/setup
-  # Initial setup - store the Azure AD app registration details
-  # Admin provides: client_id, client_secret, tenant_id (from Azure portal)
+  # Initial setup - uses existing OUTLOOK_* env vars OR manual input
   def setup
     unless current_user_admin?
       return render json: { error: 'Only admins can configure organization-wide Microsoft access' }, status: :forbidden
+    end
+
+    # Use env vars if available, otherwise use params
+    client_id = params[:client_id].presence || ENV['OUTLOOK_CLIENT_ID']
+    client_secret = params[:client_secret].presence || ENV['OUTLOOK_CLIENT_SECRET']
+    tenant_id = params[:tenant_id].presence || ENV['OUTLOOK_TENANT_ID']
+
+    if client_id.blank? || client_secret.blank? || tenant_id.blank?
+      return render json: {
+        error: 'Missing credentials. Either set OUTLOOK_CLIENT_ID, OUTLOOK_CLIENT_SECRET, OUTLOOK_TENANT_ID env vars or provide them manually.'
+      }, status: :unprocessable_entity
     end
 
     # Deactivate any existing credential
     OrganizationMicrosoftAppCredential.active.update_all(is_active: false)
 
     credential = OrganizationMicrosoftAppCredential.new(
-      client_id: params[:client_id],
-      client_secret: params[:client_secret],
-      tenant_id: params[:tenant_id],
+      client_id: client_id,
+      client_secret: client_secret,
+      tenant_id: tenant_id,
       setup_by: current_user,
       status: 'pending'
     )
@@ -63,11 +81,48 @@ class Api::V1::MicrosoftAppController < ApplicationController
       render json: {
         success: true,
         message: 'App credentials saved. Now grant admin consent to activate.',
-        admin_consent_url: admin_consent_url_for(credential)
+        admin_consent_url: admin_consent_url_for(credential),
+        using_env_vars: params[:client_id].blank?
       }
     else
       render json: { error: credential.errors.full_messages.join(', ') }, status: :unprocessable_entity
     end
+  end
+
+  # POST /api/v1/microsoft_app/setup_from_env
+  # Quick setup using existing env vars - no manual input needed
+  def setup_from_env
+    unless current_user_admin?
+      return render json: { error: 'Only admins can configure organization-wide Microsoft access' }, status: :forbidden
+    end
+
+    client_id = ENV['OUTLOOK_CLIENT_ID']
+    client_secret = ENV['OUTLOOK_CLIENT_SECRET']
+    tenant_id = ENV['OUTLOOK_TENANT_ID']
+
+    if client_id.blank? || client_secret.blank? || tenant_id.blank?
+      return render json: {
+        error: 'Environment variables not configured. Please set OUTLOOK_CLIENT_ID, OUTLOOK_CLIENT_SECRET, and OUTLOOK_TENANT_ID.'
+      }, status: :unprocessable_entity
+    end
+
+    # Deactivate any existing credential
+    OrganizationMicrosoftAppCredential.active.update_all(is_active: false)
+
+    credential = OrganizationMicrosoftAppCredential.create!(
+      client_id: client_id,
+      client_secret: client_secret,
+      tenant_id: tenant_id,
+      setup_by: current_user,
+      status: 'pending'
+    )
+
+    render json: {
+      success: true,
+      message: 'Using existing Microsoft credentials. Now grant admin consent to enable organization-wide access.',
+      admin_consent_url: admin_consent_url_for(credential),
+      tenant_id: tenant_id
+    }
   end
 
   # GET /api/v1/microsoft_app/admin_consent_url
