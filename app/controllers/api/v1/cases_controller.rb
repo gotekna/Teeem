@@ -742,7 +742,12 @@ module Api
           has_children: c.has_children?,
           child_cases_count: c.child_cases.count,
           child_cases_summary: c.child_cases_summary,
-          child_cases: c.child_cases.recent_first.map { |child| serialize_child_case(child) }
+          child_cases: c.child_cases.recent_first.map { |child| serialize_child_case(child) },
+
+          # Folder settings
+          source_folder_paths: c.source_folder_paths || [],
+          filing_folder_paths: c.filing_folder_paths || [],
+          file_action: c.file_action || 'copy'
         )
       end
 

@@ -44,9 +44,8 @@ class CompanyDocument < ApplicationRecord
     (LEGACY_DOCUMENT_TYPES + db_types).uniq
   end
 
-  # Document type abbreviations for display title generation
-  # These are expanded to human-readable names when showing documents
-  DOCUMENT_TYPE_ABBREVIATIONS = {
+  # Legacy abbreviations for fallback (when DB is unavailable)
+  LEGACY_ABBREVIATIONS = {
     'CTR' => 'Company Tax Return',
     'TTR' => 'Trust Tax Return',
     'BAS' => 'Business Activity Statement',
@@ -55,6 +54,32 @@ class CompanyDocument < ApplicationRecord
     'AA' => 'Accountant Advice',
     'LA' => 'Legal Advice'
   }.freeze
+
+  # Document type abbreviations for display title generation
+  # Reads from database with caching, falls back to legacy if DB unavailable
+  def self.document_type_abbreviations
+    @abbreviations_cache ||= begin
+      # Build hash from database: abbreviation => display_name (or name if no display_name)
+      db_abbrs = DocumentType.where.not(abbreviation: [nil, ''])
+                             .pluck(:abbreviation, :display_name, :name)
+                             .each_with_object({}) do |(abbr, display_name, name), hash|
+        # Use display_name if set, otherwise extract display name from name
+        # e.g., "CTR - Company Tax Return" -> "Company Tax Return"
+        display = display_name.presence || name.to_s.sub(/\A\w+\s*-\s*/, '')
+        hash[abbr] = display
+      end
+      # Merge with legacy fallback (DB takes precedence)
+      LEGACY_ABBREVIATIONS.merge(db_abbrs)
+    rescue => e
+      Rails.logger.warn "[CompanyDocument] Failed to load abbreviations from DB: #{e.message}"
+      LEGACY_ABBREVIATIONS
+    end
+  end
+
+  # Clear the abbreviations cache (called when DocumentType changes)
+  def self.clear_abbreviations_cache!
+    @abbreviations_cache = nil
+  end
 
   # Validations
   validates :title, presence: true
@@ -186,9 +211,9 @@ class CompanyDocument < ApplicationRecord
     display = display.gsub(/\bUS\s+TTR\b/i, 'Unsigned TTR')
     display = display.gsub(/\bS\s+TTR\b/i, 'Signed TTR')
 
-    # Expand document type abbreviations
-    DOCUMENT_TYPE_ABBREVIATIONS.each do |abbr, full|
-      display = display.gsub(/\b#{abbr}\b/, full)
+    # Expand document type abbreviations from database
+    self.class.document_type_abbreviations.each do |abbr, full|
+      display = display.gsub(/\b#{Regexp.escape(abbr)}\b/, full)
     end
 
     # Titleize DRAFT/AMENDED

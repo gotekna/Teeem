@@ -3,6 +3,10 @@ class DocumentType < ApplicationRecord
   has_many :company_documents, dependent: :nullify
   has_many :job_documents, dependent: :nullify
 
+  # Callbacks - clear CompanyDocument abbreviation cache when document types change
+  after_save :clear_abbreviation_cache
+  after_destroy :clear_abbreviation_cache
+
   # Validations
   validates :name, presence: true, uniqueness: true
   validates :category, inclusion: { in: %w[corporate tax compliance general financial company trust advice registry insurance asic ato bank assets dividends loans minutes], allow_blank: true }
@@ -228,5 +232,12 @@ class DocumentType < ApplicationRecord
     result += ".#{file_extension}" if file_extension.present?
 
     result
+  end
+
+  private
+
+  # Clear the CompanyDocument abbreviation cache when document types are updated
+  def clear_abbreviation_cache
+    CompanyDocument.clear_abbreviations_cache!
   end
 end
