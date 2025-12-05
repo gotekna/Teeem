@@ -47,6 +47,7 @@ function XeroConnection() {
     tenant_id?: string;
     expires_at?: string;
     needs_refresh?: boolean;
+    message?: string;
   } | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [connecting, setConnecting] = React.useState(false);
@@ -58,11 +59,21 @@ function XeroConnection() {
 
   const loadStatus = async () => {
     try {
-      const data = await api.get<typeof status>("/api/v1/xero/status");
-      setStatus(data);
+      const response = await api.get<{ success: boolean; data: {
+        connected: boolean;
+        tenant_name?: string;
+        tenant_id?: string;
+        expires_at?: string;
+        needs_refresh?: boolean;
+        message?: string;
+      } }>("/api/v1/xero/status");
+      setStatus(response.data || (response as unknown as typeof status));
     } catch (error) {
       console.error("Failed to load Xero status:", error);
-      setStatus({ connected: false });
+      setStatus({
+        connected: false,
+        message: "Unable to check Xero connection status"
+      });
     } finally {
       setLoading(false);
     }
@@ -188,17 +199,40 @@ function XeroConnection() {
             </>
           ) : (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Connect your Xero account to sync invoices, contacts, and payments.
-              </p>
-              <Button onClick={handleConnect} disabled={connecting}>
-                {connecting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Link2 className="h-4 w-4 mr-2" />
-                )}
-                Connect to Xero
-              </Button>
+              {status?.message === "Xero integration not configured" ? (
+                <>
+                  <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm">
+                      <p className="font-medium text-amber-900 dark:text-amber-100">
+                        Xero OAuth credentials not configured
+                      </p>
+                      <p className="text-amber-700 dark:text-amber-300 mt-1">
+                        Contact your system administrator to configure XERO_CLIENT_ID and XERO_CLIENT_SECRET
+                        environment variables in the backend.
+                      </p>
+                    </div>
+                  </div>
+                  <Button onClick={handleConnect} disabled={true} variant="secondary">
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Connect to Xero (Not Available)
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Connect your Xero account to sync invoices, contacts, and payments.
+                  </p>
+                  <Button onClick={handleConnect} disabled={connecting}>
+                    {connecting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Link2 className="h-4 w-4 mr-2" />
+                    )}
+                    Connect to Xero
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </CardContent>
@@ -229,10 +263,13 @@ function XeroFieldMapping() {
 
   const loadMappings = async () => {
     try {
-      const data = await api.get<typeof mappings>("/api/v1/xero/field_mappings");
-      setMappings(data);
+      // Note: This endpoint doesn't exist yet in the backend
+      // Using default field mappings until field mapping API is implemented
+      // const data = await api.get<typeof mappings>("/api/v1/xero/field_mappings");
+      // setMappings(data);
+      throw new Error("Endpoint not implemented");
     } catch (error) {
-      console.error("Failed to load mappings:", error);
+      // console.error("Failed to load mappings:", error);
       // Comprehensive field mappings from production system
       setMappings([
         // Contact Field Mappings (19 fields)
@@ -274,15 +311,24 @@ function XeroFieldMapping() {
     const mapping = mappings.find((m) => m.id === id);
     if (!mapping) return;
 
-    try {
-      await api.patch(`/api/v1/xero/field_mappings/${id}`, {
-        field_mapping: { enabled: !mapping.enabled },
-      });
-      setMappings(mappings.map((m) => (m.id === id ? { ...m, enabled: !m.enabled } : m)));
-    } catch (error) {
-      console.error("Failed to update mapping:", error);
-      toast({ title: "Error", description: "Failed to update mapping", variant: "destructive" });
-    }
+    // Note: Field mapping updates are not yet implemented in the backend
+    // For now, just toggle in the UI
+    toast({
+      title: "Not Available",
+      description: "Field mapping configuration is not yet editable",
+      variant: "default"
+    });
+
+    // Uncomment when backend endpoint is implemented:
+    // try {
+    //   await api.patch(`/api/v1/xero/field_mappings/${id}`, {
+    //     field_mapping: { enabled: !mapping.enabled },
+    //   });
+    //   setMappings(mappings.map((m) => (m.id === id ? { ...m, enabled: !m.enabled } : m)));
+    // } catch (error) {
+    //   console.error("Failed to update mapping:", error);
+    //   toast({ title: "Error", description: "Failed to update mapping", variant: "destructive" });
+    // }
   };
 
   if (loading) {
@@ -376,9 +422,9 @@ function XeroFieldMapping() {
 
       <div className="bg-muted/50 rounded-lg p-4">
         <p className="text-xs text-muted-foreground">
-          <strong>Note:</strong> Field mappings are currently configured in code. Enabled fields sync automatically
-          when contacts are synced. Bank account details, purchase accounts, and payment terms sync from Xero to TEEEM.
-          GST codes are managed through the Tax Rates sync.
+          <strong>Note:</strong> Field mappings are currently configured in code and cannot be modified through this UI yet.
+          Enabled fields sync automatically when contacts are synced. Bank account details, purchase accounts,
+          and payment terms sync from Xero to TEEEM. GST codes are managed through the Tax Rates sync.
         </p>
       </div>
     </div>
@@ -405,17 +451,21 @@ function XeroContactSync() {
 
   const loadConfig = async () => {
     try {
-      const data = await api.get<typeof config>("/api/v1/xero/sync_config");
-      setConfig(data);
-    } catch (error) {
-      console.error("Failed to load config:", error);
-      // Mock data
+      // Note: This endpoint doesn't exist yet in the backend
+      // Using default configuration until sync config API is implemented
       setConfig({
         sync_enabled: true,
         sync_direction: "bidirectional",
         auto_sync: false,
         sync_interval_minutes: 60,
-        last_sync_at: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Failed to load config:", error);
+      setConfig({
+        sync_enabled: true,
+        sync_direction: "bidirectional",
+        auto_sync: false,
+        sync_interval_minutes: 60,
       });
     } finally {
       setLoading(false);
@@ -426,8 +476,13 @@ function XeroContactSync() {
     if (!config) return;
     setSaving(true);
     try {
-      await api.put("/api/v1/xero/sync_config", { sync_config: config });
-      toast({ title: "Success", description: "Sync configuration saved" });
+      // Note: This endpoint doesn't exist yet in the backend
+      // await api.put("/api/v1/xero/sync_config", { sync_config: config });
+      toast({
+        title: "Not Available",
+        description: "Sync configuration saving is not yet implemented",
+        variant: "default"
+      });
     } catch (error) {
       console.error("Failed to save config:", error);
       toast({ title: "Error", description: "Failed to save configuration", variant: "destructive" });
