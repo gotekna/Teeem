@@ -140,10 +140,6 @@ export default function JobsPage() {
 
   // Define columns for the jobs table
   const tableColumns: TableColumn[] = useMemo(() => {
-    console.log('[Jobs] tableColumns useMemo - columns from API:', columns.length, 'jobStatuses:', jobStatuses.length, 'jobTypes:', jobTypes.length);
-    console.log('[Jobs] jobStatuses:', jobStatuses.map(s => s.name));
-    console.log('[Jobs] jobTypes:', jobTypes.map(t => t.name));
-
     // If columns came from API, use those but enrich with choices data
     if (columns.length > 0) {
       const enrichedColumns = columns.map(col => {
