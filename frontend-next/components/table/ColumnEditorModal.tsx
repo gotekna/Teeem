@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -124,7 +124,7 @@ export function ColumnEditorModal({
   const [newColumnType, setNewColumnType] = useState("");
   const [availableTables, setAvailableTables] = useState<Array<{ id: number; name: string }>>([]);
   const [loadingTables, setLoadingTables] = useState(false);
-  const [targetTableColumns, setTargetTableColumns] = useState<Array<{ column_name: string; name: string }>>([]);
+  const [targetTableColumns, _setTargetTableColumns] = useState<Array<{ column_name: string; name: string }>>([]);
   const [loadingTargetColumns, setLoadingTargetColumns] = useState(false);
   const [targetTableRecords, setTargetTableRecords] = useState<Array<{ id: number; display: string }>>([]);
 
@@ -176,14 +176,14 @@ export function ColumnEditorModal({
         // Check if the table ID is still the same (avoid race condition)
         if (response?.foundation?.columns) {
           console.log('[ColumnEditorModal] Setting columns for table', tableIdToLoad, ':', response.foundation.columns);
-          setTargetTableColumns(response.foundation.columns);
+          _setTargetTableColumns(response.foundation.columns);
         } else {
           console.warn('[ColumnEditorModal] No columns in response for table', tableIdToLoad);
-          setTargetTableColumns([]);
+          _setTargetTableColumns([]);
         }
       } catch (error) {
         console.error("Failed to load target table columns:", error);
-        setTargetTableColumns([]);
+        _setTargetTableColumns([]);
       } finally {
         setLoadingTargetColumns(false);
       }

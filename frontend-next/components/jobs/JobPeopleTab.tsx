@@ -13,6 +13,7 @@ import {
   X,
   Search,
   Users,
+  User,
   Building2,
   Wrench,
   Calculator,

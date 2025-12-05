@@ -35,7 +35,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
         // Use saved state for this route, or default to false (collapsed)
         setIsExpandedState(states[baseRoute] ?? false);
       }
-    } catch (e) {
+    } catch (_e) {
       // Ignore localStorage errors
     }
   }, [pathname]);
@@ -49,7 +49,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
       const states: Record<string, boolean> = saved ? JSON.parse(saved) : {};
       states[baseRoute] = expanded;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(states));
-    } catch (e) {
+    } catch (_e) {
       // Ignore localStorage errors
     }
   };

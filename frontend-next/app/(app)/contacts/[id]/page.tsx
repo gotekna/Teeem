@@ -335,6 +335,7 @@ export default function ContactDetailPage() {
   const [loadingMemberships, setLoadingMemberships] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
 
+
   // SSoT: Dedicated state for rich data tabs
   const [directorships, setDirectorships] = useState<Directorship[]>([]);
   const [loadingDirectorships, setLoadingDirectorships] = useState(false);
