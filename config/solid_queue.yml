@@ -26,7 +26,15 @@ production:
           schedule: every hour at minute 12
 
         # ============================================
-        # EMAIL SYNC (every 10 minutes)
+        # TOKEN REFRESH (every 30 minutes)
+        # ============================================
+        refresh_integration_tokens:
+          class: RefreshIntegrationTokensJob
+          queue: default
+          schedule: every 30 minutes
+
+        # ============================================
+        # EMAIL SYNC (every 10-15 minutes)
         # ============================================
         email_warehouse_sync:
           class: EmailWarehouseSyncAllJob
@@ -37,6 +45,12 @@ production:
           class: ProcessNewJobEmailsJob
           queue: default
           schedule: every 10 minutes
+
+        # Organization-wide Microsoft email sync
+        org_email_sync:
+          class: OrgEmailSyncJob
+          queue: low
+          schedule: every 15 minutes
 
         # ============================================
         # XERO INTEGRATION
