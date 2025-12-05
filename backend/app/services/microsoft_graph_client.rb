@@ -396,6 +396,63 @@ class MicrosoftGraphClient
     raise
   end
 
+  # Validate the root folder exists and check if it was renamed
+  # Returns a hash with validation status and folder info
+  def validate_root_folder
+    unless @credential.root_folder_id.present?
+      return {
+        valid: false,
+        error: 'No root folder configured',
+        error_type: 'not_configured'
+      }
+    end
+
+    begin
+      folder = get("#{drive_path}/items/#{@credential.root_folder_id}")
+
+      # Build the current path from parentReference
+      parent_path = folder.dig('parentReference', 'path') || ''
+      if parent_path.include?(':')
+        path_after_root = parent_path.split(':').last.to_s
+        path_parts = path_after_root.split('/').reject(&:blank?)
+        current_path = (path_parts + [folder['name']]).join('/')
+      else
+        current_path = folder['name']
+      end
+
+      stored_name = @credential.metadata&.dig('root_folder_name')
+      stored_path = @credential.root_folder_path
+
+      {
+        valid: true,
+        folder_id: folder['id'],
+        name: folder['name'],
+        web_url: folder['webUrl'],
+        current_path: current_path,
+        stored_path: stored_path,
+        stored_name: stored_name,
+        name_changed: stored_name.present? && folder['name'] != stored_name,
+        path_changed: stored_path.present? && current_path != stored_path
+      }
+    rescue APIError => e
+      if e.message.include?('itemNotFound')
+        {
+          valid: false,
+          error: 'Folder not found - it may have been deleted or moved to a different drive',
+          error_type: 'not_found',
+          stored_path: @credential.root_folder_path,
+          stored_name: @credential.metadata&.dig('root_folder_name')
+        }
+      else
+        {
+          valid: false,
+          error: e.message,
+          error_type: 'api_error'
+        }
+      end
+    end
+  end
+
   # Search for job folder by construction
   # Supports both exact match and fuzzy matching for legacy folder naming schemes
   def find_job_folder(construction)

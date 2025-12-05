@@ -1215,14 +1215,14 @@ export function CaseProposalApprovalDialog({
             </Button>
           </div>
         </div>
-        <div className="flex-1 p-4 overflow-auto">
+        <div className="flex-1 p-4 overflow-auto min-h-0">
           <SharePointFolderBrowser
             onSelect={(folder, path) => {
               if (path && !sourceFolders.includes(path)) {
                 setSourceFolders(prev => [...prev, path]);
               }
             }}
-            className="h-full"
+            className="h-full min-h-[400px]"
           />
         </div>
         {sourceFolders.length > 0 && (
@@ -1276,14 +1276,14 @@ export function CaseProposalApprovalDialog({
             </Button>
           </div>
         </div>
-        <div className="flex-1 p-4 overflow-auto">
+        <div className="flex-1 p-4 overflow-auto min-h-0">
           <SharePointFolderBrowser
             onSelect={(folder, path) => {
               if (path && !filingFolders.includes(path)) {
                 setFilingFolders(prev => [...prev, path]);
               }
             }}
-            className="h-full"
+            className="h-full min-h-[400px]"
           />
         </div>
         {filingFolders.length > 0 && (
