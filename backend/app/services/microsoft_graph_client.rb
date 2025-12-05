@@ -647,6 +647,142 @@ class MicrosoftGraphClient
   # Alias for delete_item (for consistency with file operations)
   alias_method :delete_file, :delete_item
 
+  # ============================================
+  # FILE COPY/MOVE OPERATIONS (for SSoT document management)
+  # ============================================
+
+  # Copy a file to a destination folder
+  # Returns the copy operation location header for tracking
+  def copy_file(item_id, destination_folder_id, new_name: nil)
+    body = {
+      parentReference: {
+        id: destination_folder_id
+      }
+    }
+    body[:name] = new_name if new_name.present?
+
+    # Copy returns 202 Accepted with a Location header for monitoring
+    response = HTTParty.post(
+      "#{GRAPH_API_BASE}#{drive_path}/items/#{item_id}/copy",
+      body: body.to_json,
+      headers: auth_headers.merge({ 'Content-Type' => 'application/json' }),
+      timeout: 30
+    )
+
+    case response.code
+    when 202
+      # Async operation started
+      { status: 'in_progress', monitor_url: response.headers['Location'] }
+    when 200, 201
+      response.parsed_response
+    else
+      handle_response(response)
+    end
+  end
+
+  # Move a file to a destination folder
+  def move_file(item_id, destination_folder_id, new_name: nil)
+    body = {
+      parentReference: {
+        id: destination_folder_id
+      }
+    }
+    body[:name] = new_name if new_name.present?
+
+    patch("#{drive_path}/items/#{item_id}", body)
+  end
+
+  # List all files in a folder with full metadata
+  def list_folder_contents(folder_id, include_children: false)
+    path = "#{drive_path}/items/#{folder_id}/children"
+
+    # Get files with extra metadata
+    response = get(path)
+    items = response['value'] || []
+
+    # Process items
+    items.map do |item|
+      {
+        id: item['id'],
+        name: item['name'],
+        size: item['size'],
+        is_folder: item['folder'].present?,
+        child_count: item.dig('folder', 'childCount') || 0,
+        created_at: item['createdDateTime'],
+        modified_at: item['lastModifiedDateTime'],
+        web_url: item['webUrl'],
+        download_url: item['@microsoft.graph.downloadUrl'],
+        mime_type: item.dig('file', 'mimeType'),
+        parent_id: item.dig('parentReference', 'id'),
+        parent_path: item.dig('parentReference', 'path')
+      }
+    end
+  end
+
+  # List files recursively in a folder (for scanning source folders)
+  def list_folder_recursive(folder_id, max_depth: 10, current_depth: 0)
+    return [] if current_depth >= max_depth
+
+    items = list_folder_contents(folder_id)
+    all_items = []
+
+    items.each do |item|
+      all_items << item
+
+      if item[:is_folder] && item[:child_count] > 0
+        # Recursively get children
+        children = list_folder_recursive(item[:id], max_depth: max_depth, current_depth: current_depth + 1)
+        all_items.concat(children)
+      end
+    end
+
+    all_items
+  end
+
+  # Get or create a subfolder by name
+  def get_or_create_subfolder(parent_folder_id, folder_name)
+    # First try to find existing folder
+    items = list_folder_contents(parent_folder_id)
+    existing = items.find { |item| item[:is_folder] && item[:name] == folder_name }
+    return existing if existing
+
+    # Create if doesn't exist
+    result = create_folder(folder_name, parent_id: parent_folder_id)
+    {
+      id: result['id'],
+      name: result['name'],
+      is_folder: true,
+      web_url: result['webUrl']
+    }
+  end
+
+  # Download file content and calculate SHA256 hash
+  def get_file_hash(item_id)
+    content = download_file(item_id)
+    Digest::SHA256.hexdigest(content)
+  end
+
+  # Check if OneDrive provides a hash (quickXorHash is native to OneDrive)
+  def get_file_metadata_with_hash(item_id)
+    item = get_file(item_id)
+
+    # OneDrive uses quickXorHash for files
+    quick_xor_hash = item.dig('file', 'hashes', 'quickXorHash')
+    sha256_hash = item.dig('file', 'hashes', 'sha256Hash')
+
+    {
+      id: item['id'],
+      name: item['name'],
+      size: item['size'],
+      mime_type: item.dig('file', 'mimeType'),
+      quick_xor_hash: quick_xor_hash,
+      sha256_hash: sha256_hash,
+      created_at: item['createdDateTime'],
+      modified_at: item['lastModifiedDateTime'],
+      web_url: item['webUrl']
+    }
+  end
+
   # Search for files
   def search(query, folder_id = nil)
     path = if folder_id

@@ -39,6 +39,10 @@ import {
   Cloud,
   FolderOpen,
   Search,
+  AlertTriangle,
+  AlertCircle,
+  RefreshCw,
+  CheckCircle2,
 } from "lucide-react";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -75,6 +79,22 @@ interface SharePointConfig {
   authenticated_as?: string;
   auth_type?: "organization" | "personal";
   drive_id?: string;
+}
+
+interface FolderValidation {
+  valid: boolean;
+  error?: string;
+  error_type?: "not_configured" | "not_found" | "api_error";
+  folder_id?: string;
+  name?: string;
+  web_url?: string;
+  current_path?: string;
+  stored_path?: string;
+  stored_name?: string;
+  name_changed?: boolean;
+  path_changed?: boolean;
+  auto_updated?: boolean;
+  message?: string;
 }
 
 function buildTree(items: FolderTemplateItem[]): FolderTemplateItem[] {
@@ -491,6 +511,10 @@ export function FoldersTab() {
   } | null>(null);
   const [folderSelectionMode, setFolderSelectionMode] = React.useState<"browse" | "type">("browse");
 
+  // Folder validation state
+  const [folderValidation, setFolderValidation] = React.useState<FolderValidation | null>(null);
+  const [validatingFolder, setValidatingFolder] = React.useState(false);
+
   React.useEffect(() => {
     loadTemplates();
     loadSharePointConfig();
@@ -510,6 +534,40 @@ export function FoldersTab() {
       setSharePointConfig({ connected: false });
     }
   };
+
+  // Validate the root folder in SharePoint
+  const validateFolder = async () => {
+    setValidatingFolder(true);
+    try {
+      const result = await api.get<FolderValidation>("/api/v1/organization_onedrive/validate_folder");
+      setFolderValidation(result);
+
+      // If auto-updated, show a toast and reload config
+      if (result.auto_updated) {
+        toast({
+          title: "Folder Location Updated",
+          description: result.message || "The folder path was updated to match the current SharePoint location.",
+        });
+        await loadSharePointConfig();
+      }
+    } catch (error) {
+      console.error("Failed to validate folder:", error);
+      setFolderValidation({
+        valid: false,
+        error: error instanceof Error ? error.message : "Failed to validate folder",
+        error_type: "api_error"
+      });
+    } finally {
+      setValidatingFolder(false);
+    }
+  };
+
+  // Validate folder when SharePoint config is loaded and connected
+  React.useEffect(() => {
+    if (sharePointConfig?.connected && sharePointConfig?.root_folder) {
+      validateFolder();
+    }
+  }, [sharePointConfig?.connected, sharePointConfig?.root_folder]);
 
   const handleChangeFolderPath = async () => {
     // Check if we have a valid selection based on mode
@@ -728,6 +786,75 @@ export function FoldersTab() {
                     <p className="text-xs text-muted-foreground">
                       Example: <code className="bg-muted px-1 rounded">047 - Malbon Street/02 PreCon/Estimation/</code>
                     </p>
+
+                    {/* Folder Validation Status */}
+                    {validatingFolder ? (
+                      <div className="flex items-center gap-2 mt-3 p-2 bg-muted/50 rounded-md text-xs">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        <span className="text-muted-foreground">Validating folder location...</span>
+                      </div>
+                    ) : folderValidation && !folderValidation.valid ? (
+                      <div className={cn(
+                        "flex items-start gap-2 mt-3 p-3 rounded-md text-xs",
+                        folderValidation.error_type === "not_found"
+                          ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800"
+                          : "bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800"
+                      )}>
+                        {folderValidation.error_type === "not_found" ? (
+                          <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                        )}
+                        <div className="flex-1">
+                          <p className={folderValidation.error_type === "not_found" ? "text-red-700 dark:text-red-300 font-medium" : "text-amber-700 dark:text-amber-300 font-medium"}>
+                            {folderValidation.error_type === "not_found"
+                              ? "Folder Not Found"
+                              : folderValidation.error_type === "not_configured"
+                              ? "Folder Not Configured"
+                              : "Validation Error"}
+                          </p>
+                          <p className={folderValidation.error_type === "not_found" ? "text-red-600 dark:text-red-400 mt-1" : "text-amber-600 dark:text-amber-400 mt-1"}>
+                            {folderValidation.error}
+                          </p>
+                          {folderValidation.stored_path && (
+                            <p className="text-muted-foreground mt-1">
+                              Expected: <code className="bg-muted px-1 rounded">{folderValidation.stored_path}</code>
+                            </p>
+                          )}
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7"
+                              onClick={() => {
+                                setNewFolderPath(sharePointConfig?.root_folder || "");
+                                setFolderDialogOpen(true);
+                              }}
+                            >
+                              <FolderOpen className="h-3 w-3 mr-1" />
+                              Select New Folder
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7"
+                              onClick={validateFolder}
+                            >
+                              <RefreshCw className="h-3 w-3 mr-1" />
+                              Retry
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : folderValidation?.valid ? (
+                      <div className="flex items-center gap-2 mt-3 p-2 bg-green-50 dark:bg-green-950/30 rounded-md text-xs border border-green-200 dark:border-green-800">
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <span className="text-green-700 dark:text-green-300">Folder verified in SharePoint</span>
+                        {folderValidation.auto_updated && (
+                          <Badge variant="outline" className="ml-auto text-xs">Updated</Badge>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 mt-2 text-amber-600 dark:text-amber-400">

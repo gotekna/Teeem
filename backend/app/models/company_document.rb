@@ -14,6 +14,14 @@ class CompanyDocument < ApplicationRecord
   # Activity log for tracking changes
   has_many :document_activities, dependent: :destroy
 
+  # Case links
+  has_many :case_documents, dependent: :destroy
+  has_many :cases, through: :case_documents, source: :case_record
+
+  # Duplicate tracking
+  has_many :duplicate_reviews_as_existing, class_name: 'DocumentDuplicateReview', foreign_key: :existing_document_id, dependent: :destroy
+  has_many :duplicate_reviews_as_new, class_name: 'DocumentDuplicateReview', foreign_key: :new_document_id, dependent: :nullify
+
   # Active Storage for file upload
   has_one_attached :file
 
@@ -81,6 +89,7 @@ class CompanyDocument < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
   # Filter by financial year using PostgreSQL array contains
   scope :by_financial_year, ->(year) { where("financial_years @> ARRAY[?]::integer[]", year.to_i) }
+  scope :by_content_hash, ->(hash) { where(content_hash: hash) if hash.present? }
 
   # Callbacks
   after_create :create_activity
@@ -99,6 +108,28 @@ class CompanyDocument < ApplicationRecord
 
   def display_name
     title
+  end
+
+  # Find an existing document by content hash
+  def self.find_by_content_hash(hash)
+    return nil if hash.blank?
+    by_content_hash(hash).first
+  end
+
+  # Check if a duplicate exists anywhere in the system
+  def self.duplicate_exists?(hash)
+    return false if hash.blank?
+    by_content_hash(hash).exists?
+  end
+
+  # Find all documents with matching content (duplicates)
+  def find_duplicates
+    return CompanyDocument.none if content_hash.blank?
+    CompanyDocument.by_content_hash(content_hash).where.not(id: id)
+  end
+
+  def has_duplicates?
+    find_duplicates.exists?
   end
 
   private
