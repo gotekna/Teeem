@@ -241,95 +241,160 @@ function XeroConnection() {
   );
 }
 
-// Field Mapping Component
+// Field Mapping Types
+interface FieldMapping {
+  id: string;
+  xero_field: string;
+  teeem_field: string;
+  section: string;
+  sync_direction: "both" | "xero-to-teeem" | "teeem-to-xero";
+  enabled: boolean;
+  read_only?: boolean;
+  description?: string;
+}
+
+interface XeroTenant {
+  tenant_id: string;
+  tenant_name: string;
+}
+
+// Comprehensive field mappings organized by section
+const DEFAULT_FIELD_MAPPINGS: FieldMapping[] = [
+  // BASIC INFORMATION
+  { id: "name", xero_field: "Name", teeem_field: "full_name", section: "basic", sync_direction: "both", enabled: true },
+  { id: "first_name", xero_field: "FirstName", teeem_field: "first_name", section: "basic", sync_direction: "both", enabled: true },
+  { id: "last_name", xero_field: "LastName", teeem_field: "last_name", section: "basic", sync_direction: "both", enabled: true },
+  { id: "email", xero_field: "EmailAddress", teeem_field: "email", section: "basic", sync_direction: "both", enabled: true },
+  { id: "is_supplier_customer", xero_field: "IsSupplier/IsCustomer", teeem_field: "contact_types", section: "basic", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "contact_id", xero_field: "ContactID", teeem_field: "xero_id", section: "basic", sync_direction: "xero-to-teeem", enabled: true, read_only: true },
+
+  // CONTACT DETAILS
+  { id: "mobile", xero_field: "PhoneNumber (Mobile)", teeem_field: "mobile_phone", section: "contact_details", sync_direction: "both", enabled: true },
+  { id: "office", xero_field: "PhoneNumber (Office)", teeem_field: "office_phone", section: "contact_details", sync_direction: "both", enabled: true },
+  { id: "fax", xero_field: "PhoneNumber (Fax)", teeem_field: "fax_phone", section: "contact_details", sync_direction: "both", enabled: true },
+  { id: "website", xero_field: "Website", teeem_field: "website", section: "contact_details", sync_direction: "both", enabled: true },
+
+  // ADDRESSES
+  { id: "address_street", xero_field: "Address (STREET)", teeem_field: "address_street", section: "addresses", sync_direction: "both", enabled: true },
+  { id: "address_pobox", xero_field: "Address (POBOX)", teeem_field: "address_pobox", section: "addresses", sync_direction: "both", enabled: true },
+  { id: "address_delivery", xero_field: "Address (DELIVERY)", teeem_field: "address_delivery", section: "addresses", sync_direction: "both", enabled: true },
+
+  // TAX & REGISTRATION
+  { id: "tax_number", xero_field: "TaxNumber", teeem_field: "tax_number", section: "tax", sync_direction: "both", enabled: true, description: "Synced from Xero - Edit in Xero to update" },
+  { id: "account_number", xero_field: "AccountNumber", teeem_field: "xero_account_number", section: "tax", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "contact_number", xero_field: "ContactNumber", teeem_field: "xero_contact_number", section: "tax", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "contact_status", xero_field: "ContactStatus", teeem_field: "xero_contact_status", section: "tax", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "company_number", xero_field: "CompanyNumber", teeem_field: "company_number", section: "tax", sync_direction: "xero-to-teeem", enabled: true },
+
+  // PURCHASE (ACCOUNTS PAYABLE)
+  { id: "purchase_account", xero_field: "DefaultPurchaseAccount", teeem_field: "default_purchase_account", section: "purchase", sync_direction: "xero-to-teeem", enabled: true, description: "Synced from Xero - Edit in Xero to update" },
+  { id: "bill_due_day", xero_field: "PurchaseTerms (Days)", teeem_field: "bill_due_day", section: "purchase", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "bill_due_type", xero_field: "PurchaseTerms (Type)", teeem_field: "bill_due_type", section: "purchase", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "ap_outstanding", xero_field: "AccountsPayable Outstanding", teeem_field: "accounts_payable_outstanding", section: "purchase", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "ap_overdue", xero_field: "AccountsPayable Overdue", teeem_field: "accounts_payable_overdue", section: "purchase", sync_direction: "xero-to-teeem", enabled: true },
+
+  // SALES (ACCOUNTS RECEIVABLE)
+  { id: "sales_account", xero_field: "DefaultSalesAccount", teeem_field: "default_sales_account", section: "sales", sync_direction: "xero-to-teeem", enabled: true, description: "Synced from Xero - Edit in Xero to update" },
+  { id: "default_discount", xero_field: "DefaultDiscount", teeem_field: "default_discount", section: "sales", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "sales_due_day", xero_field: "SalesTerms (Days)", teeem_field: "sales_due_day", section: "sales", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "sales_due_type", xero_field: "SalesTerms (Type)", teeem_field: "sales_due_type", section: "sales", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "ar_outstanding", xero_field: "AccountsReceivable Outstanding", teeem_field: "accounts_receivable_outstanding", section: "sales", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "ar_overdue", xero_field: "AccountsReceivable Overdue", teeem_field: "accounts_receivable_overdue", section: "sales", sync_direction: "xero-to-teeem", enabled: true },
+
+  // BANK DETAILS
+  { id: "bank_bsb", xero_field: "BankAccountBSB", teeem_field: "bank_bsb", section: "bank", sync_direction: "xero-to-teeem", enabled: true, description: "Synced from Xero - Edit in Xero to update" },
+  { id: "bank_account", xero_field: "BankAccountNumber", teeem_field: "bank_account_number", section: "bank", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "bank_name", xero_field: "BankAccountName", teeem_field: "bank_account_name", section: "bank", sync_direction: "xero-to-teeem", enabled: true },
+];
+
+const SECTION_LABELS: Record<string, { title: string; description: string }> = {
+  basic: { title: "BASIC INFORMATION", description: "" },
+  contact_details: { title: "CONTACT DETAILS", description: "" },
+  addresses: { title: "ADDRESSES", description: "" },
+  tax: { title: "TAX & REGISTRATION", description: "Synced from Xero - Edit in Xero to update" },
+  purchase: { title: "PURCHASE (ACCOUNTS PAYABLE)", description: "Synced from Xero - Edit in Xero to update" },
+  sales: { title: "SALES (ACCOUNTS RECEIVABLE)", description: "Synced from Xero - Edit in Xero to update" },
+  bank: { title: "BANK DETAILS", description: "Synced from Xero - Edit in Xero to update" },
+};
+
+// Field Mapping Component - Comprehensive version matching old UI
 function XeroFieldMapping() {
   const { toast } = useToast();
-  const [mappings, setMappings] = React.useState<
-    Array<{
-      id: number;
-      teeem_field: string;
-      xero_field: string;
-      entity_type: string;
-      sync_direction: string;
-      enabled: boolean;
-    }>
-  >([]);
+  const [mappings, setMappings] = React.useState<FieldMapping[]>(DEFAULT_FIELD_MAPPINGS);
+  const [tenants, setTenants] = React.useState<XeroTenant[]>([]);
+  const [selectedTenant, setSelectedTenant] = React.useState<string>("");
   const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
+  const [lastSyncAt, setLastSyncAt] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    loadMappings();
+    loadData();
   }, []);
 
-  const loadMappings = async () => {
+  const loadData = async () => {
+    setLoading(true);
     try {
-      // Note: This endpoint doesn't exist yet in the backend
-      // Using default field mappings until field mapping API is implemented
-      // const data = await api.get<typeof mappings>("/api/v1/xero/field_mappings");
-      // setMappings(data);
-      throw new Error("Endpoint not implemented");
-    } catch (error) {
-      // console.error("Failed to load mappings:", error);
-      // Comprehensive field mappings from production system
-      setMappings([
-        // Contact Field Mappings (19 fields)
-        { id: 1, teeem_field: "full_name", xero_field: "Name", entity_type: "contact", sync_direction: "two-way", enabled: true },
-        { id: 2, teeem_field: "email", xero_field: "EmailAddress", entity_type: "contact", sync_direction: "two-way", enabled: true },
-        { id: 3, teeem_field: "supplier_code", xero_field: "ContactNumber", entity_type: "contact", sync_direction: "two-way", enabled: false },
-        { id: 4, teeem_field: "first_name", xero_field: "FirstName", entity_type: "contact", sync_direction: "two-way", enabled: true },
-        { id: 5, teeem_field: "last_name", xero_field: "LastName", entity_type: "contact", sync_direction: "two-way", enabled: true },
-        { id: 6, teeem_field: "mobile_phone", xero_field: "Phones[DDI].PhoneNumber", entity_type: "contact", sync_direction: "two-way", enabled: true },
-        { id: 7, teeem_field: "office_phone", xero_field: "Phones[DEFAULT].PhoneNumber", entity_type: "contact", sync_direction: "two-way", enabled: true },
-        { id: 8, teeem_field: "address", xero_field: "Addresses[POBOX].AddressLine1", entity_type: "contact", sync_direction: "two-way", enabled: true },
-        { id: 9, teeem_field: "city", xero_field: "Addresses[POBOX].City", entity_type: "contact", sync_direction: "two-way", enabled: true },
-        { id: 10, teeem_field: "state", xero_field: "Addresses[POBOX].Region", entity_type: "contact", sync_direction: "two-way", enabled: true },
-        { id: 11, teeem_field: "postcode", xero_field: "Addresses[POBOX].PostalCode", entity_type: "contact", sync_direction: "two-way", enabled: true },
-        { id: 12, teeem_field: "tax_number (ABN/GST)", xero_field: "TaxNumber", entity_type: "contact", sync_direction: "two-way", enabled: true },
-        { id: 13, teeem_field: "xero_account_number", xero_field: "AccountNumber", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: false },
-        { id: 14, teeem_field: "bank_bsb", xero_field: "BankAccountDetails.BSB", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: true },
-        { id: 15, teeem_field: "bank_account_number", xero_field: "BankAccountDetails.AccountNumber", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: true },
-        { id: 16, teeem_field: "bank_account_name", xero_field: "BankAccountDetails.AccountName", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: true },
-        { id: 17, teeem_field: "website", xero_field: "Website", entity_type: "contact", sync_direction: "two-way", enabled: true },
-        { id: 18, teeem_field: "default_purchase_account", xero_field: "PurchaseDetails.AccountCode", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: true },
-        { id: 19, teeem_field: "bill_due_day", xero_field: "PaymentTerms.Bills.Day", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: true },
-        { id: 20, teeem_field: "bill_due_type", xero_field: "PaymentTerms.Bills.Type", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: true },
+      // Load tenants
+      const tenantsResponse = await api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants");
+      if (tenantsResponse.tenants && tenantsResponse.tenants.length > 0) {
+        setTenants(tenantsResponse.tenants);
+        setSelectedTenant(tenantsResponse.tenants[0].tenant_id);
+      }
 
-        // Price Book Item Field Mappings (6 fields)
-        { id: 21, teeem_field: "item_code", xero_field: "Item.Code", entity_type: "pricebook_item", sync_direction: "two-way", enabled: false },
-        { id: 22, teeem_field: "item_name", xero_field: "Item.Name", entity_type: "pricebook_item", sync_direction: "two-way", enabled: false },
-        { id: 23, teeem_field: "notes", xero_field: "Item.Description", entity_type: "pricebook_item", sync_direction: "two-way", enabled: false },
-        { id: 24, teeem_field: "current_price", xero_field: "Item.SalesDetails.UnitPrice", entity_type: "pricebook_item", sync_direction: "xero-to-teeem", enabled: false },
-        { id: 25, teeem_field: "gst_code", xero_field: "Item.SalesDetails.TaxType", entity_type: "pricebook_item", sync_direction: "xero-to-teeem", enabled: true },
-        { id: 26, teeem_field: "supplier_price", xero_field: "Item.PurchaseDetails.UnitPrice", entity_type: "pricebook_item", sync_direction: "xero-to-teeem", enabled: false },
-      ]);
+      // Load sync status for last sync time
+      const statusResponse = await api.get<{ success: boolean; data: { last_sync_at: string | null } }>("/api/v1/xero/sync_status");
+      setLastSyncAt(statusResponse.data?.last_sync_at || null);
+    } catch (error) {
+      console.error("Failed to load data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleMapping = async (id: number) => {
-    const mapping = mappings.find((m) => m.id === id);
-    if (!mapping) return;
-
-    // Note: Field mapping updates are not yet implemented in the backend
-    // For now, just toggle in the UI
+  const handleToggleEnabled = (id: string) => {
+    setMappings(mappings.map(m =>
+      m.id === id ? { ...m, enabled: !m.enabled } : m
+    ));
     toast({
-      title: "Not Available",
-      description: "Field mapping configuration is not yet editable",
-      variant: "default"
+      title: "Field Updated",
+      description: "Changes are saved locally. Full save functionality coming soon.",
     });
-
-    // Uncomment when backend endpoint is implemented:
-    // try {
-    //   await api.patch(`/api/v1/xero/field_mappings/${id}`, {
-    //     field_mapping: { enabled: !mapping.enabled },
-    //   });
-    //   setMappings(mappings.map((m) => (m.id === id ? { ...m, enabled: !m.enabled } : m)));
-    // } catch (error) {
-    //   console.error("Failed to update mapping:", error);
-    //   toast({ title: "Error", description: "Failed to update mapping", variant: "destructive" });
-    // }
   };
+
+  const handleSyncDirectionChange = (id: string, direction: "both" | "xero-to-teeem" | "teeem-to-xero") => {
+    const mapping = mappings.find(m => m.id === id);
+    if (mapping?.read_only) {
+      toast({
+        title: "Read Only",
+        description: "This field's sync direction cannot be changed.",
+        variant: "default"
+      });
+      return;
+    }
+    setMappings(mappings.map(m =>
+      m.id === id ? { ...m, sync_direction: direction } : m
+    ));
+  };
+
+  const getSyncDirectionLabel = (direction: string) => {
+    switch (direction) {
+      case "both": return "Both Ways";
+      case "xero-to-teeem": return "Xero → TEEEM";
+      case "teeem-to-xero": return "TEEEM → Xero";
+      default: return direction;
+    }
+  };
+
+  // Group mappings by section
+  const groupedMappings = React.useMemo(() => {
+    const groups: Record<string, FieldMapping[]> = {};
+    mappings.forEach(mapping => {
+      if (!groups[mapping.section]) {
+        groups[mapping.section] = [];
+      }
+      groups[mapping.section].push(mapping);
+    });
+    return groups;
+  }, [mappings]);
 
   if (loading) {
     return (
@@ -339,93 +404,179 @@ function XeroFieldMapping() {
     );
   }
 
-  const groupedMappings = mappings.reduce((acc, mapping) => {
-    if (!acc[mapping.entity_type]) {
-      acc[mapping.entity_type] = [];
-    }
-    acc[mapping.entity_type].push(mapping);
-    return acc;
-  }, {} as Record<string, typeof mappings>);
-
-  const getSyncDirectionDisplay = (direction: string) => {
-    if (direction === "two-way") {
-      return (
-        <div className="flex items-center justify-center gap-x-2">
-          <ArrowRightLeft className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-          <span className="text-xs text-gray-600 dark:text-gray-400">Two-way</span>
-        </div>
-      );
-    } else if (direction === "xero-to-teeem") {
-      return (
-        <div className="flex items-center justify-center gap-x-2">
-          <span className="text-xs text-gray-600 dark:text-gray-400">Xero → TEEEM</span>
-        </div>
-      );
-    } else if (direction === "teeem-to-xero") {
-      return (
-        <div className="flex items-center justify-center gap-x-2">
-          <span className="text-xs text-gray-600 dark:text-gray-400">TEEEM → Xero</span>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const getEntityTypeLabel = (entityType: string) => {
-    if (entityType === "contact") return "Contact Fields";
-    if (entityType === "pricebook_item") return "Price Book Item Fields";
-    return `${entityType.charAt(0).toUpperCase() + entityType.slice(1)} Fields`;
-  };
-
   return (
     <div className="space-y-6">
-      {Object.entries(groupedMappings).map(([entityType, entityMappings]) => (
-        <Card key={entityType}>
-          <CardHeader>
-            <CardTitle className="text-base">{getEntityTypeLabel(entityType)}</CardTitle>
-            <CardDescription>
-              {entityType === "contact" && "Configure which fields sync between Xero contacts and TEEEM contacts."}
-              {entityType === "pricebook_item" && "Potential field mappings if full item sync from Xero Items is implemented. Currently only tax rates are synced."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Xero Field</TableHead>
-                  <TableHead className="text-center">Sync Direction</TableHead>
-                  <TableHead>TEEEM Field</TableHead>
-                  <TableHead className="w-[100px] text-center">Enabled</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {entityMappings.map((mapping) => (
-                  <TableRow key={mapping.id} className={mapping.enabled ? "" : "opacity-50"}>
-                    <TableCell className="font-mono text-sm">{mapping.xero_field}</TableCell>
-                    <TableCell className="text-center">
-                      {getSyncDirectionDisplay(mapping.sync_direction)}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{mapping.teeem_field}</TableCell>
-                    <TableCell className="text-center">
-                      <Switch
-                        checked={mapping.enabled}
-                        onCheckedChange={() => toggleMapping(mapping.id)}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ))}
+      {/* Tenant Selector & Sync Direction Header */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Settings className="h-4 w-4" />
+            <span>Sync Direction</span>
+            {selectedTenant && tenants.length > 0 && (
+              <>
+                <span className="mx-2">•</span>
+                <Select value={selectedTenant} onValueChange={setSelectedTenant}>
+                  <SelectTrigger className="w-[200px] h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants.map(tenant => (
+                      <SelectItem key={tenant.tenant_id} value={tenant.tenant_id}>
+                        {tenant.tenant_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                XERO
+              </Badge>
+              <span className="font-medium">
+                {tenants.find(t => t.tenant_id === selectedTenant)?.tenant_name || "No Organization Selected"}
+              </span>
+            </div>
+            {lastSyncAt && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <RefreshCw className="h-4 w-4" />
+                <span>Last Sync: {new Date(lastSyncAt).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="bg-muted/50 rounded-lg p-4">
-        <p className="text-xs text-muted-foreground">
-          <strong>Note:</strong> Field mappings are currently configured in code and cannot be modified through this UI yet.
-          Enabled fields sync automatically when contacts are synced. Bank account details, purchase accounts,
-          and payment terms sync from Xero to TEEEM. GST codes are managed through the Tax Rates sync.
-        </p>
+      {/* Field Mappings Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Field Mappings</CardTitle>
+          <CardDescription>
+            Configure sync direction for each field. Read-only fields can only sync from Xero.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {/* Table Header */}
+          <div className="grid grid-cols-4 gap-4 px-6 py-3 bg-muted/50 border-b text-sm font-medium text-muted-foreground">
+            <div>XERO FIELD</div>
+            <div>TEEEM FIELD</div>
+            <div>STATUS</div>
+            <div>SYNC</div>
+          </div>
+
+          {/* Sections */}
+          {Object.entries(SECTION_LABELS).map(([sectionKey, sectionInfo]) => {
+            const sectionMappings = groupedMappings[sectionKey] || [];
+            if (sectionMappings.length === 0) return null;
+
+            return (
+              <div key={sectionKey}>
+                {/* Section Header */}
+                <div className="px-6 py-2 bg-muted/30 border-b">
+                  <span className="text-xs font-semibold text-muted-foreground tracking-wide">
+                    {sectionInfo.title}
+                  </span>
+                  {sectionInfo.description && (
+                    <span className="text-xs text-muted-foreground ml-2">
+                      ({sectionInfo.description})
+                    </span>
+                  )}
+                </div>
+
+                {/* Section Rows */}
+                {sectionMappings.map((mapping) => (
+                  <div
+                    key={mapping.id}
+                    className={cn(
+                      "grid grid-cols-4 gap-4 px-6 py-3 border-b items-center hover:bg-muted/20 transition-colors",
+                      !mapping.enabled && "opacity-50"
+                    )}
+                  >
+                    {/* Xero Field */}
+                    <div className="text-sm">{mapping.xero_field}</div>
+
+                    {/* TEEEM Field */}
+                    <div className="text-sm font-mono text-muted-foreground">
+                      {mapping.teeem_field}
+                    </div>
+
+                    {/* Status */}
+                    <div className="flex items-center gap-2">
+                      {mapping.enabled ? (
+                        <Badge variant="secondary" className="gap-1 bg-green-100 text-green-700 hover:bg-green-100">
+                          <Check className="h-3 w-3" />
+                          Enabled
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="gap-1 text-muted-foreground">
+                          <X className="h-3 w-3" />
+                          Disabled
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Sync Direction */}
+                    <div>
+                      {mapping.read_only ? (
+                        <span className="text-sm text-muted-foreground">
+                          {getSyncDirectionLabel(mapping.sync_direction)}
+                        </span>
+                      ) : (
+                        <Select
+                          value={mapping.sync_direction}
+                          onValueChange={(value) => handleSyncDirectionChange(mapping.id, value as "both" | "xero-to-teeem" | "teeem-to-xero")}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="both">
+                              <div className="flex items-center gap-2">
+                                <ArrowRightLeft className="h-3 w-3" />
+                                Both Ways
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="xero-to-teeem">
+                              <div className="flex items-center gap-2">
+                                Xero → TEEEM
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="teeem-to-xero">
+                              <div className="flex items-center gap-2">
+                                TEEEM → Xero
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {/* Footer Note */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1">
+            <Badge variant="secondary" className="h-4 text-[10px] bg-green-100 text-green-700">Enabled</Badge>
+            Field syncs during contact sync
+          </span>
+          <span className="flex items-center gap-1">
+            <Badge variant="outline" className="h-4 text-[10px]">Disabled</Badge>
+            Field is skipped during sync
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>Contacts: {mappings.filter(m => m.enabled).length} fields enabled</span>
+        </div>
       </div>
     </div>
   );
