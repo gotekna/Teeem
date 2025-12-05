@@ -53,6 +53,10 @@ import {
   FolderTree,
   ChevronRight,
   MessageSquare,
+  HelpCircle,
+  Star,
+  Copy,
+  Merge,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -80,6 +84,7 @@ const CASE_TABS = [
   { id: "actions", name: "Actions", icon: Play },
   { id: "documents", name: "Documents", icon: FileText },
   { id: "emails", name: "Emails", icon: Mail },
+  { id: "qa", name: "Q&A", icon: HelpCircle },
   { id: "timeline", name: "Timeline", icon: Clock },
   { id: "entities", name: "Entities", icon: Users },
   { id: "warehouse", name: "Warehouse", icon: BarChart3 },
@@ -274,6 +279,64 @@ interface WarehouseSummary {
   };
 }
 
+interface QAPair {
+  id: number;
+  question: string;
+  answer: string | null;
+  question_from: string | null;
+  answer_from: string | null;
+  question_date: string | null;
+  answer_date: string | null;
+  is_answered: boolean;
+  is_important: boolean;
+  category: string | null;
+  formatted_category: string | null;
+  case_email_id: number | null;
+  email_subject: string | null;
+  email_short_code: string | null;
+  created_at: string;
+}
+
+interface ProcessingStatus {
+  status: string;
+  documents_count: number;
+  emails_count: number;
+  unanswered_questions_count: number;
+  pending_duplicates_count: number;
+  source_folder_paths: string[];
+  filing_folder_paths: string[];
+  file_action: string;
+}
+
+interface DuplicateReview {
+  id: number;
+  status: string;
+  resolution: string | null;
+  existing_document_id: number;
+  existing_title: string | null;
+  existing_filename: string | null;
+  existing_onedrive_path: string | null;
+  existing_file_size: number | null;
+  existing_document_date: string | null;
+  new_file_path: string | null;
+  new_file_name: string | null;
+  new_file_hash: string | null;
+  new_file_size: number | null;
+  source_type: string | null;
+  new_document_id: number | null;
+  new_document_title: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB";
+}
+
 export default function CaseDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -306,6 +369,14 @@ export default function CaseDetailPage() {
 
   const [relationshipGraph, setRelationshipGraph] = React.useState<any>(null);
   const [loadingRelationships, setLoadingRelationships] = React.useState(false);
+
+  // Q&A and document processing
+  const [qaPairs, setQaPairs] = React.useState<QAPair[]>([]);
+  const [loadingQA, setLoadingQA] = React.useState(false);
+  const [processingStatus, setProcessingStatus] = React.useState<ProcessingStatus | null>(null);
+  const [duplicates, setDuplicates] = React.useState<DuplicateReview[]>([]);
+  const [loadingDuplicates, setLoadingDuplicates] = React.useState(false);
+  const [qaFilter, setQaFilter] = React.useState<"all" | "unanswered" | "important">("all");
 
   // Action types
   const [actionTypes, setActionTypes] = React.useState<Record<string, ActionType>>({});
@@ -367,6 +438,10 @@ export default function CaseDetailPage() {
         break;
       case "warehouse":
         if (!warehouseSummary) loadWarehouseSummary();
+        break;
+      case "qa":
+        if (qaPairs.length === 0) loadQAPairs();
+        if (!processingStatus) loadProcessingStatus();
         break;
     }
   }, [activeTab, caseData]);
@@ -470,6 +545,94 @@ export default function CaseDetailPage() {
       console.error("Failed to load relationship graph:", error);
     } finally {
       setLoadingRelationships(false);
+    }
+  };
+
+  const loadQAPairs = async () => {
+    try {
+      setLoadingQA(true);
+      const params = new URLSearchParams();
+      if (qaFilter === "unanswered") params.append("answered", "false");
+      if (qaFilter === "important") params.append("important", "true");
+
+      const response = await api.get<{ success: boolean; data: QAPair[] }>(
+        `/api/v1/cases/${caseId}/qa_pairs?${params.toString()}`
+      );
+      setQaPairs(response.data || []);
+    } catch (error) {
+      console.error("Failed to load Q&A pairs:", error);
+    } finally {
+      setLoadingQA(false);
+    }
+  };
+
+  const loadProcessingStatus = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: ProcessingStatus }>(
+        `/api/v1/cases/${caseId}/processing_status`
+      );
+      setProcessingStatus(response.data);
+    } catch (error) {
+      console.error("Failed to load processing status:", error);
+    }
+  };
+
+  const loadDuplicates = async () => {
+    try {
+      setLoadingDuplicates(true);
+      const response = await api.get<{ success: boolean; data: DuplicateReview[] }>(
+        `/api/v1/cases/${caseId}/duplicates?status=pending`
+      );
+      setDuplicates(response.data || []);
+    } catch (error) {
+      console.error("Failed to load duplicates:", error);
+    } finally {
+      setLoadingDuplicates(false);
+    }
+  };
+
+  const resolveDuplicate = async (reviewId: number, resolution: string) => {
+    try {
+      await api.post(`/api/v1/cases/${caseId}/resolve_duplicate`, {
+        review_id: reviewId,
+        resolution: resolution,
+      });
+      loadDuplicates();
+      loadProcessingStatus();
+    } catch (error) {
+      console.error("Failed to resolve duplicate:", error);
+    }
+  };
+
+  const reprocessDocuments = async () => {
+    try {
+      await api.post(`/api/v1/cases/${caseId}/reprocess_documents`);
+      loadProcessingStatus();
+    } catch (error) {
+      console.error("Failed to reprocess documents:", error);
+    }
+  };
+
+  const toggleQAImportant = async (qaId: number, isImportant: boolean) => {
+    try {
+      await api.patch(`/api/v1/cases/${caseId}/qa_pairs/${qaId}`, {
+        is_important: !isImportant,
+      });
+      loadQAPairs();
+    } catch (error) {
+      console.error("Failed to toggle importance:", error);
+    }
+  };
+
+  const markQAAnswered = async (qaId: number, answer: string) => {
+    try {
+      await api.patch(`/api/v1/cases/${caseId}/qa_pairs/${qaId}`, {
+        is_answered: true,
+        answer: answer,
+      });
+      loadQAPairs();
+    } catch (error) {
+      console.error("Failed to mark as answered:", error);
     }
   };
 
@@ -1472,6 +1635,196 @@ export default function CaseDetailPage() {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {activeTab === "qa" && (
+          <div className="space-y-6">
+            {processingStatus && (
+              <Card className={cn(
+                "border-l-4",
+                processingStatus.status === "completed" ? "border-l-green-500" :
+                processingStatus.status === "processing" ? "border-l-blue-500" :
+                processingStatus.status === "failed" ? "border-l-red-500" : "border-l-gray-300"
+              )}>
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Document Processing Status</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge className={cn(
+                          processingStatus.status === "completed" ? "bg-green-100 text-green-700" :
+                          processingStatus.status === "processing" ? "bg-blue-100 text-blue-700" :
+                          processingStatus.status === "failed" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"
+                        )}>
+                          {processingStatus.status === "processing" && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                          {processingStatus.status === "completed" && <CheckCircle className="h-3 w-3 mr-1" />}
+                          {processingStatus.status === "failed" && <XCircle className="h-3 w-3 mr-1" />}
+                          {processingStatus.status}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {processingStatus.documents_count} docs, {processingStatus.emails_count} emails
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {processingStatus.unanswered_questions_count > 0 && (
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-amber-600">{processingStatus.unanswered_questions_count}</p>
+                          <p className="text-xs text-muted-foreground">Unanswered</p>
+                        </div>
+                      )}
+                      {processingStatus.pending_duplicates_count > 0 && (
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-purple-600">{processingStatus.pending_duplicates_count}</p>
+                          <p className="text-xs text-muted-foreground">Duplicates</p>
+                        </div>
+                      )}
+                      <Button variant="outline" size="sm" onClick={() => reprocessDocuments()}>
+                        <RefreshCw className="h-4 w-4 mr-2" />Reprocess
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <HelpCircle className="h-5 w-5" />Questions & Answers ({qaPairs.length})
+                </CardTitle>
+                <div className="flex gap-2">
+                  <Select value={qaFilter} onValueChange={(v: "all" | "unanswered" | "important") => setQaFilter(v)}>
+                    <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Questions</SelectItem>
+                      <SelectItem value="unanswered">Unanswered</SelectItem>
+                      <SelectItem value="important">Important</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" onClick={() => loadQAPairs()}>
+                    <RefreshCw className="h-4 w-4 mr-2" />Refresh
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loadingQA ? (
+                  <div className="flex items-center justify-center h-32">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : qaPairs.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <HelpCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No Q&A pairs extracted yet</p>
+                    <p className="text-sm mt-1">Questions will be automatically extracted from case emails</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {qaPairs.map((qa) => (
+                      <div key={qa.id} className={cn(
+                        "p-4 rounded-lg border",
+                        !qa.is_answered && "border-amber-200 bg-amber-50 dark:bg-amber-950/20",
+                        qa.is_important && !qa.is_answered && "border-red-300 bg-red-50 dark:bg-red-950/20"
+                      )}>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              {qa.is_important && <Star className="h-4 w-4 text-amber-500 fill-amber-500" />}
+                              <Badge variant="outline" className="text-xs">{qa.formatted_category || "General"}</Badge>
+                              {qa.email_short_code && <span className="text-xs font-mono text-muted-foreground">{qa.email_short_code}</span>}
+                              {!qa.is_answered && <Badge className="bg-amber-100 text-amber-700">Unanswered</Badge>}
+                            </div>
+                            <p className="font-medium">{qa.question}</p>
+                            {qa.question_from && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Asked by: {qa.question_from}{qa.question_date && ` on ${format(new Date(qa.question_date), "d MMM yyyy")}`}
+                              </p>
+                            )}
+                            {qa.is_answered && qa.answer && (
+                              <div className="mt-3 p-3 bg-green-50 dark:bg-green-950/20 rounded border border-green-200">
+                                <p className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">Answer:</p>
+                                <p className="text-sm">{qa.answer}</p>
+                                {qa.answer_from && (
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    By: {qa.answer_from}{qa.answer_date && ` on ${format(new Date(qa.answer_date), "d MMM yyyy")}`}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => toggleQAImportant(qa.id, qa.is_important)} className={qa.is_important ? "text-amber-500" : ""}>
+                              <Star className={cn("h-4 w-4", qa.is_important && "fill-amber-500")} />
+                            </Button>
+                            {!qa.is_answered && (
+                              <Button variant="ghost" size="sm" onClick={() => markQAAnswered(qa.id, "Marked as answered")}>
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {processingStatus && processingStatus.pending_duplicates_count > 0 && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Copy className="h-5 w-5" />Duplicate Documents ({processingStatus.pending_duplicates_count} pending)
+                  </CardTitle>
+                  <Button variant="outline" size="sm" onClick={() => loadDuplicates()}>
+                    <RefreshCw className="h-4 w-4 mr-2" />Refresh
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {loadingDuplicates ? (
+                    <div className="flex items-center justify-center h-32">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : duplicates.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      <p>Click Refresh to load pending duplicates</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {duplicates.map((dup) => (
+                        <div key={dup.id} className="p-4 border rounded-lg bg-purple-50 dark:bg-purple-950/20">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 grid grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground mb-1">Existing Document</p>
+                                <p className="font-medium">{dup.existing_title || dup.existing_filename}</p>
+                                <p className="text-xs text-muted-foreground">{dup.existing_onedrive_path}</p>
+                                <p className="text-xs text-muted-foreground">Size: {dup.existing_file_size ? formatFileSize(dup.existing_file_size) : "-"}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground mb-1">New File</p>
+                                <p className="font-medium">{dup.new_file_name}</p>
+                                <p className="text-xs text-muted-foreground">{dup.new_file_path}</p>
+                                <p className="text-xs text-muted-foreground">Size: {dup.new_file_size ? formatFileSize(dup.new_file_size) : "-"}</p>
+                                <Badge variant="outline" className="mt-1">{dup.source_type}</Badge>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Button size="sm" variant="outline" onClick={() => resolveDuplicate(dup.id, "keep_existing")}>Keep Existing</Button>
+                              <Button size="sm" variant="outline" onClick={() => resolveDuplicate(dup.id, "replace")}>Replace</Button>
+                              <Button size="sm" variant="outline" onClick={() => resolveDuplicate(dup.id, "keep_both")}>
+                                <Merge className="h-4 w-4 mr-1" />Keep Both
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
 
         {activeTab === "timeline" && (

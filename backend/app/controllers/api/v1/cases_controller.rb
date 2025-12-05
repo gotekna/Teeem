@@ -398,6 +398,128 @@ module Api
       end
 
       # ============================================
+      # DOCUMENT MANAGEMENT ENDPOINTS
+      # ============================================
+
+      # GET /api/v1/cases/:id/qa_pairs
+      def qa_pairs
+        qa = @case.case_email_qas.includes(:case_email, :email_warehouse).order(created_at: :desc)
+
+        qa = qa.answered if params[:answered] == 'true'
+        qa = qa.unanswered if params[:answered] == 'false'
+        qa = qa.important if params[:important] == 'true'
+        qa = qa.by_category(params[:category]) if params[:category].present?
+
+        render json: {
+          success: true,
+          data: qa.map { |q| serialize_qa_pair(q) },
+          meta: {
+            total: qa.count,
+            unanswered: @case.case_email_qas.unanswered.count,
+            important_unanswered: @case.case_email_qas.unanswered.important.count
+          }
+        }
+      end
+
+      # GET /api/v1/cases/:id/duplicates
+      def duplicates
+        reviews = @case.document_duplicate_reviews.includes(:existing_document, :new_document, :resolved_by)
+
+        reviews = reviews.pending if params[:status] == 'pending'
+        reviews = reviews.resolved if params[:status] == 'resolved'
+
+        render json: {
+          success: true,
+          data: reviews.map { |r| serialize_duplicate_review(r) },
+          meta: {
+            total: reviews.count,
+            pending: @case.document_duplicate_reviews.pending.count,
+            resolved: @case.document_duplicate_reviews.resolved.count
+          }
+        }
+      end
+
+      # POST /api/v1/cases/:id/resolve_duplicate
+      def resolve_duplicate
+        review = @case.document_duplicate_reviews.find(params[:review_id])
+
+        case params[:resolution]
+        when 'keep_existing'
+          review.keep_existing!(current_user)
+        when 'replace'
+          review.replace!(current_user)
+        when 'keep_both'
+          new_doc = CompanyDocument.create!(
+            company_id: @case.company_id,
+            title: review.new_file_name,
+            filename: review.new_file_name,
+            onedrive_id: params[:new_onedrive_id],
+            onedrive_path: review.new_file_path,
+            content_hash: review.new_file_hash,
+            file_size: review.new_file_size
+          )
+          review.keep_both!(current_user, new_doc)
+        else
+          render json: { success: false, error: 'Invalid resolution' }, status: :unprocessable_entity
+          return
+        end
+
+        render json: { success: true, data: serialize_duplicate_review(review) }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Duplicate review not found' }, status: :not_found
+      end
+
+      # GET /api/v1/cases/:id/processing_status
+      def processing_status
+        render json: {
+          success: true,
+          data: {
+            status: @case.document_processing_status,
+            documents_count: @case.case_documents.count,
+            emails_count: @case.case_emails.count,
+            unanswered_questions_count: @case.unanswered_questions_count,
+            pending_duplicates_count: @case.document_duplicate_reviews.pending.count,
+            source_folder_paths: @case.source_folder_paths,
+            filing_folder_paths: @case.filing_folder_paths,
+            file_action: @case.file_action
+          }
+        }
+      end
+
+      # POST /api/v1/cases/:id/reprocess_documents
+      def reprocess_documents
+        @case.update!(document_processing_status: 'pending')
+        CaseDocumentProcessingJob.perform_later(@case.id)
+
+        render json: { success: true, message: 'Document processing job queued' }
+      end
+
+      # PATCH /api/v1/cases/:id/qa_pairs/:qa_id
+      def update_qa_pair
+        qa = @case.case_email_qas.find(params[:qa_id])
+
+        if params[:is_answered].present?
+          if ActiveModel::Type::Boolean.new.cast(params[:is_answered])
+            qa.mark_answered!(answer: params[:answer], answer_from: params[:answer_from])
+          else
+            qa.update!(is_answered: false, answer: nil, answer_from: nil, answer_date: nil)
+          end
+        end
+
+        if params[:is_important].present?
+          if ActiveModel::Type::Boolean.new.cast(params[:is_important])
+            qa.mark_important!
+          else
+            qa.update!(is_important: false)
+          end
+        end
+
+        render json: { success: true, data: serialize_qa_pair(qa) }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Q&A pair not found' }, status: :not_found
+      end
+
+      # ============================================
       # RUN ACTIONS
       # ============================================
 
@@ -780,6 +902,52 @@ module Api
           job_id: e.job_id,
           conversation_id: e.conversation_id,
           thread_count: e.thread_count
+        }
+      end
+
+      def serialize_qa_pair(qa)
+        {
+          id: qa.id,
+          question: qa.question,
+          answer: qa.answer,
+          question_from: qa.question_from,
+          answer_from: qa.answer_from,
+          question_date: qa.question_date,
+          answer_date: qa.answer_date,
+          is_answered: qa.is_answered,
+          is_important: qa.is_important,
+          category: qa.category,
+          formatted_category: qa.category&.titleize,
+          case_email_id: qa.case_email_id,
+          email_subject: qa.email_warehouse&.subject,
+          email_short_code: qa.case_email&.short_code,
+          created_at: qa.created_at
+        }
+      end
+
+      def serialize_duplicate_review(r)
+        existing = r.existing_document
+        new_doc = r.new_document
+        {
+          id: r.id,
+          status: r.status,
+          resolution: r.resolution,
+          existing_document_id: r.existing_document_id,
+          existing_title: existing&.title,
+          existing_filename: existing&.filename,
+          existing_onedrive_path: existing&.onedrive_path,
+          existing_file_size: existing&.file_size,
+          existing_document_date: existing&.document_date,
+          new_file_path: r.new_file_path,
+          new_file_name: r.new_file_name,
+          new_file_hash: r.new_file_hash,
+          new_file_size: r.new_file_size,
+          source_type: r.source_type,
+          new_document_id: r.new_document_id,
+          new_document_title: new_doc&.title,
+          resolved_by: r.resolved_by&.name,
+          resolved_at: r.resolved_at,
+          created_at: r.created_at
         }
       end
     end
