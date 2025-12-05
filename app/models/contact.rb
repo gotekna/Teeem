@@ -80,7 +80,7 @@ class Contact < ApplicationRecord
 
   # Constants
   CONTACT_TYPES = %w[customer supplier sales land_agent corporate default_supplier].freeze
-  ENTITY_TYPES = %w[person company trust].freeze
+  ENTITY_TYPES = %w[person company trust default_supplier].freeze
   EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
 
   # Xero-synced accounting fields - READ ONLY in TEEEM (synced from Xero)
@@ -111,6 +111,13 @@ class Contact < ApplicationRecord
   validate :contact_types_must_be_valid
   # Note: primary_contact_type column removed - use contact_types[0] instead
 
+  # Entity type validation
+  validates :entity_type, presence: { message: "must be selected" },
+                          inclusion: { in: ENTITY_TYPES, allow_nil: true }
+
+  # Entity-type specific name validations
+  validate :validate_name_fields_for_entity_type
+
   # Callbacks
   before_save :update_xero_synced_status
   before_save :generate_full_name
@@ -132,7 +139,27 @@ class Contact < ApplicationRecord
 
   # Instance methods
   def display_name
-    full_name.presence || "#{first_name} #{last_name}".strip.presence || email || "Contact ##{id}"
+    case entity_type
+    when 'person'
+      # Person: prefer first + last, fall back to full_name
+      "#{first_name} #{last_name}".strip.presence ||
+        full_name.presence ||
+        email ||
+        "Contact ##{id}"
+    when 'company', 'trust'
+      # Company/Trust: prefer company_name_or_trust, fall back to full_name
+      company_name_or_trust.presence ||
+        full_name.presence ||
+        "Contact ##{id}"
+    when 'default_supplier'
+      # Default Supplier: legacy type, uses full_name directly
+      full_name.presence ||
+        "Contact ##{id}"
+    else
+      # NULL or unknown entity_type: basic fallback
+      full_name.presence ||
+        "Contact ##{id}"
+    end
   end
 
   def primary_phone
@@ -457,6 +484,26 @@ class Contact < ApplicationRecord
     invalid_types = types - CONTACT_TYPES
     if invalid_types.any?
       errors.add(:contact_types, "contains invalid types: #{invalid_types.join(', ')}")
+    end
+  end
+
+  def validate_name_fields_for_entity_type
+    return if entity_type.blank? # Allow NULL for legacy data (will fix separately)
+
+    case entity_type
+    when 'person'
+      if first_name.blank?
+        errors.add(:first_name, "is required for person contacts")
+      end
+      # last_name is optional (only 30% have it currently)
+    when 'company', 'trust'
+      if company_name_or_trust.blank?
+        errors.add(:company_name_or_trust, "is required for #{entity_type} contacts")
+      end
+    when 'default_supplier'
+      if full_name.blank?
+        errors.add(:full_name, "is required for supplier contacts")
+      end
     end
   end
 

@@ -315,14 +315,8 @@ module Api
       def build_hierarchy_tree(company, company_group = nil)
         # Get shareholdings where this company is owned
         shareholders = company.company_shareholdings.includes(:shareholder).map do |sh|
-          # Handle polymorphic shareholder - Company has 'name', Contact has 'full_name'
-          shareholder_name = if sh.shareholder.respond_to?(:name)
-                               sh.shareholder&.name
-                             elsif sh.shareholder.respond_to?(:full_name)
-                               sh.shareholder&.full_name
-                             else
-                               "Unknown"
-                             end
+          # Use centralized DisplayValueResolver (SSoT for display values)
+          shareholder_name = DisplayValueResolver.resolve(sh.shareholder)
           {
             id: sh.id,
             shareholder_type: sh.shareholder_type,
