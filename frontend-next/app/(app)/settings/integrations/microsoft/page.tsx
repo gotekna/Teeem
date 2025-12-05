@@ -706,7 +706,9 @@ function OrgWideAccessSection() {
     setLoadingUsers(true);
     try {
       const response = await api.get<{ users: TenantUser[] }>("/api/v1/microsoft_app/users");
-      setTenantUsers(response.users);
+      if (response) {
+        setTenantUsers(response.users);
+      }
     } catch (err) {
       console.error("Failed to load users:", err);
     } finally {
@@ -742,7 +744,9 @@ function OrgWideAccessSection() {
       );
 
       // Redirect to admin consent
-      window.location.href = response.admin_consent_url;
+      if (response) {
+        window.location.href = response.admin_consent_url;
+      }
     } catch (err: unknown) {
       const error = err as { data?: { error?: string }; message?: string };
       setError(error.data?.error || error.message || "Failed to enable");
