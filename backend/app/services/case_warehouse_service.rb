@@ -101,15 +101,29 @@ class CaseWarehouseService
     scope = scope.where(from_email: from_email) if from_email.present?
 
     # Job filter - either specific job or case-related jobs
+    # OR search by related contact emails
     if job_id.present?
       scope = scope.for_job(job_id)
+    elsif case_record.related_job_ids.any? && case_record.related_emails.any?
+      # Both job IDs and related emails - use OR to find either
+      job_scope = EmailWarehouse.where(job_id: case_record.related_job_ids)
+      email_scope = EmailWarehouse.involving_email(case_record.related_emails)
+
+      # Apply existing conditions to both sides of the OR
+      if date_range.present?
+        job_scope = job_scope.received_after(date_range[:start]) if date_range[:start]
+        job_scope = job_scope.received_before(date_range[:end]) if date_range[:end]
+        email_scope = email_scope.received_after(date_range[:start]) if date_range[:start]
+        email_scope = email_scope.received_before(date_range[:end]) if date_range[:end]
+      end
+
+      scope = job_scope.or(email_scope)
+      scope = scope.search_text(query) if query.present?
+      scope = scope.where(from_email: from_email) if from_email.present?
     elsif case_record.related_job_ids.any?
       scope = scope.where(job_id: case_record.related_job_ids)
-    end
-
-    # Also search by related contact emails
-    if case_record.related_emails.any?
-      scope = scope.or(EmailWarehouse.involving_email(case_record.related_emails))
+    elsif case_record.related_emails.any?
+      scope = scope.involving_email(case_record.related_emails)
     end
 
     scope.recent_first.limit(100)
