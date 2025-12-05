@@ -252,14 +252,14 @@ export function EditCaseContactDialog({
                 <Select
                   value={formData.role || "_none"}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, role: value })
+                    setFormData({ ...formData, role: value === "_none" ? "" : value })
                   }
                 >
                   <SelectTrigger id="role">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Not specified</SelectItem>
+                    <SelectItem value="_none">Not specified</SelectItem>
                     {roles.map((r) => (
                       <SelectItem key={r.value} value={r.value}>
                         {r.label}
