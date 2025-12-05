@@ -657,7 +657,13 @@ export default function JobDetailPage() {
                 longitude={job.longitude}
                 onLocationUpdate={(data) => {
                   // Update job state with new location data using functional update
-                  setJob((prevJob) => prevJob ? { ...prevJob, ...data } : prevJob);
+                  console.log("Job page received location update:", data);
+                  setJob((prevJob) => {
+                    console.log("Previous job location:", prevJob?.location);
+                    const newJob = prevJob ? { ...prevJob, ...data } : prevJob;
+                    console.log("New job location:", newJob?.location);
+                    return newJob;
+                  });
                 }}
               />
             </div>

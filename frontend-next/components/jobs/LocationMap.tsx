@@ -201,11 +201,13 @@ export function LocationMap({
       setDialogOpen(false);
 
       if (onLocationUpdate) {
-        onLocationUpdate({
+        const updateData = {
           latitude: savedPosition[0],
           longitude: savedPosition[1],
           location: savedLocation,
-        });
+        };
+        console.log("LocationMap calling onLocationUpdate with:", updateData);
+        onLocationUpdate(updateData);
       }
     } catch (err) {
       console.error("Error saving location:", err);
