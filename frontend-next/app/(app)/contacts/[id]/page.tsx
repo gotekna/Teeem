@@ -28,6 +28,7 @@ import {
   AlertTriangle,
   CheckCircle,
   ExternalLink,
+  Briefcase,
   Home,
   Lock,
   IdCard,
