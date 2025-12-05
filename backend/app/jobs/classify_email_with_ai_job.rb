@@ -8,6 +8,11 @@ class ClassifyEmailWithAiJob < ApplicationJob
   RATE_LIMIT_THRESHOLD = 100
   RATE_LIMIT_PERIOD = 1.hour
 
+  # Skip this job if Anthropic API key is not configured
+  def self.enabled?
+    ENV['ANTHROPIC_API_KEY'].present?
+  end
+
   def perform(email_warehouse_id)
     email = EmailWarehouse.find_by(id: email_warehouse_id)
     return unless email
