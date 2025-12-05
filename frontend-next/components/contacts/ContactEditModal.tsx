@@ -37,9 +37,9 @@ interface ContactPerson {
   id?: number;
   first_name: string;
   last_name: string;
-  email: string;
-  mobile: string;
-  role: string;
+  email: string | null;
+  mobile: string | null;
+  role: string | null;
   is_primary: boolean;
   include_in_emails: boolean;
   _destroy?: boolean;
@@ -63,7 +63,7 @@ interface Contact {
   sync_with_xero: boolean;
   xero_contact_id: string | null;
   primary_company_id?: number | null;
-  primary_company_name?: string | null;
+  primary_company?: { id: number; name: string } | null;
   contact_persons?: ContactPerson[];
   employees?: Array<{ id: number; full_name: string; email: string | null }>;
 }
@@ -137,7 +137,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
         sync_with_xero: contact.sync_with_xero,
         primary_company_id: contact.primary_company_id || null,
       });
-      setSelectedCompanyName(contact.primary_company_name || null);
+      setSelectedCompanyName(contact.primary_company?.name || null);
       setContactPersons(contact.contact_persons || []);
       setEmployees(contact.employees || []);
     }
@@ -208,9 +208,10 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
     }]);
   };
 
-  const updateContactPerson = (index: number, field: keyof ContactPerson, value: string | boolean) => {
+  const updateContactPerson = (index: number, field: keyof ContactPerson, value: string | boolean | null) => {
     const updated = [...contactPersons];
-    (updated[index] as Record<string, string | boolean | number | undefined>)[field] = value;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (updated[index] as any)[field] = value;
 
     // If setting this one as primary, unset others
     if (field === "is_primary" && value === true) {
@@ -525,18 +526,18 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
                         <Input
                           type="email"
                           placeholder="Email"
-                          value={person.email}
+                          value={person.email || ""}
                           onChange={(e) => updateContactPerson(index, "email", e.target.value)}
                         />
                         <Input
                           placeholder="Mobile"
-                          value={person.mobile}
+                          value={person.mobile || ""}
                           onChange={(e) => updateContactPerson(index, "mobile", e.target.value)}
                         />
                       </div>
                       <Input
                         placeholder="Role (e.g., Accountant, Director)"
-                        value={person.role}
+                        value={person.role || ""}
                         onChange={(e) => updateContactPerson(index, "role", e.target.value)}
                       />
                     </div>

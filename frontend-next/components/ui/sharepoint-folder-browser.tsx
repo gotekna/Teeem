@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -17,6 +16,7 @@ import {
   Folder,
   FolderOpen,
   ChevronRight,
+  ChevronDown,
   Home,
   Loader2,
   AlertCircle,
@@ -69,22 +69,119 @@ interface SharePointFolderBrowserProps {
   className?: string;
 }
 
+// Tree node with children state
+interface TreeNode extends SharePointFolder {
+  children?: TreeNode[];
+  isExpanded?: boolean;
+  isLoading?: boolean;
+  path: string;
+}
+
+// Recursive tree folder component
+function TreeFolder({
+  node,
+  level,
+  selectedFolderId,
+  onSelect,
+  onToggle,
+}: {
+  node: TreeNode;
+  level: number;
+  selectedFolderId?: string | null;
+  onSelect: (node: TreeNode) => void;
+  onToggle: (node: TreeNode) => void;
+}) {
+  const isSelected = selectedFolderId === node.id;
+  const hasChildren = node.child_count > 0;
+
+  return (
+    <div>
+      <div
+        className={cn(
+          "flex items-center gap-1 py-1.5 px-2 rounded cursor-pointer transition-colors",
+          isSelected ? "bg-primary/10 border border-primary" : "hover:bg-muted"
+        )}
+        style={{ paddingLeft: `${level * 16 + 8}px` }}
+        onClick={() => onSelect(node)}
+      >
+        {/* Expand/Collapse toggle */}
+        {hasChildren ? (
+          <button
+            type="button"
+            className="p-0.5 hover:bg-muted rounded"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(node);
+            }}
+          >
+            {node.isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : node.isExpanded ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+        ) : (
+          <span className="w-5" />
+        )}
+
+        {/* Folder icon */}
+        {isSelected || node.isExpanded ? (
+          <FolderOpen className={cn("h-4 w-4 shrink-0", isSelected ? "text-primary" : "text-amber-500")} />
+        ) : (
+          <Folder className="h-4 w-4 text-amber-500 shrink-0" />
+        )}
+
+        {/* Name */}
+        <span className="flex-1 truncate text-sm">{node.name}</span>
+
+        {/* Child count */}
+        {hasChildren && !node.isExpanded && (
+          <span className="text-xs text-muted-foreground">{node.child_count}</span>
+        )}
+      </div>
+
+      {/* Render children if expanded */}
+      {node.isExpanded && node.children && (
+        <div>
+          {node.children.map((child) => (
+            <TreeFolder
+              key={child.id}
+              node={child}
+              level={level + 1}
+              selectedFolderId={selectedFolderId}
+              onSelect={onSelect}
+              onToggle={onToggle}
+            />
+          ))}
+          {node.children.length === 0 && !node.isLoading && (
+            <div
+              className="text-xs text-muted-foreground italic py-1"
+              style={{ paddingLeft: `${(level + 1) * 16 + 28}px` }}
+            >
+              No subfolders
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SharePointFolderBrowser({
   onSelect,
   selectedFolderId,
   className,
 }: SharePointFolderBrowserProps) {
-  const [folders, setFolders] = React.useState<SharePointFolder[]>([]);
+  const [treeNodes, setTreeNodes] = React.useState<TreeNode[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [currentFolderId, setCurrentFolderId] = React.useState<string | null>(null);
-  const [breadcrumbs, setBreadcrumbs] = React.useState<Array<{ name: string; id: string | null }>>([]);
-  const [selectedFolder, setSelectedFolder] = React.useState<SharePointFolder | null>(null);
-  const [navigationStack, setNavigationStack] = React.useState<string[]>([]);
+  const [selectedNode, setSelectedNode] = React.useState<TreeNode | null>(null);
 
   // Drive/Site selection state
   const [sites, setSites] = React.useState<SharePointSite[]>([]);
-  const [currentDrive, setCurrentDrive] = React.useState<string>("personal"); // "personal" or site_id
+  const [currentDrive, setCurrentDrive] = React.useState<string>("personal");
   const [currentDriveName, setCurrentDriveName] = React.useState<string>("My OneDrive");
   const [loadingSites, setLoadingSites] = React.useState(true);
   const [switchingDrive, setSwitchingDrive] = React.useState(false);
@@ -100,11 +197,8 @@ export function SharePointFolderBrowser({
 
       setSites(sitesResponse.sites || []);
 
-      // Determine current drive from status
       if (statusResponse.drive_type === "sharepoint" && statusResponse.site_name) {
-        const site = sitesResponse.sites?.find(
-          (s) => s.name === statusResponse.site_name
-        );
+        const site = sitesResponse.sites?.find((s) => s.name === statusResponse.site_name);
         if (site) {
           setCurrentDrive(site.id);
           setCurrentDriveName(site.name);
@@ -118,23 +212,24 @@ export function SharePointFolderBrowser({
       }
     } catch (err) {
       console.error("Failed to load SharePoint sites:", err);
-      // Not critical - can still browse current drive
     } finally {
       setLoadingSites(false);
     }
   }, []);
 
-  const loadFolders = React.useCallback(async (folderId: string | null = null) => {
+  // Load root folders
+  const loadRootFolders = React.useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = folderId ? `?folder_id=${folderId}` : "";
-      const response = await api.get<BrowseFoldersResponse>(
-        `/api/v1/organization_onedrive/browse_folders${params}`
-      );
-      setFolders(response.folders || []);
-      setBreadcrumbs(response.breadcrumbs || []);
-      setCurrentFolderId(folderId);
+      const response = await api.get<BrowseFoldersResponse>("/api/v1/organization_onedrive/browse_folders");
+      const nodes: TreeNode[] = (response.folders || []).map((f) => ({
+        ...f,
+        path: f.name,
+        isExpanded: false,
+        children: undefined,
+      }));
+      setTreeNodes(nodes);
     } catch (err) {
       console.error("Failed to load folders:", err);
       setError(err instanceof Error ? err.message : "Failed to load folders");
@@ -143,7 +238,61 @@ export function SharePointFolderBrowser({
     }
   }, []);
 
-  // Switch to a different drive/site
+  // Load children for a specific folder
+  const loadChildren = React.useCallback(async (parentNode: TreeNode): Promise<TreeNode[]> => {
+    try {
+      const response = await api.get<BrowseFoldersResponse>(
+        `/api/v1/organization_onedrive/browse_folders?folder_id=${parentNode.id}`
+      );
+      return (response.folders || []).map((f) => ({
+        ...f,
+        path: `${parentNode.path}/${f.name}`,
+        isExpanded: false,
+        children: undefined,
+      }));
+    } catch (err) {
+      console.error("Failed to load children:", err);
+      return [];
+    }
+  }, []);
+
+  // Toggle expand/collapse
+  const handleToggle = React.useCallback(async (node: TreeNode) => {
+    if (node.isExpanded) {
+      // Collapse
+      setTreeNodes((prev) => updateNodeInTree(prev, node.id, { isExpanded: false }));
+    } else {
+      // Expand - load children if not loaded
+      if (!node.children) {
+        setTreeNodes((prev) => updateNodeInTree(prev, node.id, { isLoading: true }));
+        const children = await loadChildren(node);
+        setTreeNodes((prev) => updateNodeInTree(prev, node.id, { children, isExpanded: true, isLoading: false }));
+      } else {
+        setTreeNodes((prev) => updateNodeInTree(prev, node.id, { isExpanded: true }));
+      }
+    }
+  }, [loadChildren]);
+
+  // Helper to update a node in the tree
+  const updateNodeInTree = (nodes: TreeNode[], nodeId: string, updates: Partial<TreeNode>): TreeNode[] => {
+    return nodes.map((node) => {
+      if (node.id === nodeId) {
+        return { ...node, ...updates };
+      }
+      if (node.children) {
+        return { ...node, children: updateNodeInTree(node.children, nodeId, updates) };
+      }
+      return node;
+    });
+  };
+
+  // Handle folder selection
+  const handleSelect = React.useCallback((node: TreeNode) => {
+    setSelectedNode(node);
+    onSelect(node, node.path);
+  }, [onSelect]);
+
+  // Switch drive
   const switchDrive = React.useCallback(async (driveId: string) => {
     setSwitchingDrive(true);
     setError(null);
@@ -152,81 +301,27 @@ export function SharePointFolderBrowser({
         await api.post("/api/v1/organization_onedrive/use_personal_drive");
         setCurrentDriveName("My OneDrive");
       } else {
-        // Find the site to get its name (backend uses name to search/switch)
         const site = sites.find((s) => s.id === driveId);
-        if (!site?.name) {
-          throw new Error("Site not found");
-        }
-        await api.post("/api/v1/organization_onedrive/use_sharepoint_site", {
-          site_name: site.name,
-        });
+        if (!site?.name) throw new Error("Site not found");
+        await api.post("/api/v1/organization_onedrive/use_sharepoint_site", { site_name: site.name });
         setCurrentDriveName(site.name);
       }
       setCurrentDrive(driveId);
-      // Reset navigation and reload folders from root
-      setNavigationStack([]);
-      setSelectedFolder(null);
-      setBreadcrumbs([]);
-      await loadFolders(null);
+      setSelectedNode(null);
+      setTreeNodes([]);
+      await loadRootFolders();
     } catch (err) {
       console.error("Failed to switch drive:", err);
       setError(err instanceof Error ? err.message : "Failed to switch drive");
     } finally {
       setSwitchingDrive(false);
     }
-  }, [sites, loadFolders]);
+  }, [sites, loadRootFolders]);
 
   React.useEffect(() => {
     loadSites();
-    loadFolders();
-  }, [loadSites, loadFolders]);
-
-  const handleFolderClick = (folder: SharePointFolder) => {
-    // Single click selects the folder
-    setSelectedFolder(folder);
-    // Build the path from breadcrumbs + selected folder
-    // Filter out technical breadcrumb entries (drive IDs, "root", etc.)
-    const pathParts = breadcrumbs
-      .map((b) => b.name)
-      .filter((name) => {
-        // Skip technical/internal names
-        if (!name) return false;
-        if (name === "root") return false;
-        if (name.startsWith("b!")) return false; // Drive ID
-        if (name.startsWith("drives/")) return false;
-        if (name.length > 50 && name.includes("-")) return false; // Looks like a GUID
-        return true;
-      });
-    pathParts.push(folder.name);
-    const fullPath = pathParts.join("/");
-    onSelect(folder, fullPath);
-  };
-
-  const handleFolderDoubleClick = (folder: SharePointFolder) => {
-    // Double click navigates into the folder
-    if (folder.child_count > 0) {
-      setNavigationStack((prev) => [...prev, currentFolderId || ""]);
-      setSelectedFolder(null);
-      loadFolders(folder.id);
-    }
-  };
-
-  const handleBreadcrumbClick = (index: number) => {
-    if (index === -1) {
-      // Root clicked
-      setNavigationStack([]);
-      setSelectedFolder(null);
-      loadFolders(null);
-    } else {
-      const breadcrumb = breadcrumbs[index];
-      if (breadcrumb?.id) {
-        // Navigate to that folder
-        setNavigationStack((prev) => prev.slice(0, index));
-        setSelectedFolder(null);
-        loadFolders(breadcrumb.id);
-      }
-    }
-  };
+    loadRootFolders();
+  }, [loadSites, loadRootFolders]);
 
   if (error && !switchingDrive) {
     const isNotConnected = error.toLowerCase().includes("not connected") || error.toLowerCase().includes("unauthorized");
@@ -248,14 +343,14 @@ export function SharePointFolderBrowser({
                   Connect OneDrive
                 </a>
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => loadFolders(currentFolderId)}>
+              <Button variant="ghost" size="sm" onClick={loadRootFolders}>
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Retry
               </Button>
             </div>
           </>
         ) : (
-          <Button variant="outline" size="sm" onClick={() => loadFolders(currentFolderId)}>
+          <Button variant="outline" size="sm" onClick={loadRootFolders}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
           </Button>
@@ -307,105 +402,53 @@ export function SharePointFolderBrowser({
         </Select>
       </div>
 
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center gap-1 p-2 bg-muted/50 border-b text-sm overflow-x-auto">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 shrink-0"
-          onClick={() => handleBreadcrumbClick(-1)}
-          disabled={switchingDrive}
-        >
-          <Home className="h-4 w-4" />
-        </Button>
-        {breadcrumbs
-          .filter((crumb) => {
-            // Skip technical/internal names in display
-            if (!crumb.name) return false;
-            if (crumb.name === "root") return false;
-            if (crumb.name.startsWith("b!")) return false;
-            if (crumb.name.startsWith("drives")) return false;
-            if (crumb.name.length > 50 && crumb.name.includes("-")) return false;
-            return true;
-          })
-          .map((crumb, index) => (
-          <React.Fragment key={index}>
-            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "h-7 px-2 shrink-0 max-w-[200px] truncate",
-                index === breadcrumbs.length - 1 && "font-medium"
-              )}
-              onClick={() => handleBreadcrumbClick(breadcrumbs.findIndex(b => b.id === crumb.id))}
-              disabled={!crumb.id || switchingDrive}
-              title={crumb.name}
-            >
-              {crumb.name}
-            </Button>
-          </React.Fragment>
-        ))}
-        {(loading || switchingDrive) && <Loader2 className="h-4 w-4 animate-spin ml-2" />}
-      </div>
-
-      {/* Folder List */}
-      <ScrollArea className="flex-1 min-h-[150px] rounded-b-md border border-t-0">
+      {/* Tree View - fixed height with overflow scroll */}
+      <div className="h-[250px] overflow-y-auto border rounded-b-md bg-background">
         {loading || switchingDrive ? (
           <div className="p-2 space-y-2">
             {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
+              <Skeleton key={i} className="h-8 w-full" />
             ))}
           </div>
-        ) : folders.length === 0 ? (
+        ) : treeNodes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <FolderOpen className="h-12 w-12 mb-2 opacity-50" />
             <p className="text-sm">No folders found</p>
-            <p className="text-xs">This folder is empty or contains only files</p>
           </div>
         ) : (
           <div className="p-1">
-            {folders.map((folder) => (
-              <div
-                key={folder.id}
-                className={cn(
-                  "flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors",
-                  selectedFolder?.id === folder.id
-                    ? "bg-primary/10 border border-primary"
-                    : "hover:bg-muted"
-                )}
-                onClick={() => handleFolderClick(folder)}
-                onDoubleClick={() => handleFolderDoubleClick(folder)}
-              >
-                {selectedFolder?.id === folder.id ? (
-                  <FolderOpen className="h-5 w-5 text-primary shrink-0" />
-                ) : (
-                  <Folder className="h-5 w-5 text-amber-500 shrink-0" />
-                )}
-                <span className="flex-1 truncate text-sm">{folder.name}</span>
-                {folder.child_count > 0 && (
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 rounded px-1 py-0.5 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleFolderDoubleClick(folder);
-                    }}
-                    title="Click to expand folder"
-                  >
-                    <span>{folder.child_count}</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+            {/* Root/Home */}
+            <div
+              className={cn(
+                "flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-colors",
+                "hover:bg-muted"
+              )}
+              onClick={() => {
+                setSelectedNode(null);
+                onSelect(null, "");
+              }}
+            >
+              <Home className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Root</span>
+            </div>
+            {/* Tree folders */}
+            {treeNodes.map((node) => (
+              <TreeFolder
+                key={node.id}
+                node={node}
+                level={0}
+                selectedFolderId={selectedNode?.id || selectedFolderId}
+                onSelect={handleSelect}
+                onToggle={handleToggle}
+              />
             ))}
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       {/* Help Text */}
       <p className="text-xs text-muted-foreground mt-2 px-1">
-        Click to select a folder. Click the arrow (→) to navigate into subfolders.
+        Click to select a folder. Click the arrow to expand/collapse.
       </p>
     </div>
   );
