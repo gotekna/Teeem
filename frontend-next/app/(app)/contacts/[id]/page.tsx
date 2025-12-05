@@ -354,6 +354,25 @@ export default function ContactDetailPage() {
   const [emailsPagination, setEmailsPagination] = useState<EmailsPagination | null>(null);
   const [showAllInThread, setShowAllInThread] = useState(false);
 
+  // Inline edit form state
+  const [formData, setFormData] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    mobile_phone: "",
+    office_phone: "",
+    website: "",
+    tax_number: "",
+    address: "",
+    notes: "",
+    is_active: true,
+    is_family_member: false,
+    entity_type: "person",
+    sync_with_xero: false,
+  });
+  const [saving, setSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
   const activeTab = searchParams.get("tab") || "overview";
   const activeSubTab = searchParams.get("subtab") || "identity";
 
@@ -502,6 +521,52 @@ export default function ContactDetailPage() {
       setEmails([]);
     } finally {
       setLoadingEmails(false);
+    }
+  };
+
+  // Initialize form data when contact loads
+  useEffect(() => {
+    if (contact) {
+      setFormData({
+        first_name: contact.first_name || "",
+        last_name: contact.last_name || "",
+        email: contact.email || "",
+        mobile_phone: contact.mobile_phone || "",
+        office_phone: contact.office_phone || "",
+        website: contact.website || "",
+        tax_number: contact.tax_number || "",
+        address: contact.address || "",
+        notes: contact.notes || "",
+        is_active: contact.is_active ?? true,
+        is_family_member: contact.is_family_member ?? false,
+        entity_type: contact.entity_type || "person",
+        sync_with_xero: contact.sync_with_xero ?? false,
+      });
+      setHasChanges(false);
+    }
+  }, [contact]);
+
+  // Handle inline form field changes
+  const handleInputChange = (field: string, value: string | boolean) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setHasChanges(true);
+  };
+
+  // Save contact changes
+  const handleSave = async () => {
+    if (!contact) return;
+    setSaving(true);
+    try {
+      const full_name = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || "Unknown";
+      await api.patch(`/api/v1/contacts/${contact.id}`, {
+        contact: { ...formData, full_name },
+      });
+      setHasChanges(false);
+      loadContact();
+    } catch (err) {
+      console.error("Failed to save contact:", err);
+    } finally {
+      setSaving(false);
     }
   };
 

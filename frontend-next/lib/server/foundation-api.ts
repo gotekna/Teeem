@@ -1,0 +1,214 @@
+/**
+ * Server-side Foundation Data Fetching
+ *
+ * These functions run on the server during SSR/RSC and fetch data
+ * before the page is sent to the client. This eliminates the white
+ * screen flash that occurs with client-only data fetching.
+ */
+
+import { cookies } from 'next/headers';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://teeem-backend-39604ccca45a.herokuapp.com';
+
+interface ApiColumn {
+  id: number;
+  foundation_id?: number;
+  column_name: string;
+  name: string;
+  column_type: string;
+  description?: string;
+  available_choices?: string[];
+  lookup_foundation_id?: number;
+  lookup_display_column?: string;
+  required?: boolean;
+  is_unique?: boolean;
+}
+
+interface Foundation {
+  id: number;
+  name: string;
+  slug: string;
+  columns: ApiColumn[];
+}
+
+interface TableColumn {
+  id?: number;
+  foundation_id?: number;
+  key: string;
+  label: string;
+  column_type?: string;
+  resizable?: boolean;
+  sortable?: boolean;
+  filterable?: boolean;
+  width?: number;
+  choices?: string[];
+  lookup_config?: {
+    target_table_id: number;
+    display_column?: string;
+  };
+}
+
+interface TableRow {
+  id: number | string;
+  [key: string]: unknown;
+}
+
+interface FoundationData {
+  foundation: Foundation | null;
+  columns: TableColumn[];
+  records: TableRow[];
+  totalCount: number | null;
+  error: string | null;
+}
+
+// System columns to hide from table views
+const SYSTEM_COLUMNS = ['created_at', 'updated_at', 'deleted_at'];
+
+/**
+ * Get auth token from cookies for server-side requests
+ */
+async function getAuthToken(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get('auth_token')?.value || null;
+}
+
+/**
+ * Fetch foundation data by slug on the server
+ * This runs during SSR and provides initial data to components
+ */
+export async function fetchFoundationBySlug(slug: string): Promise<FoundationData> {
+  const token = await getAuthToken();
+
+  if (!token) {
+    return {
+      foundation: null,
+      columns: [],
+      records: [],
+      totalCount: null,
+      error: 'Not authenticated',
+    };
+  }
+
+  try {
+    // Fetch foundation metadata
+    const foundationRes = await fetch(`${API_BASE_URL}/api/v1/foundations/${slug}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      next: { revalidate: 60 }, // Cache for 60 seconds
+    });
+
+    if (!foundationRes.ok) {
+      throw new Error(`Failed to fetch foundation: ${foundationRes.status}`);
+    }
+
+    const foundationData = await foundationRes.json();
+    const foundation = foundationData.foundation as Foundation;
+
+    // Fetch records
+    const recordsRes = await fetch(
+      `${API_BASE_URL}/api/v1/foundations/${foundation.id}/records?per_page=500`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        next: { revalidate: 30 }, // Cache records for 30 seconds
+      }
+    );
+
+    if (!recordsRes.ok) {
+      throw new Error(`Failed to fetch records: ${recordsRes.status}`);
+    }
+
+    const recordsData = await recordsRes.json();
+    const records = (recordsData.records || []) as TableRow[];
+    const totalCount = recordsData.pagination?.total_count ?? records.length;
+
+    // Transform columns to TeeemTableView format
+    const columns = transformColumns(foundation);
+
+    return {
+      foundation,
+      columns,
+      records,
+      totalCount,
+      error: null,
+    };
+  } catch (err) {
+    console.error('[Server] Failed to fetch foundation data:', err);
+    return {
+      foundation: null,
+      columns: [],
+      records: [],
+      totalCount: null,
+      error: err instanceof Error ? err.message : 'Failed to load data',
+    };
+  }
+}
+
+/**
+ * Transform API columns to TeeemTableView format
+ */
+function transformColumns(foundation: Foundation): TableColumn[] {
+  if (!foundation?.columns) return [];
+
+  const tableColumns: TableColumn[] = [
+    { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 40 }
+  ];
+
+  foundation.columns.forEach((col: ApiColumn) => {
+    // Skip system columns
+    if (SYSTEM_COLUMNS.includes(col.column_name)) return;
+
+    tableColumns.push({
+      id: col.id,
+      foundation_id: col.foundation_id || foundation.id,
+      key: col.column_name,
+      label: col.name,
+      column_type: col.column_type,
+      resizable: true,
+      sortable: true,
+      filterable: true,
+      width: getDefaultWidth(col.column_name, col.column_type),
+      choices: col.available_choices,
+      lookup_config: col.lookup_foundation_id ? {
+        target_table_id: col.lookup_foundation_id,
+        display_column: col.lookup_display_column,
+      } : undefined,
+    });
+  });
+
+  return tableColumns;
+}
+
+/**
+ * Get default column width based on column name and type
+ */
+function getDefaultWidth(columnName: string, columnType: string): number {
+  if (columnName === 'id') return 60;
+  if (columnName === 'name' || columnName === 'title') return 250;
+  if (columnName === 'ted_number') return 100;
+  if (columnName === 'status' || columnName === 'job_status') return 120;
+  if (columnName === 'job_type') return 120;
+  if (columnName === 'code') return 80;
+  if (columnName.includes('email')) return 200;
+  if (columnName.includes('phone')) return 130;
+
+  switch (columnType) {
+    case 'currency':
+    case 'percentage':
+      return 100;
+    case 'date':
+    case 'date_and_time':
+      return 120;
+    case 'boolean':
+      return 80;
+    case 'multiple_lines_text':
+    case 'long_text':
+      return 300;
+    default:
+      return 150;
+  }
+}
