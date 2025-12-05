@@ -82,6 +82,9 @@ const EntityChat = dynamic(
 // Import SharePointFolderBrowser (same component used in case proposal approval)
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 
+// Import EditCaseContactDialog for editing contact relationships
+import { EditCaseContactDialog } from "@/components/cases/EditCaseContactDialog";
+
 // Tabs for case detail
 const CASE_TABS = [
   { id: "overview", name: "Overview", icon: Briefcase },
@@ -450,6 +453,10 @@ export default function CaseDetailPage() {
     deadline: "",
   });
   const [savingCase, setSavingCase] = React.useState(false);
+
+  // Edit contact relationship modal
+  const [showEditCaseContact, setShowEditCaseContact] = React.useState(false);
+  const [editContactId, setEditContactId] = React.useState<number | null>(null);
 
   // Load case
   React.useEffect(() => {
@@ -1691,7 +1698,10 @@ export default function CaseDetailPage() {
                 <CaseRelationshipChart
                   caseId={parseInt(caseId)}
                   data={relationshipGraph}
-                  onContactClick={(contactId) => router.push(`/contacts/${contactId}`)}
+                  onContactClick={(contactId) => {
+                    setEditContactId(contactId);
+                    setShowEditCaseContact(true);
+                  }}
                   onCompanyClick={(companyId) => router.push(`/corporate/companies/${companyId}`)}
                   onJobClick={(jobId) => router.push(`/jobs/${jobId}`)}
                   onCaseClick={(relatedCaseId) => router.push(`/cases/${relatedCaseId}`)}
@@ -1700,7 +1710,7 @@ export default function CaseDetailPage() {
               )}
               <div className="mt-4 text-sm text-muted-foreground">
                 <p>
-                  Drag nodes to reposition. Click on a contact, company, or job to view details.
+                  Click on a contact to edit their relationship to this case. Drag nodes to reposition.
                   Node positions are saved automatically.
                 </p>
               </div>
@@ -3334,6 +3344,19 @@ export default function CaseDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Case Contact Relationship Dialog */}
+      {editContactId && (
+        <EditCaseContactDialog
+          open={showEditCaseContact}
+          onOpenChange={setShowEditCaseContact}
+          caseId={parseInt(caseId)}
+          contactId={editContactId}
+          onSaved={() => {
+            loadRelationshipGraph();
+          }}
+        />
+      )}
     </div>
   );
 }

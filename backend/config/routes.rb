@@ -1240,6 +1240,9 @@ Rails.application.routes.draw do
 
           # Contact positions for chart
           patch 'contacts/:contact_id/position', action: :update_contact_position
+          # Case contact relationship details
+          get 'contacts/:contact_id', action: :get_case_contact
+          patch 'contacts/:contact_id', action: :update_case_contact
 
           # Create sub-case
           post :create_child

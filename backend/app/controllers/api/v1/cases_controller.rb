@@ -9,7 +9,7 @@ module Api
         :run_action, :relationship_graph, :update_contact_position, :create_child,
         :qa_pairs, :duplicates, :resolve_duplicate, :processing_status,
         :reprocess_documents, :update_qa_pair, :update_folder_settings,
-        :folder_info, :create_folder
+        :folder_info, :create_folder, :get_case_contact, :update_case_contact
       ]
 
       # GET /api/v1/cases
@@ -400,6 +400,64 @@ module Api
         render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
       end
 
+      # GET /api/v1/cases/:id/contacts/:contact_id
+      # Get case contact details for editing
+      def get_case_contact
+        case_contact = @case.case_contacts.includes(:contact).find_by!(contact_id: params[:contact_id])
+        contact = case_contact.contact
+
+        render json: {
+          success: true,
+          case_contact: {
+            id: case_contact.id,
+            contact_id: contact.id,
+            contact_name: contact.display_name,
+            contact_email: contact.email,
+            relationship_type: case_contact.relationship_type,
+            alignment: case_contact.alignment,
+            role: case_contact.role,
+            is_primary: case_contact.is_primary,
+            notes: case_contact.notes
+          },
+          relationship_types: CaseContact::RELATIONSHIP_TYPES.map { |k, v| { value: k, label: v[:name] } },
+          alignments: CaseContact::ALIGNMENTS.map { |k, v| { value: k, label: v[:name] } },
+          roles: CaseContact::ROLES.map { |k, v| { value: k, label: v } }
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
+      end
+
+      # PATCH /api/v1/cases/:id/contacts/:contact_id
+      # Update case contact relationship details
+      def update_case_contact
+        case_contact = @case.case_contacts.find_by!(contact_id: params[:contact_id])
+
+        if case_contact.update(case_contact_params)
+          render json: {
+            success: true,
+            case_contact: {
+              id: case_contact.id,
+              contact_id: case_contact.contact_id,
+              relationship_type: case_contact.relationship_type,
+              formatted_relationship_type: case_contact.formatted_relationship_type,
+              alignment: case_contact.alignment,
+              formatted_alignment: case_contact.formatted_alignment,
+              role: case_contact.role,
+              formatted_role: case_contact.formatted_role,
+              is_primary: case_contact.is_primary,
+              notes: case_contact.notes
+            }
+          }
+        else
+          render json: {
+            success: false,
+            errors: case_contact.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
+      end
+
       # ============================================
       # DOCUMENT MANAGEMENT ENDPOINTS
       # ============================================
@@ -673,6 +731,12 @@ module Api
         params.require(:case).permit(
           :title, :case_type, :description, :status, :priority,
           :deadline, :assigned_to_id
+        )
+      end
+
+      def case_contact_params
+        params.require(:case_contact).permit(
+          :relationship_type, :alignment, :role, :is_primary, :notes
         )
       end
 

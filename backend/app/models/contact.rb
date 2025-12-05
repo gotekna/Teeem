@@ -113,6 +113,7 @@ class Contact < ApplicationRecord
 
   # Callbacks
   before_save :update_xero_synced_status
+  before_save :generate_full_name
 
   # Scopes
   scope :with_email, -> { where.not(email: [nil, '']) }
@@ -460,6 +461,21 @@ class Contact < ApplicationRecord
 
   def update_xero_synced_status
     self.xero_synced = xero_id.present?
+  end
+
+  # Auto-generate full_name from first_name + last_name for person contacts
+  # For company/trust, full_name is typically set directly
+  def generate_full_name
+    # Only auto-generate for person entity type when first/last name are present
+    if entity_type == 'person' && (first_name.present? || last_name.present?)
+      generated = [first_name, last_name].map(&:presence).compact.join(' ')
+      self.full_name = generated if generated.present? && full_name.blank?
+    end
+
+    # Also update if full_name is explicitly blank/nil but we have name components
+    if full_name.blank? && (first_name.present? || last_name.present?)
+      self.full_name = [first_name, last_name].map(&:presence).compact.join(' ')
+    end
   end
 
 end
