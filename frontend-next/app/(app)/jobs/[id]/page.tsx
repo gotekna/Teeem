@@ -656,8 +656,8 @@ export default function JobDetailPage() {
                 latitude={job.latitude}
                 longitude={job.longitude}
                 onLocationUpdate={(data) => {
-                  // Update job state with new location data
-                  setJob({ ...job, ...data });
+                  // Update job state with new location data using functional update
+                  setJob((prevJob) => prevJob ? { ...prevJob, ...data } : prevJob);
                 }}
               />
             </div>
