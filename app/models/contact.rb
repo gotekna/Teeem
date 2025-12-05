@@ -194,6 +194,14 @@ class Contact < ApplicationRecord
     has_role?('land_agent')
   end
 
+  def is_customer?
+    jobs.exists? || job_contacts.exists?
+  end
+
+  def is_supplier?
+    purchase_orders.exists? || pricebook_items.exists? || price_histories.exists?
+  end
+
   # Note: is_director? is defined below and checks actual company directorships
   # To check for Director role, use has_role?('Director')
 
