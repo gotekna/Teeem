@@ -754,7 +754,7 @@ export default function CorporateDashboardPage() {
         { company_group: newGroupForm }
       );
 
-      if (response.success && response.data) {
+      if (response?.success && response.data) {
         setGroups(groups.map(g => g.id === editingGroup.id ? response.data : g).sort((a, b) => a.name.localeCompare(b.name)));
         setGroupsMap(prev => ({ ...prev, [response.data.id]: response.data.name }));
         setShowCreateGroupDialog(false);

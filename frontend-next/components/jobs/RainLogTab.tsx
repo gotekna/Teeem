@@ -124,7 +124,7 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
       );
       if (response) {
         setWeatherResult(response);
-        if (response.rain_log_created) {
+        if (response?.rain_log_created) {
           await loadRainLogs();
         }
       }

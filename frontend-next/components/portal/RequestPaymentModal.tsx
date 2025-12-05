@@ -74,9 +74,9 @@ export default function RequestPaymentModal({
         "/api/v1/portal/pay_now_requests/eligible_purchase_orders"
       );
 
-      if (response.data.success) {
+      if (response?.data.success) {
         setEligiblePOs(response.data.data);
-        if (response.data.data.length > 0) {
+        if (response?.data.data.length > 0) {
           setSelectedPO(response.data.data[0]);
         }
       }
@@ -193,7 +193,7 @@ export default function RequestPaymentModal({
         }
       );
 
-      if (response.data.success) {
+      if (response?.data.success) {
         alert(response.data.message || "Payment request submitted successfully");
         onSuccess();
       } else {

@@ -948,7 +948,7 @@ export default function CaseDetailPage() {
         `/api/v1/cases/${caseId}/folder_settings`,
         folderSettings
       );
-      if (response.data) {
+      if (response?.data) {
         setCaseData(response.data);
       }
       setEditingFolders(false);

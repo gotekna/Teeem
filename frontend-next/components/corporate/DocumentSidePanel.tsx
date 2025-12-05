@@ -70,7 +70,7 @@ export default function DocumentSidePanel({
           error?: string;
         }>(`/api/v1/company_documents/${document.id}/preview`);
 
-        if (response.success && response.preview_url) {
+        if (response?.success && response.preview_url) {
           setPreviewUrl(response.preview_url);
         } else {
           setPreviewError(response.error || "Preview not available");

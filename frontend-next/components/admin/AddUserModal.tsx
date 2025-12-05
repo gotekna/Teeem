@@ -100,10 +100,10 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
         }
       );
 
-      if (response.success) {
+      if (response?.success) {
         // If role or assigned_role is different from default, update them
         if (formData.role !== "user" || formData.assigned_role) {
-          await api.patch(`/api/v1/users/${response.user.id}`, {
+          await api.patch(`/api/v1/users/${response?.user?.id}`, {
             user: {
               role: formData.role,
               assigned_role: formData.assigned_role || null,
@@ -114,7 +114,7 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
         onUserAdded();
         handleClose();
       } else {
-        setErrors(response.errors || ["Failed to create user"]);
+        setErrors(response?.errors || ["Failed to create user"]);
       }
     } catch (error: any) {
       console.error("Failed to create user:", error);

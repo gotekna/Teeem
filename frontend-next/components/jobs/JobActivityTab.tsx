@@ -112,7 +112,7 @@ export function JobActivityTab({ jobId }: JobActivityTabProps) {
         params: { page, per_page: 50 },
       });
 
-      if (response.success) {
+      if (response?.success) {
         setActivities(response.activities || []);
         setTotalPages(response.meta?.total_pages || 1);
         setTotalCount(response.meta?.total_count || 0);

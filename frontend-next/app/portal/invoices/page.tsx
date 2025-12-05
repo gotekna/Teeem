@@ -66,7 +66,7 @@ export default function PortalInvoices() {
 
       const response = await axios.get("/api/v1/portal/invoices");
 
-      if (response.data.success) {
+      if (response?.data.success) {
         setInvoices(response.data.data);
       }
     } catch (error) {
@@ -85,7 +85,7 @@ export default function PortalInvoices() {
         `/api/v1/portal/invoices/${invoiceId}/retry_sync`
       );
 
-      if (response.data.success) {
+      if (response?.data.success) {
         loadInvoices();
       }
     } catch (error: any) {

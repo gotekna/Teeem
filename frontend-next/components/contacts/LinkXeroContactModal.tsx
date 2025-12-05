@@ -49,9 +49,9 @@ export function LinkXeroContactModal({
       const response = await api.get<{ success: boolean; contacts: XeroContact[] }>(
         `/api/v1/xero/search_contacts?query=${encodeURIComponent(searchQuery)}`
       );
-      if (response.success) {
+      if (response?.success) {
         setSearchResults(response.contacts);
-        if (response.contacts.length === 0) {
+        if (response?.contacts.length === 0) {
           setError("No Xero contacts found matching your search");
         }
       }
@@ -76,7 +76,7 @@ export function LinkXeroContactModal({
         }
       );
 
-      if (response.success) {
+      if (response?.success) {
         onSuccess(response.contact);
         handleClose();
       }

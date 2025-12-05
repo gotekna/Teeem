@@ -103,10 +103,10 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
       const response = await api.get<{ success: boolean; xero_links: XeroLink[] }>(
         `/api/v1/contacts/${contact.id}/xero_links`
       );
-      if (response.success && response.xero_links) {
+      if (response?.success && response.xero_links) {
         setXeroLinks(response.xero_links);
         // Auto-select first link if available
-        if (response.xero_links.length > 0 && !selectedLinkId) {
+        if (response?.xero_links.length > 0 && !selectedLinkId) {
           setSelectedLinkId(response.xero_links[0].id);
         }
       }
@@ -123,7 +123,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
       const response = await api.get<{ success: boolean; config: SyncConfiguration }>(
         `/api/v1/sync_configurations/${tenantId}`
       );
-      if (response.success && response.config) {
+      if (response?.success && response.config) {
         setSyncConfig(response.config);
       }
     } catch (err) {
@@ -137,7 +137,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
       const response = await api.get<{ success: boolean; tenants: XeroTenant[] }>(
         "/api/v1/xero/tenants"
       );
-      if (response.success && response.tenants) {
+      if (response?.success && response.tenants) {
         setAvailableTenants(response.tenants);
       }
     } catch (err) {
@@ -159,7 +159,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
         }
       );
 
-      if (response.success && response.xero_link) {
+      if (response?.success && response.xero_link) {
         setXeroLinks((prev) => [...prev, response.xero_link]);
         setSelectedLinkId(response.xero_link.id);
       }
@@ -180,7 +180,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
       const response = await api.get<{ success: boolean; contact: XeroContact }>(
         `/api/v1/xero/contacts/${selectedLink.xero_contact_id}?tenant_id=${selectedLink.xero_tenant_id}`
       );
-      if (response.success && response.contact) {
+      if (response?.success && response.contact) {
         setXeroContactData(response.contact);
       }
     } catch (err) {
@@ -199,7 +199,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
         `/api/v1/contacts/${contact.id}/sync_from_xero`
       );
 
-      if (response.success && response.contact) {
+      if (response?.success && response.contact) {
         onContactUpdate(response.contact);
         // Reload Xero contact data to see updated sync
         await loadXeroContactData();
@@ -222,7 +222,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
         `/api/v1/contacts/${contact.id}/sync_to_xero?tenant_id=${selectedLink.xero_tenant_id}`
       );
 
-      if (response.success && response.contact) {
+      if (response?.success && response.contact) {
         onContactUpdate(response.contact);
         // Reload Xero contact data to see updated sync
         await loadXeroContactData();
@@ -246,7 +246,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
         `/api/v1/contacts/${contact.id}/sync_from_xero`
       );
 
-      if (pullResponse.success && pullResponse.contact) {
+      if (pullResponse?.success && pullResponse.contact) {
         onContactUpdate(pullResponse.contact);
       }
 
@@ -255,7 +255,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
         `/api/v1/contacts/${contact.id}/sync_to_xero?tenant_id=${selectedLink.xero_tenant_id}`
       );
 
-      if (pushResponse.success && pushResponse.contact) {
+      if (pushResponse?.success && pushResponse.contact) {
         onContactUpdate(pushResponse.contact);
         // Reload Xero contact data
         await loadXeroContactData();

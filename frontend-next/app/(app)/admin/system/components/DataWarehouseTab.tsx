@@ -200,7 +200,7 @@ export function DataWarehouseTab() {
       const response = await api.get<{ success: boolean; data: OrgDataStats }>(
         "/api/v1/organization/data_stats"
       );
-      if (response.success) {
+      if (response?.success) {
         setStats(response.data);
       }
     } catch (error) {
@@ -274,7 +274,7 @@ export function DataWarehouseTab() {
   const loadWarehouseStatus = async () => {
     try {
       const response = await api.get<WarehouseStatus>("/api/v1/warehouse/status");
-      if (response.success) {
+      if (response?.success) {
         setWarehouseStatus(response);
       }
     } catch (error) {
@@ -285,7 +285,7 @@ export function DataWarehouseTab() {
   const loadWarehouseMetadata = async () => {
     try {
       const response = await api.get<WarehouseMetadata>("/api/v1/warehouse/metadata");
-      if (response.success) {
+      if (response?.success) {
         setWarehouseMetadata(response);
       }
     } catch (error) {
@@ -299,7 +299,7 @@ export function DataWarehouseTab() {
       const response = await api.get<ViewData>(
         `/api/v1/warehouse/export/${viewName}.json?limit=${PAGE_SIZE}&offset=${offset}`
       );
-      if (response.success) {
+      if (response?.success) {
         setViewData(response);
         setSelectedView(viewName);
         setViewOffset(offset);

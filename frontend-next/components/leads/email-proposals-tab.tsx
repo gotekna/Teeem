@@ -129,7 +129,7 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
         setSelectedProposal(null);
         loadProposals();
 
-        if (response.job?.id) {
+        if (response?.job?.id) {
           router.push(`/jobs/${response.job.id}`);
         }
       }

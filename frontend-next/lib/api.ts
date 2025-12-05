@@ -178,6 +178,26 @@ export const api = {
     return response.json() as Promise<T>;
   },
 
+  async putFormData<T = unknown>(endpoint: string, formData: FormData): Promise<T> {
+    const headers: Record<string, string> = {};
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'PUT',
+      headers,
+      credentials: 'include',
+      body: formData,
+    });
+    if (!response.ok) {
+      await handleErrorResponse(response);
+    }
+    return response.json() as Promise<T>;
+  },
+
   async patch<T = unknown>(endpoint: string, data?: unknown): Promise<T> {
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'PATCH',

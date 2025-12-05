@@ -137,7 +137,7 @@ export default function MinuteTemplatesPage() {
     if (!template.body) {
       try {
         const response = await api.get<{ data: MinuteTemplate }>(`/api/v1/minute_templates/${template.id}`);
-        if (response.data) {
+        if (response?.data) {
           setFormData((prev) => ({
             ...prev,
             body: response.data.body || "",

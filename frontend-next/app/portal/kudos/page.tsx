@@ -70,14 +70,14 @@ const TIER_INFO = {
   platinum: {
     name: "Platinum",
     color: "from-blue-400 to-blue-600",
-    icon: "=Ž",
+    icon: "=",
     min: 600,
     max: 800,
   },
   diamond: {
     name: "Diamond",
     color: "from-purple-400 to-purple-600",
-    icon: "= ",
+    icon: "=",
     min: 800,
     max: 1000,
   },
@@ -112,7 +112,7 @@ export default function PortalKudos() {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       const response = await axios.get("/api/v1/portal/kudos");
 
-      if (response.data.success) {
+      if (response?.data.success) {
         setKudosData(response.data.data);
       } else {
         setError(response.data.error || "Failed to load kudos data");

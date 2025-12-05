@@ -86,13 +86,26 @@ export default function ContactsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const showDuplicates = searchParams.get("duplicates") === "true";
+  // Support both ?tab= (preferred) and ?view= (legacy) for tab selection
+  // ?view= is also used by TeeemTableView for saved views, so ?tab= is preferred for type filtering
+  const tabParam = searchParams.get("tab") || searchParams.get("view");
+
+  // Determine initial tab from URL: ?tab=person -> "persons" tab, ?duplicates=true -> "duplicates" tab
+  const getInitialTab = () => {
+    if (showDuplicates) return "duplicates";
+    if (tabParam === "person" || tabParam === "persons") return "persons";
+    if (tabParam === "company" || tabParam === "companies") return "companies";
+    if (tabParam === "trust" || tabParam === "trusts") return "trusts";
+    if (tabParam === "supplier" || tabParam === "suppliers") return "suppliers";
+    return "all";
+  };
 
   // Use foundation hook for TeeemTableView
   const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug("contacts");
 
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const [duplicatesLoading, setDuplicatesLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(showDuplicates ? "duplicates" : "all");
+  const [activeTab, setActiveTab] = useState(getInitialTab);
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null);

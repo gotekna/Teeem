@@ -326,7 +326,7 @@ export default function DocumentPreviewModal({
     const fetchDocumentTypes = async () => {
       try {
         const response = await api.get<{ success: boolean; data: DocumentTypeOption[] }>("/api/v1/document_types");
-        if (response.success && response.data) {
+        if (response?.success && response.data) {
           setDocumentTypes(response.data);
         }
       } catch (error) {
@@ -363,7 +363,7 @@ export default function DocumentPreviewModal({
           `/api/v1/company_documents?company_id=${editedCompanyId}&document_type=${editedDocumentType}`
         );
 
-        if (response.success && response.documents) {
+        if (response?.success && response.documents) {
           // Filter for amended documents (case-insensitive)
           const amendedDocs = response.documents.filter(doc =>
             doc.title?.toLowerCase().includes("amended") ||
@@ -426,7 +426,7 @@ export default function DocumentPreviewModal({
           fallback_url?: string;
         }>(`/api/v1/company_documents/${document.id}/preview`);
 
-        if (response.success && response.preview_url) {
+        if (response?.success && response.preview_url) {
           setPreviewUrl(response.preview_url);
         } else {
           setPreviewError(response.error || "Preview not available");
@@ -815,10 +815,10 @@ export default function DocumentPreviewModal({
           const response = await api.get<{ document: CompanyDocument }>(
             `/api/v1/company_documents/${document.id}`
           );
-          if (response.document) {
+          if (response?.document) {
             setDocument(response.document);
             // Stop polling when status changes from processing
-            if (response.document.ai_verification_status !== "processing") {
+            if (response?.document.ai_verification_status !== "processing") {
               if (pollingRef.current) clearInterval(pollingRef.current);
               setAiVerifying(false);
 
@@ -1113,7 +1113,7 @@ export default function DocumentPreviewModal({
           }
         }
 
-        if (response.document) {
+        if (response?.document) {
           setDocument(response.document);
         }
         setIsEditing(false);
@@ -2109,7 +2109,7 @@ export default function DocumentPreviewModal({
 
                       if (response?.success) {
                         // Update local document state with new data
-                        if (response.document) {
+                        if (response?.document) {
                           setDocument(response.document);
                         }
                         // Refresh parent list

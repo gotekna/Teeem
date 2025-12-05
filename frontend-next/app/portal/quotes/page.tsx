@@ -66,7 +66,7 @@ export default function PortalQuotes() {
 
       const response = await axios.get("/api/v1/portal/quote_requests");
 
-      if (response.data.success) {
+      if (response?.data.success) {
         setQuotes(response.data.data);
       }
     } catch (error) {
@@ -147,7 +147,7 @@ export default function PortalQuotes() {
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
-            const colorClasses = {
+            const colorClasses: Record<string, string> = {
               yellow: isActive
                 ? "border-yellow-500 text-yellow-600"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300",
@@ -167,7 +167,7 @@ export default function PortalQuotes() {
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`
-                  ${colorClasses[tab.color]}
+                  ${colorClasses[tab.color as keyof typeof colorClasses] || colorClasses.gray}
                   whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
                   flex items-center gap-2
                 `}

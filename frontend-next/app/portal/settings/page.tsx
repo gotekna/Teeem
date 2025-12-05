@@ -54,7 +54,7 @@ export default function PortalSettings() {
       // Load accounting integrations
       const response = await axios.get("/api/v1/portal/accounting_integrations");
 
-      if (response.data.success) {
+      if (response?.data.success) {
         setAccountingIntegrations(response.data.data.all_integrations || []);
       }
     } catch (error) {
@@ -76,7 +76,7 @@ export default function PortalSettings() {
         }
       );
 
-      if (response.data.success) {
+      if (response?.data.success) {
         // Redirect to OAuth URL
         window.location.href = response.data.data.oauth_url;
       }
@@ -104,7 +104,7 @@ export default function PortalSettings() {
         `/api/v1/portal/accounting_integrations/${integrationId}`
       );
 
-      if (response.data.success) {
+      if (response?.data.success) {
         loadSettings(); // Reload
       }
     } catch (error: any) {

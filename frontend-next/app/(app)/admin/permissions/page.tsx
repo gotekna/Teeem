@@ -92,7 +92,7 @@ export default function PermissionsPage() {
         permissions: string[];
         role_permissions: string[];
       }>(`/api/v1/permissions/user/${userId}`);
-      if (response.success) {
+      if (response?.success) {
         setSelectedUser(response.user);
         setUserPermissions(response.permissions || []);
         setRolePermissions(response.role_permissions || []);
@@ -120,7 +120,7 @@ export default function PermissionsPage() {
         }
       );
 
-      if (response.success) {
+      if (response?.success) {
         // Reload user permissions
         await loadUserPermissions(selectedUser.id);
       }

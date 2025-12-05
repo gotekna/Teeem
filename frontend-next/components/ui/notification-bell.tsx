@@ -45,7 +45,7 @@ export function NotificationBell() {
         }
       );
 
-      if (response.ok) {
+      if (response?.ok) {
         const data = await response.json();
         setNotifications(data.notifications || []);
         setUnreadCount(data.unread_count || 0);
@@ -69,7 +69,7 @@ export function NotificationBell() {
         }
       );
 
-      if (response.ok) {
+      if (response?.ok) {
         const data = await response.json();
         setUnreadCount(data.unread_count || 0);
       }
@@ -93,7 +93,7 @@ export function NotificationBell() {
         }
       );
 
-      if (response.ok) {
+      if (response?.ok) {
         setNotifications((prev) =>
           prev.map((n) => (n.id === id ? { ...n, read: true } : n))
         );
@@ -120,7 +120,7 @@ export function NotificationBell() {
         }
       );
 
-      if (response.ok) {
+      if (response?.ok) {
         setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
         setUnreadCount(0);
       }

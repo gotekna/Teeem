@@ -61,7 +61,7 @@ export default function PortalJobs() {
 
       const response = await axios.get("/api/v1/portal/jobs");
 
-      if (response.data.success) {
+      if (response?.data.success) {
         setJobs(response.data.data);
       }
     } catch (error) {

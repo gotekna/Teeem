@@ -13,10 +13,11 @@ import type { SavedView } from '@/components/table/types';
 
 export interface ViewSelectionOptions {
   /**
-   * URL slug from ?view=slug parameter
-   * If provided, will attempt to match against slugified view names first
+   * URL view ID from ?view=123 parameter (numeric ID)
+   * If provided, will match by ID directly (O(1) lookup)
+   * Non-numeric values are ignored (returns null for urlViewId match)
    */
-  urlViewSlug?: string | null;
+  urlViewId?: number | null;
 
   /**
    * Whether to prefer global views over personal views
@@ -29,7 +30,7 @@ export interface ViewSelectionOptions {
  * Select default view from a list of views
  *
  * Priority order:
- * 1. URL parameter match (?view=slug)
+ * 1. URL parameter match by ID (?view=123)
  * 2. Explicit default flag (global preferred if preferGlobal=true)
  * 3. First global view at display_order 0
  * 4. First view at display_order 0
@@ -45,15 +46,17 @@ export function selectDefaultView(
 ): SavedView | null {
   if (views.length === 0) return null;
 
-  const { urlViewSlug, preferGlobal = true } = options;
+  const { urlViewId, preferGlobal = true } = options;
 
-  // Priority 1: Check URL parameter first
-  if (urlViewSlug) {
-    const urlView = views.find(v => slugifyViewName(v.name) === urlViewSlug);
+  // Priority 1: Check URL parameter by ID (fast O(1) lookup)
+  if (urlViewId !== null && urlViewId !== undefined) {
+    const urlView = views.find(v => v.id === urlViewId || v.id === String(urlViewId));
     if (urlView) {
-      console.log('[selectDefaultView] Selected view from URL:', urlView.name);
+      console.log('[selectDefaultView] Selected view by ID:', urlViewId, urlView.name);
       return urlView;
     }
+    // ID not found - fall through to default selection (graceful degradation)
+    console.log('[selectDefaultView] View ID not found:', urlViewId);
   }
 
   // Priority 2: Explicit default flag (global preferred if enabled)
@@ -90,23 +93,9 @@ export function selectDefaultView(
   return views[0];
 }
 
-/**
- * Convert view name to URL-safe slug
- * Used for ?view=slug parameter matching
- *
- * @param name - View name to slugify
- * @returns URL-safe slug
- *
- * @example
- * slugifyViewName("My View Name") // "my-view-name"
- * slugifyViewName("Person View!") // "person-view"
- */
-export function slugifyViewName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+// NOTE: slugifyViewName was removed - we now use numeric IDs directly
+// Using numeric IDs is faster (O(1) lookup), more stable (rename-safe),
+// and avoids slug collision issues (e.g., "Person" vs "person" vs "Person!")
 
 /**
  * Find a view by ID from a list of views

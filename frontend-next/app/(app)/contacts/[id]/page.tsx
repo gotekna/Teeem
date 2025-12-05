@@ -145,6 +145,8 @@ interface Contact {
   can_view_confidential?: boolean;
   // SSoT: Linked company data for company-type contacts
   linked_company?: LinkedCompany;
+  // Index signature for dynamic properties
+  [key: string]: unknown;
 }
 
 interface DirectorCompany {
@@ -312,6 +314,7 @@ export default function ContactDetailPage() {
   const [showInvoiceDetail, setShowInvoiceDetail] = useState(false);
 
   const activeTab = searchParams.get("tab") || "overview";
+  const activeSubTab = searchParams.get("subtab") || "directorships";
 
   useEffect(() => {
     loadContact();
@@ -415,23 +418,26 @@ export default function ContactDetailPage() {
     }
   };
 
-  // SSoT: Load tab-specific data when tab changes
+  // SSoT: Load tab-specific data when tab or subtab changes
   useEffect(() => {
     if (!contact?.id) return;
 
-    if (activeTab === "directorships" && directorships.length === 0 && !loadingDirectorships) {
-      loadDirectorships();
-    } else if (activeTab === "shareholdings" && shareholdings.length === 0 && !loadingShareholdings) {
-      loadShareholdings();
-    } else if (activeTab === "relationships" && !trustRoles && !loadingTrustRoles) {
-      loadTrustRoles();
-    } else if (activeTab === "roles-table") {
-      // Load all data for the combined table view
-      if (directorships.length === 0 && !loadingDirectorships) loadDirectorships();
-      if (shareholdings.length === 0 && !loadingShareholdings) loadShareholdings();
-      if (!trustRoles && !loadingTrustRoles) loadTrustRoles();
+    // Load data based on corporate sub-tabs
+    if (activeTab === "corporate") {
+      if (activeSubTab === "directorships" && directorships.length === 0 && !loadingDirectorships) {
+        loadDirectorships();
+      } else if (activeSubTab === "shareholdings" && shareholdings.length === 0 && !loadingShareholdings) {
+        loadShareholdings();
+      } else if (activeSubTab === "trust-roles" && !trustRoles && !loadingTrustRoles) {
+        loadTrustRoles();
+      } else if (activeSubTab === "roles-table") {
+        // Load all data for the combined table view
+        if (directorships.length === 0 && !loadingDirectorships) loadDirectorships();
+        if (shareholdings.length === 0 && !loadingShareholdings) loadShareholdings();
+        if (!trustRoles && !loadingTrustRoles) loadTrustRoles();
+      }
     }
-  }, [activeTab, contact?.id]);
+  }, [activeTab, activeSubTab, contact?.id]);
 
   const handleTabChange = (value: string) => {
     // Use slug for URL, don't show ?tab= for default "overview" tab
@@ -517,36 +523,15 @@ export default function ContactDetailPage() {
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="personal">
-            Personal
+          <TabsTrigger value="corporate">
+            <Briefcase className="h-3.5 w-3.5 mr-1" />
+            Corporate
             {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
-          </TabsTrigger>
-          <TabsTrigger value="directorships">
-            Directorships
-            {directorships.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5">{directorships.length}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="shareholdings">
-            Shareholdings
-            {shareholdings.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5">{shareholdings.length}</Badge>
-            )}
           </TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="financial">
             Financial
             {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
-          </TabsTrigger>
-          <TabsTrigger value="relationships">
-            Trust Roles
-            {trustRoles && trustRoles.total_count > 0 && (
-              <Badge variant="secondary" className="ml-1.5">{trustRoles.total_count}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="roles-table">
-            <Table className="h-3.5 w-3.5 mr-1" />
-            Roles Table
           </TabsTrigger>
           <TabsTrigger value="coms">Communications</TabsTrigger>
           {contact["is_supplier?"] && (
@@ -554,12 +539,6 @@ export default function ContactDetailPage() {
           )}
           <TabsTrigger value="portal">Portal Access</TabsTrigger>
           <TabsTrigger value="xero">Xero</TabsTrigger>
-          <TabsTrigger value="company-groups">
-            Company Groups
-            {memberships.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5">{memberships.length}</Badge>
-            )}
-          </TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -1053,15 +1032,53 @@ export default function ContactDetailPage() {
           </div>
         </TabsContent>
 
-        {/* Personal Tab - DOB, Passport, Licence (Restricted) */}
-        <TabsContent value="personal" className="mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Identity Information */}
+        {/* Corporate Tab - With nested sub-tabs for Identity, Directorships, Shareholdings, etc. */}
+        <TabsContent value="corporate" className="mt-6">
+          <Tabs value={activeSubTab} onValueChange={handleCorporateSubTabChange}>
+            <TabsList className="mb-4">
+              <TabsTrigger value="identity">
+                <IdCard className="h-3.5 w-3.5 mr-1" />
+                Identity
+              </TabsTrigger>
+              <TabsTrigger value="directorships">
+                Directorships
+                {directorships.length > 0 && (
+                  <Badge variant="secondary" className="ml-1.5">{directorships.length}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="shareholdings">
+                Shareholdings
+                {shareholdings.length > 0 && (
+                  <Badge variant="secondary" className="ml-1.5">{shareholdings.length}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="trust-roles">
+                Trust Roles
+                {trustRoles && trustRoles.total_count > 0 && (
+                  <Badge variant="secondary" className="ml-1.5">{trustRoles.total_count}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="company-groups">
+                Company Groups
+                {memberships.length > 0 && (
+                  <Badge variant="secondary" className="ml-1.5">{memberships.length}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="roles-table">
+                <Table className="h-3.5 w-3.5 mr-1" />
+                Summary
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Identity Sub-Tab */}
+            <TabsContent value="identity">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Director Identity - Required for ASIC */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <IdCard className="h-5 w-5" />
-                  Identity Information
+                  <Briefcase className="h-5 w-5" />
+                  Director Identity
                   {!contact.can_view_confidential && (
                     <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300">
                       <Lock className="h-3 w-3 mr-1" />
@@ -1071,6 +1088,23 @@ export default function ContactDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Director ID (DIN) */}
+                <div>
+                  <p className="text-xs text-muted-foreground">Director Identification Number (DIN)</p>
+                  <p className="text-sm font-medium font-mono">
+                    {contact.director_id ? (
+                      <span className="flex items-center gap-2">
+                        {contact.director_id}
+                        <Badge className="bg-green-100 text-green-700 text-xs">Verified</Badge>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Not set</span>
+                    )}
+                  </p>
+                </div>
+
+                <Separator />
+
                 <div className="grid grid-cols-2 gap-4">
                   {/* Date of Birth */}
                   <div>
@@ -1097,24 +1131,63 @@ export default function ContactDetailPage() {
                           <Lock className="h-3 w-3" /> Restricted
                         </span>
                       ) : contact.place_of_birth ? (
-                        `${contact.place_of_birth}${contact.birth_state ? `, ${contact.birth_state}` : ""}${contact.birth_country ? `, ${contact.birth_country}` : ""}`
+                        contact.place_of_birth
                       ) : (
                         <span className="text-muted-foreground">Not set</span>
                       )}
                     </p>
                   </div>
 
-                  {/* Director ID */}
+                  {/* Birth State */}
                   <div>
-                    <p className="text-xs text-muted-foreground">Director ID</p>
-                    <p className="text-sm font-medium font-mono">
-                      {contact.director_id || <span className="text-muted-foreground">Not set</span>}
+                    <p className="text-xs text-muted-foreground">Birth State</p>
+                    <p className="text-sm font-medium">
+                      {contact.birth_state === "[RESTRICTED]" ? (
+                        <span className="text-amber-600 flex items-center gap-1">
+                          <Lock className="h-3 w-3" /> Restricted
+                        </span>
+                      ) : contact.birth_state ? (
+                        contact.birth_state
+                      ) : (
+                        <span className="text-muted-foreground">Not set</span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Birth Country */}
+                  <div>
+                    <p className="text-xs text-muted-foreground">Birth Country</p>
+                    <p className="text-sm font-medium">
+                      {contact.birth_country === "[RESTRICTED]" ? (
+                        <span className="text-amber-600 flex items-center gap-1">
+                          <Lock className="h-3 w-3" /> Restricted
+                        </span>
+                      ) : contact.birth_country ? (
+                        contact.birth_country
+                      ) : (
+                        <span className="text-muted-foreground">Not set</span>
+                      )}
                     </p>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
 
-                <Separator />
-
+            {/* Identity Documents */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <IdCard className="h-5 w-5" />
+                  Identity Documents
+                  {!contact.can_view_confidential && (
+                    <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300">
+                      <Lock className="h-3 w-3 mr-1" />
+                      Restricted
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 {/* Passport */}
                 <div>
                   <p className="text-xs text-muted-foreground">Passport Number</p>
@@ -1131,6 +1204,8 @@ export default function ContactDetailPage() {
                   </p>
                 </div>
 
+                <Separator />
+
                 {/* Drivers Licence */}
                 <div>
                   <p className="text-xs text-muted-foreground">Drivers Licence</p>
@@ -1146,15 +1221,34 @@ export default function ContactDetailPage() {
                     )}
                   </p>
                 </div>
+
+                <Separator />
+
+                {/* Photo */}
+                <div>
+                  <p className="text-xs text-muted-foreground">Photo</p>
+                  {contact.photo_url ? (
+                    <div className="mt-2">
+                      <img
+                        src={contact.photo_url}
+                        alt={contact.full_name}
+                        className="w-24 h-24 rounded-lg object-cover border"
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No photo uploaded</p>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
-            {/* Residential Address */}
-            <Card>
+            {/* Residential Address - Required for ASIC director records */}
+            <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Home className="h-5 w-5" />
                   Residential Address
+                  <Badge variant="outline" className="text-xs">Required for ASIC</Badge>
                   {!contact.can_view_confidential && (
                     <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300">
                       <Lock className="h-3 w-3 mr-1" />
@@ -1890,7 +1984,7 @@ export default function ContactDetailPage() {
           <div className="space-y-6">
             <XeroSyncSection
               contact={contact}
-              onContactUpdate={(updatedContact) => setContact(updatedContact)}
+              onContactUpdate={(updatedContact) => setContact(updatedContact as Contact)}
             />
             <XeroTransactionsSection
               contactId={contact.id}

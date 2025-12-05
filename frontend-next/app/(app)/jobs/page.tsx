@@ -126,7 +126,7 @@ export default function JobsPage() {
       }
 
       // Load views if provided
-      if (response.views) {
+      if (response?.views) {
         setViews(response.views);
       }
     } catch (error) {

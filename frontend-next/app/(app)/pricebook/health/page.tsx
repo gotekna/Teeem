@@ -382,7 +382,7 @@ export default function PricebookHealthPage() {
   const loadXeroInvoiceSyncHealth = async () => {
     try {
       const response = await api.get<{ success: boolean; data: XeroInvoiceSyncHealth }>("/api/v1/external_invoices/sync_status");
-      if (response.success) {
+      if (response?.success) {
         setXeroInvoiceSyncHealth(response.data);
       }
     } catch (error) {

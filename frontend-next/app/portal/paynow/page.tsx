@@ -20,10 +20,20 @@ interface PayNowRequest {
   status: string;
   status_display: string;
   original_amount: string;
+  discount_percentage: number;
   discount_amount: string;
   discounted_amount: string;
   requested_at: string;
   rejection_reason?: string;
+  reviewed_at?: string;
+  paid_at?: string;
+  reviewed_by?: string;
+  supervisor_notes?: string;
+  supplier_notes?: string;
+  invoice_file_url?: string;
+  proof_photos?: string[];
+  purchase_order?: { construction_name?: string };
+  payment?: { amount: number; payment_date: string; reference_number: string };
   [key: string]: any;
 }
 
@@ -85,7 +95,7 @@ export default function PortalPayNow() {
 
       const response = await axios.get("/api/v1/portal/pay_now_requests");
 
-      if (response.data.success) {
+      if (response?.data.success) {
         setRequests(response.data.data.requests);
         setStats(response.data.data.stats);
         setWeeklyLimit(response.data.data.weekly_limit);
@@ -120,7 +130,7 @@ export default function PortalPayNow() {
         `/api/v1/portal/pay_now_requests/${requestId}`
       );
 
-      if (response.data.success) {
+      if (response?.data.success) {
         alert("Payment request cancelled successfully");
         loadRequests();
       }

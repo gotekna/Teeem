@@ -5,9 +5,10 @@ import { PlusIcon, BanknotesIcon, CreditCardIcon } from "@heroicons/react/24/out
 import TeeemTableView from "@/components/table/TeeemTableView";
 import TransactionForm from "@/components/financial/TransactionForm";
 import { api } from "@/lib/api";
+import type { TableColumn, TableRow } from "@/components/table/types";
 
 // Define columns for financial transactions table
-const TRANSACTION_COLUMNS = [
+const TRANSACTION_COLUMNS: TableColumn[] = [
   {
     key: "select",
     label: "",
@@ -122,6 +123,7 @@ interface Transaction {
   user?: User;
   construction_name?: string;
   user_name?: string;
+  [key: string]: unknown; // Index signature for TableRow compatibility
 }
 
 interface Summary {
@@ -153,7 +155,7 @@ export default function FinancialTransactionsPage() {
       const response = await api.get<{ success: boolean; transactions: Transaction[] }>(
         "/api/v1/financial_transactions"
       );
-      if (response.success) {
+      if (response?.success) {
         // Transform data to include computed fields for TeeemTableView
         const transformedData = response.transactions.map((t) => ({
           ...t,
@@ -177,7 +179,7 @@ export default function FinancialTransactionsPage() {
       const response = await api.get<{ success: boolean; summary: Summary }>(
         "/api/v1/financial_transactions/summary"
       );
-      if (response.success) {
+      if (response?.success) {
         setSummary(response.summary);
       }
     } catch (err) {
@@ -185,7 +187,8 @@ export default function FinancialTransactionsPage() {
     }
   };
 
-  const handleEdit = async (entry: Transaction) => {
+  const handleEdit = async (row: TableRow) => {
+    const entry = row as Transaction;
     // For inline edits from TeeemTableView
     try {
       const response = await api.put<{ success: boolean; transaction: Transaction }>(
@@ -198,7 +201,7 @@ export default function FinancialTransactionsPage() {
         }
       );
 
-      if (response.success) {
+      if (response?.success) {
         setTransactions((prev) =>
           prev.map((t) =>
             t.id === response.transaction.id
@@ -221,7 +224,8 @@ export default function FinancialTransactionsPage() {
     }
   };
 
-  const handleDelete = async (entry: Transaction) => {
+  const handleDelete = async (row: TableRow) => {
+    const entry = row as Transaction;
     if (
       !confirm(
         `Are you sure you want to delete this ${entry.transaction_type} transaction?`
@@ -234,7 +238,7 @@ export default function FinancialTransactionsPage() {
         `/api/v1/financial_transactions/${entry.id}`
       );
 
-      if (response.success) {
+      if (response && response.success) {
         setTransactions((prev) => prev.filter((t) => t.id !== entry.id));
         await fetchSummary();
       }

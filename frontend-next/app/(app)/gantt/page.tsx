@@ -258,9 +258,9 @@ export default function GanttPage() {
     const tasksToUnlock = new Set<string>();
 
     resolutions.forEach((res) => {
-      if (res.action === "move") {
+      if (res?.action === "move") {
         tasksToMove.add(res.featureId);
-      } else if (res.action === "unlock-move") {
+      } else if (res?.action === "unlock-move") {
         tasksToMove.add(res.featureId);
         tasksToUnlock.add(res.featureId);
       }

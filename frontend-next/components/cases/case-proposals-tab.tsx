@@ -178,7 +178,7 @@ export function CaseProposalsTab({ onPendingCountChange }: CaseProposalsTabProps
         setSelectedProposal(null);
         loadProposals();
 
-        if (response.case?.id) {
+        if (response?.case?.id) {
           router.push(`/cases/${response.case.id}`);
         }
       }

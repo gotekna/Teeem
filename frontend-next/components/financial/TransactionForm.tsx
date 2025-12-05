@@ -98,7 +98,7 @@ export default function TransactionForm({
       const response = await api.get<{ success: boolean; categories: string[] }>(
         `/api/v1/financial_transactions/categories?transaction_type=${type}`
       );
-      if (response.success) {
+      if (response?.success) {
         setCategories(response.categories);
         // Set default category
         if (!transaction && response.categories.length > 0) {
@@ -115,7 +115,7 @@ export default function TransactionForm({
       const response = await api.get<{ success: boolean; constructions: Construction[] }>(
         "/api/v1/jobs?per_page=100"
       );
-      if (response.success) {
+      if (response?.success) {
         setJobs(response.constructions || []);
       }
     } catch (err) {
@@ -178,33 +178,27 @@ export default function TransactionForm({
         submitData.append("transaction[receipt]", receipt);
       }
 
-      // Submit
+      // Submit using FormData methods
       let response;
       if (transaction) {
         // Update existing transaction
-        response = await api.put<{ success: boolean; transaction: Transaction; error?: string }>(
+        response = await api.putFormData<{ success: boolean; transaction: Transaction; error?: string }>(
           `/api/v1/financial_transactions/${transaction.id}`,
-          submitData,
-          {
-            headers: { "Content-Type": "multipart/form-data" },
-          }
+          submitData
         );
       } else {
         // Create new transaction
-        response = await api.post<{ success: boolean; transaction: Transaction; error?: string }>(
+        response = await api.postFormData<{ success: boolean; transaction: Transaction; error?: string }>(
           "/api/v1/financial_transactions",
-          submitData,
-          {
-            headers: { "Content-Type": "multipart/form-data" },
-          }
+          submitData
         );
       }
 
-      if (response.success) {
+      if (response?.success) {
         onSuccess(response.transaction);
         onClose();
       } else {
-        throw new Error(response.error || "Failed to save transaction");
+        throw new Error(response?.error || "Failed to save transaction");
       }
     } catch (err: any) {
       setError(err.message || "Failed to save transaction");

@@ -27,7 +27,7 @@ export default function PortalLogin() {
         password,
       });
 
-      if (response.data.success) {
+      if (response?.data.success) {
         // Store token and user data
         localStorage.setItem("portal_token", response.data.token);
         localStorage.setItem("portal_user", JSON.stringify(response.data.user));

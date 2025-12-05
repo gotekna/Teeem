@@ -109,7 +109,7 @@ export default function ConsolidationPage() {
       const response = await api.get<{ success: boolean; groups: CompanyGroup[] }>(
         "/api/v1/consolidation"
       );
-      if (response.success) {
+      if (response?.success) {
         setGroups(response.groups);
         // Auto-select first group with companies
         const firstWithCompanies = response.groups.find(g => g.companies_count > 1);
@@ -136,7 +136,7 @@ export default function ConsolidationPage() {
         relationships: IntercompanyRelationship[];
       }>(`/api/v1/consolidation/${selectedGroupId}?as_of_date=${asOfDate}`);
 
-      if (response.success) {
+      if (response?.success) {
         setGroupDetail(response.group);
         setSummary(response.summary);
         setRelationships(response.relationships);

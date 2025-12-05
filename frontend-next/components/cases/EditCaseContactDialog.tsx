@@ -99,7 +99,7 @@ export function EditCaseContactDialog({
         roles: SelectOption[];
       }>(`/api/v1/cases/${caseId}/contacts/${contactId}`);
 
-      if (response.success) {
+      if (response?.success) {
         setContactData(response.case_contact);
         setRelationshipTypes(response.relationship_types);
         setAlignments(response.alignments);
@@ -139,7 +139,7 @@ export function EditCaseContactDialog({
         }
       );
 
-      if (response.success) {
+      if (response?.success) {
         toast({
           title: "Success",
           description: "Contact relationship updated",

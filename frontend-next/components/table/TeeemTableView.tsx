@@ -207,19 +207,18 @@ import {
   currentGroupByColumnsAtom,
   currentAutoFitColumnsAtom,
   currentShowTotalsAtom,
+  collapsedGroupsAtom,
   foundationViewsAtom,
   viewsLoadingAtom,
   applyViewAtom,
   loadFoundationViewsAtom,
   invalidateViewsCacheAtom,
 } from '@/lib/view-state-atoms';
-import { selectDefaultView, slugifyViewName } from '@/lib/view-loading-utils';
+import { selectDefaultView } from '@/lib/view-loading-utils';
 
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
-
-// Note: slugifyViewName is now imported from view-loading-utils.ts
 
 // Column types that are system-generated/computed (user cannot manually enter)
 const SYSTEM_GENERATED_TYPES = [
@@ -1140,12 +1139,12 @@ export default function TeeemTableView({
   const [rowLimit, setRowLimit] = useState(INITIAL_ROW_LIMIT);
   const [showAllRows, setShowAllRows] = useState(false);
 
-  // Group by state managed by atoms
+  // Group by state managed by atoms (SSoT)
   const [groupByColumns, setGroupByColumns] = useAtom(currentGroupByColumnsAtom);
-  const [groupByColumn, setGroupByColumn] = useState<string | null>(
-    groupByColumns.length > 0 ? groupByColumns[0] : initialGroupByColumn
-  );
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Derive groupByColumn from atom - NOT a separate state (SSoT compliance)
+  const groupByColumn = groupByColumns.length > 0 ? groupByColumns[0] : (initialGroupByColumn || null);
+  // Collapsed groups managed by atom (persists with saved views)
+  const [collapsedGroups, setCollapsedGroups] = useAtom(collapsedGroupsAtom);
   const [groupViewMode, setGroupViewMode] = useState<"inline" | "panel">("inline"); // inline = groups as rows in table (default), panel = groups above header
 
   // Display options managed by atoms
@@ -1368,11 +1367,12 @@ export default function TeeemTableView({
     }));
   }, []);
 
-  // Set group by column
+  // Set group by column (updates atom - groupByColumn is derived from it)
   const handleGroupByColumn = useCallback((columnKey: string | null) => {
-    setGroupByColumn(columnKey);
     setGroupByColumns(columnKey ? [columnKey] : []);
-  }, []);
+    // Clear collapsed groups when changing group column
+    setCollapsedGroups(new Set());
+  }, [setGroupByColumns, setCollapsedGroups]);
 
   const updateFilter = useCallback(
     (id: string | number, updates: Partial<CascadeFilter>) => {
@@ -1439,7 +1439,7 @@ export default function TeeemTableView({
 
   // Group handlers
   const toggleGroupCollapse = useCallback((groupKey: string) => {
-    setCollapsedGroups((prev) => {
+    setCollapsedGroups((prev: Set<string>) => {
       const next = new Set(prev);
       if (next.has(groupKey)) {
         next.delete(groupKey);
@@ -1448,7 +1448,7 @@ export default function TeeemTableView({
       }
       return next;
     });
-  }, []);
+  }, [setCollapsedGroups]);
 
   // Collect all group keys for expand/collapse all
   const getAllGroupKeys = useCallback((
@@ -2130,31 +2130,20 @@ export default function TeeemTableView({
 
       // Apply view state atomically via Jotai atom
       // This replaces 100+ lines of individual setters with a single atomic update
+      // groupByColumns and collapsedGroups are now managed by atoms (SSoT)
       applyView(view);
-
-      // Handle local component state that isn't in atoms
-      if (view.groupByColumns && view.groupByColumns.length > 0) {
-        setGroupByColumn(view.groupByColumns[0] || null);
-        // Collapse all groups by default for performance
-        setCollapsedGroups(new Set(['__collapse_all_pending__']));
-      } else if (view.groupByColumn) {
-        setGroupByColumn(view.groupByColumn);
-        setCollapsedGroups(new Set(['__collapse_all_pending__']));
-      } else {
-        setGroupByColumn(null);
-        setCollapsedGroups(new Set());
-      }
 
       // Hide filter editor when loading a saved view
       setShowFilters(false);
 
-      // URL update (skip if loading from URL to avoid loops)
-      if (view.id && view.name && !skipUrlUpdate) {
-        const currentUrlViewSlug = searchParams.get('view');
-        const newViewSlug = slugifyViewName(view.name);
-        if (currentUrlViewSlug !== newViewSlug) {
+      // URL update with numeric ID (skip if loading from URL to avoid loops)
+      // Using numeric ID for: speed (O(1) lookup), stability (rename-safe), clarity (no slug conflicts)
+      if (view.id && !skipUrlUpdate) {
+        const currentUrlViewId = searchParams.get('view');
+        const newViewId = String(view.id);
+        if (currentUrlViewId !== newViewId) {
           const currentParams = new URLSearchParams(searchParams.toString());
-          currentParams.set('view', newViewSlug);
+          currentParams.set('view', newViewId);
           const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
           router.replace(newUrl, { scroll: false });
         }
@@ -2169,6 +2158,8 @@ export default function TeeemTableView({
   );
 
   // Load saved views (simplified using atoms)
+  // IMPORTANT: Only trigger on foundationIdNumeric change to prevent excessive re-runs
+  // searchParams is read inside the effect, not as a dependency
   useEffect(() => {
     const loadSavedViews = async () => {
       if (!foundationIdNumeric) return;
@@ -2202,15 +2193,20 @@ export default function TeeemTableView({
         console.log('[loadSavedViews] Views loaded in', (performance.now() - startTime).toFixed(0), 'ms, count:', filteredViews.length, 'source:', result.source);
 
         // Auto-apply default view using consolidated utility
-        const urlViewSlug = searchParams.get('view');
+        // Read URL param here (not as effect dependency) to avoid re-triggering on URL changes
+        const urlViewParam = searchParams.get('view');
+        // Parse as numeric ID (new format) - non-numeric values are ignored
+        const urlViewId = urlViewParam ? parseInt(urlViewParam, 10) : null;
+        const validViewId = urlViewId && !isNaN(urlViewId) ? urlViewId : null;
+
         const defaultView = selectDefaultView(filteredViews, {
-          urlViewSlug,
+          urlViewId: validViewId,
           preferGlobal: true,
         });
 
         if (defaultView) {
           // Skip URL update if loading from URL (avoid redundant updates)
-          const skipUrlUpdate = !!urlViewSlug;
+          const skipUrlUpdate = !!validViewId;
           loadViewState(defaultView, skipUrlUpdate);
           initialViewLoadedRef.current = true;
         }
@@ -2223,7 +2219,8 @@ export default function TeeemTableView({
     };
 
     loadSavedViews();
-  }, [foundationIdNumeric, preloadedViews, loadViews, loadViewState, searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foundationIdNumeric, preloadedViews]);
 
   // Expose loadViewState to parent via callback
   useEffect(() => {

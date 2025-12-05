@@ -9,7 +9,9 @@ import { AddUserModal } from "@/components/admin/AddUserModal";
 import { api } from "@/lib/api";
 
 // Define columns for Users table
-const USER_COLUMNS = [
+import { TableColumn, TableRow } from "@/components/table/types";
+
+const USER_COLUMNS: TableColumn[] = [
   {
     key: "select",
     label: "",
@@ -87,6 +89,7 @@ interface User {
   role: string;
   assigned_role?: string;
   last_login_at?: string;
+  [key: string]: unknown;
 }
 
 export default function UsersPage() {
@@ -115,7 +118,8 @@ export default function UsersPage() {
     }
   };
 
-  const handleEdit = async (user: User) => {
+  const handleEdit = async (row: TableRow) => {
+    const user = row as User;
     try {
       const response = await api.patch<{ success: boolean }>(
         `/api/v1/users/${user.id}`,
@@ -129,24 +133,25 @@ export default function UsersPage() {
         }
       );
 
-      if (response.success) {
+      if (response?.success) {
         toast({
           title: "Success",
           description: "User updated successfully",
         });
         loadUsers();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Update error:", error);
       toast({
         title: "Error",
-        description: error.response?.data?.error || "Failed to update user",
+        description: "Failed to update user",
         variant: "destructive",
       });
     }
   };
 
-  const handleDelete = async (user: User) => {
+  const handleDelete = async (row: TableRow) => {
+    const user = row as User;
     if (
       !confirm(
         `Are you sure you want to remove ${user.name}? This action cannot be undone.`
@@ -176,21 +181,20 @@ export default function UsersPage() {
     }
   };
 
-  const handleBulkDelete = async (selectedUsers: User[]) => {
+  const handleBulkDelete = async (ids: (number | string)[]) => {
     if (
       !confirm(
-        `Are you sure you want to remove ${selectedUsers.length} user(s)? This action cannot be undone.`
+        `Are you sure you want to remove ${ids.length} user(s)? This action cannot be undone.`
       )
     ) {
       return;
     }
 
     try {
-      const ids = selectedUsers.map((user) => user.id);
       await api.post("/api/v1/users/bulk_delete", { ids });
       toast({
         title: "Success",
-        description: `${selectedUsers.length} user(s) removed successfully`,
+        description: `${ids.length} user(s) removed successfully`,
       });
       loadUsers();
     } catch (err) {

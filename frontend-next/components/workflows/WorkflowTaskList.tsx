@@ -56,7 +56,7 @@ export default function WorkflowTaskList() {
         workflow_steps: WorkflowTask[];
       }>("/api/v1/workflow_steps");
 
-      if (response.success) {
+      if (response?.success) {
         setTasks(response.workflow_steps || []);
       } else {
         setError("Failed to load workflow tasks");

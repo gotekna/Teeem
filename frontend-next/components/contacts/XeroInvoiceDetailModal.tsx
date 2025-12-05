@@ -56,7 +56,7 @@ export function XeroInvoiceDetailModal({
       const response = await api.get<{ success: boolean; invoice: XeroInvoice }>(
         `/api/v1/xero/invoices/${invoiceId}`
       );
-      if (response.success && response.invoice) {
+      if (response?.success && response.invoice) {
         setInvoice(response.invoice);
       }
     } catch (err) {

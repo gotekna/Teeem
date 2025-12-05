@@ -118,7 +118,7 @@ export function Sidebar() {
       try {
         const response = await api.get<{ version: string; heroku_release?: string; timestamp?: string }>("/version");
         setBackendVersion(response.version);
-        if (response.heroku_release) {
+        if (response?.heroku_release) {
           setHerokuRelease(response.heroku_release);
         }
         // Compare backend deploy time with frontend build time, show most recent

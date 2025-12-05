@@ -689,7 +689,7 @@ function XeroContactSync() {
       const response = await api.post<{ success: boolean; message: string; data?: { job_id: string } }>("/api/v1/xero/sync_contacts");
       toast({
         title: "Sync Started",
-        description: response.message || "Contact sync job has been queued",
+        description: response?.message || "Contact sync job has been queued",
       });
       // Refresh status after a short delay
       setTimeout(() => {

@@ -219,7 +219,7 @@ export default function PriceBookItemDetailPage() {
       const response = await api.get<{ success: boolean; contacts: Supplier[] }>('/api/v1/contacts?type=suppliers');
       console.log('[loadSuppliers] Response:', response);
 
-      if (response.success && Array.isArray(response.contacts)) {
+      if (response?.success && Array.isArray(response.contacts)) {
         console.log('[loadSuppliers] Setting suppliers count:', response.contacts.length);
         setSuppliers(response.contacts);
       } else {

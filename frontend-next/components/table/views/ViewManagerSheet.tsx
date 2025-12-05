@@ -189,7 +189,7 @@ export function ViewManagerSheet({
         `/api/v1/foundation_views?foundation_id=${foundationId}`
       );
 
-      if (response.success && response.views) {
+      if (response?.success && response.views) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const mappedViews = (response.views as any[]).map((v) => ({
           ...v,
@@ -518,7 +518,7 @@ export function ViewManagerSheet({
           `/api/v1/foundations/${column.lookup_foundation_id}/entries`
         );
 
-        if (response.entries) {
+        if (response?.entries) {
           const displayCol = column.lookup_display_column || 'name';
           options = response.entries.map(entry => ({
             id: entry.id,

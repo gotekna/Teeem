@@ -144,7 +144,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
         error?: string;
       }>(`/api/v1/external_invoices/by_job/${jobId}`);
 
-      if (response.success) {
+      if (response?.success) {
         setData(response.data);
         setLastSyncedAt(response.meta?.last_synced_at || null);
       } else {

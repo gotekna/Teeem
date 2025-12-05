@@ -17,6 +17,20 @@ import { atomWithStorage } from 'jotai/utils';
 import type { SavedView, CascadeFilter, FilterGroup, SortColumn } from '@/components/table/types';
 
 // ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Ensure all filters have unique IDs
+ * Prevents React key conflicts when rendering filter editor
+ */
+const ensureFilterIds = (filters: CascadeFilter[]): CascadeFilter[] =>
+  filters.map((f, idx) => ({
+    ...f,
+    id: f.id || `filter_${Date.now()}_${idx}`,
+  }));
+
+// ============================================================================
 // CORE VIEW STATE ATOMS
 // ============================================================================
 
@@ -74,6 +88,12 @@ export const currentAutoFitColumnsAtom = atom<boolean>(true);
  * Show totals row at bottom of table
  */
 export const currentShowTotalsAtom = atom<boolean>(true);
+
+/**
+ * Collapsed groups in grouped table view
+ * SSoT: Stored in atoms so it persists with saved views
+ */
+export const collapsedGroupsAtom = atom<Set<string>>(new Set<string>());
 
 // ============================================================================
 // VIEW COLLECTION STATE
@@ -158,34 +178,47 @@ export const applyViewAtom = atom(
     set(activeViewIdAtom, view.id);
 
     // Handle filters - may be array (legacy) or object with cascadeFilters (current)
+    // Priority: cascadeFilters in object > direct array > empty
+    // Always use ensureFilterIds to prevent React key conflicts
+    let filters: CascadeFilter[] = [];
+    let filterGroups: FilterGroup[] = [{ id: "default", logic: "AND" }];
+    let interGroupLogic: "AND" | "OR" = "OR";
+
     if (view.filters) {
       if (Array.isArray(view.filters)) {
-        set(currentFiltersAtom, view.filters);
+        // Legacy format: filters is direct array
+        filters = view.filters;
       } else if (typeof view.filters === 'object' && view.filters !== null) {
+        // Current format: filters is object with cascadeFilters
         const filtersObj = view.filters as {
           cascadeFilters?: CascadeFilter[];
           filterGroups?: FilterGroup[];
           interGroupLogic?: "AND" | "OR"
         };
         if (Array.isArray(filtersObj.cascadeFilters)) {
-          set(currentFiltersAtom, filtersObj.cascadeFilters);
+          filters = filtersObj.cascadeFilters;
         }
         if (Array.isArray(filtersObj.filterGroups)) {
-          set(currentFilterGroupsAtom, filtersObj.filterGroups);
+          filterGroups = filtersObj.filterGroups;
         }
         if (filtersObj.interGroupLogic) {
-          set(currentInterGroupLogicAtom, filtersObj.interGroupLogic);
+          interGroupLogic = filtersObj.interGroupLogic;
         }
       }
     }
 
-    // Legacy support for separate filterGroups field
-    if (view.filterGroups) {
-      set(currentFilterGroupsAtom, view.filterGroups);
+    // Override with top-level fields if present (legacy support)
+    if (view.filterGroups && Array.isArray(view.filterGroups)) {
+      filterGroups = view.filterGroups;
     }
     if (view.interGroupLogic) {
-      set(currentInterGroupLogicAtom, view.interGroupLogic);
+      interGroupLogic = view.interGroupLogic;
     }
+
+    // Apply with ensureFilterIds to prevent React key conflicts
+    set(currentFiltersAtom, ensureFilterIds(filters));
+    set(currentFilterGroupsAtom, filterGroups);
+    set(currentInterGroupLogicAtom, interGroupLogic);
 
     // Column configuration
     if (view.visibleColumns) {
@@ -229,6 +262,18 @@ export const applyViewAtom = atom(
     } else if (viewAny.columns && typeof viewAny.columns.showTotals === 'boolean') {
       set(currentShowTotalsAtom, viewAny.columns.showTotals);
     }
+
+    // Collapsed groups - restore from saved view or reset
+    // Handle both Array and Set formats (API returns array, we store as Set)
+    const viewWithCollapsed = view as SavedView & { collapsedGroups?: string[] | Set<string> };
+    if (viewWithCollapsed.collapsedGroups) {
+      const groups = viewWithCollapsed.collapsedGroups;
+      set(collapsedGroupsAtom, groups instanceof Set ? groups : new Set(groups));
+    } else {
+      // No saved collapsed state - collapse all groups by default for performance
+      // Use special marker that TeeemTableView will detect and expand to all keys
+      set(collapsedGroupsAtom, new Set(['__collapse_all_pending__']));
+    }
   }
 );
 
@@ -248,6 +293,12 @@ export const saveViewAtom = atom(
     set(viewSavingAtom, true);
 
     try {
+      // Convert collapsedGroups Set to Array for JSON serialization
+      const collapsedGroupsSet = get(collapsedGroupsAtom);
+      const collapsedGroupsArray = Array.from(collapsedGroupsSet).filter(
+        g => g !== '__collapse_all_pending__' // Don't save the pending marker
+      );
+
       const viewData = {
         foundation_id: options.foundationId,
         name: options.name,
@@ -268,6 +319,7 @@ export const saveViewAtom = atom(
         sort_order: get(currentSortColumnsAtom),
         group_by_columns: get(currentGroupByColumnsAtom),
         group_by_column: get(currentGroupByColumnsAtom)[0] || null,
+        collapsed_groups: collapsedGroupsArray,
       };
 
       // Import api dynamically to avoid circular dependencies
@@ -359,9 +411,14 @@ export const loadFoundationViewsAtom = atom(
             [key: string]: unknown;
           };
 
+          // Extract filters and ensure they have IDs
+          const rawFilters = Array.isArray(view.filters)
+            ? view.filters
+            : (view.filters?.cascadeFilters || []);
+
           return {
             ...view,
-            filters: Array.isArray(view.filters) ? view.filters : (view.filters?.cascadeFilters || []),
+            filters: ensureFilterIds(rawFilters),
             filterGroups: Array.isArray(view.filters) ? [{ id: "default", logic: "AND" as const }] : (view.filters?.filterGroups || [{ id: "default", logic: "AND" as const }]),
             interGroupLogic: Array.isArray(view.filters) ? "OR" as const : (view.filters?.interGroupLogic || "OR" as const),
             visibleColumns: view.columns?.visible || {},

@@ -2563,7 +2563,7 @@ function DataWarehouseTab({ companyId }: { companyId: string }) {
       const response = await api.get<{ success: boolean; data: DataStats }>(
         `/api/v1/companies/${companyId}/data_stats`
       );
-      if (response.success) {
+      if (response?.success) {
         setStats(response.data);
       }
     } catch (error) {
@@ -3029,7 +3029,7 @@ function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: {
       const response = await api.get<{ success: boolean; authorization_url: string }>(
         `/api/v1/companies/${companyId}/xero/authorize`
       );
-      if (response.success && response.authorization_url) {
+      if (response?.success && response.authorization_url) {
         // Open Xero OAuth in new window
         window.open(response.authorization_url, "_blank", "width=600,height=700");
         // Start polling for connection status
@@ -3254,7 +3254,7 @@ function BankTransactionsCard({ companyId, isConnected }: { companyId: string; i
         summary: TransactionSummary;
       }>(`/api/v1/companies/${companyId}/xero/transactions?from_date=${dateRange.from}&to_date=${dateRange.to}`);
 
-      if (response.success) {
+      if (response?.success) {
         setTransactions(response.transactions);
         setSummary(response.summary);
       }
