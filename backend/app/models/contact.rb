@@ -114,6 +114,7 @@ class Contact < ApplicationRecord
   # Callbacks
   before_save :update_xero_synced_status
   before_save :generate_full_name
+  before_save :sync_company_name_or_trust
 
   # Scopes
   scope :with_email, -> { where.not(email: [nil, '']) }
@@ -478,4 +479,10 @@ class Contact < ApplicationRecord
     end
   end
 
+  # Auto-sync company_name_or_trust with full_name for company/trust entity types
+  def sync_company_name_or_trust
+    if %w[company trust].include?(entity_type) && full_name.present?
+      self.company_name_or_trust = full_name if company_name_or_trust.blank?
+    end
+  end
 end

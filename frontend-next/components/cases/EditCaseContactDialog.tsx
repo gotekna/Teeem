@@ -201,16 +201,16 @@ export function EditCaseContactDialog({
               <div className="space-y-2">
                 <Label htmlFor="relationship_type">Relationship Type</Label>
                 <Select
-                  value={formData.relationship_type}
+                  value={formData.relationship_type || "_none"}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, relationship_type: value })
+                    setFormData({ ...formData, relationship_type: value === "_none" ? "" : value })
                   }
                 >
                   <SelectTrigger id="relationship_type">
                     <SelectValue placeholder="Select relationship type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Not specified</SelectItem>
+                    <SelectItem value="_none">Not specified</SelectItem>
                     {relationshipTypes.map((type) => (
                       <SelectItem key={type.value} value={type.value}>
                         {type.label}
@@ -224,16 +224,16 @@ export function EditCaseContactDialog({
               <div className="space-y-2">
                 <Label htmlFor="alignment">Alignment</Label>
                 <Select
-                  value={formData.alignment}
+                  value={formData.alignment || "_none"}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, alignment: value })
+                    setFormData({ ...formData, alignment: value === "_none" ? "" : value })
                   }
                 >
                   <SelectTrigger id="alignment">
                     <SelectValue placeholder="Select alignment" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Not specified</SelectItem>
+                    <SelectItem value="_none">Not specified</SelectItem>
                     {alignments.map((a) => (
                       <SelectItem key={a.value} value={a.value}>
                         {a.label}
@@ -250,7 +250,7 @@ export function EditCaseContactDialog({
               <div className="space-y-2">
                 <Label htmlFor="role">Role in Case</Label>
                 <Select
-                  value={formData.role}
+                  value={formData.role || "_none"}
                   onValueChange={(value) =>
                     setFormData({ ...formData, role: value })
                   }

@@ -562,11 +562,13 @@ export default function CaseRelationshipChart({
     const edges: Edge[] = [];
 
     // Add case node at center if we have case info
+    // 4-quadrant layout: Client (top-left), Advisors (top-right), Neutral (bottom-left), Opposing (bottom-right)
+    // Case is in center at (300, 300)
     if (data.case_info) {
       nodes.push({
         id: `case-${data.case_info.id}`,
         type: "case",
-        position: { x: 400, y: 300 }, // Center - left side is ~50, right side is ~700
+        position: { x: 300, y: 300 }, // Center of 4-quadrant layout
         data: {
           label: data.case_info.title,
           caseNumber: data.case_info.case_number,
@@ -748,21 +750,29 @@ export default function CaseRelationshipChart({
         />
       </ReactFlow>
 
-      {/* Legend */}
+      {/* Legend - showing quadrant layout */}
       <div className="absolute bottom-4 left-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 text-xs">
-        <div className="font-medium mb-2">Relationship Types</div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-          {Object.entries(RELATIONSHIP_STYLES).slice(0, 8).map(([key, style]) => (
-            <div key={key} className="flex items-center gap-1.5">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: style.color }}
-              />
-              <span className="capitalize text-muted-foreground">
-                {key.replace(/_/g, " ")}
-              </span>
-            </div>
-          ))}
+        <div className="font-medium mb-2">Layout Quadrants</div>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-blue-500" />
+            <span className="text-muted-foreground">Client (top-left)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-green-500" />
+            <span className="text-muted-foreground">Advisors (top-right)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-gray-500" />
+            <span className="text-muted-foreground">Neutral (bottom-left)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-red-500" />
+            <span className="text-muted-foreground">Opposing (bottom-right)</span>
+          </div>
+        </div>
+        <div className="text-[10px] text-muted-foreground border-t pt-2">
+          Click on contacts to edit their relationship type
         </div>
       </div>
     </div>
