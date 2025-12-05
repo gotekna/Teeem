@@ -220,12 +220,32 @@ class CaseRecord < ApplicationRecord
   end
 
   # Add a contact to the case
-  def add_contact(contact, role: 'related_party', notes: nil, is_primary: false)
+  def add_contact(contact, role: 'related_party', notes: nil, is_primary: false, reason: nil, added_by: nil)
     case_contacts.find_or_create_by(contact: contact) do |cc|
       cc.role = role
       cc.notes = notes
       cc.is_primary = is_primary
+      cc.reason = reason
+      cc.added_by = added_by
     end
+  end
+
+  # Remove a contact from the case and delete all case_emails involving this contact
+  def remove_contact(contact)
+    # First, find all case_emails that involve this contact's email
+    if contact.email.present?
+      case_emails.joins(:email_warehouse)
+                 .where(
+                   "email_warehouse.from_email = ? OR
+                    ? = ANY(email_warehouse.to_emails) OR
+                    ? = ANY(email_warehouse.cc_emails) OR
+                    ? = ANY(email_warehouse.bcc_emails)",
+                   contact.email, contact.email, contact.email, contact.email
+                 ).destroy_all
+    end
+
+    # Then remove the case_contact relationship
+    case_contacts.find_by(contact: contact)&.destroy
   end
 
   # Add a company to the case
