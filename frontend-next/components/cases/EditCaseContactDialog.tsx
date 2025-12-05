@@ -34,6 +34,8 @@ interface CaseContactData {
   alignment?: string;
   role?: string;
   is_primary: boolean;
+  include_all_emails?: boolean;
+  auto_linked_email_count?: number;
   notes?: string;
   reason?: string;
   added_by_name?: string;
@@ -74,6 +76,7 @@ export function EditCaseContactDialog({
     alignment: "",
     role: "",
     is_primary: false,
+    include_all_emails: false,
     notes: "",
     reason: "",
   });
@@ -106,6 +109,7 @@ export function EditCaseContactDialog({
           alignment: response.case_contact.alignment || "",
           role: response.case_contact.role || "",
           is_primary: response.case_contact.is_primary || false,
+          include_all_emails: response.case_contact.include_all_emails || false,
           notes: response.case_contact.notes || "",
           reason: response.case_contact.reason || "",
         });
@@ -287,6 +291,28 @@ export function EditCaseContactDialog({
                   checked={formData.is_primary}
                   onCheckedChange={(checked) =>
                     setFormData({ ...formData, is_primary: checked })
+                  }
+                />
+              </div>
+
+              {/* Auto-include All Emails */}
+              <div className="flex items-center justify-between py-2 border-t pt-4">
+                <div className="space-y-0.5">
+                  <Label htmlFor="include_all_emails">Auto-include All Emails</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Automatically link ALL emails from/to this contact to the case
+                  </p>
+                  {contactData.auto_linked_email_count !== undefined && contactData.auto_linked_email_count > 0 && (
+                    <p className="text-xs font-medium text-green-600 mt-1">
+                      ✓ {contactData.auto_linked_email_count} emails auto-linked
+                    </p>
+                  )}
+                </div>
+                <Switch
+                  id="include_all_emails"
+                  checked={formData.include_all_emails}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, include_all_emails: checked })
                   }
                 />
               </div>
