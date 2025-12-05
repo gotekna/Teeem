@@ -188,7 +188,7 @@ class PricebookImportService
     return nil unless @options[:create_suppliers]
 
     supplier = Contact.suppliers.find_or_create_by(full_name: supplier_name.strip) do |c|
-      c.contact_types = ['supplier']
+      c.roles = ['supplier']
       c.is_active = true
     end
     @stats[:suppliers_created] += 1 if supplier.previously_new_record?
