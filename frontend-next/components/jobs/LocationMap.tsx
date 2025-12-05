@@ -175,6 +175,7 @@ export function LocationMap({
   };
 
   const handleSave = async () => {
+    console.log("handleSave called, tempPosition:", tempPosition);
     if (!tempPosition) {
       setError("Please select a location");
       return;
@@ -182,6 +183,7 @@ export function LocationMap({
 
     setSaving(true);
     try {
+      console.log("Calling API to save location...");
       await api.patch(`/api/v1/jobs/${jobId}`, {
         job: {
           latitude: tempPosition[0],
@@ -189,6 +191,7 @@ export function LocationMap({
           location: searchAddress || location,
         },
       });
+      console.log("API call successful");
 
       // Save values before resetting state
       const savedPosition = tempPosition;
