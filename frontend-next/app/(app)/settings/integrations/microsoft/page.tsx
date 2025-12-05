@@ -662,7 +662,9 @@ function OrgWideAccessSection() {
       );
 
       // Redirect to admin consent
-      window.location.href = response.admin_consent_url;
+      if (response) {
+        window.location.href = response.admin_consent_url;
+      }
     } catch (err: unknown) {
       const error = err as { data?: { error?: string }; message?: string };
       setError(error.data?.error || error.message || "Failed to save credentials");
@@ -673,7 +675,9 @@ function OrgWideAccessSection() {
   const handleGrantConsent = async () => {
     try {
       const response = await api.get<{ admin_consent_url: string }>("/api/v1/microsoft_app/admin_consent_url");
-      window.location.href = response.admin_consent_url;
+      if (response) {
+        window.location.href = response.admin_consent_url;
+      }
     } catch (err) {
       console.error("Failed to get consent URL:", err);
     }
