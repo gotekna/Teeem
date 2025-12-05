@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +57,67 @@ interface AddressSuggestion {
   };
 }
 
+interface PendingSaveData {
+  location: string;
+  latitude: number;
+  longitude: number;
+  street: string;
+  suburb: string;
+  state: string;
+  lotNumber: string;
+  streetNumber: string;
+}
+
+// Helper to format address for job title
+// Format: "Lot 160 (33) Alperton Road Burbank QLD" or "Lot 160 Alperton Road Burbank QLD"
+const formatAddressForTitle = (
+  lotNumber: string,
+  streetNumber: string,
+  street: string,
+  suburb: string,
+  state: string
+): string => {
+  const parts: string[] = [];
+
+  // Handle lot and street numbers
+  if (lotNumber && streetNumber) {
+    // Both: "Lot 160 (33)"
+    parts.push(`Lot ${lotNumber} (${streetNumber})`);
+  } else if (lotNumber) {
+    // Just lot: "Lot 160"
+    parts.push(`Lot ${lotNumber}`);
+  } else if (streetNumber) {
+    // Just street number: "33"
+    parts.push(streetNumber);
+  }
+
+  // Only include street if provided
+  if (street && street.trim()) {
+    parts.push(street);
+  }
+
+  if (suburb) {
+    parts.push(suburb);
+  }
+
+  if (state) {
+    // Abbreviate state names
+    const stateAbbr: Record<string, string> = {
+      'Queensland': 'QLD',
+      'New South Wales': 'NSW',
+      'Victoria': 'VIC',
+      'South Australia': 'SA',
+      'Western Australia': 'WA',
+      'Tasmania': 'TAS',
+      'Northern Territory': 'NT',
+      'Australian Capital Territory': 'ACT'
+    };
+    parts.push(stateAbbr[state] || state);
+  }
+
+  return parts.join(' ');
+};
+
 export function LocationMap({
   jobId,
   location,
@@ -75,6 +137,16 @@ export function LocationMap({
   const [searching, setSearching] = useState(false);
   const [leafletReady, setLeafletReady] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Lot number feature state
+  const [showLotNumberPrompt, setShowLotNumberPrompt] = useState(false);
+  const [pendingSaveData, setPendingSaveData] = useState<PendingSaveData | null>(null);
+  const [lotNumber, setLotNumber] = useState("");
+  const [streetNumber, setStreetNumber] = useState("");
+  const [streetAddress, setStreetAddress] = useState("");
+  const [extractedNumber, setExtractedNumber] = useState("");
+  const [numberType, setNumberType] = useState<"lot" | "street">("lot");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   // Default to Brisbane if no location
   const DEFAULT_POSITION: [number, number] = [-27.4698, 153.0251];
@@ -153,9 +225,123 @@ export function LocationMap({
     setSearchAddress(suggestion.placeName);
     setShowSuggestions(false);
     setError(null);
+
+    // Parse address components
+    const addr = suggestion.address || {};
+    const houseNumber = addr.houseNumber || "";
+    const street = addr.street || "";
+    const suburb = addr.suburb || "";
+    const state = addr.state || "";
+    const postcode = addr.postcode || "";
+
+    // Validate required fields
+    if (!suburb || !postcode) {
+      setError("Cannot save: Missing suburb or postcode. Please select a complete address.");
+      return;
+    }
+
+    // Pre-fill street address if available
+    if (street) {
+      setStreetAddress(street);
+    } else {
+      setStreetAddress("");
+    }
+
+    // Extract and store the number for user to classify
+    if (houseNumber) {
+      setExtractedNumber(houseNumber);
+      setNumberType("lot"); // Default to lot number
+      setLotNumber(houseNumber);
+      setStreetNumber("");
+    } else {
+      setExtractedNumber("");
+      setLotNumber("");
+      setStreetNumber("");
+    }
+
+    // Store pending save data
+    setPendingSaveData({
+      location: suggestion.placeName,
+      latitude: lat,
+      longitude: lon,
+      street: street,
+      suburb: suburb,
+      state: state,
+      lotNumber: houseNumber,
+      streetNumber: "",
+    });
+
+    // Show lot number prompt
+    setShowLotNumberPrompt(true);
   };
 
-  const [dialogOpen, setDialogOpen] = useState(false);
+  // Handle number type change (lot vs street)
+  const handleNumberTypeChange = (type: "lot" | "street") => {
+    setNumberType(type);
+    if (extractedNumber) {
+      if (type === "lot") {
+        setLotNumber(extractedNumber);
+        setStreetNumber("");
+      } else {
+        setStreetNumber(extractedNumber);
+        setLotNumber("");
+      }
+    }
+  };
+
+  // Handle lot number submission
+  const handleLotNumberSubmit = () => {
+    // Must have at least lot number OR street number
+    if (!lotNumber.trim() && !streetNumber.trim()) {
+      setError("Please enter either a lot number or street number");
+      return;
+    }
+
+    // Street address is required
+    const street = streetAddress.trim() || pendingSaveData?.street;
+    if (!street) {
+      setError("Please enter a street address");
+      return;
+    }
+
+    // Validate that street includes a street type
+    const streetTypes = [
+      'street', 'st', 'road', 'rd', 'avenue', 'ave', 'court', 'ct',
+      'drive', 'dr', 'lane', 'ln', 'place', 'pl', 'crescent', 'cres',
+      'terrace', 'tce', 'circuit', 'cct', 'boulevard', 'blvd', 'parade',
+      'way', 'close', 'grove', 'highway', 'hwy', 'esplanade'
+    ];
+
+    const streetLower = street.toLowerCase();
+    const hasStreetType = streetTypes.some(type =>
+      streetLower.endsWith(' ' + type) || streetLower.endsWith(type)
+    );
+
+    if (!hasStreetType) {
+      setError('Please include the street type (e.g., "Main Street", "Main Road", "Main Court")');
+      return;
+    }
+
+    if (!pendingSaveData) {
+      setError("No pending address data");
+      return;
+    }
+
+    // Update pending save data
+    setPendingSaveData({
+      ...pendingSaveData,
+      lotNumber: lotNumber.trim(),
+      streetNumber: streetNumber.trim(),
+      street: street,
+    });
+
+    // Close prompt
+    setShowLotNumberPrompt(false);
+    setError(null);
+    setSearchAddress("");
+    setAddressSuggestions([]);
+    setShowSuggestions(false);
+  };
 
   const handleEditClick = () => {
     setIsEditMode(true);
@@ -172,10 +358,16 @@ export function LocationMap({
     setAddressSuggestions([]);
     setShowSuggestions(false);
     setDialogOpen(false);
+    setShowLotNumberPrompt(false);
+    setPendingSaveData(null);
+    setLotNumber("");
+    setStreetNumber("");
+    setStreetAddress("");
+    setExtractedNumber("");
+    setNumberType("lot");
   };
 
   const handleSave = async () => {
-    console.log("handleSave called, tempPosition:", tempPosition);
     if (!tempPosition) {
       setError("Please select a location");
       return;
@@ -183,37 +375,56 @@ export function LocationMap({
 
     setSaving(true);
     try {
-      console.log("Calling API to save location...");
-      const newLocation = searchAddress || location;
+      let newTitle: string | undefined;
+      let newLocation: string | undefined;
+
+      // If we have pending save data with lot/street number, use formatted title
+      if (pendingSaveData && (pendingSaveData.lotNumber || pendingSaveData.streetNumber)) {
+        newTitle = formatAddressForTitle(
+          pendingSaveData.lotNumber,
+          pendingSaveData.streetNumber,
+          pendingSaveData.street,
+          pendingSaveData.suburb,
+          pendingSaveData.state
+        );
+        newLocation = pendingSaveData.location;
+      } else {
+        // Fallback to search address or existing location
+        newLocation = searchAddress || location || undefined;
+        newTitle = newLocation;
+      }
+
       await api.patch(`/api/v1/jobs/${jobId}`, {
         job: {
           latitude: tempPosition[0],
           longitude: tempPosition[1],
           location: newLocation,
-          title: newLocation, // Update title to match location
+          title: newTitle,
         },
       });
-      console.log("API call successful");
 
       // Save values before resetting state
       const savedPosition = tempPosition;
-      const savedLocation = newLocation || undefined;
 
       setMapPosition(savedPosition);
       setIsEditMode(false);
       setTempPosition(null);
       setError(null);
       setDialogOpen(false);
+      setPendingSaveData(null);
+      setLotNumber("");
+      setStreetNumber("");
+      setStreetAddress("");
+      setExtractedNumber("");
+      setNumberType("lot");
 
       if (onLocationUpdate) {
-        const updateData = {
+        onLocationUpdate({
           latitude: savedPosition[0],
           longitude: savedPosition[1],
-          location: savedLocation,
-          title: savedLocation, // Update title in parent state too
-        };
-        console.log("LocationMap calling onLocationUpdate with:", updateData);
-        onLocationUpdate(updateData);
+          location: newLocation,
+          title: newTitle,
+        });
       }
     } catch (err) {
       console.error("Error saving location:", err);
@@ -221,6 +432,19 @@ export function LocationMap({
     } finally {
       setSaving(false);
     }
+  };
+
+  // Get preview of formatted title
+  const getPreviewTitle = () => {
+    if (!pendingSaveData) return "";
+    const street = streetAddress.trim() || pendingSaveData.street;
+    return formatAddressForTitle(
+      lotNumber.trim(),
+      streetNumber.trim(),
+      street,
+      pendingSaveData.suburb,
+      pendingSaveData.state
+    );
   };
 
   const displayPosition = isEditMode && tempPosition ? tempPosition : mapPosition;
@@ -296,7 +520,7 @@ export function LocationMap({
       <Dialog open={dialogOpen} onOpenChange={(open) => {
         if (!open) handleCancelEdit();
       }}>
-        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-hidden">
+        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MapPin className="h-5 w-5" />
@@ -311,38 +535,175 @@ export function LocationMap({
               </p>
             </div>
 
-            <div className="relative">
-              <Label htmlFor="address-search">Search Address</Label>
-              <Input
-                id="address-search"
-                value={searchAddress}
-                onChange={(e) => setSearchAddress(e.target.value)}
-                placeholder="e.g., 123 Main Street, Brisbane"
-                className="mt-1"
-              />
-              {searching && (
-                <Loader2 className="absolute right-3 top-9 h-4 w-4 animate-spin text-muted-foreground" />
-              )}
+            {/* Address Search - hide when lot prompt is showing */}
+            {!showLotNumberPrompt && (
+              <div className="relative">
+                <Label htmlFor="address-search">Search Address</Label>
+                <Input
+                  id="address-search"
+                  value={searchAddress}
+                  onChange={(e) => setSearchAddress(e.target.value)}
+                  placeholder="e.g., 123 Main Street, Brisbane"
+                  className="mt-1"
+                />
+                {searching && (
+                  <Loader2 className="absolute right-3 top-9 h-4 w-4 animate-spin text-muted-foreground" />
+                )}
 
-              {showSuggestions && addressSuggestions.length > 0 && (
-                <div className="absolute z-[9999] w-full mt-1 bg-background border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  {addressSuggestions.map((suggestion) => (
-                    <button
-                      key={suggestion.id}
-                      type="button"
-                      onClick={() => handleAddressSelect(suggestion)}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors"
+                {showSuggestions && addressSuggestions.length > 0 && (
+                  <div className="absolute z-[9999] w-full mt-1 bg-background border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {addressSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.id}
+                        type="button"
+                        onClick={() => handleAddressSelect(suggestion)}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors"
+                      >
+                        {suggestion.placeName}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Lot Number Prompt */}
+            {showLotNumberPrompt && (
+              <div className="p-4 bg-indigo-50 dark:bg-indigo-950 rounded-lg border-2 border-indigo-500 dark:border-indigo-400">
+                <h4 className="text-base font-semibold mb-2">
+                  Classify Address Number
+                </h4>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {extractedNumber ? (
+                    <>We found the number <strong>{extractedNumber}</strong> in the address. Please choose whether this is a lot number or street number.</>
+                  ) : (
+                    <>Please enter either a lot number or street number, and the street address.</>
+                  )}
+                </p>
+
+                <div className="space-y-4">
+                  {/* Number Type Selector - only show if we extracted a number */}
+                  {extractedNumber && (
+                    <div className="p-3 bg-background rounded-lg">
+                      <Label className="text-xs mb-2 block">
+                        The number &quot;{extractedNumber}&quot; is a:
+                      </Label>
+                      <RadioGroup
+                        value={numberType}
+                        onValueChange={(value) => handleNumberTypeChange(value as "lot" | "street")}
+                        className="flex gap-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="lot" id="lot" />
+                          <Label htmlFor="lot" className="text-sm cursor-pointer">Lot Number</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="street" id="street" />
+                          <Label htmlFor="street" className="text-sm cursor-pointer">Street Number</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  )}
+
+                  {/* Lot Number Field */}
+                  <div>
+                    <Label className="text-xs">
+                      Lot Number {!extractedNumber && <span className="text-muted-foreground">(at least one required)</span>}
+                    </Label>
+                    <Input
+                      value={lotNumber}
+                      onChange={(e) => setLotNumber(e.target.value)}
+                      placeholder="e.g., 123"
+                      className="mt-1"
+                    />
+                  </div>
+
+                  {/* Street Number Field */}
+                  <div>
+                    <Label className="text-xs">
+                      Street Number {!extractedNumber && <span className="text-muted-foreground">(at least one required)</span>}
+                    </Label>
+                    <Input
+                      value={streetNumber}
+                      onChange={(e) => setStreetNumber(e.target.value)}
+                      placeholder="e.g., 33"
+                      className="mt-1"
+                    />
+                  </div>
+
+                  {/* Street Address Field */}
+                  <div>
+                    <Label className="text-xs">
+                      Street Address <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      value={streetAddress}
+                      onChange={(e) => setStreetAddress(e.target.value)}
+                      placeholder="e.g., Alperton Road, Main Street, Smith Court"
+                      className="mt-1"
+                    />
+                  </div>
+
+                  {/* Preview of job title */}
+                  {pendingSaveData && (lotNumber.trim() || streetNumber.trim()) && streetAddress.trim() && (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <p className="text-xs text-muted-foreground mb-1">Job title will be:</p>
+                      <p className="text-sm font-semibold">
+                        {getPreviewTitle()}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Buttons */}
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setShowLotNumberPrompt(false);
+                        setPendingSaveData(null);
+                        setLotNumber("");
+                        setStreetNumber("");
+                        setStreetAddress("");
+                        setExtractedNumber("");
+                      }}
                     >
-                      {suggestion.placeName}
-                    </button>
-                  ))}
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleLotNumberSubmit}
+                      disabled={(!lotNumber.trim() && !streetNumber.trim()) || !streetAddress.trim()}
+                    >
+                      Continue
+                    </Button>
+                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {error && (
               <div className="p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
                 <p className="text-sm text-yellow-800 dark:text-yellow-200">{error}</p>
+              </div>
+            )}
+
+            {/* Show pending save info */}
+            {pendingSaveData && !showLotNumberPrompt && (
+              <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+                <p className="text-xs text-muted-foreground mb-1">Job title will be:</p>
+                <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                  {formatAddressForTitle(
+                    pendingSaveData.lotNumber,
+                    pendingSaveData.streetNumber,
+                    pendingSaveData.street,
+                    pendingSaveData.suburb,
+                    pendingSaveData.state
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Click on the map to adjust pin position, then click Save.
+                </p>
               </div>
             )}
 
@@ -380,7 +741,7 @@ export function LocationMap({
               <X className="h-4 w-4 mr-2" />
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving || !tempPosition}>
+            <Button onClick={handleSave} disabled={saving || !tempPosition || showLotNumberPrompt}>
               <Check className="h-4 w-4 mr-2" />
               {saving ? "Saving..." : "Save"}
             </Button>
