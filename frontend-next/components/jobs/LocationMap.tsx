@@ -190,7 +190,11 @@ export function LocationMap({
         },
       });
 
-      setMapPosition(tempPosition);
+      // Save values before resetting state
+      const savedPosition = tempPosition;
+      const savedLocation = searchAddress || location || undefined;
+
+      setMapPosition(savedPosition);
       setIsEditMode(false);
       setTempPosition(null);
       setError(null);
@@ -198,9 +202,9 @@ export function LocationMap({
 
       if (onLocationUpdate) {
         onLocationUpdate({
-          latitude: tempPosition[0],
-          longitude: tempPosition[1],
-          location: searchAddress || location || undefined,
+          latitude: savedPosition[0],
+          longitude: savedPosition[1],
+          location: savedLocation,
         });
       }
     } catch (err) {
