@@ -120,10 +120,10 @@ class Contact < ApplicationRecord
   validate :validate_name_fields_for_entity_type
 
   # Callbacks
+  before_validation :clear_roles_if_not_person  # Must run before validations
   before_save :update_xero_synced_status
   before_save :generate_full_name
   before_save :sync_company_name_or_trust
-  before_save :clear_roles_if_not_person
 
   # Scopes
   scope :with_email, -> { where.not(email: [nil, '']) }
