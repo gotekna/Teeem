@@ -2040,7 +2040,17 @@ module Api
         else
           # Try to find a foundation and get its model
           foundation = Foundation.find_by(foundation_id: foundation_id) || Foundation.find_by(id: foundation_id)
-          foundation&.model_class&.constantize rescue nil
+          if foundation&.model_class.present?
+            # Whitelist valid model classes to prevent RCE via constantize
+            valid_models = %w[
+              Job Contact Supplier Case Invoice Quote Estimate Task
+              SmTask SmTemplate Foundation Record CompanyDocument
+              PayNowRequest FinancialTransaction User PricebookItem
+              Column FoundationView WhsIncident WhsInspection WhsInduction
+            ]
+            model_name = foundation.model_class.to_s
+            valid_models.include?(model_name) ? model_name.constantize : nil
+          end
         end
       end
 

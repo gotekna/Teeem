@@ -198,7 +198,9 @@ class Api::V1::GoldStandardTableController < ApplicationController
       case column.type
       when :string, :text
         # Text fields: case-insensitive partial match
-        query = query.where("LOWER(#{column_name}) LIKE ?", "%#{value.to_s.downcase}%")
+        # Use quote_column_name to prevent SQL injection
+        safe_column = ActiveRecord::Base.connection.quote_column_name(column_name)
+        query = query.where("LOWER(#{safe_column}) LIKE ?", "%#{value.to_s.downcase}%")
       when :integer, :decimal, :float
         # Numeric fields: exact match (or could extend to support ranges)
         query = query.where(column_name => value)

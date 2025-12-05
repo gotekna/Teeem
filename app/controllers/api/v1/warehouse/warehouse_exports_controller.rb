@@ -67,9 +67,13 @@ module Api
         private
 
         def fetch_data(view_name, limit, offset)
+          # Ensure limit and offset are sanitized integers
+          safe_limit = limit.to_i.clamp(1, 10_000)
+          safe_offset = [offset.to_i, 0].max
+
           sql = <<~SQL
             SELECT * FROM #{ActiveRecord::Base.connection.quote_table_name(view_name)}
-            LIMIT #{limit} OFFSET #{offset}
+            LIMIT #{safe_limit} OFFSET #{safe_offset}
           SQL
 
           ActiveRecord::Base.connection.execute(sql).to_a

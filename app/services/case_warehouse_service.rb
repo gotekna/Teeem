@@ -373,7 +373,9 @@ class CaseWarehouseService
 
   # Query a materialized view with conditions
   def query_mv(view_name, conditions = nil, params = [])
-    sql = "SELECT * FROM #{view_name}"
+    # Sanitize view name to prevent SQL injection
+    safe_view_name = ActiveRecord::Base.connection.quote_table_name(view_name)
+    sql = "SELECT * FROM #{safe_view_name}"
     sql += " WHERE #{conditions}" if conditions.present?
 
     if params.any?
