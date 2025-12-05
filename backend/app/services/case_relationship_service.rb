@@ -138,9 +138,10 @@ class CaseRelationshipService
     company_groups.each do |company_name, company_contacts|
       rel_types = company_contacts.map { |cc| cc.relationship_type }.compact
       alignments = company_contacts.map { |cc| cc.alignment }.compact
+      roles = company_contacts.map { |cc| cc.role }.compact
       group_alignment = alignments.tally.max_by { |_, count| count }&.first || 'neutral'
 
-      quadrant = determine_quadrant(rel_types, alignments)
+      quadrant = determine_quadrant(rel_types, alignments, roles)
       case quadrant
       when :client
         client_groups << [company_name, company_contacts, group_alignment]
@@ -161,8 +162,9 @@ class CaseRelationshipService
     single_contacts.each do |case_contact|
       rel_type = case_contact.relationship_type
       alignment = case_contact.alignment
+      role = case_contact.role
 
-      quadrant = determine_quadrant([rel_type].compact, [alignment].compact)
+      quadrant = determine_quadrant([rel_type].compact, [alignment].compact, [role].compact)
       case quadrant
       when :client
         client_singles << case_contact
@@ -281,10 +283,11 @@ class CaseRelationshipService
     [nodes, edges]
   end
 
-  # Determine which quadrant a contact belongs to based on relationship types and alignments
-  def determine_quadrant(rel_types, alignments)
+  # Determine which quadrant a contact belongs to based on relationship types, alignments, and roles
+  def determine_quadrant(rel_types, alignments, roles = [])
     advisor_types = %w[accountant lawyer previous_accountant advisor]
     opposing_types = %w[opposing_party ato_officer afsa_officer inspector_general creditor debtor trustee]
+    advisor_roles = %w[advisor accountant lawyer]
 
     # Check if it's a client
     return :client if rel_types.include?('client')
@@ -292,9 +295,15 @@ class CaseRelationshipService
     # Check alignment first - if explicitly opposing, put in opposing quadrant
     return :opposing if alignments.include?('opposing')
 
+    # Check alignment - if friendly, put in client quadrant
+    return :client if alignments.include?('friendly')
+
     # Check relationship type
     return :advisor if (rel_types & advisor_types).any?
     return :opposing if (rel_types & opposing_types).any?
+
+    # Check role as fallback
+    return :advisor if (roles & advisor_roles).any?
 
     # Default to neutral
     :neutral
@@ -661,7 +670,7 @@ class CaseRelationshipService
     node = {
       id: "case-#{parent.id}",
       type: 'parent_case',
-      position: { x: 400, y: 50 }, # Above the main case
+      position: { x: 300, y: -100 }, # Above the main case (centered, with space)
       data: {
         id: parent.id,
         case_number: parent.case_number,
@@ -700,10 +709,10 @@ class CaseRelationshipService
     children = @case.child_cases.includes(:assigned_to)
     return [nodes, edges] if children.empty?
 
-    # Position children below the main case
+    # Position children below the main case (case center is at x=300)
     base_y = 550
     spacing = 200
-    start_x = 400 - ((children.count - 1) * spacing / 2.0)
+    start_x = 300 - ((children.count - 1) * spacing / 2.0)
 
     children.each_with_index do |child, index|
       position = { x: (start_x + (index * spacing)).round, y: base_y }

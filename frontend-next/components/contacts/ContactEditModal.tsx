@@ -72,6 +72,7 @@ interface CompanySearchResult {
   id: number;
   full_name: string;
   email: string | null;
+  entity_type: string | null;
 }
 
 interface ContactEditModalProps {
@@ -144,6 +145,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
   }, [contact]);
 
   // Search companies when query changes
+  // Search all contacts except persons (company, trust, or blank entity_type)
   React.useEffect(() => {
     const searchCompanies = async () => {
       if (companySearchQuery.length < 2) {
@@ -152,10 +154,16 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
       }
       setSearchingCompanies(true);
       try {
+        // Don't filter by entity_type - search all contacts and filter out persons client-side
+        // This allows finding companies with blank entity_type (legacy data)
         const response = await api.get<{ contacts: CompanySearchResult[] }>("/api/v1/contacts", {
-          params: { entity_type: "company", search: companySearchQuery, per_page: 10 },
+          params: { search: companySearchQuery, per_page: 20 },
         });
-        setCompanySearchResults(response?.contacts || []);
+        // Filter out persons - keep company, trust, and blank entity_type
+        const nonPersons = (response?.contacts || []).filter(
+          c => c.entity_type !== "person"
+        );
+        setCompanySearchResults(nonPersons.slice(0, 10));
       } catch (error) {
         console.error("Failed to search companies:", error);
       } finally {
