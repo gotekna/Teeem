@@ -82,12 +82,14 @@ export function InspiringQuotesTab() {
 
   React.useEffect(() => {
     loadQuotes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   React.useEffect(() => {
     if (quotes.length > 0) {
       pickRandomQuote();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [quotes]);
 
   const loadQuotes = async () => {

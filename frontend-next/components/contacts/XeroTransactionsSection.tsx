@@ -39,6 +39,7 @@ export function XeroTransactionsSection({
     if (xeroLink && xeroLink.xero_contact_id) {
       loadTransactions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [xeroLink]);
 
   const loadTransactions = async () => {

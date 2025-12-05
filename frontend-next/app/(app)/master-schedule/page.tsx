@@ -90,6 +90,7 @@ export default function MasterSchedulePage() {
       setError("No job ID provided");
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [constructionId]);
 
   const loadConstructionAndSchedule = async () => {

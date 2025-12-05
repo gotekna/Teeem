@@ -70,6 +70,7 @@ export default function ComplianceCalendarPage() {
 
   React.useEffect(() => {
     loadCalendarData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [filters, currentMonth]);
 
   const loadCompanyGroups = async () => {

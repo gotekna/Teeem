@@ -80,6 +80,7 @@ export default function JobsPage() {
   useEffect(() => {
     loadJobs();
     loadJobMetadata();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadJobMetadata = async () => {
@@ -210,6 +211,7 @@ export default function JobsPage() {
       { key: "start_date", label: "Start Date", width: 120, sortable: true, filterable: true, column_type: "date" },
       { key: "actions", label: "Actions", width: 100, sortable: false, filterable: false },
     ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excluding isSystemColumn (defined in component scope)
   }, [columns, jobStatuses, jobTypes]);
 
   // Convert jobs to table rows - flatten nested objects for display

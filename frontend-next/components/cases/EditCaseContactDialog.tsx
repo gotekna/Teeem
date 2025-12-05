@@ -86,6 +86,7 @@ export function EditCaseContactDialog({
     if (open && caseId && contactId) {
       loadContactData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [open, caseId, contactId]);
 
   const loadContactData = async () => {

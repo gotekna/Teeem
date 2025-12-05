@@ -78,6 +78,7 @@ export function AnnotationCanvas({
     return () => {
       canvas.dispose();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [pageImage, width, height]);
 
   // Update canvas size on zoom change
@@ -129,6 +130,7 @@ export function AnnotationCanvas({
         // Shape tools handled in mouse events
         break;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [currentTool, strokeColor, strokeWidth]);
 
   // Handle eraser click

@@ -333,6 +333,7 @@ export default function ContactDetailPage() {
 
   useEffect(() => {
     loadContact();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [id]);
 
   // Load memberships when contact loads
@@ -340,6 +341,7 @@ export default function ContactDetailPage() {
     if (contact?.id) {
       loadMemberships();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching contact?.id
   }, [contact?.id]);
 
   // SSoT: Auto-open edit modal when ?edit=true is in URL (e.g., from CG page)
@@ -461,6 +463,7 @@ export default function ContactDetailPage() {
       if (!trustRoles && !loadingTrustRoles) loadTrustRoles();
       if (ownershipChain.length === 0 && !loadingOwnershipChain) loadOwnershipChain();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching activeTab and contact?.id
   }, [activeTab, contact?.id]);
 
   const handleTabChange = (value: string) => {

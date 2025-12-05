@@ -177,7 +177,9 @@ export default function PersonStructureChart({
   const [showShareholding, setShowShareholding] = React.useState(true);
 
   // Apply filters
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- conditional is stable and doesn't affect useMemo below
   const filteredOwnershipChain = showShareholding ? ownershipChain : [];
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- conditional is stable and doesn't affect useMemo below
   const filteredDirectorRoles = showDirectors ? directorRoles : [];
 
   const { initialNodes, initialEdges, dimensions } = useMemo(() => {

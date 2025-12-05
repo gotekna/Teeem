@@ -205,6 +205,7 @@ export default function PurchaseOrderDetailPage() {
   // Load purchase order
   useEffect(() => {
     loadPurchaseOrder();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally watching recordId only (loadPurchaseOrder is stable)
   }, [recordId]);
 
   // Refetch data when window regains focus (e.g., switching back from pricebook tab)
@@ -218,6 +219,7 @@ export default function PurchaseOrderDetailPage() {
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally watching recordId only (loadPurchaseOrder is stable)
   }, [recordId]);
 
   // Debounced server-side search for pricebook items

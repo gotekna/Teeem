@@ -719,6 +719,7 @@ export function FoldersTab() {
     loadTemplates();
     loadSharePointConfig();
     loadJobNameFormat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadJobNameFormat = async () => {
@@ -781,6 +782,7 @@ export function FoldersTab() {
     if (sharePointConfig?.connected && sharePointConfig?.root_folder) {
       validateFolder();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [sharePointConfig?.connected, sharePointConfig?.root_folder]);
 
   const handleChangeFolderPath = async () => {

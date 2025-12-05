@@ -109,6 +109,7 @@ function GroupsSubTab() {
 
   React.useEffect(() => {
     loadGroups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadGroups = async () => {
@@ -440,10 +441,12 @@ function CompaniesSubTab() {
 
   React.useEffect(() => {
     loadGroups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   React.useEffect(() => {
     loadCompanies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [selectedGroupId, selectedStatus]);
 
   const loadGroups = async () => {

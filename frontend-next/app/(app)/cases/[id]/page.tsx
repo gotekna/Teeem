@@ -523,6 +523,7 @@ export default function CaseDetailPage() {
         if (!processingStatus) loadProcessingStatus();
         break;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching activeTab and caseData
   }, [activeTab, caseData]);
 
   const loadActions = async () => {
@@ -718,6 +719,7 @@ export default function CaseDetailPage() {
       }
     }, 300);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching contactSearchQuery and showAddContact
   }, [contactSearchQuery, showAddContact]);
 
   // Load entities when Relationships tab is activated
@@ -725,6 +727,7 @@ export default function CaseDetailPage() {
     if (activeTab === "relationships" && contacts.length === 0) {
       loadEntities();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching activeTab
   }, [activeTab]);
 
   // Add contact to case

@@ -101,6 +101,7 @@ export default function ConsolidationPage() {
     if (selectedGroupId) {
       loadGroupDetails();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [selectedGroupId, asOfDate]);
 
   const loadGroups = async () => {

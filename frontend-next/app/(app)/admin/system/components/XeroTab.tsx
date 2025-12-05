@@ -55,6 +55,7 @@ function XeroConnection() {
 
   React.useEffect(() => {
     loadStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadStatus = async () => {
@@ -328,6 +329,7 @@ function XeroFieldMapping() {
 
   React.useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadData = async () => {
@@ -637,6 +639,7 @@ function XeroContactSync() {
   // Load all data on mount
   React.useEffect(() => {
     loadAllData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadAllData = async () => {

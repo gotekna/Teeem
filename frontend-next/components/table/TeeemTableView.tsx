@@ -1120,6 +1120,7 @@ export default function TeeemTableView({
       });
       return updates;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setColumnOrder and setVisibleColumns are setState functions (stable)
   }, [COLUMNS]);
   const [selectedRows, setSelectedRows] = useState<Set<number | string>>(new Set());
 
@@ -1225,6 +1226,7 @@ export default function TeeemTableView({
       const newIndex = prev.indexOf(over.id as string);
       return arrayMove(prev, oldIndex, newIndex);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setColumnOrder is setState function (stable)
   }, []);
 
   // Reorder a column to a specific position (1-based index)
@@ -1248,6 +1250,7 @@ export default function TeeemTableView({
       const hiddenColumns = prev.filter(key => visibleColumns[key] !== true);
       return [...newVisibleOrder, ...hiddenColumns];
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setColumnOrder is setState function (stable), visibleColumns is intentionally included
   }, [visibleColumns]);
 
   // Get columns sorted by current columnOrder for the modal
@@ -1311,6 +1314,7 @@ export default function TeeemTableView({
   // Column resize handler
   const handleColumnResize = useCallback((key: string, width: number) => {
     setColumnWidths((prev) => ({ ...prev, [key]: width }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setColumnWidths is setState function (stable)
   }, []);
 
   // Sort handler
@@ -1329,6 +1333,7 @@ export default function TeeemTableView({
         return [...prev, { column: columnKey, dir: "asc" as const }];
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setSortColumns is setState function (stable)
   }, []);
 
   // Filter handlers
@@ -1349,6 +1354,7 @@ export default function TeeemTableView({
       },
     ]);
     setShowFilters(true); // Show filter editor rows
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setCascadeFilters is setState function (stable), COLUMNS is intentionally included
   }, [COLUMNS]);
 
   // Add filter for specific column (from column header dropdown)
@@ -1364,6 +1370,7 @@ export default function TeeemTableView({
       },
     ]);
     setFilterPanelOpen(true); // Open the filter panel so user can set the value
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setCascadeFilters is setState function (stable)
   }, []);
 
   // Hide a column
@@ -1372,6 +1379,7 @@ export default function TeeemTableView({
       ...prev,
       [columnKey]: false,
     }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setVisibleColumns is setState function (stable)
   }, []);
 
   // Set group by column (updates atom - groupByColumn is derived from it)
@@ -1387,16 +1395,19 @@ export default function TeeemTableView({
         prev.map((f) => (f.id === id ? { ...f, ...updates } : f))
       );
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setCascadeFilters is setState function (stable)
     []
   );
 
   const removeFilter = useCallback((id: string | number) => {
     setCascadeFilters((prev) => prev.filter((f) => f.id !== id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setCascadeFilters is setState function (stable)
   }, []);
 
   const clearAllFilters = useCallback(() => {
     setCascadeFilters([]);
     setActiveViewId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setCascadeFilters and setActiveViewId are setState functions (stable)
   }, []);
 
   // Row selection handlers
@@ -1418,6 +1429,7 @@ export default function TeeemTableView({
     } else {
       setSelectedRows(new Set(filteredAndSortedEntries.map((e) => e.id)));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally watching selectedRows.size only, filteredAndSortedEntries accessed directly
   }, [selectedRows.size]);
 
   // Merge handler - opens the shared merge modal
@@ -2234,6 +2246,7 @@ export default function TeeemTableView({
     if (onLoadViewReady) {
       onLoadViewReady(loadViewState);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [onLoadViewReady, loadViewState]);
 
   // Save current state as new view
@@ -2295,6 +2308,7 @@ export default function TeeemTableView({
     } finally {
       setSavingView(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excluding setState functions (setActiveViewId, setSavedViews, invalidateCache)
   }, [
     newViewName,
     foundationIdNumeric,
@@ -2479,6 +2493,7 @@ export default function TeeemTableView({
       console.warn('[filteredAndSortedEntries] All entries filtered out! Had', entries.length, 'entries, now 0');
     }
     return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excluding safeFilters (derived from cascadeFilters which is included)
   }, [
     entries,
     search,
@@ -2503,6 +2518,7 @@ export default function TeeemTableView({
   useEffect(() => {
     setRowLimit(INITIAL_ROW_LIMIT);
     setShowAllRows(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [cascadeFilters, sortColumns, search, INITIAL_ROW_LIMIT]);
 
   // Helper to extract display value from a cell (handles objects with display/name properties)
@@ -2568,6 +2584,7 @@ export default function TeeemTableView({
   // Expand/collapse all group handlers (must be after groupedEntries)
   const expandAllGroups = useCallback(() => {
     setCollapsedGroups(new Set());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setCollapsedGroups is setState function (stable)
   }, []);
 
   const collapseAllGroups = useCallback(() => {
@@ -2575,6 +2592,7 @@ export default function TeeemTableView({
       const allKeys = getAllGroupKeys(groupedEntries);
       setCollapsedGroups(new Set(allKeys));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setCollapsedGroups is setState function (stable), groupedEntries and getAllGroupKeys are intentionally included
   }, [groupedEntries, getAllGroupKeys]);
 
   // Auto-expand all groups when searching/filtering
@@ -2583,6 +2601,7 @@ export default function TeeemTableView({
       // Expand all groups when there's a search term
       setCollapsedGroups(new Set());
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [search, groupedEntries]);
 
   // Handle pending collapse-all when groupedEntries is ready
@@ -2591,6 +2610,7 @@ export default function TeeemTableView({
       const allKeys = getAllGroupKeys(groupedEntries);
       setCollapsedGroups(new Set(allKeys));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setCollapsedGroups is setState function (stable)
   }, [groupedEntries, collapsedGroups, getAllGroupKeys]);
 
   // Get visible columns in order
@@ -2719,6 +2739,7 @@ export default function TeeemTableView({
       // Replace widths entirely when auto-fit is on (not merge)
       setColumnWidths(autoWidths);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setColumnWidths is setState function (stable), filteredAndSortedEntries.length accessed directly
   }, [autoFitColumns, calculateAutoFitWidths, visibleColumnsInOrder]);
 
   // Get visible data columns (excluding select and actions)
@@ -4592,6 +4613,7 @@ export default function TeeemTableView({
       }
       return strValue;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excluding toast (stable from hook)
     [
       customCellRenderer,
       editingRowIds,

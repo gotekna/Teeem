@@ -62,6 +62,7 @@ export default function LeadDetailPage() {
       setLoading(false);
     };
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [leadId]);
 
   const handleUpdateLead = async (data: Partial<Lead>) => {

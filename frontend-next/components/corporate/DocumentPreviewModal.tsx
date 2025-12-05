@@ -346,6 +346,7 @@ export default function DocumentPreviewModal({
       const dd = String(today.getDate()).padStart(2, "0");
       setEditedRefDate(`${yyyy}-${mm}-${dd}`);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching isAmended
   }, [isAmended]);
 
   // Check for existing amended documents when amended checkbox is ticked
@@ -867,6 +868,7 @@ export default function DocumentPreviewModal({
         clearInterval(pollingRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally watching specific document fields
   }, [document?.id, document?.ai_verification_status, editedCompanyId, editedDescription, editedRefDate, editedDocumentType, editedFolder, editedFinancialYears]);
 
   // Focus title input when editing starts

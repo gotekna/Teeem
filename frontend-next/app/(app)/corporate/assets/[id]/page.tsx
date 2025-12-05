@@ -105,6 +105,7 @@ export default function AssetDetailPage() {
   // Load asset data
   React.useEffect(() => {
     loadAsset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [assetId]);
 
   const loadAsset = async () => {

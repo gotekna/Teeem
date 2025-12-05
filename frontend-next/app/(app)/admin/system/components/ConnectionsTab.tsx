@@ -46,6 +46,7 @@ function SharePointConnection() {
 
   React.useEffect(() => {
     loadStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadStatus = async () => {
@@ -187,6 +188,7 @@ function OutlookConnection() {
 
   React.useEffect(() => {
     loadStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   // Auto-refresh token if it needs refresh
@@ -212,6 +214,7 @@ function OutlookConnection() {
       }
     };
     autoRefreshToken();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [status?.needs_refresh, status?.connected]);
 
   const loadStatus = async () => {
@@ -363,6 +366,7 @@ function TwilioConfiguration() {
 
   React.useEffect(() => {
     loadSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadSettings = async () => {

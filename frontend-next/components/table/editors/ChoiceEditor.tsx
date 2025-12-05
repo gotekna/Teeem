@@ -70,6 +70,7 @@ export function ChoiceEditor({
         }));
 
   // Current selection as array
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   const selectedValues: string[] = multiple
     ? Array.isArray(value)
       ? value

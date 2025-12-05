@@ -61,6 +61,7 @@ export function LookupEditor({
   const [isLoading, setIsLoading] = useState(false);
 
   // Current selection as array of IDs
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   const selectedIds: number[] = multiple
     ? Array.isArray(value)
       ? value

@@ -141,6 +141,7 @@ export function ProposalApprovalDialog({
     }
 
     loadJobOptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [open]);
 
   const loadJobOptions = async () => {

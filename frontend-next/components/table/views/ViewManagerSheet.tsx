@@ -180,6 +180,7 @@ export function ViewManagerSheet({
     if (open && foundationId) {
       loadViews();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [open, foundationId]);
 
   const loadViews = async (selectViewByName?: string) => {

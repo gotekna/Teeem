@@ -65,6 +65,7 @@ export default function XeroSyncPage() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadData = async () => {

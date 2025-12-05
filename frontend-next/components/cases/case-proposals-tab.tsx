@@ -135,6 +135,7 @@ export function CaseProposalsTab({ onPendingCountChange }: CaseProposalsTabProps
 
   useEffect(() => {
     loadProposals();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadProposals = async () => {

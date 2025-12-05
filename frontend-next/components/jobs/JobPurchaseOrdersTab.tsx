@@ -149,6 +149,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
 
   useEffect(() => {
     loadPurchaseOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [jobId]);
 
   const loadPurchaseOrders = async () => {

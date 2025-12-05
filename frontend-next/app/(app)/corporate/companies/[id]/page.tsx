@@ -783,6 +783,7 @@ function HealthTab({ company, onUpdate }: { company: Company; onUpdate: () => vo
 
   React.useEffect(() => {
     loadHealthReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [company.id]);
 
   const loadHealthReport = async () => {
@@ -990,6 +991,7 @@ function TrustsTab({ company, onUpdate }: { company: Company; onUpdate: () => vo
   React.useEffect(() => {
     loadTrusts();
     loadCompanyGroups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [company.id]);
 
   const loadTrusts = async () => {
@@ -1550,6 +1552,7 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
     loadCompanyGroups();
     loadParentCompanyOptions();
     loadAvailableTrusts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [company.id]);
 
   const loadConsolidatedCompanies = async () => {
@@ -2018,6 +2021,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
     loadDocuments();
     checkSharePointConnection();
     loadCompanies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [companyId, category]);
 
   const loadCompanies = async () => {
@@ -2555,6 +2559,7 @@ function DataWarehouseTab({ companyId }: { companyId: string }) {
 
   React.useEffect(() => {
     loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [companyId]);
 
   const loadStats = async () => {
@@ -2998,6 +3003,7 @@ function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: {
 
   React.useEffect(() => {
     loadStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [companyId]);
 
   const loadStatus = async () => {
@@ -3021,6 +3027,7 @@ function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: {
     if (status !== null) {
       onConnectionChange?.(status.connected);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching status.connected
   }, [status?.connected]);
 
   const handleConnect = async () => {
@@ -3243,6 +3250,7 @@ function BankTransactionsCard({ companyId, isConnected }: { companyId: string; i
     if (isConnected) {
       loadTransactions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [companyId, isConnected, dateRange]);
 
   const loadTransactions = async () => {

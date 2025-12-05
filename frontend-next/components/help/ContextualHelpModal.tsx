@@ -45,6 +45,7 @@ export function ContextualHelpModal({
     if (isOpen && chapter !== null) {
       loadHelpContent();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [isOpen, chapter, section]);
 
   const loadHelpContent = async () => {

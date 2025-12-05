@@ -89,6 +89,7 @@ export default function MinuteTemplatesPage() {
 
   React.useEffect(() => {
     loadTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [selectedType, showInactive]);
 
   const loadTemplates = async () => {

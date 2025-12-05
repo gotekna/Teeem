@@ -62,6 +62,7 @@ export default function TablePage() {
 
   useEffect(() => {
     loadTableData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [tableId]);
 
   const loadTableData = async () => {

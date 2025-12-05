@@ -243,6 +243,7 @@ function GoldStandardDataTab() {
       });
       setFieldOrder(initialOrder);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [rawColumns]);
 
   const updateFieldOrder = (columnName: string, newOrder: number) => {
@@ -404,6 +405,7 @@ function GoldStandardDataTab() {
 
   React.useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadData = async () => {
@@ -1202,6 +1204,7 @@ function GoldStandardTableTab() {
 
   React.useEffect(() => {
     loadColumnTypes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadColumnTypes = async () => {
@@ -1481,6 +1484,7 @@ function SyncCheckTab() {
 
   React.useEffect(() => {
     loadSyncData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadSyncData = async () => {
