@@ -43,9 +43,16 @@ module Api
           )
         end
 
-        # Filter by contact type
-        if params[:type].present?
+        # Filter by role (updated from deprecated contact_types to roles)
+        if params[:role].present?
+          @contacts = @contacts.with_role(params[:role])
+        end
+
+        # Legacy support for old :type param (deprecated - use :role instead)
+        # customer/supplier roles have been removed and converted to 'Employee'
+        if params[:type].present? && params[:role].blank?
           case params[:type]
+<<<<<<< Updated upstream
           when 'customers'
             @contacts = @contacts.customers
           when 'suppliers'
@@ -53,6 +60,10 @@ module Api
           when 'both'
             # Filter for contacts that have both 'customer' and 'supplier' in roles array
             @contacts = @contacts.where("roles @> ARRAY['customer', 'supplier']::text[]")
+=======
+          when 'customers', 'suppliers', 'both'
+            @contacts = @contacts.employees # All converted to Employee role
+>>>>>>> Stashed changes
           end
         end
 
