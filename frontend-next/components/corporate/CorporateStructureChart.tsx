@@ -376,10 +376,12 @@ export default function CorporateStructureChart({
   const { initialNodes, initialEdges, maxDepth } = useMemo(() => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
-    let yOffset = 0;
     let maxDepth = 1;
-    const xSpacing = 520; // Horizontal spacing between siblings
-    const ySpacing = 480; // Vertical spacing between levels
+    const nodeWidth = 420; // Width of a node
+    const nodeHeight = 300; // Approximate height of a node
+    const horizontalGap = 80; // Gap between nodes horizontally
+    const verticalGap = 120; // Gap between levels vertically
+    const ySpacing = nodeHeight + verticalGap; // Total vertical spacing
 
     // Helper to get people roles for a company
     const getPeopleForCompany = (companyId: number, companyShareholders: StructureShareholder[]) => {
@@ -419,14 +421,31 @@ export default function CorporateStructureChart({
       return { directors, shareholders, secretary, publicOfficer };
     };
 
-    // Recursive function to process companies
+    // First pass: calculate subtree widths for proper positioning
+    const calculateSubtreeWidth = (company: StructureCompany): number => {
+      if (!company.children || company.children.length === 0) {
+        return nodeWidth;
+      }
+      const childrenWidth = company.children.reduce((sum, child) => {
+        return sum + calculateSubtreeWidth(child) + horizontalGap;
+      }, -horizontalGap); // Remove last gap
+      return Math.max(nodeWidth, childrenWidth);
+    };
+
+    // Store subtree widths
+    const subtreeWidths = new Map<number, number>();
+    const calculateAllWidths = (company: StructureCompany) => {
+      subtreeWidths.set(company.id, calculateSubtreeWidth(company));
+      company.children?.forEach(calculateAllWidths);
+    };
+    data.companies.forEach(calculateAllWidths);
+
+    // Recursive function to process companies with proper tree layout
     const processCompany = (
       company: StructureCompany,
       parentId: string | null,
-      xPos: number,
+      leftBound: number,
       yPos: number,
-      siblingIndex: number,
-      totalSiblings: number,
       depth: number
     ) => {
       // Track max depth for calculating container height
@@ -435,15 +454,14 @@ export default function CorporateStructureChart({
       const nodeId = `company-${company.id}`;
       const { directors, shareholders, secretary, publicOfficer } = getPeopleForCompany(company.id, company.shareholders);
 
-      // Calculate x position based on siblings
-      const totalWidth = (totalSiblings - 1) * xSpacing;
-      const startX = xPos - totalWidth / 2;
-      const actualX = startX + siblingIndex * xSpacing;
+      // Calculate x position: center within our allocated space
+      const myWidth = subtreeWidths.get(company.id) || nodeWidth;
+      const xPos = leftBound + (myWidth - nodeWidth) / 2;
 
       nodes.push({
         id: nodeId,
         type: "entity",
-        position: { x: actualX, y: yPos },
+        position: { x: xPos, y: yPos },
         data: {
           label: company.name,
           entityType: company.entity_type,
@@ -477,29 +495,29 @@ export default function CorporateStructureChart({
         });
       }
 
-      // Process children
+      // Process children with proper spacing
       if (company.children && company.children.length > 0) {
-        company.children.forEach((child, index) => {
+        let childLeftBound = leftBound;
+        company.children.forEach((child) => {
+          const childWidth = subtreeWidths.get(child.id) || nodeWidth;
           processCompany(
             child,
             nodeId,
-            actualX,
+            childLeftBound,
             yPos + ySpacing,
-            index,
-            company.children.length,
             depth + 1
           );
+          childLeftBound += childWidth + horizontalGap;
         });
       }
     };
 
-    // Process top-level companies
-    const topLevelCount = data.companies.length;
-    const totalWidth = (topLevelCount - 1) * xSpacing;
-    const startX = 400; // Center point
-
-    data.companies.forEach((company, index) => {
-      processCompany(company, null, startX, 20, index, topLevelCount, 1);
+    // Process top-level companies with proper spacing
+    let currentX = 0;
+    data.companies.forEach((company) => {
+      const treeWidth = subtreeWidths.get(company.id) || nodeWidth;
+      processCompany(company, null, currentX, 20, 1);
+      currentX += treeWidth + horizontalGap * 2; // Extra gap between top-level trees
     });
 
     // Add ownership/shareholding links if filter is enabled
@@ -561,23 +579,25 @@ export default function CorporateStructureChart({
         personShareholdings.get(sh.ownerId)!.companyIds.push({ companyId: sh.ownedId, percentage: sh.percentage });
       });
 
-      // Find the leftmost and rightmost company positions to place people
-      let minX = Infinity, maxX = -Infinity, maxY = 0;
+      // Find the leftmost position and max Y to place people
+      let minX = Infinity, maxY = 0;
       nodes.forEach(n => {
         if (n.position.x < minX) minX = n.position.x;
-        if (n.position.x + 400 > maxX) maxX = n.position.x + 400;
         if (n.position.y > maxY) maxY = n.position.y;
       });
 
-      // Add person nodes to the left of the chart
-      const personSpacing = 200;
+      // Add person nodes to the left of the chart with proper spacing
+      const personNodeWidth = 300;
+      const personNodeHeight = 120;
+      const personSpacing = personNodeHeight + 60; // Height + gap
       let personY = 20;
+
       personShareholdings.forEach((personData, contactId) => {
         const personNodeId = `person-${contactId}`;
         nodes.push({
           id: personNodeId,
           type: "person",
-          position: { x: minX - 450, y: personY },
+          position: { x: minX - personNodeWidth - 150, y: personY },
           data: {
             label: personData.name,
             email: null,
@@ -675,8 +695,8 @@ export default function CorporateStructureChart({
     setEdges(initialEdges);
   }, [initialNodes, initialEdges, setNodes, setEdges]);
 
-  // Calculate dynamic height based on depth (480px per level + 400px buffer)
-  const chartHeight = Math.max(800, maxDepth * 480 + 400);
+  // Calculate dynamic height based on depth (420px per level + 200px buffer)
+  const chartHeight = Math.max(800, maxDepth * 420 + 200);
 
   return (
     <div
@@ -690,10 +710,14 @@ export default function CorporateStructureChart({
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.3}
+        fitViewOptions={{
+          padding: 0.15,
+          includeHiddenNodes: false,
+          minZoom: 0.1,
+          maxZoom: 1,
+        }}
+        minZoom={0.1}
         maxZoom={1.5}
-        defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
       >
         <Background color="#e5e7eb" gap={20} />
         <Controls />

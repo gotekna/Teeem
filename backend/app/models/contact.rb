@@ -124,6 +124,7 @@ class Contact < ApplicationRecord
   before_save :update_xero_synced_status
   before_save :generate_full_name
   before_save :sync_company_name_or_trust
+  before_save :clear_roles_if_not_person
 
   # Scopes
   scope :with_email, -> { where.not(email: [nil, '']) }
@@ -194,6 +195,7 @@ class Contact < ApplicationRecord
     has_role?('land_agent')
   end
 
+<<<<<<< Updated upstream
   def is_customer?
     jobs.exists? || job_contacts.exists?
   end
@@ -202,6 +204,8 @@ class Contact < ApplicationRecord
     purchase_orders.exists? || pricebook_items.exists? || price_histories.exists?
   end
 
+=======
+>>>>>>> Stashed changes
   # Note: is_director? is defined below and checks actual company directorships
   # To check for Director role, use has_role?('Director')
 
@@ -507,8 +511,12 @@ class Contact < ApplicationRecord
   end
 
   def roles_only_for_persons
+<<<<<<< Updated upstream
     # roles is stored as a string (e.g. "[]"), so check for blank or "[]"
     return if roles.blank? || roles == '[]'
+=======
+    return if roles.blank?
+>>>>>>> Stashed changes
 
     if entity_type != 'person'
       errors.add(:roles, "can only be assigned to people, not #{entity_type}")

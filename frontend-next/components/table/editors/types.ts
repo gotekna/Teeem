@@ -277,15 +277,23 @@ export interface FileValue {
 // ============================================================================
 
 /**
- * Generic cell editor component type
+ * Base cell editor props with any value type (for registry)
+ * Uses 'any' intentionally to allow different editor components in the registry
  */
-export type CellEditorComponent<P extends CellEditorProps = CellEditorProps> =
-  React.ComponentType<P>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyCellEditorProps = CellEditorProps<any>;
+
+/**
+ * Generic cell editor component type
+ * Uses 'any' for the registry to allow mixing different value types
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type CellEditorComponent = React.ComponentType<any>;
 
 /**
  * Editor registry mapping column types to components
  */
-export type EditorRegistry = Record<string, CellEditorComponent>;
+export type EditorRegistryType = Record<string, CellEditorComponent>;
 
 // ============================================================================
 // KEYBOARD NAVIGATION

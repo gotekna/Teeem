@@ -51,6 +51,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import DOMPurify from "isomorphic-dompurify";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
@@ -192,9 +193,11 @@ import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dr
 import { MergeModal } from "./MergeModal";
 import { ViewManagerSheet } from "./views";
 import { sortColumnsForModal } from "./column-utils";
+import { EditModeToggle } from "./EditModeToggle";
+import { tableEditModeAtom } from "@/lib/table-edit-atoms";
 
 // Jotai atoms for centralized view state management
-import { useAtom, useSetAtom } from 'jotai';
+import { useAtom, useSetAtom, useAtomValue } from 'jotai';
 import {
   activeViewIdAtom,
   currentFiltersAtom,
@@ -1151,6 +1154,10 @@ export default function TeeemTableView({
   const [showTotals, setShowTotals] = useAtom(currentShowTotalsAtom);
   const [autoFitColumns, setAutoFitColumns] = useAtom(currentAutoFitColumnsAtom);
   const [healthPanelOpen, setHealthPanelOpen] = useState(false); // Show health check panel
+
+  // NEW: Edit Mode state (unified editing approach)
+  // When true, all editable cells become interactive with auto-save on blur
+  const isEditMode = useAtomValue(tableEditModeAtom);
   const [editingRowIds, setEditingRowIds] = useState<Set<number | string>>(new Set()); // Multi-row editing
   const [editingData, setEditingData] = useState<Record<string | number, Record<string, unknown>>>({}); // keyed by row id
   const [validationErrors, setValidationErrors] = useState<Record<string, Record<string, string>>>({}); // {rowId: {columnKey: errorMessage}}
@@ -2989,6 +2996,118 @@ export default function TeeemTableView({
   // CELL RENDERING
   // ============================================================================
 
+  /**
+   * Helper function to render the display value of a cell (read-only view)
+   * Used by edit mode to show clickable cells with the current value
+   */
+  const renderDisplayValue = useCallback(
+    (value: unknown, column: TableColumn, entry: TableRowType): React.ReactNode => {
+      // Handle null/undefined
+      if (value == null || value === "") {
+        return <span className="text-muted-foreground">-</span>;
+      }
+
+      // Handle boolean
+      if (typeof value === "boolean" || column.column_type === "boolean") {
+        const boolValue = typeof value === "boolean" ? value : value === "true" || value === "t" || value === true || value === 1;
+        return boolValue ? (
+          <Check className="h-4 w-4 text-green-600" />
+        ) : (
+          <X className="h-4 w-4 text-muted-foreground" />
+        );
+      }
+
+      // Handle lookup - display linked record
+      if (column.column_type === "lookup" && value) {
+        const lookupData = value as { display_value?: string; display?: string; name?: string; id?: number } | string | number;
+        if (typeof lookupData === "object") {
+          const displayText = lookupData.display_value || lookupData.display || lookupData.name;
+          if (displayText) return <span>{displayText}</span>;
+          if (lookupData.id) return <span>#{lookupData.id}</span>;
+        }
+        return <span>#{String(value)}</span>;
+      }
+
+      // Handle choice/status with badge
+      if (
+        column.column_type === "choice" ||
+        column.column_type === "single_select" ||
+        column.key === "status" ||
+        column.key === "stage"
+      ) {
+        const colorClass =
+          STATUS_COLORS[String(value).toLowerCase()] ||
+          SEVERITY_COLORS[String(value).toLowerCase()] ||
+          "bg-secondary text-secondary-foreground";
+        return (
+          <Badge variant="secondary" className={cn(colorClass)}>
+            {String(value)}
+          </Badge>
+        );
+      }
+
+      // Handle multiple_lookups - display linked records
+      if (column.column_type === "multiple_lookups" && value) {
+        const items = Array.isArray(value) ? value : [];
+        if (items.length === 0) return <span className="text-muted-foreground">-</span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {items.slice(0, 2).map((item, idx) => (
+              <Badge key={idx} variant="secondary" className="text-xs">
+                {typeof item === "object" ? item.display_value || item.name || `#${item.id}` : String(item)}
+              </Badge>
+            ))}
+            {items.length > 2 && (
+              <Badge variant="outline" className="text-xs">
+                +{items.length - 2}
+              </Badge>
+            )}
+          </div>
+        );
+      }
+
+      // Handle date
+      if (column.column_type === "date" && value) {
+        try {
+          const date = new Date(value as string);
+          return date.toLocaleDateString("en-AU");
+        } catch {
+          return String(value);
+        }
+      }
+
+      // Handle currency
+      if (column.column_type === "currency" && typeof value === "number") {
+        return `$${value.toLocaleString("en-AU", { minimumFractionDigits: 2 })}`;
+      }
+
+      // Handle number
+      if ((column.column_type === "number" || column.column_type === "whole_number") && typeof value === "number") {
+        return value.toLocaleString("en-AU");
+      }
+
+      // Handle email
+      if (column.column_type === "email" && value) {
+        return (
+          <span className="text-blue-600">{String(value)}</span>
+        );
+      }
+
+      // Handle phone
+      if ((column.column_type === "phone" || column.column_type === "mobile") && value) {
+        return String(value);
+      }
+
+      // Default: render as string (truncated if too long)
+      const strValue = String(value);
+      if (strValue.length > 50) {
+        return <span className="truncate block">{strValue.slice(0, 50)}...</span>;
+      }
+      return strValue;
+    },
+    []
+  );
+
   const renderCellValue = useCallback(
     (entry: TableRowType, column: TableColumn) => {
       // Check for custom renderer first
@@ -3079,6 +3198,33 @@ export default function TeeemTableView({
       const isComputed = column.column_type === 'computed' || column.column_type === 'formula';
       const isSystemColumn = NON_EDITABLE_COLUMNS.includes(column.key) || column.system === true;
       const isColumnEditable = column.editable !== false && !isSystemColumn && !isComputed;
+
+      // NEW: Edit Mode support - when edit mode is active, start cell editing on click
+      // This bridges the old cell-level editing with the new Edit Mode toggle
+      if (isEditMode && isColumnEditable && !isEditing) {
+        const isCellCurrentlyEditing = editingCell?.rowId === entry.id && editingCell?.columnKey === column.key;
+
+        // If not already editing this cell, render clickable cell that starts editing
+        if (!isCellCurrentlyEditing) {
+          // Render the display value with edit mode styling (hover effect, cursor)
+          const displayValue = renderDisplayValue(value, column, entry);
+          return (
+            <div
+              className="w-full h-full px-1 py-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 rounded transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                // Start cell-level editing
+                setEditingCell({ rowId: entry.id, columnKey: column.key });
+                setEditingCellValue(value);
+              }}
+              title="Click to edit"
+            >
+              {displayValue}
+            </div>
+          );
+        }
+        // If currently editing this cell, fall through to cell-level editing logic below
+      }
 
       if (isEditing && isColumnEditable) {
         const columnType = column.column_type || 'single_line_text';
@@ -4270,7 +4416,7 @@ export default function TeeemTableView({
                 <TooltipContent className="max-w-md">
                   <div
                     className="prose prose-sm dark:prose-invert max-h-[300px] overflow-auto"
-                    dangerouslySetInnerHTML={{ __html: htmlValue }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(htmlValue) }}
                   />
                 </TooltipContent>
               </Tooltip>
@@ -4468,6 +4614,8 @@ export default function TeeemTableView({
       lookupLoading,
       validationErrors,
       handleCellBlur,
+      isEditMode,
+      renderDisplayValue,
     ]
   );
 
@@ -5228,6 +5376,8 @@ export default function TeeemTableView({
               Add Record
             </Button>
           )}
+          {/* Edit Mode Toggle - enables inline cell editing */}
+          <EditModeToggle />
           {leftActions}
           {/* Health Indicator Button - shows if table has health checks */}
           {foundationIdNumeric && (

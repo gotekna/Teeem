@@ -453,3 +453,121 @@ export const loadFoundationViewsAtom = atom(
     }
   }
 );
+
+// ============================================================================
+// LOOKUP CACHE ATOMS (with TTL support)
+// ============================================================================
+
+export interface LookupOption {
+  id: number;
+  display: string;
+}
+
+interface LookupCacheEntry {
+  options: LookupOption[];
+  timestamp: number;
+}
+
+/**
+ * TTL for lookup cache entries (5 minutes)
+ * Lookups change less frequently than views, so longer TTL is appropriate
+ */
+export const LOOKUP_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Lookup cache with TTL
+ * Key format: `${foundationId}` or `${foundationId}:${columnId}`
+ */
+export const lookupCacheAtom = atom<Record<string, LookupCacheEntry>>({});
+
+/**
+ * Track pending lookup fetches to prevent duplicate concurrent requests
+ */
+export const pendingLookupFetchesAtom = atom<Record<string, Promise<LookupOption[]>>>({});
+
+/**
+ * Get cached lookup options (returns null if expired or not cached)
+ */
+export const getCachedLookupAtom = atom(
+  (get) => (key: string): LookupOption[] | null => {
+    const cache = get(lookupCacheAtom);
+    const entry = cache[key];
+
+    if (!entry) return null;
+
+    // Check if expired
+    if (Date.now() - entry.timestamp > LOOKUP_CACHE_TTL) {
+      return null;
+    }
+
+    return entry.options;
+  }
+);
+
+/**
+ * Set lookup cache entry
+ */
+export const setLookupCacheAtom = atom(
+  null,
+  (get, set, params: { key: string; options: LookupOption[] }) => {
+    set(lookupCacheAtom, (prev) => ({
+      ...prev,
+      [params.key]: {
+        options: params.options,
+        timestamp: Date.now(),
+      },
+    }));
+  }
+);
+
+/**
+ * Invalidate lookup cache for a specific foundation or all lookups
+ */
+export const invalidateLookupCacheAtom = atom(
+  null,
+  (get, set, foundationId?: number) => {
+    if (foundationId === undefined) {
+      // Clear all cache
+      set(lookupCacheAtom, {});
+    } else {
+      // Clear only entries for this foundation
+      set(lookupCacheAtom, (prev) => {
+        const next = { ...prev };
+        const prefix = `${foundationId}`;
+        for (const key of Object.keys(next)) {
+          if (key === prefix || key.startsWith(`${prefix}:`)) {
+            delete next[key];
+          }
+        }
+        return next;
+      });
+    }
+  }
+);
+
+/**
+ * Clean up expired cache entries (call periodically)
+ */
+export const cleanupLookupCacheAtom = atom(
+  null,
+  (get, set) => {
+    const cache = get(lookupCacheAtom);
+    const now = Date.now();
+
+    const validEntries: Record<string, LookupCacheEntry> = {};
+    let hasExpired = false;
+
+    for (const [key, entry] of Object.entries(cache)) {
+      if (now - entry.timestamp <= LOOKUP_CACHE_TTL) {
+        validEntries[key] = entry;
+      } else {
+        hasExpired = true;
+      }
+    }
+
+    // Only update if we removed something
+    if (hasExpired) {
+      set(lookupCacheAtom, validEntries);
+    }
+  }
+);

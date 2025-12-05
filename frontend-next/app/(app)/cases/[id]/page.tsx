@@ -837,6 +837,40 @@ export default function CaseDetailPage() {
     }
   };
 
+  // Delete case
+  const handleDeleteCase = async () => {
+    if (!caseData) return;
+
+    // Confirmation dialog
+    const confirmed = confirm(
+      `Are you sure you want to delete "${caseData.title}"?\n\nThis action cannot be undone. All case data, documents, emails, and relationships will be permanently deleted.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const response = await api.delete<{ success: boolean }>(
+        `/api/v1/cases/${caseId}`
+      );
+
+      if (response?.success) {
+        toast({
+          title: "Success",
+          description: "Case deleted successfully",
+        });
+        // Redirect to cases list
+        router.push("/cases");
+      }
+    } catch (error) {
+      console.error("Failed to delete case:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete case",
+        variant: "destructive",
+      });
+    }
+  };
+
   const loadWarehouseSummary = async () => {
     try {
       setLoadingWarehouse(true);
@@ -1265,6 +1299,14 @@ export default function CaseDetailPage() {
           <Button variant="outline" onClick={openEditCase}>
             <Pencil className="h-4 w-4 mr-2" />
             Edit
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleDeleteCase}
+            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete
           </Button>
           <Button onClick={() => setShowRunAction(true)}>
             <Play className="h-4 w-4 mr-2" />

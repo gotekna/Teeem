@@ -126,9 +126,6 @@ export function useFoundationData(
     }
   }, [autoLoad, loadData]);
 
-  // System columns to hide
-  const SYSTEM_COLUMNS = ['created_at', 'updated_at', 'deleted_at'];
-
   // Transform API columns to TeeemTableView format
   const columns: TableColumn[] = useMemo(() => {
     if (!foundation?.columns) return [];
