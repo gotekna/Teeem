@@ -162,14 +162,14 @@ class MicrosoftAppGraphClient
   # ==========================================
 
   # List all SharePoint sites in the tenant
+  # NOTE: Microsoft Graph /sites endpoint requires search=* to return all sites
   def list_sharepoint_sites(search: nil, top: 100)
     params = { '$top' => top }
     params['$select'] = 'id,name,displayName,webUrl,createdDateTime'
 
-    if search.present?
-      # Search for sites by name
-      params['$search'] = "\"#{search}\""
-    end
+    # Microsoft Graph requires search parameter to list sites
+    # Use search=* to get all sites, or specific term for filtering
+    params['$search'] = search.present? ? "\"#{search}\"" : '*'
 
     response = get('/sites', params)
     (response['value'] || []).map do |site|
@@ -201,8 +201,8 @@ class MicrosoftAppGraphClient
       Rails.logger.warn "[MicrosoftAppGraph] Could not get root site: #{e.message}"
     end
 
-    # Get all other sites
-    response = get('/sites', { '$top' => top, '$select' => 'id,name,displayName,webUrl' })
+    # Get all other sites - must use search=* to enumerate all sites
+    response = get('/sites', { '$top' => top, '$select' => 'id,name,displayName,webUrl', '$search' => '*' })
     (response['value'] || []).each do |site|
       sites << {
         id: site['id'],
