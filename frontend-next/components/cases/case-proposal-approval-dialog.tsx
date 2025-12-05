@@ -1191,7 +1191,7 @@ export function CaseProposalApprovalDialog({
 
     {/* Fullscreen Source Folder Browser - rendered via portal */}
     {sourceFolderFullscreen && typeof document !== 'undefined' && createPortal(
-      <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+      <div className="fixed inset-0 z-[9999] bg-background flex flex-col" style={{ backgroundColor: 'var(--background)' }}>
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-lg font-semibold">Select Source Folder</h2>
           <div className="flex items-center gap-2">
@@ -1252,7 +1252,7 @@ export function CaseProposalApprovalDialog({
 
     {/* Fullscreen Filing Folder Browser - rendered via portal */}
     {filingFolderFullscreen && typeof document !== 'undefined' && createPortal(
-      <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+      <div className="fixed inset-0 z-[9999] bg-background flex flex-col" style={{ backgroundColor: 'var(--background)' }}>
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-lg font-semibold">Select Filing Folder</h2>
           <div className="flex items-center gap-2">

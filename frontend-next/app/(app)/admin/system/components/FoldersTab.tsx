@@ -396,7 +396,9 @@ function FolderTreeEditor({ template, onUpdate, isEditable }: FolderTreeEditorPr
 
     const siblings = template.items.filter((i) => i.parent_id === newFolderParentId);
     const maxOrder = Math.max(0, ...siblings.map((i) => i.order));
-    const newId = Math.max(0, ...template.items.map((i) => i.id)) + 1;
+    // Generate a temporary ID > 1000000 so handleTemplateUpdate knows this is a new item
+    // and sends id: undefined to the backend for creation
+    const newId = Date.now();
 
     const newItem: FolderTemplateItem = {
       id: newId,
@@ -593,11 +595,12 @@ export function FoldersTab() {
     } catch (error: unknown) {
       console.error("Failed to save template:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to save changes";
-      // If we get a 404, it might be stale item IDs - reload and try again
-      if (errorMessage.includes("not found") || errorMessage.includes("404")) {
+      // If we get a 404 or 409 (out of sync), reload and let user try again
+      if (errorMessage.includes("not found") || errorMessage.includes("404") ||
+          errorMessage.includes("out of sync") || errorMessage.includes("409")) {
         toast({
           title: "Sync Error",
-          description: "Template data was out of sync. Please try your change again.",
+          description: "Template data was out of sync. Reloading... please try your change again.",
           variant: "destructive",
         });
         await loadTemplates();
