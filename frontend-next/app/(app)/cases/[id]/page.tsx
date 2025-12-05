@@ -79,6 +79,9 @@ const EntityChat = dynamic(
   { ssr: false }
 );
 
+// Import OneDriveFolderPicker
+import { OneDriveFolderPicker } from "@/components/onedrive/OneDriveFolderPicker";
+
 // Tabs for case detail
 const CASE_TABS = [
   { id: "overview", name: "Overview", icon: Briefcase },
@@ -361,6 +364,10 @@ export default function CaseDetailPage() {
   const [documents, setDocuments] = React.useState<CaseDocument[]>([]);
   const [loadingDocuments, setLoadingDocuments] = React.useState(false);
 
+  // Source folder picker state for OneDrive
+  const [showFolderPicker, setShowFolderPicker] = React.useState(false);
+  const [scanningFolders, setScanningFolders] = React.useState(false);
+
   const [emails, setEmails] = React.useState<CaseEmail[]>([]);
   const [loadingEmails, setLoadingEmails] = React.useState(false);
 
@@ -512,6 +519,37 @@ export default function CaseDetailPage() {
     }
   };
 
+  // Handle folder selection from OneDrive picker - integrates with existing folderSettings
+  const handleFolderSelect = (folder: { id: string | null; name: string; path: string }) => {
+    const folderPath = folder.path || folder.name;
+    // Use existing addSourceFolder if path is set, otherwise add directly
+    if (folderPath && !folderSettings.source_folder_paths.includes(folderPath)) {
+      setFolderSettings(prev => ({
+        ...prev,
+        source_folder_paths: [...prev.source_folder_paths, folderPath]
+      }));
+    }
+  };
+
+  // Scan all selected source folders for documents
+  const scanSourceFolders = async () => {
+    if (folderSettings.source_folder_paths.length === 0) return;
+
+    setScanningFolders(true);
+    try {
+      // Call backend to scan folders and link documents
+      await api.post(`/api/v1/cases/${caseId}/scan_folders`, {
+        folder_paths: folderSettings.source_folder_paths,
+      });
+      // Refresh documents list after scanning
+      await loadDocuments();
+    } catch (error) {
+      console.error("Failed to scan folders:", error);
+    } finally {
+      setScanningFolders(false);
+    }
+  };
+
   const loadEmails = async () => {
     try {
       setLoadingEmails(true);
@@ -601,7 +639,7 @@ export default function CaseDetailPage() {
           role: selectedContactRole,
         }
       );
-      if (response.success && response.data) {
+      if (response?.success && response?.data) {
         setContacts([...contacts, response.data]);
       }
       // Reset dialog state
@@ -638,7 +676,7 @@ export default function CaseDetailPage() {
         `/api/v1/cases/${caseId}`,
         { case: editCaseForm }
       );
-      if (response.success && response.data) {
+      if (response?.success && response?.data) {
         setCaseData(response.data);
       }
       setShowEditCase(false);
@@ -1701,26 +1739,87 @@ export default function CaseDetailPage() {
         )}
 
         {activeTab === "documents" && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Documents ({documents.length})</CardTitle>
-              <Button variant="outline" size="sm" onClick={() => loadDocuments()}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {loadingDocuments ? (
-                <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : documents.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No documents linked to this case</p>
-                  <p className="text-sm mt-1">Run a document search action to find relevant documents</p>
-                </div>
-              ) : (
+          <div className="space-y-4">
+            {/* Source Folders Section */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between py-3">
+                <CardTitle className="text-base">Source Folders</CardTitle>
+                <Button variant="outline" size="sm" onClick={() => setShowFolderPicker(true)}>
+                  <FolderOpen className="h-4 w-4 mr-2" />
+                  Add Folder
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {folderSettings.source_folder_paths.length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <FolderInput className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No source folders selected</p>
+                    <p className="text-xs mt-1">Add folders from OneDrive to scan for documents</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {folderSettings.source_folder_paths.map((path, index) => (
+                      <div
+                        key={path || `folder-${index}`}
+                        className="flex items-center justify-between p-2 bg-muted rounded-md"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FolderOpen className="h-4 w-4 text-blue-500" />
+                          <span className="text-sm font-medium">{path}</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeSourceFolder(path)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    ))}
+                    <div className="flex justify-end mt-3">
+                      <Button
+                        onClick={scanSourceFolders}
+                        disabled={scanningFolders}
+                      >
+                        {scanningFolders ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Scanning...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="h-4 w-4 mr-2" />
+                            Scan Folders
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Documents List */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Documents ({documents.length})</CardTitle>
+                <Button variant="outline" size="sm" onClick={() => loadDocuments()}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {loadingDocuments ? (
+                  <div className="flex items-center justify-center h-32">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : documents.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No documents linked to this case</p>
+                    <p className="text-sm mt-1">Add source folders above to scan for documents</p>
+                  </div>
+                ) : (
                 <div className="divide-y">
                   {documents.map((doc) => (
                     <div key={doc.id} className="py-3 flex items-start justify-between gap-4">
@@ -1763,8 +1862,17 @@ export default function CaseDetailPage() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            {/* OneDrive Folder Picker Dialog */}
+            <OneDriveFolderPicker
+              open={showFolderPicker}
+              onOpenChange={setShowFolderPicker}
+              onSelect={handleFolderSelect}
+              title="Select Source Folder"
+            />
+          </div>
         )}
 
         {activeTab === "emails" && (
