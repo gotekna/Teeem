@@ -28,10 +28,12 @@ import {
   User,
   Mail,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { CaseProposalsTab } from "@/components/cases/case-proposals-tab";
+import { useToast } from "@/components/ui/use-toast";
 
 interface CaseItem {
   id: number;
@@ -62,6 +64,7 @@ interface CaseTypes {
 
 export default function CasesPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
   const [cases, setCases] = React.useState<CaseItem[]>([]);
   const [types, setTypes] = React.useState<CaseTypes | null>(null);
@@ -122,6 +125,44 @@ export default function CasesPage() {
     const debounce = setTimeout(loadCases, 300);
     return () => clearTimeout(debounce);
   }, [search, statusFilter, typeFilter, priorityFilter]);
+
+  // Delete case handler
+  const handleDeleteCase = async (caseId: number, caseTitle: string, e: React.MouseEvent) => {
+    // Stop propagation to prevent navigating to case detail
+    e.stopPropagation();
+
+    const confirmed = confirm(
+      `Are you sure you want to delete "${caseTitle}"?\n\nThis action cannot be undone. All case data, documents, emails, and relationships will be permanently deleted.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const response = await api.delete<{ success: boolean }>(`/api/v1/cases/${caseId}`);
+
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: "Case deleted successfully",
+        });
+        // Refresh the cases list
+        setCases(cases.filter((c) => c.id !== caseId));
+        // Update meta counts
+        setMeta({
+          ...meta,
+          total: meta.total - 1,
+          open: meta.open - 1,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to delete case:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete case",
+        variant: "destructive",
+      });
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -386,6 +427,14 @@ export default function CasesPage() {
                             {getStatusIcon(c.status)}
                             <span className="ml-1">{c.formatted_status}</span>
                           </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => handleDeleteCase(c.id, c.title, e)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     </div>

@@ -216,6 +216,7 @@ function XeroFieldMapping() {
       teeem_field: string;
       xero_field: string;
       entity_type: string;
+      sync_direction: string;
       enabled: boolean;
     }>
   >([]);
@@ -232,13 +233,37 @@ function XeroFieldMapping() {
       setMappings(data);
     } catch (error) {
       console.error("Failed to load mappings:", error);
-      // Mock data
+      // Comprehensive field mappings from production system
       setMappings([
-        { id: 1, teeem_field: "contact.name", xero_field: "Contact.Name", entity_type: "contact", enabled: true },
-        { id: 2, teeem_field: "contact.email", xero_field: "Contact.EmailAddress", entity_type: "contact", enabled: true },
-        { id: 3, teeem_field: "contact.phone", xero_field: "Contact.Phones[0].PhoneNumber", entity_type: "contact", enabled: true },
-        { id: 4, teeem_field: "invoice.number", xero_field: "Invoice.InvoiceNumber", entity_type: "invoice", enabled: true },
-        { id: 5, teeem_field: "invoice.amount", xero_field: "Invoice.Total", entity_type: "invoice", enabled: true },
+        // Contact Field Mappings (19 fields)
+        { id: 1, teeem_field: "full_name", xero_field: "Name", entity_type: "contact", sync_direction: "two-way", enabled: true },
+        { id: 2, teeem_field: "email", xero_field: "EmailAddress", entity_type: "contact", sync_direction: "two-way", enabled: true },
+        { id: 3, teeem_field: "supplier_code", xero_field: "ContactNumber", entity_type: "contact", sync_direction: "two-way", enabled: false },
+        { id: 4, teeem_field: "first_name", xero_field: "FirstName", entity_type: "contact", sync_direction: "two-way", enabled: true },
+        { id: 5, teeem_field: "last_name", xero_field: "LastName", entity_type: "contact", sync_direction: "two-way", enabled: true },
+        { id: 6, teeem_field: "mobile_phone", xero_field: "Phones[DDI].PhoneNumber", entity_type: "contact", sync_direction: "two-way", enabled: true },
+        { id: 7, teeem_field: "office_phone", xero_field: "Phones[DEFAULT].PhoneNumber", entity_type: "contact", sync_direction: "two-way", enabled: true },
+        { id: 8, teeem_field: "address", xero_field: "Addresses[POBOX].AddressLine1", entity_type: "contact", sync_direction: "two-way", enabled: true },
+        { id: 9, teeem_field: "city", xero_field: "Addresses[POBOX].City", entity_type: "contact", sync_direction: "two-way", enabled: false },
+        { id: 10, teeem_field: "state", xero_field: "Addresses[POBOX].Region", entity_type: "contact", sync_direction: "two-way", enabled: false },
+        { id: 11, teeem_field: "postcode", xero_field: "Addresses[POBOX].PostalCode", entity_type: "contact", sync_direction: "two-way", enabled: false },
+        { id: 12, teeem_field: "tax_number (ABN/GST)", xero_field: "TaxNumber", entity_type: "contact", sync_direction: "two-way", enabled: true },
+        { id: 13, teeem_field: "xero_account_number", xero_field: "AccountNumber", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: false },
+        { id: 14, teeem_field: "bank_bsb", xero_field: "BankAccountDetails.BSB", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: true },
+        { id: 15, teeem_field: "bank_account_number", xero_field: "BankAccountDetails.AccountNumber", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: true },
+        { id: 16, teeem_field: "bank_account_name", xero_field: "BankAccountDetails.AccountName", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: true },
+        { id: 17, teeem_field: "website", xero_field: "Website", entity_type: "contact", sync_direction: "two-way", enabled: true },
+        { id: 18, teeem_field: "default_purchase_account", xero_field: "PurchaseDetails.AccountCode", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: true },
+        { id: 19, teeem_field: "bill_due_day", xero_field: "PaymentTerms.Bills.Day", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: true },
+        { id: 20, teeem_field: "bill_due_type", xero_field: "PaymentTerms.Bills.Type", entity_type: "contact", sync_direction: "xero-to-teeem", enabled: true },
+
+        // Price Book Item Field Mappings (6 fields)
+        { id: 21, teeem_field: "item_code", xero_field: "Item.Code", entity_type: "pricebook_item", sync_direction: "two-way", enabled: false },
+        { id: 22, teeem_field: "item_name", xero_field: "Item.Name", entity_type: "pricebook_item", sync_direction: "two-way", enabled: false },
+        { id: 23, teeem_field: "notes", xero_field: "Item.Description", entity_type: "pricebook_item", sync_direction: "two-way", enabled: false },
+        { id: 24, teeem_field: "current_price", xero_field: "Item.SalesDetails.UnitPrice", entity_type: "pricebook_item", sync_direction: "xero-to-teeem", enabled: false },
+        { id: 25, teeem_field: "gst_code", xero_field: "Item.SalesDetails.TaxType", entity_type: "pricebook_item", sync_direction: "xero-to-teeem", enabled: true },
+        { id: 26, teeem_field: "supplier_price", xero_field: "Item.PurchaseDetails.UnitPrice", entity_type: "pricebook_item", sync_direction: "xero-to-teeem", enabled: false },
       ]);
     } finally {
       setLoading(false);
@@ -276,34 +301,66 @@ function XeroFieldMapping() {
     return acc;
   }, {} as Record<string, typeof mappings>);
 
+  const getSyncDirectionDisplay = (direction: string) => {
+    if (direction === "two-way") {
+      return (
+        <div className="flex items-center justify-center gap-x-2">
+          <ArrowRightLeft className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <span className="text-xs text-gray-600 dark:text-gray-400">Two-way</span>
+        </div>
+      );
+    } else if (direction === "xero-to-teeem") {
+      return (
+        <div className="flex items-center justify-center gap-x-2">
+          <span className="text-xs text-gray-600 dark:text-gray-400">Xero → TEEEM</span>
+        </div>
+      );
+    } else if (direction === "teeem-to-xero") {
+      return (
+        <div className="flex items-center justify-center gap-x-2">
+          <span className="text-xs text-gray-600 dark:text-gray-400">TEEEM → Xero</span>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const getEntityTypeLabel = (entityType: string) => {
+    if (entityType === "contact") return "Contact Fields";
+    if (entityType === "pricebook_item") return "Price Book Item Fields";
+    return `${entityType.charAt(0).toUpperCase() + entityType.slice(1)} Fields`;
+  };
+
   return (
     <div className="space-y-6">
       {Object.entries(groupedMappings).map(([entityType, entityMappings]) => (
         <Card key={entityType}>
           <CardHeader>
-            <CardTitle className="text-base capitalize">{entityType} Fields</CardTitle>
+            <CardTitle className="text-base">{getEntityTypeLabel(entityType)}</CardTitle>
+            <CardDescription>
+              {entityType === "contact" && "Configure which fields sync between Xero contacts and TEEEM contacts."}
+              {entityType === "pricebook_item" && "Potential field mappings if full item sync from Xero Items is implemented. Currently only tax rates are synced."}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>TEEEM Field</TableHead>
-                  <TableHead>
-                    <ArrowRightLeft className="h-4 w-4" />
-                  </TableHead>
                   <TableHead>Xero Field</TableHead>
-                  <TableHead className="w-[100px]">Enabled</TableHead>
+                  <TableHead className="text-center">Sync Direction</TableHead>
+                  <TableHead>TEEEM Field</TableHead>
+                  <TableHead className="w-[100px] text-center">Enabled</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {entityMappings.map((mapping) => (
-                  <TableRow key={mapping.id}>
-                    <TableCell className="font-mono text-sm">{mapping.teeem_field}</TableCell>
-                    <TableCell>
-                      <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                    </TableCell>
+                  <TableRow key={mapping.id} className={mapping.enabled ? "" : "opacity-50"}>
                     <TableCell className="font-mono text-sm">{mapping.xero_field}</TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
+                      {getSyncDirectionDisplay(mapping.sync_direction)}
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">{mapping.teeem_field}</TableCell>
+                    <TableCell className="text-center">
                       <Switch
                         checked={mapping.enabled}
                         onCheckedChange={() => toggleMapping(mapping.id)}
@@ -316,6 +373,14 @@ function XeroFieldMapping() {
           </CardContent>
         </Card>
       ))}
+
+      <div className="bg-muted/50 rounded-lg p-4">
+        <p className="text-xs text-muted-foreground">
+          <strong>Note:</strong> Field mappings are currently configured in code. Enabled fields sync automatically
+          when contacts are synced. Bank account details, purchase accounts, and payment terms sync from Xero to TEEEM.
+          GST codes are managed through the Tax Rates sync.
+        </p>
+      </div>
     </div>
   );
 }

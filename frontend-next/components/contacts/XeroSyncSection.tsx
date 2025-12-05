@@ -50,7 +50,7 @@ interface Contact {
   office_phone?: string | null;
   company_name_or_trust?: string | null;
   tax_number?: string | null;
-  entity_type: string;
+  entity_type: string | null;
   xero_contact_id?: string | null;
   sync_with_xero?: boolean;
   [key: string]: any;
