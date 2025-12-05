@@ -185,7 +185,18 @@ export function SharePointFolderBrowser({
     // Single click selects the folder
     setSelectedFolder(folder);
     // Build the path from breadcrumbs + selected folder
-    const pathParts = breadcrumbs.map((b) => b.name);
+    // Filter out technical breadcrumb entries (drive IDs, "root", etc.)
+    const pathParts = breadcrumbs
+      .map((b) => b.name)
+      .filter((name) => {
+        // Skip technical/internal names
+        if (!name) return false;
+        if (name === "root") return false;
+        if (name.startsWith("b!")) return false; // Drive ID
+        if (name.startsWith("drives/")) return false;
+        if (name.length > 50 && name.includes("-")) return false; // Looks like a GUID
+        return true;
+      });
     pathParts.push(folder.name);
     const fullPath = pathParts.join("/");
     onSelect(folder, fullPath);
@@ -307,18 +318,29 @@ export function SharePointFolderBrowser({
         >
           <Home className="h-4 w-4" />
         </Button>
-        {breadcrumbs.map((crumb, index) => (
+        {breadcrumbs
+          .filter((crumb) => {
+            // Skip technical/internal names in display
+            if (!crumb.name) return false;
+            if (crumb.name === "root") return false;
+            if (crumb.name.startsWith("b!")) return false;
+            if (crumb.name.startsWith("drives")) return false;
+            if (crumb.name.length > 50 && crumb.name.includes("-")) return false;
+            return true;
+          })
+          .map((crumb, index) => (
           <React.Fragment key={index}>
             <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
             <Button
               variant="ghost"
               size="sm"
               className={cn(
-                "h-7 px-2 shrink-0",
+                "h-7 px-2 shrink-0 max-w-[200px] truncate",
                 index === breadcrumbs.length - 1 && "font-medium"
               )}
-              onClick={() => handleBreadcrumbClick(index)}
+              onClick={() => handleBreadcrumbClick(breadcrumbs.findIndex(b => b.id === crumb.id))}
               disabled={!crumb.id || switchingDrive}
+              title={crumb.name}
             >
               {crumb.name}
             </Button>

@@ -633,7 +633,15 @@ export function CaseProposalApprovalDialog({
                             }}
                             className={sourceFolderFullscreen ? "h-[calc(100vh-280px)]" : "max-h-[250px]"}
                           />
-                          <div className="flex justify-end pt-2 border-t">
+                          <div className="flex justify-between items-center pt-2 border-t">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSourceFolderFullscreen(!sourceFolderFullscreen)}
+                            >
+                              {sourceFolderFullscreen ? <Minimize2 className="w-4 h-4 mr-1" /> : <Maximize2 className="w-4 h-4 mr-1" />}
+                              {sourceFolderFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"
@@ -778,7 +786,15 @@ export function CaseProposalApprovalDialog({
                             }}
                             className={filingFolderFullscreen ? "h-[calc(100vh-280px)]" : "max-h-[250px]"}
                           />
-                          <div className="flex justify-end pt-2 border-t">
+                          <div className="flex justify-between items-center pt-2 border-t">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setFilingFolderFullscreen(!filingFolderFullscreen)}
+                            >
+                              {filingFolderFullscreen ? <Minimize2 className="w-4 h-4 mr-1" /> : <Maximize2 className="w-4 h-4 mr-1" />}
+                              {filingFolderFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"

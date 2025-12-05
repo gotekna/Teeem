@@ -17,6 +17,9 @@ try {
   // Fallback if git is not available
 }
 
+// Build timestamp in ISO format (for deployed time display)
+const buildTime = new Date().toISOString();
+
 const nextConfig: any = {
   devIndicators: {
     buildActivity: false,
@@ -27,6 +30,7 @@ const nextConfig: any = {
   env: {
     NEXT_PUBLIC_GIT_COMMIT: gitCommitHash,
     NEXT_PUBLIC_BUILD_NUMBER: commitCount,
+    NEXT_PUBLIC_BUILD_TIME: buildTime,
   },
 };
 

@@ -121,10 +121,19 @@ export function Sidebar() {
         if (response.heroku_release) {
           setHerokuRelease(response.heroku_release);
         }
-        if (response.timestamp) {
-          const date = new Date(response.timestamp);
+        // Compare backend deploy time with frontend build time, show most recent
+        const backendTime = response.timestamp ? new Date(response.timestamp) : null;
+        const frontendTime = process.env.NEXT_PUBLIC_BUILD_TIME ? new Date(process.env.NEXT_PUBLIC_BUILD_TIME) : null;
+
+        // Use whichever is more recent
+        let mostRecentTime = backendTime;
+        if (frontendTime && (!backendTime || frontendTime > backendTime)) {
+          mostRecentTime = frontendTime;
+        }
+
+        if (mostRecentTime) {
           // Format in Brisbane timezone (Australia/Brisbane)
-          const brisbaneTime = date.toLocaleString('en-AU', {
+          const brisbaneTime = mostRecentTime.toLocaleString('en-AU', {
             timeZone: 'Australia/Brisbane',
             hour: 'numeric',
             minute: '2-digit',
