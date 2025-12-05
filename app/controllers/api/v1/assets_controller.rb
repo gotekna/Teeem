@@ -1,8 +1,8 @@
 module Api
   module V1
     class AssetsController < ApplicationController
-      before_action :set_asset, only: [:show, :update, :destroy, :service_history,
-                                        :add_service, :insurance, :update_insurance, :documents]
+      before_action :set_asset, only: [ :show, :update, :destroy, :service_history,
+                                        :add_service, :insurance, :update_insurance, :documents ]
 
       # GET /api/v1/assets
       def index
@@ -13,8 +13,8 @@ module Api
 
         # Build includes array based on what tables exist
         # Check if table exists using raw SQL to avoid loading the model
-        has_insurance_table = ActiveRecord::Base.connection.table_exists?('asset_insurances')
-        includes_array = [:company]
+        has_insurance_table = ActiveRecord::Base.connection.table_exists?("asset_insurances")
+        includes_array = [ :company ]
         includes_array << :asset_insurance if has_insurance_table
 
         @assets = Asset.includes(includes_array).all
@@ -38,16 +38,16 @@ module Api
         end
 
         # Build include hash based on what tables exist
-        include_hash = { company: { only: [:id, :name] } }
+        include_hash = { company: { only: [ :id, :name ] } }
         if has_insurance_table
-          include_hash[:asset_insurance] = { only: [:id, :renewal_date, :status], methods: [:days_until_renewal] }
+          include_hash[:asset_insurance] = { only: [ :id, :renewal_date, :status ], methods: [ :days_until_renewal ] }
         end
 
         render json: {
           success: true,
           assets: @assets.as_json(
             include: include_hash,
-            methods: [:display_name, :needs_attention?, :insurance_expired?, :service_overdue?]
+            methods: [ :display_name, :needs_attention?, :insurance_expired?, :service_overdue? ]
           )
         }
       end
@@ -58,12 +58,12 @@ module Api
           success: true,
           asset: @asset.as_json(
             include: {
-              company: { only: [:id, :name] },
+              company: { only: [ :id, :name ] },
               asset_insurance: {
-                methods: [:days_until_renewal, :expired?, :expiring_soon?]
+                methods: [ :days_until_renewal, :expired?, :expiring_soon? ]
               }
             },
-            methods: [:display_name, :age_in_years, :total_maintenance_cost, :depreciation_amount]
+            methods: [ :display_name, :age_in_years, :total_maintenance_cost, :depreciation_amount ]
           )
         }
       end
@@ -82,8 +82,8 @@ module Api
         if @asset.save
           render json: {
             success: true,
-            message: 'Asset created successfully',
-            asset: @asset.as_json(methods: [:display_name])
+            message: "Asset created successfully",
+            asset: @asset.as_json(methods: [ :display_name ])
           }, status: :created
         else
           render json: {
@@ -105,8 +105,8 @@ module Api
         if @asset.update(asset_params)
           render json: {
             success: true,
-            message: 'Asset updated successfully',
-            asset: @asset.as_json(methods: [:display_name])
+            message: "Asset updated successfully",
+            asset: @asset.as_json(methods: [ :display_name ])
           }
         else
           render json: {
@@ -121,7 +121,7 @@ module Api
         @asset.destroy
         render json: {
           success: true,
-          message: 'Asset deleted successfully'
+          message: "Asset deleted successfully"
         }
       end
 
@@ -134,8 +134,8 @@ module Api
         render json: {
           success: true,
           service_history: services.as_json(
-            include: { user: { only: [:id, :name, :email] } },
-            methods: [:display_name, :formatted_service_type, :days_since_service]
+            include: { user: { only: [ :id, :name, :email ] } },
+            methods: [ :display_name, :formatted_service_type, :days_since_service ]
           )
         }
       end
@@ -152,8 +152,8 @@ module Api
         if service.save
           render json: {
             success: true,
-            message: 'Service record added successfully',
-            service: service.as_json(methods: [:display_name, :formatted_service_type])
+            message: "Service record added successfully",
+            service: service.as_json(methods: [ :display_name, :formatted_service_type ])
           }, status: :created
         else
           render json: {
@@ -169,7 +169,7 @@ module Api
           render json: {
             success: true,
             insurance: @asset.asset_insurance.as_json(
-              methods: [:days_until_renewal, :expired?, :expiring_soon?, :display_name]
+              methods: [ :days_until_renewal, :expired?, :expiring_soon?, :display_name ]
             )
           }
         else
@@ -187,8 +187,8 @@ module Api
           if insurance.update(insurance_params)
             render json: {
               success: true,
-              message: 'Insurance updated successfully',
-              insurance: insurance.as_json(methods: [:days_until_renewal])
+              message: "Insurance updated successfully",
+              insurance: insurance.as_json(methods: [ :days_until_renewal ])
             }
           else
             render json: {
@@ -201,8 +201,8 @@ module Api
           if insurance.save
             render json: {
               success: true,
-              message: 'Insurance added successfully',
-              insurance: insurance.as_json(methods: [:days_until_renewal])
+              message: "Insurance added successfully",
+              insurance: insurance.as_json(methods: [ :days_until_renewal ])
             }, status: :created
           else
             render json: {
@@ -221,11 +221,11 @@ module Api
           success: true,
           documents: documents.as_json(
             include: {
-              company: { only: [:id, :name, :code] },
-              user: { only: [:id, :name, :email] },
-              document_type_record: { only: [:id, :name, :folder] }
+              company: { only: [ :id, :name, :code ] },
+              user: { only: [ :id, :name, :email ] },
+              document_type_record: { only: [ :id, :name, :folder ] }
             },
-            methods: [:formatted_document_type, :file_size_mb]
+            methods: [ :formatted_document_type, :file_size_mb ]
           )
         }
       end
@@ -235,7 +235,7 @@ module Api
       def set_asset
         @asset = Asset.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Asset not found' }, status: :not_found
+        render json: { success: false, error: "Asset not found" }, status: :not_found
       end
 
       def asset_params
