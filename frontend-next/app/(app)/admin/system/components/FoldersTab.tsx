@@ -109,8 +109,8 @@ interface JobNameField {
   icon: React.ReactNode;
 }
 
+// Job Number is always included as prefix - these are the optional fields for the rest of the folder name
 const JOB_NAME_FIELDS: JobNameField[] = [
-  { id: "job_number", label: "Job Number", placeholder: "047", icon: <Hash className="h-3 w-3" /> },
   { id: "lot_number", label: "Lot Number", placeholder: "Lot 12", icon: <Hash className="h-3 w-3" /> },
   { id: "street_number", label: "Street Number", placeholder: "83", icon: <Hash className="h-3 w-3" /> },
   { id: "street_name", label: "Street Name", placeholder: "West Ridge", icon: <Type className="h-3 w-3" /> },
@@ -1227,8 +1227,8 @@ export function FoldersTab() {
           <DialogHeader>
             <DialogTitle>Configure Job Folder Name Format</DialogTitle>
             <DialogDescription>
-              Drag and drop fields to define how job folders are named in SharePoint.
-              The Job Code is always included as a prefix.
+              Configure how job folders are named in SharePoint.
+              Job Number (e.g., 047) is always included as a prefix.
             </DialogDescription>
           </DialogHeader>
 
