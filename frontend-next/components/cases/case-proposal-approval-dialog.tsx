@@ -64,7 +64,9 @@ import {
   Search,
   X,
   Loader2,
+  Pencil,
 } from "lucide-react";
+import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { api } from "@/lib/api";
 
 interface InvolvedParty {
@@ -215,7 +217,9 @@ export function CaseProposalApprovalDialog({
   const [parties, setParties] = useState<InvolvedParty[]>(data.involved_parties || []);
   const [sourceFolders, setSourceFolders] = useState<string[]>(proposal.folder_paths || []);
   const [newSourceFolder, setNewSourceFolder] = useState("");
-  const [filingFolder, setFilingFolder] = useState(proposal.extracted_data?.filing_folder || "");
+  const [filingFolders, setFilingFolders] = useState<string[]>(
+    proposal.extracted_data?.filing_folder ? [proposal.extracted_data.filing_folder] : []
+  );
   const [fileAction, setFileAction] = useState<"copy" | "move">("copy");
 
   // Related items state
@@ -228,6 +232,13 @@ export function CaseProposalApprovalDialog({
   const [searchingJobs, setSearchingJobs] = useState(false);
   const [searchingCompanies, setSearchingCompanies] = useState(false);
 
+  // Folder browser state
+  const [showSourceFolderBrowser, setShowSourceFolderBrowser] = useState(false);
+  const [showFilingFolderBrowser, setShowFilingFolderBrowser] = useState(false);
+  const [sourceFolderInputMode, setSourceFolderInputMode] = useState<"browse" | "type">("browse");
+  const [filingFolderInputMode, setFilingFolderInputMode] = useState<"browse" | "type">("browse");
+  const [newFilingFolder, setNewFilingFolder] = useState("");
+
   // Reset form when proposal changes
   useEffect(() => {
     const newData = proposal.extracted_data || {};
@@ -237,7 +248,7 @@ export function CaseProposalApprovalDialog({
     setPriority(newData.priority || "medium");
     setParties(newData.involved_parties || []);
     setSourceFolders(proposal.folder_paths || []);
-    setFilingFolder(newData.filing_folder || "");
+    setFilingFolders(newData.filing_folder ? [newData.filing_folder] : []);
     // Initialize related items from AI extraction
     setRelatedJobs((newData.related_jobs || []).map((j: Record<string, unknown>) => ({
       job_id: j.job_id as number,
@@ -283,6 +294,17 @@ export function CaseProposalApprovalDialog({
 
   const removeSourceFolder = (index: number) => {
     setSourceFolders(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addFilingFolder = () => {
+    if (newFilingFolder.trim() && !filingFolders.includes(newFilingFolder.trim())) {
+      setFilingFolders(prev => [...prev, newFilingFolder.trim()]);
+      setNewFilingFolder("");
+    }
+  };
+
+  const removeFilingFolder = (index: number) => {
+    setFilingFolders(prev => prev.filter((_, i) => i !== index));
   };
 
   // Search for jobs
@@ -393,7 +415,7 @@ export function CaseProposalApprovalDialog({
       priority,
       involved_parties: parties.filter(p => !p.skip_create && p.name.trim()),
       source_folders: sourceFolders,
-      filing_folder: filingFolder,
+      filing_folders: filingFolders,
       file_action: fileAction,
       job_ids: relatedJobs.map(j => j.job_id),
       company_ids: relatedCompanies.filter(c => c.company_id).map(c => c.company_id),
@@ -521,58 +543,235 @@ export function CaseProposalApprovalDialog({
                   <p className="text-xs text-muted-foreground">
                     OneDrive/SharePoint folders containing existing case documents to index
                   </p>
-                  <div className="space-y-2">
-                    {sourceFolders.map((path, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <Input value={path} readOnly className="flex-1 bg-muted" />
+
+                  {/* Selected source folders */}
+                  {sourceFolders.length > 0 && (
+                    <div className="space-y-2 mb-2">
+                      {sourceFolders.map((path, idx) => (
+                        <div key={idx} className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                          <FolderOpen className="w-4 h-4 text-amber-500" />
+                          <span className="flex-1 text-sm truncate">{path}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeSourceFolder(idx)}
+                          >
+                            <Trash2 className="w-3 h-3 text-red-500" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Folder browser or input toggle */}
+                  {showSourceFolderBrowser ? (
+                    <div className="border rounded-lg p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-sm">Select Source Folder</h4>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          onClick={() => removeSourceFolder(idx)}
+                          size="sm"
+                          onClick={() => setShowSourceFolderBrowser(false)}
                         >
-                          <Trash2 className="w-4 h-4 text-red-500" />
+                          <X className="w-4 h-4" />
                         </Button>
                       </div>
-                    ))}
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={newSourceFolder}
-                        onChange={(e) => setNewSourceFolder(e.target.value)}
-                        placeholder="e.g. /Tekna Drafting/Clients/Smith Family Trust"
-                        className="flex-1"
-                        onKeyDown={(e) => e.key === "Enter" && newSourceFolder.trim() && addSourceFolder()}
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={addSourceFolder}
-                        disabled={!newSourceFolder.trim()}
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add
-                      </Button>
+
+                      {/* Browse / Type tabs */}
+                      <div className="flex rounded-lg border overflow-hidden">
+                        <button
+                          type="button"
+                          className={`flex-1 px-4 py-2 text-sm flex items-center justify-center gap-2 ${
+                            sourceFolderInputMode === "browse"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                          onClick={() => setSourceFolderInputMode("browse")}
+                        >
+                          <Search className="w-4 h-4" />
+                          Browse Folders
+                        </button>
+                        <button
+                          type="button"
+                          className={`flex-1 px-4 py-2 text-sm flex items-center justify-center gap-2 ${
+                            sourceFolderInputMode === "type"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                          onClick={() => setSourceFolderInputMode("type")}
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Type Path
+                        </button>
+                      </div>
+
+                      {sourceFolderInputMode === "browse" ? (
+                        <SharePointFolderBrowser
+                          onSelect={(folder, path) => {
+                            if (path && !sourceFolders.includes(path)) {
+                              setSourceFolders(prev => [...prev, path]);
+                            }
+                          }}
+                          className="min-h-[300px]"
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={newSourceFolder}
+                            onChange={(e) => setNewSourceFolder(e.target.value)}
+                            placeholder="e.g. /Shared Documents/Clients/Smith"
+                            className="flex-1"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && newSourceFolder.trim()) {
+                                addSourceFolder();
+                              }
+                            }}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={addSourceFolder}
+                            disabled={!newSourceFolder.trim()}
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => setShowSourceFolderBrowser(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Source Folder
+                    </Button>
+                  )}
                 </div>
 
-                {/* Filing Folder - where to save new documents */}
+                {/* Filing Folders - where to save new documents */}
                 <div className="grid gap-2">
                   <Label className="flex items-center gap-2">
                     <FolderOutput className="w-4 h-4 text-green-500" />
-                    Filing Folder (where to save case documents)
+                    Filing Folders (where to save case documents)
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    New documents will be saved here. Leave blank to create a new folder.
+                    New documents will be saved to these locations. Add multiple if documents need to be filed in different places.
                   </p>
-                  <Input
-                    value={filingFolder}
-                    onChange={(e) => setFilingFolder(e.target.value)}
-                    placeholder="e.g. /Tekna Drafting/Cases/Smith ATO Audit 2025"
-                  />
+
+                  {/* Selected filing folders */}
+                  {filingFolders.length > 0 && (
+                    <div className="space-y-2 mb-2">
+                      {filingFolders.map((path, idx) => (
+                        <div key={idx} className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                          <FolderOpen className="w-4 h-4 text-green-500" />
+                          <span className="flex-1 text-sm truncate">{path}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeFilingFolder(idx)}
+                          >
+                            <Trash2 className="w-3 h-3 text-red-500" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Folder browser or input toggle */}
+                  {showFilingFolderBrowser ? (
+                    <div className="border rounded-lg p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-sm">Select Filing Folder</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowFilingFolderBrowser(false)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      {/* Browse / Type tabs */}
+                      <div className="flex rounded-lg border overflow-hidden">
+                        <button
+                          type="button"
+                          className={`flex-1 px-4 py-2 text-sm flex items-center justify-center gap-2 ${
+                            filingFolderInputMode === "browse"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                          onClick={() => setFilingFolderInputMode("browse")}
+                        >
+                          <Search className="w-4 h-4" />
+                          Browse Folders
+                        </button>
+                        <button
+                          type="button"
+                          className={`flex-1 px-4 py-2 text-sm flex items-center justify-center gap-2 ${
+                            filingFolderInputMode === "type"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                          onClick={() => setFilingFolderInputMode("type")}
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Type Path
+                        </button>
+                      </div>
+
+                      {filingFolderInputMode === "browse" ? (
+                        <SharePointFolderBrowser
+                          onSelect={(folder, path) => {
+                            if (path && !filingFolders.includes(path)) {
+                              setFilingFolders(prev => [...prev, path]);
+                            }
+                          }}
+                          className="min-h-[300px]"
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={newFilingFolder}
+                            onChange={(e) => setNewFilingFolder(e.target.value)}
+                            placeholder="e.g. /Shared Documents/Cases/Smith ATO Audit 2025"
+                            className="flex-1"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && newFilingFolder.trim()) {
+                                addFilingFolder();
+                              }
+                            }}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={addFilingFolder}
+                            disabled={!newFilingFolder.trim()}
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => setShowFilingFolderBrowser(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Filing Folder
+                    </Button>
+                  )}
                 </div>
 
                 {/* Copy or Move toggle */}
-                {sourceFolders.length > 0 && filingFolder && (
+                {sourceFolders.length > 0 && filingFolders.length > 0 && (
                   <div className="grid gap-2">
                     <Label className="text-sm">File Action</Label>
                     <p className="text-xs text-muted-foreground">

@@ -58,27 +58,51 @@ git push heroku-teeemlive temp-live-deploy:main --force
 git branch -D temp-live-deploy
 ```
 
-### Step 5 - Verify Deploy
+### Step 5 - Verify Backend Deploy
 ```bash
 sleep 10
-curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
+curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version
+heroku releases --app teeemlive -n 1
 ```
 
-### Step 6 - Report Status
+### Step 6 - Check Vercel Frontend Deploy
+
+**Wait for Vercel to finish deploying the frontend:**
+
+1. Check latest Vercel deployment status:
+```bash
+vercel inspect teeemlive.vercel.app
+```
+
+2. If status shows "Building" or "Queued", wait 15 seconds and check again:
+```bash
+sleep 15
+vercel inspect teeemlive.vercel.app
+```
+
+3. Repeat until status shows "● Ready" (max 2 minutes total wait)
+
+4. Report each check with timestamp:
+```
+=== Vercel Check [N] === HH:MM:SS
+Status: [Building/Queued/Ready]
+```
+
+### Step 7 - Report Status
 
 Show compact deploy summary matching TEEEM sidebar format (same order):
 ```
 ========================================
 Backend: v[XXX]
-Frontend: v[XX] (Vercel auto-deploy)
+Frontend: v[XX] ✓ deployed
 Heroku: v[XXX]
 D: H:MM D/M (e.g., 9:23 5/12)
 ========================================
 ```
 
 Get values from:
-- Backend version: from /version endpoint
-- Frontend version: from NEXT_PUBLIC_BUILD_NUMBER or git commit
+- Backend version: from /version endpoint (use correct URL: teeemlive-ce8e2660a615.herokuapp.com)
+- Frontend: Show "✓ deployed" when Vercel shows Ready, or "⏳ building" if still in progress
 - Heroku release: from `heroku releases --app teeemlive -n 1`
 - D: Current Brisbane time in H:MM D/M format
 

@@ -4,6 +4,13 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
@@ -14,6 +21,8 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  Cloud,
+  Building2,
 } from "lucide-react";
 
 interface SharePointFolder {
@@ -21,6 +30,13 @@ interface SharePointFolder {
   name: string;
   web_url?: string;
   child_count: number;
+}
+
+interface SharePointSite {
+  id: string;
+  name: string;
+  web_url: string;
+  display_name?: string;
 }
 
 interface BrowseFoldersResponse {
@@ -32,6 +48,18 @@ interface BrowseFoldersResponse {
   } | null;
   breadcrumbs: Array<{ name: string; id: string | null }>;
   parent_folder_id: string | null;
+}
+
+interface SharePointSitesResponse {
+  sites: SharePointSite[];
+  current_site: string | null;
+}
+
+interface DriveStatusResponse {
+  connected: boolean;
+  drive_type?: string;
+  drive_name?: string;
+  site_name?: string;
 }
 
 interface SharePointFolderBrowserProps {
@@ -53,6 +81,48 @@ export function SharePointFolderBrowser({
   const [selectedFolder, setSelectedFolder] = React.useState<SharePointFolder | null>(null);
   const [navigationStack, setNavigationStack] = React.useState<string[]>([]);
 
+  // Drive/Site selection state
+  const [sites, setSites] = React.useState<SharePointSite[]>([]);
+  const [currentDrive, setCurrentDrive] = React.useState<string>("personal"); // "personal" or site_id
+  const [currentDriveName, setCurrentDriveName] = React.useState<string>("My OneDrive");
+  const [loadingSites, setLoadingSites] = React.useState(true);
+  const [switchingDrive, setSwitchingDrive] = React.useState(false);
+
+  // Load available SharePoint sites
+  const loadSites = React.useCallback(async () => {
+    setLoadingSites(true);
+    try {
+      const [sitesResponse, statusResponse] = await Promise.all([
+        api.get<SharePointSitesResponse>("/api/v1/organization_onedrive/sharepoint_sites"),
+        api.get<DriveStatusResponse>("/api/v1/organization_onedrive/status"),
+      ]);
+
+      setSites(sitesResponse.sites || []);
+
+      // Determine current drive from status
+      if (statusResponse.drive_type === "sharepoint" && statusResponse.site_name) {
+        const site = sitesResponse.sites?.find(
+          (s) => s.name === statusResponse.site_name || s.display_name === statusResponse.site_name
+        );
+        if (site) {
+          setCurrentDrive(site.id);
+          setCurrentDriveName(site.display_name || site.name);
+        } else {
+          setCurrentDrive("sharepoint");
+          setCurrentDriveName(statusResponse.site_name || "SharePoint");
+        }
+      } else {
+        setCurrentDrive("personal");
+        setCurrentDriveName(statusResponse.drive_name || "My OneDrive");
+      }
+    } catch (err) {
+      console.error("Failed to load SharePoint sites:", err);
+      // Not critical - can still browse current drive
+    } finally {
+      setLoadingSites(false);
+    }
+  }, []);
+
   const loadFolders = React.useCallback(async (folderId: string | null = null) => {
     setLoading(true);
     setError(null);
@@ -72,9 +142,39 @@ export function SharePointFolderBrowser({
     }
   }, []);
 
+  // Switch to a different drive/site
+  const switchDrive = React.useCallback(async (driveId: string) => {
+    setSwitchingDrive(true);
+    setError(null);
+    try {
+      if (driveId === "personal") {
+        await api.post("/api/v1/organization_onedrive/use_personal_drive");
+        setCurrentDriveName("My OneDrive");
+      } else {
+        await api.post("/api/v1/organization_onedrive/use_sharepoint_site", {
+          site_id: driveId,
+        });
+        const site = sites.find((s) => s.id === driveId);
+        setCurrentDriveName(site?.display_name || site?.name || "SharePoint");
+      }
+      setCurrentDrive(driveId);
+      // Reset navigation and reload folders from root
+      setNavigationStack([]);
+      setSelectedFolder(null);
+      setBreadcrumbs([]);
+      await loadFolders(null);
+    } catch (err) {
+      console.error("Failed to switch drive:", err);
+      setError(err instanceof Error ? err.message : "Failed to switch drive");
+    } finally {
+      setSwitchingDrive(false);
+    }
+  }, [sites, loadFolders]);
+
   React.useEffect(() => {
+    loadSites();
     loadFolders();
-  }, [loadFolders]);
+  }, [loadSites, loadFolders]);
 
   const handleFolderClick = (folder: SharePointFolder) => {
     // Single click selects the folder
@@ -112,17 +212,7 @@ export function SharePointFolderBrowser({
     }
   };
 
-  const handleBack = () => {
-    if (navigationStack.length > 0) {
-      const newStack = [...navigationStack];
-      const previousFolderId = newStack.pop() || null;
-      setNavigationStack(newStack);
-      setSelectedFolder(null);
-      loadFolders(previousFolderId || null);
-    }
-  };
-
-  if (error) {
+  if (error && !switchingDrive) {
     return (
       <div className={cn("flex flex-col items-center justify-center p-8 text-center", className)}>
         <AlertCircle className="h-8 w-8 text-destructive mb-2" />
@@ -137,13 +227,55 @@ export function SharePointFolderBrowser({
 
   return (
     <div className={cn("flex flex-col", className)}>
+      {/* Drive/Site Selector */}
+      <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-t-md border-b">
+        <span className="text-xs text-muted-foreground shrink-0">Location:</span>
+        <Select
+          value={currentDrive}
+          onValueChange={switchDrive}
+          disabled={loadingSites || switchingDrive}
+        >
+          <SelectTrigger className="h-8 text-sm flex-1">
+            <SelectValue>
+              <div className="flex items-center gap-2">
+                {switchingDrive ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : currentDrive === "personal" ? (
+                  <Cloud className="h-4 w-4 text-blue-500" />
+                ) : (
+                  <Building2 className="h-4 w-4 text-green-600" />
+                )}
+                <span className="truncate">{currentDriveName}</span>
+              </div>
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="personal">
+              <div className="flex items-center gap-2">
+                <Cloud className="h-4 w-4 text-blue-500" />
+                <span>My OneDrive</span>
+              </div>
+            </SelectItem>
+            {sites.map((site) => (
+              <SelectItem key={site.id} value={site.id}>
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-green-600" />
+                  <span>{site.display_name || site.name}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Breadcrumb Navigation */}
-      <div className="flex items-center gap-1 p-2 bg-muted/50 rounded-t-md border-b text-sm overflow-x-auto">
+      <div className="flex items-center gap-1 p-2 bg-muted/50 border-b text-sm overflow-x-auto">
         <Button
           variant="ghost"
           size="sm"
           className="h-7 px-2 shrink-0"
           onClick={() => handleBreadcrumbClick(-1)}
+          disabled={switchingDrive}
         >
           <Home className="h-4 w-4" />
         </Button>
@@ -158,18 +290,18 @@ export function SharePointFolderBrowser({
                 index === breadcrumbs.length - 1 && "font-medium"
               )}
               onClick={() => handleBreadcrumbClick(index)}
-              disabled={!crumb.id}
+              disabled={!crumb.id || switchingDrive}
             >
               {crumb.name}
             </Button>
           </React.Fragment>
         ))}
-        {loading && <Loader2 className="h-4 w-4 animate-spin ml-2" />}
+        {(loading || switchingDrive) && <Loader2 className="h-4 w-4 animate-spin ml-2" />}
       </div>
 
       {/* Folder List */}
-      <ScrollArea className="h-[300px] rounded-b-md border border-t-0">
-        {loading ? (
+      <ScrollArea className="h-[250px] rounded-b-md border border-t-0">
+        {loading || switchingDrive ? (
           <div className="p-2 space-y-2">
             {[...Array(5)].map((_, i) => (
               <Skeleton key={i} className="h-10 w-full" />
