@@ -431,78 +431,192 @@ function XeroFieldMapping() {
   );
 }
 
-// Contact Sync Component
+// Types for sync data
+interface SyncStatus {
+  last_sync_at: string | null;
+  total_contacts: number;
+  synced_contacts: number;
+  sync_enabled_contacts: number;
+  contacts_with_errors: number;
+  sync_percentage: number;
+  active_job?: {
+    job_id: string;
+    status: string;
+    queued_at: string;
+    total: number;
+    processed: number;
+  };
+}
+
+interface SyncHistoryItem {
+  id: number;
+  contact_name: string;
+  email: string | null;
+  synced_at: string;
+  has_error: boolean;
+  error_message: string | null;
+  action: string;
+  xero_id: string | null;
+}
+
+interface ContactForSync {
+  id: number;
+  full_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  xero_id: string | null;
+  sync_with_xero: boolean;
+  last_synced_at: string | null;
+  xero_sync_error: string | null;
+}
+
+// Contact Sync Dashboard Component
 function XeroContactSync() {
   const { toast } = useToast();
-  const [config, setConfig] = React.useState<{
-    sync_enabled: boolean;
-    sync_direction: string;
-    auto_sync: boolean;
-    sync_interval_minutes: number;
-    last_sync_at?: string;
-  } | null>(null);
+  const [syncStatus, setSyncStatus] = React.useState<SyncStatus | null>(null);
+  const [syncHistory, setSyncHistory] = React.useState<SyncHistoryItem[]>([]);
+  const [contacts, setContacts] = React.useState<ContactForSync[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
   const [syncing, setSyncing] = React.useState(false);
+  const [syncingContactId, setSyncingContactId] = React.useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState<string>("all");
 
+  // Load all data on mount
   React.useEffect(() => {
-    loadConfig();
+    loadAllData();
   }, []);
 
-  const loadConfig = async () => {
+  const loadAllData = async () => {
+    setLoading(true);
     try {
-      // Note: This endpoint doesn't exist yet in the backend
-      // Using default configuration until sync config API is implemented
-      setConfig({
-        sync_enabled: true,
-        sync_direction: "bidirectional",
-        auto_sync: false,
-        sync_interval_minutes: 60,
-      });
+      await Promise.all([
+        loadSyncStatus(),
+        loadSyncHistory(),
+        loadContacts(),
+      ]);
     } catch (error) {
-      console.error("Failed to load config:", error);
-      setConfig({
-        sync_enabled: true,
-        sync_direction: "bidirectional",
-        auto_sync: false,
-        sync_interval_minutes: 60,
-      });
+      console.error("Failed to load sync data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSave = async () => {
-    if (!config) return;
-    setSaving(true);
+  const loadSyncStatus = async () => {
     try {
-      // Note: This endpoint doesn't exist yet in the backend
-      // await api.put("/api/v1/xero/sync_config", { sync_config: config });
-      toast({
-        title: "Not Available",
-        description: "Sync configuration saving is not yet implemented",
-        variant: "default"
-      });
+      const response = await api.get<{ success: boolean; data: SyncStatus }>("/api/v1/xero/sync_status");
+      setSyncStatus(response.data);
     } catch (error) {
-      console.error("Failed to save config:", error);
-      toast({ title: "Error", description: "Failed to save configuration", variant: "destructive" });
-    } finally {
-      setSaving(false);
+      console.error("Failed to load sync status:", error);
     }
   };
 
-  const handleSync = async () => {
+  const loadSyncHistory = async () => {
+    try {
+      const response = await api.get<{ success: boolean; history: SyncHistoryItem[] }>("/api/v1/xero/sync_history");
+      setSyncHistory(response.history || []);
+    } catch (error) {
+      console.error("Failed to load sync history:", error);
+    }
+  };
+
+  const loadContacts = async () => {
+    try {
+      const response = await api.get<{ contacts: ContactForSync[] }>("/api/v1/contacts", {
+        params: { per_page: 500 }
+      });
+      setContacts(response.contacts || []);
+    } catch (error) {
+      console.error("Failed to load contacts:", error);
+    }
+  };
+
+  const handleSyncAll = async () => {
     setSyncing(true);
     try {
-      await api.post("/api/v1/xero/sync_contacts");
-      toast({ title: "Success", description: "Contact sync completed" });
-      loadConfig();
+      const response = await api.post<{ success: boolean; message: string; data?: { job_id: string } }>("/api/v1/xero/sync_contacts");
+      toast({
+        title: "Sync Started",
+        description: response.message || "Contact sync job has been queued",
+      });
+      // Refresh status after a short delay
+      setTimeout(() => {
+        loadAllData();
+      }, 2000);
     } catch (error) {
       console.error("Failed to sync:", error);
-      toast({ title: "Error", description: "Sync failed", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to start sync", variant: "destructive" });
     } finally {
       setSyncing(false);
     }
+  };
+
+  const handleSyncContact = async (contactId: number, direction: "to_xero" | "from_xero") => {
+    setSyncingContactId(contactId);
+    try {
+      if (direction === "to_xero") {
+        await api.post(`/api/v1/contacts/${contactId}/sync_to_xero`);
+        toast({ title: "Success", description: "Contact synced to Xero" });
+      } else {
+        await api.post(`/api/v1/contacts/${contactId}/sync_from_xero`);
+        toast({ title: "Success", description: "Contact synced from Xero" });
+      }
+      await loadContacts();
+    } catch (error) {
+      console.error("Failed to sync contact:", error);
+      toast({ title: "Error", description: "Failed to sync contact", variant: "destructive" });
+    } finally {
+      setSyncingContactId(null);
+    }
+  };
+
+  // Filter contacts
+  const filteredContacts = React.useMemo(() => {
+    return contacts.filter((contact) => {
+      // Search filter
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch =
+        !searchQuery ||
+        contact.full_name?.toLowerCase().includes(searchLower) ||
+        contact.email?.toLowerCase().includes(searchLower) ||
+        `${contact.first_name} ${contact.last_name}`.toLowerCase().includes(searchLower);
+
+      // Status filter
+      let matchesStatus = true;
+      if (statusFilter === "linked") {
+        matchesStatus = !!contact.xero_id;
+      } else if (statusFilter === "not_linked") {
+        matchesStatus = !contact.xero_id;
+      } else if (statusFilter === "errors") {
+        matchesStatus = !!contact.xero_sync_error;
+      } else if (statusFilter === "sync_enabled") {
+        matchesStatus = contact.sync_with_xero;
+      }
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [contacts, searchQuery, statusFilter]);
+
+  // Calculate stats
+  const stats = React.useMemo(() => {
+    const linked = contacts.filter((c) => c.xero_id).length;
+    const notLinked = contacts.filter((c) => !c.xero_id && c.sync_with_xero).length;
+    const errors = contacts.filter((c) => c.xero_sync_error).length;
+    return { linked, notLinked, errors, total: contacts.length };
+  }, [contacts]);
+
+  const getContactStatus = (contact: ContactForSync) => {
+    if (contact.xero_sync_error) {
+      return { label: "Error", variant: "destructive" as const, icon: AlertTriangle };
+    }
+    if (contact.xero_id) {
+      return { label: "Linked", variant: "default" as const, icon: Check };
+    }
+    if (contact.sync_with_xero) {
+      return { label: "Pending", variant: "secondary" as const, icon: RefreshCw };
+    }
+    return { label: "Not Synced", variant: "outline" as const, icon: X };
   };
 
   if (loading) {
@@ -515,115 +629,306 @@ function XeroContactSync() {
 
   return (
     <div className="space-y-6">
+      {/* Status Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Linked</p>
+                <p className="text-2xl font-bold text-green-600">{stats.linked}</p>
+              </div>
+              <div className="p-3 bg-green-100 dark:bg-green-900 rounded-full">
+                <Check className="h-5 w-5 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Pending Sync</p>
+                <p className="text-2xl font-bold text-blue-600">{stats.notLinked}</p>
+              </div>
+              <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
+                <RefreshCw className="h-5 w-5 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Sync Errors</p>
+                <p className="text-2xl font-bold text-red-600">{stats.errors}</p>
+              </div>
+              <div className="p-3 bg-red-100 dark:bg-red-900 rounded-full">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Contacts</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
+              </div>
+              <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-full">
+                <Settings className="h-5 w-5 text-gray-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Last Sync Info & Actions */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Sync Actions</CardTitle>
+              <CardDescription>
+                {syncStatus?.last_sync_at
+                  ? `Last synced: ${new Date(syncStatus.last_sync_at).toLocaleString()}`
+                  : "No sync performed yet"}
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={loadAllData}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Button onClick={handleSyncAll} disabled={syncing}>
+                {syncing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                    Sync All Contacts
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        {syncStatus?.active_job && (
+          <CardContent className="pt-0">
+            <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+              <span className="text-sm text-blue-800 dark:text-blue-200">
+                Sync in progress: {syncStatus.active_job.processed}/{syncStatus.active_job.total} contacts processed
+              </span>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Contact List */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Sync Configuration</CardTitle>
-          <CardDescription>Configure how contacts are synced with Xero</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Enable Contact Sync</Label>
-              <p className="text-sm text-muted-foreground">
-                Sync contacts between TEEEM and Xero
-              </p>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-base">Contacts</CardTitle>
+              <CardDescription>
+                Showing {filteredContacts.length} of {contacts.length} contacts
+              </CardDescription>
             </div>
-            <Switch
-              checked={config?.sync_enabled || false}
-              onCheckedChange={(checked) =>
-                setConfig(config ? { ...config, sync_enabled: checked } : null)
-              }
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Sync Direction</Label>
-            <Select
-              value={config?.sync_direction || "bidirectional"}
-              onValueChange={(value) =>
-                setConfig(config ? { ...config, sync_direction: value } : null)
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="to_xero">TEEEM → Xero only</SelectItem>
-                <SelectItem value="from_xero">Xero → TEEEM only</SelectItem>
-                <SelectItem value="bidirectional">Bidirectional</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Automatic Sync</Label>
-              <p className="text-sm text-muted-foreground">
-                Automatically sync contacts at regular intervals
-              </p>
-            </div>
-            <Switch
-              checked={config?.auto_sync || false}
-              onCheckedChange={(checked) =>
-                setConfig(config ? { ...config, auto_sync: checked } : null)
-              }
-            />
-          </div>
-
-          {config?.auto_sync && (
-            <div className="space-y-2">
-              <Label>Sync Interval (minutes)</Label>
-              <Select
-                value={String(config?.sync_interval_minutes || 60)}
-                onValueChange={(value) =>
-                  setConfig(config ? { ...config, sync_interval_minutes: Number(value) } : null)
-                }
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
+            <div className="flex gap-2">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search contacts..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-[200px] px-3 py-2 text-sm border rounded-md bg-background"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="15">Every 15 minutes</SelectItem>
-                  <SelectItem value="30">Every 30 minutes</SelectItem>
-                  <SelectItem value="60">Every hour</SelectItem>
-                  <SelectItem value="360">Every 6 hours</SelectItem>
-                  <SelectItem value="1440">Daily</SelectItem>
+                  <SelectItem value="all">All Contacts</SelectItem>
+                  <SelectItem value="linked">Linked to Xero</SelectItem>
+                  <SelectItem value="not_linked">Not Linked</SelectItem>
+                  <SelectItem value="errors">With Errors</SelectItem>
+                  <SelectItem value="sync_enabled">Sync Enabled</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-          )}
-
-          {config?.last_sync_at && (
-            <p className="text-sm text-muted-foreground">
-              Last synced: {new Date(config.last_sync_at).toLocaleString()}
-            </p>
-          )}
-
-          <div className="flex gap-2 pt-4 border-t">
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save Configuration"
-              )}
-            </Button>
-            <Button variant="outline" onClick={handleSync} disabled={syncing}>
-              {syncing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Syncing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Sync Now
-                </>
-              )}
-            </Button>
           </div>
+        </CardHeader>
+        <CardContent>
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last Synced</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredContacts.slice(0, 50).map((contact) => {
+                  const status = getContactStatus(contact);
+                  const StatusIcon = status.icon;
+                  return (
+                    <TableRow key={contact.id}>
+                      <TableCell className="font-medium">
+                        {contact.full_name || `${contact.first_name || ""} ${contact.last_name || ""}`.trim() || "Unnamed"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {contact.email || "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={status.variant} className="gap-1">
+                          <StatusIcon className="h-3 w-3" />
+                          {status.label}
+                        </Badge>
+                        {contact.xero_sync_error && (
+                          <p className="text-xs text-red-600 mt-1 max-w-[200px] truncate" title={contact.xero_sync_error}>
+                            {contact.xero_sync_error}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {contact.last_synced_at
+                          ? new Date(contact.last_synced_at).toLocaleDateString()
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          {contact.xero_id ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleSyncContact(contact.id, "from_xero")}
+                                disabled={syncingContactId === contact.id}
+                                title="Pull from Xero"
+                              >
+                                {syncingContactId === contact.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleSyncContact(contact.id, "to_xero")}
+                                disabled={syncingContactId === contact.id}
+                                title="Push to Xero"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSyncContact(contact.id, "to_xero")}
+                              disabled={syncingContactId === contact.id}
+                              title="Create in Xero"
+                            >
+                              {syncingContactId === contact.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Link2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {filteredContacts.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      No contacts found
+                    </TableCell>
+                  </TableRow>
+                )}
+                {filteredContacts.length > 50 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-4">
+                      Showing first 50 contacts. Use search to find specific contacts.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sync History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Recent Sync Activity</CardTitle>
+          <CardDescription>Last 50 sync operations</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {syncHistory.length > 0 ? (
+            <div className="border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Synced At</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {syncHistory.slice(0, 20).map((item) => (
+                    <TableRow key={`${item.id}-${item.synced_at}`}>
+                      <TableCell className="font-medium">{item.contact_name}</TableCell>
+                      <TableCell>{item.action}</TableCell>
+                      <TableCell>
+                        {item.has_error ? (
+                          <Badge variant="destructive" className="gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Error
+                          </Badge>
+                        ) : (
+                          <Badge variant="default" className="gap-1">
+                            <Check className="h-3 w-3" />
+                            Success
+                          </Badge>
+                        )}
+                        {item.error_message && (
+                          <p className="text-xs text-red-600 mt-1 max-w-[200px] truncate" title={item.error_message}>
+                            {item.error_message}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {new Date(item.synced_at).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center text-muted-foreground py-8">
+              No sync history yet
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
