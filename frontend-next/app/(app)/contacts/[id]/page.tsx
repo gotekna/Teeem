@@ -145,8 +145,6 @@ interface Contact {
   can_view_confidential?: boolean;
   // SSoT: Linked company data for company-type contacts
   linked_company?: LinkedCompany;
-  // Index signature for dynamic properties
-  [key: string]: unknown;
 }
 
 interface DirectorCompany {
@@ -314,7 +312,6 @@ export default function ContactDetailPage() {
   const [showInvoiceDetail, setShowInvoiceDetail] = useState(false);
 
   const activeTab = searchParams.get("tab") || "overview";
-  const activeSubTab = searchParams.get("subtab") || "directorships";
 
   useEffect(() => {
     loadContact();
@@ -418,26 +415,23 @@ export default function ContactDetailPage() {
     }
   };
 
-  // SSoT: Load tab-specific data when tab or subtab changes
+  // SSoT: Load tab-specific data when tab changes
   useEffect(() => {
     if (!contact?.id) return;
 
-    // Load data based on corporate sub-tabs
-    if (activeTab === "corporate") {
-      if (activeSubTab === "directorships" && directorships.length === 0 && !loadingDirectorships) {
-        loadDirectorships();
-      } else if (activeSubTab === "shareholdings" && shareholdings.length === 0 && !loadingShareholdings) {
-        loadShareholdings();
-      } else if (activeSubTab === "trust-roles" && !trustRoles && !loadingTrustRoles) {
-        loadTrustRoles();
-      } else if (activeSubTab === "roles-table") {
-        // Load all data for the combined table view
-        if (directorships.length === 0 && !loadingDirectorships) loadDirectorships();
-        if (shareholdings.length === 0 && !loadingShareholdings) loadShareholdings();
-        if (!trustRoles && !loadingTrustRoles) loadTrustRoles();
-      }
+    if (activeTab === "directorships" && directorships.length === 0 && !loadingDirectorships) {
+      loadDirectorships();
+    } else if (activeTab === "shareholdings" && shareholdings.length === 0 && !loadingShareholdings) {
+      loadShareholdings();
+    } else if (activeTab === "relationships" && !trustRoles && !loadingTrustRoles) {
+      loadTrustRoles();
+    } else if (activeTab === "roles-table") {
+      // Load all data for the combined table view
+      if (directorships.length === 0 && !loadingDirectorships) loadDirectorships();
+      if (shareholdings.length === 0 && !loadingShareholdings) loadShareholdings();
+      if (!trustRoles && !loadingTrustRoles) loadTrustRoles();
     }
-  }, [activeTab, activeSubTab, contact?.id]);
+  }, [activeTab, contact?.id]);
 
   const handleTabChange = (value: string) => {
     // Use slug for URL, don't show ?tab= for default "overview" tab
@@ -447,16 +441,6 @@ export default function ContactDetailPage() {
     const newUrl = value === "overview"
       ? `/contacts/${slug}`
       : `/contacts/${slug}?tab=${value}`;
-    router.push(newUrl);
-  };
-
-  const handleCorporateSubTabChange = (value: string) => {
-    const slug = contact
-      ? slugifyContactName(contact.first_name || undefined, contact.last_name || undefined, contact.full_name)
-      : id;
-    const newUrl = value === "identity"
-      ? `/contacts/${slug}?tab=corporate`
-      : `/contacts/${slug}?tab=corporate&subtab=${value}`;
     router.push(newUrl);
   };
 
@@ -534,8 +518,13 @@ export default function ContactDetailPage() {
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="corporate">
-            <Briefcase className="h-3.5 w-3.5 mr-1" />
+            <Building2 className="h-3.5 w-3.5 mr-1" />
             Corporate
+            {(directorships.length > 0 || shareholdings.length > 0 || (trustRoles && trustRoles.total_count > 0) || memberships.length > 0) && (
+              <Badge variant="secondary" className="ml-1.5">
+                {directorships.length + shareholdings.length + (trustRoles?.total_count || 0) + memberships.length}
+              </Badge>
+            )}
             {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
           </TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -1042,53 +1031,15 @@ export default function ContactDetailPage() {
           </div>
         </TabsContent>
 
-        {/* Corporate Tab - With nested sub-tabs for Identity, Directorships, Shareholdings, etc. */}
-        <TabsContent value="corporate" className="mt-6">
-          <Tabs value={activeSubTab} onValueChange={handleCorporateSubTabChange}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="identity">
-                <IdCard className="h-3.5 w-3.5 mr-1" />
-                Identity
-              </TabsTrigger>
-              <TabsTrigger value="directorships">
-                Directorships
-                {directorships.length > 0 && (
-                  <Badge variant="secondary" className="ml-1.5">{directorships.length}</Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="shareholdings">
-                Shareholdings
-                {shareholdings.length > 0 && (
-                  <Badge variant="secondary" className="ml-1.5">{shareholdings.length}</Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="trust-roles">
-                Trust Roles
-                {trustRoles && trustRoles.total_count > 0 && (
-                  <Badge variant="secondary" className="ml-1.5">{trustRoles.total_count}</Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="company-groups">
-                Company Groups
-                {memberships.length > 0 && (
-                  <Badge variant="secondary" className="ml-1.5">{memberships.length}</Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="roles-table">
-                <Table className="h-3.5 w-3.5 mr-1" />
-                Summary
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Identity Sub-Tab */}
-            <TabsContent value="identity">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Director Identity - Required for ASIC */}
+        {/* Personal Tab - DOB, Passport, Licence (Restricted) */}
+        <TabsContent value="personal" className="mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Identity Information */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Briefcase className="h-5 w-5" />
-                  Director Identity
+                  <IdCard className="h-5 w-5" />
+                  Identity Information
                   {!contact.can_view_confidential && (
                     <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300">
                       <Lock className="h-3 w-3 mr-1" />
@@ -1098,23 +1049,6 @@ export default function ContactDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Director ID (DIN) */}
-                <div>
-                  <p className="text-xs text-muted-foreground">Director Identification Number (DIN)</p>
-                  <p className="text-sm font-medium font-mono">
-                    {contact.director_id ? (
-                      <span className="flex items-center gap-2">
-                        {contact.director_id}
-                        <Badge className="bg-green-100 text-green-700 text-xs">Verified</Badge>
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">Not set</span>
-                    )}
-                  </p>
-                </div>
-
-                <Separator />
-
                 <div className="grid grid-cols-2 gap-4">
                   {/* Date of Birth */}
                   <div>
@@ -1141,63 +1075,24 @@ export default function ContactDetailPage() {
                           <Lock className="h-3 w-3" /> Restricted
                         </span>
                       ) : contact.place_of_birth ? (
-                        contact.place_of_birth
+                        `${contact.place_of_birth}${contact.birth_state ? `, ${contact.birth_state}` : ""}${contact.birth_country ? `, ${contact.birth_country}` : ""}`
                       ) : (
                         <span className="text-muted-foreground">Not set</span>
                       )}
                     </p>
                   </div>
 
-                  {/* Birth State */}
+                  {/* Director ID */}
                   <div>
-                    <p className="text-xs text-muted-foreground">Birth State</p>
-                    <p className="text-sm font-medium">
-                      {contact.birth_state === "[RESTRICTED]" ? (
-                        <span className="text-amber-600 flex items-center gap-1">
-                          <Lock className="h-3 w-3" /> Restricted
-                        </span>
-                      ) : contact.birth_state ? (
-                        contact.birth_state
-                      ) : (
-                        <span className="text-muted-foreground">Not set</span>
-                      )}
-                    </p>
-                  </div>
-
-                  {/* Birth Country */}
-                  <div>
-                    <p className="text-xs text-muted-foreground">Birth Country</p>
-                    <p className="text-sm font-medium">
-                      {contact.birth_country === "[RESTRICTED]" ? (
-                        <span className="text-amber-600 flex items-center gap-1">
-                          <Lock className="h-3 w-3" /> Restricted
-                        </span>
-                      ) : contact.birth_country ? (
-                        contact.birth_country
-                      ) : (
-                        <span className="text-muted-foreground">Not set</span>
-                      )}
+                    <p className="text-xs text-muted-foreground">Director ID</p>
+                    <p className="text-sm font-medium font-mono">
+                      {contact.director_id || <span className="text-muted-foreground">Not set</span>}
                     </p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* Identity Documents */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <IdCard className="h-5 w-5" />
-                  Identity Documents
-                  {!contact.can_view_confidential && (
-                    <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300">
-                      <Lock className="h-3 w-3 mr-1" />
-                      Restricted
-                    </Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+                <Separator />
+
                 {/* Passport */}
                 <div>
                   <p className="text-xs text-muted-foreground">Passport Number</p>
@@ -1214,8 +1109,6 @@ export default function ContactDetailPage() {
                   </p>
                 </div>
 
-                <Separator />
-
                 {/* Drivers Licence */}
                 <div>
                   <p className="text-xs text-muted-foreground">Drivers Licence</p>
@@ -1231,34 +1124,15 @@ export default function ContactDetailPage() {
                     )}
                   </p>
                 </div>
-
-                <Separator />
-
-                {/* Photo */}
-                <div>
-                  <p className="text-xs text-muted-foreground">Photo</p>
-                  {contact.photo_url ? (
-                    <div className="mt-2">
-                      <img
-                        src={contact.photo_url}
-                        alt={contact.full_name}
-                        className="w-24 h-24 rounded-lg object-cover border"
-                      />
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No photo uploaded</p>
-                  )}
-                </div>
               </CardContent>
             </Card>
 
-            {/* Residential Address - Required for ASIC director records */}
-            <Card className="lg:col-span-2">
+            {/* Residential Address */}
+            <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Home className="h-5 w-5" />
                   Residential Address
-                  <Badge variant="outline" className="text-xs">Required for ASIC</Badge>
                   {!contact.can_view_confidential && (
                     <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300">
                       <Lock className="h-3 w-3 mr-1" />
@@ -1280,12 +1154,12 @@ export default function ContactDetailPage() {
                 )}
               </CardContent>
             </Card>
-              </div>
-            </TabsContent>
+          </div>
+        </TabsContent>
 
-            {/* Directorships Sub-Tab */}
-            <TabsContent value="directorships">
-              <Card>
+        {/* Directorships Tab - SSoT: Uses dedicated /directorships endpoint */}
+        <TabsContent value="directorships" className="mt-6">
+          <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Briefcase className="h-5 w-5" />
@@ -1357,12 +1231,12 @@ export default function ContactDetailPage() {
                 </p>
               )}
             </CardContent>
-              </Card>
-            </TabsContent>
+          </Card>
+        </TabsContent>
 
-            {/* Shareholdings Sub-Tab */}
-            <TabsContent value="shareholdings">
-              <Card>
+        {/* Shareholdings Tab - SSoT: Uses dedicated /shareholdings endpoint */}
+        <TabsContent value="shareholdings" className="mt-6">
+          <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Percent className="h-5 w-5" />
@@ -1446,479 +1320,7 @@ export default function ContactDetailPage() {
                 </p>
               )}
             </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Trust Roles Sub-Tab */}
-            <TabsContent value="trust-roles">
-              <div className="space-y-6">
-                {loadingTrustRoles ? (
-                  <Card>
-                    <CardContent className="py-8">
-                      <div className="flex items-center justify-center">
-                        <Loader />
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : trustRoles && trustRoles.total_count > 0 ? (
-                  <>
-                    {/* Trustee Roles */}
-                    {trustRoles.trustee_roles.length > 0 && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            <ShieldCheck className="h-5 w-5 text-purple-600" />
-                            Trustee Of
-                            <Badge className="bg-purple-100 text-purple-700">{trustRoles.trustee_roles.length}</Badge>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-3">
-                            {trustRoles.trustee_roles.map((role) => (
-                              <div
-                                key={role.id}
-                                className={cn(
-                                  "flex items-center justify-between p-4 rounded-lg border",
-                                  role.is_active ? "bg-purple-50 border-purple-200 dark:bg-purple-950/20 dark:border-purple-800" : "bg-gray-50 dark:bg-gray-900/50"
-                                )}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <Building2 className="h-5 w-5 text-purple-600" />
-                                  <div>
-                                    <Link
-                                      href={`/corporate/companies/${role.trust_id}`}
-                                      className="font-medium hover:underline text-primary"
-                                    >
-                                      {role.trust_name}
-                                    </Link>
-                                    <p className="text-sm text-muted-foreground">
-                                      {role.trust_entity_type === "trust" ? "Trust" : role.trust_entity_type}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <Badge className={role.is_active ? "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300" : "bg-gray-100 text-gray-600"}>
-                                    {role.is_active ? "Current Trustee" : "Former Trustee"}
-                                  </Badge>
-                                  {role.start_date && (
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      Since {new Date(role.start_date).toLocaleDateString()}
-                                      {role.end_date && ` until ${new Date(role.end_date).toLocaleDateString()}`}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {/* Beneficiary Roles */}
-                    {trustRoles.beneficiary_roles.length > 0 && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            <Users className="h-5 w-5 text-green-600" />
-                            Beneficiary Of
-                            <Badge className="bg-green-100 text-green-700">{trustRoles.beneficiary_roles.length}</Badge>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-3">
-                            {trustRoles.beneficiary_roles.map((role) => (
-                              <div
-                                key={role.id}
-                                className={cn(
-                                  "flex items-center justify-between p-4 rounded-lg border",
-                                  role.is_active ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800" : "bg-gray-50 dark:bg-gray-900/50"
-                                )}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <Building2 className="h-5 w-5 text-green-600" />
-                                  <div>
-                                    <Link
-                                      href={`/corporate/companies/${role.trust_id}`}
-                                      className="font-medium hover:underline text-primary"
-                                    >
-                                      {role.trust_name}
-                                    </Link>
-                                    <p className="text-sm text-muted-foreground">
-                                      {role.trust_entity_type === "trust" ? "Trust" : role.trust_entity_type}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <div className="flex items-center gap-2 justify-end">
-                                    {role.ownership_percentage != null && (
-                                      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
-                                        {role.ownership_percentage.toFixed(1)}% entitlement
-                                      </Badge>
-                                    )}
-                                    <Badge className={role.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
-                                      {role.is_active ? "Active" : "Inactive"}
-                                    </Badge>
-                                  </div>
-                                  {role.start_date && (
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      Since {new Date(role.start_date).toLocaleDateString()}
-                                      {role.end_date && ` until ${new Date(role.end_date).toLocaleDateString()}`}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {/* Appointor Roles */}
-                    {trustRoles.appointor_roles.length > 0 && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            <User className="h-5 w-5 text-amber-600" />
-                            Appointor Of
-                            <Badge className="bg-amber-100 text-amber-700">{trustRoles.appointor_roles.length}</Badge>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-3">
-                            {trustRoles.appointor_roles.map((role) => (
-                              <div
-                                key={role.id}
-                                className={cn(
-                                  "flex items-center justify-between p-4 rounded-lg border",
-                                  role.is_active ? "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800" : "bg-gray-50 dark:bg-gray-900/50"
-                                )}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <Building2 className="h-5 w-5 text-amber-600" />
-                                  <div>
-                                    <Link
-                                      href={`/corporate/companies/${role.trust_id}`}
-                                      className="font-medium hover:underline text-primary"
-                                    >
-                                      {role.trust_name}
-                                    </Link>
-                                    <p className="text-sm text-muted-foreground">
-                                      {role.trust_entity_type === "trust" ? "Trust" : role.trust_entity_type}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <Badge className={role.is_active ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300" : "bg-gray-100 text-gray-600"}>
-                                    {role.is_active ? "Current Appointor" : "Former Appointor"}
-                                  </Badge>
-                                  {role.start_date && (
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      Since {new Date(role.start_date).toLocaleDateString()}
-                                      {role.end_date && ` until ${new Date(role.end_date).toLocaleDateString()}`}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-                  </>
-                ) : (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Share2 className="h-5 w-5" />
-                        Trust Roles
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-muted-foreground text-center py-8">
-                        No trust roles found. This contact is not a trustee, beneficiary, or appointor of any trusts.
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </TabsContent>
-
-            {/* Company Groups Sub-Tab */}
-            <TabsContent value="company-groups">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Building2 className="h-5 w-5" />
-                    Company Group Memberships
-                    {memberships.length > 0 && (
-                      <Badge variant="secondary">{memberships.length}</Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {loadingMemberships ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader />
-                    </div>
-                  ) : memberships.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">
-                        This contact is not a member of any company groups.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {memberships.map((membership) => (
-                        <div
-                          key={membership.id}
-                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                              <Building2 className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                            </div>
-                            <div>
-                              <p className="font-medium">{membership.company_group_name}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge
-                                  className={
-                                    membership.membership_type === "director"
-                                      ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-                                      : membership.membership_type === "shareholder"
-                                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                                      : "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300"
-                                  }
-                                >
-                                  {membership.membership_type}
-                                </Badge>
-                                {membership.company_name && (
-                                  <span className="text-sm text-muted-foreground">
-                                    via {membership.company_name}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {membership.can_view_confidential && (
-                              <Badge variant="outline" className="text-xs">
-                                View Confidential
-                              </Badge>
-                            )}
-                            {membership.can_edit && (
-                              <Badge variant="outline" className="text-xs">
-                                Can Edit
-                              </Badge>
-                            )}
-                            {membership.is_active ? (
-                              <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                                Active
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary">Inactive</Badge>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Roles Table Sub-Tab (Summary) */}
-            <TabsContent value="roles-table">
-              {(loadingDirectorships || loadingShareholdings || loadingTrustRoles) ? (
-                <Card>
-                  <CardContent className="py-8">
-                    <div className="flex items-center justify-center">
-                      <Loader />
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-6">
-                  {/* Directorships Table */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Briefcase className="h-5 w-5 text-green-600" />
-                        Directorships ({directorships.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {directorships.length > 0 ? (
-                        <TeeemTableView
-                          entries={directorships.map(d => ({
-                            id: d.id,
-                            company_id: d.company_id,
-                            company_name: d.company_name,
-                            position: d.formatted_position || d.position,
-                            company_group: d.company_group_name || "-",
-                            status: d.is_current ? "Current" : "Former",
-                            appointed: d.appointment_date ? new Date(d.appointment_date).toLocaleDateString() : "-",
-                            resigned: d.resignation_date ? new Date(d.resignation_date).toLocaleDateString() : "-",
-                          }))}
-                          columns={[
-                            { key: "company_name", label: "Company", column_type: "text" },
-                            { key: "position", label: "Position", column_type: "text" },
-                            { key: "company_group", label: "Group", column_type: "text" },
-                            { key: "status", label: "Status", column_type: "text" },
-                            { key: "appointed", label: "Appointed", column_type: "text" },
-                            { key: "resigned", label: "Resigned", column_type: "text" },
-                          ] as TableColumn[]}
-                          tableName="Directorships"
-                          viewOnly={true}
-                          onRowClick={(row) => router.push(`/corporate/companies/${row.company_id}`)}
-                          customCellRenderer={(entry, columnKey) => {
-                            if (columnKey === "status") {
-                              const status = entry.status as string;
-                              return (
-                                <Badge className={status === "Current" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
-                                  {status}
-                                </Badge>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                      ) : (
-                        <p className="text-muted-foreground text-center py-4">No directorships found.</p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Shareholdings Table */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Percent className="h-5 w-5 text-blue-600" />
-                        Shareholdings ({shareholdings.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {shareholdings.length > 0 ? (
-                        <TeeemTableView
-                          entries={shareholdings.map(sh => ({
-                            id: sh.id,
-                            company_id: sh.company_id,
-                            company_name: sh.company_name,
-                            share_class: sh.share_class || "Ordinary",
-                            shares: sh.number_of_shares?.toLocaleString() || "-",
-                            percentage: sh.percentage_of_total != null ? `${sh.percentage_of_total.toFixed(1)}%` : "-",
-                            company_group: sh.company_group_name || "-",
-                            status: !sh.disposal_date ? "Current" : "Disposed",
-                            acquired: sh.acquisition_date ? new Date(sh.acquisition_date).toLocaleDateString() : "-",
-                          }))}
-                          columns={[
-                            { key: "company_name", label: "Company", column_type: "text" },
-                            { key: "share_class", label: "Class", column_type: "text" },
-                            { key: "shares", label: "Shares", column_type: "text" },
-                            { key: "percentage", label: "%", column_type: "text" },
-                            { key: "company_group", label: "Group", column_type: "text" },
-                            { key: "status", label: "Status", column_type: "text" },
-                            { key: "acquired", label: "Acquired", column_type: "text" },
-                          ] as TableColumn[]}
-                          tableName="Shareholdings"
-                          viewOnly={true}
-                          onRowClick={(row) => router.push(`/corporate/companies/${row.company_id}`)}
-                          customCellRenderer={(entry, columnKey) => {
-                            if (columnKey === "status") {
-                              const status = entry.status as string;
-                              return (
-                                <Badge className={status === "Current" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}>
-                                  {status}
-                                </Badge>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                      ) : (
-                        <p className="text-muted-foreground text-center py-4">No shareholdings found.</p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Trust Roles Table */}
-                  {trustRoles && trustRoles.total_count > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <ShieldCheck className="h-5 w-5 text-purple-600" />
-                          Trust Roles ({trustRoles.total_count})
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <TeeemTableView
-                          entries={[
-                            ...trustRoles.trustee_roles.map(r => ({
-                              id: r.id,
-                              trust_id: r.trust_id,
-                              trust_name: r.trust_name,
-                              role: "Trustee",
-                              entitlement: "-",
-                              status: r.is_active ? "Active" : "Inactive",
-                              since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
-                            })),
-                            ...trustRoles.beneficiary_roles.map(r => ({
-                              id: r.id,
-                              trust_id: r.trust_id,
-                              trust_name: r.trust_name,
-                              role: "Beneficiary",
-                              entitlement: r.ownership_percentage != null ? `${r.ownership_percentage.toFixed(1)}%` : "-",
-                              status: r.is_active ? "Active" : "Inactive",
-                              since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
-                            })),
-                            ...trustRoles.appointor_roles.map(r => ({
-                              id: r.id,
-                              trust_id: r.trust_id,
-                              trust_name: r.trust_name,
-                              role: "Appointor",
-                              entitlement: "-",
-                              status: r.is_active ? "Active" : "Inactive",
-                              since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
-                            })),
-                          ]}
-                          columns={[
-                            { key: "trust_name", label: "Trust", column_type: "text" },
-                            { key: "role", label: "Role", column_type: "text" },
-                            { key: "entitlement", label: "Entitlement", column_type: "text" },
-                            { key: "status", label: "Status", column_type: "text" },
-                            { key: "since", label: "Since", column_type: "text" },
-                          ] as TableColumn[]}
-                          tableName="Trust Roles"
-                          viewOnly={true}
-                          onRowClick={(row) => router.push(`/corporate/companies/${row.trust_id}`)}
-                          customCellRenderer={(entry, columnKey) => {
-                            if (columnKey === "role") {
-                              const role = entry.role as string;
-                              const colorClass = role === "Trustee"
-                                ? "bg-purple-100 text-purple-700"
-                                : role === "Beneficiary"
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-amber-100 text-amber-700";
-                              return <Badge className={colorClass}>{role}</Badge>;
-                            }
-                            if (columnKey === "status") {
-                              const status = entry.status as string;
-                              return (
-                                <Badge className={status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
-                                  {status}
-                                </Badge>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              )}
-            </TabsContent>
-
-          </Tabs>
+          </Card>
         </TabsContent>
 
         {/* Documents Tab */}
@@ -2037,6 +1439,397 @@ export default function ContactDetailPage() {
           </div>
         </TabsContent>
 
+        {/* Trust Roles Tab - SSoT: Uses dedicated /trust_roles endpoint */}
+        <TabsContent value="relationships" className="mt-6">
+          <div className="space-y-6">
+            {loadingTrustRoles ? (
+              <Card>
+                <CardContent className="py-8">
+                  <div className="flex items-center justify-center">
+                    <Loader />
+                  </div>
+                </CardContent>
+              </Card>
+            ) : trustRoles && trustRoles.total_count > 0 ? (
+              <>
+                {/* Trustee Roles */}
+                {trustRoles.trustee_roles.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <ShieldCheck className="h-5 w-5 text-purple-600" />
+                        Trustee Of
+                        <Badge className="bg-purple-100 text-purple-700">{trustRoles.trustee_roles.length}</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {trustRoles.trustee_roles.map((role) => (
+                          <div
+                            key={role.id}
+                            className={cn(
+                              "flex items-center justify-between p-4 rounded-lg border",
+                              role.is_active ? "bg-purple-50 border-purple-200 dark:bg-purple-950/20 dark:border-purple-800" : "bg-gray-50 dark:bg-gray-900/50"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Building2 className="h-5 w-5 text-purple-600" />
+                              <div>
+                                <Link
+                                  href={`/corporate/companies/${role.trust_id}`}
+                                  className="font-medium hover:underline text-primary"
+                                >
+                                  {role.trust_name}
+                                </Link>
+                                <p className="text-sm text-muted-foreground">
+                                  {role.trust_entity_type === "trust" ? "Trust" : role.trust_entity_type}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <Badge className={role.is_active ? "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300" : "bg-gray-100 text-gray-600"}>
+                                {role.is_active ? "Current Trustee" : "Former Trustee"}
+                              </Badge>
+                              {role.start_date && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Since {new Date(role.start_date).toLocaleDateString()}
+                                  {role.end_date && ` until ${new Date(role.end_date).toLocaleDateString()}`}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Beneficiary Roles */}
+                {trustRoles.beneficiary_roles.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Users className="h-5 w-5 text-green-600" />
+                        Beneficiary Of
+                        <Badge className="bg-green-100 text-green-700">{trustRoles.beneficiary_roles.length}</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {trustRoles.beneficiary_roles.map((role) => (
+                          <div
+                            key={role.id}
+                            className={cn(
+                              "flex items-center justify-between p-4 rounded-lg border",
+                              role.is_active ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800" : "bg-gray-50 dark:bg-gray-900/50"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Building2 className="h-5 w-5 text-green-600" />
+                              <div>
+                                <Link
+                                  href={`/corporate/companies/${role.trust_id}`}
+                                  className="font-medium hover:underline text-primary"
+                                >
+                                  {role.trust_name}
+                                </Link>
+                                <p className="text-sm text-muted-foreground">
+                                  {role.trust_entity_type === "trust" ? "Trust" : role.trust_entity_type}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="flex items-center gap-2 justify-end">
+                                {role.ownership_percentage != null && (
+                                  <Badge className="bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                                    {role.ownership_percentage.toFixed(1)}% entitlement
+                                  </Badge>
+                                )}
+                                <Badge className={role.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
+                                  {role.is_active ? "Active" : "Inactive"}
+                                </Badge>
+                              </div>
+                              {role.start_date && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Since {new Date(role.start_date).toLocaleDateString()}
+                                  {role.end_date && ` until ${new Date(role.end_date).toLocaleDateString()}`}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Appointor Roles */}
+                {trustRoles.appointor_roles.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <User className="h-5 w-5 text-amber-600" />
+                        Appointor Of
+                        <Badge className="bg-amber-100 text-amber-700">{trustRoles.appointor_roles.length}</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {trustRoles.appointor_roles.map((role) => (
+                          <div
+                            key={role.id}
+                            className={cn(
+                              "flex items-center justify-between p-4 rounded-lg border",
+                              role.is_active ? "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800" : "bg-gray-50 dark:bg-gray-900/50"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Building2 className="h-5 w-5 text-amber-600" />
+                              <div>
+                                <Link
+                                  href={`/corporate/companies/${role.trust_id}`}
+                                  className="font-medium hover:underline text-primary"
+                                >
+                                  {role.trust_name}
+                                </Link>
+                                <p className="text-sm text-muted-foreground">
+                                  {role.trust_entity_type === "trust" ? "Trust" : role.trust_entity_type}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <Badge className={role.is_active ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300" : "bg-gray-100 text-gray-600"}>
+                                {role.is_active ? "Current Appointor" : "Former Appointor"}
+                              </Badge>
+                              {role.start_date && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Since {new Date(role.start_date).toLocaleDateString()}
+                                  {role.end_date && ` until ${new Date(role.end_date).toLocaleDateString()}`}
+                                </p>
+                              )}
+                              {role.notes && (
+                                <p className="text-xs text-muted-foreground mt-0.5 italic">
+                                  {role.notes}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Share2 className="h-5 w-5" />
+                    Trust Roles
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground text-center py-8">
+                    No trust roles found. This contact is not a trustee, beneficiary, or appointor of any trusts.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Roles Table Tab - Combined TeeemTableView */}
+        <TabsContent value="roles-table" className="mt-6">
+          {(loadingDirectorships || loadingShareholdings || loadingTrustRoles) ? (
+            <Card>
+              <CardContent className="py-8">
+                <div className="flex items-center justify-center">
+                  <Loader />
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {/* Directorships Table */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-green-600" />
+                    Directorships ({directorships.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {directorships.length > 0 ? (
+                    <TeeemTableView
+                      entries={directorships.map(d => ({
+                        id: d.id,
+                        company_id: d.company_id,
+                        company_name: d.company_name,
+                        position: d.formatted_position || d.position,
+                        company_group: d.company_group_name || "-",
+                        status: d.is_current ? "Current" : "Former",
+                        appointed: d.appointment_date ? new Date(d.appointment_date).toLocaleDateString() : "-",
+                        resigned: d.resignation_date ? new Date(d.resignation_date).toLocaleDateString() : "-",
+                      }))}
+                      columns={[
+                        { key: "company_name", label: "Company", column_type: "text" },
+                        { key: "position", label: "Position", column_type: "text" },
+                        { key: "company_group", label: "Group", column_type: "text" },
+                        { key: "status", label: "Status", column_type: "text" },
+                        { key: "appointed", label: "Appointed", column_type: "text" },
+                        { key: "resigned", label: "Resigned", column_type: "text" },
+                      ] as TableColumn[]}
+                      tableName="Directorships"
+                      viewOnly={true}
+                      onRowClick={(row) => router.push(`/corporate/companies/${row.company_id}`)}
+                      customCellRenderer={(entry, columnKey) => {
+                        if (columnKey === "status") {
+                          const status = entry.status as string;
+                          return (
+                            <Badge className={status === "Current" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
+                              {status}
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">No directorships found.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Shareholdings Table */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Percent className="h-5 w-5 text-blue-600" />
+                    Shareholdings ({shareholdings.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {shareholdings.length > 0 ? (
+                    <TeeemTableView
+                      entries={shareholdings.map(sh => ({
+                        id: sh.id,
+                        company_id: sh.company_id,
+                        company_name: sh.company_name,
+                        share_class: sh.share_class || "Ordinary",
+                        shares: sh.number_of_shares?.toLocaleString() || "-",
+                        percentage: sh.percentage_of_total != null ? `${sh.percentage_of_total.toFixed(1)}%` : "-",
+                        company_group: sh.company_group_name || "-",
+                        status: !sh.disposal_date ? "Current" : "Disposed",
+                        acquired: sh.acquisition_date ? new Date(sh.acquisition_date).toLocaleDateString() : "-",
+                      }))}
+                      columns={[
+                        { key: "company_name", label: "Company", column_type: "text" },
+                        { key: "share_class", label: "Class", column_type: "text" },
+                        { key: "shares", label: "Shares", column_type: "text" },
+                        { key: "percentage", label: "%", column_type: "text" },
+                        { key: "company_group", label: "Group", column_type: "text" },
+                        { key: "status", label: "Status", column_type: "text" },
+                        { key: "acquired", label: "Acquired", column_type: "text" },
+                      ] as TableColumn[]}
+                      tableName="Shareholdings"
+                      viewOnly={true}
+                      onRowClick={(row) => router.push(`/corporate/companies/${row.company_id}`)}
+                      customCellRenderer={(entry, columnKey) => {
+                        if (columnKey === "status") {
+                          const status = entry.status as string;
+                          return (
+                            <Badge className={status === "Current" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}>
+                              {status}
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">No shareholdings found.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Trust Roles Table */}
+              {trustRoles && trustRoles.total_count > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-purple-600" />
+                      Trust Roles ({trustRoles.total_count})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <TeeemTableView
+                      entries={[
+                        ...trustRoles.trustee_roles.map(r => ({
+                          id: r.id,
+                          trust_id: r.trust_id,
+                          trust_name: r.trust_name,
+                          role: "Trustee",
+                          entitlement: "-",
+                          status: r.is_active ? "Active" : "Inactive",
+                          since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
+                        })),
+                        ...trustRoles.beneficiary_roles.map(r => ({
+                          id: r.id,
+                          trust_id: r.trust_id,
+                          trust_name: r.trust_name,
+                          role: "Beneficiary",
+                          entitlement: r.ownership_percentage != null ? `${r.ownership_percentage.toFixed(1)}%` : "-",
+                          status: r.is_active ? "Active" : "Inactive",
+                          since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
+                        })),
+                        ...trustRoles.appointor_roles.map(r => ({
+                          id: r.id,
+                          trust_id: r.trust_id,
+                          trust_name: r.trust_name,
+                          role: "Appointor",
+                          entitlement: "-",
+                          status: r.is_active ? "Active" : "Inactive",
+                          since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
+                        })),
+                      ]}
+                      columns={[
+                        { key: "trust_name", label: "Trust", column_type: "text" },
+                        { key: "role", label: "Role", column_type: "text" },
+                        { key: "entitlement", label: "Entitlement", column_type: "text" },
+                        { key: "status", label: "Status", column_type: "text" },
+                        { key: "since", label: "Since", column_type: "text" },
+                      ] as TableColumn[]}
+                      tableName="Trust Roles"
+                      viewOnly={true}
+                      onRowClick={(row) => router.push(`/corporate/companies/${row.trust_id}`)}
+                      customCellRenderer={(entry, columnKey) => {
+                        if (columnKey === "role") {
+                          const role = entry.role as string;
+                          const colorClass = role === "Trustee"
+                            ? "bg-purple-100 text-purple-700"
+                            : role === "Beneficiary"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-amber-100 text-amber-700";
+                          return <Badge className={colorClass}>{role}</Badge>;
+                        }
+                        if (columnKey === "status") {
+                          const status = entry.status as string;
+                          return (
+                            <Badge className={status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
+                              {status}
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </TabsContent>
+
         {/* Communications Tab */}
         <TabsContent value="coms" className="mt-6">
           <Card>
@@ -2097,6 +1890,89 @@ export default function ContactDetailPage() {
           }}
           invoiceId={selectedInvoiceId}
         />
+
+        {/* Company Groups Tab */}
+        <TabsContent value="company-groups" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Company Group Memberships
+                {memberships.length > 0 && (
+                  <Badge variant="secondary">{memberships.length}</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingMemberships ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader />
+                </div>
+              ) : memberships.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">
+                    This contact is not a member of any company groups.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {memberships.map((membership) => (
+                    <div
+                      key={membership.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                          <Building2 className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{membership.company_group_name}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge
+                              className={
+                                membership.membership_type === "director"
+                                  ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                                  : membership.membership_type === "shareholder"
+                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                                  : "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300"
+                              }
+                            >
+                              {membership.membership_type}
+                            </Badge>
+                            {membership.company_name && (
+                              <span className="text-sm text-muted-foreground">
+                                via {membership.company_name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {membership.can_view_confidential && (
+                          <Badge variant="outline" className="text-xs">
+                            View Confidential
+                          </Badge>
+                        )}
+                        {membership.can_edit && (
+                          <Badge variant="outline" className="text-xs">
+                            Can Edit
+                          </Badge>
+                        )}
+                        {membership.is_active ? (
+                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">Inactive</Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Edit Modal */}
