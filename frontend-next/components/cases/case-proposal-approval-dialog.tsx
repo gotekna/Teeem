@@ -576,7 +576,7 @@ export function CaseProposalApprovalDialog({
                   {/* Folder browser or input toggle */}
                   {showSourceFolderBrowser ? (
                     <div className={sourceFolderFullscreen
-                      ? "fixed inset-0 z-[9999] bg-background p-4 space-y-4 flex flex-col"
+                      ? "flex-1 min-h-0 flex flex-col space-y-4"
                       : "border rounded-lg p-4 space-y-4"
                     }>
                       <div className="flex items-center justify-between">
@@ -732,7 +732,7 @@ export function CaseProposalApprovalDialog({
                   {/* Folder browser or input toggle */}
                   {showFilingFolderBrowser ? (
                     <div className={filingFolderFullscreen
-                      ? "fixed inset-0 z-[9999] bg-background p-4 space-y-4 flex flex-col"
+                      ? "flex-1 min-h-0 flex flex-col space-y-4"
                       : "border rounded-lg p-4 space-y-4"
                     }>
                       <div className="flex items-center justify-between">

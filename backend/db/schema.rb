@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_05_100007) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -317,12 +317,38 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
     t.bigint "added_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "short_code"
+    t.string "source_type"
+    t.string "original_location"
+    t.string "action_taken"
     t.index ["added_by_id"], name: "index_case_documents_on_added_by_id"
     t.index ["case_id", "company_document_id"], name: "index_case_documents_on_case_id_and_company_document_id", unique: true
     t.index ["case_id"], name: "index_case_documents_on_case_id"
     t.index ["company_document_id"], name: "index_case_documents_on_company_document_id"
     t.index ["relevance"], name: "index_case_documents_on_relevance"
     t.index ["relevance_score"], name: "index_case_documents_on_relevance_score"
+    t.index ["short_code"], name: "index_case_documents_on_short_code"
+  end
+
+  create_table "case_email_qas", force: :cascade do |t|
+    t.bigint "case_id", null: false
+    t.bigint "case_email_id"
+    t.bigint "email_warehouse_id"
+    t.text "question", null: false
+    t.text "answer"
+    t.string "question_from"
+    t.string "answer_from"
+    t.datetime "question_date"
+    t.datetime "answer_date"
+    t.boolean "is_answered", default: false
+    t.boolean "is_important", default: false
+    t.string "category"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["case_email_id"], name: "index_case_email_qas_on_case_email_id"
+    t.index ["case_id", "is_answered"], name: "index_case_email_qas_on_case_id_and_is_answered"
+    t.index ["case_id"], name: "index_case_email_qas_on_case_id"
+    t.index ["email_warehouse_id"], name: "index_case_email_qas_on_email_warehouse_id"
   end
 
   create_table "case_emails", force: :cascade do |t|
@@ -337,6 +363,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
     t.bigint "added_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "short_code"
+    t.string "display_name"
+    t.boolean "has_unanswered_questions", default: false
     t.index ["added_by_id"], name: "index_case_emails_on_added_by_id"
     t.index ["case_id", "email_warehouse_id"], name: "index_case_emails_on_case_id_and_email_warehouse_id", unique: true
     t.index ["case_id"], name: "index_case_emails_on_case_id"
@@ -406,6 +435,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
     t.datetime "updated_at", null: false
     t.bigint "parent_case_id"
     t.integer "hierarchy_level", default: 0
+    t.jsonb "filing_folder_paths", default: []
+    t.jsonb "source_folder_paths", default: []
+    t.string "file_action", default: "copy"
+    t.string "document_processing_status", default: "pending"
+    t.integer "unanswered_questions_count", default: 0
     t.index ["assigned_to_id"], name: "index_cases_on_assigned_to_id"
     t.index ["case_number"], name: "index_cases_on_case_number", unique: true
     t.index ["case_type"], name: "index_cases_on_case_type"
@@ -691,6 +725,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
     t.jsonb "ai_split_recommendation"
     t.string "documentable_type"
     t.bigint "documentable_id"
+    t.string "content_hash"
     t.index ["asset_id"], name: "index_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"
@@ -698,6 +733,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
     t.index ["company_id", "folder"], name: "idx_company_docs_company_folder"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
     t.index ["contact_id"], name: "index_company_documents_on_contact_id"
+    t.index ["content_hash"], name: "index_company_documents_on_content_hash"
     t.index ["document_date"], name: "index_company_documents_on_document_date"
     t.index ["document_type"], name: "index_company_documents_on_document_type"
     t.index ["document_type_id"], name: "index_company_documents_on_document_type_id"
@@ -1224,6 +1260,27 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
     t.index ["company_document_id"], name: "index_document_activities_on_company_document_id"
     t.index ["created_at"], name: "index_document_activities_on_created_at"
     t.index ["user_id"], name: "index_document_activities_on_user_id"
+  end
+
+  create_table "document_duplicate_reviews", force: :cascade do |t|
+    t.bigint "case_id", null: false
+    t.bigint "existing_document_id", null: false
+    t.bigint "new_document_id"
+    t.string "new_file_path"
+    t.string "new_file_hash"
+    t.string "new_file_name"
+    t.bigint "new_file_size"
+    t.string "source_type"
+    t.string "status", default: "pending"
+    t.string "resolution"
+    t.bigint "resolved_by_id"
+    t.datetime "resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["case_id", "status"], name: "index_document_duplicate_reviews_on_case_id_and_status"
+    t.index ["case_id"], name: "index_document_duplicate_reviews_on_case_id"
+    t.index ["existing_document_id"], name: "index_document_duplicate_reviews_on_existing_document_id"
+    t.index ["new_document_id"], name: "index_document_duplicate_reviews_on_new_document_id"
   end
 
   create_table "document_tasks", force: :cascade do |t|
@@ -2139,6 +2196,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["onedrive_folder_creation_status"], name: "index_jobs_on_onedrive_folder_creation_status"
+  end
+
+  create_table "known_parties", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "email"
+    t.string "phone"
+    t.string "organisation"
+    t.string "relationship_type"
+    t.string "default_alignment", default: "neutral"
+    t.text "notes"
+    t.bigint "contact_id"
+    t.integer "seen_count", default: 1
+    t.datetime "last_seen_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_known_parties_on_contact_id"
+    t.index ["email"], name: "index_known_parties_on_email", unique: true, where: "(email IS NOT NULL)"
+    t.index ["name", "organisation"], name: "index_known_parties_on_name_and_organisation", unique: true
+    t.index ["relationship_type"], name: "index_known_parties_on_relationship_type"
   end
 
   create_table "kudos_events", force: :cascade do |t|
@@ -4293,6 +4369,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
   add_foreign_key "case_documents", "cases"
   add_foreign_key "case_documents", "company_documents"
   add_foreign_key "case_documents", "users", column: "added_by_id"
+  add_foreign_key "case_email_qas", "case_emails"
+  add_foreign_key "case_email_qas", "cases"
+  add_foreign_key "case_email_qas", "email_warehouse"
   add_foreign_key "case_emails", "cases"
   add_foreign_key "case_emails", "email_warehouse"
   add_foreign_key "case_emails", "users", column: "added_by_id"
@@ -4356,6 +4435,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
   add_foreign_key "dividends", "companies"
   add_foreign_key "document_activities", "company_documents"
   add_foreign_key "document_activities", "users"
+  add_foreign_key "document_duplicate_reviews", "cases"
+  add_foreign_key "document_duplicate_reviews", "company_documents", column: "existing_document_id"
+  add_foreign_key "document_duplicate_reviews", "company_documents", column: "new_document_id"
+  add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "document_verification_feedbacks", "company_documents"
   add_foreign_key "document_verification_feedbacks", "users"
@@ -4414,6 +4497,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
   add_foreign_key "jobs", "job_status", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
   add_foreign_key "jobs", "users", column: "archived_by_id", on_delete: :nullify
+  add_foreign_key "known_parties", "contacts"
   add_foreign_key "kudos_events", "purchase_orders"
   add_foreign_key "kudos_events", "quote_responses"
   add_foreign_key "kudos_events", "subcontractor_accounts"

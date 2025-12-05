@@ -57,6 +57,9 @@ import {
   Star,
   Copy,
   Merge,
+  Settings,
+  FolderOpen,
+  FolderInput,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -159,6 +162,10 @@ interface CaseDetail {
     overdue: number;
   };
   child_cases: ChildCase[];
+  // Folder settings
+  source_folder_paths: string[];
+  filing_folder_paths: string[];
+  file_action: string;
 }
 
 interface CaseAction {
@@ -377,6 +384,16 @@ export default function CaseDetailPage() {
   const [duplicates, setDuplicates] = React.useState<DuplicateReview[]>([]);
   const [loadingDuplicates, setLoadingDuplicates] = React.useState(false);
   const [qaFilter, setQaFilter] = React.useState<"all" | "unanswered" | "important">("all");
+
+  // Folder settings
+  const [showFolderSettings, setShowFolderSettings] = React.useState(false);
+  const [editingFolders, setEditingFolders] = React.useState(false);
+  const [folderSettings, setFolderSettings] = React.useState<{
+    source_folder_paths: string[];
+    filing_folder_paths: string[];
+    file_action: string;
+  }>({ source_folder_paths: [], filing_folder_paths: [], file_action: "copy" });
+  const [savingFolders, setSavingFolders] = React.useState(false);
 
   // Action types
   const [actionTypes, setActionTypes] = React.useState<Record<string, ActionType>>({});
@@ -611,6 +628,67 @@ export default function CaseDetailPage() {
     } catch (error) {
       console.error("Failed to reprocess documents:", error);
     }
+  };
+
+  const initFolderSettings = () => {
+    if (caseData) {
+      setFolderSettings({
+        source_folder_paths: caseData.source_folder_paths || [],
+        filing_folder_paths: caseData.filing_folder_paths || [],
+        file_action: caseData.file_action || "copy",
+      });
+    }
+    setEditingFolders(true);
+  };
+
+  const saveFolderSettings = async () => {
+    try {
+      setSavingFolders(true);
+      const response = await api.patch<{ success: boolean; data: CaseDetail }>(
+        `/api/v1/cases/${caseId}/folder_settings`,
+        folderSettings
+      );
+      if (response.data) {
+        setCaseData(response.data);
+      }
+      setEditingFolders(false);
+    } catch (error) {
+      console.error("Failed to save folder settings:", error);
+    } finally {
+      setSavingFolders(false);
+    }
+  };
+
+  const addSourceFolder = (path: string) => {
+    if (path && !folderSettings.source_folder_paths.includes(path)) {
+      setFolderSettings(prev => ({
+        ...prev,
+        source_folder_paths: [...prev.source_folder_paths, path]
+      }));
+    }
+  };
+
+  const removeSourceFolder = (path: string) => {
+    setFolderSettings(prev => ({
+      ...prev,
+      source_folder_paths: prev.source_folder_paths.filter(p => p !== path)
+    }));
+  };
+
+  const addFilingFolder = (path: string) => {
+    if (path && !folderSettings.filing_folder_paths.includes(path)) {
+      setFolderSettings(prev => ({
+        ...prev,
+        filing_folder_paths: [...prev.filing_folder_paths, path]
+      }));
+    }
+  };
+
+  const removeFilingFolder = (path: string) => {
+    setFolderSettings(prev => ({
+      ...prev,
+      filing_folder_paths: prev.filing_folder_paths.filter(p => p !== path)
+    }));
   };
 
   const toggleQAImportant = async (qaId: number, isImportant: boolean) => {
@@ -1639,6 +1717,168 @@ export default function CaseDetailPage() {
 
         {activeTab === "qa" && (
           <div className="space-y-6">
+            {/* Folder Settings Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between py-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Document Folder Settings
+                </CardTitle>
+                {!editingFolders ? (
+                  <Button variant="outline" size="sm" onClick={initFolderSettings}>
+                    Configure Folders
+                  </Button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setEditingFolders(false)}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={saveFolderSettings} disabled={savingFolders}>
+                      {savingFolders && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                      Save
+                    </Button>
+                  </div>
+                )}
+              </CardHeader>
+              <CardContent>
+                {!editingFolders ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground mb-1">Source Folders</p>
+                      {caseData?.source_folder_paths && caseData.source_folder_paths.length > 0 ? (
+                        <div className="space-y-1">
+                          {caseData.source_folder_paths.map((path, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <FolderOpen className="h-4 w-4 text-blue-500" />
+                              <span className="truncate" title={path}>{path.split("/").pop() || path}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground italic">Not configured</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1">Filing Folders</p>
+                      {caseData?.filing_folder_paths && caseData.filing_folder_paths.length > 0 ? (
+                        <div className="space-y-1">
+                          {caseData.filing_folder_paths.map((path, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <FolderInput className="h-4 w-4 text-green-500" />
+                              <span className="truncate" title={path}>{path.split("/").pop() || path}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground italic">Not configured</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1">File Action</p>
+                      <Badge variant="outline">
+                        {caseData?.file_action === "move" ? "Move files" : "Copy files"}
+                      </Badge>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Source Folders */}
+                    <div>
+                      <Label className="flex items-center gap-2 mb-2">
+                        <FolderOpen className="h-4 w-4 text-blue-500" />
+                        Source Folders
+                        <span className="text-muted-foreground font-normal text-xs">(Where to scan for documents)</span>
+                      </Label>
+                      <div className="space-y-2">
+                        {folderSettings.source_folder_paths.map((path, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <Input value={path} readOnly className="flex-1" />
+                            <Button variant="ghost" size="sm" onClick={() => removeSourceFolder(path)}>
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                        <div className="flex items-center gap-2">
+                          <Input
+                            placeholder="Enter SharePoint/OneDrive folder path..."
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                addSourceFolder((e.target as HTMLInputElement).value);
+                                (e.target as HTMLInputElement).value = "";
+                              }
+                            }}
+                            className="flex-1"
+                          />
+                          <Button variant="outline" size="sm" onClick={(e) => {
+                            const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
+                            addSourceFolder(input.value);
+                            input.value = "";
+                          }}>
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Filing Folders */}
+                    <div>
+                      <Label className="flex items-center gap-2 mb-2">
+                        <FolderInput className="h-4 w-4 text-green-500" />
+                        Filing Folders
+                        <span className="text-muted-foreground font-normal text-xs">(Where to organize case documents)</span>
+                      </Label>
+                      <div className="space-y-2">
+                        {folderSettings.filing_folder_paths.map((path, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <Input value={path} readOnly className="flex-1" />
+                            <Button variant="ghost" size="sm" onClick={() => removeFilingFolder(path)}>
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                        <div className="flex items-center gap-2">
+                          <Input
+                            placeholder="Enter SharePoint/OneDrive folder path..."
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                addFilingFolder((e.target as HTMLInputElement).value);
+                                (e.target as HTMLInputElement).value = "";
+                              }
+                            }}
+                            className="flex-1"
+                          />
+                          <Button variant="outline" size="sm" onClick={(e) => {
+                            const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
+                            addFilingFolder(input.value);
+                            input.value = "";
+                          }}>
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* File Action */}
+                    <div>
+                      <Label className="mb-2 block">File Action</Label>
+                      <Select
+                        value={folderSettings.file_action}
+                        onValueChange={(v) => setFolderSettings(prev => ({ ...prev, file_action: v }))}
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="copy">Copy files (keep originals)</SelectItem>
+                          <SelectItem value="move">Move files (remove from source)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {processingStatus && (
               <Card className={cn(
                 "border-l-4",
