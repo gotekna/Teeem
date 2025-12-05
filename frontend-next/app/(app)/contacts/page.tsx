@@ -123,26 +123,16 @@ export default function ContactsPage() {
     loadDuplicates();
   };
 
-  // Handle row click - navigate to contact detail
+  // Handle row click - navigate to contact detail (use ID for reliable lookups)
   const handleRowClick = useCallback((row: TTableRow) => {
     const contact = row as unknown as Contact;
-    const slug = slugifyContactName(
-      contact.first_name || undefined,
-      contact.last_name || undefined,
-      contact.full_name || contact.name
-    );
-    router.push(`/contacts/${slug}`);
+    router.push(`/contacts/${contact.id}`);
   }, [router]);
 
-  // Handle row double-click - navigate to contact detail page
+  // Handle row double-click - navigate to contact detail page (use ID for reliable lookups)
   const handleRowDoubleClick = useCallback((row: TTableRow) => {
     const contact = row as unknown as Contact;
-    const slug = slugifyContactName(
-      contact.first_name || undefined,
-      contact.last_name || undefined,
-      contact.full_name || contact.name
-    );
-    router.push(`/contacts/${slug}`);
+    router.push(`/contacts/${contact.id}`);
   }, [router]);
 
   // Handle inline row update

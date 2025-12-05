@@ -331,7 +331,10 @@ function CompanyGroupNode({ data }: { data: CompanyGroupNodeData }) {
             <div
               key={employee.id}
               className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer flex items-center gap-3"
-              onClick={() => onEmployeeClick?.(employee.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEmployeeClick?.(employee.id);
+              }}
             >
               <div
                 className="w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0"
@@ -574,6 +577,11 @@ export default function CaseRelationshipChart({
 
     // Process nodes from API
     data.nodes.forEach((node) => {
+      // Skip case nodes from API - we already created one from case_info above
+      if (node.type === "case") {
+        return;
+      }
+
       const nodeData: Record<string, unknown> = { ...node.data };
       const apiData = node.data as Record<string, unknown>;
 
