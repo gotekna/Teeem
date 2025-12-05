@@ -36,7 +36,7 @@ interface SharePointSite {
   id: string;
   name: string;
   web_url: string;
-  display_name?: string;
+  description?: string;
 }
 
 interface BrowseFoldersResponse {
@@ -102,11 +102,11 @@ export function SharePointFolderBrowser({
       // Determine current drive from status
       if (statusResponse.drive_type === "sharepoint" && statusResponse.site_name) {
         const site = sitesResponse.sites?.find(
-          (s) => s.name === statusResponse.site_name || s.display_name === statusResponse.site_name
+          (s) => s.name === statusResponse.site_name
         );
         if (site) {
           setCurrentDrive(site.id);
-          setCurrentDriveName(site.display_name || site.name);
+          setCurrentDriveName(site.name);
         } else {
           setCurrentDrive("sharepoint");
           setCurrentDriveName(statusResponse.site_name || "SharePoint");
@@ -151,11 +151,15 @@ export function SharePointFolderBrowser({
         await api.post("/api/v1/organization_onedrive/use_personal_drive");
         setCurrentDriveName("My OneDrive");
       } else {
-        await api.post("/api/v1/organization_onedrive/use_sharepoint_site", {
-          site_id: driveId,
-        });
+        // Find the site to get its name (backend uses name to search/switch)
         const site = sites.find((s) => s.id === driveId);
-        setCurrentDriveName(site?.display_name || site?.name || "SharePoint");
+        if (!site?.name) {
+          throw new Error("Site not found");
+        }
+        await api.post("/api/v1/organization_onedrive/use_sharepoint_site", {
+          site_name: site.name,
+        });
+        setCurrentDriveName(site.name);
       }
       setCurrentDrive(driveId);
       // Reset navigation and reload folders from root

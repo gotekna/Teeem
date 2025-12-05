@@ -123,11 +123,22 @@ export function Sidebar() {
         }
         if (response.timestamp) {
           const date = new Date(response.timestamp);
-          const day = date.getDate();
-          const month = date.getMonth() + 1;
-          const hours = date.getHours();
-          const minutes = date.getMinutes().toString().padStart(2, '0');
-          setDeployedAt(`${hours}:${minutes} ${day}/${month}`);
+          // Format in Brisbane timezone (Australia/Brisbane)
+          const brisbaneTime = date.toLocaleString('en-AU', {
+            timeZone: 'Australia/Brisbane',
+            hour: 'numeric',
+            minute: '2-digit',
+            day: 'numeric',
+            month: 'numeric',
+            hour12: false
+          });
+          // Parse "5/12, 15:50" format to "15:50 5/12"
+          const parts = brisbaneTime.split(', ');
+          if (parts.length === 2) {
+            setDeployedAt(`${parts[1]} ${parts[0]}`);
+          } else {
+            setDeployedAt(brisbaneTime);
+          }
         }
       } catch (error) {
         console.debug("Failed to load backend version:", error);
