@@ -448,6 +448,11 @@ module Api
         case_contact = @case.case_contacts.find_by!(contact_id: params[:contact_id])
 
         if case_contact.update(case_contact_params)
+          # Calculate auto-linked email count
+          auto_linked_count = @case.case_emails
+            .where(auto_linked: true, auto_linked_via_contact_id: case_contact.contact_id)
+            .count
+
           render json: {
             success: true,
             case_contact: {
@@ -460,7 +465,9 @@ module Api
               role: case_contact.role,
               formatted_role: case_contact.formatted_role,
               is_primary: case_contact.is_primary,
-              notes: case_contact.notes
+              notes: case_contact.notes,
+              include_all_emails: case_contact.include_all_emails,
+              auto_linked_email_count: auto_linked_count
             }
           }
         else
@@ -774,7 +781,8 @@ module Api
 
       def case_contact_params
         params.require(:case_contact).permit(
-          :relationship_type, :alignment, :role, :is_primary, :notes, :reason
+          :relationship_type, :alignment, :role, :is_primary, :notes, :reason,
+          :include_all_emails
         )
       end
 

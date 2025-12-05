@@ -27,6 +27,10 @@ class CaseContact < ApplicationRecord
   scope :friendly, -> { where(alignment: 'friendly') }
   scope :neutral, -> { where(alignment: 'neutral') }
   scope :opposing, -> { where(alignment: 'opposing') }
+  scope :with_auto_include, -> { where(include_all_emails: true) }
+
+  # Callback to trigger auto-linking when flag changes
+  after_save :trigger_auto_link_emails, if: :saved_change_to_include_all_emails?
 
   ROLES = {
     'subject' => 'Subject of Investigation',
@@ -116,5 +120,14 @@ class CaseContact < ApplicationRecord
                 ? = ANY(email_warehouse.bcc_emails)",
                contact.email, contact.email, contact.email, contact.email
              ).count
+  end
+
+  private
+
+  def trigger_auto_link_emails
+    return unless include_all_emails?
+
+    # Queue background job to link emails
+    AutoLinkContactEmailsJob.perform_later(id)
   end
 end
