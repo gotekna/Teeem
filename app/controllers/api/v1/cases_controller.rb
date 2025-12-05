@@ -542,6 +542,73 @@ module Api
       end
 
       # ============================================
+      # ONEDRIVE FOLDER MANAGEMENT
+      # ============================================
+
+      # POST /api/v1/cases/:id/create_folder
+      # Creates a dedicated OneDrive folder for this case under Corporate/Case Info
+      def create_folder
+        service = CaseFolderService.new(@case)
+        folder = service.create_case_folder
+
+        if folder
+          render json: {
+            success: true,
+            data: {
+              folder_id: folder['id'],
+              folder_name: folder['name'],
+              folder_path: @case.onedrive_folder_path,
+              web_url: folder['webUrl']
+            },
+            message: 'Case folder created successfully'
+          }
+        else
+          render json: {
+            success: false,
+            error: 'Failed to create folder. Make sure OneDrive is connected.'
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/cases/:id/folder_info
+      # Get information about the case's OneDrive folder
+      def folder_info
+        if @case.onedrive_folder_id.blank?
+          render json: {
+            success: true,
+            data: { has_folder: false }
+          }
+          return
+        end
+
+        service = CaseFolderService.new(@case)
+        folder = service.get_case_folder
+
+        if folder
+          render json: {
+            success: true,
+            data: {
+              has_folder: true,
+              folder_id: folder['id'],
+              folder_name: folder['name'],
+              folder_path: @case.onedrive_folder_path,
+              web_url: folder['webUrl']
+            }
+          }
+        else
+          # Folder ID exists but folder not found (may have been deleted)
+          render json: {
+            success: true,
+            data: {
+              has_folder: false,
+              folder_missing: true,
+              message: 'Folder was deleted from OneDrive'
+            }
+          }
+        end
+      end
+
+      # ============================================
       # RUN ACTIONS
       # ============================================
 
