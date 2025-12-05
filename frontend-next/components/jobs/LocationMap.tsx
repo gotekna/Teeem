@@ -184,18 +184,20 @@ export function LocationMap({
     setSaving(true);
     try {
       console.log("Calling API to save location...");
+      const newLocation = searchAddress || location;
       await api.patch(`/api/v1/jobs/${jobId}`, {
         job: {
           latitude: tempPosition[0],
           longitude: tempPosition[1],
-          location: searchAddress || location,
+          location: newLocation,
+          title: newLocation, // Update title to match location
         },
       });
       console.log("API call successful");
 
       // Save values before resetting state
       const savedPosition = tempPosition;
-      const savedLocation = searchAddress || location || undefined;
+      const savedLocation = newLocation || undefined;
 
       setMapPosition(savedPosition);
       setIsEditMode(false);
@@ -208,6 +210,7 @@ export function LocationMap({
           latitude: savedPosition[0],
           longitude: savedPosition[1],
           location: savedLocation,
+          title: savedLocation, // Update title in parent state too
         };
         console.log("LocationMap calling onLocationUpdate with:", updateData);
         onLocationUpdate(updateData);
