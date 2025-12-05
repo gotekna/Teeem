@@ -623,10 +623,6 @@ export default function ContactDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setEditModalOpen(true)}>
-            <Pencil className="h-4 w-4 mr-2" />
-            Edit
-          </Button>
           <Button variant="destructive">
             <Trash2 className="h-4 w-4 mr-2" />
             Delete
@@ -676,149 +672,150 @@ export default function ContactDetailPage() {
         {/* Overview Tab */}
         <TabsContent value="overview" className="mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Main Info Column */}
+            {/* Main Edit Form Column */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Contact Information Card */}
+              {/* Basic Info Card */}
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <User className="h-5 w-5" />
-                    Contact Information
+                    Basic Information
                   </CardTitle>
+                  {hasChanges && (
+                    <Button onClick={handleSave} disabled={saving} size="sm">
+                      {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                      Save
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Email */}
-                    {contact.email && (
-                      <div className="flex items-center gap-3">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Email</p>
-                          <a href={`mailto:${contact.email}`} className="text-sm hover:underline text-primary">
-                            {contact.email}
-                          </a>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Mobile Phone */}
-                    {contact.mobile_phone && (
-                      <div className="flex items-center gap-3">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Mobile</p>
-                          <a href={`tel:${contact.mobile_phone}`} className="text-sm hover:underline">
-                            {formatMobilePhone(contact.mobile_phone)}
-                          </a>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Office Phone */}
-                    {contact.office_phone && (
-                      <div className="flex items-center gap-3">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Office</p>
-                          <a href={`tel:${contact.office_phone}`} className="text-sm hover:underline">
-                            {contact.office_phone}
-                          </a>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Website */}
-                    {contact.website && (
-                      <div className="flex items-center gap-3">
-                        <Globe className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Website</p>
-                          <a
-                            href={contact.website.startsWith("http") ? contact.website : `https://${contact.website}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm hover:underline text-primary flex items-center gap-1"
-                          >
-                            {contact.website}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Address */}
-                    {contact.address && (
-                      <div className="flex items-start gap-3 md:col-span-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Address</p>
-                          <p className="text-sm">{contact.address}</p>
-                        </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="first_name">{formData.entity_type === "person" ? "First Name" : "Name"}</Label>
+                      <Input id="first_name" value={formData.first_name} onChange={(e) => handleInputChange("first_name", e.target.value)} />
+                    </div>
+                    {formData.entity_type === "person" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="last_name">Last Name</Label>
+                        <Input id="last_name" value={formData.last_name} onChange={(e) => handleInputChange("last_name", e.target.value)} />
                       </div>
                     )}
                   </div>
-
-                  {/* Notes */}
-                  {contact.notes && (
-                    <>
-                      <Separator />
-                      <div className="flex items-start gap-3">
-                        <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Notes</p>
-                          <p className="text-sm whitespace-pre-wrap">{contact.notes}</p>
-                        </div>
-                      </div>
-                    </>
+                  <div className="space-y-2">
+                    <Label htmlFor="entity_type">Entity Type</Label>
+                    <select id="entity_type" value={formData.entity_type} onChange={(e) => handleInputChange("entity_type", e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      <option value="person">Person</option>
+                      <option value="company">Company</option>
+                      <option value="trust">Trust</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <div><Label>Active</Label><p className="text-xs text-muted-foreground">Is this contact active?</p></div>
+                    <Switch checked={formData.is_active} onCheckedChange={(c) => handleInputChange("is_active", c)} />
+                  </div>
+                  {formData.entity_type === "person" && (
+                    <div className="flex items-center justify-between py-2">
+                      <div><Label>Family Member</Label></div>
+                      <Switch checked={formData.is_family_member} onCheckedChange={(c) => handleInputChange("is_family_member", c)} />
+                    </div>
                   )}
                 </CardContent>
               </Card>
 
-              {/* Contact Persons Card */}
+              {/* Contact Details Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Phone className="h-5 w-5" />
+                    Contact Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" type="email" value={formData.email} onChange={(e) => handleInputChange("email", e.target.value)} placeholder="email@example.com" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="mobile_phone">Mobile Phone</Label>
+                      <Input id="mobile_phone" value={formData.mobile_phone} onChange={(e) => handleInputChange("mobile_phone", e.target.value)} placeholder="0400 000 000" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="office_phone">Office Phone</Label>
+                      <Input id="office_phone" value={formData.office_phone} onChange={(e) => handleInputChange("office_phone", e.target.value)} placeholder="07 0000 0000" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="website">Website</Label>
+                    <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} placeholder="https://example.com" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Address</Label>
+                    <Textarea id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Full address" rows={2} />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Business & Tax Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Building2 className="h-5 w-5" />
+                    Business & Tax
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="tax_number">ABN / Tax Number</Label>
+                    <Input id="tax_number" value={formData.tax_number} onChange={(e) => handleInputChange("tax_number", e.target.value)} placeholder="XX XXX XXX XXX" />
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <div><Label>Sync with Xero</Label><p className="text-xs text-muted-foreground">Keep synced with Xero</p></div>
+                    <Switch checked={formData.sync_with_xero} onCheckedChange={(c) => handleInputChange("sync_with_xero", c)} />
+                  </div>
+                  {contact.linked_company && (
+                    <Link href={`/corporate/companies/${contact.linked_company.id}`}>
+                      <Button variant="outline" size="sm" className="w-full"><ExternalLink className="h-4 w-4 mr-2" />View Corporate Record</Button>
+                    </Link>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Notes Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Notes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Textarea id="notes" value={formData.notes} onChange={(e) => handleInputChange("notes", e.target.value)} placeholder="Internal notes..." rows={4} />
+                </CardContent>
+              </Card>
+
+              {/* Contact Persons (read-only) */}
               {contact.contact_persons && contact.contact_persons.length > 0 && (
                 <Card>
-                  <CardHeader>
+                  <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Users className="h-5 w-5" />
                       Contact Persons
-                      <Badge variant="secondary" className="ml-2">
-                        {contact.contact_persons.length}
-                      </Badge>
+                      <Badge variant="secondary" className="ml-2">{contact.contact_persons.length}</Badge>
                     </CardTitle>
+                    <Button variant="outline" size="sm" onClick={() => setEditModalOpen(true)}>
+                      <Pencil className="h-4 w-4 mr-2" />Edit
+                    </Button>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
                       {contact.contact_persons.map((person) => (
-                        <div
-                          key={person.id}
-                          className={cn(
-                            "flex items-center justify-between p-3 rounded-lg border",
-                            person.is_primary && "bg-primary/5 border-primary/20"
-                          )}
-                        >
+                        <div key={person.id} className={cn("flex items-center justify-between p-3 rounded-lg border", person.is_primary && "bg-primary/5 border-primary/20")}>
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                            </div>
+                            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center"><User className="h-4 w-4 text-muted-foreground" /></div>
                             <div>
-                              <p className="text-sm font-medium">
-                                {person.first_name} {person.last_name}
-                                {person.is_primary && (
-                                  <Badge variant="outline" className="ml-2 text-xs">Primary</Badge>
-                                )}
-                              </p>
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                {person.email && (
-                                  <a href={`mailto:${person.email}`} className="hover:underline">
-                                    {person.email}
-                                  </a>
-                                )}
-                                {person.mobile && (
-                                  <a href={`tel:${person.mobile}`} className="hover:underline">
-                                    {person.mobile}
-                                  </a>
-                                )}
-                              </div>
+                              <p className="text-sm font-medium">{person.first_name} {person.last_name}{person.is_primary && <Badge variant="outline" className="ml-2 text-xs">Primary</Badge>}</p>
+                              <p className="text-xs text-muted-foreground">{person.email} {person.mobile && `| ${person.mobile}`}</p>
                             </div>
                           </div>
                         </div>
@@ -828,292 +825,45 @@ export default function ContactDetailPage() {
                 </Card>
               )}
 
-              {/* Business Details Card - Enhanced for company-type contacts */}
-              {(contact.tax_number || contact.linked_company) && (
+              {/* OLD: Contact Information - keep groups/LGAs display */}
+              {(contact.contact_groups && contact.contact_groups.length > 0) && (
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Building2 className="h-5 w-5" />
-                      Business Details
-                    </CardTitle>
-                    {contact.linked_company && (
-                      <Link href={`/corporate/companies/${contact.linked_company.id}`}>
-                        <Button variant="outline" size="sm">
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          View Corporate Record
-                        </Button>
-                      </Link>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Basic Business Info */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {(contact.tax_number || contact.linked_company?.abn) && (
-                        <div className="flex items-center gap-3">
-                          <Hash className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">ABN</p>
-                            <p className="text-sm font-mono">{formatABN(contact.tax_number || contact.linked_company?.abn || "")}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {contact.linked_company?.acn && (
-                        <div className="flex items-center gap-3">
-                          <Hash className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">ACN</p>
-                            <p className="text-sm font-mono">{contact.linked_company.acn}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {contact.linked_company?.status && (
-                        <div className="flex items-center gap-3">
-                          <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">Status</p>
-                            <Badge variant={contact.linked_company.status === "active" ? "default" : "secondary"}>
-                              {contact.linked_company.status}
-                            </Badge>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Show Contact's entity_type (SSoT) - prefer this over linked_company.entity_type */}
-                      {(contact.entity_type || contact.linked_company?.entity_type) && (
-                        <div className="flex items-center gap-3">
-                          <Building2 className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">Entity Type</p>
-                            <Badge
-                              className={cn(
-                                "capitalize",
-                                contact.entity_type === "trust" && "bg-red-100 text-red-700",
-                                contact.entity_type === "person" && "bg-blue-100 text-blue-700",
-                                contact.entity_type === "company" && "bg-green-100 text-green-700",
-                                !contact.entity_type && "bg-gray-100 text-gray-700"
-                              )}
-                            >
-                              {contact.entity_type || contact.linked_company?.entity_type || "unknown"}
-                            </Badge>
-                          </div>
-                        </div>
-                      )}
-
-                      {contact.linked_company?.date_incorporated && (
-                        <div className="flex items-center gap-3">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">Date Incorporated</p>
-                            <p className="text-sm">{new Date(contact.linked_company.date_incorporated).toLocaleDateString()}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {contact.linked_company?.company_group_name && (
-                        <div className="flex items-center gap-3">
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">Company Group</p>
-                            <Link href="/company-groups" className="text-sm text-primary hover:underline">
-                              {contact.linked_company.company_group_name}
-                            </Link>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Addresses */}
-                    {(contact.linked_company?.registered_office_address || contact.linked_company?.principal_place_of_business) && (
-                      <>
-                        <Separator />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {contact.linked_company?.registered_office_address && (
-                            <div className="flex items-start gap-3">
-                              <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                              <div>
-                                <p className="text-xs text-muted-foreground">Registered Office</p>
-                                <p className="text-sm">{contact.linked_company.registered_office_address}</p>
-                              </div>
-                            </div>
-                          )}
-
-                          {contact.linked_company?.principal_place_of_business && (
-                            <div className="flex items-start gap-3">
-                              <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                              <div>
-                                <p className="text-xs text-muted-foreground">Principal Place of Business</p>
-                                <p className="text-sm">{contact.linked_company.principal_place_of_business}</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-
-                    {/* Directors */}
-                    {contact.linked_company?.directors && contact.linked_company.directors.length > 0 && (
-                      <>
-                        <Separator />
-                        <div>
-                          <p className="text-sm font-medium mb-3 flex items-center gap-2">
-                            <Users className="h-4 w-4" />
-                            Directors ({contact.linked_company.directors.filter(d => d.is_current).length} current)
-                          </p>
-                          <div className="space-y-2">
-                            {contact.linked_company.directors.filter(d => d.is_current).map((director) => (
-                              <div key={director.id} className="flex items-center justify-between p-2 rounded border bg-muted/30">
-                                <div className="flex items-center gap-2">
-                                  <User className="h-4 w-4 text-muted-foreground" />
-                                  <Link href={`/contacts/${director.contact_id}`} className="text-sm hover:underline text-primary">
-                                    {director.contact_name || "Unknown"}
-                                  </Link>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-xs">{director.formatted_position}</Badge>
-                                  {director.appointment_date && (
-                                    <span className="text-xs text-muted-foreground">
-                                      Since {new Date(director.appointment_date).toLocaleDateString()}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Shareholdings */}
-                    {contact.linked_company?.shareholdings && contact.linked_company.shareholdings.length > 0 && (
-                      <>
-                        <Separator />
-                        <div>
-                          <p className="text-sm font-medium mb-3 flex items-center gap-2">
-                            <Percent className="h-4 w-4" />
-                            Shareholdings ({contact.linked_company.shareholdings.length})
-                          </p>
-                          <div className="space-y-2">
-                            {contact.linked_company.shareholdings.map((sh) => (
-                              <div key={sh.id} className="flex items-center justify-between p-2 rounded border bg-muted/30">
-                                <div className="flex items-center gap-2">
-                                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                                  <span className="text-sm">{sh.shareholder_name || "Unknown"}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {sh.share_class && (
-                                    <Badge variant="outline" className="text-xs">{sh.share_class}</Badge>
-                                  )}
-                                  {sh.number_of_shares && (
-                                    <span className="text-xs text-muted-foreground">
-                                      {sh.number_of_shares.toLocaleString()} shares
-                                    </span>
-                                  )}
-                                  {sh.beneficially_held && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      Beneficial
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Bank Details - only show if no linked_company or user wants to see contact-level bank */}
-                    {(contact.bank_bsb || contact.bank_account_number || contact.bank_account_name) && (
-                      <>
-                        <Separator />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {contact.bank_bsb && (
-                            <div className="flex items-center gap-3">
-                              <DollarSign className="h-4 w-4 text-muted-foreground" />
-                              <div>
-                                <p className="text-xs text-muted-foreground">Bank BSB</p>
-                                <p className="text-sm font-mono">{contact.bank_bsb}</p>
-                              </div>
-                            </div>
-                          )}
-
-                          {contact.bank_account_number && (
-                            <div className="flex items-center gap-3">
-                              <DollarSign className="h-4 w-4 text-muted-foreground" />
-                              <div>
-                                <p className="text-xs text-muted-foreground">Account Number</p>
-                                <p className="text-sm font-mono">{contact.bank_account_number}</p>
-                              </div>
-                            </div>
-                          )}
-
-                          {contact.bank_account_name && (
-                            <div className="flex items-center gap-3">
-                              <DollarSign className="h-4 w-4 text-muted-foreground" />
-                              <div>
-                                <p className="text-xs text-muted-foreground">Account Name</p>
-                                <p className="text-sm">{contact.bank_account_name}</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Contact Groups */}
-              {contact.contact_groups && contact.contact_groups.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Users className="h-5 w-5" />
-                      Contact Groups
-                    </CardTitle>
-                  </CardHeader>
+                  <CardHeader><CardTitle className="text-lg">Groups</CardTitle></CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
-                      {contact.contact_groups.map((group) => (
-                        <Badge key={group.id} variant="secondary">
-                          {group.name}
-                        </Badge>
-                      ))}
+                      {contact.contact_groups.map((group) => (<Badge key={group.id} variant="secondary">{group.name}</Badge>))}
                     </div>
                   </CardContent>
                 </Card>
               )}
 
-              {/* LGAs */}
               {contact.lgas && contact.lgas.length > 0 && (
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Home className="h-5 w-5" />
-                      Service Areas (LGAs)
-                    </CardTitle>
-                  </CardHeader>
+                  <CardHeader><CardTitle className="text-lg">Service Areas (LGAs)</CardTitle></CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
-                      {contact.lgas.map((lga, index) => (
-                        <Badge key={index} variant="outline">
-                          {lga}
-                        </Badge>
-                      ))}
+                      {contact.lgas.map((lga, idx) => (<Badge key={idx} variant="outline">{lga}</Badge>))}
                     </div>
                   </CardContent>
                 </Card>
               )}
             </div>
 
-            {/* Sidebar Column */}
+            {/* Sidebar Column - REMOVED old contact info cards, keep only stats/system */}
             <div className="space-y-6">
-              {/* Quick Stats */}
+              {hasChanges && (
+                <Card className="border-primary/50 bg-primary/5">
+                  <CardContent className="pt-6">
+                    <Button onClick={handleSave} disabled={saving} className="w-full">
+                      {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                      Save Changes
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Quick Stats</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle className="text-lg">Quick Stats</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Jobs</span>
@@ -1132,11 +882,8 @@ export default function ContactDetailPage() {
                 </CardContent>
               </Card>
 
-              {/* System Info */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">System Info</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle className="text-lg">System Info</CardTitle></CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">ID</span>
@@ -1153,9 +900,7 @@ export default function ContactDetailPage() {
                   {contact.xero_contact_id && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Xero ID</span>
-                      <span className="font-mono text-xs truncate max-w-[120px]" title={contact.xero_contact_id}>
-                        {contact.xero_contact_id.slice(0, 8)}...
-                      </span>
+                      <span className="font-mono text-xs truncate max-w-[120px]">{contact.xero_contact_id.slice(0, 8)}...</span>
                     </div>
                   )}
                 </CardContent>
