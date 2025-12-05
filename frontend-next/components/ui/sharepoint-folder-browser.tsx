@@ -35,6 +35,7 @@ interface SharePointFolder {
 interface SharePointSite {
   id: string;
   name: string;
+  display_name?: string;
   web_url: string;
   description?: string;
 }
@@ -264,7 +265,7 @@ export function SharePointFolderBrowser({
               <SelectItem key={site.id} value={site.id}>
                 <div className="flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-green-600" />
-                  <span>{site.display_name || site.name}</span>
+                  <span>{site.name}</span>
                 </div>
               </SelectItem>
             ))}
