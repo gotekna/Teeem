@@ -566,7 +566,7 @@ export default function CaseRelationshipChart({
       nodes.push({
         id: `case-${data.case_info.id}`,
         type: "case",
-        position: { x: 400, y: 20 },
+        position: { x: 400, y: 300 }, // Center - left side is ~50, right side is ~700
         data: {
           label: data.case_info.title,
           caseNumber: data.case_info.case_number,

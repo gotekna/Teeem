@@ -34,7 +34,6 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { slugifyContactName } from "@/lib/url-utils";
 import type { TableColumn, TableRow as TTableRow } from "@/components/table/types";
 
 interface Contact {
