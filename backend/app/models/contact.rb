@@ -507,7 +507,8 @@ class Contact < ApplicationRecord
   end
 
   def roles_only_for_persons
-    return if roles.blank?
+    # roles is stored as a string (e.g. "[]"), so check for blank or "[]"
+    return if roles.blank? || roles == '[]'
 
     if entity_type != 'person'
       errors.add(:roles, "can only be assigned to people, not #{entity_type}")

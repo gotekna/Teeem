@@ -261,6 +261,18 @@ module Api
           record_ids.each do |id|
             record = model.find_by(id: id)
             if record
+              # Special handling for Contact entity_type changes
+              # Auto-populate company_name_or_trust when changing to company/trust
+              if @foundation.model_class == 'Contact' && filtered_updates.key?('entity_type')
+                new_entity_type = filtered_updates['entity_type']
+                if ['company', 'trust'].include?(new_entity_type)
+                  # If company_name_or_trust is blank, set it to full_name
+                  if record.company_name_or_trust.blank? && record.full_name.present?
+                    filtered_updates['company_name_or_trust'] = record.full_name
+                  end
+                end
+              end
+
               if record.update(filtered_updates)
                 updated_count += 1
               else
