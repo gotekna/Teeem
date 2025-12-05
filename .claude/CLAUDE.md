@@ -76,12 +76,17 @@ When discovering duplicate/conflicting implementations:
 
 ## 🔴 CRITICAL: Heroku App Restriction
 
-**NEVER use the `teeem-backend` Heroku app.** This is a deprecated/unused app.
+**NEVER use the `teeem-backend` Heroku app.** This app is deprecated and MUST NOT be used.
+
+**Production app is `teeemlive` ONLY.**
 
 - ❌ NEVER run `heroku` commands with `--app teeem-backend`
-- ❌ NEVER use the `heroku` git remote (points to teeem-backend)
-- ✅ Use `--app teeem-rob-dev` for staging
-- ✅ Use `--app teeemlive` for production
+- ❌ NEVER use the `heroku` git remote (points to deprecated teeem-backend)
+- ❌ NEVER deploy to teeem-backend under any circumstances
+- ✅ ALWAYS use `--app teeemlive` for production
+- ✅ Use `--app teeem-rob-dev` for staging/testing only
+
+**If you see any reference to `teeem-backend` in commands or configs, FLAG it as an error.**
 
 ## 🔴 Local Development
 
@@ -124,10 +129,13 @@ git branch -D temp-backend-deploy
 | Environment | Heroku App | Branch | Frontend |
 |-------------|-----------|--------|----------|
 | **Production** | `teeemlive` | Live | https://teeemlive.vercel.app |
+| ~~Staging~~ | ~~`teeem-backend`~~ | ~~DEPRECATED~~ | ~~DO NOT USE~~ |
 
 **Production URLs:**
-- Backend: https://teeem-backend-39604ccca45a.herokuapp.com/
+- Backend: https://teeem-backend-39604ccca45a.herokuapp.com/ (runs on `teeemlive` app)
 - Frontend: https://teeemlive.vercel.app/
+
+**IMPORTANT:** The backend URL domain name contains "teeem-backend" but it actually runs on the `teeemlive` Heroku app. Don't be confused by the domain name - always use `--app teeemlive` for Heroku commands.
 
 ---
 
