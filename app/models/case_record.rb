@@ -363,22 +363,6 @@ class CaseRecord < ApplicationRecord
     return if case_number.present?
 
     if parent_case_id.present?
-<<<<<<< Updated upstream
-      # This is a sub-case - use parent's number + hierarchical sequence
-      parent = CaseRecord.find(parent_case_id)
-      # Count existing siblings with case numbers
-      sibling_count = CaseRecord.where(parent_case_id: parent_case_id)
-                                 .where.not(case_number: nil)
-                                 .count + 1
-      self.case_number = "#{parent.case_number}.#{sibling_count.to_s.rjust(2, '0')}"
-    else
-      # This is a root case - use date-based numbering
-      date_part = Date.current.strftime('%Y%m%d')
-      # Only count root cases (not sub-cases) for the sequence
-      sequence = CaseRecord.where('case_number LIKE ?', "CASE-#{date_part}-%")
-                           .where(parent_case_id: nil)
-                           .count + 1
-=======
       # Sub-case: generate hierarchical number (e.g., CASE-20251205-002.001)
       parent = parent_case
       return unless parent&.case_number.present?
@@ -394,7 +378,6 @@ class CaseRecord < ApplicationRecord
       sequence = CaseRecord.where(parent_case_id: nil)
                           .where('case_number LIKE ?', "CASE-#{date_part}-%")
                           .count + 1
->>>>>>> Stashed changes
       self.case_number = "CASE-#{date_part}-#{sequence.to_s.rjust(3, '0')}"
     end
   end
