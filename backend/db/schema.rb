@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_05_100007) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_05_100009) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -440,6 +440,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100007) do
     t.string "file_action", default: "copy"
     t.string "document_processing_status", default: "pending"
     t.integer "unanswered_questions_count", default: 0
+    t.string "onedrive_folder_id"
+    t.string "onedrive_folder_path"
     t.index ["assigned_to_id"], name: "index_cases_on_assigned_to_id"
     t.index ["case_number"], name: "index_cases_on_case_number", unique: true
     t.index ["case_type"], name: "index_cases_on_case_type"
@@ -816,6 +818,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100007) do
     t.string "timezone", default: "Australia/Brisbane"
     t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>false, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}, null: false
     t.jsonb "job_cascade_sort"
+    t.jsonb "job_folder_name_format"
   end
 
   create_table "company_shareholdings", force: :cascade do |t|

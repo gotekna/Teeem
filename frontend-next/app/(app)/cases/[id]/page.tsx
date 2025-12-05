@@ -79,8 +79,8 @@ const EntityChat = dynamic(
   { ssr: false }
 );
 
-// Import OneDriveFolderPicker
-import { OneDriveFolderPicker } from "@/components/onedrive/OneDriveFolderPicker";
+// Import SharePointFolderBrowser (same component used in case proposal approval)
+import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 
 // Tabs for case detail
 const CASE_TABS = [
@@ -364,9 +364,22 @@ export default function CaseDetailPage() {
   const [documents, setDocuments] = React.useState<CaseDocument[]>([]);
   const [loadingDocuments, setLoadingDocuments] = React.useState(false);
 
-  // Source folder picker state for OneDrive
-  const [showFolderPicker, setShowFolderPicker] = React.useState(false);
+  // Source folder picker state for OneDrive (using same pattern as case-proposal-approval-dialog)
+  const [showSourceFolderBrowser, setShowSourceFolderBrowser] = React.useState(false);
+  const [sourceFolderInputMode, setSourceFolderInputMode] = React.useState<"browse" | "type">("browse");
+  const [newSourceFolderPath, setNewSourceFolderPath] = React.useState("");
   const [scanningFolders, setScanningFolders] = React.useState(false);
+
+  // Case folder state
+  const [caseFolderInfo, setCaseFolderInfo] = React.useState<{
+    has_folder: boolean;
+    folder_id?: string;
+    folder_name?: string;
+    folder_path?: string;
+    web_url?: string;
+    folder_missing?: boolean;
+  } | null>(null);
+  const [creatingFolder, setCreatingFolder] = React.useState(false);
 
   const [emails, setEmails] = React.useState<CaseEmail[]>([]);
   const [loadingEmails, setLoadingEmails] = React.useState(false);
@@ -471,6 +484,7 @@ export default function CaseDetailPage() {
         break;
       case "documents":
         if (documents.length === 0) loadDocuments();
+        if (caseFolderInfo === null) loadCaseFolderInfo();
         break;
       case "emails":
         if (emails.length === 0) loadEmails();
@@ -519,15 +533,25 @@ export default function CaseDetailPage() {
     }
   };
 
-  // Handle folder selection from OneDrive picker - integrates with existing folderSettings
-  const handleFolderSelect = (folder: { id: string | null; name: string; path: string }) => {
-    const folderPath = folder.path || folder.name;
-    // Use existing addSourceFolder if path is set, otherwise add directly
-    if (folderPath && !folderSettings.source_folder_paths.includes(folderPath)) {
+  // Handle folder selection from SharePointFolderBrowser (same pattern as case-proposal-approval-dialog)
+  const handleSourceFolderSelect = (folder: { id: string; name: string; web_url?: string; child_count: number } | null, path: string) => {
+    // Add folder path to source folders if not already present
+    if (path && !folderSettings.source_folder_paths.includes(path)) {
       setFolderSettings(prev => ({
         ...prev,
-        source_folder_paths: [...prev.source_folder_paths, folderPath]
+        source_folder_paths: [...prev.source_folder_paths, path]
       }));
+    }
+  };
+
+  // Add source folder from typed path
+  const addSourceFolderFromPath = () => {
+    if (newSourceFolderPath.trim() && !folderSettings.source_folder_paths.includes(newSourceFolderPath.trim())) {
+      setFolderSettings(prev => ({
+        ...prev,
+        source_folder_paths: [...prev.source_folder_paths, newSourceFolderPath.trim()]
+      }));
+      setNewSourceFolderPath("");
     }
   };
 
@@ -547,6 +571,43 @@ export default function CaseDetailPage() {
       console.error("Failed to scan folders:", error);
     } finally {
       setScanningFolders(false);
+    }
+  };
+
+  // Load case folder info from OneDrive
+  const loadCaseFolderInfo = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: typeof caseFolderInfo }>(
+        `/api/v1/cases/${caseId}/folder_info`
+      );
+      setCaseFolderInfo(response.data);
+    } catch (error) {
+      console.error("Failed to load folder info:", error);
+    }
+  };
+
+  // Create case folder in OneDrive
+  const createCaseFolder = async () => {
+    setCreatingFolder(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: { folder_id: string; folder_name: string; folder_path: string; web_url: string };
+      }>(`/api/v1/cases/${caseId}/create_folder`);
+
+      if (response && response.data) {
+        setCaseFolderInfo({
+          has_folder: true,
+          folder_id: response.data.folder_id,
+          folder_name: response.data.folder_name,
+          folder_path: response.data.folder_path,
+          web_url: response.data.web_url,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to create folder:", error);
+    } finally {
+      setCreatingFolder(false);
     }
   };
 
@@ -1740,22 +1801,175 @@ export default function CaseDetailPage() {
 
         {activeTab === "documents" && (
           <div className="space-y-4">
-            {/* Source Folders Section */}
+            {/* Case Folder Section */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between py-3">
-                <CardTitle className="text-base">Source Folders</CardTitle>
-                <Button variant="outline" size="sm" onClick={() => setShowFolderPicker(true)}>
-                  <FolderOpen className="h-4 w-4 mr-2" />
-                  Add Folder
-                </Button>
+                <CardTitle className="text-base">Case Folder</CardTitle>
+                {caseFolderInfo?.has_folder && caseFolderInfo.web_url && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(caseFolderInfo.web_url, "_blank")}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open in OneDrive
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
-                {folderSettings.source_folder_paths.length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground">
-                    <FolderInput className="h-6 w-6 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No source folders selected</p>
-                    <p className="text-xs mt-1">Add folders from OneDrive to scan for documents</p>
+                {caseFolderInfo === null ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
                   </div>
+                ) : caseFolderInfo.has_folder ? (
+                  <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-md">
+                    <FolderOpen className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <div>
+                      <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                        {caseFolderInfo.folder_path}
+                      </p>
+                      <p className="text-xs text-green-600 dark:text-green-400">
+                        Folder created in OneDrive
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <FolderInput className="h-8 w-8 mx-auto mb-2 text-muted-foreground opacity-50" />
+                    <p className="text-sm text-muted-foreground mb-3">
+                      No folder created yet for this case
+                    </p>
+                    <Button onClick={createCaseFolder} disabled={creatingFolder}>
+                      {creatingFolder ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Create Case Folder
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Creates folder at: Corporate/Case Info/{caseData?.case_number}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Source Folders Section - same UI pattern as case-proposal-approval-dialog */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between py-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FolderInput className="h-4 w-4 text-blue-500" />
+                  Source Folders
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSourceFolderBrowser(!showSourceFolderBrowser)}
+                >
+                  {showSourceFolderBrowser ? (
+                    <>
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Close
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Folder
+                    </>
+                  )}
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Folder Browser Panel (when open) */}
+                {showSourceFolderBrowser && (
+                  <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
+                    {/* Browse / Type tabs */}
+                    <div className="flex rounded-lg border overflow-hidden">
+                      <button
+                        type="button"
+                        className={`flex-1 px-4 py-2 text-sm flex items-center justify-center gap-2 ${
+                          sourceFolderInputMode === "browse"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted hover:bg-muted/80"
+                        }`}
+                        onClick={() => setSourceFolderInputMode("browse")}
+                      >
+                        <Search className="w-4 h-4" />
+                        Browse Folders
+                      </button>
+                      <button
+                        type="button"
+                        className={`flex-1 px-4 py-2 text-sm flex items-center justify-center gap-2 ${
+                          sourceFolderInputMode === "type"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted hover:bg-muted/80"
+                        }`}
+                        onClick={() => setSourceFolderInputMode("type")}
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Type Path
+                      </button>
+                    </div>
+
+                    {sourceFolderInputMode === "browse" ? (
+                      <div>
+                        <SharePointFolderBrowser
+                          onSelect={handleSourceFolderSelect}
+                          className="max-h-[300px]"
+                        />
+                        <div className="flex justify-end pt-2 border-t mt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowSourceFolderBrowser(false)}
+                          >
+                            Done
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={newSourceFolderPath}
+                          onChange={(e) => setNewSourceFolderPath(e.target.value)}
+                          placeholder="e.g. Corporate/Clients/Smith"
+                          className="flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && newSourceFolderPath.trim()) {
+                              addSourceFolderFromPath();
+                            }
+                          }}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={addSourceFolderFromPath}
+                          disabled={!newSourceFolderPath.trim()}
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Add
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Selected folders list */}
+                {folderSettings.source_folder_paths.length === 0 ? (
+                  !showSourceFolderBrowser && (
+                    <div className="text-center py-4 text-muted-foreground">
+                      <FolderInput className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No source folders selected</p>
+                      <p className="text-xs mt-1">Add folders from OneDrive to scan for documents</p>
+                    </div>
+                  )
                 ) : (
                   <div className="space-y-2">
                     {folderSettings.source_folder_paths.map((path, index) => (
@@ -1865,13 +2079,6 @@ export default function CaseDetailPage() {
               </CardContent>
             </Card>
 
-            {/* OneDrive Folder Picker Dialog */}
-            <OneDriveFolderPicker
-              open={showFolderPicker}
-              onOpenChange={setShowFolderPicker}
-              onSelect={handleFolderSelect}
-              title="Select Source Folder"
-            />
           </div>
         )}
 

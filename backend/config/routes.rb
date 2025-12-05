@@ -1252,6 +1252,10 @@ Rails.application.routes.draw do
           get :processing_status
           post :reprocess_documents
           patch :folder_settings, action: :update_folder_settings
+
+          # OneDrive folder management
+          post :create_folder
+          get :folder_info
         end
       end
 
