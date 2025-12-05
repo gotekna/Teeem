@@ -326,7 +326,7 @@ export default function JobDetailPage() {
             <h1 className="text-2xl font-bold tracking-tight font-serif">{job.title}</h1>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant={getStageBadgeVariant(job.stage)}>{job.stage}</Badge>
-              <span className="text-sm text-muted-foreground">{job.status}</span>
+              <span className="text-sm text-muted-foreground">{job.job_status?.name}</span>
               {job.certifier_job_no && (
                 <span className="text-sm text-muted-foreground">
                   • Job #{job.certifier_job_no}
@@ -481,7 +481,7 @@ export default function JobDetailPage() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Input value={job.job_status?.name || job.status || "-"} readOnly />
+                      <Input value={job.job_status?.name || "-"} readOnly />
                     )}
                   </div>
                   <div className="space-y-2">

@@ -173,7 +173,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                   <div className="flex items-center gap-2 mt-1">
                     <Badge variant="outline">{job.stage || job.job_stage?.name}</Badge>
                     <span className="text-sm text-muted-foreground">
-                      {job.status || job.job_status?.name}
+                      {job.job_status?.name}
                     </span>
                   </div>
                 </div>
