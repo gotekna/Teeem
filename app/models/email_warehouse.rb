@@ -111,6 +111,28 @@ class EmailWarehouse < ApplicationRecord
     self.class.where(conversation_id: conversation_id).count
   end
 
+  # Email classification helper methods
+
+  # Check if email should be excluded from case/job matching (marketing, spam, transactional)
+  def classified_as_irrelevant?
+    classification = email_classification || {}
+    %w[marketing spam transactional].include?(classification['email_type']) &&
+      classification['confidence'].to_f >= 0.5  # Aggressive threshold per user preference
+  end
+
+  # Check if email type is business-related (can match jobs/cases)
+  def is_business_email?
+    !classified_as_irrelevant?
+  end
+
+  # Get human-readable classification label
+  def classification_label
+    classification = email_classification || {}
+    type = classification['email_type'] || 'unclassified'
+    confidence = classification['confidence'] || 0
+    "#{type.titleize} (#{(confidence * 100).to_i}%)"
+  end
+
   # Job ID patterns to look for in subject line
   # Matches: id:20, id.20, id;20, #20, job:20, job.20, job;20, [20], (20)
   JOB_ID_PATTERN = /(?:id|job)[:.\-;]\s*(\d+)|#(\d+)|\[(\d+)\]|\(job\s*(\d+)\)/i
@@ -118,6 +140,9 @@ class EmailWarehouse < ApplicationRecord
   # Check if this email matches any job based on various criteria
   def find_matching_jobs
     matches = []
+
+    # Skip matching if email is classified as irrelevant (marketing, spam, transactional)
+    return matches if classified_as_irrelevant?
 
     # HIGHEST PRIORITY: Match by explicit job ID in subject
     # Patterns: id:20, id.20, id;20, #20, job:20, [20], etc.
@@ -146,11 +171,14 @@ class EmailWarehouse < ApplicationRecord
       contacts = Contact.where(email: email_addr)
       contacts.each do |contact|
         contact.jobs.each do |job|
+          # Only match if email has job-specific context (stricter filtering)
+          next unless email_mentions_job_context?(job)
+
           matches << {
             job: job,
-            match_type: 'contact_email',
-            confidence: 0.9,
-            reason: "Email #{email_addr} is linked to job contact"
+            match_type: 'contact_email_with_context',
+            confidence: 0.75,  # Lowered from 0.9 to reduce false positives
+            reason: "Email #{email_addr} is linked to job contact and mentions job context"
           }
         end
       end
@@ -189,6 +217,29 @@ class EmailWarehouse < ApplicationRecord
     matches
       .uniq { |m| m[:job].id }
       .sort_by { |m| -m[:confidence] }
+  end
+
+  # Check if email mentions job-specific context (used for filtering false positives)
+  def email_mentions_job_context?(job)
+    return false if job.nil?
+
+    # Check subject for job ID
+    return true if subject&.include?(job.id.to_s)
+
+    # Check subject for job title/address
+    return true if job.title.present? && subject&.downcase&.include?(job.title.downcase)
+
+    # Check for street name match
+    if job.title.present?
+      street_match = job.title.match(/\d+\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl)/i)
+      if street_match
+        street_name = street_match[1].downcase
+        return true if subject&.downcase&.include?(street_name)
+      end
+    end
+
+    # No job-specific context found
+    false
   end
 
   # Auto-assign to best matching job if confidence is high enough

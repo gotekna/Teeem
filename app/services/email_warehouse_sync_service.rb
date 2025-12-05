@@ -190,10 +190,16 @@ class EmailWarehouseSyncService
       break if emails.empty?
 
       emails.each do |email_data|
-        EmailWarehouse.upsert_from_outlook(
+        email = EmailWarehouse.upsert_from_outlook(
           email_data.merge(folder_name: folder_name),
           synced_by_user: @user
         )
+
+        # Classify email using heuristics (and queue for AI if uncertain)
+        if email&.persisted? && !ENV['DISABLE_EMAIL_CLASSIFICATION']
+          EmailClassificationService.new(email).classify!
+        end
+
         synced_count += 1
       end
 
@@ -218,7 +224,7 @@ class EmailWarehouseSyncService
       "$top=#{BATCH_SIZE}",
       "$skip=#{skip}",
       "$orderby=receivedDateTime DESC",
-      "$select=id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,body,internetMessageId,conversationId,importance,isRead"
+      "$select=id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,body,internetMessageId,conversationId,importance,isRead,internetMessageHeaders"
     ]
 
     url = "#{OutlookService::GRAPH_API_BASE}#{endpoint}?#{params.join('&')}"
@@ -256,8 +262,18 @@ class EmailWarehouseSyncService
         sent_at: email['sentDateTime'],
         has_attachments: email['hasAttachments'] || false,
         importance: email['importance'],
-        is_read: email['isRead']
+        is_read: email['isRead'],
+        internet_headers: parse_internet_headers(email['internetMessageHeaders'])
       }
+    end
+  end
+
+  # Parse internet headers from Graph API format to hash
+  def parse_internet_headers(headers_array)
+    return {} unless headers_array.is_a?(Array)
+
+    headers_array.each_with_object({}) do |header, hash|
+      hash[header['name']] = header['value'] if header['name'] && header['value']
     end
   end
 
