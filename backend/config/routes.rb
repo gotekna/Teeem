@@ -429,7 +429,7 @@ Rails.application.routes.draw do
         end
       end
 
-      # Microsoft App-level access (Client Credentials) - Org-wide email access
+      # Microsoft App-level access (Client Credentials) - Org-wide email & SharePoint access
       # Uses Application permissions - no per-user OAuth needed
       resources :microsoft_app, only: [], controller: 'microsoft_app' do
         collection do
@@ -442,6 +442,13 @@ Rails.application.routes.draw do
           get :users
           post :configure_sync
           delete :disconnect
+          # SharePoint/OneDrive endpoints
+          get :sharepoint_sites
+          get :site_drives
+          get :browse
+          get :user_onedrive
+          get :search_files
+          post :test_sharepoint
         end
       end
 

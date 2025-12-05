@@ -484,7 +484,7 @@ export function LocationMap({
 
   return (
     <>
-      <Card>
+      <Card className="h-full flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div className="flex items-center gap-3">
             <MapPin className={`h-5 w-5 ${hasNoLocation ? "text-muted-foreground" : "text-green-600"}`} />
@@ -502,13 +502,13 @@ export function LocationMap({
           </Button>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="flex-1 flex flex-col">
           {displayPosition && !isEditMode && (
-            <div className="rounded-lg overflow-hidden border">
+            <div className="rounded-lg overflow-hidden border flex-1 flex flex-col min-h-[250px]">
               <MapContainer
                 center={displayPosition}
                 zoom={15}
-                style={{ height: "200px", width: "100%" }}
+                style={{ height: "100%", width: "100%", minHeight: "200px", flex: 1 }}
                 scrollWheelZoom={true}
               >
                 <TileLayer

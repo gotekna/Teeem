@@ -601,6 +601,8 @@ function OrgWideAccessSection() {
   const [tenantUsers, setTenantUsers] = React.useState<TenantUser[]>([]);
   const [loadingUsers, setLoadingUsers] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
+  const [testingSharePoint, setTestingSharePoint] = React.useState(false);
+  const [sharePointResult, setSharePointResult] = React.useState<{ success: boolean; message: string; sites?: { name: string; url: string }[] } | null>(null);
   const [disconnecting, setDisconnecting] = React.useState(false);
   const [orgOpen, setOrgOpen] = React.useState(true);
 
@@ -733,6 +735,39 @@ function OrgWideAccessSection() {
     }
   };
 
+  // Test SharePoint access
+  const handleTestSharePoint = async () => {
+    setTestingSharePoint(true);
+    setSharePointResult(null);
+    setError(null);
+
+    try {
+      const response = await api.post<{ success: boolean; message: string; sample_sites?: { name: string; url: string }[]; error?: string; hint?: string }>(
+        "/api/v1/microsoft_app/test_sharepoint"
+      );
+      if (response?.success) {
+        setSharePointResult({
+          success: true,
+          message: response.message,
+          sites: response.sample_sites
+        });
+      } else {
+        setSharePointResult({
+          success: false,
+          message: response?.error || "SharePoint test failed"
+        });
+      }
+    } catch (err: unknown) {
+      const error = err as { data?: { error?: string; hint?: string }; message?: string };
+      setSharePointResult({
+        success: false,
+        message: error.data?.error || error.message || "SharePoint test failed"
+      });
+    } finally {
+      setTestingSharePoint(false);
+    }
+  };
+
   // Quick enable using existing env vars
   const handleEnableFromEnv = async () => {
     setSaving(true);
@@ -784,13 +819,13 @@ function OrgWideAccessSection() {
                   </div>
                   <div>
                     <CardTitle className="text-lg flex items-center gap-2">
-                      Organization-Wide Email Access
+                      Organization-Wide Microsoft Access
                       <Badge variant="outline" className="text-xs font-normal">
                         Admin Only
                       </Badge>
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      Read all users&apos; emails without individual OAuth
+                      Access all users&apos; emails and SharePoint/OneDrive without individual OAuth
                     </CardDescription>
                   </div>
                 </div>
@@ -835,10 +870,10 @@ function OrgWideAccessSection() {
                 <>
                   <Alert>
                     <Building2 className="h-4 w-4" />
-                    <AlertTitle>Enable Organization-Wide Email Access</AlertTitle>
+                    <AlertTitle>Enable Organization-Wide Microsoft Access</AlertTitle>
                     <AlertDescription>
-                      Enable Application Permissions to sync emails from ALL users in your Microsoft 365 tenant
-                      without requiring each user to connect individually.
+                      Enable Application Permissions to access emails and SharePoint/OneDrive from ALL users
+                      in your Microsoft 365 tenant without requiring each user to connect individually.
                     </AlertDescription>
                   </Alert>
 
@@ -858,7 +893,12 @@ function OrgWideAccessSection() {
                       <div className="p-4 bg-white rounded-lg border space-y-3">
                         <h4 className="font-medium text-sm">To enable org-wide access:</h4>
                         <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-                          <li>Ensure Mail.Read and User.Read.All <strong>Application</strong> permissions are added to your Azure AD app</li>
+                          <li>Ensure these <strong>Application</strong> permissions are added to your Azure AD app:</li>
+                          <ul className="ml-4 mt-1 space-y-0.5">
+                            <li>• Mail.Read, Mail.ReadWrite (email access)</li>
+                            <li>• User.Read.All (user list)</li>
+                            <li>• Files.Read.All, Sites.Read.All (SharePoint/OneDrive)</li>
+                          </ul>
                           <li>Click &quot;Enable & Grant Consent&quot; below</li>
                           <li>Sign in as an Azure AD admin to approve</li>
                         </ol>
@@ -880,7 +920,8 @@ function OrgWideAccessSection() {
                         <h4 className="font-medium text-sm">Requirements:</h4>
                         <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                           <li>Azure AD App Registration with Application permissions</li>
-                          <li>Mail.Read, Mail.ReadWrite, User.Read.All permissions</li>
+                          <li>Mail.Read, Mail.ReadWrite, User.Read.All (email)</li>
+                          <li>Files.Read.All, Sites.Read.All (SharePoint/OneDrive)</li>
                           <li>Azure AD admin to grant organization consent</li>
                         </ul>
                       </div>
@@ -993,14 +1034,44 @@ function OrgWideAccessSection() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  {/* SharePoint Test Result */}
+                  {sharePointResult && (
+                    <Alert variant={sharePointResult.success ? "default" : "destructive"} className={sharePointResult.success ? "bg-green-50 border-green-200" : ""}>
+                      {sharePointResult.success ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4" />
+                      )}
+                      <AlertTitle>{sharePointResult.success ? "SharePoint Connected" : "SharePoint Error"}</AlertTitle>
+                      <AlertDescription>
+                        {sharePointResult.message}
+                        {sharePointResult.sites && sharePointResult.sites.length > 0 && (
+                          <ul className="mt-2 text-xs">
+                            {sharePointResult.sites.map((site, i) => (
+                              <li key={i}>• {site.name}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Button variant="outline" onClick={handleTest} disabled={testing}>
                       {testing ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       ) : (
-                        <RefreshCw className="h-4 w-4 mr-2" />
+                        <Mail className="h-4 w-4 mr-2" />
                       )}
-                      Test Connection
+                      Test Email
+                    </Button>
+                    <Button variant="outline" onClick={handleTestSharePoint} disabled={testingSharePoint}>
+                      {testingSharePoint ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <FolderOpen className="h-4 w-4 mr-2" />
+                      )}
+                      Test SharePoint
                     </Button>
                     <Button
                       variant="destructive"
