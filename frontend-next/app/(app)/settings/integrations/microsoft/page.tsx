@@ -689,10 +689,10 @@ function OrgWideAccessSection() {
 
     try {
       const response = await api.post<{ success: boolean; error?: string }>("/api/v1/microsoft_app/test");
-      if (response.success) {
+      if (response?.success) {
         fetchStatus();
       } else {
-        setError(response.error || "Connection test failed");
+        setError(response?.error || "Connection test failed");
       }
     } catch (err: unknown) {
       const error = err as { data?: { error?: string }; message?: string };
