@@ -52,44 +52,36 @@ export function selectDefaultView(
   if (urlViewId !== null && urlViewId !== undefined) {
     const urlView = views.find(v => v.id === urlViewId || v.id === String(urlViewId));
     if (urlView) {
-      console.log('[selectDefaultView] Selected view by ID:', urlViewId, urlView.name);
       return urlView;
     }
-    // ID not found - fall through to default selection (graceful degradation)
-    console.log('[selectDefaultView] View ID not found:', urlViewId);
   }
 
   // Priority 2: Explicit default flag (global preferred if enabled)
   if (preferGlobal) {
     const defaultGlobalView = views.find(v => v.isDefault && v.is_global);
     if (defaultGlobalView) {
-      console.log('[selectDefaultView] Selected default global view:', defaultGlobalView.name);
       return defaultGlobalView;
     }
   }
 
   const defaultView = views.find(v => v.isDefault);
   if (defaultView) {
-    console.log('[selectDefaultView] Selected default view:', defaultView.name);
     return defaultView;
   }
 
   // Priority 3: First global view at display_order 0
   const firstGlobal = views.find(v => v.is_global && v.display_order === 0);
   if (firstGlobal) {
-    console.log('[selectDefaultView] Selected first global view (display_order 0):', firstGlobal.name);
     return firstGlobal;
   }
 
   // Priority 4: First view at display_order 0
   const firstOrdered = views.find(v => v.display_order === 0);
   if (firstOrdered) {
-    console.log('[selectDefaultView] Selected first ordered view (display_order 0):', firstOrdered.name);
     return firstOrdered;
   }
 
   // Priority 5: Fallback to first view
-  console.log('[selectDefaultView] Fallback to first view in list:', views[0].name);
   return views[0];
 }
 

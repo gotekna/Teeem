@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -805,10 +806,10 @@ export function DataWarehouseTab() {
               <span className="text-sm">{formatDate(stats.sharepoint.last_sync)}</span>
             </div>
             <Button variant="outline" size="sm" className="w-full" asChild>
-              <a href="/settings/integrations/microsoft" className="flex items-center justify-center">
+              <Link href="/settings/integrations/microsoft" className="flex items-center justify-center">
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Manage Integration
-              </a>
+              </Link>
             </Button>
           </CardContent>
         </Card>
@@ -851,10 +852,10 @@ export function DataWarehouseTab() {
               <span className="text-sm">{formatDate(stats.xero.last_sync)}</span>
             </div>
             <Button variant="outline" size="sm" className="w-full" asChild>
-              <a href="/settings/integrations/xero" className="flex items-center justify-center">
+              <Link href="/settings/integrations/xero" className="flex items-center justify-center">
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Manage Integration
-              </a>
+              </Link>
             </Button>
           </CardContent>
         </Card>

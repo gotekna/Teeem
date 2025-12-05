@@ -100,12 +100,6 @@ export default function ContactsPageClient({
   initialTotalCount,
   initialError,
 }: ContactsPageClientProps) {
-  console.log('🟢 ContactsPageClient received:', {
-    hasFoundation: !!initialFoundation,
-    columnsCount: initialColumns?.length,
-    recordsCount: initialRecords?.length,
-    error: initialError
-  });
   const searchParams = useSearchParams();
   const router = useRouter();
   const showDuplicates = searchParams.get("duplicates") === "true";

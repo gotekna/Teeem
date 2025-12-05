@@ -51,7 +51,6 @@ function TablePageContent() {
   // Strip any legacy suffix if present (for backwards compatibility)
   const cleanSlug = stripUrlSuffix(rawSlug);
 
-  const [activeTab, setActiveTab] = useState(tab || "data");
   const [showAddModal, setShowAddModal] = useState(false);
 
   // Load foundation data by slug
@@ -59,6 +58,12 @@ function TablePageContent() {
 
   // Get table ID from foundation (needed for UI config)
   const tableId = foundation?.id || 0;
+
+  // Get UI configuration for this table
+  const uiConfig = getTableUIConfig(tableId);
+
+  // Derive active tab from URL or config (no state needed)
+  const activeTab = tab || uiConfig.defaultTab || (uiConfig.tabs && uiConfig.tabs.length > 0 ? uiConfig.tabs[0].id : "data");
 
   // Handle row double-click - navigate to full page for supported tables
   const handleRowDoubleClick = (row: TableRow) => {
@@ -83,9 +88,6 @@ function TablePageContent() {
     }
   };
 
-  // Get UI configuration for this table
-  const uiConfig = getTableUIConfig(tableId);
-
   // Redirect legacy URLs with suffix to clean URLs
   useEffect(() => {
     if (rawSlug && rawSlug.includes("_GOD_LOVES_YOU_")) {
@@ -96,22 +98,10 @@ function TablePageContent() {
   // Get table name from foundation or fallback
   const tableName = foundation?.name || cleanSlug;
 
-  // Handle tab changes - update URL
+  // Handle tab changes - update URL (activeTab is now derived from URL)
   const handleTabChange = (newTab: string) => {
-    setActiveTab(newTab);
     router.replace(`/${cleanSlug}?tab=${newTab}`, { scroll: false });
   };
-
-  // Set initial tab from URL or config
-  useEffect(() => {
-    if (tab) {
-      setActiveTab(tab);
-    } else if (uiConfig.defaultTab) {
-      setActiveTab(uiConfig.defaultTab);
-    } else if (uiConfig.tabs && uiConfig.tabs.length > 0) {
-      setActiveTab(uiConfig.tabs[0].id);
-    }
-  }, [tab, uiConfig.defaultTab, uiConfig.tabs]);
 
   // Handle inline row update - must be before early returns (hooks rule)
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {

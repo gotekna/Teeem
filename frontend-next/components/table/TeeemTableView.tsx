@@ -1841,7 +1841,6 @@ export default function TeeemTableView({
 
   const saveEditing = useCallback(async () => {
     const startTime = performance.now();
-    console.log('[saveEditing] Starting save...');
 
     if (editingRowIds.size === 0 || !onRowUpdate) return;
 
@@ -1883,29 +1882,22 @@ export default function TeeemTableView({
         }
       }
 
-      console.log('[saveEditing] Rows to update:', rowsToUpdate.length, 'foundationIdNumeric:', foundationIdNumeric);
-
       // Use bulk_update API if foundationIdNumeric is available (single API call)
       if (foundationIdNumeric && rowsToUpdate.length > 0) {
         // Group by changes to minimize API calls
         // For now, update each row with all its changes in one call
         const apiStartTime = performance.now();
         for (const { rowId, changes } of rowsToUpdate) {
-          console.log('[saveEditing] PATCH row:', rowId, 'changes:', changes);
           await api.patch(`/api/v1/foundations/${foundationIdNumeric}/records/${rowId}`, {
             record: changes
           });
         }
-        console.log('[saveEditing] API calls done in', (performance.now() - apiStartTime).toFixed(0), 'ms');
 
         // Only refresh once after all updates
         const refreshStartTime = performance.now();
-        console.log('[saveEditing] Starting refresh...');
         onRefresh?.();
-        console.log('[saveEditing] Refresh called (async) after', (performance.now() - refreshStartTime).toFixed(0), 'ms');
       } else {
         // Fallback: call onRowUpdate for each field (triggers refresh per field - slow)
-        console.log('[saveEditing] Using fallback onRowUpdate (slow path)');
         for (const { rowId, changes } of rowsToUpdate) {
           for (const [key, value] of Object.entries(changes)) {
             await onRowUpdate(rowId, key, value);
@@ -1913,17 +1905,13 @@ export default function TeeemTableView({
         }
       }
 
-      console.log('[saveEditing] Clearing editing state...');
       setEditingRowIds(new Set());
       setEditingData({});
       setValidationErrors({});
-      console.log('[saveEditing] Total time:', (performance.now() - startTime).toFixed(0), 'ms');
-      console.log('[saveEditing] Showing toast...');
       toast({
         title: "Saved",
         description: `Successfully saved ${editingRowIds.size} row${editingRowIds.size !== 1 ? "s" : ""}`,
       });
-      console.log('[saveEditing] Done!');
     } catch (error) {
       console.error("Failed to save:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -2230,8 +2218,6 @@ export default function TeeemTableView({
   // NOTE: This function is now simplified - atoms handle the atomic state updates
   const loadViewState = useCallback(
     (view: SavedView, skipUrlUpdate = false) => {
-      console.log('[loadViewState] Loading view:', view.name, 'groupByColumns:', view.groupByColumns?.length || 0);
-
       // Apply view state atomically via Jotai atom
       // This replaces 100+ lines of individual setters with a single atomic update
       // groupByColumns and collapsedGroups are now managed by atoms (SSoT)
@@ -2270,19 +2256,16 @@ export default function TeeemTableView({
 
       // Prevent re-loading views after initial load (avoid loops from state changes)
       if (initialViewLoadedRef.current) {
-        console.log('[loadSavedViews] Skipping - initial view already loaded');
         return;
       }
 
       // Prevent duplicate concurrent fetches (React StrictMode double-mount)
       if (viewsLoadingRef.current) {
-        console.log('[loadSavedViews] Skipping - already loading');
         return;
       }
       viewsLoadingRef.current = true;
 
       const startTime = performance.now();
-      console.log('[loadSavedViews] Starting for foundation:', foundationIdNumeric);
 
       try {
         // Load views using atom (handles caching, mapping, sorting automatically)
@@ -2294,7 +2277,6 @@ export default function TeeemTableView({
         }
 
         const filteredViews = result.views || [];
-        console.log('[loadSavedViews] Views loaded in', (performance.now() - startTime).toFixed(0), 'ms, count:', filteredViews.length, 'source:', result.source);
 
         // Auto-apply default view using consolidated utility
         // Read URL param here (not as effect dependency) to avoid re-triggering on URL changes
@@ -2570,12 +2552,6 @@ export default function TeeemTableView({
       });
     }
 
-    const elapsed = performance.now() - startTime;
-    if (elapsed > 50) console.log('[filteredAndSortedEntries] took', elapsed.toFixed(0), 'ms for', entries.length, 'entries');
-    // Debug: log if filtering removed all entries
-    if (entries.length > 0 && result.length === 0) {
-      console.warn('[filteredAndSortedEntries] All entries filtered out! Had', entries.length, 'entries, now 0');
-    }
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excluding safeFilters (derived from cascadeFilters which is included)
   }, [
@@ -2659,8 +2635,6 @@ export default function TeeemTableView({
     };
 
     const result = buildNestedGroups(filteredAndSortedEntries, groupByColumns, 0);
-    const elapsed = performance.now() - startTime;
-    if (elapsed > 50) console.log('[groupedEntries] took', elapsed.toFixed(0), 'ms for', filteredAndSortedEntries.length, 'entries');
     return result;
   }, [filteredAndSortedEntries, groupByColumns, getDisplayValue]);
 
@@ -2719,13 +2693,6 @@ export default function TeeemTableView({
       orderedVisible.push(actionsCol);
     }
 
-    // Debug: log if no visible columns
-    if (orderedVisible.length === 0) {
-      console.warn('[visibleColumnsInOrder] No visible columns! columnOrder:', columnOrder.length, 'visibleColumns:', Object.keys(visibleColumns).length, 'COLUMNS:', COLUMNS.length);
-    }
-
-    const elapsed = performance.now() - startTime;
-    if (elapsed > 10) console.log('[visibleColumnsInOrder] took', elapsed.toFixed(0), 'ms');
     return orderedVisible;
   }, [columnOrder, visibleColumns, COLUMNS]);
 

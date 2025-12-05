@@ -3,7 +3,7 @@
 module Api
   module V1
     class AgentDefinitionsController < ApplicationController
-      skip_before_action :authorize_request, only: [:index, :show, :record_run]
+      skip_before_action :authorize_request, only: [ :index, :show, :record_run ]
 
       # GET /api/v1/agent_definitions
       # Returns list of all agents
@@ -13,11 +13,11 @@ module Api
         render json: {
           success: true,
           data: agents.as_json(
-            methods: [:status_emoji, :success_rate],
+            methods: [ :status_emoji, :success_rate ],
             include: {
-              created_by: { only: [:id, :name, :email] },
-              updated_by: { only: [:id, :name, :email] },
-              last_run_by: { only: [:id, :name, :email] }
+              created_by: { only: [ :id, :name, :email ] },
+              updated_by: { only: [ :id, :name, :email ] },
+              last_run_by: { only: [ :id, :name, :email ] }
             }
           )
         }
@@ -31,16 +31,16 @@ module Api
         render json: {
           success: true,
           data: agent.as_json(
-            methods: [:status_emoji, :success_rate],
+            methods: [ :status_emoji, :success_rate ],
             include: {
-              created_by: { only: [:id, :name, :email] },
-              updated_by: { only: [:id, :name, :email] },
-              last_run_by: { only: [:id, :name, :email] }
+              created_by: { only: [ :id, :name, :email ] },
+              updated_by: { only: [ :id, :name, :email ] },
+              last_run_by: { only: [ :id, :name, :email ] }
             }
           )
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Agent not found' }, status: :not_found
+        render json: { success: false, error: "Agent not found" }, status: :not_found
       end
 
       # POST /api/v1/agent_definitions/:id/record_run
@@ -55,7 +55,7 @@ module Api
         user_name = params[:user_name]
         tokens = params[:tokens].to_i if params[:tokens].present?
 
-        if status == 'success'
+        if status == "success"
           agent.record_success(message, details, user_name: user_name, tokens: tokens)
         else
           agent.record_failure(message, details, user_name: user_name, tokens: tokens)
@@ -64,11 +64,11 @@ module Api
         render json: {
           success: true,
           data: agent.as_json(
-            only: [:id, :agent_id, :name, :last_run_at, :last_status, :last_message, :last_run_by_name, :total_runs, :successful_runs, :failed_runs, :last_run_tokens, :total_tokens]
+            only: [ :id, :agent_id, :name, :last_run_at, :last_status, :last_message, :last_run_by_name, :total_runs, :successful_runs, :failed_runs, :last_run_tokens, :total_tokens ]
           )
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Agent not found' }, status: :not_found
+        render json: { success: false, error: "Agent not found" }, status: :not_found
       end
 
       # POST /api/v1/agent_definitions (admin only)
@@ -94,7 +94,7 @@ module Api
           render json: { success: false, errors: agent.errors.full_messages }, status: :unprocessable_entity
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Agent not found' }, status: :not_found
+        render json: { success: false, error: "Agent not found" }, status: :not_found
       end
 
       # DELETE /api/v1/agent_definitions/:id (admin only)
@@ -103,9 +103,9 @@ module Api
         agent = AgentDefinition.find_by!(agent_id: params[:agent_id])
         agent.update!(active: false)
 
-        render json: { success: true, message: 'Agent deactivated' }
+        render json: { success: true, message: "Agent deactivated" }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Agent not found' }, status: :not_found
+        render json: { success: false, error: "Agent not found" }, status: :not_found
       end
 
       private

@@ -15,18 +15,18 @@ module Api
         end
 
         # Try to find an existing user (prefer robert@tekna.com.au for local dev)
-        dev_user = User.find_by(email: 'robert@tekna.com.au') ||
-                   User.find_by(email: 'rob@teeem.com.au') ||
-                   User.where(role: 'admin').first ||
+        dev_user = User.find_by(email: "robert@tekna.com.au") ||
+                   User.find_by(email: "rob@teeem.com.au") ||
+                   User.where(role: "admin").first ||
                    User.first
 
         # If no users exist, create a dev user
         unless dev_user
           dev_user = User.create!(
-            email: 'dev@teeem.local',
-            name: 'Dev User',
-            password: 'DevPassword123!',
-            role: 'admin'
+            email: "dev@teeem.local",
+            name: "Dev User",
+            password: "DevPassword123!",
+            role: "admin"
           )
         end
 
@@ -50,12 +50,12 @@ module Api
         user = User.new(signup_params)
 
         # Auto-approve Tekna employees
-        if user.email&.end_with?('@tekna.com.au')
-          user.role ||= 'user'  # Default role for Tekna employees
+        if user.email&.end_with?("@tekna.com.au")
+          user.role ||= "user"  # Default role for Tekna employees
           Rails.logger.info "Auto-approving Tekna employee: #{user.email}"
         else
           # Non-Tekna emails default to user role as well
-          user.role ||= 'user'
+          user.role ||= "user"
         end
 
         if user.save
@@ -111,23 +111,23 @@ module Api
       # Admin-only: Login as another user (requires admin secret)
       def impersonate
         # Require admin secret for security
-        admin_secret = ENV['ADMIN_IMPERSONATE_SECRET'] || 'tekna-admin-2024'
-        provided_secret = params[:secret] || request.headers['X-Admin-Secret']
+        admin_secret = ENV["ADMIN_IMPERSONATE_SECRET"] || "tekna-admin-2024"
+        provided_secret = params[:secret] || request.headers["X-Admin-Secret"]
 
         unless provided_secret == admin_secret
-          render json: { success: false, error: 'Invalid admin secret' }, status: :unauthorized
+          render json: { success: false, error: "Invalid admin secret" }, status: :unauthorized
           return
         end
 
         # Find user by ID or email
         user = if params[:user_id].to_s.match?(/\A\d+\z/)
                  User.find_by(id: params[:user_id])
-               else
+        else
                  User.find_by(email: params[:user_id])
-               end
+        end
 
         unless user
-          render json: { success: false, error: 'User not found' }, status: :not_found
+          render json: { success: false, error: "User not found" }, status: :not_found
           return
         end
 
@@ -150,15 +150,15 @@ module Api
       # List all users (for admin impersonation UI)
       def users
         # Require admin secret
-        admin_secret = ENV['ADMIN_IMPERSONATE_SECRET'] || 'tekna-admin-2024'
-        provided_secret = params[:secret] || request.headers['X-Admin-Secret']
+        admin_secret = ENV["ADMIN_IMPERSONATE_SECRET"] || "tekna-admin-2024"
+        provided_secret = params[:secret] || request.headers["X-Admin-Secret"]
 
         unless provided_secret == admin_secret
-          render json: { success: false, error: 'Invalid admin secret' }, status: :unauthorized
+          render json: { success: false, error: "Invalid admin secret" }, status: :unauthorized
           return
         end
 
-        users = User.where('email LIKE ?', '%@tekna.com.au').order(:name).map do |u|
+        users = User.where("email LIKE ?", "%@tekna.com.au").order(:name).map do |u|
           {
             id: u.id,
             email: u.email,
@@ -190,7 +190,7 @@ module Api
       private
 
       def dev_mode_enabled?
-        ENV['DEV_MODE_AUTH_BYPASS'] == 'true'
+        ENV["DEV_MODE_AUTH_BYPASS"] == "true"
       end
 
       def signup_params

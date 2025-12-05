@@ -202,6 +202,9 @@ module Api
           }, status: :unprocessable_entity
         end
 
+        # Ensure task_ids is an array of integers (prevents SQL injection)
+        task_ids = Array(task_ids).map(&:to_i).compact.uniq
+
         updated_count = SmTask.where(id: task_ids).update_all(updates.to_h.merge(updated_at: Time.current))
 
         render json: {
