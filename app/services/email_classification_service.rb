@@ -73,14 +73,13 @@ class EmailClassificationService
   def classify!
     result = classify_with_heuristics
 
-    # Queue for AI classification if uncertain
-    # TEMPORARILY DISABLED: AI job causing boot issues, will fix later
-    # if result[:confidence] < 0.7
-    #   ClassifyEmailWithAiJob.perform_later(@email.id)
-    # else
+    # Queue for AI classification if uncertain AND AI is enabled
+    if result[:confidence] < 0.7 && ClassifyEmailWithAiJob.enabled?
+      ClassifyEmailWithAiJob.perform_later(@email.id)
+    else
       # Store heuristic result immediately
       @email.update_column(:email_classification, result)
-    # end
+    end
 
     result
   end
