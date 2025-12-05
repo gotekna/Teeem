@@ -36,6 +36,8 @@ class CaseRecord < ApplicationRecord
   has_many :case_emails, foreign_key: :case_id, dependent: :destroy
   has_many :emails, through: :case_emails, source: :email_warehouse
   has_many :case_timeline_events, foreign_key: :case_id, dependent: :destroy
+  has_many :case_email_qas, foreign_key: :case_id, dependent: :destroy
+  has_many :document_duplicate_reviews, foreign_key: :case_id, dependent: :destroy
 
   # ============================================
   # VALIDATIONS
