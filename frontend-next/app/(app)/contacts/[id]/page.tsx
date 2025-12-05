@@ -1270,12 +1270,12 @@ export default function ContactDetailPage() {
                 )}
               </CardContent>
             </Card>
-          </div>
-        </TabsContent>
+              </div>
+            </TabsContent>
 
-        {/* Directorships Tab - SSoT: Uses dedicated /directorships endpoint */}
-        <TabsContent value="directorships" className="mt-6">
-          <Card>
+            {/* Directorships Sub-Tab */}
+            <TabsContent value="directorships">
+              <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Briefcase className="h-5 w-5" />
@@ -1347,12 +1347,12 @@ export default function ContactDetailPage() {
                 </p>
               )}
             </CardContent>
-          </Card>
-        </TabsContent>
+              </Card>
+            </TabsContent>
 
-        {/* Shareholdings Tab - SSoT: Uses dedicated /shareholdings endpoint */}
-        <TabsContent value="shareholdings" className="mt-6">
-          <Card>
+            {/* Shareholdings Sub-Tab */}
+            <TabsContent value="shareholdings">
+              <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Percent className="h-5 w-5" />
