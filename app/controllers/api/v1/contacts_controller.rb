@@ -145,7 +145,7 @@ module Api
             :sys_type_id, :deleted, :parent_id, :parent,
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
             :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
-            :entity_type, :primary_role, :employment_status,
+            :entity_type, :primary_role, :employment_status, :primary_company_id,
             # Family/Director flags
             :is_family_member, :is_potential_director, :company_group_id,
             # Xero fields
@@ -160,7 +160,7 @@ module Api
             :residential_address, :drivers_licence, :passport_number, :photo_url
           ],
           include: {
-            contact_persons: { only: [:id, :first_name, :last_name, :email, :include_in_emails, :is_primary, :xero_contact_person_id] },
+            contact_persons: { only: [:id, :first_name, :last_name, :email, :mobile, :role, :include_in_emails, :is_primary, :xero_contact_person_id] },
             contact_addresses: { only: [:id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary] },
             contact_groups: { only: [:id, :name, :status, :xero_contact_group_id] },
             portal_user: { only: [:id, :email, :portal_type, :active, :last_login_at, :created_at] },
@@ -217,6 +217,24 @@ module Api
             employment_status: @contact.employment_status,
             start_date: @contact.employment_start_date
           }
+        end
+
+        # Add employees for company contacts (people whose primary_company_id points to this contact)
+        if @contact.entity_type == 'company'
+          contact_json[:employees] = Contact.where(primary_company_id: @contact.id)
+            .where(entity_type: 'person')
+            .order(:full_name)
+            .map do |employee|
+              {
+                id: employee.id,
+                full_name: employee.full_name,
+                first_name: employee.first_name,
+                last_name: employee.last_name,
+                email: employee.email,
+                mobile_phone: employee.mobile_phone,
+                primary_role: employee.primary_role
+              }
+            end
         end
 
         # Add additional companies via relationships
