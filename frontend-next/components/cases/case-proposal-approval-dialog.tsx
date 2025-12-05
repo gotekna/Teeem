@@ -434,7 +434,11 @@ export function CaseProposalApprovalDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className={
+        (sourceFolderFullscreen || filingFolderFullscreen)
+          ? "fixed inset-4 max-w-none max-h-none w-auto h-auto overflow-hidden flex flex-col"
+          : "max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+      }>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <span>Review & Approve Case Proposal</span>

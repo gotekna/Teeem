@@ -1,10 +1,10 @@
-# Deploy Live Branch to Production
+# Deploy This Chat's Changes to Production
 
-**Shortcut:** `/l` (Live to Production)
+**Shortcut:** `/l` (Live - This Chat Only)
 
-Commits ALL pending changes and deploys the `Live` branch backend to production Heroku (`teeemlive`) using git subtree.
+Commits ONLY the changes made in THIS chat session and deploys to production. Stashes any other pending changes from other chats.
 
-**Run from teeem root. Auto-generate commit messages.**
+**Use `/lp` to commit and deploy ALL pending changes instead.**
 
 ## PRODUCTION DEPLOY
 
@@ -20,9 +20,20 @@ git checkout Live
 git pull origin Live
 ```
 
-### Step 2 - Auto-Generate Commit Message and Commit
+### Step 2 - Identify This Chat's Changes
 
-**Analyze git status and auto-generate message:**
+**CRITICAL: Before committing, identify which files were modified by THIS chat session.**
+
+1. Check git status for all pending changes
+2. Review your conversation history to identify which files YOU modified
+3. Stash any files that were NOT modified by this chat:
+```bash
+git stash push -m "Other chats WIP" -- [files not from this chat]
+```
+
+### Step 3 - Auto-Generate Commit Message and Commit
+
+**Analyze the remaining changes (this chat only) and auto-generate message:**
 
 Rules (in priority order):
 1. Only `package.json` version → `chore: Bump version to X.X.X`
@@ -33,9 +44,9 @@ Rules (in priority order):
 6. Multiple types → Combine appropriately
 7. Default → `chore: Update project files`
 
-**Auto-commit ALL changes:**
+**Commit ONLY this chat's changes:**
 ```bash
-git add -A
+git add [specific files from this chat]
 git commit -m "[auto-generated message]
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
@@ -43,12 +54,14 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 3 - Push to GitHub (Live branch)
+### Step 4 - Push to GitHub (Live branch)
 ```bash
 git push origin Live
 ```
 
-### Step 4 - Deploy Backend to Production via Git Subtree
+### Step 5 - Deploy Backend (if backend files changed)
+
+**Skip if only frontend files changed.**
 
 **IMPORTANT: All git subtree commands MUST run from repo root `/Users/robertharder/GitHub/teeem`**
 
@@ -58,75 +71,42 @@ git push heroku-teeemlive temp-live-deploy:main --force
 git branch -D temp-live-deploy
 ```
 
-### Step 5 - Verify Backend Deploy
+### Step 6 - Verify Deploy
 ```bash
 sleep 10
-curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version
+curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
 heroku releases --app teeemlive -n 1
 ```
 
-### Step 6 - Report Deploy Started
+### Step 7 - Report Status
 
-**Immediately after pushing, show deploy initiated status with Brisbane time:**
+**Show Brisbane time and note what was deployed:**
 ```
 ========================================
-DEPLOY STARTED
-Backend: v[XXX] (pushing to Heroku...)
-Frontend: ⏳ building
+DEPLOYED: HH:MM DD/MM (Brisbane)
+Commit: [hash] - [message]
+Backend: v[XXX] (if deployed) or "no changes"
+Frontend: Pushed to Vercel (auto-deploy)
 Heroku: v[XXX]
-Started: H:MM D/M (Brisbane time)
 ========================================
+
+Note: Other chats' changes stashed (not deployed)
 ```
 
-### Step 7 - Check Vercel Frontend Deploy
+## Stashed Changes
 
-**Wait for Vercel to finish deploying the frontend:**
-
-1. Check latest Vercel deployment status:
-```bash
-vercel inspect teeemlive.vercel.app
-```
-
-2. If status shows "Building" or "Queued", wait 15 seconds and check again:
-```bash
-sleep 15
-vercel inspect teeemlive.vercel.app
-```
-
-3. Repeat until status shows "● Ready" (max 2 minutes total wait)
-
-4. Report each check with timestamp:
-```
-=== Vercel Check [N] === HH:MM:SS
-Status: [Building/Queued/Ready]
-```
-
-### Step 8 - Report Final Status
-
-**Show TWO timestamps - when deploy started AND when it completed:**
-```
-========================================
-Backend: v[XXX]
-Frontend: v[XX] ✓ deployed
-Heroku: v[XXX]
-Started: H:MM D/M
-Completed: H:MM D/M
-========================================
-```
-
-Get values from:
-- Backend version: from /version endpoint (use correct URL: teeemlive-ce8e2660a615.herokuapp.com)
-- Frontend: Show "✓ deployed" when Vercel shows Ready, or "⏳ building" if still in progress
-- Heroku release: from `heroku releases --app teeemlive -n 1`
-- Started: Brisbane time when git push was initiated (use `TZ='Australia/Brisbane' date '+%H:%M %d/%m'`)
-- Completed: Brisbane time when Vercel shows Ready (use `TZ='Australia/Brisbane' date '+%H:%M %d/%m'`)
+If changes were stashed, remind user:
+- `git stash list` to see stashed changes
+- `git stash pop` to restore most recent stash
+- Other chats can use `/lp` to deploy their changes
 
 ## Error Handling
 
 If any step fails:
 1. Report which step failed
 2. Stay on Live branch
-3. Provide recovery instructions
+3. Restore stashed changes if needed: `git stash pop`
+4. Provide recovery instructions
 
 ## Heroku Remote Setup
 
