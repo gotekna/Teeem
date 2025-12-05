@@ -607,14 +607,25 @@ export function CaseProposalApprovalDialog({
                       </div>
 
                       {sourceFolderInputMode === "browse" ? (
-                        <SharePointFolderBrowser
-                          onSelect={(folder, path) => {
-                            if (path && !sourceFolders.includes(path)) {
-                              setSourceFolders(prev => [...prev, path]);
-                            }
-                          }}
-                          className="max-h-[250px]"
-                        />
+                        <>
+                          <SharePointFolderBrowser
+                            onSelect={(folder, path) => {
+                              if (path && !sourceFolders.includes(path)) {
+                                setSourceFolders(prev => [...prev, path]);
+                              }
+                            }}
+                            className="max-h-[250px]"
+                          />
+                          <div className="flex justify-end pt-2 border-t">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowSourceFolderBrowser(false)}
+                            >
+                              Done
+                            </Button>
+                          </div>
+                        </>
                       ) : (
                         <div className="flex items-center gap-2">
                           <Input
@@ -725,14 +736,25 @@ export function CaseProposalApprovalDialog({
                       </div>
 
                       {filingFolderInputMode === "browse" ? (
-                        <SharePointFolderBrowser
-                          onSelect={(folder, path) => {
-                            if (path && !filingFolders.includes(path)) {
-                              setFilingFolders(prev => [...prev, path]);
-                            }
-                          }}
-                          className="max-h-[250px]"
-                        />
+                        <>
+                          <SharePointFolderBrowser
+                            onSelect={(folder, path) => {
+                              if (path && !filingFolders.includes(path)) {
+                                setFilingFolders(prev => [...prev, path]);
+                              }
+                            }}
+                            className="max-h-[250px]"
+                          />
+                          <div className="flex justify-end pt-2 border-t">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowFilingFolderBrowser(false)}
+                            >
+                              Done
+                            </Button>
+                          </div>
+                        </>
                       ) : (
                         <div className="flex items-center gap-2">
                           <Input

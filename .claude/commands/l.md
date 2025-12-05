@@ -118,8 +118,8 @@ Get values from:
 - Backend version: from /version endpoint (use correct URL: teeemlive-ce8e2660a615.herokuapp.com)
 - Frontend: Show "✓ deployed" when Vercel shows Ready, or "⏳ building" if still in progress
 - Heroku release: from `heroku releases --app teeemlive -n 1`
-- Started: Brisbane time when git push was initiated
-- Completed: Brisbane time when Vercel shows Ready
+- Started: Brisbane time when git push was initiated (use `TZ='Australia/Brisbane' date '+%H:%M %d/%m'`)
+- Completed: Brisbane time when Vercel shows Ready (use `TZ='Australia/Brisbane' date '+%H:%M %d/%m'`)
 
 ## Error Handling
 
