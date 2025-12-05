@@ -247,6 +247,10 @@ interface CaseContact {
   role: string;
   notes: string | null;
   created_at: string;
+  reason?: string;
+  added_by_name?: string;
+  added_at?: string;
+  email_count?: number;
 }
 
 interface CaseCompany {
@@ -440,6 +444,7 @@ export default function CaseDetailPage() {
   const [contactSearchResults, setContactSearchResults] = React.useState<Array<{id: number; full_name: string; email: string | null; company_name: string | null}>>([]);
   const [searchingContacts, setSearchingContacts] = React.useState(false);
   const [selectedContactRole, setSelectedContactRole] = React.useState("related_party");
+  const [contactReason, setContactReason] = React.useState("");
   const [addingContact, setAddingContact] = React.useState(false);
 
   // Edit case modal
@@ -698,6 +703,16 @@ export default function CaseDetailPage() {
 
   // Add contact to case
   const handleAddContactToCase = async (contactId: number) => {
+    // Validate reason is provided
+    if (!contactReason.trim()) {
+      toast({
+        title: "Reason Required",
+        description: "Please provide a reason for adding this contact",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setAddingContact(true);
       const response = await api.post<{ success: boolean; data: CaseContact }>(
@@ -705,20 +720,61 @@ export default function CaseDetailPage() {
         {
           contact_id: contactId,
           role: selectedContactRole,
+          reason: contactReason,
         }
       );
       if (response?.success && response?.data) {
         setContacts([...contacts, response.data]);
+        toast({
+          title: "Success",
+          description: "Contact added to case",
+        });
       }
       // Reset dialog state
       setShowAddContact(false);
       setContactSearchQuery("");
       setContactSearchResults([]);
       setSelectedContactRole("related_party");
+      setContactReason("");
     } catch (error) {
       console.error("Failed to add contact:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add contact to case",
+        variant: "destructive",
+      });
     } finally {
       setAddingContact(false);
+    }
+  };
+
+  // Delete contact from case
+  const handleDeleteContact = async (contactId: number, contactName: string) => {
+    // Confirm deletion
+    if (!confirm(`Remove ${contactName} from this case? This will also remove all emails involving this contact.`)) {
+      return;
+    }
+
+    try {
+      const response = await api.delete<{ success: boolean; message: string }>(
+        `/api/v1/cases/${caseId}/contacts/${contactId}`
+      );
+
+      if (response?.success) {
+        // Remove from local state
+        setContacts(contacts.filter(c => c.contact_id !== contactId));
+        toast({
+          title: "Success",
+          description: response.message || "Contact removed from case",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to delete contact:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove contact from case",
+        variant: "destructive",
+      });
     }
   };
 
@@ -2629,12 +2685,19 @@ export default function CaseDetailPage() {
                             key={contact.id}
                             className="py-3 flex items-center justify-between"
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-1">
                               <div className="p-2 bg-teal-100 rounded-full text-teal-600">
                                 <User className="h-4 w-4" />
                               </div>
-                              <div>
-                                <div className="font-medium">{contact.contact_name}</div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <div className="font-medium">{contact.contact_name}</div>
+                                  {contact.email_count !== undefined && contact.email_count > 0 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      📧 {contact.email_count} {contact.email_count === 1 ? 'email' : 'emails'}
+                                    </Badge>
+                                  )}
+                                </div>
                                 <div className="text-sm text-muted-foreground">
                                   {contact.contact_email || "No email"}
                                   {contact.role && (
@@ -2643,20 +2706,50 @@ export default function CaseDetailPage() {
                                     </Badge>
                                   )}
                                 </div>
+                                {contact.reason && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    <span className="font-semibold">Reason:</span> {contact.reason}
+                                  </p>
+                                )}
                                 {contact.notes && (
                                   <p className="text-xs text-muted-foreground mt-1">
-                                    {contact.notes}
+                                    <span className="font-semibold">Notes:</span> {contact.notes}
+                                  </p>
+                                )}
+                                {(contact.added_by_name || contact.added_at) && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Added{' '}
+                                    {contact.added_at && new Date(contact.added_at).toLocaleDateString('en-AU', {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                    {contact.added_by_name && ` by ${contact.added_by_name}`}
                                   </p>
                                 )}
                               </div>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => router.push(`/contacts/${contact.contact_id}`)}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => router.push(`/contacts/${contact.contact_id}`)}
+                                title="View contact details"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteContact(contact.contact_id, contact.contact_name)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title="Remove from case"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -3144,6 +3237,7 @@ export default function CaseDetailPage() {
           setContactSearchQuery("");
           setContactSearchResults([]);
           setSelectedContactRole("related_party");
+          setContactReason("");
         }
       }}>
         <DialogContent className="max-w-lg">
@@ -3169,6 +3263,24 @@ export default function CaseDetailPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="contact_reason">
+                Reason <span className="text-red-500">*</span>
+              </Label>
+              <Textarea
+                id="contact_reason"
+                placeholder="Why is this contact being added to the case? (e.g., 'Key witness in ATO audit', 'Client's accountant')"
+                value={contactReason}
+                onChange={(e) => setContactReason(e.target.value)}
+                rows={3}
+                className={!contactReason.trim() ? "border-red-300" : ""}
+              />
+              {!contactReason.trim() && (
+                <p className="text-xs text-red-500">Reason is required</p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label>Search Contact</Label>
               <div className="relative">

@@ -35,6 +35,9 @@ interface CaseContactData {
   role?: string;
   is_primary: boolean;
   notes?: string;
+  reason?: string;
+  added_by_name?: string;
+  added_at?: string;
 }
 
 interface SelectOption {
@@ -72,6 +75,7 @@ export function EditCaseContactDialog({
     role: "",
     is_primary: false,
     notes: "",
+    reason: "",
   });
 
   // Load contact data when dialog opens
@@ -103,6 +107,7 @@ export function EditCaseContactDialog({
           role: response.case_contact.role || "",
           is_primary: response.case_contact.is_primary || false,
           notes: response.case_contact.notes || "",
+          reason: response.case_contact.reason || "",
         });
       }
     } catch (error) {
@@ -299,6 +304,41 @@ export function EditCaseContactDialog({
                   rows={3}
                 />
               </div>
+
+              {/* Reason */}
+              <div className="space-y-2">
+                <Label htmlFor="reason">
+                  Reason <span className="text-red-500">*</span>
+                </Label>
+                <Textarea
+                  id="reason"
+                  placeholder="Why was this contact added to the case?"
+                  value={formData.reason}
+                  onChange={(e) =>
+                    setFormData({ ...formData, reason: e.target.value })
+                  }
+                  rows={3}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Explain the contact's relevance to this case
+                </p>
+              </div>
+
+              {/* Added by metadata (read-only) */}
+              {contactData.added_by_name && contactData.added_at && (
+                <div className="p-3 bg-muted rounded-lg text-sm">
+                  <p className="text-muted-foreground">
+                    Added {new Date(contactData.added_at).toLocaleDateString('en-AU', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })} by {contactData.added_by_name}
+                  </p>
+                </div>
+              )}
             </div>
 
             <DialogFooter className="mt-6">

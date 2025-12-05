@@ -9,7 +9,8 @@ module Api
         :run_action, :relationship_graph, :update_contact_position, :create_child,
         :qa_pairs, :duplicates, :resolve_duplicate, :processing_status,
         :reprocess_documents, :update_qa_pair, :update_folder_settings,
-        :folder_info, :create_folder, :get_case_contact, :update_case_contact
+        :folder_info, :create_folder, :get_case_contact, :update_case_contact,
+        :remove_contact
       ]
 
       # GET /api/v1/cases
@@ -331,15 +332,29 @@ module Api
       # POST /api/v1/cases/:id/add_contact
       def add_contact
         contact = Contact.find(params[:contact_id])
+
+        # Validate reason is present
+        if params[:reason].blank?
+          render json: {
+            success: false,
+            error: 'Reason is required when adding a contact to a case'
+          }, status: :unprocessable_entity
+          return
+        end
+
         case_contact = @case.add_contact(contact,
           role: params[:role] || 'related_party',
           notes: params[:notes],
-          is_primary: params[:is_primary] || false
+          is_primary: params[:is_primary] || false,
+          reason: params[:reason],
+          added_by: current_user
         )
 
         render json: { success: true, data: serialize_case_contact(case_contact) }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: 'Contact not found' }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       # POST /api/v1/cases/:id/add_company
@@ -456,6 +471,29 @@ module Api
         end
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
+      end
+
+      # DELETE /api/v1/cases/:id/contacts/:contact_id
+      # Remove contact from case and delete all case_emails involving this contact
+      def remove_contact
+        contact = Contact.find(params[:contact_id])
+
+        # Check if contact is actually linked to this case
+        case_contact = @case.case_contacts.find_by(contact: contact)
+        unless case_contact
+          render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
+          return
+        end
+
+        # Remove the contact and related emails
+        @case.remove_contact(contact)
+
+        render json: {
+          success: true,
+          message: "Contact removed from case. All related emails were also removed."
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Contact not found' }, status: :not_found
       end
 
       # ============================================
@@ -736,7 +774,7 @@ module Api
 
       def case_contact_params
         params.require(:case_contact).permit(
-          :relationship_type, :alignment, :role, :is_primary, :notes
+          :relationship_type, :alignment, :role, :is_primary, :notes, :reason
         )
       end
 
@@ -1181,7 +1219,11 @@ module Api
           relationship_description: cc.relationship_description,
           notes: cc.notes,
           is_primary: cc.is_primary,
-          display_position: cc.display_position
+          display_position: cc.display_position,
+          reason: cc.reason,
+          added_by_name: cc.added_by&.name,
+          added_at: cc.created_at,
+          email_count: cc.email_count
         }
       end
 

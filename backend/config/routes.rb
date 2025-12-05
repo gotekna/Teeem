@@ -1269,6 +1269,7 @@ Rails.application.routes.draw do
           # Case contact relationship details
           get 'contacts/:contact_id', action: :get_case_contact
           patch 'contacts/:contact_id', action: :update_case_contact
+          delete 'contacts/:contact_id', action: :remove_contact
 
           # Create sub-case
           post :create_child

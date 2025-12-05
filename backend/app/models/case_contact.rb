@@ -2,8 +2,10 @@
 class CaseContact < ApplicationRecord
   belongs_to :case_record, foreign_key: :case_id, class_name: 'CaseRecord'
   belongs_to :contact
+  belongs_to :added_by, class_name: 'User', optional: true
 
   validates :case_id, uniqueness: { scope: :contact_id }
+  validates :reason, presence: true
   validates :role, inclusion: {
     in: %w[subject witness advisor opposing_party related_party],
     allow_blank: true
@@ -99,5 +101,20 @@ class CaseContact < ApplicationRecord
 
   def update_chart_position!(x:, y:)
     update!(display_position: { 'x' => x, 'y' => y })
+  end
+
+  # Count emails in this case that involve this contact's email address
+  def email_count
+    return 0 unless contact&.email.present?
+
+    CaseEmail.joins(:email_warehouse)
+             .where(case_id: case_id)
+             .where(
+               "email_warehouse.from_email = ? OR
+                ? = ANY(email_warehouse.to_emails) OR
+                ? = ANY(email_warehouse.cc_emails) OR
+                ? = ANY(email_warehouse.bcc_emails)",
+               contact.email, contact.email, contact.email, contact.email
+             ).count
   end
 end

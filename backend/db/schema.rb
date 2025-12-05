@@ -297,6 +297,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100010) do
     t.text "relationship_description"
     t.jsonb "display_position", default: {}
     t.string "alignment", default: "neutral"
+    t.text "reason", null: false
+    t.bigint "added_by_id"
+    t.index ["added_by_id"], name: "index_case_contacts_on_added_by_id"
     t.index ["alignment"], name: "index_case_contacts_on_alignment"
     t.index ["case_id", "contact_id"], name: "index_case_contacts_on_case_id_and_contact_id", unique: true
     t.index ["case_id"], name: "index_case_contacts_on_case_id"
@@ -4390,6 +4393,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100010) do
   add_foreign_key "case_companies", "companies"
   add_foreign_key "case_contacts", "cases"
   add_foreign_key "case_contacts", "contacts"
+  add_foreign_key "case_contacts", "users", column: "added_by_id"
   add_foreign_key "case_documents", "cases"
   add_foreign_key "case_documents", "company_documents"
   add_foreign_key "case_documents", "users", column: "added_by_id"
