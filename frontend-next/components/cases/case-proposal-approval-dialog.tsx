@@ -436,7 +436,7 @@ export function CaseProposalApprovalDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={
         (sourceFolderFullscreen || filingFolderFullscreen)
-          ? "fixed inset-4 max-w-none max-h-none w-auto h-auto overflow-hidden flex flex-col"
+          ? "fixed inset-4 max-w-none max-h-none w-auto h-auto overflow-hidden flex flex-col z-[100] bg-background"
           : "max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
       }>
         <DialogHeader>
