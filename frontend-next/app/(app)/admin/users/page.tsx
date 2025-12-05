@@ -159,7 +159,7 @@ export default function UsersPage() {
       const response = await api.delete<{ success: boolean }>(
         `/api/v1/users/${user.id}`
       );
-      if (response.success) {
+      if (response?.success) {
         toast({
           title: "Success",
           description: "User removed successfully",
