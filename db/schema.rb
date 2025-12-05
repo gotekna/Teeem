@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_05_100013) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_05_100015) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1472,9 +1472,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100013) do
     t.tsvector "searchable"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "internet_headers", default: {}
+    t.jsonb "email_classification", default: {}
+    t.string "user_classification"
+    t.datetime "user_classification_at"
+    t.bigint "user_classification_by_id"
     t.index ["cc_emails"], name: "index_email_warehouse_on_cc_emails", using: :gin
     t.index ["conversation_id"], name: "index_email_warehouse_on_conversation_id"
+    t.index ["email_classification"], name: "index_email_warehouse_on_email_classification", using: :gin
     t.index ["from_email"], name: "index_email_warehouse_on_from_email"
+    t.index ["internet_headers"], name: "index_email_warehouse_on_internet_headers", using: :gin
     t.index ["internet_message_id"], name: "index_email_warehouse_on_internet_message_id", unique: true
     t.index ["is_latest_in_thread"], name: "index_email_warehouse_on_is_latest_in_thread"
     t.index ["job_id", "is_latest_in_thread", "received_at"], name: "idx_email_warehouse_job_latest_received"
@@ -1485,6 +1492,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100013) do
     t.index ["searchable"], name: "index_email_warehouse_on_searchable", using: :gin
     t.index ["synced_by_user_id"], name: "index_email_warehouse_on_synced_by_user_id"
     t.index ["to_emails"], name: "index_email_warehouse_on_to_emails", using: :gin
+    t.index ["user_classification"], name: "index_email_warehouse_on_user_classification"
   end
 
   create_table "emails", force: :cascade do |t|
@@ -4493,6 +4501,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100013) do
   add_foreign_key "email_sync_statuses", "users"
   add_foreign_key "email_warehouse", "jobs"
   add_foreign_key "email_warehouse", "users", column: "synced_by_user_id"
+  add_foreign_key "email_warehouse", "users", column: "user_classification_by_id"
   add_foreign_key "emails", "jobs"
   add_foreign_key "emails", "users"
   add_foreign_key "estimate_line_items", "estimates"
