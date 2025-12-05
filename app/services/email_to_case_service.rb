@@ -228,7 +228,7 @@ class EmailToCaseService
 
       {
         "case_title": "Start with the email subject line (remove RE:/FW: prefixes), then add context in parentheses if helpful. Example: 'Request for review of income contribution assessment - QLD 1570/22/5 (ATO Audit - Smith Family Trust)'",
-        "case_type": "One of: ato_audit, legal_dispute, director_investigation, compliance_review, due_diligence, other",
+        "case_type": "One of: ato_audit, legal_dispute, director_investigation, compliance_review, due_diligence, fraud_investigation, insolvency, bankruptcy, other",
         "description": "Detailed description of what the case is about, the issue or dispute",
         "priority": "One of: low, normal, high, urgent",
         "urgency": "One of: low, normal, urgent - based on deadlines or language",
