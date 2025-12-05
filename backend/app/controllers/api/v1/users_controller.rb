@@ -2,7 +2,12 @@ class Api::V1::UsersController < ApplicationController
   # GET /api/v1/users
   # Returns list of all users for chat/contact purposes
   def index
-    @users = User.select(:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at, :last_seen_at).order(:name)
+    @users = User.select(
+      'users.id, users.name, users.email, users.mobile_phone, users.role, users.assigned_roles, users.last_login_at, users.last_seen_at, email_sync_statuses.last_sync_at as last_email_sync_at'
+    )
+    .left_joins(:email_sync_status)
+    .order('users.name')
+
     render json: @users.map { |user| user_with_presence(user) }
   end
 
@@ -117,7 +122,8 @@ class Api::V1::UsersController < ApplicationController
       presence_status: presence_status,
       integrations: integrations,
       integrations_count: integrations.count,
-      status: presence_status == 'online' ? 'active' : (user.last_login_at.present? ? 'active' : 'pending')
+      status: presence_status == 'online' ? 'active' : (user.last_login_at.present? ? 'active' : 'pending'),
+      last_email_sync_at: user.respond_to?(:last_email_sync_at) ? user.last_email_sync_at : nil
     )
   end
 end

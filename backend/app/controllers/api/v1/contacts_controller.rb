@@ -92,7 +92,7 @@ module Api
         director_fields = params[:is_director] == 'true' ? [:director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country, :residential_address, :drivers_licence, :passport_number, :photo_url] : []
 
         contacts_json = @contacts.as_json(
-          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status, :is_family_member, :is_potential_director, :company_group_id] + director_fields,
+          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status, :is_family_member, :is_potential_director, :company_group_id] + director_fields,
           include: {
             portal_user: { only: [:id, :email, :portal_type, :active] },
             company_group: { only: [:id, :name] }
@@ -144,7 +144,7 @@ module Api
             :tax_number, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :xero_sync_error,
             :sys_type_id, :deleted, :parent_id, :parent,
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
-            :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
+            :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
             :entity_type, :primary_role, :employment_status, :primary_company_id,
             # Family/Director flags
             :is_family_member, :is_potential_director, :company_group_id,
@@ -356,8 +356,8 @@ module Api
           render json: {
             success: true,
             contact: @contact.as_json(
-              only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas],
-              methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?]
+              only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas],
+              methods: [:is_employee?, :is_sales?, :is_land_agent?]
             )
           }
         else
@@ -461,7 +461,7 @@ module Api
       # PATCH /api/v1/contacts/bulk_update
       def bulk_update
         contact_ids = params[:contact_ids]
-        contact_types = params[:contact_types]
+        roles = params[:roles]
 
         # Validate contact_ids is present and is an array
         if contact_ids.blank? || !contact_ids.is_a?(Array)
@@ -471,25 +471,25 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        # Validate contact_types is valid
-        if contact_types.blank? || !contact_types.is_a?(Array)
+        # Validate roles is valid
+        if roles.blank? || !roles.is_a?(Array)
           return render json: {
             success: false,
-            error: "contact_types must be a non-empty array"
+            error: "roles must be a non-empty array"
           }, status: :unprocessable_entity
         end
 
-        invalid_types = contact_types - Contact::CONTACT_TYPES
-        if invalid_types.any?
+        invalid_roles = roles - Contact::ROLES
+        if invalid_roles.any?
           return render json: {
             success: false,
-            error: "Invalid contact types: #{invalid_types.join(', ')}"
+            error: "Invalid roles: #{invalid_roles.join(', ')}"
           }, status: :unprocessable_entity
         end
 
         # Update all contacts in a single query using update_all for performance
         # This bypasses validations and callbacks but is much faster for bulk operations
-        updated_count = Contact.where(id: contact_ids).update_all(contact_types: contact_types)
+        updated_count = Contact.where(id: contact_ids).update_all(roles: roles)
 
         if updated_count > 0
           render json: {
@@ -810,9 +810,9 @@ module Api
 
         ActiveRecord::Base.transaction do
           source_contacts.each do |source|
-            # Merge contact types
-            merged_types = (target_contact.contact_types + source.contact_types).uniq
-            target_contact.update(contact_types: merged_types)
+            # Merge roles
+            merged_roles = (target_contact.roles + source.roles).uniq
+            target_contact.update(roles: merged_roles)
 
             # Fill in missing contact information from source if target is missing it
             target_contact.update(email: source.email) if target_contact.email.blank? && source.email.present?
@@ -883,7 +883,7 @@ module Api
           success: true,
           message: "Successfully merged #{source_contacts.count} contact(s) into #{target_contact.full_name}",
           contact: target_contact.as_json(
-            only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types]
+            only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles]
           )
         }
       rescue ActiveRecord::RecordNotFound => e
@@ -1673,7 +1673,7 @@ module Api
         # Find contacts with similar full_name (case insensitive, ignoring extra whitespace)
         # Group by normalized name
         contacts_by_name = Contact.where(deleted: [false, nil])
-          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :contact_types, :xero_id)
+          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| normalize_name(c.full_name) }
 
         contacts_by_name.each do |normalized_name, contacts|
@@ -1692,7 +1692,7 @@ module Api
         contacts_by_first_last = Contact.where(deleted: [false, nil])
           .where.not(first_name: [nil, ''])
           .where.not(last_name: [nil, ''])
-          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :contact_types, :xero_id)
+          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| "#{normalize_name(c.first_name)}|#{normalize_name(c.last_name)}" }
 
         contacts_by_first_last.each do |name_key, contacts|
@@ -1716,7 +1716,7 @@ module Api
         # Check for same email (different contacts with same email)
         contacts_by_email = Contact.where(deleted: [false, nil])
           .where.not(email: [nil, ''])
-          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :contact_types, :xero_id)
+          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| c.email&.downcase&.strip }
 
         contacts_by_email.each do |email, contacts|
@@ -2019,28 +2019,28 @@ module Api
           contact_addresses_attributes: [:id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary, :_destroy]
         )
 
-        # Convert contact_types from integer IDs to names if needed
-        # Frontend may send [1, 2] (IDs) instead of ['customer', 'supplier'] (names)
-        if permitted[:contact_types].present?
-          permitted[:contact_types] = convert_contact_type_ids_to_names(permitted[:contact_types])
+        # Convert roles from integer IDs to names if needed
+        # Frontend may send [1, 2] (IDs) instead of ['Employee', 'Director'] (names)
+        if permitted[:roles].present?
+          permitted[:roles] = convert_role_ids_to_names(permitted[:roles])
         end
 
         permitted
       end
 
-      # Convert contact type IDs to names
-      # Accepts: [1, 2] -> ['customer', 'supplier']
-      # Also accepts: ['customer', 'supplier'] -> ['customer', 'supplier'] (no change)
-      def convert_contact_type_ids_to_names(types)
-        return [] if types.blank?
+      # Convert role IDs to names
+      # Example: [1, 2] -> ['Employee', 'Director'] (if ContactType records exist with those IDs)
+      # Also accepts: ['Employee', 'Director'] -> ['Employee', 'Director'] (no change)
+      def convert_role_ids_to_names(role_ids)
+        return [] if role_ids.blank?
 
-        types.map do |type|
-          if type.is_a?(Integer) || (type.is_a?(String) && type.match?(/^\d+$/))
+        role_ids.map do |role|
+          if role.is_a?(Integer) || (role.is_a?(String) && role.match?(/^\d+$/))
             # It's an ID, look up the name
-            ContactType.find_by(id: type.to_i)&.name
+            ContactType.find_by(id: role.to_i)&.name
           else
             # It's already a name
-            type
+            role
           end
         end.compact
       end

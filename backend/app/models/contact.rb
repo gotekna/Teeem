@@ -79,7 +79,7 @@ class Contact < ApplicationRecord
   encrypts :tfn, deterministic: true
 
   # Constants
-  CONTACT_TYPES = %w[customer supplier sales land_agent corporate default_supplier].freeze
+  ROLES = %w[Employee sales land_agent Director Company_Secretary Public_Officer CEO GM Owner].freeze
   ENTITY_TYPES = %w[person company trust default_supplier].freeze
   EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
 
@@ -108,8 +108,9 @@ class Contact < ApplicationRecord
 
   # Validations
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP, allow_blank: true }
-  validate :contact_types_must_be_valid
-  # Note: primary_contact_type column removed - use contact_types[0] instead
+  validate :roles_must_be_valid
+  validate :roles_only_for_persons
+  # Note: primary_contact_type column removed - use roles[0] instead
 
   # Entity type validation
   validates :entity_type, presence: { message: "must be selected" },
@@ -122,15 +123,16 @@ class Contact < ApplicationRecord
   before_save :update_xero_synced_status
   before_save :generate_full_name
   before_save :sync_company_name_or_trust
+  before_save :clear_roles_if_not_person
 
   # Scopes
   scope :with_email, -> { where.not(email: [nil, '']) }
   scope :with_phone, -> { where.not(mobile_phone: [nil, '']).or(where.not(office_phone: [nil, ''])) }
-  scope :with_type, ->(type) { where("? = ANY(contact_types)", type) }
-  scope :customers, -> { with_type('customer') }
-  scope :suppliers, -> { with_type('supplier') }
-  scope :sales, -> { with_type('sales') }
-  scope :land_agents, -> { with_type('land_agent') }
+  scope :with_role, ->(role) { where("? = ANY(roles)", role) }
+  scope :employees, -> { with_role('Employee') }
+  scope :directors, -> { with_role('Director') }
+  scope :sales, -> { with_role('sales') }
+  scope :land_agents, -> { with_role('land_agent') }
 
   # Entity type scopes
   scope :people, -> { where(entity_type: 'person') }
@@ -170,33 +172,42 @@ class Contact < ApplicationRecord
     email.present? || mobile_phone.present? || office_phone.present?
   end
 
-  def is_customer?
-    contact_types&.include?('customer')
+  # Generic role checker
+  def has_role?(role)
+    roles&.include?(role)
   end
 
-  def is_supplier?
-    contact_types&.include?('supplier')
+  # Specific role helpers
+  def is_employee?
+    has_role?('Employee')
+  end
+
+  def is_ceo?
+    has_role?('CEO')
   end
 
   def is_sales?
-    contact_types&.include?('sales')
+    has_role?('sales')
   end
 
   def is_land_agent?
-    contact_types&.include?('land_agent')
+    has_role?('land_agent')
   end
+
+  # Note: is_director? is defined below and checks actual company directorships
+  # To check for Director role, use has_role?('Director')
 
   # Entity type helpers
   def is_person?
-    entity_type == 'person' || contact_types&.include?('person')
+    entity_type == 'person'
   end
 
   def is_company?
-    entity_type == 'company' || contact_types&.include?('company')
+    entity_type == 'company'
   end
 
   def is_trust?
-    entity_type == 'trust' || contact_types&.include?('trust')
+    entity_type == 'trust'
   end
 
   # Family/Director helpers
@@ -474,16 +485,24 @@ class Contact < ApplicationRecord
 
   private
 
-  def contact_types_must_be_valid
-    return if contact_types.blank?
+  def roles_must_be_valid
+    return if roles.blank?
 
     # Handle both array and JSON string formats
-    types = contact_types.is_a?(String) ? (JSON.parse(contact_types) rescue []) : contact_types
-    return if types.blank?
+    role_list = roles.is_a?(String) ? (JSON.parse(roles) rescue []) : roles
+    return if role_list.blank?
 
-    invalid_types = types - CONTACT_TYPES
-    if invalid_types.any?
-      errors.add(:contact_types, "contains invalid types: #{invalid_types.join(', ')}")
+    invalid_roles = role_list - ROLES
+    if invalid_roles.any?
+      errors.add(:roles, "contains invalid roles: #{invalid_roles.join(', ')}")
+    end
+  end
+
+  def roles_only_for_persons
+    return if roles.blank?
+
+    if entity_type != 'person'
+      errors.add(:roles, "can only be assigned to people, not #{entity_type}")
     end
   end
 
@@ -530,6 +549,13 @@ class Contact < ApplicationRecord
   def sync_company_name_or_trust
     if %w[company trust].include?(entity_type) && full_name.present?
       self.company_name_or_trust = full_name if company_name_or_trust.blank?
+    end
+  end
+
+  # Auto-clear roles when entity_type changes from person to company/trust
+  def clear_roles_if_not_person
+    if entity_type_changed? && entity_type != 'person'
+      self.roles = []
     end
   end
 end

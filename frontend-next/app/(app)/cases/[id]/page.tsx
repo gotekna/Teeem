@@ -246,6 +246,12 @@ interface CaseContact {
   contact_name: string;
   contact_email: string | null;
   role: string;
+  relationship_type?: string;
+  formatted_relationship_type?: string;
+  alignment?: string;
+  formatted_alignment?: string;
+  alignment_color?: string;
+  is_primary?: boolean;
   notes: string | null;
   created_at: string;
   reason?: string;
@@ -2663,12 +2669,81 @@ export default function CaseDetailPage() {
               </div>
             ) : (
               <>
-                {/* Contacts Section */}
+                {/* Section 1: Case Info & Sub-cases */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">
+                      <FileText className="h-4 w-4 inline mr-2" />
+                      Case & Sub-cases
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Main Case Info */}
+                    <div className="p-4 bg-muted rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-semibold text-lg">{caseData?.title}</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {caseData?.case_number} • {caseData?.formatted_case_type}
+                          </p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge variant={
+                              caseData?.status === 'open' ? 'default' :
+                              caseData?.status === 'in_progress' ? 'secondary' :
+                              caseData?.status === 'closed' ? 'outline' : 'default'
+                            }>
+                              {caseData?.formatted_status}
+                            </Badge>
+                            <Badge variant={
+                              caseData?.priority === 'urgent' ? 'destructive' :
+                              caseData?.priority === 'high' ? 'default' : 'secondary'
+                            }>
+                              {caseData?.formatted_priority}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sub-cases */}
+                    {subCases && subCases.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">Sub-cases ({subCases.length})</h4>
+                        <div className="space-y-2">
+                          {subCases.map((subCase) => (
+                            <div
+                              key={subCase.id}
+                              className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                              onClick={() => router.push(`/cases/${subCase.id}`)}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <p className="font-medium">{subCase.title}</p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {subCase.case_number} • {subCase.formatted_case_type}
+                                  </p>
+                                </div>
+                                <Badge variant={subCase.status === 'open' ? 'default' : 'outline'}>
+                                  {subCase.formatted_status}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Section 2: Friendly Contacts */}
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg">
-                      <User className="h-4 w-4 inline mr-2" />
-                      Contacts ({contacts.length})
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span className="text-green-600">Friendly</span> Contacts
+                      <span className="text-muted-foreground text-sm">
+                        ({contacts.filter(c => c.alignment === 'friendly').length})
+                      </span>
                     </CardTitle>
                     <Button variant="outline" size="sm" onClick={() => setShowAddContact(true)}>
                       <Plus className="h-4 w-4 mr-2" />
@@ -2676,81 +2751,242 @@ export default function CaseDetailPage() {
                     </Button>
                   </CardHeader>
                   <CardContent>
-                    {contacts.length === 0 ? (
+                    {contacts.filter(c => c.alignment === 'friendly').length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">
-                        No contacts linked to this case
+                        No friendly contacts
                       </p>
                     ) : (
                       <div className="divide-y">
-                        {contacts.map((contact) => (
-                          <div
-                            key={contact.id}
-                            className="py-3 flex items-center justify-between"
-                          >
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className="p-2 bg-teal-100 rounded-full text-teal-600">
-                                <User className="h-4 w-4" />
+                        {contacts.filter(c => c.alignment === 'friendly').map((contact) => (
+                          <div key={contact.id} className="py-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3 flex-1">
+                                <div className="p-2 bg-green-100 rounded-full text-green-600">
+                                  <User className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium">{contact.contact_name}</span>
+                                    {contact.is_primary && (
+                                      <Badge variant="default" className="bg-blue-600">Primary</Badge>
+                                    )}
+                                    {contact.formatted_alignment && (
+                                      <Badge variant="secondary" className="bg-green-100 text-green-700">
+                                        {contact.formatted_alignment}
+                                      </Badge>
+                                    )}
+                                    {contact.email_count !== undefined && contact.email_count > 0 && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        📧 {contact.email_count}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-muted-foreground mt-1">
+                                    {contact.contact_email || "No email"}
+                                  </p>
+                                  {contact.formatted_relationship_type && (
+                                    <Badge variant="outline" className="mt-1 text-xs">
+                                      {contact.formatted_relationship_type}
+                                    </Badge>
+                                  )}
+                                  {contact.reason && (
+                                    <p className="text-xs text-muted-foreground mt-2">
+                                      <span className="font-semibold">Reason:</span> {contact.reason}
+                                    </p>
+                                  )}
+                                  {contact.notes && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      <span className="font-semibold">Notes:</span> {contact.notes}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <div className="font-medium">{contact.contact_name}</div>
-                                  {contact.email_count !== undefined && contact.email_count > 0 && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      📧 {contact.email_count} {contact.email_count === 1 ? 'email' : 'emails'}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  {contact.contact_email || "No email"}
-                                  {contact.role && (
-                                    <Badge variant="outline" className="ml-2">
-                                      {contact.role}
-                                    </Badge>
-                                  )}
-                                </div>
-                                {contact.reason && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    <span className="font-semibold">Reason:</span> {contact.reason}
-                                  </p>
-                                )}
-                                {contact.notes && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    <span className="font-semibold">Notes:</span> {contact.notes}
-                                  </p>
-                                )}
-                                {(contact.added_by_name || contact.added_at) && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Added{' '}
-                                    {contact.added_at && new Date(contact.added_at).toLocaleDateString('en-AU', {
-                                      year: 'numeric',
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })}
-                                    {contact.added_by_name && ` by ${contact.added_by_name}`}
-                                  </p>
-                                )}
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => router.push(`/contacts/${contact.contact_id}`)}
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteContact(contact.contact_id, contact.contact_name)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => router.push(`/contacts/${contact.contact_id}`)}
-                                title="View contact details"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteContact(contact.contact_id, contact.contact_name)}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                title="Remove from case"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Section 3: Neutral Contacts */}
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span className="text-gray-600">Neutral</span> Contacts
+                      <span className="text-muted-foreground text-sm">
+                        ({contacts.filter(c => !c.alignment || c.alignment === 'neutral').length})
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {contacts.filter(c => !c.alignment || c.alignment === 'neutral').length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No neutral contacts
+                      </p>
+                    ) : (
+                      <div className="divide-y">
+                        {contacts.filter(c => !c.alignment || c.alignment === 'neutral').map((contact) => (
+                          <div key={contact.id} className="py-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3 flex-1">
+                                <div className="p-2 bg-gray-100 rounded-full text-gray-600">
+                                  <User className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium">{contact.contact_name}</span>
+                                    {contact.is_primary && (
+                                      <Badge variant="default" className="bg-blue-600">Primary</Badge>
+                                    )}
+                                    {contact.email_count !== undefined && contact.email_count > 0 && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        📧 {contact.email_count}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-muted-foreground mt-1">
+                                    {contact.contact_email || "No email"}
+                                  </p>
+                                  {contact.formatted_relationship_type && (
+                                    <Badge variant="outline" className="mt-1 text-xs">
+                                      {contact.formatted_relationship_type}
+                                    </Badge>
+                                  )}
+                                  {contact.reason && (
+                                    <p className="text-xs text-muted-foreground mt-2">
+                                      <span className="font-semibold">Reason:</span> {contact.reason}
+                                    </p>
+                                  )}
+                                  {contact.notes && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      <span className="font-semibold">Notes:</span> {contact.notes}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => router.push(`/contacts/${contact.contact_id}`)}
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteContact(contact.contact_id, contact.contact_name)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Section 4: Opposing Contacts */}
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span className="text-red-600">Opposing</span> Contacts
+                      <span className="text-muted-foreground text-sm">
+                        ({contacts.filter(c => c.alignment === 'opposing').length})
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {contacts.filter(c => c.alignment === 'opposing').length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No opposing contacts
+                      </p>
+                    ) : (
+                      <div className="divide-y">
+                        {contacts.filter(c => c.alignment === 'opposing').map((contact) => (
+                          <div key={contact.id} className="py-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3 flex-1">
+                                <div className="p-2 bg-red-100 rounded-full text-red-600">
+                                  <User className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium">{contact.contact_name}</span>
+                                    {contact.is_primary && (
+                                      <Badge variant="default" className="bg-blue-600">Primary</Badge>
+                                    )}
+                                    {contact.formatted_alignment && (
+                                      <Badge variant="secondary" className="bg-red-100 text-red-700">
+                                        {contact.formatted_alignment}
+                                      </Badge>
+                                    )}
+                                    {contact.email_count !== undefined && contact.email_count > 0 && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        📧 {contact.email_count}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-muted-foreground mt-1">
+                                    {contact.contact_email || "No email"}
+                                  </p>
+                                  {contact.formatted_relationship_type && (
+                                    <Badge variant="outline" className="mt-1 text-xs">
+                                      {contact.formatted_relationship_type}
+                                    </Badge>
+                                  )}
+                                  {contact.reason && (
+                                    <p className="text-xs text-muted-foreground mt-2">
+                                      <span className="font-semibold">Reason:</span> {contact.reason}
+                                    </p>
+                                  )}
+                                  {contact.notes && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      <span className="font-semibold">Notes:</span> {contact.notes}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => router.push(`/contacts/${contact.contact_id}`)}
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteContact(contact.contact_id, contact.contact_name)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         ))}

@@ -63,6 +63,7 @@ interface User {
   status: string;
   last_login_at: string | null;
   last_seen_at: string | null;
+  last_email_sync_at: string | null;
   presence_status: 'online' | 'away' | 'offline';
   integrations: string[];
   integrations_count: number;
@@ -201,6 +202,7 @@ function UsersManagementTab() {
               <TableHead>Status</TableHead>
               <TableHead>Integrations</TableHead>
               <TableHead>Last Login</TableHead>
+              <TableHead>Last Email Sync</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -254,6 +256,11 @@ function UsersManagementTab() {
                 <TableCell className="text-muted-foreground text-sm">
                   {user.last_login_at
                     ? formatRelativeTime(user.last_login_at)
+                    : "Never"}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">
+                  {user.last_email_sync_at
+                    ? formatRelativeTime(user.last_email_sync_at)
                     : "Never"}
                 </TableCell>
                 <TableCell>

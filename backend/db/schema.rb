@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_05_100010) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_05_100013) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -471,9 +471,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100010) do
     t.boolean "saved_to_job", default: false
     t.bigint "contact_id"
     t.bigint "case_id"
-    t.index ["case_id"], name: "index_chat_messages_on_case_id"
     t.index ["channel", "created_at"], name: "index_chat_messages_on_channel_and_created_at"
-    t.index ["contact_id"], name: "index_chat_messages_on_contact_id"
     t.index ["created_at"], name: "index_chat_messages_on_created_at"
     t.index ["job_id", "channel", "created_at"], name: "index_chat_messages_on_construction_channel_created"
     t.index ["job_id"], name: "index_chat_messages_on_job_id"
@@ -2462,20 +2460,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100010) do
     t.text "client_secret"
     t.string "tenant_id", null: false
     t.text "access_token"
-    t.datetime "token_expires_at"
+    t.datetime "token_expires_at", precision: nil
     t.boolean "is_active", default: true
     t.string "status", default: "pending"
     t.text "last_error"
-    t.datetime "admin_consent_granted_at"
+    t.datetime "admin_consent_granted_at", precision: nil
     t.string "admin_consent_granted_by"
     t.jsonb "sync_config", default: {}
-    t.datetime "last_sync_at"
+    t.datetime "last_sync_at", precision: nil
     t.bigint "setup_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_organization_microsoft_app_credentials_on_is_active", unique: true, where: "(is_active = true)"
-    t.index ["setup_by_id"], name: "index_organization_microsoft_app_credentials_on_setup_by_id"
-    t.index ["tenant_id"], name: "index_organization_microsoft_app_credentials_on_tenant_id"
+    t.datetime "created_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.index ["is_active"], name: "index_org_microsoft_app_credentials_on_is_active", unique: true, where: "(is_active = true)"
+    t.index ["tenant_id"], name: "index_org_microsoft_app_credentials_on_tenant_id"
   end
 
   create_table "organization_one_drive_credentials", force: :cascade do |t|
@@ -3686,6 +3683,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100010) do
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
   end
 
+  create_table "tables", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "singular_name"
+    t.string "plural_name"
+    t.string "database_table_name", null: false
+    t.string "icon"
+    t.string "title_column"
+    t.boolean "searchable", default: true
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["database_table_name"], name: "index_tables_on_database_table_name", unique: true
+  end
+
   create_table "task_dependencies", force: :cascade do |t|
     t.bigint "successor_task_id", null: false
     t.bigint "predecessor_task_id", null: false
@@ -3951,7 +3962,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100010) do
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
-  create_table "versions", force: :cascade do |t|
+  create_table "versions", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.integer "current_version", default: 101, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -4545,7 +4557,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100010) do
   add_foreign_key "meetings", "users", column: "created_by_id"
   add_foreign_key "notifications", "users"
   add_foreign_key "one_drive_credentials", "jobs"
-  add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id"
+  add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id", name: "organization_microsoft_app_credentials_setup_by_id_fkey"
   add_foreign_key "organization_one_drive_credentials", "users", column: "connected_by_id"
   add_foreign_key "pay_now_requests", "contacts"
   add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
