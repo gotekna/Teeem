@@ -52,10 +52,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  GripVertical,
   Plus,
   Pencil,
-  Trash2,
   Eye,
   EyeOff,
   Save,

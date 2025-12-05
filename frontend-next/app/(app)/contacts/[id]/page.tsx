@@ -47,7 +47,6 @@ import { XeroTransactionsSection } from "@/components/contacts/XeroTransactionsS
 import { XeroInvoiceDetailModal } from "@/components/contacts/XeroInvoiceDetailModal";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { type TableColumn } from "@/components/table/types";
-import type { XeroLink } from "@/types/xero";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
 
 // Helper function to format ABN as XX XXX XXX XXX
@@ -345,7 +344,6 @@ export default function ContactDetailPage() {
   const [loadingTrustRoles, setLoadingTrustRoles] = useState(false);
   const [ownershipChain, setOwnershipChain] = useState<OwnershipNode[]>([]);
   const [loadingOwnershipChain, setLoadingOwnershipChain] = useState(false);
-  const [selectedXeroLink, setSelectedXeroLink] = useState<XeroLink | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [showInvoiceDetail, setShowInvoiceDetail] = useState(false);
 
@@ -1763,7 +1761,7 @@ export default function ContactDetailPage() {
                 />
                 <XeroTransactionsSection
                   contactId={contact.id}
-                  xeroLink={selectedXeroLink}
+                  xeroLink={null}
                   onViewInvoiceDetail={(invoiceId) => {
                     setSelectedInvoiceId(invoiceId);
                     setShowInvoiceDetail(true);
@@ -1820,7 +1818,6 @@ export default function ContactDetailPage() {
                   {emails.map((email) => {
                     const contactEmailLower = contact.email?.toLowerCase() || "";
                     const isFrom = email.from_email?.toLowerCase() === contactEmailLower;
-                    const isTo = email.to_emails?.some(e => e.toLowerCase() === contactEmailLower);
                     const isCc = email.cc_emails?.some(e => e.toLowerCase() === contactEmailLower);
 
                     return (

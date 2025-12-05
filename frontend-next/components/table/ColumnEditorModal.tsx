@@ -124,8 +124,6 @@ export function ColumnEditorModal({
   const [newColumnType, setNewColumnType] = useState("");
   const [availableTables, setAvailableTables] = useState<Array<{ id: number; name: string }>>([]);
   const [loadingTables, setLoadingTables] = useState(false);
-  const [targetTableColumns, _setTargetTableColumns] = useState<Array<{ column_name: string; name: string }>>([]);
-  const [loadingTargetColumns, setLoadingTargetColumns] = useState(false);
   const [targetTableRecords, setTargetTableRecords] = useState<Array<{ id: number; display: string }>>([]);
 
   // System-generated columns
@@ -152,46 +150,7 @@ export function ColumnEditorModal({
     loadTables();
   }, [isOpen]);
 
-  // Load columns from target table when lookup_table_id changes
-  useEffect(() => {
-    const loadTargetColumns = async () => {
-      // Clear existing columns immediately when table ID changes
-      setTargetTableColumns([]);
-
-      if (!editedColumn.lookup_table_id) {
-        return;
-      }
-
-      const tableIdToLoad = editedColumn.lookup_table_id;
-      const tableName = availableTables.find(t => t.id === tableIdToLoad)?.name || 'Unknown';
-      setLoadingTargetColumns(true);
-      console.log('[ColumnEditorModal] Loading columns for target table:', tableIdToLoad, '(' + tableName + ')');
-
-      try {
-        const response = await api.get<{ success: boolean; foundation: { columns: Array<{ column_name: string; name: string }> } }>(
-          `/api/v1/foundations/${tableIdToLoad}`
-        );
-        console.log('[ColumnEditorModal] Response for table', tableIdToLoad, ':', response);
-
-        // Check if the table ID is still the same (avoid race condition)
-        if (response?.foundation?.columns) {
-          console.log('[ColumnEditorModal] Setting columns for table', tableIdToLoad, ':', response.foundation.columns);
-          _setTargetTableColumns(response.foundation.columns);
-        } else {
-          console.warn('[ColumnEditorModal] No columns in response for table', tableIdToLoad);
-          _setTargetTableColumns([]);
-        }
-      } catch (error) {
-        console.error("Failed to load target table columns:", error);
-        _setTargetTableColumns([]);
-      } finally {
-        setLoadingTargetColumns(false);
-      }
-    };
-    loadTargetColumns();
-    // Only depend on lookup_table_id - availableTables is just for logging
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editedColumn.lookup_table_id]);
+  // Note: Target table columns loading was removed as the state was never used
 
   // Load records from target table when lookup_table_id changes
   useEffect(() => {
