@@ -541,6 +541,11 @@ class XeroContactSyncService
         ].compact.reject(&:blank?)
 
         updates[:address] = address_parts.join(', ') if address_parts.any?
+
+        # Sync structured address fields
+        updates[:city] = address_to_use['City'] if address_to_use['City'].present?
+        updates[:state] = address_to_use['Region'] if address_to_use['Region'].present?
+        updates[:postcode] = address_to_use['PostalCode'] if address_to_use['PostalCode'].present?
       end
 
       # Sync to contact_addresses table (two-way sync - TEEEM is source of truth)
@@ -639,6 +644,11 @@ class XeroContactSyncService
         ].compact.reject(&:blank?)
 
         contact_data[:address] = address_parts.join(', ') if address_parts.any?
+
+        # Extract structured address fields
+        contact_data[:city] = address_to_use['City'] if address_to_use['City'].present?
+        contact_data[:state] = address_to_use['Region'] if address_to_use['Region'].present?
+        contact_data[:postcode] = address_to_use['PostalCode'] if address_to_use['PostalCode'].present?
       end
     end
 
