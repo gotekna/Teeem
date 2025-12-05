@@ -12,12 +12,12 @@ class CaseRelationshipService
     # Add case node as center
     nodes << build_case_node
 
-    # Add contact nodes
-    contact_nodes, contact_edges = build_contact_nodes_and_edges
+    # Add contact nodes - now grouped by company
+    contact_nodes, contact_edges = build_contact_nodes_and_edges_grouped
     nodes.concat(contact_nodes)
     edges.concat(contact_edges)
 
-    # Add company nodes
+    # Add company nodes (only those not already shown via contact grouping)
     company_nodes, company_edges = build_company_nodes_and_edges
     nodes.concat(company_nodes)
     edges.concat(company_edges)
@@ -88,7 +88,7 @@ class CaseRelationshipService
     {
       id: "case-#{@case.id}",
       type: 'case',
-      position: { x: 400, y: 300 }, # Center position
+      position: { x: 300, y: 300 }, # Center position for 4-quadrant layout
       data: {
         id: @case.id,
         case_number: @case.case_number,
@@ -97,6 +97,306 @@ class CaseRelationshipService
         formatted_case_type: @case.formatted_case_type,
         status: @case.status,
         priority: @case.priority
+      }
+    }
+  end
+
+  # Group contacts by company - if 2+ contacts share the same company, show them in a company group node
+  # Layout: 4 quadrants around the case node
+  # - Top Left: CLIENT (the person/company we're working for)
+  # - Top Right: ADVISORS (accountant, lawyer, previous_accountant, advisor)
+  # - Bottom Left: NEUTRAL (witness, related_party, director, shareholder, bank_manager, insurer, broker)
+  # - Bottom Right: OPPOSING (opposing_party, ato_officer, afsa_officer, inspector_general, creditor, debtor, trustee)
+  def build_contact_nodes_and_edges_grouped
+    nodes = []
+    edges = []
+
+    contacts = @case.case_contacts.includes(:contact)
+
+    # Group contacts by company name
+    contacts_by_company = contacts.group_by { |cc| cc.contact&.company_name_or_trust.presence }
+
+    # Separate into groups (2+ contacts) and singles
+    company_groups = contacts_by_company.select { |company, contacts| company.present? && contacts.size >= 2 }
+    single_contacts = contacts_by_company.reject { |company, contacts| company.present? && contacts.size >= 2 }.values.flatten
+
+    # Track companies that are shown as groups (to avoid duplicating in company nodes)
+    @grouped_company_names = company_groups.keys
+
+    # Define which relationship types go in which quadrant
+    advisor_types = %w[accountant lawyer previous_accountant advisor]
+    opposing_types = %w[opposing_party ato_officer afsa_officer inspector_general creditor debtor trustee]
+    # client is its own quadrant
+    # everything else is neutral
+
+    # Categorize into 4 quadrants
+    client_groups = []
+    advisor_groups = []
+    neutral_groups = []
+    opposing_groups = []
+
+    company_groups.each do |company_name, company_contacts|
+      rel_types = company_contacts.map { |cc| cc.relationship_type }.compact
+      alignments = company_contacts.map { |cc| cc.alignment }.compact
+      roles = company_contacts.map { |cc| cc.role }.compact
+      group_alignment = alignments.tally.max_by { |_, count| count }&.first || 'neutral'
+
+      quadrant = determine_quadrant(rel_types, alignments, roles)
+      case quadrant
+      when :client
+        client_groups << [company_name, company_contacts, group_alignment]
+      when :advisor
+        advisor_groups << [company_name, company_contacts, group_alignment]
+      when :opposing
+        opposing_groups << [company_name, company_contacts, group_alignment]
+      else
+        neutral_groups << [company_name, company_contacts, group_alignment]
+      end
+    end
+
+    client_singles = []
+    advisor_singles = []
+    neutral_singles = []
+    opposing_singles = []
+
+    single_contacts.each do |case_contact|
+      rel_type = case_contact.relationship_type
+      alignment = case_contact.alignment
+      role = case_contact.role
+
+      quadrant = determine_quadrant([rel_type].compact, [alignment].compact, [role].compact)
+      case quadrant
+      when :client
+        client_singles << case_contact
+      when :advisor
+        advisor_singles << case_contact
+      when :opposing
+        opposing_singles << case_contact
+      else
+        neutral_singles << case_contact
+      end
+    end
+
+    # Position nodes - case is at center (400, 350)
+    # Quadrant positions:
+    # Top Left (CLIENT):     x = 50-300,  y = 50-250
+    # Top Right (ADVISORS):  x = 500-750, y = 50-250
+    # Bottom Left (NEUTRAL): x = 50-300,  y = 450-650
+    # Bottom Right (OPPOSING): x = 500-750, y = 450-650
+
+    # CLIENT quadrant - Top Left
+    client_count = client_groups.count + client_singles.count
+    if client_count > 0
+      client_y_step = client_count > 1 ? 200 / (client_count - 1) : 0
+      client_index = 0
+
+      client_groups.each do |company_name, company_contacts, group_alignment|
+        position = { x: 50, y: 50 + (client_y_step * client_index) }
+        nodes << build_company_group_node(company_name, company_contacts, position, group_alignment, :client)
+        edges << build_company_group_edge(company_name, company_contacts)
+        client_index += 1
+      end
+
+      client_singles.each do |case_contact|
+        contact = case_contact.contact
+        next unless contact
+
+        position = { x: 50, y: 50 + (client_y_step * client_index) }
+        nodes << build_contact_node(contact, case_contact, position)
+        edges << build_contact_edge(contact, case_contact)
+        client_index += 1
+      end
+    end
+
+    # ADVISORS quadrant - Top Right
+    advisor_count = advisor_groups.count + advisor_singles.count
+    if advisor_count > 0
+      advisor_y_step = advisor_count > 1 ? 200 / (advisor_count - 1) : 0
+      advisor_index = 0
+
+      advisor_groups.each do |company_name, company_contacts, group_alignment|
+        position = { x: 550, y: 50 + (advisor_y_step * advisor_index) }
+        nodes << build_company_group_node(company_name, company_contacts, position, group_alignment, :advisor)
+        edges << build_company_group_edge(company_name, company_contacts)
+        advisor_index += 1
+      end
+
+      advisor_singles.each do |case_contact|
+        contact = case_contact.contact
+        next unless contact
+
+        position = { x: 550, y: 50 + (advisor_y_step * advisor_index) }
+        nodes << build_contact_node(contact, case_contact, position)
+        edges << build_contact_edge(contact, case_contact)
+        advisor_index += 1
+      end
+    end
+
+    # NEUTRAL quadrant - Bottom Left
+    neutral_count = neutral_groups.count + neutral_singles.count
+    if neutral_count > 0
+      neutral_y_step = neutral_count > 1 ? 200 / (neutral_count - 1) : 0
+      neutral_index = 0
+
+      neutral_groups.each do |company_name, company_contacts, group_alignment|
+        position = { x: 50, y: 450 + (neutral_y_step * neutral_index) }
+        nodes << build_company_group_node(company_name, company_contacts, position, group_alignment, :neutral)
+        edges << build_company_group_edge(company_name, company_contacts)
+        neutral_index += 1
+      end
+
+      neutral_singles.each do |case_contact|
+        contact = case_contact.contact
+        next unless contact
+
+        position = { x: 50, y: 450 + (neutral_y_step * neutral_index) }
+        nodes << build_contact_node(contact, case_contact, position)
+        edges << build_contact_edge(contact, case_contact)
+        neutral_index += 1
+      end
+    end
+
+    # OPPOSING quadrant - Bottom Right
+    opposing_count = opposing_groups.count + opposing_singles.count
+    if opposing_count > 0
+      opposing_y_step = opposing_count > 1 ? 200 / (opposing_count - 1) : 0
+      opposing_index = 0
+
+      opposing_groups.each do |company_name, company_contacts, group_alignment|
+        position = { x: 550, y: 450 + (opposing_y_step * opposing_index) }
+        nodes << build_company_group_node(company_name, company_contacts, position, group_alignment, :opposing)
+        edges << build_company_group_edge(company_name, company_contacts)
+        opposing_index += 1
+      end
+
+      opposing_singles.each do |case_contact|
+        contact = case_contact.contact
+        next unless contact
+
+        position = { x: 550, y: 450 + (opposing_y_step * opposing_index) }
+        nodes << build_contact_node(contact, case_contact, position)
+        edges << build_contact_edge(contact, case_contact)
+        opposing_index += 1
+      end
+    end
+
+    [nodes, edges]
+  end
+
+  # Determine which quadrant a contact belongs to based on relationship types, alignments, and roles
+  def determine_quadrant(rel_types, alignments, roles = [])
+    advisor_types = %w[accountant lawyer previous_accountant advisor]
+    opposing_types = %w[opposing_party ato_officer afsa_officer inspector_general creditor debtor trustee]
+    advisor_roles = %w[advisor accountant lawyer]
+
+    # Check if it's a client
+    return :client if rel_types.include?('client')
+
+    # Check alignment first - if explicitly opposing, put in opposing quadrant
+    return :opposing if alignments.include?('opposing')
+
+    # Check alignment - if friendly, put in client quadrant
+    return :client if alignments.include?('friendly')
+
+    # Check relationship type
+    return :advisor if (rel_types & advisor_types).any?
+    return :opposing if (rel_types & opposing_types).any?
+
+    # Check role as fallback
+    return :advisor if (roles & advisor_roles).any?
+
+    # Default to neutral
+    :neutral
+  end
+
+  def build_company_group_node(company_name, company_contacts, position, group_alignment, quadrant = nil)
+    employees = company_contacts.map do |case_contact|
+      contact = case_contact.contact
+      display_name = contact.full_name.presence || [contact.first_name, contact.last_name].compact.join(' ').presence || 'Contact'
+      {
+        id: contact.id,
+        name: display_name,
+        email: contact.email,
+        phone: contact.mobile_phone || contact.office_phone,
+        relationship_type: case_contact.relationship_type,
+        formatted_relationship_type: case_contact.formatted_relationship_type,
+        alignment: case_contact.alignment,
+        formatted_alignment: case_contact.formatted_alignment,
+        alignment_color: case_contact.alignment_color,
+        role: case_contact.role,
+        is_primary: case_contact.is_primary
+      }
+    end
+
+    {
+      id: "company-group-#{company_name.parameterize}",
+      type: 'company_group',
+      position: position,
+      data: {
+        company_name: company_name,
+        employees: employees,
+        employee_count: employees.count,
+        alignment: group_alignment,
+        quadrant: quadrant&.to_s,
+        relationship_types: company_contacts.map { |cc| cc.formatted_relationship_type }.uniq
+      }
+    }
+  end
+
+  def build_company_group_edge(company_name, company_contacts)
+    {
+      id: "edge-case-company-group-#{company_name.parameterize}",
+      source: "case-#{@case.id}",
+      target: "company-group-#{company_name.parameterize}",
+      type: 'company_group',
+      label: company_contacts.map { |cc| cc.formatted_relationship_type }.uniq.join(', '),
+      data: {
+        relationship_types: company_contacts.map { |cc| cc.relationship_type }.uniq,
+        color: 'indigo'
+      }
+    }
+  end
+
+  def build_contact_node(contact, case_contact, position)
+    display_name = contact.full_name.presence || [contact.first_name, contact.last_name].compact.join(' ').presence || 'Contact'
+    {
+      id: "contact-#{contact.id}",
+      type: 'contact',
+      position: position,
+      data: {
+        id: contact.id,
+        contact_id: contact.id,
+        name: display_name,
+        email: contact.email,
+        phone: contact.mobile_phone || contact.office_phone,
+        company: contact.company_name_or_trust,
+        relationship_type: case_contact.relationship_type,
+        formatted_relationship_type: case_contact.formatted_relationship_type,
+        relationship_color: case_contact.relationship_color,
+        relationship_icon: case_contact.relationship_icon,
+        alignment: case_contact.alignment,
+        formatted_alignment: case_contact.formatted_alignment,
+        alignment_color: case_contact.alignment_color,
+        alignment_icon: case_contact.alignment_icon,
+        role: case_contact.role,
+        formatted_role: case_contact.formatted_role,
+        is_primary: case_contact.is_primary,
+        notes: case_contact.notes
+      }
+    }
+  end
+
+  def build_contact_edge(contact, case_contact)
+    {
+      id: "edge-case-contact-#{contact.id}",
+      source: "case-#{@case.id}",
+      target: "contact-#{contact.id}",
+      type: 'relationship',
+      animated: case_contact.is_primary,
+      label: case_contact.formatted_relationship_type,
+      data: {
+        relationship_type: case_contact.relationship_type,
+        color: case_contact.relationship_color
       }
     }
   end
@@ -133,7 +433,7 @@ class CaseRelationshipService
           id: contact.id,
           name: contact.full_name,
           email: contact.email,
-          phone: contact.mobile_phone || contact.work_phone,
+          phone: contact.mobile_phone || contact.office_phone,
           company: contact.company_name_or_trust,
           relationship_type: case_contact.relationship_type,
           formatted_relationship_type: case_contact.formatted_relationship_type,
@@ -272,7 +572,7 @@ class CaseRelationshipService
     edges = []
 
     # Find relationships between contacts and companies
-    @case.case_contacts.includes(contact: :company_members).each do |case_contact|
+    @case.case_contacts.includes(:contact).each do |case_contact|
       contact = case_contact.contact
       next unless contact
 
@@ -370,7 +670,7 @@ class CaseRelationshipService
     node = {
       id: "case-#{parent.id}",
       type: 'parent_case',
-      position: { x: 400, y: 50 }, # Above the main case
+      position: { x: 300, y: -100 }, # Above the main case (centered, with space)
       data: {
         id: parent.id,
         case_number: parent.case_number,
@@ -409,10 +709,10 @@ class CaseRelationshipService
     children = @case.child_cases.includes(:assigned_to)
     return [nodes, edges] if children.empty?
 
-    # Position children below the main case
+    # Position children below the main case (case center is at x=300)
     base_y = 550
     spacing = 200
-    start_x = 400 - ((children.count - 1) * spacing / 2.0)
+    start_x = 300 - ((children.count - 1) * spacing / 2.0)
 
     children.each_with_index do |child, index|
       position = { x: (start_x + (index * spacing)).round, y: base_y }

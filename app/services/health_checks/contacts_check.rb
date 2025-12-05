@@ -50,7 +50,7 @@ module HealthChecks
     def check_missing_contact_info
       contacts = Contact.where(deleted: [false, nil])
                        .where("(email IS NULL OR email = '') AND (mobile_phone IS NULL OR mobile_phone = '') AND (office_phone IS NULL OR office_phone = '')")
-                       .select(:id, :full_name, :company_name)
+                       .select(:id, :full_name)
 
       build_result(
         name: 'Contacts Missing Contact Info',
@@ -71,10 +71,9 @@ module HealthChecks
         elsif item.respond_to?(:full_name)
           {
             id: item.id,
-            display: item.full_name.presence || item.company_name || "Contact ##{item.id}",
+            display: item.full_name.presence || "Contact ##{item.id}",
             full_name: item.full_name,
-            email: item.try(:email),
-            company_name: item.try(:company_name)
+            email: item.try(:email)
           }
         else
           super
@@ -89,7 +88,7 @@ module HealthChecks
       seen_ids = Set.new
 
       contacts = Contact.where(deleted: [false, nil])
-                       .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :company_name, :xero_id)
+                       .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id)
 
       case type
       when :name
@@ -127,7 +126,7 @@ module HealthChecks
     def format_duplicate_group(match_type, match_value, contacts)
       {
         id: contacts.first.id,
-        display: "#{contacts.size} contacts: #{contacts.map { |c| c.full_name || c.company_name }.compact.join(', ')}",
+        display: "#{contacts.size} contacts: #{contacts.map { |c| c.full_name }.compact.join(', ')}",
         match_type: match_type,
         match_value: match_value,
         count: contacts.size,

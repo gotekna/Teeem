@@ -23,6 +23,27 @@ class CreateJobOnedriveFoldersJob < ApplicationJob
     begin
       client = MicrosoftGraphClient.new(credential)
 
+      # Validate root folder exists before attempting to create job folders
+      folder_validation = client.validate_root_folder
+      unless folder_validation[:valid]
+        error_msg = "[OneDrive] Root folder validation failed for job #{job_id}: #{folder_validation[:error]}"
+        Rails.logger.error error_msg
+
+        # If folder not found, this is a critical configuration issue
+        if folder_validation[:error_type] == 'not_found'
+          job.update_column(:onedrive_folder_creation_status, 'folder_not_found')
+          Rails.logger.error "[OneDrive] Root folder has been deleted or moved. Please reconfigure the root folder in Settings."
+          return # Don't retry - this needs admin intervention
+        elsif folder_validation[:error_type] == 'not_configured'
+          job.update_column(:onedrive_folder_creation_status, 'not_configured')
+          Rails.logger.warn "[OneDrive] No root folder configured. Please configure in Settings."
+          return # Don't retry - needs configuration
+        else
+          job.update_column(:onedrive_folder_creation_status, 'failed')
+          raise StandardError, folder_validation[:error] # Retry for transient errors
+        end
+      end
+
       # Check if job folder already exists
       existing_folder = client.find_job_folder(job)
 

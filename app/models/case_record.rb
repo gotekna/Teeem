@@ -36,6 +36,8 @@ class CaseRecord < ApplicationRecord
   has_many :case_emails, foreign_key: :case_id, dependent: :destroy
   has_many :emails, through: :case_emails, source: :email_warehouse
   has_many :case_timeline_events, foreign_key: :case_id, dependent: :destroy
+  has_many :case_email_qas, foreign_key: :case_id, dependent: :destroy
+  has_many :document_duplicate_reviews, foreign_key: :case_id, dependent: :destroy
 
   # ============================================
   # VALIDATIONS
@@ -46,7 +48,7 @@ class CaseRecord < ApplicationRecord
   validates :status, inclusion: { in: %w[open in_progress review closed archived] }
   validates :priority, inclusion: { in: %w[low normal high urgent] }
   validates :case_type, inclusion: {
-    in: %w[ato_audit legal_dispute director_investigation compliance_review due_diligence other],
+    in: %w[ato_audit legal_dispute director_investigation compliance_review due_diligence fraud_investigation insolvency bankruptcy other],
     allow_blank: true
   }
   validates :risk_score, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
@@ -87,6 +89,9 @@ class CaseRecord < ApplicationRecord
     'director_investigation' => 'Director Investigation',
     'compliance_review' => 'Compliance Review',
     'due_diligence' => 'Due Diligence',
+    'fraud_investigation' => 'Fraud Investigation',
+    'insolvency' => 'Insolvency',
+    'bankruptcy' => 'Bankruptcy',
     'other' => 'Other'
   }.freeze
 

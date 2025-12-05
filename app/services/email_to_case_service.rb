@@ -227,8 +227,8 @@ class EmailToCaseService
       Extract the following information and return ONLY valid JSON (no markdown, no code blocks):
 
       {
-        "case_title": "Descriptive title for this case (e.g., 'ATO Audit - Smith Family Trust FY21-23')",
-        "case_type": "One of: ato_audit, legal_dispute, director_investigation, compliance_review, due_diligence, other",
+        "case_title": "Start with the email subject line (remove RE:/FW: prefixes), then add context in parentheses if helpful. Example: 'Request for review of income contribution assessment - QLD 1570/22/5 (ATO Audit - Smith Family Trust)'",
+        "case_type": "One of: ato_audit, legal_dispute, director_investigation, compliance_review, due_diligence, fraud_investigation, insolvency, bankruptcy, other",
         "description": "Detailed description of what the case is about, the issue or dispute",
         "priority": "One of: low, normal, high, urgent",
         "urgency": "One of: low, normal, urgent - based on deadlines or language",
@@ -236,10 +236,11 @@ class EmailToCaseService
         "involved_parties": [
           {
             "name": "Full name of person",
-            "email": "email@example.com",
-            "phone": "Phone number if mentioned",
+            "email": "ACTUAL email address from the email thread (look in From, To, CC, signatures, and body). NEVER use placeholder like email@example.com - leave blank if not found",
+            "phone": "Phone number if mentioned in email signature or body",
             "company": "Company they work for/represent",
-            "relationship_type": "One of: client, accountant, lawyer, previous_accountant, advisor, opposing_party, witness, related_party, ato_officer, director, shareholder, bank_manager, insurer, broker",
+            "relationship_type": "One of: client, accountant, lawyer, previous_accountant, advisor, opposing_party, witness, related_party, ato_officer, afsa_officer, inspector_general, trustee, director, shareholder, bank_manager, insurer, broker, creditor, debtor",
+            "alignment": "One of: friendly (on client's side), neutral (neither side), opposing (against client)",
             "is_primary": true/false (is this the main subject/client),
             "notes": "Any relevant notes about their role"
           }
@@ -300,6 +301,17 @@ class EmailToCaseService
       - Pay attention to deadlines and response due dates
       - Extract company structures if discussed (trusts, corporate groups)
       - Return ONLY the JSON object, no additional text
+
+      CRITICAL - Email extraction:
+      - Extract REAL email addresses from: From/To/CC headers, email signatures, and email body text
+      - NEVER use placeholder emails like "email@example.com" - leave email field blank/null if not found
+      - Look for patterns like "name@domain.com", "Contact: email@...", signatures with email addresses
+      - Government emails often end in .gov.au (ATO, ASIC, AFSA etc)
+
+      CRITICAL - Alignment:
+      - "friendly" = people helping your client (their accountant, lawyer, family)
+      - "neutral" = people with no stake either way (witnesses, banks providing info)
+      - "opposing" = people against your client (ATO officers, opposing lawyers, trustees in bankruptcy)
     PROMPT
   end
 
@@ -342,15 +354,42 @@ class EmailToCaseService
   end
 
   def enrich_with_existing_data(extracted)
-    # Match involved parties to existing contacts
+    # Match involved parties to existing contacts and known_parties
     (extracted['involved_parties'] || []).each do |party|
-      next unless party['email'].present?
+      # First check if we know this party from previous cases
+      known = KnownParty.find_match(
+        name: party['name'],
+        email: party['email'],
+        organisation: party['company']
+      )
 
-      contact = Contact.find_by(email: party['email'])
+      if known
+        # Pre-fill from known party data
+        party['relationship_type'] ||= known.relationship_type if known.relationship_type.present?
+        party['alignment'] ||= known.default_alignment if known.default_alignment.present?
+        party['phone'] ||= known.phone if known.phone.present?
+        party['company'] ||= known.organisation if known.organisation.present?
+        party['email'] ||= known.email if known.email.present?
+        party['known_party_id'] = known.id
+        party['seen_before'] = true
+        party['seen_count'] = known.seen_count
+      end
+
+      # Then check for existing contact
+      contact = nil
+      if party['email'].present?
+        contact = Contact.find_by(email: party['email'])
+      end
+      contact ||= Contact.find_by(full_name: party['name']) if party['name'].present?
+
       if contact
         party['contact_id'] = contact.id
         party['contact_exists'] = true
         party['full_name'] = contact.full_name if party['name'].blank?
+        # Update party with contact details if missing
+        party['email'] ||= contact.email
+        party['phone'] ||= contact.mobile_phone
+        party['company'] ||= contact.company_name_or_trust
       else
         party['contact_exists'] = false
       end
@@ -406,21 +445,50 @@ class EmailToCaseService
     all_parties.each do |party|
       contact = nil
 
+      # Skip placeholder emails
+      email = party['email']
+      email = nil if email.blank? || email == 'email@example.com' || email&.include?('example.com')
+
       if party['contact_id'].present?
         contact = Contact.find_by(id: party['contact_id'])
-      elsif party['email'].present?
-        contact = Contact.find_by(email: party['email'])
+      elsif email.present?
+        contact = Contact.find_by(email: email)
+      elsif party['name'].present?
+        # Try to find by exact name match
+        contact = Contact.find_by(full_name: party['name'])
       end
 
-      # Create contact if doesn't exist and has enough info
-      if contact.nil? && party['email'].present? && party['name'].present?
+      # Update existing contact with new details if provided
+      if contact
+        updates = {}
+        updates[:email] = email if email.present? && contact.email.blank?
+        updates[:mobile_phone] = party['phone'] if party['phone'].present? && contact.mobile_phone.blank?
+        updates[:company_name_or_trust] = party['company'] if party['company'].present? && contact.company_name_or_trust.blank?
+        contact.update(updates) if updates.present?
+      end
+
+      # Create contact if doesn't exist and has enough info (name is required, email optional)
+      if contact.nil? && party['name'].present?
+        # Find or create company if specified
+        company_contact = nil
+        if party['company'].present?
+          company_contact = find_or_create_company(party['company'])
+        end
+
         contact = Contact.create(
-          email: party['email'],
+          email: email,
           full_name: party['name'],
           mobile_phone: party['phone'],
           company_name_or_trust: party['company'],
+          primary_company_id: company_contact&.id,
           entity_type: 'person'
         )
+      end
+
+      # Upsert to known_parties for future reference
+      if party['name'].present?
+        known_party = KnownParty.upsert_from_party(party)
+        known_party&.update(contact_id: contact.id) if contact && known_party && known_party.contact_id.nil?
       end
 
       next unless contact
@@ -433,15 +501,42 @@ class EmailToCaseService
         is_primary: party['is_primary'] || false
       )
 
-      # Update the case_contact with relationship_type
+      # Update the case_contact with relationship_type and alignment
       case_contact = CaseContact.find_by(case_id: case_record.id, contact_id: contact.id)
       if case_contact
         case_contact.update(
           relationship_type: party['relationship_type'],
+          alignment: party['alignment'] || 'neutral',
           relationship_description: party['notes']
         )
       end
     end
+  end
+
+  def find_or_create_company(company_name)
+    return nil if company_name.blank?
+
+    # Try to find existing company by name (case-insensitive)
+    company = Contact.where(entity_type: 'company')
+                     .where('LOWER(full_name) = LOWER(?)', company_name.strip)
+                     .first
+
+    # Also check trading_name and company_name_or_trust
+    company ||= Contact.where(entity_type: 'company')
+                       .where('LOWER(trading_name) = LOWER(?) OR LOWER(company_name_or_trust) = LOWER(?)',
+                              company_name.strip, company_name.strip)
+                       .first
+
+    # Create if not found
+    if company.nil?
+      company = Contact.create(
+        full_name: company_name.strip,
+        entity_type: 'company'
+      )
+      Rails.logger.info "[EmailToCase] Created new company contact: #{company.full_name} (ID: #{company.id})"
+    end
+
+    company
   end
 
   def map_relationship_to_role(relationship_type)
@@ -456,11 +551,16 @@ class EmailToCaseService
       'witness' => 'witness',
       'related_party' => 'related_party',
       'ato_officer' => 'opposing_party',
+      'afsa_officer' => 'opposing_party',
+      'inspector_general' => 'opposing_party',
+      'trustee' => 'opposing_party',
       'director' => 'subject',
       'shareholder' => 'related_party',
       'bank_manager' => 'related_party',
       'insurer' => 'related_party',
-      'broker' => 'related_party'
+      'broker' => 'related_party',
+      'creditor' => 'opposing_party',
+      'debtor' => 'subject'
     }
     mapping[relationship_type] || 'related_party'
   end

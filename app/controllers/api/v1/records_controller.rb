@@ -109,9 +109,18 @@ module Api
         # Build lookup cache to prevent N+1 queries (only for user foundations with lookup columns)
         lookup_cache = @foundation.table_type == 'system' ? {} : build_lookup_cache(records)
 
+        # Pre-compute employees_count for contacts to avoid N+1 queries
+        employees_count_cache = {}
+        if model.table_name == 'contacts'
+          record_ids = records.map(&:id)
+          employees_count_cache = Contact.where(primary_company_id: record_ids)
+                                         .group(:primary_company_id)
+                                         .count
+        end
+
         render json: {
           success: true,
-          records: records.map { |r| record_to_json(r, lookup_cache) },
+          records: records.map { |r| record_to_json(r, lookup_cache, employees_count_cache) },
           pagination: {
             page: page,
             per_page: per_page,
@@ -476,7 +485,7 @@ module Api
         attrs
       end
 
-      def record_to_json(record, lookup_cache = nil)
+      def record_to_json(record, lookup_cache = nil, employees_count_cache = {})
         json = {
           id: record.id,
           created_at: record.created_at,
@@ -560,6 +569,11 @@ module Api
             rescue => e
               Rails.logger.error "Error expanding multiple_lookups #{column.column_name}: #{e.message}"
             end
+          end
+
+          # Add computed columns for contacts (employees_count for companies)
+          if record.class.name == 'Contact'
+            json[:employees_count] = employees_count_cache[record.id] || 0
           end
 
           return json

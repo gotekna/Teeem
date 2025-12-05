@@ -24,6 +24,7 @@ class CaseAction < ApplicationRecord
       entity_analysis
       inconsistency_check
       summary_report
+      full_analysis
     ]
   }
   validates :status, inclusion: { in: %w[pending running completed failed] }
@@ -110,6 +111,12 @@ class CaseAction < ApplicationRecord
       description: 'Generate executive summary of findings',
       icon: 'file-text',
       data_sources: ['case_actions', 'case_documents', 'case_emails']
+    },
+    'full_analysis' => {
+      name: 'Full Case Analysis',
+      description: 'Import emails from warehouse, extract entities, build timeline, extract Q&A, find document links',
+      icon: 'sparkles',
+      data_sources: ['email_warehouse', 'contacts', 'companies', 'case_emails', 'case_timeline_events', 'case_email_qas']
     }
   }.freeze
 

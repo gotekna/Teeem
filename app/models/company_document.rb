@@ -14,6 +14,14 @@ class CompanyDocument < ApplicationRecord
   # Activity log for tracking changes
   has_many :document_activities, dependent: :destroy
 
+  # Case links
+  has_many :case_documents, dependent: :destroy
+  has_many :cases, through: :case_documents, source: :case_record
+
+  # Duplicate tracking
+  has_many :duplicate_reviews_as_existing, class_name: 'DocumentDuplicateReview', foreign_key: :existing_document_id, dependent: :destroy
+  has_many :duplicate_reviews_as_new, class_name: 'DocumentDuplicateReview', foreign_key: :new_document_id, dependent: :nullify
+
   # Active Storage for file upload
   has_one_attached :file
 
@@ -36,9 +44,8 @@ class CompanyDocument < ApplicationRecord
     (LEGACY_DOCUMENT_TYPES + db_types).uniq
   end
 
-  # Document type abbreviations for display title generation
-  # These are expanded to human-readable names when showing documents
-  DOCUMENT_TYPE_ABBREVIATIONS = {
+  # Legacy abbreviations for fallback (when DB is unavailable)
+  LEGACY_ABBREVIATIONS = {
     'CTR' => 'Company Tax Return',
     'TTR' => 'Trust Tax Return',
     'BAS' => 'Business Activity Statement',
@@ -47,6 +54,32 @@ class CompanyDocument < ApplicationRecord
     'AA' => 'Accountant Advice',
     'LA' => 'Legal Advice'
   }.freeze
+
+  # Document type abbreviations for display title generation
+  # Reads from database with caching, falls back to legacy if DB unavailable
+  def self.document_type_abbreviations
+    @abbreviations_cache ||= begin
+      # Build hash from database: abbreviation => display_name (or name if no display_name)
+      db_abbrs = DocumentType.where.not(abbreviation: [nil, ''])
+                             .pluck(:abbreviation, :display_name, :name)
+                             .each_with_object({}) do |(abbr, display_name, name), hash|
+        # Use display_name if set, otherwise extract display name from name
+        # e.g., "CTR - Company Tax Return" -> "Company Tax Return"
+        display = display_name.presence || name.to_s.sub(/\A\w+\s*-\s*/, '')
+        hash[abbr] = display
+      end
+      # Merge with legacy fallback (DB takes precedence)
+      LEGACY_ABBREVIATIONS.merge(db_abbrs)
+    rescue => e
+      Rails.logger.warn "[CompanyDocument] Failed to load abbreviations from DB: #{e.message}"
+      LEGACY_ABBREVIATIONS
+    end
+  end
+
+  # Clear the abbreviations cache (called when DocumentType changes)
+  def self.clear_abbreviations_cache!
+    @abbreviations_cache = nil
+  end
 
   # Validations
   validates :title, presence: true
@@ -81,6 +114,7 @@ class CompanyDocument < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
   # Filter by financial year using PostgreSQL array contains
   scope :by_financial_year, ->(year) { where("financial_years @> ARRAY[?]::integer[]", year.to_i) }
+  scope :by_content_hash, ->(hash) { where(content_hash: hash) if hash.present? }
 
   # Callbacks
   after_create :create_activity
@@ -99,6 +133,28 @@ class CompanyDocument < ApplicationRecord
 
   def display_name
     title
+  end
+
+  # Find an existing document by content hash
+  def self.find_by_content_hash(hash)
+    return nil if hash.blank?
+    by_content_hash(hash).first
+  end
+
+  # Check if a duplicate exists anywhere in the system
+  def self.duplicate_exists?(hash)
+    return false if hash.blank?
+    by_content_hash(hash).exists?
+  end
+
+  # Find all documents with matching content (duplicates)
+  def find_duplicates
+    return CompanyDocument.none if content_hash.blank?
+    CompanyDocument.by_content_hash(content_hash).where.not(id: id)
+  end
+
+  def has_duplicates?
+    find_duplicates.exists?
   end
 
   private
@@ -155,9 +211,9 @@ class CompanyDocument < ApplicationRecord
     display = display.gsub(/\bUS\s+TTR\b/i, 'Unsigned TTR')
     display = display.gsub(/\bS\s+TTR\b/i, 'Signed TTR')
 
-    # Expand document type abbreviations
-    DOCUMENT_TYPE_ABBREVIATIONS.each do |abbr, full|
-      display = display.gsub(/\b#{abbr}\b/, full)
+    # Expand document type abbreviations from database
+    self.class.document_type_abbreviations.each do |abbr, full|
+      display = display.gsub(/\b#{Regexp.escape(abbr)}\b/, full)
     end
 
     # Titleize DRAFT/AMENDED

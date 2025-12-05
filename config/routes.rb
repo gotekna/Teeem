@@ -1018,6 +1018,7 @@ Rails.application.routes.draw do
       get 'organization_onedrive/callback', to: 'organization_onedrive#callback'
       delete 'organization_onedrive/disconnect', to: 'organization_onedrive#disconnect'
       get 'organization_onedrive/browse_folders', to: 'organization_onedrive#browse_folders'
+      get 'organization_onedrive/validate_folder', to: 'organization_onedrive#validate_folder'
       patch 'organization_onedrive/change_root_folder', to: 'organization_onedrive#change_root_folder'
       post 'organization_onedrive/create_job_folders', to: 'organization_onedrive#create_job_folders'
       post 'organization_onedrive/create_all_job_folders', to: 'organization_onedrive#create_all_job_folders'
@@ -1050,6 +1051,10 @@ Rails.application.routes.draw do
 
       # Organization-wide data stats
       get 'organization/data_stats', to: 'organization#data_stats'
+
+      # Organization settings (job folder name format, etc.)
+      get 'organization_settings', to: 'organization#settings'
+      patch 'organization_settings', to: 'organization#update_settings'
 
       # Schema information
       get 'schema', to: 'schema#index'
@@ -1261,9 +1266,25 @@ Rails.application.routes.draw do
 
           # Contact positions for chart
           patch 'contacts/:contact_id/position', action: :update_contact_position
+          # Case contact relationship details
+          get 'contacts/:contact_id', action: :get_case_contact
+          patch 'contacts/:contact_id', action: :update_case_contact
 
           # Create sub-case
           post :create_child
+
+          # Document management
+          get :qa_pairs
+          patch 'qa_pairs/:qa_id', action: :update_qa_pair
+          get :duplicates
+          post :resolve_duplicate
+          get :processing_status
+          post :reprocess_documents
+          patch :folder_settings, action: :update_folder_settings
+
+          # OneDrive folder management
+          post :create_folder
+          get :folder_info
         end
       end
 
