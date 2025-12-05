@@ -1247,6 +1247,7 @@ Rails.application.routes.draw do
           post :resolve_duplicate
           get :processing_status
           post :reprocess_documents
+          patch :folder_settings, action: :update_folder_settings
         end
       end
 

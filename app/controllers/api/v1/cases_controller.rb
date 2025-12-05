@@ -6,7 +6,9 @@ module Api
         :actions, :documents, :emails, :timeline, :contacts, :companies, :jobs,
         :warehouse_summary, :search_emails, :search_documents, :financial_analysis,
         :add_document, :add_email, :add_contact, :add_company, :add_job,
-        :run_action, :relationship_graph, :update_contact_position, :create_child
+        :run_action, :relationship_graph, :update_contact_position, :create_child,
+        :qa_pairs, :duplicates, :resolve_duplicate, :processing_status,
+        :reprocess_documents, :update_qa_pair, :update_folder_settings
       ]
 
       # GET /api/v1/cases
@@ -492,6 +494,26 @@ module Api
         CaseDocumentProcessingJob.perform_later(@case.id)
 
         render json: { success: true, message: 'Document processing job queued' }
+      end
+
+      # PATCH /api/v1/cases/:id/folder_settings
+      # Update source/filing folder configuration
+      def update_folder_settings
+        @case.update!(
+          source_folder_paths: params[:source_folder_paths] || @case.source_folder_paths,
+          filing_folder_paths: params[:filing_folder_paths] || @case.filing_folder_paths,
+          file_action: params[:file_action] || @case.file_action
+        )
+
+        render json: {
+          success: true,
+          data: {
+            source_folder_paths: @case.source_folder_paths,
+            filing_folder_paths: @case.filing_folder_paths,
+            file_action: @case.file_action
+          },
+          message: 'Folder settings updated'
+        }
       end
 
       # PATCH /api/v1/cases/:id/qa_pairs/:qa_id
