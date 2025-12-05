@@ -1599,105 +1599,101 @@ export default function ContactDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* Emails Tab */}
+        {/* Emails Tab - Using TeeemTableView */}
         <TabsContent value="emails" className="mt-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Mail className="h-5 w-5" />
-                Emails
-                {emailsPagination && (
-                  <Badge variant="secondary">{emailsPagination.total}</Badge>
-                )}
-              </CardTitle>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showAllInThread}
-                  onChange={(e) => setShowAllInThread(e.target.checked)}
-                  className="rounded border-gray-300"
-                />
-                Show all in thread
-              </label>
-            </CardHeader>
-            <CardContent>
-              {loadingEmails ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader />
-                </div>
-              ) : emails.length === 0 ? (
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              <span className="font-medium">Emails</span>
+              {emailsPagination && (
+                <Badge variant="secondary">{emailsPagination.total}</Badge>
+              )}
+            </div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showAllInThread}
+                onChange={(e) => setShowAllInThread(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              Show all in thread
+            </label>
+          </div>
+          {loadingEmails ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader />
+            </div>
+          ) : emails.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6">
                 <p className="text-muted-foreground text-center py-8">
                   No emails found for {contact.email}
                 </p>
-              ) : (
-                <div className="space-y-3">
-                  {emails.map((email) => {
-                    const contactEmailLower = contact.email?.toLowerCase() || "";
-                    const isFrom = email.from_email?.toLowerCase() === contactEmailLower;
-                    const isCc = email.cc_emails?.some(e => e.toLowerCase() === contactEmailLower);
-
-                    return (
-                      <div
-                        key={email.id}
-                        className="border rounded-lg p-3 hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-start gap-2 min-w-0 flex-1">
-                            <Badge
-                              className={cn(
-                                "shrink-0 mt-0.5",
-                                isFrom
-                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30"
-                                  : isCc
-                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30"
-                                    : "bg-green-100 text-green-700 dark:bg-green-900/30"
-                              )}
-                            >
-                              {isFrom ? "From" : isCc ? "CC" : "To"}
-                            </Badge>
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium truncate">
-                                {email.subject || "(no subject)"}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {isFrom ? (
-                                  <>To: {email.to_emails?.join(", ") || "-"}</>
-                                ) : (
-                                  <>From: {email.display_from || email.from_email}</>
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {email.has_attachments && (
-                              <Badge variant="outline" className="text-xs">
-                                {email.attachment_count || 1} file{(email.attachment_count || 1) > 1 ? "s" : ""}
-                              </Badge>
-                            )}
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">
-                              {new Date(email.received_at).toLocaleDateString("en-AU", {
-                                day: "numeric",
-                                month: "short",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                        </div>
-                        {email.preview_body && (
-                          <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-                            {email.preview_body}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <TeeemTableView
+                foundationId={`contact-emails-${contact.id}`}
+                tableName="Contact Emails"
+                columns={[
+                  {
+                    key: "direction",
+                    label: "Direction",
+                    column_type: "choice",
+                    width: 80,
+                    choices: ["From", "To", "CC"],
+                    filterable: true,
+                  },
+                  {
+                    key: "subject",
+                    label: "Subject",
+                    column_type: "text",
+                    width: 350,
+                    filterable: true,
+                  },
+                  {
+                    key: "from_or_to",
+                    label: "From/To",
+                    column_type: "text",
+                    width: 250,
+                    filterable: true,
+                  },
+                  {
+                    key: "received_at",
+                    label: "Date",
+                    column_type: "date_and_time",
+                    width: 150,
+                    sortable: true,
+                  },
+                  {
+                    key: "attachments",
+                    label: "Files",
+                    column_type: "whole_number",
+                    width: 70,
+                    filterable: true,
+                  },
+                ]}
+                entries={emails.map((email) => {
+                  const contactEmailLower = contact.email?.toLowerCase() || "";
+                  const isFrom = email.from_email?.toLowerCase() === contactEmailLower;
+                  const isCc = email.cc_emails?.some(e => e.toLowerCase() === contactEmailLower);
+                  return {
+                    id: email.id,
+                    direction: isFrom ? "From" : isCc ? "CC" : "To",
+                    subject: email.subject || "(no subject)",
+                    from_or_to: isFrom
+                      ? email.to_emails?.join(", ") || "-"
+                      : email.display_from || email.from_email,
+                    received_at: email.received_at,
+                    attachments: email.has_attachments ? (email.attachment_count || 1) : 0,
+                  };
+                })}
+                viewOnly={true}
+              />
               {/* Pagination */}
               {emailsPagination && emailsPagination.total_pages > 1 && (
-                <div className="flex items-center justify-center gap-4 mt-6 pt-4 border-t">
+                <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t">
                   <Button
                     variant="outline"
                     size="sm"
@@ -1719,8 +1715,8 @@ export default function ContactDetailPage() {
                   </Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </>
+          )}
         </TabsContent>
 
         {/* Price Book Tab */}
