@@ -161,6 +161,8 @@ module Api
             :residential_address, :drivers_licence, :passport_number, :photo_url
           ],
           include: {
+            contact_emails: { only: [:id, :email, :is_primary, :label, :position] },
+            contact_phones: { only: [:id, :phone_number, :phone_type, :is_primary, :label, :position] },
             contact_persons: { only: [:id, :first_name, :last_name, :email, :mobile, :role, :include_in_emails, :is_primary, :xero_contact_person_id] },
             contact_addresses: { only: [:id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary] },
             contact_groups: { only: [:id, :name, :status, :xero_contact_group_id] },
@@ -210,13 +212,24 @@ module Api
 
         # Add primary company and employment details
         if @contact.primary_company.present?
+          company = @contact.primary_company
           contact_json[:primary_company] = {
-            id: @contact.primary_company.id,
-            name: @contact.primary_company.display_name,
-            roles: @contact.primary_company.roles,
+            id: company.id,
+            name: company.display_name,
+            email: company.email,
+            website: company.website,
+            address: company.address,
+            roles: company.roles,
             role: @contact.primary_role,
             employment_status: @contact.employment_status,
-            start_date: @contact.employment_start_date
+            start_date: @contact.employment_start_date,
+            # Include company contact details
+            contact_emails: company.contact_emails.ordered.map { |e|
+              { id: e.id, email: e.email, is_primary: e.is_primary, label: e.label, position: e.position }
+            },
+            contact_phones: company.contact_phones.ordered.map { |p|
+              { id: p.id, phone_number: p.phone_number, phone_type: p.phone_type, is_primary: p.is_primary, label: p.label, position: p.position }
+            }
           }
         end
 
@@ -2014,6 +2027,10 @@ module Api
           lgas: [],
           contact_group_ids: [],
           new_contact_group_names: [],
+          # Nested attributes for multiple emails
+          contact_emails_attributes: [:id, :email, :is_primary, :label, :position, :_destroy],
+          # Nested attributes for multiple phones
+          contact_phones_attributes: [:id, :phone_number, :phone_type, :is_primary, :label, :position, :_destroy],
           # Nested attributes for contact persons
           contact_persons_attributes: [:id, :first_name, :last_name, :email, :mobile, :role, :include_in_emails, :is_primary, :_destroy],
           # Nested attributes for contact addresses

@@ -31,7 +31,7 @@ class Api::V1::UsersController < ApplicationController
       # Non-admin trying to change role - reject request
       return render json: {
         success: false,
-        error: 'Only administrators can modify user roles'
+        error: 'Thanks for helping, can you contact an administrator for assistance'
       }, status: :forbidden
     end
 
