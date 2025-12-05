@@ -31,6 +31,19 @@ interface AuthResponse {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// Helper to set auth token in both localStorage and cookie (for SSR)
+const setAuthToken = (token: string) => {
+  localStorage.setItem('token', token);
+  // Set cookie for server-side access (expires in 7 days)
+  document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+};
+
+// Helper to clear auth token from both localStorage and cookie
+const clearAuthToken = () => {
+  localStorage.removeItem('token');
+  document.cookie = 'auth_token=; path=/; max-age=0';
+};
+
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -52,9 +65,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [tokenChecked, setTokenChecked] = useState(false);
 
   // Initialize token from localStorage (client-side only)
+  // Also sync to cookie for server-side rendering access
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedToken = localStorage.getItem('token');
+      if (storedToken) {
+        // Ensure cookie is in sync with localStorage for SSR
+        document.cookie = `auth_token=${storedToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+      }
       setToken(storedToken);
       setTokenChecked(true);
     }
@@ -113,7 +131,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     const mockToken = 'dev-mode-token';
-    localStorage.setItem('token', mockToken);
+    setAuthToken(mockToken);
     setToken(mockToken);
     setUser(mockUser);
     console.log('✅ Dev Mode: Logged in as', mockUser.name);
@@ -127,7 +145,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       if (response?.success && response.token && response.user) {
-        localStorage.setItem('token', response.token);
+        setAuthToken(response.token);
         setToken(response.token);
         setUser(response.user);
         return { success: true };
@@ -160,7 +178,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       if (response?.success && response.token && response.user) {
-        localStorage.setItem('token', response.token);
+        setAuthToken(response.token);
         setToken(response.token);
         setUser(response.user);
         return { success: true };
@@ -178,7 +196,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const logout = () => {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('token');
+      clearAuthToken();
     }
     setToken(null);
     setUser(null);
