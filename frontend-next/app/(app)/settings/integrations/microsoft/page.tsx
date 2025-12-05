@@ -1,16 +1,26 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   ArrowLeft,
   Mail,
@@ -28,8 +38,13 @@ import {
   ChevronDown,
   Database,
   Clock,
+  Shield,
+  Settings,
+  Users,
+  Key,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface MicrosoftStatus {
   connected: boolean;
@@ -476,6 +491,9 @@ export default function MicrosoftIntegrationPage() {
           </Card>
         </Collapsible>
       )}
+
+      {/* Organization-Wide Access - Admin Only */}
+      <OrgWideAccessSection />
     </div>
   );
 }
@@ -549,5 +567,621 @@ function ConnectionCard({
         </div>
       </div>
     </div>
+  );
+}
+
+// ============================================
+// Organization-Wide Access Section (Admin Only)
+// ============================================
+
+interface OrgAppStatus {
+  configured: boolean;
+  status: string;
+  tenant_id?: string;
+  admin_consent_granted_at?: string;
+  admin_consent_granted_by?: string;
+  last_sync_at?: string;
+  last_error?: string;
+  token_valid?: boolean;
+  env_configured?: boolean;
+}
+
+interface TenantUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
+function OrgWideAccessSection() {
+  const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const [orgStatus, setOrgStatus] = React.useState<OrgAppStatus | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [setupDialogOpen, setSetupDialogOpen] = React.useState(false);
+  const [tenantUsers, setTenantUsers] = React.useState<TenantUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = React.useState(false);
+  const [testing, setTesting] = React.useState(false);
+  const [testingSharePoint, setTestingSharePoint] = React.useState(false);
+  const [sharePointResult, setSharePointResult] = React.useState<{ success: boolean; message: string; sites?: { name: string; url: string }[] } | null>(null);
+  const [disconnecting, setDisconnecting] = React.useState(false);
+  const [orgOpen, setOrgOpen] = React.useState(true);
+
+  // Form state
+  const [clientId, setClientId] = React.useState("");
+  const [clientSecret, setClientSecret] = React.useState("");
+  const [tenantId, setTenantId] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  // Check if user is admin
+  const isAdmin = user?.permissions?.includes("admin") || user?.role === "admin";
+
+  // Check for callback params
+  React.useEffect(() => {
+    const consentSuccess = searchParams.get("app_consent_success");
+    const consentError = searchParams.get("app_consent_error");
+
+    if (consentSuccess) {
+      // Refresh status after successful consent
+      fetchStatus();
+    }
+    if (consentError) {
+      setError(decodeURIComponent(consentError));
+    }
+  }, [searchParams]);
+
+  const fetchStatus = async () => {
+    try {
+      const data = await api.get<OrgAppStatus>("/api/v1/microsoft_app/status");
+      setOrgStatus(data);
+    } catch (err) {
+      console.error("Failed to fetch org app status:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (isAdmin) {
+      fetchStatus();
+    } else {
+      setLoading(false);
+    }
+  }, [isAdmin]);
+
+  const handleSetup = async () => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      const response = await api.post<{ success: boolean; admin_consent_url: string; message: string }>(
+        "/api/v1/microsoft_app/setup",
+        {
+          client_id: clientId,
+          client_secret: clientSecret,
+          tenant_id: tenantId,
+        }
+      );
+
+      // Redirect to admin consent
+      if (response) {
+        window.location.href = response.admin_consent_url;
+      }
+    } catch (err: unknown) {
+      const error = err as { data?: { error?: string }; message?: string };
+      setError(error.data?.error || error.message || "Failed to save credentials");
+      setSaving(false);
+    }
+  };
+
+  const handleGrantConsent = async () => {
+    try {
+      const response = await api.get<{ admin_consent_url: string }>("/api/v1/microsoft_app/admin_consent_url");
+      if (response) {
+        window.location.href = response.admin_consent_url;
+      }
+    } catch (err) {
+      console.error("Failed to get consent URL:", err);
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    setError(null);
+
+    try {
+      const response = await api.post<{ success: boolean; error?: string }>("/api/v1/microsoft_app/test");
+      if (response?.success) {
+        fetchStatus();
+      } else {
+        setError(response?.error || "Connection test failed");
+      }
+    } catch (err: unknown) {
+      const error = err as { data?: { error?: string }; message?: string };
+      setError(error.data?.error || error.message || "Test failed");
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleLoadUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const response = await api.get<{ users: TenantUser[] }>("/api/v1/microsoft_app/users");
+      if (response) {
+        setTenantUsers(response.users);
+      }
+    } catch (err) {
+      console.error("Failed to load users:", err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!confirm("Are you sure you want to disconnect organization-wide Microsoft access?")) {
+      return;
+    }
+
+    setDisconnecting(true);
+    try {
+      await api.delete("/api/v1/microsoft_app/disconnect");
+      setOrgStatus({ configured: false, status: "not_configured" });
+      setTenantUsers([]);
+    } catch (err) {
+      console.error("Failed to disconnect:", err);
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  // Test SharePoint access
+  const handleTestSharePoint = async () => {
+    setTestingSharePoint(true);
+    setSharePointResult(null);
+    setError(null);
+
+    try {
+      const response = await api.post<{ success: boolean; message: string; sample_sites?: { name: string; url: string }[]; error?: string; hint?: string }>(
+        "/api/v1/microsoft_app/test_sharepoint"
+      );
+      if (response?.success) {
+        setSharePointResult({
+          success: true,
+          message: response.message,
+          sites: response.sample_sites
+        });
+      } else {
+        setSharePointResult({
+          success: false,
+          message: response?.error || "SharePoint test failed"
+        });
+      }
+    } catch (err: unknown) {
+      const error = err as { data?: { error?: string; hint?: string }; message?: string };
+      setSharePointResult({
+        success: false,
+        message: error.data?.error || error.message || "SharePoint test failed"
+      });
+    } finally {
+      setTestingSharePoint(false);
+    }
+  };
+
+  // Quick enable using existing env vars
+  const handleEnableFromEnv = async () => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      const response = await api.post<{ success: boolean; admin_consent_url: string; message: string }>(
+        "/api/v1/microsoft_app/setup_from_env"
+      );
+
+      // Redirect to admin consent
+      if (response) {
+        window.location.href = response.admin_consent_url;
+      }
+    } catch (err: unknown) {
+      const error = err as { data?: { error?: string }; message?: string };
+      setError(error.data?.error || error.message || "Failed to enable");
+      setSaving(false);
+    }
+  };
+
+  // Don't show for non-admins
+  if (!isAdmin) {
+    return null;
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Collapsible open={orgOpen} onOpenChange={setOrgOpen}>
+        <Card className="border-amber-200 bg-amber-50/30">
+          <CollapsibleTrigger className="w-full text-left">
+            <CardHeader className="cursor-pointer hover:bg-amber-50/50 transition-colors py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-100 rounded-lg">
+                    <Shield className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      Organization-Wide Microsoft Access
+                      <Badge variant="outline" className="text-xs font-normal">
+                        Admin Only
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Access all users&apos; emails and SharePoint/OneDrive without individual OAuth
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {orgStatus?.status === "connected" ? (
+                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Active
+                    </Badge>
+                  ) : orgStatus?.configured ? (
+                    <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Pending Consent
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Not Configured
+                    </Badge>
+                  )}
+                  <ChevronDown
+                    className={`h-5 w-5 text-muted-foreground transition-transform ${
+                      orgOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </div>
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0 space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              {!orgStatus?.configured ? (
+                // Not configured - show setup option
+                <>
+                  <Alert>
+                    <Building2 className="h-4 w-4" />
+                    <AlertTitle>Enable Organization-Wide Microsoft Access</AlertTitle>
+                    <AlertDescription>
+                      Enable Application Permissions to access emails and SharePoint/OneDrive from ALL users
+                      in your Microsoft 365 tenant without requiring each user to connect individually.
+                    </AlertDescription>
+                  </Alert>
+
+                  {orgStatus?.env_configured ? (
+                    // Env vars are configured - simple enable button
+                    <>
+                      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center gap-2 text-green-700">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span className="font-medium text-sm">Microsoft credentials detected</span>
+                        </div>
+                        <p className="text-sm text-green-600 mt-1">
+                          Using existing OUTLOOK_CLIENT_ID and OUTLOOK_TENANT_ID ({orgStatus?.tenant_id})
+                        </p>
+                      </div>
+
+                      <div className="p-4 bg-white rounded-lg border space-y-3">
+                        <h4 className="font-medium text-sm">To enable org-wide access:</h4>
+                        <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                          <li>Ensure these <strong>Application</strong> permissions are added to your Azure AD app:</li>
+                          <ul className="ml-4 mt-1 space-y-0.5">
+                            <li>• Mail.Read, Mail.ReadWrite (email access)</li>
+                            <li>• User.Read.All (user list)</li>
+                            <li>• Files.Read.All, Sites.Read.All (SharePoint/OneDrive)</li>
+                          </ul>
+                          <li>Click &quot;Enable & Grant Consent&quot; below</li>
+                          <li>Sign in as an Azure AD admin to approve</li>
+                        </ol>
+                      </div>
+
+                      <Button onClick={handleEnableFromEnv} disabled={saving}>
+                        {saving ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Shield className="h-4 w-4 mr-2" />
+                        )}
+                        Enable & Grant Consent
+                      </Button>
+                    </>
+                  ) : (
+                    // No env vars - need manual setup
+                    <>
+                      <div className="p-4 bg-white rounded-lg border space-y-3">
+                        <h4 className="font-medium text-sm">Requirements:</h4>
+                        <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                          <li>Azure AD App Registration with Application permissions</li>
+                          <li>Mail.Read, Mail.ReadWrite, User.Read.All (email)</li>
+                          <li>Files.Read.All, Sites.Read.All (SharePoint/OneDrive)</li>
+                          <li>Azure AD admin to grant organization consent</li>
+                        </ul>
+                      </div>
+
+                      <Button onClick={() => setSetupDialogOpen(true)}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        Configure App Credentials
+                      </Button>
+                    </>
+                  )}
+                </>
+              ) : orgStatus.status === "pending" ? (
+                // Configured but pending consent
+                <>
+                  <Alert>
+                    <Key className="h-4 w-4" />
+                    <AlertTitle>Admin Consent Required</AlertTitle>
+                    <AlertDescription>
+                      App credentials are configured. An Azure AD admin needs to grant organization-wide consent.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="flex items-center gap-2">
+                    <Button onClick={handleGrantConsent}>
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Grant Admin Consent
+                    </Button>
+                    <Button variant="outline" onClick={() => setSetupDialogOpen(true)}>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Edit Credentials
+                    </Button>
+                  </div>
+                </>
+              ) : orgStatus.status === "connected" ? (
+                // Connected and working
+                <>
+                  <div className="p-4 bg-white rounded-lg border">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Tenant ID</p>
+                        <p className="font-mono text-sm">{orgStatus.tenant_id}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Consent Granted By</p>
+                        <p className="text-sm">{orgStatus.admin_consent_granted_by || "Unknown"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Consent Granted</p>
+                        <p className="text-sm">
+                          {orgStatus.admin_consent_granted_at
+                            ? new Date(orgStatus.admin_consent_granted_at).toLocaleDateString("en-AU", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : "Unknown"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Last Sync</p>
+                        <p className="text-sm">
+                          {orgStatus.last_sync_at
+                            ? new Date(orgStatus.last_sync_at).toLocaleDateString("en-AU", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "Never"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Users in tenant */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-sm flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Tenant Users
+                      </h4>
+                      <Button variant="outline" size="sm" onClick={handleLoadUsers} disabled={loadingUsers}>
+                        {loadingUsers ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </div>
+
+                    {tenantUsers.length > 0 && (
+                      <div className="max-h-48 overflow-y-auto border rounded-lg">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted sticky top-0">
+                            <tr>
+                              <th className="text-left p-2 font-medium">Name</th>
+                              <th className="text-left p-2 font-medium">Email</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tenantUsers.map((u) => (
+                              <tr key={u.id} className="border-t">
+                                <td className="p-2">{u.name}</td>
+                                <td className="p-2 text-muted-foreground">{u.email}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* SharePoint Test Result */}
+                  {sharePointResult && (
+                    <Alert variant={sharePointResult.success ? "default" : "destructive"} className={sharePointResult.success ? "bg-green-50 border-green-200" : ""}>
+                      {sharePointResult.success ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4" />
+                      )}
+                      <AlertTitle>{sharePointResult.success ? "SharePoint Connected" : "SharePoint Error"}</AlertTitle>
+                      <AlertDescription>
+                        {sharePointResult.message}
+                        {sharePointResult.sites && sharePointResult.sites.length > 0 && (
+                          <ul className="mt-2 text-xs">
+                            {sharePointResult.sites.map((site, i) => (
+                              <li key={i}>• {site.name}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button variant="outline" onClick={handleTest} disabled={testing}>
+                      {testing ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Mail className="h-4 w-4 mr-2" />
+                      )}
+                      Test Email
+                    </Button>
+                    <Button variant="outline" onClick={handleTestSharePoint} disabled={testingSharePoint}>
+                      {testingSharePoint ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <FolderOpen className="h-4 w-4 mr-2" />
+                      )}
+                      Test SharePoint
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDisconnect}
+                      disabled={disconnecting}
+                    >
+                      {disconnecting ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <XCircle className="h-4 w-4 mr-2" />
+                      )}
+                      Disconnect
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                // Error state
+                <>
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Connection Error</AlertTitle>
+                    <AlertDescription>{orgStatus.last_error || "Unknown error"}</AlertDescription>
+                  </Alert>
+
+                  <div className="flex items-center gap-2">
+                    <Button onClick={handleGrantConsent}>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Re-Grant Consent
+                    </Button>
+                    <Button variant="outline" onClick={() => setSetupDialogOpen(true)}>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Edit Credentials
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Setup Dialog */}
+      <Dialog open={setupDialogOpen} onOpenChange={setSetupDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configure Azure AD App Credentials</DialogTitle>
+            <DialogDescription>
+              Enter the credentials from your Azure AD App Registration. These are used for the Client Credentials
+              flow to access organization mailboxes.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="clientId">Application (Client) ID</Label>
+              <Input
+                id="clientId"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="clientSecret">Client Secret</Label>
+              <Input
+                id="clientSecret"
+                type="password"
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
+                placeholder="Enter client secret"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tenantId">Directory (Tenant) ID</Label>
+              <Input
+                id="tenantId"
+                value={tenantId}
+                onChange={(e) => setTenantId(e.target.value)}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              />
+            </div>
+
+            <Alert>
+              <Building2 className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Find these values in Azure Portal → App Registrations → Your App → Overview
+              </AlertDescription>
+            </Alert>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSetupDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSetup}
+              disabled={saving || !clientId || !clientSecret || !tenantId}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Key className="h-4 w-4 mr-2" />
+              )}
+              Save & Request Consent
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -1018,7 +1018,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100009) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.text "contact_types", default: "{}"
+    t.string "contact_types", default: [], array: true
+    t.index ["contact_types"], name: "index_contact_roles_on_contact_types", using: :gin
     t.index ["name"], name: "index_contact_roles_on_name", unique: true
   end
 
@@ -1059,7 +1060,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100009) do
     t.datetime "updated_at", null: false
     t.datetime "last_synced_at"
     t.text "xero_sync_error"
-    t.text "contact_types", default: "{}"
+    t.string "contact_types", default: [], array: true
     t.integer "rating", default: 0
     t.decimal "response_rate", precision: 5, scale: 2, default: "0.0"
     t.integer "avg_response_time"
@@ -1121,6 +1122,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100009) do
     t.integer "linked_company_id"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
+    t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
@@ -2452,6 +2454,27 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100009) do
     t.index ["drive_id"], name: "index_one_drive_credentials_on_drive_id"
     t.index ["job_id"], name: "index_one_drive_credentials_on_job_id", unique: true
     t.index ["token_expires_at"], name: "index_one_drive_credentials_on_token_expires_at"
+  end
+
+  create_table "organization_microsoft_app_credentials", force: :cascade do |t|
+    t.string "client_id", null: false
+    t.text "client_secret"
+    t.string "tenant_id", null: false
+    t.text "access_token"
+    t.datetime "token_expires_at"
+    t.boolean "is_active", default: true
+    t.string "status", default: "pending"
+    t.text "last_error"
+    t.datetime "admin_consent_granted_at"
+    t.string "admin_consent_granted_by"
+    t.jsonb "sync_config", default: {}
+    t.datetime "last_sync_at"
+    t.bigint "setup_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_organization_microsoft_app_credentials_on_is_active", unique: true, where: "(is_active = true)"
+    t.index ["setup_by_id"], name: "index_organization_microsoft_app_credentials_on_setup_by_id"
+    t.index ["tenant_id"], name: "index_organization_microsoft_app_credentials_on_tenant_id"
   end
 
   create_table "organization_one_drive_credentials", force: :cascade do |t|
@@ -4520,6 +4543,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100009) do
   add_foreign_key "meetings", "users", column: "created_by_id"
   add_foreign_key "notifications", "users"
   add_foreign_key "one_drive_credentials", "jobs"
+  add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id"
   add_foreign_key "organization_one_drive_credentials", "users", column: "connected_by_id"
   add_foreign_key "pay_now_requests", "contacts"
   add_foreign_key "pay_now_requests", "pay_now_weekly_limits"

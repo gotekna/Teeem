@@ -4,11 +4,30 @@ class RefreshIntegrationTokensJob < ApplicationJob
   queue_as :default
 
   def perform
+    refresh_user_microsoft_tokens
     refresh_onedrive_tokens
     refresh_xero_tokens
   end
 
   private
+
+  # Refresh personal Microsoft tokens (for individual users)
+  def refresh_user_microsoft_tokens
+    # Find tokens expiring in the next 15 minutes
+    UserMicrosoftToken.connected.needs_refresh.find_each do |token|
+      Rails.logger.info "[TokenRefresh] Refreshing UserMicrosoftToken for user #{token.user_id} expiring at #{token.token_expires_at}"
+
+      begin
+        if token.refresh_access_token!
+          Rails.logger.info "[TokenRefresh] UserMicrosoftToken refreshed successfully for user #{token.user_id}"
+        else
+          Rails.logger.warn "[TokenRefresh] UserMicrosoftToken refresh failed for user #{token.user_id}: #{token.sync_error}"
+        end
+      rescue StandardError => e
+        Rails.logger.error "[TokenRefresh] Failed to refresh UserMicrosoftToken for user #{token.user_id}: #{e.message}"
+      end
+    end
+  end
 
   def refresh_onedrive_tokens
     # Find credentials expiring in the next 15 minutes

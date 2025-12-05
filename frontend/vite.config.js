@@ -6,13 +6,13 @@ export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   const env = loadEnv(mode, process.cwd(), '')
 
-  // Extract backend URL from VITE_API_URL, default to 3000
-  const apiUrl = env.VITE_API_URL || 'http://localhost:3000'
+  // Extract backend URL from VITE_API_URL, default to 3001
+  const apiUrl = env.VITE_API_URL || 'http://localhost:3001'
 
   return {
     plugins: [react()],
     server: {
-      port: 5173,
+      port: 3000,
       strictPort: true,
       proxy: {
         '/api': {

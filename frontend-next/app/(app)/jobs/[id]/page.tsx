@@ -18,7 +18,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ArrowLeft,
-  MapPin,
   Phone,
   Mail,
   Building2,
@@ -403,7 +402,7 @@ export default function JobDetailPage() {
         <TabsContent value="overview" className="mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Job Details */}
-            <Card className="lg:col-span-2">
+            <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Job Details</CardTitle>
                 {!isEditing ? (
@@ -429,7 +428,7 @@ export default function JobDetailPage() {
                 )}
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Title</Label>
                     {isEditing ? (
@@ -508,18 +507,6 @@ export default function JobDetailPage() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Contract Value</Label>
-                    {isEditing ? (
-                      <Input
-                        type="number"
-                        value={editForm.contract_value || ""}
-                        onChange={(e) => setEditForm({ ...editForm, contract_value: parseFloat(e.target.value) || 0 })}
-                      />
-                    ) : (
-                      <Input value={formatCurrency(job.contract_value || 0)} readOnly />
-                    )}
-                  </div>
-                  <div className="space-y-2">
                     <Label>Certifier Job No</Label>
                     {isEditing ? (
                       <Input
@@ -530,41 +517,29 @@ export default function JobDetailPage() {
                       <Input value={job.certifier_job_no || ""} readOnly />
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Start Date</Label>
-                    {isEditing ? (
-                      <Input
-                        type="date"
-                        value={editForm.start_date || ""}
-                        onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })}
-                      />
-                    ) : (
-                      <Input
-                        value={job.start_date
-                          ? new Date(job.start_date).toLocaleDateString("en-AU")
-                          : "Not set"}
-                        readOnly
-                      />
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Location</Label>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    {isEditing ? (
-                      <Input
-                        value={editForm.location || ""}
-                        onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                        className="flex-1"
-                      />
-                    ) : (
-                      <Input value={job.location || ""} readOnly className="flex-1" />
-                    )}
-                  </div>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Location Map */}
+            <div className="lg:col-span-1 h-full">
+              <LocationMap
+                jobId={job.id}
+                location={job.location}
+                latitude={job.latitude}
+                longitude={job.longitude}
+                onLocationUpdate={(data) => {
+                  // Update job state with new location data using functional update
+                  console.log("Job page received location update:", data);
+                  setJob((prevJob) => {
+                    console.log("Previous job location:", prevJob?.location);
+                    const newJob = prevJob ? { ...prevJob, ...data } : prevJob;
+                    console.log("New job location:", newJob?.location);
+                    return newJob;
+                  });
+                }}
+              />
+            </div>
 
             {/* Contacts */}
             <Card>
@@ -617,7 +592,7 @@ export default function JobDetailPage() {
             </Card>
 
             {/* Team */}
-            <Card className="lg:col-span-2">
+            <Card className="lg:col-span-3">
               <CardHeader>
                 <CardTitle>Team</CardTitle>
               </CardHeader>
@@ -647,20 +622,6 @@ export default function JobDetailPage() {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Location Map */}
-            <div className="lg:col-span-1">
-              <LocationMap
-                jobId={job.id}
-                location={job.location}
-                latitude={job.latitude}
-                longitude={job.longitude}
-                onLocationUpdate={(data) => {
-                  // Update job state with new location data
-                  setJob({ ...job, ...data });
-                }}
-              />
-            </div>
           </div>
         </TabsContent>
 

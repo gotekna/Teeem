@@ -64,6 +64,9 @@ Rails.application.routes.draw do
       get 'health/pricebook/missing_items', to: 'health#missing_items'
       get 'pricebook/price_health_check', to: 'pricebook_items#price_health_check'
 
+      # Geocoding proxy (uses Mapbox on backend to avoid CORS issues)
+      get 'geocode/search', to: 'geocode#search'
+
       # Job setup (types, statuses, and stages)
       resources :job_types do
         collection do
@@ -410,7 +413,7 @@ Rails.application.routes.draw do
         end
       end
 
-      # Microsoft unified auth (Outlook + OneDrive + SharePoint)
+      # Microsoft unified auth (Outlook + OneDrive + SharePoint) - User-level OAuth
       resources :microsoft, only: [], controller: 'microsoft_auth' do
         collection do
           get :auth_url
@@ -420,9 +423,32 @@ Rails.application.routes.draw do
           get :my_data_stats
           post :refresh
           delete :disconnect
-          # Admin consent for organization-wide permissions
+          # Admin consent for organization-wide permissions (legacy)
           get :admin_consent_url
           get :admin_consent_callback
+        end
+      end
+
+      # Microsoft App-level access (Client Credentials) - Org-wide email & SharePoint access
+      # Uses Application permissions - no per-user OAuth needed
+      resources :microsoft_app, only: [], controller: 'microsoft_app' do
+        collection do
+          get :status
+          post :setup
+          post :setup_from_env  # Quick setup using existing OUTLOOK_* env vars
+          get :admin_consent_url
+          get :admin_consent_callback
+          post :test
+          get :users
+          post :configure_sync
+          delete :disconnect
+          # SharePoint/OneDrive endpoints
+          get :sharepoint_sites
+          get :site_drives
+          get :browse
+          get :user_onedrive
+          get :search_files
+          post :test_sharepoint
         end
       end
 
