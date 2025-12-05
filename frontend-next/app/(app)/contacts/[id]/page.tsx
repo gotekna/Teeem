@@ -42,8 +42,12 @@ import { api } from "@/lib/api";
 import { slugifyContactName } from "@/lib/url-utils";
 import { cn } from "@/lib/utils";
 import { ContactEditModal } from "@/components/contacts/ContactEditModal";
+import { XeroSyncSection } from "@/components/contacts/XeroSyncSection";
+import { XeroTransactionsSection } from "@/components/contacts/XeroTransactionsSection";
+import { XeroInvoiceDetailModal } from "@/components/contacts/XeroInvoiceDetailModal";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { type TableColumn } from "@/components/table/types";
+import type { XeroLink } from "@/types/xero";
 
 // Helper function to format ABN as XX XXX XXX XXX
 const formatABN = (abn: string | null) => {
@@ -303,6 +307,9 @@ export default function ContactDetailPage() {
   const [loadingShareholdings, setLoadingShareholdings] = useState(false);
   const [trustRoles, setTrustRoles] = useState<TrustRolesData | null>(null);
   const [loadingTrustRoles, setLoadingTrustRoles] = useState(false);
+  const [selectedXeroLink, setSelectedXeroLink] = useState<XeroLink | null>(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [showInvoiceDetail, setShowInvoiceDetail] = useState(false);
 
   const activeTab = searchParams.get("tab") || "overview";
 
@@ -1880,52 +1887,31 @@ export default function ContactDetailPage() {
 
         {/* Xero Tab */}
         <TabsContent value="xero" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                Xero Integration
-                {contact.xero_contact_id ? (
-                  <Badge className="bg-green-100 text-green-700">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Linked
-                  </Badge>
-                ) : (
-                  <Badge variant="outline">Not Linked</Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {contact.xero_contact_id ? (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <ShieldCheck className="h-5 w-5 text-green-600" />
-                    <div>
-                      <p className="text-sm font-medium">Connected to Xero</p>
-                      <p className="text-xs text-muted-foreground">
-                        Xero Contact ID: {contact.xero_contact_id}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Sync enabled:</span>
-                    <Badge variant={contact.sync_with_xero ? "default" : "secondary"}>
-                      {contact.sync_with_xero ? "Yes" : "No"}
-                    </Badge>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground mb-4">
-                    This contact is not linked to Xero.
-                  </p>
-                  <Button variant="outline">
-                    Link to Xero Contact
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <XeroSyncSection
+              contact={contact}
+              onContactUpdate={(updatedContact) => setContact(updatedContact)}
+            />
+            <XeroTransactionsSection
+              contactId={contact.id}
+              xeroLink={selectedXeroLink}
+              onViewInvoiceDetail={(invoiceId) => {
+                setSelectedInvoiceId(invoiceId);
+                setShowInvoiceDetail(true);
+              }}
+            />
+          </div>
         </TabsContent>
+
+        {/* Xero Invoice Detail Modal */}
+        <XeroInvoiceDetailModal
+          isOpen={showInvoiceDetail}
+          onClose={() => {
+            setShowInvoiceDetail(false);
+            setSelectedInvoiceId(null);
+          }}
+          invoiceId={selectedInvoiceId}
+        />
 
         {/* Company Groups Tab */}
         <TabsContent value="company-groups" className="mt-6">
