@@ -384,10 +384,18 @@ export function SharePointFolderBrowser({
                 )}
                 <span className="flex-1 truncate text-sm">{folder.name}</span>
                 {folder.child_count > 0 && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 rounded px-1 py-0.5 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleFolderDoubleClick(folder);
+                    }}
+                    title="Click to expand folder"
+                  >
                     <span>{folder.child_count}</span>
                     <ChevronRight className="h-4 w-4" />
-                  </div>
+                  </button>
                 )}
               </div>
             ))}
@@ -397,7 +405,7 @@ export function SharePointFolderBrowser({
 
       {/* Help Text */}
       <p className="text-xs text-muted-foreground mt-2 px-1">
-        Click to select a folder. Double-click to navigate into it.
+        Click to select a folder. Click the arrow (→) to navigate into subfolders.
       </p>
     </div>
   );
