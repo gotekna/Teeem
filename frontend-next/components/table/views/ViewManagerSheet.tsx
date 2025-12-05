@@ -993,7 +993,13 @@ export function ViewManagerSheet({
                                 )}
                                 Save
                               </Button>
-                              <Button size="sm" onClick={async () => { await handleSaveView(); setIsEditing(false); onOpenChange(false); }} disabled={saving}>
+                              <Button size="sm" onClick={async () => {
+                                await handleSaveView();
+                                setIsEditing(false);
+                                // Small delay to ensure view state is applied before closing
+                                await new Promise(resolve => setTimeout(resolve, 100));
+                                onOpenChange(false);
+                              }} disabled={saving}>
                                 {saving ? (
                                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                 ) : (

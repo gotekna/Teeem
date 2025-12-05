@@ -709,6 +709,13 @@ export default function CaseDetailPage() {
     return () => clearTimeout(timer);
   }, [contactSearchQuery, showAddContact]);
 
+  // Load entities when Relationships tab is activated
+  React.useEffect(() => {
+    if (activeTab === "relationships" && contacts.length === 0) {
+      loadEntities();
+    }
+  }, [activeTab]);
+
   // Add contact to case
   const handleAddContactToCase = async (contactId: number) => {
     // Validate reason is provided
@@ -1817,17 +1824,68 @@ export default function CaseDetailPage() {
                   </CardContent>
                 </Card>
 
-                {/* Three Column Layout: Friendly | Neutral | Opposing */}
-                <div className="grid grid-cols-3 gap-6">
-                  {/* Column 1: Friendly/Client Contacts */}
+                {/* Four Column Layout: Client | Advisors | Neutral | Opposing */}
+                <div className="grid grid-cols-4 gap-4">
+                  {/* Column 1: Client (Primary + Friendly) */}
+                  <Card className="border-2 border-blue-300">
+                    <CardHeader className="bg-blue-50">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <User className="h-5 w-5 text-blue-600" />
+                        <span className="text-blue-600">Client</span>
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {contacts.filter(c => c.is_primary && c.alignment === 'friendly').length} contact{contacts.filter(c => c.is_primary && c.alignment === 'friendly').length !== 1 ? 's' : ''}
+                      </p>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      <div className="space-y-3">
+                        {contacts.filter(c => c.is_primary && c.alignment === 'friendly').map((contact) => (
+                          <div
+                            key={contact.id}
+                            className="p-3 border-2 border-blue-200 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
+                            onClick={() => {
+                              setEditContactId(contact.contact_id);
+                              setShowEditCaseContact(true);
+                            }}
+                          >
+                            <div className="flex items-start gap-2">
+                              <User className="h-4 w-4 text-blue-600 mt-1 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm truncate">{contact.contact_name}</p>
+                                <Badge className="bg-blue-600 text-xs mt-1">Primary</Badge>
+                                {contact.formatted_relationship_type && (
+                                  <p className="text-xs font-medium text-blue-700 mt-1">
+                                    {contact.formatted_relationship_type}
+                                  </p>
+                                )}
+                                <p className="text-xs text-muted-foreground mt-1 truncate">
+                                  {contact.contact_email || "No email"}
+                                </p>
+                                {contact.email_count !== undefined && contact.email_count > 0 && (
+                                  <Badge variant="secondary" className="text-sm font-semibold mt-1 px-3 py-1">
+                                    📧 {contact.email_count}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {contacts.filter(c => c.is_primary && c.alignment === 'friendly').length === 0 && (
+                          <p className="text-center py-6 text-xs text-muted-foreground">No client</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Column 2: Advisors (Friendly but not Primary) */}
                   <Card className="border-2 border-green-200">
                     <CardHeader className="bg-green-50">
                       <CardTitle className="text-lg flex items-center gap-2">
                         <User className="h-5 w-5 text-green-600" />
-                        <span className="text-green-600">Client</span>
+                        <span className="text-green-600">Advisors</span>
                       </CardTitle>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {contacts.filter(c => c.alignment === 'friendly').length} contact{contacts.filter(c => c.alignment === 'friendly').length !== 1 ? 's' : ''}
+                        {contacts.filter(c => c.alignment === 'friendly' && !c.is_primary).length} contact{contacts.filter(c => c.alignment === 'friendly' && !c.is_primary).length !== 1 ? 's' : ''}
                       </p>
                       <Button
                         variant="outline"
@@ -1841,7 +1899,7 @@ export default function CaseDetailPage() {
                     </CardHeader>
                     <CardContent className="pt-4">
                       <div className="space-y-3">
-                        {contacts.filter(c => c.alignment === 'friendly').map((contact) => (
+                        {contacts.filter(c => c.alignment === 'friendly' && !c.is_primary).map((contact) => (
                           <div
                             key={contact.id}
                             className="p-3 border-2 border-green-200 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
@@ -1866,7 +1924,7 @@ export default function CaseDetailPage() {
                                   {contact.contact_email || "No email"}
                                 </p>
                                 {contact.email_count !== undefined && contact.email_count > 0 && (
-                                  <Badge variant="secondary" className="text-xs mt-1">
+                                  <Badge variant="secondary" className="text-sm font-semibold mt-1 px-3 py-1">
                                     📧 {contact.email_count}
                                   </Badge>
                                 )}
@@ -1874,14 +1932,14 @@ export default function CaseDetailPage() {
                             </div>
                           </div>
                         ))}
-                        {contacts.filter(c => c.alignment === 'friendly').length === 0 && (
-                          <p className="text-center py-6 text-xs text-muted-foreground">No contacts</p>
+                        {contacts.filter(c => c.alignment === 'friendly' && !c.is_primary).length === 0 && (
+                          <p className="text-center py-6 text-xs text-muted-foreground">No advisors</p>
                         )}
                       </div>
                     </CardContent>
                   </Card>
 
-                  {/* Column 2: Neutral Contacts */}
+                  {/* Column 3: Neutral Contacts */}
                   <Card className="border-2 border-gray-200">
                     <CardHeader className="bg-gray-50">
                       <CardTitle className="text-lg flex items-center gap-2">
@@ -1916,7 +1974,7 @@ export default function CaseDetailPage() {
                                   {contact.contact_email || "No email"}
                                 </p>
                                 {contact.email_count !== undefined && contact.email_count > 0 && (
-                                  <Badge variant="secondary" className="text-xs mt-1">
+                                  <Badge variant="secondary" className="text-sm font-semibold mt-1 px-3 py-1">
                                     📧 {contact.email_count}
                                   </Badge>
                                 )}
@@ -1931,7 +1989,7 @@ export default function CaseDetailPage() {
                     </CardContent>
                   </Card>
 
-                  {/* Column 3: Opposing Contacts */}
+                  {/* Column 4: Opposing Contacts */}
                   <Card className="border-2 border-red-200">
                     <CardHeader className="bg-red-50">
                       <CardTitle className="text-lg flex items-center gap-2">
@@ -1966,7 +2024,7 @@ export default function CaseDetailPage() {
                                   {contact.contact_email || "No email"}
                                 </p>
                                 {contact.email_count !== undefined && contact.email_count > 0 && (
-                                  <Badge variant="secondary" className="text-xs mt-1">
+                                  <Badge variant="secondary" className="text-sm font-semibold mt-1 px-3 py-1">
                                     📧 {contact.email_count}
                                   </Badge>
                                 )}
@@ -3907,6 +3965,7 @@ export default function CaseDetailPage() {
           caseId={parseInt(caseId)}
           contactId={editContactId}
           onSaved={() => {
+            loadEntities();
             loadRelationshipGraph();
           }}
         />

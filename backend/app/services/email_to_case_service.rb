@@ -613,13 +613,34 @@ class EmailToCaseService
       .where.not(id: @email.id)
 
     thread_emails.each_with_index do |email, index|
+      # Skip marketing/spam emails (new filtering logic)
+      next if email.classified_as_irrelevant?
+
+      # Calculate relevance based on content
+      relevance = calculate_thread_email_relevance(email, case_record)
+
+      # Only link if minimally relevant
+      next if relevance == 'irrelevant'
+
       case_record.add_email(
         email,
-        relevance: 'supporting',
+        relevance: relevance,
         notes: "Email #{index + 1} in thread",
         added_by: @user
       )
     end
+  end
+
+  # Calculate relevance of thread email based on content
+  def calculate_thread_email_relevance(email, case_record)
+    # Check if email mentions case title/details
+    return 'key_evidence' if case_record.title.present? && email.subject&.downcase&.include?(case_record.title.downcase)
+
+    # Default to supporting if it's a business email
+    return 'supporting' if email.is_business_email?
+
+    # Otherwise irrelevant
+    'irrelevant'
   end
 
   def sync_pdf_attachments_if_needed
