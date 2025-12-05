@@ -1,6 +1,6 @@
 # Background job for AI-based email classification using Claude Haiku
 # Only runs for emails with uncertain heuristic classification (confidence < 0.7)
-class ClassifyEmailWithAIJob < ApplicationJob
+class ClassifyEmailWithAiJob < ApplicationJob
   queue_as :default
 
   # Rate limiting to control AI costs: max 100 classifications per hour

@@ -75,7 +75,7 @@ class EmailClassificationService
 
     # Queue for AI classification if uncertain
     if result[:confidence] < 0.7
-      ClassifyEmailWithAIJob.perform_later(@email.id)
+      ClassifyEmailWithAiJob.perform_later(@email.id)
     else
       # Store heuristic result immediately
       @email.update_column(:email_classification, result)
