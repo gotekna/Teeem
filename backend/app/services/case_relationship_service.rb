@@ -272,7 +272,7 @@ class CaseRelationshipService
     edges = []
 
     # Find relationships between contacts and companies
-    @case.case_contacts.includes(contact: :company_members).each do |case_contact|
+    @case.case_contacts.includes(:contact).each do |case_contact|
       contact = case_contact.contact
       next unless contact
 
