@@ -435,6 +435,7 @@ Rails.application.routes.draw do
         collection do
           get :status
           post :setup
+          post :setup_from_env  # Quick setup using existing OUTLOOK_* env vars
           get :admin_consent_url
           get :admin_consent_callback
           post :test

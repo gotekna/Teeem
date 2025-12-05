@@ -583,6 +583,7 @@ interface OrgAppStatus {
   last_sync_at?: string;
   last_error?: string;
   token_valid?: boolean;
+  env_configured?: boolean;
 }
 
 interface TenantUser {
@@ -726,6 +727,25 @@ function OrgWideAccessSection() {
     }
   };
 
+  // Quick enable using existing env vars
+  const handleEnableFromEnv = async () => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      const response = await api.post<{ success: boolean; admin_consent_url: string; message: string }>(
+        "/api/v1/microsoft_app/setup_from_env"
+      );
+
+      // Redirect to admin consent
+      window.location.href = response.admin_consent_url;
+    } catch (err: unknown) {
+      const error = err as { data?: { error?: string }; message?: string };
+      setError(error.data?.error || error.message || "Failed to enable");
+      setSaving(false);
+    }
+  };
+
   // Don't show for non-admins
   if (!isAdmin) {
     return null;
@@ -809,24 +829,60 @@ function OrgWideAccessSection() {
                     <Building2 className="h-4 w-4" />
                     <AlertTitle>Enable Organization-Wide Email Access</AlertTitle>
                     <AlertDescription>
-                      Set up Application Permissions to sync emails from ALL users in your Microsoft 365 tenant
+                      Enable Application Permissions to sync emails from ALL users in your Microsoft 365 tenant
                       without requiring each user to connect individually.
                     </AlertDescription>
                   </Alert>
 
-                  <div className="p-4 bg-white rounded-lg border space-y-3">
-                    <h4 className="font-medium text-sm">Requirements:</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Azure AD App Registration with Application permissions</li>
-                      <li>Mail.Read, Mail.ReadWrite, User.Read.All permissions</li>
-                      <li>Azure AD admin to grant organization consent</li>
-                    </ul>
-                  </div>
+                  {orgStatus?.env_configured ? (
+                    // Env vars are configured - simple enable button
+                    <>
+                      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center gap-2 text-green-700">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span className="font-medium text-sm">Microsoft credentials detected</span>
+                        </div>
+                        <p className="text-sm text-green-600 mt-1">
+                          Using existing OUTLOOK_CLIENT_ID and OUTLOOK_TENANT_ID ({orgStatus?.tenant_id})
+                        </p>
+                      </div>
 
-                  <Button onClick={() => setSetupDialogOpen(true)}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Configure App Credentials
-                  </Button>
+                      <div className="p-4 bg-white rounded-lg border space-y-3">
+                        <h4 className="font-medium text-sm">To enable org-wide access:</h4>
+                        <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                          <li>Ensure Mail.Read and User.Read.All <strong>Application</strong> permissions are added to your Azure AD app</li>
+                          <li>Click &quot;Enable & Grant Consent&quot; below</li>
+                          <li>Sign in as an Azure AD admin to approve</li>
+                        </ol>
+                      </div>
+
+                      <Button onClick={handleEnableFromEnv} disabled={saving}>
+                        {saving ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Shield className="h-4 w-4 mr-2" />
+                        )}
+                        Enable & Grant Consent
+                      </Button>
+                    </>
+                  ) : (
+                    // No env vars - need manual setup
+                    <>
+                      <div className="p-4 bg-white rounded-lg border space-y-3">
+                        <h4 className="font-medium text-sm">Requirements:</h4>
+                        <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                          <li>Azure AD App Registration with Application permissions</li>
+                          <li>Mail.Read, Mail.ReadWrite, User.Read.All permissions</li>
+                          <li>Azure AD admin to grant organization consent</li>
+                        </ul>
+                      </div>
+
+                      <Button onClick={() => setSetupDialogOpen(true)}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        Configure App Credentials
+                      </Button>
+                    </>
+                  )}
                 </>
               ) : orgStatus.status === "pending" ? (
                 // Configured but pending consent
