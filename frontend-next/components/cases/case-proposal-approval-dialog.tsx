@@ -65,6 +65,8 @@ import {
   X,
   Loader2,
   Pencil,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { api } from "@/lib/api";
@@ -238,6 +240,8 @@ export function CaseProposalApprovalDialog({
   const [sourceFolderInputMode, setSourceFolderInputMode] = useState<"browse" | "type">("browse");
   const [filingFolderInputMode, setFilingFolderInputMode] = useState<"browse" | "type">("browse");
   const [newFilingFolder, setNewFilingFolder] = useState("");
+  const [sourceFolderFullscreen, setSourceFolderFullscreen] = useState(false);
+  const [filingFolderFullscreen, setFilingFolderFullscreen] = useState(false);
 
   // Reset form when proposal changes
   useEffect(() => {
@@ -566,16 +570,29 @@ export function CaseProposalApprovalDialog({
 
                   {/* Folder browser or input toggle */}
                   {showSourceFolderBrowser ? (
-                    <div className="border rounded-lg p-4 space-y-4">
+                    <div className={`border rounded-lg p-4 space-y-4 ${sourceFolderFullscreen ? "fixed inset-4 z-50 bg-background shadow-xl overflow-auto" : ""}`}>
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium text-sm">Select Source Folder</h4>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowSourceFolderBrowser(false)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSourceFolderFullscreen(!sourceFolderFullscreen)}
+                            title={sourceFolderFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                          >
+                            {sourceFolderFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setShowSourceFolderBrowser(false);
+                              setSourceFolderFullscreen(false);
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Browse / Type tabs */}
@@ -614,13 +631,16 @@ export function CaseProposalApprovalDialog({
                                 setSourceFolders(prev => [...prev, path]);
                               }
                             }}
-                            className="max-h-[250px]"
+                            className={sourceFolderFullscreen ? "h-[calc(100vh-280px)]" : "max-h-[250px]"}
                           />
                           <div className="flex justify-end pt-2 border-t">
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => setShowSourceFolderBrowser(false)}
+                              onClick={() => {
+                                setShowSourceFolderBrowser(false);
+                                setSourceFolderFullscreen(false);
+                              }}
                             >
                               Done
                             </Button>
@@ -695,16 +715,29 @@ export function CaseProposalApprovalDialog({
 
                   {/* Folder browser or input toggle */}
                   {showFilingFolderBrowser ? (
-                    <div className="border rounded-lg p-4 space-y-4">
+                    <div className={`border rounded-lg p-4 space-y-4 ${filingFolderFullscreen ? "fixed inset-4 z-50 bg-background shadow-xl overflow-auto" : ""}`}>
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium text-sm">Select Filing Folder</h4>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowFilingFolderBrowser(false)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setFilingFolderFullscreen(!filingFolderFullscreen)}
+                            title={filingFolderFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                          >
+                            {filingFolderFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setShowFilingFolderBrowser(false);
+                              setFilingFolderFullscreen(false);
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Browse / Type tabs */}
@@ -743,13 +776,16 @@ export function CaseProposalApprovalDialog({
                                 setFilingFolders(prev => [...prev, path]);
                               }
                             }}
-                            className="max-h-[250px]"
+                            className={filingFolderFullscreen ? "h-[calc(100vh-280px)]" : "max-h-[250px]"}
                           />
                           <div className="flex justify-end pt-2 border-t">
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => setShowFilingFolderBrowser(false)}
+                              onClick={() => {
+                                setShowFilingFolderBrowser(false);
+                                setFilingFolderFullscreen(false);
+                              }}
                             >
                               Done
                             </Button>
