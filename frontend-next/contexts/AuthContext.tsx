@@ -82,6 +82,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } else {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- checkAuth and user intentionally excluded to prevent re-auth loops
   }, [token, tokenChecked, devModeBypass]);
 
   const checkAuth = async () => {

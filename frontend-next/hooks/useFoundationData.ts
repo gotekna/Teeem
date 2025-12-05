@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
 
+// System columns to hide from table views
+const SYSTEM_COLUMNS = ['created_at', 'updated_at', 'deleted_at'];
+
 /**
  * API column format (what the backend returns)
  */

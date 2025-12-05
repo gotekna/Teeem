@@ -29,6 +29,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     loadUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount
   }, []);
 
   const loadUser = async () => {

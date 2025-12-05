@@ -103,7 +103,10 @@ export function useCorporateTable(
   // Get configuration for this entity type
   const foundationId = getFoundationId(entityType);
   const apiEndpoint = CORPORATE_API_ENDPOINTS[entityType];
-  const widthOverrides = COLUMN_WIDTH_OVERRIDES[entityType] || {};
+  const widthOverrides = useMemo(
+    () => COLUMN_WIDTH_OVERRIDES[entityType] || {},
+    [entityType]
+  );
 
   // ==========================================================================
   // Load Columns

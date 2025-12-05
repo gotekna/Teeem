@@ -64,6 +64,7 @@ export default function PublicHolidaysPage() {
 
   useEffect(() => {
     loadHolidays();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadHolidays uses selectedYear/selectedRegion from closure
   }, [selectedYear, selectedRegion]);
 
   const loadHolidays = async () => {

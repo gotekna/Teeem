@@ -5,6 +5,9 @@ import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
 import type { Foundation } from './useFoundationData';
 
+// System columns to hide from table views
+const SYSTEM_COLUMNS = ['created_at', 'updated_at', 'deleted_at'];
+
 /**
  * Extended return type with server-side search support
  */
@@ -226,9 +229,6 @@ export function useFoundationBySlug(
       loadData();
     }
   }, [autoLoad, loadData]);
-
-  // System columns to hide
-  const SYSTEM_COLUMNS = ['created_at', 'updated_at', 'deleted_at'];
 
   // Transform API columns to TeeemTableView format
   const columns: TableColumn[] = useMemo(() => {
