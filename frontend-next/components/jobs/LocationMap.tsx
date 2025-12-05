@@ -6,6 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { MapPin, Pencil, Check, X, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -148,10 +155,13 @@ export function LocationMap({
     setError(null);
   };
 
+  const [dialogOpen, setDialogOpen] = useState(false);
+
   const handleEditClick = () => {
     setIsEditMode(true);
     setTempPosition(mapPosition);
     setSearchAddress("");
+    setDialogOpen(true);
   };
 
   const handleCancelEdit = () => {
@@ -161,6 +171,7 @@ export function LocationMap({
     setSearchAddress("");
     setAddressSuggestions([]);
     setShowSuggestions(false);
+    setDialogOpen(false);
   };
 
   const handleSave = async () => {
@@ -183,6 +194,7 @@ export function LocationMap({
       setIsEditMode(false);
       setTempPosition(null);
       setError(null);
+      setDialogOpen(false);
 
       if (onLocationUpdate) {
         onLocationUpdate({
@@ -221,43 +233,69 @@ export function LocationMap({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <div className="flex items-center gap-3">
-          <MapPin className={`h-5 w-5 ${hasNoLocation ? "text-muted-foreground" : "text-green-600"}`} />
-          <div>
-            <CardTitle className="text-base">Job Location</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              {location || "No location set"}
-            </p>
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <div className="flex items-center gap-3">
+            <MapPin className={`h-5 w-5 ${hasNoLocation ? "text-muted-foreground" : "text-green-600"}`} />
+            <div>
+              <CardTitle className="text-base">Job Location</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {location || "No location set"}
+              </p>
+            </div>
           </div>
-        </div>
 
-        {!isEditMode ? (
           <Button variant="outline" size="sm" onClick={handleEditClick}>
             <Pencil className="h-4 w-4 mr-2" />
             {hasNoLocation ? "Add Pin" : "Edit Pin"}
           </Button>
-        ) : (
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={saving}>
-              <X className="h-4 w-4 mr-2" />
-              Cancel
-            </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving || !tempPosition}>
-              <Check className="h-4 w-4 mr-2" />
-              {saving ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        )}
-      </CardHeader>
+        </CardHeader>
 
-      <CardContent>
-        {isEditMode && (
-          <div className="mb-4 space-y-3">
+        <CardContent>
+          {displayPosition && !isEditMode && (
+            <div className="rounded-lg overflow-hidden border">
+              <MapContainer
+                center={displayPosition}
+                zoom={15}
+                style={{ height: "200px", width: "100%" }}
+                scrollWheelZoom={true}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <Marker position={displayPosition} />
+              </MapContainer>
+              {latitude && longitude && (
+                <div className="bg-muted px-4 py-2 flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">Click and drag to explore</p>
+                  <p className="text-xs text-muted-foreground">
+                    {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Edit Location Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => {
+        if (!open) handleCancelEdit();
+      }}>
+        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              {hasNoLocation ? "Add Job Location" : "Edit Job Location"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
             <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
               <p className="text-sm text-blue-800 dark:text-blue-200">
-                <strong>Edit Mode:</strong> Search for an address below, then click on the map to adjust the pin position.
+                Search for an address below, then click on the map to adjust the pin position.
               </p>
             </div>
 
@@ -275,7 +313,7 @@ export function LocationMap({
               )}
 
               {showSuggestions && addressSuggestions.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-background border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-[9999] w-full mt-1 bg-background border rounded-lg shadow-lg max-h-60 overflow-y-auto">
                   {addressSuggestions.map((suggestion) => (
                     <button
                       key={suggestion.id}
@@ -289,48 +327,55 @@ export function LocationMap({
                 </div>
               )}
             </div>
-          </div>
-        )}
 
-        {error && (
-          <div className="mb-3 p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200">{error}</p>
-          </div>
-        )}
+            {error && (
+              <div className="p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">{error}</p>
+              </div>
+            )}
 
-        {displayPosition && (
-          <div className="rounded-lg overflow-hidden border">
-            <MapContainer
-              center={displayPosition}
-              zoom={15}
-              style={{ height: "300px", width: "100%" }}
-              scrollWheelZoom={true}
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              <Marker position={displayPosition} />
-              {isEditMode && (
-                <MapClickHandler onMapClick={(pos) => setTempPosition(pos)} />
-              )}
-            </MapContainer>
-            <div className="bg-muted px-4 py-2 flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                {isEditMode
-                  ? "Click on the map to place the pin"
-                  : "Click and drag to explore"}
-              </p>
-              {latitude && longitude && (
-                <p className="text-xs text-muted-foreground">
-                  {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
-                </p>
-              )}
-            </div>
+            {displayPosition && (
+              <div className="rounded-lg overflow-hidden border">
+                <MapContainer
+                  center={displayPosition}
+                  zoom={15}
+                  style={{ height: "50vh", minHeight: "400px", width: "100%" }}
+                  scrollWheelZoom={true}
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <Marker position={displayPosition} />
+                  <MapClickHandler onMapClick={(pos) => setTempPosition(pos)} />
+                </MapContainer>
+                <div className="bg-muted px-4 py-2 flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Click on the map to place the pin
+                  </p>
+                  {tempPosition && typeof tempPosition[0] === 'number' && typeof tempPosition[1] === 'number' && (
+                    <p className="text-xs text-muted-foreground">
+                      {tempPosition[0].toFixed(6)}, {tempPosition[1].toFixed(6)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={handleCancelEdit} disabled={saving}>
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !tempPosition}>
+              <Check className="h-4 w-4 mr-2" />
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
