@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Dialog,
   DialogContent,
@@ -432,6 +433,7 @@ export function CaseProposalApprovalDialog({
   const confidencePercent = Math.round(confidenceScore * 100);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
@@ -569,8 +571,8 @@ export function CaseProposalApprovalDialog({
                   )}
 
                   {/* Folder browser or input toggle */}
-                  {showSourceFolderBrowser ? (
-                    <div className={`border rounded-lg p-4 space-y-4 ${sourceFolderFullscreen ? "fixed inset-4 z-50 bg-background shadow-xl overflow-auto" : ""}`}>
+                  {showSourceFolderBrowser && !sourceFolderFullscreen ? (
+                    <div className="border rounded-lg p-4 space-y-4">
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium text-sm">Select Source Folder</h4>
                         <div className="flex items-center gap-1">
@@ -631,7 +633,7 @@ export function CaseProposalApprovalDialog({
                                 setSourceFolders(prev => [...prev, path]);
                               }
                             }}
-                            className={sourceFolderFullscreen ? "h-[calc(100vh-280px)]" : "max-h-[250px]"}
+                            className="max-h-[250px]"
                           />
                           <div className="flex justify-between items-center pt-2 border-t">
                             <Button
@@ -722,8 +724,8 @@ export function CaseProposalApprovalDialog({
                   )}
 
                   {/* Folder browser or input toggle */}
-                  {showFilingFolderBrowser ? (
-                    <div className={`border rounded-lg p-4 space-y-4 ${filingFolderFullscreen ? "fixed inset-4 z-50 bg-background shadow-xl overflow-auto" : ""}`}>
+                  {showFilingFolderBrowser && !filingFolderFullscreen ? (
+                    <div className="border rounded-lg p-4 space-y-4">
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium text-sm">Select Filing Folder</h4>
                         <div className="flex items-center gap-1">
@@ -784,7 +786,7 @@ export function CaseProposalApprovalDialog({
                                 setFilingFolders(prev => [...prev, path]);
                               }
                             }}
-                            className={filingFolderFullscreen ? "h-[calc(100vh-280px)]" : "max-h-[250px]"}
+                            className="max-h-[250px]"
                           />
                           <div className="flex justify-between items-center pt-2 border-t">
                             <Button
@@ -1186,6 +1188,129 @@ export function CaseProposalApprovalDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Fullscreen Source Folder Browser - rendered via portal */}
+    {sourceFolderFullscreen && typeof document !== 'undefined' && createPortal(
+      <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold">Select Source Folder</h2>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSourceFolderFullscreen(false)}
+            >
+              <Minimize2 className="w-4 h-4 mr-2" />
+              Exit Fullscreen
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowSourceFolderBrowser(false);
+                setSourceFolderFullscreen(false);
+              }}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+        <div className="flex-1 p-4 overflow-auto">
+          <SharePointFolderBrowser
+            onSelect={(folder, path) => {
+              if (path && !sourceFolders.includes(path)) {
+                setSourceFolders(prev => [...prev, path]);
+              }
+            }}
+            className="h-full"
+          />
+        </div>
+        {sourceFolders.length > 0 && (
+          <div className="p-4 border-t bg-muted/50">
+            <p className="text-sm font-medium mb-2">Selected folders ({sourceFolders.length}):</p>
+            <div className="flex flex-wrap gap-2">
+              {sourceFolders.map((path, idx) => (
+                <Badge key={idx} variant="secondary" className="flex items-center gap-1">
+                  <FolderOpen className="w-3 h-3" />
+                  {path}
+                  <button onClick={() => removeSourceFolder(idx)} className="ml-1 hover:text-red-500">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="p-4 border-t flex justify-end">
+          <Button onClick={() => setSourceFolderFullscreen(false)}>
+            Done
+          </Button>
+        </div>
+      </div>,
+      document.body
+    )}
+
+    {/* Fullscreen Filing Folder Browser - rendered via portal */}
+    {filingFolderFullscreen && typeof document !== 'undefined' && createPortal(
+      <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold">Select Filing Folder</h2>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFilingFolderFullscreen(false)}
+            >
+              <Minimize2 className="w-4 h-4 mr-2" />
+              Exit Fullscreen
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowFilingFolderBrowser(false);
+                setFilingFolderFullscreen(false);
+              }}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+        <div className="flex-1 p-4 overflow-auto">
+          <SharePointFolderBrowser
+            onSelect={(folder, path) => {
+              if (path && !filingFolders.includes(path)) {
+                setFilingFolders(prev => [...prev, path]);
+              }
+            }}
+            className="h-full"
+          />
+        </div>
+        {filingFolders.length > 0 && (
+          <div className="p-4 border-t bg-muted/50">
+            <p className="text-sm font-medium mb-2">Selected folders ({filingFolders.length}):</p>
+            <div className="flex flex-wrap gap-2">
+              {filingFolders.map((path, idx) => (
+                <Badge key={idx} variant="secondary" className="flex items-center gap-1 bg-green-100 text-green-800">
+                  <FolderOpen className="w-3 h-3" />
+                  {path}
+                  <button onClick={() => removeFilingFolder(idx)} className="ml-1 hover:text-red-500">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="p-4 border-t flex justify-end">
+          <Button onClick={() => setFilingFolderFullscreen(false)}>
+            Done
+          </Button>
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   );
 }
 
