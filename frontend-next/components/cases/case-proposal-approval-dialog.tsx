@@ -613,7 +613,7 @@ export function CaseProposalApprovalDialog({
                               setSourceFolders(prev => [...prev, path]);
                             }
                           }}
-                          className="min-h-[300px]"
+                          className="max-h-[250px]"
                         />
                       ) : (
                         <div className="flex items-center gap-2">
@@ -731,7 +731,7 @@ export function CaseProposalApprovalDialog({
                               setFilingFolders(prev => [...prev, path]);
                             }
                           }}
-                          className="min-h-[300px]"
+                          className="max-h-[250px]"
                         />
                       ) : (
                         <div className="flex items-center gap-2">

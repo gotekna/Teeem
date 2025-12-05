@@ -218,14 +218,37 @@ export function SharePointFolderBrowser({
   };
 
   if (error && !switchingDrive) {
+    const isNotConnected = error.toLowerCase().includes("not connected") || error.toLowerCase().includes("unauthorized");
     return (
       <div className={cn("flex flex-col items-center justify-center p-8 text-center", className)}>
-        <AlertCircle className="h-8 w-8 text-destructive mb-2" />
-        <p className="text-sm text-destructive mb-4">{error}</p>
-        <Button variant="outline" size="sm" onClick={() => loadFolders(currentFolderId)}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Retry
-        </Button>
+        <AlertCircle className={cn("h-8 w-8 mb-2", isNotConnected ? "text-amber-500" : "text-destructive")} />
+        <p className={cn("text-sm mb-2", isNotConnected ? "text-amber-600" : "text-destructive")}>
+          {isNotConnected ? "OneDrive not connected" : error}
+        </p>
+        {isNotConnected ? (
+          <>
+            <p className="text-xs text-muted-foreground mb-4">
+              Connect your OneDrive/SharePoint in Settings to browse folders
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <a href="/settings/integrations/microsoft" target="_blank">
+                  <Cloud className="h-4 w-4 mr-2" />
+                  Connect OneDrive
+                </a>
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => loadFolders(currentFolderId)}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          </>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => loadFolders(currentFolderId)}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        )}
       </div>
     );
   }
@@ -305,7 +328,7 @@ export function SharePointFolderBrowser({
       </div>
 
       {/* Folder List */}
-      <ScrollArea className="h-[250px] rounded-b-md border border-t-0">
+      <ScrollArea className="h-[200px] rounded-b-md border border-t-0">
         {loading || switchingDrive ? (
           <div className="p-2 space-y-2">
             {[...Array(5)].map((_, i) => (

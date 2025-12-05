@@ -65,7 +65,20 @@ curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version
 heroku releases --app teeemlive -n 1
 ```
 
-### Step 6 - Check Vercel Frontend Deploy
+### Step 6 - Report Deploy Started
+
+**Immediately after pushing, show deploy initiated status with Brisbane time:**
+```
+========================================
+DEPLOY STARTED
+Backend: v[XXX] (pushing to Heroku...)
+Frontend: ⏳ building
+Heroku: v[XXX]
+Started: H:MM D/M (Brisbane time)
+========================================
+```
+
+### Step 7 - Check Vercel Frontend Deploy
 
 **Wait for Vercel to finish deploying the frontend:**
 
@@ -88,15 +101,16 @@ vercel inspect teeemlive.vercel.app
 Status: [Building/Queued/Ready]
 ```
 
-### Step 7 - Report Status
+### Step 8 - Report Final Status
 
-Show compact deploy summary matching TEEEM sidebar format (same order):
+**Show TWO timestamps - when deploy started AND when it completed:**
 ```
 ========================================
 Backend: v[XXX]
 Frontend: v[XX] ✓ deployed
 Heroku: v[XXX]
-D: H:MM D/M (e.g., 9:23 5/12)
+Started: H:MM D/M
+Completed: H:MM D/M
 ========================================
 ```
 
@@ -104,7 +118,8 @@ Get values from:
 - Backend version: from /version endpoint (use correct URL: teeemlive-ce8e2660a615.herokuapp.com)
 - Frontend: Show "✓ deployed" when Vercel shows Ready, or "⏳ building" if still in progress
 - Heroku release: from `heroku releases --app teeemlive -n 1`
-- D: Current Brisbane time in H:MM D/M format
+- Started: Brisbane time when git push was initiated
+- Completed: Brisbane time when Vercel shows Ready
 
 ## Error Handling
 
