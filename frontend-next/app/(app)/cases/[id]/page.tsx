@@ -1742,44 +1742,248 @@ export default function CaseDetailPage() {
         )}
 
         {activeTab === "relationships" && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Network className="h-5 w-5" />
-                Case Relationships
-              </CardTitle>
-              <Button variant="outline" size="sm" onClick={() => loadRelationshipGraph()}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {loadingRelationships ? (
-                <div className="flex items-center justify-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <CaseRelationshipChart
-                  caseId={parseInt(caseId)}
-                  data={relationshipGraph}
-                  onContactClick={(contactId) => {
-                    setEditContactId(contactId);
-                    setShowEditCaseContact(true);
-                  }}
-                  onCompanyClick={(companyId) => router.push(`/corporate/companies/${companyId}`)}
-                  onJobClick={(jobId) => router.push(`/jobs/${jobId}`)}
-                  onCaseClick={(relatedCaseId) => router.push(`/cases/${relatedCaseId}`)}
-                  onPositionChange={handleSaveContactPosition}
-                />
-              )}
-              <div className="mt-4 text-sm text-muted-foreground">
-                <p>
-                  Click on a contact to edit their relationship to this case. Drag nodes to reposition.
-                  Node positions are saved automatically.
-                </p>
+          <div className="space-y-6">
+            {loadingRelationships ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            </CardContent>
-          </Card>
+            ) : (
+              <>
+                {/* Section 1: Case Info & Sub-cases (Full Width) */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Case & Sub-cases
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Main Case Info */}
+                    <div className="p-4 bg-blue-50 border-2 border-blue-400 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="font-semibold text-lg">{caseData?.title}</h3>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {caseData?.case_number} • {caseData?.formatted_case_type}
+                          </p>
+                          <div className="flex items-center gap-2 mt-3">
+                            <Badge variant={
+                              caseData?.status === 'open' ? 'default' :
+                              caseData?.status === 'in_progress' ? 'secondary' :
+                              caseData?.status === 'closed' ? 'outline' : 'default'
+                            }>
+                              {caseData?.formatted_status}
+                            </Badge>
+                            <Badge variant={
+                              caseData?.priority === 'urgent' ? 'destructive' :
+                              caseData?.priority === 'high' ? 'default' : 'secondary'
+                            }>
+                              {caseData?.formatted_priority}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sub-cases */}
+                    {caseData?.child_cases && caseData.child_cases.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">Sub-cases ({caseData.child_cases.length})</h4>
+                        <div className="space-y-2">
+                          {caseData.child_cases.map((subCase) => (
+                            <div
+                              key={subCase.id}
+                              className="p-3 border-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                              onClick={() => router.push(`/cases/${subCase.id}`)}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <p className="font-medium">{subCase.title}</p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {subCase.case_number} • {subCase.formatted_case_type}
+                                  </p>
+                                </div>
+                                <Badge variant={subCase.status === 'open' ? 'default' : 'outline'}>
+                                  {subCase.formatted_status}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Three Column Layout: Friendly | Neutral | Opposing */}
+                <div className="grid grid-cols-3 gap-6">
+                  {/* Column 1: Friendly/Client Contacts */}
+                  <Card className="border-2 border-green-200">
+                    <CardHeader className="bg-green-50">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <User className="h-5 w-5 text-green-600" />
+                        <span className="text-green-600">Client</span>
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {contacts.filter(c => c.alignment === 'friendly').length} contact{contacts.filter(c => c.alignment === 'friendly').length !== 1 ? 's' : ''}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 w-full"
+                        onClick={() => setShowAddContact(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Contact
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      <div className="space-y-3">
+                        {contacts.filter(c => c.alignment === 'friendly').map((contact) => (
+                          <div
+                            key={contact.id}
+                            className="p-3 border-2 border-green-200 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
+                            onClick={() => {
+                              setEditContactId(contact.contact_id);
+                              setShowEditCaseContact(true);
+                            }}
+                          >
+                            <div className="flex items-start gap-2">
+                              <User className="h-4 w-4 text-green-600 mt-1 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm truncate">{contact.contact_name}</p>
+                                {contact.is_primary && (
+                                  <Badge className="bg-blue-600 text-xs mt-1">Primary</Badge>
+                                )}
+                                {contact.formatted_relationship_type && (
+                                  <p className="text-xs font-medium text-green-700 mt-1">
+                                    {contact.formatted_relationship_type}
+                                  </p>
+                                )}
+                                <p className="text-xs text-muted-foreground mt-1 truncate">
+                                  {contact.contact_email || "No email"}
+                                </p>
+                                {contact.email_count !== undefined && contact.email_count > 0 && (
+                                  <Badge variant="secondary" className="text-xs mt-1">
+                                    📧 {contact.email_count}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {contacts.filter(c => c.alignment === 'friendly').length === 0 && (
+                          <p className="text-center py-6 text-xs text-muted-foreground">No contacts</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Column 2: Neutral Contacts */}
+                  <Card className="border-2 border-gray-200">
+                    <CardHeader className="bg-gray-50">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <User className="h-5 w-5 text-gray-600" />
+                        <span className="text-gray-600">Neutral</span>
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {contacts.filter(c => !c.alignment || c.alignment === 'neutral').length} contact{contacts.filter(c => !c.alignment || c.alignment === 'neutral').length !== 1 ? 's' : ''}
+                      </p>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      <div className="space-y-3">
+                        {contacts.filter(c => !c.alignment || c.alignment === 'neutral').map((contact) => (
+                          <div
+                            key={contact.id}
+                            className="p-3 border-2 border-gray-200 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => {
+                              setEditContactId(contact.contact_id);
+                              setShowEditCaseContact(true);
+                            }}
+                          >
+                            <div className="flex items-start gap-2">
+                              <User className="h-4 w-4 text-gray-600 mt-1 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm truncate">{contact.contact_name}</p>
+                                {contact.formatted_relationship_type && (
+                                  <p className="text-xs font-medium text-gray-700 mt-1">
+                                    {contact.formatted_relationship_type}
+                                  </p>
+                                )}
+                                <p className="text-xs text-muted-foreground mt-1 truncate">
+                                  {contact.contact_email || "No email"}
+                                </p>
+                                {contact.email_count !== undefined && contact.email_count > 0 && (
+                                  <Badge variant="secondary" className="text-xs mt-1">
+                                    📧 {contact.email_count}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {contacts.filter(c => !c.alignment || c.alignment === 'neutral').length === 0 && (
+                          <p className="text-center py-6 text-xs text-muted-foreground">No contacts</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Column 3: Opposing Contacts */}
+                  <Card className="border-2 border-red-200">
+                    <CardHeader className="bg-red-50">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <User className="h-5 w-5 text-red-600" />
+                        <span className="text-red-600">Opposing</span>
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {contacts.filter(c => c.alignment === 'opposing').length} contact{contacts.filter(c => c.alignment === 'opposing').length !== 1 ? 's' : ''}
+                      </p>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      <div className="space-y-3">
+                        {contacts.filter(c => c.alignment === 'opposing').map((contact) => (
+                          <div
+                            key={contact.id}
+                            className="p-3 border-2 border-red-200 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
+                            onClick={() => {
+                              setEditContactId(contact.contact_id);
+                              setShowEditCaseContact(true);
+                            }}
+                          >
+                            <div className="flex items-start gap-2">
+                              <User className="h-4 w-4 text-red-600 mt-1 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm truncate">{contact.contact_name}</p>
+                                {contact.formatted_relationship_type && (
+                                  <p className="text-xs font-medium text-red-700 mt-1">
+                                    {contact.formatted_relationship_type}
+                                  </p>
+                                )}
+                                <p className="text-xs text-muted-foreground mt-1 truncate">
+                                  {contact.contact_email || "No email"}
+                                </p>
+                                {contact.email_count !== undefined && contact.email_count > 0 && (
+                                  <Badge variant="secondary" className="text-xs mt-1">
+                                    📧 {contact.email_count}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {contacts.filter(c => c.alignment === 'opposing').length === 0 && (
+                          <p className="text-center py-6 text-xs text-muted-foreground">No contacts</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         {activeTab === "chat" && (
@@ -2706,11 +2910,11 @@ export default function CaseDetailPage() {
                     </div>
 
                     {/* Sub-cases */}
-                    {subCases && subCases.length > 0 && (
+                    {caseData?.child_cases && caseData.child_cases.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-semibold mb-2">Sub-cases ({subCases.length})</h4>
+                        <h4 className="text-sm font-semibold mb-2">Sub-cases ({caseData.child_cases.length})</h4>
                         <div className="space-y-2">
-                          {subCases.map((subCase) => (
+                          {caseData.child_cases.map((subCase) => (
                             <div
                               key={subCase.id}
                               className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
