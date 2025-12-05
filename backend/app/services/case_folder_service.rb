@@ -5,7 +5,6 @@ class CaseFolderService
 
   def initialize(case_record)
     @case = case_record
-    @organization = case_record.organization
   end
 
   # Create a dedicated folder for this case in OneDrive
@@ -75,13 +74,13 @@ class CaseFolderService
   private
 
   def onedrive_connected?
-    credential = OrganizationOnedriveCredential.find_by(organization_id: @organization&.id)
+    credential = OrganizationOneDriveCredential.active_credential
     credential&.access_token.present?
   end
 
   def graph_client
     @graph_client ||= begin
-      credential = OrganizationOnedriveCredential.find_by(organization_id: @organization&.id)
+      credential = OrganizationOneDriveCredential.active_credential
       raise "OneDrive not connected for organization" unless credential
 
       MicrosoftGraphClient.new(credential)

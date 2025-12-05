@@ -40,9 +40,20 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 
 // Types for relationship data
+interface EmployeeData {
+  id: number;
+  name: string;
+  email?: string;
+  phone?: string;
+  relationship_type?: string;
+  formatted_relationship_type?: string;
+  alignment?: string;
+  is_primary?: boolean;
+}
+
 interface RelationshipNode {
   id: string;
-  type: "contact" | "company" | "case" | "job" | "parent_case" | "child_case";
+  type: "contact" | "company" | "case" | "job" | "parent_case" | "child_case" | "company_group";
   position: { x: number; y: number };
   data: {
     name: string;
@@ -56,6 +67,9 @@ interface RelationshipNode {
     case_id?: number;
     job_id?: number;
     company_id?: number;
+    company_name?: string;
+    employees?: EmployeeData[];
+    employee_count?: number;
   };
 }
 
@@ -275,6 +289,84 @@ interface CompanyNodeData {
   onClick?: () => void;
 }
 
+// Custom node component for company groups (contacts from same company)
+function CompanyGroupNode({ data }: { data: CompanyGroupNodeData }) {
+  const { companyName, employees, alignment, onEmployeeClick } = data;
+  const alignmentStyle = ALIGNMENT_STYLES[alignment || ""] || DEFAULT_ALIGNMENT;
+
+  return (
+    <div
+      className="min-w-[280px] max-w-[360px] rounded-lg border-2 shadow-lg text-base bg-white dark:bg-gray-900"
+      style={{ borderColor: alignmentStyle.color }}
+    >
+      <Handle type="target" position={Position.Top} className="!bg-indigo-400" />
+      <Handle type="source" position={Position.Bottom} className="!bg-indigo-400" />
+
+      {/* Company header */}
+      <div className="px-4 py-3 rounded-t-md flex items-center gap-3 bg-indigo-100 dark:bg-indigo-900/50">
+        <Building2 className="h-5 w-5 text-indigo-600" />
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold truncate">{companyName}</div>
+          <div className="text-xs text-muted-foreground">
+            {employees?.length || 0} contacts
+          </div>
+        </div>
+        {alignment && alignment !== 'neutral' && (
+          <span
+            className="px-2 py-0.5 text-xs rounded-full text-white"
+            style={{ backgroundColor: alignmentStyle.color }}
+          >
+            {alignmentStyle.label}
+          </span>
+        )}
+      </div>
+
+      {/* Employee list */}
+      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+        {employees?.map((employee) => {
+          const empStyle = RELATIONSHIP_STYLES[employee.relationship_type || ""] || DEFAULT_STYLE;
+          const Icon = empStyle.icon;
+
+          return (
+            <div
+              key={employee.id}
+              className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer flex items-center gap-3"
+              onClick={() => onEmployeeClick?.(employee.id)}
+            >
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                style={{ backgroundColor: empStyle.color }}
+              >
+                <Icon className="h-3 w-3" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate flex items-center gap-2">
+                  {employee.name}
+                  {employee.is_primary && (
+                    <span className="px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-800 rounded">
+                      Primary
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground capitalize">
+                  {employee.formatted_relationship_type || employee.relationship_type?.replace(/_/g, " ") || "Contact"}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+interface CompanyGroupNodeData {
+  companyName: string;
+  employees?: EmployeeData[];
+  alignment?: string;
+  onEmployeeClick?: (contactId: number) => void;
+}
+
 // Custom node component for jobs
 function JobNode({ data }: { data: JobNodeData }) {
   const { label, jobId, address, onClick } = data;
@@ -442,6 +534,7 @@ const nodeTypes = {
   case: CaseNode,
   contact: ContactNode,
   company: CompanyNode,
+  company_group: CompanyGroupNode,
   job: JobNode,
   parent_case: ParentCaseNode,
   child_case: ChildCaseNode,
@@ -491,6 +584,15 @@ export default function CaseRelationshipChart({
         nodeData.relationshipType = node.data.relationship_type;
         nodeData.alignment = node.data.alignment;
         nodeData.isPrimary = node.data.is_primary;
+      } else if (node.type === "company_group") {
+        // Company group node with employees inside
+        nodeData.companyName = apiData.company_name;
+        nodeData.employees = apiData.employees as EmployeeData[];
+        nodeData.alignment = apiData.alignment;
+        // Allow clicking on individual employees
+        if (onContactClick) {
+          nodeData.onEmployeeClick = (contactId: number) => onContactClick(contactId);
+        }
       } else if (node.type === "company" && onCompanyClick && node.data.company_id) {
         nodeData.onClick = () => onCompanyClick(node.data.company_id!);
         nodeData.label = node.data.name;
@@ -625,6 +727,7 @@ export default function CaseRelationshipChart({
             if (node.type === "parent_case") return "#3b82f6"; // blue
             if (node.type === "child_case") return "#94a3b8"; // slate
             if (node.type === "company") return "#818cf8";
+            if (node.type === "company_group") return "#6366f1"; // indigo for company groups
             if (node.type === "job") return "#fbbf24";
 
             // For contacts, use relationship type color

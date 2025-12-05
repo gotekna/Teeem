@@ -1986,6 +1986,8 @@ module Api
           :is_family_member,
           :is_potential_director,
           :company_group_id,
+          # Company/Employee linking
+          :primary_company_id,
           # NOTE: Xero accounting fields (bank details, payment terms, balances) are READ-ONLY
           # They are synced from Xero and cannot be edited in TEEEM
           # See Contact::XERO_READ_ONLY_FIELDS for the full list
