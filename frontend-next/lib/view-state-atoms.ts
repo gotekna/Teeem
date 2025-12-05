@@ -218,8 +218,6 @@ export const applyViewAtom = atom(
     }
 
     // Display options - check both direct property and columns object (API format varies)
-    const viewAny = view as SavedView & { columns?: { autoFitColumns?: boolean; showTotals?: boolean } };
-
     if (typeof view.autoFitColumns === 'boolean') {
       set(currentAutoFitColumnsAtom, view.autoFitColumns);
     } else if (viewAny.columns && typeof viewAny.columns.autoFitColumns === 'boolean') {
