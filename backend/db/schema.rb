@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_05_100015) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_05_115752) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -299,9 +299,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100015) do
     t.string "alignment", default: "neutral"
     t.text "reason", null: false
     t.bigint "added_by_id"
+    t.boolean "include_all_emails", default: false, null: false
     t.index ["added_by_id"], name: "index_case_contacts_on_added_by_id"
     t.index ["alignment"], name: "index_case_contacts_on_alignment"
     t.index ["case_id", "contact_id"], name: "index_case_contacts_on_case_id_and_contact_id", unique: true
+    t.index ["case_id", "include_all_emails"], name: "index_case_contacts_on_case_id_and_include_all_emails"
     t.index ["case_id"], name: "index_case_contacts_on_case_id"
     t.index ["contact_id"], name: "index_case_contacts_on_contact_id"
     t.index ["relationship_type"], name: "index_case_contacts_on_relationship_type"
@@ -369,7 +371,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100015) do
     t.string "short_code"
     t.string "display_name"
     t.boolean "has_unanswered_questions", default: false
+    t.boolean "auto_linked", default: false, null: false
+    t.bigint "auto_linked_via_contact_id"
     t.index ["added_by_id"], name: "index_case_emails_on_added_by_id"
+    t.index ["auto_linked_via_contact_id"], name: "index_case_emails_on_auto_linked_via_contact_id"
+    t.index ["case_id", "auto_linked"], name: "index_case_emails_on_case_id_and_auto_linked"
     t.index ["case_id", "email_warehouse_id"], name: "index_case_emails_on_case_id_and_email_warehouse_id", unique: true
     t.index ["case_id"], name: "index_case_emails_on_case_id"
     t.index ["email_warehouse_id"], name: "index_case_emails_on_email_warehouse_id"
@@ -1120,6 +1126,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100015) do
     t.boolean "xero_disconnect", default: false
     t.boolean "link_to_cg", default: false
     t.integer "linked_company_id"
+    t.string "city"
+    t.string "state"
+    t.string "postcode"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
@@ -2682,6 +2691,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100015) do
     t.string "spec_file_id"
     t.string "qr_code_file_id"
     t.integer "category_id"
+    t.decimal "supplier_price", precision: 10, scale: 2
     t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
     t.index ["category"], name: "index_pricebook_on_category"
     t.index ["category_id"], name: "index_pricebook_on_category_id"
@@ -4421,6 +4431,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100015) do
   add_foreign_key "case_email_qas", "cases"
   add_foreign_key "case_email_qas", "email_warehouse"
   add_foreign_key "case_emails", "cases"
+  add_foreign_key "case_emails", "contacts", column: "auto_linked_via_contact_id"
   add_foreign_key "case_emails", "email_warehouse"
   add_foreign_key "case_emails", "users", column: "added_by_id"
   add_foreign_key "case_jobs", "cases"
