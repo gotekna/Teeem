@@ -23,8 +23,8 @@ module HealthChecks
     # Jobs missing start date
     def check_jobs_without_start_date
       jobs = Job.where(start_date: nil)
-               .where.not(status: ['completed', 'cancelled', 'on_hold'])
-               .select(:id, :title, :ted_number, :status)
+               .where.not(stage: ['completed', 'cancelled', 'on_hold'])
+               .select(:id, :title, :ted_number, :stage)
 
       build_result(
         name: 'Jobs Without Start Date',
@@ -39,8 +39,8 @@ module HealthChecks
     # Jobs missing contract value
     def check_jobs_without_contract_value
       jobs = Job.where(contract_value: [nil, 0])
-               .where.not(status: ['completed', 'cancelled', 'on_hold'])
-               .select(:id, :title, :ted_number, :status)
+               .where.not(stage: ['completed', 'cancelled', 'on_hold'])
+               .select(:id, :title, :ted_number, :stage)
 
       build_result(
         name: 'Jobs Without Contract Value',
@@ -55,8 +55,8 @@ module HealthChecks
     # Jobs without project manager
     def check_jobs_without_pm
       jobs = Job.where(project_manager_id: nil)
-               .where.not(status: ['completed', 'cancelled', 'on_hold', 'lead'])
-               .select(:id, :title, :ted_number, :status)
+               .where.not(stage: ['completed', 'cancelled', 'on_hold', 'lead'])
+               .select(:id, :title, :ted_number, :stage)
 
       build_result(
         name: 'Jobs Without Project Manager',
@@ -80,7 +80,7 @@ module HealthChecks
             display: "#{item.ted_number || 'No TED'} - #{item.title}",
             ted_number: item.ted_number,
             title: item.title,
-            status: item.try(:status)
+            stage: item.try(:stage)
           }
         else
           super
