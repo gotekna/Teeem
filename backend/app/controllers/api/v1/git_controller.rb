@@ -1,3 +1,5 @@
+require 'shellwords'
+
 module Api
   module V1
     class GitController < ApplicationController
@@ -37,12 +39,14 @@ module Api
 
           branches_data = main_branches.map do |branch_name|
             is_current = (branch_name == current_branch)
+            # Sanitize branch name to prevent command injection
+            safe_branch = Shellwords.shellescape(branch_name)
 
             # Get last commit info
-            commit_hash = `git log #{branch_name} --oneline -1 2>/dev/null`.strip.split(' ').first rescue 'N/A'
-            commit_message = `git log #{branch_name} --oneline -1 --pretty=format:"%s" 2>/dev/null`.strip rescue 'No commits'
-            commit_author = `git log #{branch_name} --oneline -1 --pretty=format:"%an" 2>/dev/null`.strip rescue 'Unknown'
-            commit_date = `git log #{branch_name} --oneline -1 --pretty=format:"%ar" 2>/dev/null`.strip rescue 'Unknown'
+            commit_hash = `git log #{safe_branch} --oneline -1 2>/dev/null`.strip.split(' ').first rescue 'N/A'
+            commit_message = `git log #{safe_branch} --oneline -1 --pretty=format:"%s" 2>/dev/null`.strip rescue 'No commits'
+            commit_author = `git log #{safe_branch} --oneline -1 --pretty=format:"%an" 2>/dev/null`.strip rescue 'Unknown'
+            commit_date = `git log #{safe_branch} --oneline -1 --pretty=format:"%ar" 2>/dev/null`.strip rescue 'Unknown'
 
             # Check if branch exists on remotes
             has_origin = `git branch -r 2>/dev/null`.include?("origin/#{branch_name}")
@@ -52,8 +56,8 @@ module Api
             # Get commits ahead/behind main (only for non-main branches)
             commits_comparison = nil
             if branch_name != 'main'
-              ahead = `git rev-list --count main..#{branch_name} 2>/dev/null`.strip.to_i rescue 0
-              behind = `git rev-list --count #{branch_name}..main 2>/dev/null`.strip.to_i rescue 0
+              ahead = `git rev-list --count main..#{safe_branch} 2>/dev/null`.strip.to_i rescue 0
+              behind = `git rev-list --count #{safe_branch}..main 2>/dev/null`.strip.to_i rescue 0
               commits_comparison = {
                 ahead: ahead,
                 behind: behind

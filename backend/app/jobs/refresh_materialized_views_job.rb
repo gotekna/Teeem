@@ -75,10 +75,12 @@ class RefreshMaterializedViewsJob < ApplicationJob
   private
 
   def refresh_view(view_name, concurrently:)
+    # Sanitize view name to prevent SQL injection
+    safe_view_name = ActiveRecord::Base.connection.quote_table_name(view_name)
     sql = if concurrently
-            "REFRESH MATERIALIZED VIEW CONCURRENTLY #{view_name}"
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY #{safe_view_name}"
           else
-            "REFRESH MATERIALIZED VIEW #{view_name}"
+            "REFRESH MATERIALIZED VIEW #{safe_view_name}"
           end
 
     ActiveRecord::Base.connection.execute(sql)

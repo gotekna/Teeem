@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useSetAtom } from "jotai";
 import Link from "next/link";
+import { currentFiltersAtom, currentFilterGroupsAtom, foundationViewsAtom, activeViewIdAtom } from "@/lib/view-state-atoms";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -382,6 +384,20 @@ export default function ContactDetailPage() {
   const activeTab = searchParams.get("tab") || "overview";
   const activeSubTab = searchParams.get("subtab") || "identity";
 
+  // Jotai atom setters for resetting view state when switching to emails tab
+  const setCascadeFilters = useSetAtom(currentFiltersAtom);
+  const setFilterGroups = useSetAtom(currentFilterGroupsAtom);
+  const setSavedViews = useSetAtom(foundationViewsAtom);
+  const setActiveViewId = useSetAtom(activeViewIdAtom);
+
+  // Reset all view state when entering the emails tab to prevent stale state from Contacts list
+  const resetFiltersForEmailsTab = useCallback(() => {
+    setCascadeFilters([]);
+    setFilterGroups([{ id: "default", logic: "AND" }]);
+    setSavedViews([]); // Clear saved views so Contacts views don't show
+    setActiveViewId(null); // Clear active view
+  }, [setCascadeFilters, setFilterGroups, setSavedViews, setActiveViewId]);
+
   useEffect(() => {
     loadContact();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
@@ -589,6 +605,8 @@ export default function ContactDetailPage() {
     }
 
     if (activeTab === "emails" && contact?.email && emails.length === 0 && !loadingEmails) {
+      // Reset filters when entering emails tab (handles direct navigation to ?tab=emails)
+      resetFiltersForEmailsTab();
       loadEmails();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching activeTab and contact?.id
@@ -603,6 +621,11 @@ export default function ContactDetailPage() {
   }, [showAllInThread]);
 
   const handleTabChange = (value: string) => {
+    // Reset filters when switching to emails tab to prevent stale filters from Contacts list
+    if (value === "emails") {
+      resetFiltersForEmailsTab();
+    }
+
     // Use slug for URL, don't show ?tab= for default "overview" tab
     const slug = contact
       ? slugifyContactName(contact.first_name || undefined, contact.last_name || undefined, contact.full_name)
@@ -1634,8 +1657,8 @@ export default function ContactDetailPage() {
           ) : (
             <>
               <TeeemTableView
-                foundationId={`contact-emails-${contact.id}`}
                 tableName="Contact Emails"
+                preloadedViews={[]}
                 columns={[
                   {
                     key: "direction",

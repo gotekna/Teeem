@@ -20,7 +20,9 @@ module Api
           # Generate unique filename
           timestamp = Time.current.to_i
           random_key = SecureRandom.hex(8)
-          extension = File.extname(file.original_filename)
+          # Sanitize extension to prevent path traversal attacks
+          raw_extension = File.extname(file.original_filename).to_s
+          extension = raw_extension.gsub(/[^a-zA-Z0-9.]/, '').slice(0, 10) # Only allow alphanumeric + dot, max 10 chars
           temp_filename = "import_#{timestamp}_#{random_key}#{extension}"
           temp_file_path = File.join(temp_dir, temp_filename)
 

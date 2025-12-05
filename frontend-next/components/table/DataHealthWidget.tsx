@@ -62,7 +62,7 @@ interface DataHealthWidgetProps {
   compact?: boolean;
   forceShow?: boolean; // Always show even if no issues (for explicit open via button)
   onIssueClick?: (item: HealthCheckItem, check: HealthCheck) => void;
-  onDataChanged?: () => void; // eslint-disable-line @typescript-eslint/no-unused-vars
+  onDataChanged?: () => void;  
 }
 
 /**

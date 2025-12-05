@@ -177,10 +177,11 @@ module Api
         end
 
         # Fallback: check pg_stat_user_tables for last vacuum/analyze as proxy
+        sanitized_name = ActiveRecord::Base.connection.quote(view_name)
         result = ActiveRecord::Base.connection.execute(<<~SQL)
           SELECT last_vacuum, last_autovacuum, last_analyze, last_autoanalyze
           FROM pg_stat_user_tables
-          WHERE relname = '#{view_name}'
+          WHERE relname = #{sanitized_name}
         SQL
 
         row = result.first
@@ -193,10 +194,11 @@ module Api
       end
 
       def get_column_names(table_name)
+        sanitized_name = ActiveRecord::Base.connection.quote(table_name)
         result = ActiveRecord::Base.connection.execute(<<~SQL)
           SELECT column_name, data_type, is_nullable
           FROM information_schema.columns
-          WHERE table_name = '#{table_name}'
+          WHERE table_name = #{sanitized_name}
           ORDER BY ordinal_position
         SQL
 

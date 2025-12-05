@@ -169,7 +169,7 @@ export function GanttTableView({
   const saveEditing = (feature: GanttFeature) => {
     if (!editingCell || !onFeatureUpdate) return;
 
-    let updatedFeature = { ...feature };
+    const updatedFeature = { ...feature };
 
     switch (editingCell.field) {
       case "name":
