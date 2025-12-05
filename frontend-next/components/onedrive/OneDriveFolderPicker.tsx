@@ -68,7 +68,7 @@ export function OneDriveFolderPicker({
     setError(null);
 
     try {
-      const params = folderId ? { folder_id: folderId } : {};
+      const params: Record<string, string> = folderId ? { folder_id: folderId } : {};
       const response = await api.get<{ folders: FolderItem[] }>(
         "/api/v1/organization_onedrive/browse_folders",
         { params }
