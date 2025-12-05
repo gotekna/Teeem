@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/components/ui/use-toast";
 import {
   ArrowLeft,
   Loader2,
@@ -358,6 +359,7 @@ function formatFileSize(bytes: number): string {
 export default function CaseDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const caseId = params.id as string;
 
   const [loading, setLoading] = React.useState(true);
