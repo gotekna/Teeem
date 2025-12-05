@@ -3,7 +3,11 @@
 # ============================================
 # All queue config AND recurring jobs are defined here.
 # This is the ONLY config file for Solid Queue.
-# Recurring tasks must be nested under dispatchers for the scheduler to pick them up.
+#
+# IMPORTANT: For SolidQueue 1.1.0+
+# - Dispatcher handles job queuing/dequeuing
+# - Scheduler is a SEPARATE process that handles recurring tasks
+# - recurring_tasks MUST be at root level (not nested under dispatcher)
 
 default: &default
   workers:
@@ -14,102 +18,118 @@ default: &default
 
 production:
   <<: *default
+
+  # Dispatcher handles job queuing
   dispatchers:
     - polling_interval: 1
       batch_size: 500
-      recurring_tasks:
-        # ============================================
-        # SYSTEM MAINTENANCE
-        # ============================================
-        clear_solid_queue_finished_jobs:
-          command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
-          schedule: every hour at minute 12
 
-        # ============================================
-        # TOKEN REFRESH (every 30 minutes)
-        # ============================================
-        refresh_integration_tokens:
-          class: RefreshIntegrationTokensJob
-          queue: default
-          schedule: every 30 minutes
+  # Scheduler handles recurring tasks (separate process)
+  scheduler:
+    polling_interval: 10
 
-        # ============================================
-        # EMAIL SYNC (every 10-15 minutes)
-        # ============================================
-        email_warehouse_sync:
-          class: EmailWarehouseSyncAllJob
-          queue: default
-          schedule: every 10 minutes
+  # Recurring tasks at ROOT level (not nested under dispatcher)
+  recurring_tasks:
+    # ============================================
+    # SYSTEM MAINTENANCE
+    # ============================================
+    clear_solid_queue_finished_jobs:
+      command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
+      schedule: every hour at minute 12
 
-        process_new_job_emails:
-          class: ProcessNewJobEmailsJob
-          queue: default
-          schedule: every 10 minutes
+    # ============================================
+    # TOKEN REFRESH (every 30 minutes)
+    # ============================================
+    refresh_integration_tokens:
+      class: RefreshIntegrationTokensJob
+      queue: default
+      schedule: every 30 minutes
 
-        # Organization-wide Microsoft email sync
-        org_email_sync:
-          class: OrgEmailSyncJob
-          queue: low
-          schedule: every 15 minutes
+    # ============================================
+    # EMAIL SYNC (every 10-15 minutes)
+    # ============================================
+    email_warehouse_sync:
+      class: EmailWarehouseSyncAllJob
+      queue: default
+      schedule: every 10 minutes
 
-        # ============================================
-        # XERO INTEGRATION
-        # ============================================
-        xero_invoice_incremental_sync:
-          class: XeroInvoiceSyncJob
-          queue: default
-          args: [{ incremental: true }]
-          schedule: every 30 minutes
+    process_new_job_emails:
+      class: ProcessNewJobEmailsJob
+      queue: default
+      schedule: every 10 minutes
 
-        # ============================================
-        # DATA WAREHOUSE RECURRING JOBS
-        # ============================================
+    # Organization-wide Microsoft email sync
+    org_email_sync:
+      class: OrgEmailSyncJob
+      queue: low
+      schedule: every 15 minutes
 
-        # Refresh materialized views hourly
-        warehouse_refresh_views:
-          class: RefreshMaterializedViewsJob
-          queue: low
-          schedule: every hour at minute 5
+    # ============================================
+    # XERO INTEGRATION
+    # ============================================
+    xero_invoice_incremental_sync:
+      class: XeroInvoiceSyncJob
+      queue: default
+      args: [{ incremental: true }]
+      schedule: every 30 minutes
 
-        # Capture daily job snapshots (for historical trends)
-        warehouse_daily_snapshot:
-          class: DailyJobSnapshotJob
-          queue: low
-          schedule: at 2am every day
+    # ============================================
+    # DATA WAREHOUSE RECURRING JOBS
+    # ============================================
 
-        # Sync Xero invoice attachments (PDFs) - runs after invoice sync
-        warehouse_xero_attachments:
-          class: XeroAttachmentSyncJob
-          queue: low
-          args: [null, { limit: 50 }]
-          schedule: every 2 hours at minute 45
+    # Refresh materialized views hourly
+    warehouse_refresh_views:
+      class: RefreshMaterializedViewsJob
+      queue: low
+      schedule: every hour at minute 5
 
-        # Batch document verification (AI classification)
-        warehouse_document_verification:
-          class: BatchDocumentVerificationJob
-          queue: low
-          args: [{ limit: 25 }]
-          schedule: every 4 hours at minute 30
+    # Capture daily job snapshots (for historical trends)
+    warehouse_daily_snapshot:
+      class: DailyJobSnapshotJob
+      queue: low
+      schedule: at 2am every day
 
-        # Sync job documents from OneDrive to database (data warehouse)
-        warehouse_job_documents_sync:
-          class: JobDocumentSyncJob
-          queue: low
-          schedule: every 6 hours at minute 15
+    # Sync Xero invoice attachments (PDFs) - runs after invoice sync
+    warehouse_xero_attachments:
+      class: XeroAttachmentSyncJob
+      queue: low
+      args: [null, { limit: 50 }]
+      schedule: every 2 hours at minute 45
+
+    # Batch document verification (AI classification)
+    warehouse_document_verification:
+      class: BatchDocumentVerificationJob
+      queue: low
+      args: [{ limit: 25 }]
+      schedule: every 4 hours at minute 30
+
+    # Sync job documents from OneDrive to database (data warehouse)
+    warehouse_job_documents_sync:
+      class: JobDocumentSyncJob
+      queue: low
+      schedule: every 6 hours at minute 15
 
 development:
   <<: *default
+
+  # Dispatcher handles job queuing
   dispatchers:
     - polling_interval: 1
       batch_size: 500
-      recurring_tasks:
-        # Email sync for development
-        email_warehouse_sync:
-          class: EmailWarehouseSyncAllJob
-          queue: default
-          schedule: every 10 minutes
 
-        process_new_job_emails:
-          class: ProcessNewJobEmailsJob
-          queue: default
-          schedule: every 10 minutes
+  # Scheduler handles recurring tasks (separate process)
+  scheduler:
+    polling_interval: 10
+
+  # Recurring tasks at ROOT level (not nested under dispatcher)
+  recurring_tasks:
+    # Email sync for development
+    email_warehouse_sync:
+      class: EmailWarehouseSyncAllJob
+      queue: default
+      schedule: every 10 minutes
+
+    process_new_job_emails:
+      class: ProcessNewJobEmailsJob
+      queue: default
+      schedule: every 10 minutes
