@@ -28,12 +28,17 @@ class EmailWarehouse < ApplicationRecord
 
   # Search by email address (from, to, or cc)
   # Can accept a single email string or an array of emails
+  # Case-insensitive comparison using LOWER()
   scope :involving_email, ->(emails) {
     emails = Array(emails).compact
     return none if emails.empty?
 
     conditions = emails.map do |email|
-      sanitize_sql_array(['from_email = ? OR ? = ANY(to_emails) OR ? = ANY(cc_emails)', email, email, email])
+      email_lower = email.downcase
+      sanitize_sql_array([
+        'LOWER(from_email) = ? OR ? = ANY(SELECT LOWER(unnest(to_emails))) OR ? = ANY(SELECT LOWER(unnest(cc_emails)))',
+        email_lower, email_lower, email_lower
+      ])
     end
     where(conditions.join(' OR '))
   }
