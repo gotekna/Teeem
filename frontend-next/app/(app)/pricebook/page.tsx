@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,9 +16,8 @@ import {
   DollarSign,
   Package,
   AlertTriangle,
-  Image as ImageIcon,
+  ImageIcon,
   CheckCircle,
-  Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
@@ -30,7 +28,7 @@ export default function PriceBookPage() {
   const router = useRouter();
 
   // Use foundation hook for TeeemTableView with server-side stats
-  const { foundation, columns, records, originalRecords, totalCount, isLoading, error, refresh, serverSearch, isSearching } = useFoundationBySlug("pricebook");
+  const { foundation, columns, records, originalRecords, totalCount, isLoading, refresh, serverSearch, isSearching } = useFoundationBySlug("pricebook");
 
   const [activeTab, setActiveTab] = useState("all");
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
@@ -112,24 +110,6 @@ export default function PriceBookPage() {
       </div>
     );
   }
-
-  // Left actions - Add Item button
-  const leftActions = (
-    <div className="flex items-center gap-2">
-      <Button variant="outline">
-        <Download className="h-4 w-4 mr-2" />
-        Export
-      </Button>
-      <Button variant="outline">
-        <Upload className="h-4 w-4 mr-2" />
-        Import
-      </Button>
-      <Button>
-        <Plus className="h-4 w-4 mr-2" />
-        Add Item
-      </Button>
-    </div>
-  );
 
   return (
     <div className="space-y-6">

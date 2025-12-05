@@ -1,23 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  GraduationCap,
   Play,
   CheckCircle2,
   Clock,
   BookOpen,
   Award,
-  ChevronRight,
   Loader2,
   Video,
-  FileText,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -49,7 +45,6 @@ function formatDuration(minutes: number): string {
 }
 
 export default function TrainingPage() {
-  const router = useRouter();
   const [modules, setModules] = React.useState<TrainingModule[]>([]);
   const [stats, setStats] = React.useState<TrainingStats | null>(null);
   const [loading, setLoading] = React.useState(true);

@@ -34,10 +34,8 @@ import {
   ChevronDown,
   Clock,
   CheckCircle,
-  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
 
 // Types for relationship data
 interface EmployeeData {

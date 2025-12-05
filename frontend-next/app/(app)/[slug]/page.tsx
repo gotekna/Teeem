@@ -5,7 +5,7 @@ import { useEffect, useState, Suspense, useCallback } from "react";
 import { TeeemTableView, SchemaTab, ConnectionsTab, CreateRecordDialog } from "@/components/table";
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
-import { TABLE_IDS, urls, stripUrlSuffix, slugifyPricebookCode } from "@/lib/url-utils";
+import { TABLE_IDS, stripUrlSuffix, slugifyPricebookCode } from "@/lib/url-utils";
 import { getTableUIConfig } from "@/lib/table-ui-config";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { Skeleton } from "@/components/ui/skeleton";

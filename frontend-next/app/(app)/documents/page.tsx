@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader } from "@/components/ui/loader";
@@ -16,34 +16,8 @@ import {
   Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { AIVerificationModal } from "@/components/documents/ai-verification-modal";
-import { DocumentPreviewModal } from "@/components/documents/document-preview-modal";
 
 // Foundation ID for Documents table
-
-interface Document {
-  id: number;
-  name: string;
-  display_title?: string;
-  type: string;
-  size: number;
-  url?: string;
-  job_title?: string;
-  job_id?: number;
-  uploaded_at: string;
-  uploaded_by: string;
-  folder_path?: string;
-  document_type?: {
-    id: number;
-    name: string;
-    abbreviation: string;
-  };
-  fiscal_year?: string;
-  company_name?: string;
-  verified: boolean;
-  verified_at?: string;
-  verified_by?: string;
-}
 
 interface Folder {
   id: string;
@@ -54,17 +28,12 @@ interface Folder {
 
 export default function DocumentsPage() {
   const router = useRouter();
-  const [folders, setFolders] = useState<Folder[]>([
+  const [folders] = useState<Folder[]>([
     { id: "1", name: "Contracts", path: "/contracts", documents_count: 12 },
     { id: "2", name: "Financial", path: "/financial", documents_count: 8 },
     { id: "3", name: "Compliance", path: "/compliance", documents_count: 5 },
   ]);
-  const [oneDriveConnected, setOneDriveConnected] = useState(false);
-
-  // Modal states
-  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
-  const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [verificationModalOpen, setVerificationModalOpen] = useState(false);
+  const [oneDriveConnected] = useState(false);
 
   // Use foundation hook for TeeemTableView
   const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug("supplier_ratings");
@@ -81,37 +50,6 @@ export default function DocumentsPage() {
       throw error;
     }
   }, [refresh]);
-
-  const handleVerificationComplete = async (data: {
-    display_title: string;
-    document_type_id: number;
-    fiscal_year?: string;
-    verified: boolean;
-  }) => {
-    if (!selectedDocument) return;
-
-    try {
-      await api.patch(`/api/v1/documents/${selectedDocument.id}`, {
-        display_title: data.display_title,
-        document_type_id: data.document_type_id,
-        fiscal_year: data.fiscal_year,
-        verified: data.verified,
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update document:", error);
-    }
-  };
-
-  const handlePreview = (doc: Document) => {
-    setSelectedDocument(doc);
-    setPreviewModalOpen(true);
-  };
-
-  const handleVerify = (doc: Document) => {
-    setSelectedDocument(doc);
-    setVerificationModalOpen(true);
-  };
 
   // Stats from records
   const stats = useMemo(() => ({
@@ -231,9 +169,9 @@ export default function DocumentsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Folders Sidebar */}
         <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-base">Folders</CardTitle>
-          </CardHeader>
+          <div className="p-6 pb-3">
+            <h3 className="text-base font-semibold">Folders</h3>
+          </div>
           <CardContent className="space-y-1">
             {folders.length > 0 ? (
               folders.map((folder) => (
@@ -272,30 +210,6 @@ export default function DocumentsPage() {
           />
         </div>
       </div>
-
-      {/* Modals */}
-      <AIVerificationModal
-        open={verificationModalOpen}
-        onOpenChange={setVerificationModalOpen}
-        document={selectedDocument}
-        onVerificationComplete={handleVerificationComplete}
-      />
-
-      <DocumentPreviewModal
-        open={previewModalOpen}
-        onOpenChange={setPreviewModalOpen}
-        document={selectedDocument}
-        onVerify={() => {
-          setPreviewModalOpen(false);
-          setVerificationModalOpen(true);
-        }}
-        onDownload={() => {
-          // TODO: Implement download
-        }}
-        onOpenExternal={() => {
-          // TODO: Open in OneDrive
-        }}
-      />
     </div>
   );
 }

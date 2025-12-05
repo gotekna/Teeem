@@ -19,13 +19,11 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Combobox, type Option } from "@/components/ui/combobox";
+import { Combobox } from "@/components/ui/combobox";
 import { api } from "@/lib/api";
 import {
   FileText,
   ExternalLink,
-  CheckCircle2,
-  CheckCircle,
   Check,
   Sparkles,
   Loader2,
@@ -1007,7 +1005,7 @@ export default function DocumentPreviewModal({
       const newName = `${companyCode} ${fallbackAbbrev} ${fyPart}${descPart}${amendedSuffix}`.trim();
       setEditedTitle(newName);
     }
-  }, [editedCompanyId, editedDocumentType, editedFinancialYears, editedDescription, editedRefDate, editedFiledDate, editedFolder, companies, getDocumentTypesForFolder, getDocumentTypeRecord, isAmended, getAmendedSuffix, signedStatus]);
+  }, [editedCompanyId, editedDocumentType, editedFinancialYears, editedDescription, editedRefDate, editedFolder, companies, getDocumentTypesForFolder, getDocumentTypeRecord, isAmended, getAmendedSuffix, signedStatus]);
 
   // Handle user validation
   const handleValidate = async () => {
@@ -1043,20 +1041,6 @@ export default function DocumentPreviewModal({
       alert(errorMessage);
       setAiVerifying(false);
     }
-  };
-
-  // Start editing mode
-  const startEditing = () => {
-    setEditedTitle(document.title || "");
-    setEditedCompanyId(String(document.company_id || document.company?.id || ""));
-    setEditedFolder(document.folder || "");
-    setEditedFinancialYears(parseFinancialYears(document.financial_years));
-    setIsEditing(true);
-  };
-
-  // Cancel editing
-  const cancelEditing = () => {
-    setIsEditing(false);
   };
 
   // Sanitize filename for OneDrive - remove characters not allowed by Microsoft
@@ -1171,24 +1155,6 @@ export default function DocumentPreviewModal({
     }
   };
 
-  // Handle rejecting AI suggestion (keep current name)
-  const handleRejectSuggestion = async () => {
-    // Record feedback that user rejected suggestion
-    try {
-      await api.post(`/api/v1/company_documents/${document.id}/feedback`, {
-        feedback: {
-          action: "rejected",
-          final_name: document.title,
-          final_folder: document.folder,
-          reason: "User preferred original name",
-        },
-      });
-    } catch {
-      // Feedback is optional
-    }
-    await handleValidate();
-  };
-
   // Handle financial year checkbox toggle
   const toggleFinancialYear = (year: number) => {
     setEditedFinancialYears((prev) => {
@@ -1215,7 +1181,6 @@ export default function DocumentPreviewModal({
 
   // AI verification status
   const aiStatus = document?.ai_verification_status;
-  const hasAiSuggestion = document?.ai_suggested_name && aiStatus === "mismatch";
   const isProcessing = aiStatus === "processing" || aiVerifying;
 
   // Get current company name

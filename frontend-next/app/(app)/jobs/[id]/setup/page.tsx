@@ -83,16 +83,6 @@ interface TemplatesResponse {
   sm_templates: SmTemplate[];
 }
 
-interface WorkingDays {
-  monday: boolean;
-  tuesday: boolean;
-  wednesday: boolean;
-  thursday: boolean;
-  friday: boolean;
-  saturday: boolean;
-  sunday: boolean;
-}
-
 // ============================================
 // Hold Reasons Tab
 // ============================================
@@ -582,6 +572,16 @@ function TemplatesTab() {
 // ============================================
 // Working Days Tab
 // ============================================
+
+interface WorkingDays {
+  monday: boolean;
+  tuesday: boolean;
+  wednesday: boolean;
+  thursday: boolean;
+  friday: boolean;
+  saturday: boolean;
+  sunday: boolean;
+}
 
 function WorkingDaysTab() {
   const { toast } = useToast();

@@ -36,7 +36,6 @@ export interface UseTableKeyboardNavOptions {
 }
 
 export function useTableKeyboardNav({
-  columnKeys,
   editableColumnKeys,
   rowIds,
   onExitTable,

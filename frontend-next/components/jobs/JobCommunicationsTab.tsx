@@ -15,7 +15,6 @@ import {
   Send,
   Search,
   Loader2,
-  User,
   RefreshCw,
   Paperclip,
   MessageSquare,
@@ -582,7 +581,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
 }
 
 // SMS placeholder component
-function SmsSection({ jobId }: { jobId: string | number }) {
+function SmsSection() {
   return (
     <Card>
       <CardContent className="py-12 text-center">
@@ -630,7 +629,7 @@ export function JobCommunicationsTab({ jobId, jobTitle }: JobCommunicationsTabPr
         </TabsContent>
 
         <TabsContent value="sms" className="mt-6">
-          <SmsSection jobId={jobId} />
+          <SmsSection />
         </TabsContent>
       </Tabs>
     </div>

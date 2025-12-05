@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  X,
   Loader2,
   Save,
   Lock,
@@ -128,7 +127,6 @@ export function ColumnEditorModal({
   const [targetTableColumns, setTargetTableColumns] = useState<Array<{ column_name: string; name: string }>>([]);
   const [loadingTargetColumns, setLoadingTargetColumns] = useState(false);
   const [targetTableRecords, setTargetTableRecords] = useState<Array<{ id: number; display: string }>>([]);
-  const [loadingTargetRecords, setLoadingTargetRecords] = useState(false);
 
   // System-generated columns
   const isSystemGenerated = column
@@ -205,7 +203,6 @@ export function ColumnEditorModal({
       }
 
       const tableIdToLoad = editedColumn.lookup_table_id;
-      setLoadingTargetRecords(true);
       console.log('[ColumnEditorModal] Loading records for target table:', tableIdToLoad);
 
       try {
@@ -227,8 +224,6 @@ export function ColumnEditorModal({
       } catch (error) {
         console.error("Failed to load target table records:", error);
         setTargetTableRecords([]);
-      } finally {
-        setLoadingTargetRecords(false);
       }
     };
     loadTargetRecords();
@@ -257,7 +252,7 @@ export function ColumnEditorModal({
     }
   }, [column]);
 
-  const hasChanges = useCallback(() => {
+  const hasChanges = () => {
     if (!column) return false;
     return (
       editedColumn.name !== column.label ||
@@ -265,7 +260,7 @@ export function ColumnEditorModal({
       editedColumn.data_align !== ((column as any).data_align || "left") ||
       editedColumn.column_group !== ((column as any).column_group || "")
     );
-  }, [column, editedColumn]);
+  };
 
   const handleSave = async () => {
     if (!column || !foundationId) return;
@@ -1107,16 +1102,14 @@ export function ColumnEditorModal({
                             lookup_display_column: value,
                           }))
                         }
-                        disabled={!editedColumn.lookup_table_id || loadingTargetRecords}
+                        disabled={!editedColumn.lookup_table_id}
                       >
                         <SelectTrigger>
                           <SelectValue
                             placeholder={
                               !editedColumn.lookup_table_id
                                 ? "Select a target table first"
-                                : loadingTargetRecords
-                                  ? "Loading values..."
-                                  : "Select display value"
+                                : "Select display value"
                             }
                           />
                         </SelectTrigger>

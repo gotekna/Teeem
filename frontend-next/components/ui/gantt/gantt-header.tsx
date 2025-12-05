@@ -7,8 +7,6 @@ import {
   addMonths,
   addQuarters,
   differenceInDays,
-  differenceInMonths,
-  differenceInQuarters,
   startOfMonth,
   startOfQuarter,
   isToday,
@@ -89,7 +87,7 @@ export function GanttHeader() {
 
       {/* Timeline header columns */}
       <div className="flex h-12" style={{ width: totalWidth }}>
-        {columns.map((col, i) => (
+        {columns.map((col) => (
           <div
             key={col.date.toISOString()}
             className={cn(

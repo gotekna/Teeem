@@ -21,8 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Loader2,
   Check,
@@ -329,7 +327,6 @@ function XeroFieldMapping() {
 
   React.useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadData = async () => {
@@ -350,16 +347,6 @@ function XeroFieldMapping() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleToggleEnabled = (id: string) => {
-    setMappings(mappings.map(m =>
-      m.id === id ? { ...m, enabled: !m.enabled } : m
-    ));
-    toast({
-      title: "Field Updated",
-      description: "Changes are saved locally. Full save functionality coming soon.",
-    });
   };
 
   const handleSyncDirectionChange = (id: string, direction: "both" | "xero-to-teeem" | "teeem-to-xero") => {

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,6 @@ import {
   Clock,
   AlertTriangle,
   Users,
-  FileText,
   Copy,
   Eye,
   Edit,
@@ -90,7 +89,7 @@ export default function WHSSWMSPage() {
       try {
         const response = await api.get<{ swms: SWMS[] }>("/api/v1/whs/swms");
         setSwmsList(response.swms || []);
-      } catch (error) {
+      } catch {
         // Mock data
         setSwmsList([
           {

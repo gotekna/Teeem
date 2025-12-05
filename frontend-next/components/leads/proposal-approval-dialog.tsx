@@ -101,7 +101,6 @@ export function ProposalApprovalDialog({
   priceOverride,
 }: ProposalApprovalDialogProps) {
   const data = proposal.extracted_data || {};
-  const email = proposal.email || {};
 
   // Contact states
   const [clientContact, setClientContact] = useState<ExtractedContact | null>(null);

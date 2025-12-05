@@ -13,11 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  DollarSign,
-  Building2,
   Tag,
   AlertTriangle,
-  Clock,
   ExternalLink,
   Loader2,
   Package,

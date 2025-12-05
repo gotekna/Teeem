@@ -21,21 +21,14 @@ import {
   Search,
   RefreshCw,
   CheckCircle,
-  XCircle,
-  Clock,
   DollarSign,
   FileText,
   CreditCard,
   AlertTriangle,
   ExternalLink,
   Download,
-  ArrowUpDown,
   Building2,
-  TrendingUp,
-  TrendingDown,
   BarChart3,
-  Briefcase,
-  ArrowUpRight,
   Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -80,35 +73,6 @@ interface XeroStats {
   last_sync: string;
 }
 
-interface FinancialSummary {
-  revenue: number;
-  expenses: number;
-  profit: number;
-  profit_margin: number;
-  accounts_receivable: number;
-  accounts_payable: number;
-  cash_on_hand: number;
-}
-
-interface JobProfitability {
-  job_id: number;
-  job_title: string;
-  revenue: number;
-  cost: number;
-  profit: number;
-  margin: number;
-  status: string;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
 const statusColors: Record<string, string> = {
   DRAFT: "bg-gray-100 text-gray-700 dark:bg-gray-400/10 dark:text-gray-400",
   SUBMITTED: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
@@ -127,8 +91,6 @@ export default function XeroPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("invoices");
   const [invoiceType, setInvoiceType] = useState<"all" | "receivable" | "payable">("all");
-  const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
-  const [jobProfitability, setJobProfitability] = useState<JobProfitability[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -148,8 +110,6 @@ export default function XeroPage() {
         setInvoices(getMockInvoices());
         setPayments(getMockPayments());
         setStats(getMockStats());
-        setFinancialSummary(getMockFinancialSummary());
-        setJobProfitability(getMockJobProfitability());
       }
       setLoading(false);
     };
@@ -160,8 +120,8 @@ export default function XeroPage() {
     setSyncing(true);
     try {
       await api.post("/api/v1/xero/sync_contacts");
-    } catch (error) {
-      console.error("Sync failed:", error);
+    } catch (_error) {
+      console.error("Sync failed:", _error);
     }
     setSyncing(false);
   };
@@ -170,8 +130,8 @@ export default function XeroPage() {
     try {
       const { url } = await api.get<{ url: string }>("/api/v1/xero/auth_url");
       window.location.href = url;
-    } catch (error) {
-      console.error("Failed to get auth URL:", error);
+    } catch (_error) {
+      console.error("Failed to get auth URL:", _error);
     }
   };
 
@@ -479,139 +439,6 @@ export default function XeroPage() {
         </TabsContent>
 
         <TabsContent value="reports" className="mt-4 space-y-6">
-          {/* Financial Summary Cards */}
-          {financialSummary && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Revenue</p>
-                      <p className="text-2xl font-bold font-mono">{formatCurrency(financialSummary.revenue)}</p>
-                    </div>
-                    <div className="p-2 bg-green-100 rounded-lg">
-                      <TrendingUp className="h-5 w-5 text-green-600" />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 mt-2 text-sm text-green-600">
-                    <ArrowUpRight className="h-4 w-4" />
-                    +12.5% vs last period
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Expenses</p>
-                      <p className="text-2xl font-bold font-mono">{formatCurrency(financialSummary.expenses)}</p>
-                    </div>
-                    <div className="p-2 bg-red-100 rounded-lg">
-                      <TrendingDown className="h-5 w-5 text-red-600" />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 mt-2 text-sm text-red-600">
-                    <ArrowUpRight className="h-4 w-4" />
-                    +8.2% vs last period
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Net Profit</p>
-                      <p className="text-2xl font-bold font-mono text-green-600">
-                        {formatCurrency(financialSummary.profit)}
-                      </p>
-                    </div>
-                    <div className="p-2 bg-green-100 rounded-lg">
-                      <DollarSign className="h-5 w-5 text-green-600" />
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <Badge className="bg-green-100 text-green-700">
-                      {financialSummary.profit_margin.toFixed(1)}% margin
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Cash Position</p>
-                      <p className="text-2xl font-bold font-mono">{formatCurrency(financialSummary.cash_on_hand)}</p>
-                    </div>
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Building2 className="h-5 w-5 text-blue-600" />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                    <span>AR: {formatCurrency(financialSummary.accounts_receivable)}</span>
-                    <span>AP: {formatCurrency(financialSummary.accounts_payable)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Job Profitability Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Briefcase className="h-5 w-5" />
-                Job Profitability
-              </CardTitle>
-              <CardDescription>Revenue, costs, and margins by job</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Job</TableHead>
-                    <TableHead className="text-right">Revenue</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                    <TableHead className="text-right">Profit</TableHead>
-                    <TableHead className="text-right">Margin</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {jobProfitability.map((job) => (
-                    <TableRow key={job.job_id}>
-                      <TableCell className="font-medium">{job.job_title}</TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatCurrency(job.revenue)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-muted-foreground">
-                        {formatCurrency(job.cost)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-green-600">
-                        {formatCurrency(job.profit)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge
-                          variant={job.margin >= 25 ? "default" : job.margin >= 15 ? "secondary" : "destructive"}
-                        >
-                          {job.margin.toFixed(1)}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={job.status === "active" ? "outline" : "secondary"}>
-                          {job.status}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
           {/* Standard Reports */}
           <Card>
             <CardHeader>
@@ -777,26 +604,4 @@ function getMockStats(): XeroStats {
     overdue_count: 3,
     last_sync: new Date(Date.now() - 3600000).toISOString(),
   };
-}
-
-function getMockFinancialSummary(): FinancialSummary {
-  return {
-    revenue: 1245000,
-    expenses: 892000,
-    profit: 353000,
-    profit_margin: 28.4,
-    accounts_receivable: 185000,
-    accounts_payable: 67000,
-    cash_on_hand: 423000,
-  };
-}
-
-function getMockJobProfitability(): JobProfitability[] {
-  return [
-    { job_id: 1, job_title: "Smith Residence - Full Build", revenue: 450000, cost: 312000, profit: 138000, margin: 30.7, status: "active" },
-    { job_id: 2, job_title: "Commercial Fitout - CBD", revenue: 285000, cost: 198000, profit: 87000, margin: 30.5, status: "active" },
-    { job_id: 3, job_title: "Office Renovation - Tech Park", revenue: 165000, cost: 128000, profit: 37000, margin: 22.4, status: "completed" },
-    { job_id: 4, job_title: "Warehouse Extension", revenue: 220000, cost: 178000, profit: 42000, margin: 19.1, status: "active" },
-    { job_id: 5, job_title: "Retail Shopfit - Mall", revenue: 125000, cost: 76000, profit: 49000, margin: 39.2, status: "completed" },
-  ];
 }

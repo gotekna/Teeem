@@ -29,9 +29,7 @@ import {
   Calendar,
   Loader2,
   BarChart3,
-  PieChart,
   ArrowUpRight,
-  ArrowDownRight,
   RefreshCw,
   Building2,
   Briefcase,
@@ -74,10 +72,6 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-function formatPercent(value: number): string {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
-}
-
 export default function FinancialPage() {
   const [summary, setSummary] = React.useState<FinancialSummary | null>(null);
   const [jobProfitability, setJobProfitability] = React.useState<JobProfitability[]>([]);
@@ -97,7 +91,7 @@ export default function FinancialPage() {
       setSummary(summaryData);
       setJobProfitability(jobsData.jobs || []);
       setMonthlyData(monthlyResponse.months || []);
-    } catch (error) {
+    } catch {
       // Mock data
       setSummary({
         revenue: 1245000,

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 interface SidebarContextType {
@@ -24,7 +24,6 @@ function getBaseRoute(pathname: string): string {
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [isExpanded, setIsExpandedState] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
 
   // Load saved state for current route on mount and route change
   useEffect(() => {
@@ -39,7 +38,6 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       // Ignore localStorage errors
     }
-    setIsInitialized(true);
   }, [pathname]);
 
   // Wrapper to save state when changed

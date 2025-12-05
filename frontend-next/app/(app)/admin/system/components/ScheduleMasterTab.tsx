@@ -17,7 +17,6 @@ import {
 import {
   Plus,
   Loader2,
-  GripVertical,
   Pencil,
   Trash2,
   Copy,
@@ -28,7 +27,6 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
 
 interface ScheduleTask {
   id: number;

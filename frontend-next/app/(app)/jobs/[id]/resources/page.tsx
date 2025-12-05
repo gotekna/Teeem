@@ -405,8 +405,6 @@ export default function SmResourcesPage() {
   const [activeTab, setActiveTab] = useState("schedule");
   const [resources, setResources] = useState<SmResource[]>([]);
   const [allocations, setAllocations] = useState<Allocation[]>([]);
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [tasks, setTasks] = useState<SmTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -444,8 +442,7 @@ export default function SmResourcesPage() {
 
       // If we have a construction context, fetch task-related data
       if (constructionId) {
-        const tasksRes = await api.get<TasksResponse>(`/api/v1/jobs/${constructionId}/sm_tasks`);
-        setTasks(tasksRes.tasks || []);
+        await api.get<TasksResponse>(`/api/v1/jobs/${constructionId}/sm_tasks`);
       }
 
       // Fetch allocations
@@ -461,18 +458,12 @@ export default function SmResourcesPage() {
       setAllocations(allocationsRes.allocations || []);
 
       // Fetch time entries
-      const timeRes = await api.get<TimesheetResponse>("/api/v1/sm_time_entries/timesheet", {
+      await api.get<TimesheetResponse>("/api/v1/sm_time_entries/timesheet", {
         params: {
           start_date: startDate.toISOString().split("T")[0],
           end_date: endDate.toISOString().split("T")[0],
         },
       });
-
-      // Flatten timesheet entries
-      const entries = (timeRes.timesheet || []).flatMap((day) =>
-        day.entries.map((e) => ({ ...e, entry_date: day.date }))
-      );
-      setTimeEntries(entries);
     } catch (err) {
       console.error("Error fetching resource data:", err);
       setError((err as Error).message || "Failed to load resources");

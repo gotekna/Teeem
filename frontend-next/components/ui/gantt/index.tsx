@@ -7,16 +7,15 @@ import { GanttProvider, useGantt } from "./context";
 import { GanttHeader } from "./gantt-header";
 import { GanttSidebar, GanttSidebarGroup, GanttSidebarItem } from "./gantt-sidebar";
 import { GanttTimeline, GanttTimelineRow } from "./gantt-timeline";
-import { GanttFeatureItem, GanttFeatureList } from "./gantt-feature";
+import { GanttFeatureItem } from "./gantt-feature";
 import { GanttToday } from "./gantt-today";
-import { GanttMarker, GanttMarkers } from "./gantt-marker";
+import { GanttMarkers } from "./gantt-marker";
 import { GanttControls, type GanttViewMode } from "./gantt-controls";
 import { GanttDependencies } from "./gantt-dependencies";
 import { GanttTableView } from "./gantt-table-view";
 import { DependencyConnectorProvider } from "./gantt-dependency-connector";
-import type { GanttRange, GanttStatus, GanttFeature, GanttMarker as GanttMarkerType, GanttGroup, GanttDependency, DependencyType, HoldState } from "./types";
+import type { GanttRange, GanttFeature, GanttMarker as GanttMarkerType, GanttGroup, GanttDependency, HoldState } from "./types";
 import type { CascadeResolution } from "./gantt-cascade-modal";
-import { defaultStatuses } from "./types";
 
 // Re-export all components and types
 export { GanttProvider, useGantt } from "./context";

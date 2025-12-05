@@ -9,7 +9,6 @@ import {
 } from "@heroicons/react/24/outline";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -60,14 +59,6 @@ interface ScheduleData {
   tasks: Task[];
   links?: { id: number; source: number; target: number; type: string }[];
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  not_started: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-  in_progress: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  completed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  on_hold: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-  delayed: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-};
 
 export default function MasterSchedulePage() {
   const router = useRouter();
@@ -178,15 +169,6 @@ export default function MasterSchedulePage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
   };
 
   if (loading) {

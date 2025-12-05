@@ -29,12 +29,10 @@ import {
   ShoppingCart,
   Cloud,
   MessageSquare,
-  Settings,
   ClipboardList,
   Loader2,
   Shield,
   ExternalLink,
-  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyJobTitle } from "@/lib/url-utils";

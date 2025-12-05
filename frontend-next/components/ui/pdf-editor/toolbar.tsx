@@ -32,8 +32,6 @@ import {
   ZoomOut,
   Save,
   FilePlus2,
-  Download,
-  Palette,
 } from "lucide-react";
 import type { AnnotationTool, ToolbarProps } from "./types";
 import { cn } from "@/lib/utils";

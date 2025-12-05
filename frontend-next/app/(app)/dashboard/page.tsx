@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,37 +31,12 @@ interface DashboardStats {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<DashboardStats>({
-    activeJobs: 0,
-    pendingPOs: 0,
-    totalRevenue: 0,
-    totalContacts: 0,
+  const [stats] = useState<DashboardStats>({
+    activeJobs: 12,
+    pendingPOs: 8,
+    totalRevenue: 245000,
+    totalContacts: 156,
   });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        // TODO: Replace with actual API calls
-        // const response = await api.get('/api/v1/dashboard/stats');
-        // setStats(response);
-
-        // Mock data for now
-        setStats({
-          activeJobs: 12,
-          pendingPOs: 8,
-          totalRevenue: 245000,
-          totalContacts: 156,
-        });
-      } catch (error) {
-        console.error("Failed to load dashboard:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDashboard();
-  }, []);
 
   const statCards = [
     {

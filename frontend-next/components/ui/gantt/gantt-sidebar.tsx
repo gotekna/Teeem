@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { format, differenceInDays } from "date-fns";
+import { differenceInDays } from "date-fns";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGantt } from "./context";
@@ -36,7 +36,6 @@ export function GanttSidebarGroup({
   children,
 }: GanttSidebarGroupProps) {
   const [expanded, setExpanded] = React.useState(defaultExpanded);
-  const { rowHeight } = useGantt();
 
   return (
     <div>

@@ -194,10 +194,80 @@ import { MergeModal } from "./MergeModal";
 import { ViewManagerSheet } from "./views";
 import { sortColumnsForModal } from "./column-utils";
 import { EditModeToggle } from "./EditModeToggle";
-import { tableEditModeAtom } from "@/lib/table-edit-atoms";
 
-// Jotai atoms for centralized view state management
+// Jotai atoms for centralized state management (SSoT)
 import { useAtom, useSetAtom, useAtomValue } from 'jotai';
+
+// All table state atoms from consolidated table-atoms (SSoT)
+import {
+  // Core edit mode
+  tableEditModeAtom,
+  selectedRowsAtom,
+  selectAllAtom,
+  toggleRowSelectionAtom,
+  selectAllRowsAtom,
+  clearSelectionAtom,
+  searchQueryAtom,
+  hoveredRowAtom,
+  // Modal registry
+  activeModalAtom,
+  modalDataAtom,
+  openModalAtom,
+  closeModalAtom,
+  type ModalType,
+  // Panel/UI state
+  showFiltersAtom,
+  healthPanelOpenAtom,
+  filterPanelOpenAtom,
+  rowLimitAtom,
+  showAllRowsAtom,
+  groupViewModeAtom,
+  columnEditModeAtom,
+  searchAllColumnsAtom,
+  // Editing row state
+  editingRowIdsAtom,
+  editingDataAtom,
+  editingCellAtom,
+  editingCellValueAtom,
+  legacyValidationErrorsAtom,
+  // Lookup state
+  lookupOptionsAtom,
+  lookupLoadingAtom,
+  // Merge modal
+  showMergeModalAtom,
+  mergeSelectedIdsAtom,
+  // Bulk update modal
+  showBulkUpdateModalAtom,
+  bulkUpdateColumnAtom,
+  bulkUpdateValueAtom,
+  bulkUpdateSavingAtom,
+  // Save view modal
+  showSaveViewModalAtom,
+  newViewNameAtom,
+  saveAsGlobalAtom,
+  savingViewAtom,
+  // Column management modals
+  showCreateColumnModalAtom,
+  showEditColumnsModalAtom,
+  showDeleteColumnModalAtom,
+  showViewSchemaModalAtom,
+  showEditColumnModalAtom,
+  newColumnNameAtom,
+  newColumnTypeAtom,
+  selectedColumnToDeleteAtom,
+  schemaLoadingAtom,
+  editingColumnKeyAtom,
+  editColumnNameAtom,
+  editColumnTypeAtom,
+  // Export modal
+  showExportModalAtom,
+  exportScopeAtom,
+  exportFormatAtom,
+  // Global views manager
+  showGlobalViewsManagerAtom,
+} from '@/lib/table-atoms';
+
+// View state atoms (keep separate for now - already in use)
 import {
   activeViewIdAtom,
   currentFiltersAtom,
@@ -436,7 +506,8 @@ function SortableColumnRow({
   );
 }
 
-// Isolated search input component - prevents parent re-renders on every keystroke
+// Isolated search input component - uses uncontrolled input pattern with refs
+// This prevents parent re-renders on every keystroke
 const SearchInput = memo(function SearchInput({
   onSearch,
   onSearchAllChange,
@@ -450,13 +521,15 @@ const SearchInput = memo(function SearchInput({
   serverSearchLoading: boolean;
   hasServerSearch: boolean;
 }) {
-  const [localValue, setLocalValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  // Track if we have a value for showing clear button (use ref to avoid re-renders)
+  const [hasValue, setHasValue] = React.useState(false);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
-      setLocalValue(value);
+      setHasValue(value.length > 0);
 
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
@@ -470,7 +543,10 @@ const SearchInput = memo(function SearchInput({
   );
 
   const handleClear = useCallback(() => {
-    setLocalValue("");
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+    setHasValue(false);
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
@@ -494,15 +570,16 @@ const SearchInput = memo(function SearchInput({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         )}
         <Input
+          ref={inputRef}
           type="text"
-          value={localValue}
+          defaultValue=""
           onChange={handleChange}
           placeholder={
             hasServerSearch ? "Search all records..." : "Search across all fields..."
           }
           className="pl-9 pr-9"
         />
-        {localValue && (
+        {hasValue && (
           <button
             onClick={handleClear}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
@@ -1083,11 +1160,13 @@ export default function TeeemTableView({
   );
 
   // ============================================================================
-  // STATE
+  // STATE - Migrating to atoms for SSoT compliance
   // ============================================================================
 
-  const [search, setSearch] = useState("");
-  const [searchAllColumns, setSearchAllColumns] = useState(false);
+  // Search state managed by atom (SSoT)
+  const [search, setSearch] = useAtom(searchQueryAtom);
+  // searchAllColumns managed by atom (SSoT)
+  const [searchAllColumns, setSearchAllColumns] = useAtom(searchAllColumnsAtom);
 
   // View-related state now managed by Jotai atoms (SSoT)
   const [sortColumns, setSortColumns] = useAtom(currentSortColumnsAtom);
@@ -1122,7 +1201,8 @@ export default function TeeemTableView({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setColumnOrder and setVisibleColumns are setState functions (stable)
   }, [COLUMNS]);
-  const [selectedRows, setSelectedRows] = useState<Set<number | string>>(new Set());
+  // Selection state managed by atom (SSoT)
+  const [selectedRows, setSelectedRows] = useAtom(selectedRowsAtom);
 
   // Filter state managed by atoms
   const [cascadeFilters, setCascadeFilters] = useAtom(currentFiltersAtom);
@@ -1130,7 +1210,8 @@ export default function TeeemTableView({
   const safeFilters = useMemo(() => Array.isArray(cascadeFilters) ? cascadeFilters : [], [cascadeFilters]);
   const [filterGroups, setFilterGroups] = useAtom(currentFilterGroupsAtom);
   const [interGroupLogic, setInterGroupLogic] = useAtom(currentInterGroupLogicAtom);
-  const [showFilters, setShowFilters] = useState(false);
+  // showFilters managed by atom (SSoT)
+  const [showFilters, setShowFilters] = useAtom(showFiltersAtom);
 
   // View collection state managed by atoms
   const [savedViews, setSavedViews] = useAtom(foundationViewsAtom);
@@ -1140,8 +1221,9 @@ export default function TeeemTableView({
 
   // Row rendering limit for performance (render 100 rows initially, load more on demand)
   const INITIAL_ROW_LIMIT = 100;
-  const [rowLimit, setRowLimit] = useState(INITIAL_ROW_LIMIT);
-  const [showAllRows, setShowAllRows] = useState(false);
+  // rowLimit and showAllRows managed by atoms (SSoT)
+  const [rowLimit, setRowLimit] = useAtom(rowLimitAtom);
+  const [showAllRows, setShowAllRows] = useAtom(showAllRowsAtom);
 
   // Group by state managed by atoms (SSoT)
   const [groupByColumns, setGroupByColumns] = useAtom(currentGroupByColumnsAtom);
@@ -1149,66 +1231,69 @@ export default function TeeemTableView({
   const groupByColumn = groupByColumns.length > 0 ? groupByColumns[0] : (initialGroupByColumn || null);
   // Collapsed groups managed by atom (persists with saved views)
   const [collapsedGroups, setCollapsedGroups] = useAtom(collapsedGroupsAtom);
-  const [groupViewMode, setGroupViewMode] = useState<"inline" | "panel">("inline"); // inline = groups as rows in table (default), panel = groups above header
+  // groupViewMode managed by atom (SSoT)
+  const [groupViewMode, setGroupViewMode] = useAtom(groupViewModeAtom);
 
   // Display options managed by atoms
   const [showTotals, setShowTotals] = useAtom(currentShowTotalsAtom);
   const [autoFitColumns, setAutoFitColumns] = useAtom(currentAutoFitColumnsAtom);
-  const [healthPanelOpen, setHealthPanelOpen] = useState(false); // Show health check panel
+  // healthPanelOpen managed by atom (SSoT)
+  const [healthPanelOpen, setHealthPanelOpen] = useAtom(healthPanelOpenAtom);
 
   // NEW: Edit Mode state (unified editing approach)
   // When true, all editable cells become interactive with auto-save on blur
   const isEditMode = useAtomValue(tableEditModeAtom);
-  const [editingRowIds, setEditingRowIds] = useState<Set<number | string>>(new Set()); // Multi-row editing
-  const [editingData, setEditingData] = useState<Record<string | number, Record<string, unknown>>>({}); // keyed by row id
-  const [validationErrors, setValidationErrors] = useState<Record<string, Record<string, string>>>({}); // {rowId: {columnKey: errorMessage}}
-  // Cell-level inline editing state (for single-click dropdown, double-click text)
-  const [editingCell, setEditingCell] = useState<{ rowId: number | string; columnKey: string } | null>(null);
-  const [editingCellValue, setEditingCellValue] = useState<unknown>(null);
-  const [lookupOptions, setLookupOptions] = useState<Record<string, Array<{ id: number; display: string }>>>({});
-  const [lookupLoading, setLookupLoading] = useState<Record<string, boolean>>({});
+  // Editing state managed by atoms (SSoT)
+  const [editingRowIds, setEditingRowIds] = useAtom(editingRowIdsAtom);
+  const [editingData, setEditingData] = useAtom(editingDataAtom);
+  const [validationErrors, setValidationErrors] = useAtom(legacyValidationErrorsAtom);
+  // Cell-level inline editing state managed by atoms (SSoT)
+  const [editingCell, setEditingCell] = useAtom(editingCellAtom);
+  const [editingCellValue, setEditingCellValue] = useAtom(editingCellValueAtom);
+  const [lookupOptions, setLookupOptions] = useAtom(lookupOptionsAtom);
+  const [lookupLoading, setLookupLoading] = useAtom(lookupLoadingAtom);
 
-  // Merge modal state (shared across all tables)
-  const [showMergeModal, setShowMergeModal] = useState(false);
-  const [mergeSelectedIds, setMergeSelectedIds] = useState<(string | number)[]>([]);
+  // Merge modal state managed by atoms (SSoT)
+  const [showMergeModal, setShowMergeModal] = useAtom(showMergeModalAtom);
+  const [mergeSelectedIds, setMergeSelectedIds] = useAtom(mergeSelectedIdsAtom);
 
-  // Filter panel state
-  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  // Filter panel state managed by atom (SSoT)
+  const [filterPanelOpen, setFilterPanelOpen] = useAtom(filterPanelOpenAtom);
 
-  // Bulk update modal state
-  const [showBulkUpdateModal, setShowBulkUpdateModal] = useState(false);
-  const [bulkUpdateColumn, setBulkUpdateColumn] = useState("");
-  const [bulkUpdateValue, setBulkUpdateValue] = useState("");
-  const [bulkUpdateSaving, setBulkUpdateSaving] = useState(false);
+  // Bulk update modal state managed by atoms (SSoT)
+  const [showBulkUpdateModal, setShowBulkUpdateModal] = useAtom(showBulkUpdateModalAtom);
+  const [bulkUpdateColumn, setBulkUpdateColumn] = useAtom(bulkUpdateColumnAtom);
+  const [bulkUpdateValue, setBulkUpdateValue] = useAtom(bulkUpdateValueAtom);
+  const [bulkUpdateSaving, setBulkUpdateSaving] = useAtom(bulkUpdateSavingAtom);
 
-  // Save view modal state
-  const [showSaveViewModal, setShowSaveViewModal] = useState(false);
-  const [newViewName, setNewViewName] = useState("");
-  const [saveAsGlobal, setSaveAsGlobal] = useState(false);
-  const [savingView, setSavingView] = useState(false);
+  // Save view modal state managed by atoms (SSoT)
+  const [showSaveViewModal, setShowSaveViewModal] = useAtom(showSaveViewModalAtom);
+  const [newViewName, setNewViewName] = useAtom(newViewNameAtom);
+  const [saveAsGlobal, setSaveAsGlobal] = useAtom(saveAsGlobalAtom);
+  const [savingView, setSavingView] = useAtom(savingViewAtom);
 
-  // Schema editor modal states
-  const [showCreateColumnModal, setShowCreateColumnModal] = useState(false);
-  const [showEditColumnsModal, setShowEditColumnsModal] = useState(false);
-  const [showDeleteColumnModal, setShowDeleteColumnModal] = useState(false);
-  const [showViewSchemaModal, setShowViewSchemaModal] = useState(false);
-  const [showEditColumnModal, setShowEditColumnModal] = useState(false);
-  const [newColumnName, setNewColumnName] = useState("");
-  const [newColumnType, setNewColumnType] = useState("text");
-  const [selectedColumnToDelete, setSelectedColumnToDelete] = useState("");
-  const [schemaLoading, setSchemaLoading] = useState(false);
-  const [columnEditMode, setColumnEditMode] = useState(false);
-  const [editingColumnKey, setEditingColumnKey] = useState<string | null>(null);
-  const [editColumnName, setEditColumnName] = useState("");
-  const [editColumnType, setEditColumnType] = useState("");
+  // Schema editor modal states managed by atoms (SSoT)
+  const [showCreateColumnModal, setShowCreateColumnModal] = useAtom(showCreateColumnModalAtom);
+  const [showEditColumnsModal, setShowEditColumnsModal] = useAtom(showEditColumnsModalAtom);
+  const [showDeleteColumnModal, setShowDeleteColumnModal] = useAtom(showDeleteColumnModalAtom);
+  const [showViewSchemaModal, setShowViewSchemaModal] = useAtom(showViewSchemaModalAtom);
+  const [showEditColumnModal, setShowEditColumnModal] = useAtom(showEditColumnModalAtom);
+  const [newColumnName, setNewColumnName] = useAtom(newColumnNameAtom);
+  const [newColumnType, setNewColumnType] = useAtom(newColumnTypeAtom);
+  const [selectedColumnToDelete, setSelectedColumnToDelete] = useAtom(selectedColumnToDeleteAtom);
+  const [schemaLoading, setSchemaLoading] = useAtom(schemaLoadingAtom);
+  const [columnEditMode, setColumnEditMode] = useAtom(columnEditModeAtom);
+  const [editingColumnKey, setEditingColumnKey] = useAtom(editingColumnKeyAtom);
+  const [editColumnName, setEditColumnName] = useAtom(editColumnNameAtom);
+  const [editColumnType, setEditColumnType] = useAtom(editColumnTypeAtom);
 
-  // Export modal state
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportScope, setExportScope] = useState<"visible" | "all">("visible");
-  const [exportFormat, setExportFormat] = useState<"csv" | "excel" | "pdf">("csv");
+  // Export modal state managed by atoms (SSoT)
+  const [showExportModal, setShowExportModal] = useAtom(showExportModalAtom);
+  const [exportScope, setExportScope] = useAtom(exportScopeAtom);
+  const [exportFormat, setExportFormat] = useAtom(exportFormatAtom);
 
-  // Global Views Manager state (auto-enabled when foundationIdNumeric is set)
-  const [showGlobalViewsManager, setShowGlobalViewsManager] = useState(false);
+  // Global Views Manager state managed by atom (SSoT)
+  const [showGlobalViewsManager, setShowGlobalViewsManager] = useAtom(showGlobalViewsManagerAtom);
 
   // DnD sensors for column reordering
   const dndSensors = useSensors(
@@ -1425,7 +1510,7 @@ export default function TeeemTableView({
 
   const toggleSelectAll = useCallback(() => {
     if (selectedRows.size === filteredAndSortedEntries.length) {
-      setSelectedRows(new Set());
+      setSelectedRows(new Set<string | number>());
     } else {
       setSelectedRows(new Set(filteredAndSortedEntries.map((e) => e.id)));
     }
@@ -1449,7 +1534,7 @@ export default function TeeemTableView({
   // Called when merge completes successfully
   const handleMergeComplete = useCallback(() => {
     setMergeSelectedIds([]);
-    setSelectedRows(new Set());
+    setSelectedRows(new Set<string | number>());
     // Refresh data
     if (onRefresh) {
       onRefresh();
@@ -1881,7 +1966,7 @@ export default function TeeemTableView({
       setShowBulkUpdateModal(false);
       setBulkUpdateColumn("");
       setBulkUpdateValue("");
-      setSelectedRows(new Set());
+      setSelectedRows(new Set<string | number>());
       onRefresh?.();
     } catch (error) {
       console.error("Bulk update failed:", error);
@@ -2246,7 +2331,6 @@ export default function TeeemTableView({
     if (onLoadViewReady) {
       onLoadViewReady(loadViewState);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [onLoadViewReady, loadViewState]);
 
   // Save current state as new view
@@ -2518,7 +2602,6 @@ export default function TeeemTableView({
   useEffect(() => {
     setRowLimit(INITIAL_ROW_LIMIT);
     setShowAllRows(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [cascadeFilters, sortColumns, search, INITIAL_ROW_LIMIT]);
 
   // Helper to extract display value from a cell (handles objects with display/name properties)
@@ -4178,10 +4261,10 @@ export default function TeeemTableView({
                 </a>
               );
             }
-            // For person-type contacts, link to the SSoT page (cg-new)
+            // For person-type contacts, link to the Company Groups page
             return (
               <a
-                href="/corporate/cg-new"
+                href="/company-groups"
                 onClick={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-colors text-xs font-medium"
                 title="View Company Group Memberships"
@@ -5167,7 +5250,7 @@ export default function TeeemTableView({
                 Select Expanded ({visibleRows.length})
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setSelectedRows(new Set())}>
+              <DropdownMenuItem onClick={() => setSelectedRows(new Set<string | number>())}>
                 Clear Selection
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -5219,7 +5302,7 @@ export default function TeeemTableView({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedRows(new Set())}
+                onClick={() => setSelectedRows(new Set<string | number>())}
                 className="h-7 px-2 text-xs"
               >
                 Clear
@@ -5692,7 +5775,7 @@ export default function TeeemTableView({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedRows(new Set())}
+                onClick={() => setSelectedRows(new Set<string | number>())}
               >
                 Clear selection
               </Button>
@@ -5757,7 +5840,7 @@ export default function TeeemTableView({
           {/* Custom bulk actions - rendered via callback */}
           {customBulkActions && customBulkActions(
             Array.from(selectedRows),
-            () => setSelectedRows(new Set())
+            () => setSelectedRows(new Set<string | number>())
           )}
         </div>
       )}

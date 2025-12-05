@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Accordion,
   AccordionContent,
@@ -27,7 +26,6 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -136,7 +134,6 @@ const MANUAL_SECTIONS: ManualSection[] = [
 ];
 
 export function UserManualTab() {
-  const { toast } = useToast();
   const [sections, setSections] = React.useState<ManualSection[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");

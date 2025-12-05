@@ -4,16 +4,14 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
-import { useSidebar, COLLAPSED_WIDTH, EXPANDED_WIDTH } from "@/contexts/SidebarContext";
+import { useSidebar } from "@/contexts/SidebarContext";
 import {
   Home,
   Briefcase,
   Calendar,
   Shield,
-  DollarSign,
   Users,
   FileText,
-  GraduationCap,
   Settings,
   Sun,
   Moon,
@@ -23,26 +21,19 @@ import {
   Target,
   Package,
   Building2,
-  LayoutTemplate,
   ListTodo,
-  MessageSquare,
   FileQuestion,
   Layers,
   CalendarClock,
   ExternalLink,
-  HardHat,
-  LayoutGrid,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Network,
   Wrench,
   Scale,
 } from "lucide-react";
 import {
   Persona,
   PERSONA_CONFIG,
-  PERSONA_ORDER,
   getStoredPersona,
   setStoredPersona,
 } from "@/lib/personas";
@@ -83,21 +74,19 @@ const navigationItems: NavigationItem[] = [
   { name: "Documents", href: "/documents", icon: FolderOpen },
   { name: "Corporate", href: "/corporate", icon: Building2 },
   { name: "Cases", href: "/cases", icon: Scale, badgeKey: "pendingCaseProposals" },
-  { name: "CG NEW", href: "/corporate/cg-new", icon: Network },
   { name: "Portal", href: "/portal", icon: ExternalLink },
   { name: "Admin", href: "/admin", icon: Wrench },
 ];
 
-const personaIcons: Record<Persona, typeof HardHat> = {
-  site: HardHat,
-  office: Building2,
-  manager: LayoutGrid,
-};
+// const personaIcons: Record<Persona, typeof HardHat> = {
+//   site: HardHat,
+//   office: Building2,
+//   manager: LayoutGrid,
+// };
 
 export function Sidebar() {
   const { isExpanded, setIsExpanded } = useSidebar();
   const [persona, setPersona] = useState<Persona>('manager');
-  const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
   const [badges, setBadges] = useState<Record<string, number>>({});
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
@@ -193,7 +182,6 @@ export function Sidebar() {
   const handlePersonaChange = (newPersona: Persona) => {
     setPersona(newPersona);
     setStoredPersona(newPersona);
-    setPersonaMenuOpen(false);
   };
 
   // Filter navigation items based on persona

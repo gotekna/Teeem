@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -18,7 +17,6 @@ import {
   Loader2,
   Trash2,
   Download,
-  Upload,
   RefreshCw,
   Search,
   Zap,
@@ -27,7 +25,6 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
 
 interface AgentCommand {
   id: number;
@@ -86,7 +83,6 @@ export function ClaudeShortcutsTab() {
   const [loading, setLoading] = React.useState(true);
   const [isEditingCommands, setIsEditingCommands] = React.useState(false);
   const [isEditingSlang, setIsEditingSlang] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
   const [searchCommands, setSearchCommands] = React.useState("");
   const [searchSlang, setSearchSlang] = React.useState("");
 
@@ -99,7 +95,7 @@ export function ClaudeShortcutsTab() {
       // Try to load from API
       const response = await api.get<{ data: AgentCommand[] }>("/api/v1/agents/shortcuts");
       setCommands(response.data || DEFAULT_COMMANDS);
-    } catch (error) {
+    } catch {
       // Fallback to localStorage or defaults
       const savedCommands = localStorage.getItem("claudeCommands");
       const savedSlang = localStorage.getItem("claudeSlang");

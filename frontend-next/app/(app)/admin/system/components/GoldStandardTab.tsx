@@ -9,8 +9,6 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -20,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -48,7 +46,6 @@ import {
   Eye,
   EyeOff,
   GripVertical,
-  Trash2,
 } from "lucide-react";
 import {
   Dialog,
@@ -66,7 +63,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TableColumn, TableRow as TableRowType, SavedView } from "@/components/table/types";
-// GlobalViewsManager is now handled internally by TeeemTableView when foundationIdNumeric is set
 import {
   Collapsible,
   CollapsibleContent,
@@ -109,7 +105,6 @@ interface SyncData {
 
 // Sortable field item for drag and drop
 interface SortableFieldItemProps {
-  id: string;
   col: { column_name: string; name: string; column_type: string };
   isVisible: boolean;
   order: number;
@@ -118,7 +113,6 @@ interface SortableFieldItemProps {
 }
 
 function SortableFieldItem({
-  id,
   col,
   isVisible,
   order,
@@ -132,7 +126,7 @@ function SortableFieldItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id: col.column_name });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -498,10 +492,6 @@ function GoldStandardDataTab() {
     }
   };
 
-  const handleEdit = async (entry: TableRowType) => {
-    // TODO: Implement edit modal
-    console.log("Edit:", entry);
-  };
 
   const handleDelete = async (entry: TableRowType) => {
     if (!confirm("Are you sure you want to delete this item?")) return;
@@ -642,33 +632,6 @@ function GoldStandardDataTab() {
       });
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleDuplicateEntry = async (entry: TableRowType) => {
-    // Create a copy without id
-    const duplicateData: Record<string, unknown> = {};
-    rawColumns.forEach((col) => {
-      duplicateData[col.column_name] = entry[col.column_name];
-    });
-
-    try {
-      const response = await api.post<{ success: boolean; item: TableRowType }>("/api/v1/gold_standard_table", {
-        gold_standard_table: duplicateData,
-      });
-      if (response?.success && response.item) {
-        setEntries((prev) => [...prev, response.item]);
-      } else {
-        await loadData();
-      }
-      toast({ title: "Success", description: "Item duplicated successfully" });
-    } catch (error) {
-      console.error("Failed to duplicate:", error);
-      toast({
-        title: "Error",
-        description: "Failed to duplicate item",
-        variant: "destructive",
-      });
     }
   };
 
@@ -931,7 +894,6 @@ function GoldStandardDataTab() {
                     {getSortedColumns().map((col) => (
                       <SortableFieldItem
                         key={col.column_name}
-                        id={col.column_name}
                         col={col}
                         isVisible={visibleFields.has(col.column_name)}
                         order={fieldOrder[col.column_name] || 0}
@@ -1059,7 +1021,6 @@ function GoldStandardDataTab() {
                     {getSortedColumns().map((col) => (
                       <SortableFieldItem
                         key={col.column_name}
-                        id={col.column_name}
                         col={col}
                         isVisible={visibleFields.has(col.column_name)}
                         order={fieldOrder[col.column_name] || 0}
@@ -1196,7 +1157,6 @@ function GoldStandardDataTab() {
 
 // Column Info Tab - shows column type reference
 function GoldStandardTableTab() {
-  const { toast } = useToast();
   const [columns, setColumns] = React.useState<ColumnType[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [dataSource, setDataSource] = React.useState("Loading...");
@@ -1204,7 +1164,6 @@ function GoldStandardTableTab() {
 
   React.useEffect(() => {
     loadColumnTypes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadColumnTypes = async () => {
@@ -1484,7 +1443,6 @@ function SyncCheckTab() {
 
   React.useEffect(() => {
     loadSyncData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadSyncData = async () => {

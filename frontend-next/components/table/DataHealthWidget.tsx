@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle,
@@ -10,7 +9,6 @@ import {
   ChevronRight,
   RefreshCw,
   Loader2,
-  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -64,7 +62,7 @@ interface DataHealthWidgetProps {
   compact?: boolean;
   forceShow?: boolean; // Always show even if no issues (for explicit open via button)
   onIssueClick?: (item: HealthCheckItem, check: HealthCheck) => void;
-  onDataChanged?: () => void;
+  onDataChanged?: () => void; // eslint-disable-line @typescript-eslint/no-unused-vars
 }
 
 /**
@@ -78,9 +76,7 @@ export function DataHealthWidget({
   compact = false,
   forceShow = false,
   onIssueClick,
-  onDataChanged,
 }: DataHealthWidgetProps) {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [healthData, setHealthData] = useState<HealthData | null>(null);
@@ -146,13 +142,6 @@ export function DataHealthWidget({
   const handleItemClick = (item: HealthCheckItem, check: HealthCheck) => {
     if (onIssueClick) {
       onIssueClick(item, check);
-      return;
-    }
-
-    // Default navigation based on action_path
-    if (check.action_path && item.id) {
-      const path = check.action_path.replace(":id", String(item.id));
-      router.push(path);
     }
   };
 

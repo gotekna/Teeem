@@ -26,8 +26,6 @@ import {
   tableEditModeAtom,
   hasAnyValidationErrorsAtom,
   savingCellsAtom,
-  exitEditModeAtom,
-  enterEditModeAtom,
 } from '@/lib/table-edit-atoms';
 
 export interface EditModeToggleProps {

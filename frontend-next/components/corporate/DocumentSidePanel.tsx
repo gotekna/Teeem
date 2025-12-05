@@ -4,8 +4,6 @@ import * as React from "react";
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +15,6 @@ import {
   Loader2,
   X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface CompanyDocument {
   id: number | string;
@@ -76,11 +73,11 @@ export default function DocumentSidePanel({
           setPreviewError(response.error || "Preview not available");
           setPreviewUrl(null);
         }
-      } catch (error: unknown) {
+      } catch (_error: unknown) {
         // Don't log OneDrive credential errors - expected in local dev
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = _error instanceof Error ? _error.message : String(_error);
         if (!errorMessage.includes("OneDrive credentials not available")) {
-          console.error("Failed to fetch preview URL:", error);
+          console.error("Failed to fetch preview URL:", _error);
         }
         setPreviewError("Preview not available");
         setPreviewUrl(null);

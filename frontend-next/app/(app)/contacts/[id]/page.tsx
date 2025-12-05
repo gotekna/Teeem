@@ -28,16 +28,14 @@ import {
   AlertTriangle,
   CheckCircle,
   ExternalLink,
-  Briefcase,
   Home,
   Lock,
   IdCard,
   CreditCard,
-  Share2,
   FolderOpen,
   Percent,
-  Table,
   Network,
+  Table,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyContactName } from "@/lib/url-utils";
@@ -302,6 +300,27 @@ interface OwnershipNode {
   children?: OwnershipNode[];
 }
 
+// Email from EmailWarehouse
+interface ContactEmail {
+  id: number;
+  subject: string | null;
+  from_email: string;
+  display_from?: string;
+  to_emails: string[];
+  cc_emails?: string[];
+  preview_body?: string;
+  received_at: string;
+  has_attachments?: boolean;
+  attachment_count?: number;
+}
+
+interface EmailsPagination {
+  page: number;
+  per_page: number;
+  total: number;
+  total_pages: number;
+}
+
 export default function ContactDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -327,6 +346,13 @@ export default function ContactDetailPage() {
   const [selectedXeroLink, setSelectedXeroLink] = useState<XeroLink | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [showInvoiceDetail, setShowInvoiceDetail] = useState(false);
+
+  // Email warehouse state
+  const [emails, setEmails] = useState<ContactEmail[]>([]);
+  const [loadingEmails, setLoadingEmails] = useState(false);
+  const [emailsPage, setEmailsPage] = useState(1);
+  const [emailsPagination, setEmailsPagination] = useState<EmailsPagination | null>(null);
+  const [showAllInThread, setShowAllInThread] = useState(false);
 
   const activeTab = searchParams.get("tab") || "overview";
   const activeSubTab = searchParams.get("subtab") || "identity";
@@ -452,6 +478,33 @@ export default function ContactDetailPage() {
     }
   };
 
+  // Load emails from EmailWarehouse for this contact
+  const loadEmails = async (page = 1) => {
+    if (!contact?.email) return;
+    try {
+      setLoadingEmails(true);
+      const response = await api.get<{ emails: ContactEmail[]; pagination: EmailsPagination }>(
+        "/api/v1/email_warehouse",
+        {
+          params: {
+            email: contact.email,
+            page,
+            per_page: 50,
+            latest_only: !showAllInThread,
+          },
+        }
+      );
+      setEmails(response.emails || []);
+      setEmailsPagination(response.pagination || null);
+      setEmailsPage(page);
+    } catch (err) {
+      console.error("Failed to load emails:", err);
+      setEmails([]);
+    } finally {
+      setLoadingEmails(false);
+    }
+  };
+
   // SSoT: Load tab-specific data when tab changes
   useEffect(() => {
     if (!contact?.id) return;
@@ -463,8 +516,20 @@ export default function ContactDetailPage() {
       if (!trustRoles && !loadingTrustRoles) loadTrustRoles();
       if (ownershipChain.length === 0 && !loadingOwnershipChain) loadOwnershipChain();
     }
+
+    if (activeTab === "emails" && contact?.email && emails.length === 0 && !loadingEmails) {
+      loadEmails();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching activeTab and contact?.id
   }, [activeTab, contact?.id]);
+
+  // Reload emails when showAllInThread changes
+  useEffect(() => {
+    if (activeTab === "emails" && contact?.email) {
+      loadEmails(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching showAllInThread
+  }, [showAllInThread]);
 
   const handleTabChange = (value: string) => {
     // Use slug for URL, don't show ?tab= for default "overview" tab
@@ -573,22 +638,35 @@ export default function ContactDetailPage() {
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="corporate">
-            <Building2 className="h-3.5 w-3.5 mr-1" />
-            Corporate
-            {(directorships.length > 0 || shareholdings.length > 0 || (trustRoles && trustRoles.total_count > 0) || memberships.length > 0) && (
-              <Badge variant="secondary" className="ml-1.5">
-                {directorships.length + shareholdings.length + (trustRoles?.total_count || 0) + memberships.length}
-              </Badge>
-            )}
-            {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
-          </TabsTrigger>
+          {contact.linked_company && (
+            <TabsTrigger value="corporate">
+              <Building2 className="h-3.5 w-3.5 mr-1" />
+              Corporate
+              {(directorships.length > 0 || shareholdings.length > 0 || (trustRoles && trustRoles.total_count > 0) || memberships.length > 0) && (
+                <Badge variant="secondary" className="ml-1.5">
+                  {directorships.length + shareholdings.length + (trustRoles?.total_count || 0) + memberships.length}
+                </Badge>
+              )}
+              {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="financial">
             Financial
             {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
           </TabsTrigger>
           <TabsTrigger value="coms">Communications</TabsTrigger>
+          {contact.email && (
+            <TabsTrigger value="emails">
+              <Mail className="h-3.5 w-3.5 mr-1" />
+              Emails
+              {emailsPagination && emailsPagination.total > 0 && (
+                <Badge variant="secondary" className="ml-1.5">
+                  {emailsPagination.total}
+                </Badge>
+              )}
+            </TabsTrigger>
+          )}
           {contact["is_supplier?"] && (
             <TabsTrigger value="pricebook">Price Book</TabsTrigger>
           )}
@@ -1701,6 +1779,131 @@ export default function ContactDetailPage() {
               <p className="text-muted-foreground text-center py-8">
                 Communication history will be shown here.
               </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Emails Tab */}
+        <TabsContent value="emails" className="mt-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Emails
+                {emailsPagination && (
+                  <Badge variant="secondary">{emailsPagination.total}</Badge>
+                )}
+              </CardTitle>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showAllInThread}
+                  onChange={(e) => setShowAllInThread(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                Show all in thread
+              </label>
+            </CardHeader>
+            <CardContent>
+              {loadingEmails ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader />
+                </div>
+              ) : emails.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  No emails found for {contact.email}
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {emails.map((email) => {
+                    const contactEmailLower = contact.email?.toLowerCase() || "";
+                    const isFrom = email.from_email?.toLowerCase() === contactEmailLower;
+                    const isTo = email.to_emails?.some(e => e.toLowerCase() === contactEmailLower);
+                    const isCc = email.cc_emails?.some(e => e.toLowerCase() === contactEmailLower);
+
+                    return (
+                      <div
+                        key={email.id}
+                        className="border rounded-lg p-3 hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-2 min-w-0 flex-1">
+                            <Badge
+                              className={cn(
+                                "shrink-0 mt-0.5",
+                                isFrom
+                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30"
+                                  : isCc
+                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30"
+                                    : "bg-green-100 text-green-700 dark:bg-green-900/30"
+                              )}
+                            >
+                              {isFrom ? "From" : isCc ? "CC" : "To"}
+                            </Badge>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium truncate">
+                                {email.subject || "(no subject)"}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {isFrom ? (
+                                  <>To: {email.to_emails?.join(", ") || "-"}</>
+                                ) : (
+                                  <>From: {email.display_from || email.from_email}</>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {email.has_attachments && (
+                              <Badge variant="outline" className="text-xs">
+                                {email.attachment_count || 1} file{(email.attachment_count || 1) > 1 ? "s" : ""}
+                              </Badge>
+                            )}
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(email.received_at).toLocaleDateString("en-AU", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                        {email.preview_body && (
+                          <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                            {email.preview_body}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Pagination */}
+              {emailsPagination && emailsPagination.total_pages > 1 && (
+                <div className="flex items-center justify-center gap-4 mt-6 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={emailsPage === 1}
+                    onClick={() => loadEmails(emailsPage - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {emailsPage} of {emailsPagination.total_pages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={emailsPage >= emailsPagination.total_pages}
+                    onClick={() => loadEmails(emailsPage + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

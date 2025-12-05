@@ -3,8 +3,8 @@
 import * as React from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { format, differenceInDays, addDays } from "date-fns";
-import { Lock, Pin, CheckCircle2, Play } from "lucide-react";
+import { format, differenceInDays } from "date-fns";
+import { Pin, CheckCircle2, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGantt } from "./context";
 import { GanttContextMenu } from "./gantt-context-menu";

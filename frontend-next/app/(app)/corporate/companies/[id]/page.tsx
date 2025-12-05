@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -22,25 +21,18 @@ import {
   Users,
   FileText,
   DollarSign,
-  Shield,
   Edit,
   Loader2,
   ExternalLink,
-  ChevronRight,
-  Copy,
-  Check,
   Briefcase,
   Heart,
   Clock,
-  CreditCard,
   Landmark,
   FolderOpen,
-  Percent,
   Banknote,
   Save,
   X,
   Plus,
-  Upload,
   Cloud,
   CheckCircle,
   XCircle,
@@ -49,12 +41,17 @@ import {
   BarChart3,
   Database,
   HardDrive,
+  RefreshCw,
   RefreshCcw,
+  Link2,
+  Unlink,
+  Sparkles,
+  Pencil,
+  GitMerge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
-import { RefreshCw, Link2, Unlink, Sparkles, Pencil, GitMerge } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
@@ -206,16 +203,17 @@ interface Shareholding {
   acquisition_date?: string;
 }
 
-interface Investment {
-  id: number;
-  company_id: number;
-  company_name: string;
-  company_acn?: string;
-  number_of_shares: number;
-  percentage: number;
-  share_class?: string;
-  acquisition_date?: string;
-}
+// Unused - keeping for future implementation
+// interface Investment {
+//   id: number;
+//   company_id: number;
+//   company_name: string;
+//   company_acn?: string;
+//   number_of_shares: number;
+//   percentage: number;
+//   share_class?: string;
+//   acquisition_date?: string;
+// }
 
 interface TrustRolesMember {
   membership_id: number;
@@ -261,42 +259,44 @@ interface TrustRolesData {
   }[];
 }
 
-function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = React.useState(false);
+// Unused - keeping for future implementation
+// function CopyButton({ value }: { value: string }) {
+//   const [copied, setCopied] = React.useState(false);
+//
+//   const handleCopy = async () => {
+//     await navigator.clipboard.writeText(value);
+//     setCopied(true);
+//     setTimeout(() => setCopied(false), 2000);
+//   };
+//
+//   return (
+//     <button
+//       onClick={handleCopy}
+//       className="p-1 hover:bg-muted rounded transition-colors"
+//       title="Copy to clipboard"
+//     >
+//       {copied ? (
+//         <Check className="h-3.5 w-3.5 text-green-600" />
+//       ) : (
+//         <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+//       )}
+//     </button>
+//   );
+// }
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="p-1 hover:bg-muted rounded transition-colors"
-      title="Copy to clipboard"
-    >
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-green-600" />
-      ) : (
-        <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-      )}
-    </button>
-  );
-}
-
-function InfoRow({ label, value, copyable = false, mono = false }: { label: string; value?: string | number | null; copyable?: boolean; mono?: boolean }) {
-  if (value === undefined || value === null || value === "") return null;
-  return (
-    <div className="flex justify-between py-2 border-b border-border/50 last:border-0">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className={cn("text-sm font-medium flex items-center gap-1", mono && "font-mono")}>
-        {value}
-        {copyable && typeof value === "string" && <CopyButton value={value} />}
-      </span>
-    </div>
-  );
-}
+// Unused - keeping for future implementation
+// function InfoRow({ label, value, copyable = false, mono = false }: { label: string; value?: string | number | null; copyable?: boolean; mono?: boolean }) {
+//   if (value === undefined || value === null || value === "") return null;
+//   return (
+//     <div className="flex justify-between py-2 border-b border-border/50 last:border-0">
+//       <span className="text-sm text-muted-foreground">{label}</span>
+//       <span className={cn("text-sm font-medium flex items-center gap-1", mono && "font-mono")}>
+//         {value}
+//         {copyable && typeof value === "string" && <CopyButton value={value} />}
+//       </span>
+//     </div>
+//   );
+// }
 
 // Information Sub-Tab
 function InformationTab({ company }: { company: Company }) {
@@ -1476,7 +1476,7 @@ function AppointorTab({ company }: { company: Company }) {
   );
 }
 
-function TrustDeedTab({ company }: { company: Company }) {
+function TrustDeedTab() {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Trust Deed</h3>
@@ -1495,7 +1495,7 @@ function TrustDeedTab({ company }: { company: Company }) {
   );
 }
 
-function DistributionsTab({ company }: { company: Company }) {
+function DistributionsTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -2007,7 +2007,6 @@ function formatFileSize(bytes?: number): string {
 function CompanyDocumentsTab({ companyId, company, category }: { companyId: string; company: Company; category?: string }) {
   const [documents, setDocuments] = React.useState<CompanyDocument[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [sharepointConnected, setShaepointConnected] = React.useState(false);
   const [columns] = React.useState(buildDocumentColumns());
   const [companies, setCompanies] = React.useState<Company[]>([]);
 
@@ -2019,7 +2018,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
 
   React.useEffect(() => {
     loadDocuments();
-    checkSharePointConnection();
+    // checkSharePointConnection(); // Unused - SharePoint connection state was never defined
     loadCompanies();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [companyId, category]);
@@ -2063,14 +2062,15 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
     }
   };
 
-  const checkSharePointConnection = async () => {
-    try {
-      const response = await api.get<{ connected: boolean }>("/api/v1/organization_onedrive/status");
-      setShaepointConnected(response.connected === true);
-    } catch {
-      setShaepointConnected(false);
-    }
-  };
+  // Unused - SharePoint connection state was never defined
+  // const checkSharePointConnection = async () => {
+  //   try {
+  //     const response = await api.get<{ connected: boolean }>("/api/v1/organization_onedrive/status");
+  //     setSharepointConnected(response.connected === true);
+  //   } catch {
+  //     setSharepointConnected(false);
+  //   }
+  // };
 
   // Debounce ref to distinguish single vs double click
   const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -2310,13 +2310,13 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
   };
 
   // Get SharePoint folder URL for this tab
-  const getSharePointUrl = () => {
-    if (!company.sharepoint_folder_url) return null;
-    if (category && category !== "all") {
-      return `${company.sharepoint_folder_url}/${encodeURIComponent(category.toUpperCase())}`;
-    }
-    return company.sharepoint_folder_url;
-  };
+  // const getSharePointUrl = () => {
+  //   if (!company.sharepoint_folder_url) return null;
+  //   if (category && category !== "all") {
+  //     return `${company.sharepoint_folder_url}/${encodeURIComponent(category.toUpperCase())}`;
+  //   }
+  //   return company.sharepoint_folder_url;
+  // };
 
   // Bulk AI verification state
   const [bulkAiProcessing, setBulkAiProcessing] = React.useState(false);
@@ -3366,7 +3366,7 @@ function BankTransactionsCard({ companyId, isConnected }: { companyId: string; i
         ) : transactions.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>No transactions found for this period.</p>
-            <p className="text-sm mt-1">Click "Sync from Xero" to import transactions.</p>
+            <p className="text-sm mt-1">Click &quot;Sync from Xero&quot; to import transactions.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -3659,8 +3659,8 @@ export default function CompanyDetailPage() {
                   {overviewSubTab === "trustee" && <TrusteeTab company={company} />}
                   {overviewSubTab === "beneficiaries" && <BeneficiariesTab company={company} />}
                   {overviewSubTab === "appointor" && <AppointorTab company={company} />}
-                  {overviewSubTab === "trust-deed" && <TrustDeedTab company={company} />}
-                  {overviewSubTab === "distributions" && <DistributionsTab company={company} />}
+                  {overviewSubTab === "trust-deed" && <TrustDeedTab />}
+                  {overviewSubTab === "distributions" && <DistributionsTab />}
                 </>
               ) : company.is_trustee ? (
                 // Corporate Trustee - Simplified tabs (company that acts as trustee for trusts)

@@ -1,22 +1,19 @@
 "use client";
 
 /**
- * ChoiceEditor Component
+ * ChoiceEditor Component - Minimal useState (UI library requirement only)
  *
  * Handles choice/select cell editing for:
  * - choice
  * - single_select
  * - multiple_select (with multiple prop)
  *
- * Features:
- * - Dropdown with options
- * - Color badges for options
- * - Keyboard navigation
- * - Search/filter options
- * - Optional new option creation
+ * Note: Radix Popover requires controlled `open` state.
+ * This is a UI library requirement, not application state.
+ * Search uses uncontrolled input pattern.
  */
 
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Check, ChevronDown, Loader2, X } from 'lucide-react';
 import {
@@ -56,30 +53,36 @@ export function ChoiceEditor({
   onCreateOption,
 }: ChoiceEditorProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Radix Popover requires controlled open state (UI library requirement)
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
 
   // Get options from column or props
-  const allOptions: ChoiceOption[] =
+  const allOptions: ChoiceOption[] = useMemo(() =>
     options.length > 0
       ? options
       : (column.options?.choices || []).map((c: { label: string; value: string; color?: string }) => ({
           label: c.label,
           value: c.value,
           color: c.color,
-        }));
+        })),
+    [options, column.options?.choices]
+  );
 
   // Current selection as array
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
-  const selectedValues: string[] = multiple
-    ? Array.isArray(value)
-      ? value
+  const selectedValues: string[] = useMemo(() =>
+    multiple
+      ? Array.isArray(value)
+        ? value
+        : value
+        ? [value]
+        : []
       : value
-      ? [value]
-      : []
-    : value
-    ? [value as string]
-    : [];
+      ? [value as string]
+      : [],
+    [multiple, value]
+  );
 
   // Auto-focus and open when cell becomes focused
   useEffect(() => {
@@ -154,15 +157,24 @@ export function ChoiceEditor({
   );
 
   // Get option by value
-  const getOption = (val: string): ChoiceOption | undefined =>
-    allOptions.find((opt) => opt.value === val);
+  const getOption = useCallback(
+    (val: string): ChoiceOption | undefined =>
+      allOptions.find((opt) => opt.value === val),
+    [allOptions]
+  );
 
-  // Filter options by search
-  const filteredOptions = search
-    ? allOptions.filter((opt) =>
-        opt.label.toLowerCase().includes(search.toLowerCase())
-      )
-    : allOptions;
+  // Handle create option
+  const handleCreateOption = useCallback(
+    (searchValue: string) => {
+      onCreateOption?.(searchValue);
+      handleSelect(searchValue);
+      // Clear search input via ref
+      if (searchInputRef.current) {
+        searchInputRef.current.value = '';
+      }
+    },
+    [onCreateOption, handleSelect]
+  );
 
   // Render selected value(s)
   const renderValue = () => {
@@ -258,37 +270,37 @@ export function ChoiceEditor({
         </PopoverTrigger>
 
         <PopoverContent className="w-[200px] p-0" align="start">
-          <Command>
+          <Command shouldFilter={true}>
             <CommandInput
+              ref={searchInputRef}
               placeholder="Search..."
-              value={search}
-              onValueChange={setSearch}
             />
             <CommandList>
               <CommandEmpty>
-                {creatable && search ? (
+                {creatable ? (
                   <Button
                     variant="ghost"
                     className="w-full justify-start"
                     onClick={() => {
-                      onCreateOption?.(search);
-                      handleSelect(search);
-                      setSearch('');
+                      const searchValue = searchInputRef.current?.value || '';
+                      if (searchValue) {
+                        handleCreateOption(searchValue);
+                      }
                     }}
                   >
-                    Create "{search}"
+                    Create new option
                   </Button>
                 ) : (
                   'No options found.'
                 )}
               </CommandEmpty>
               <CommandGroup>
-                {filteredOptions.map((option) => {
+                {allOptions.map((option) => {
                   const isSelected = selectedValues.includes(option.value);
                   return (
                     <CommandItem
                       key={option.value}
-                      value={option.value}
+                      value={option.label}
                       onSelect={() => handleSelect(option.value)}
                     >
                       <div

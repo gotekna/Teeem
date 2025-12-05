@@ -13,8 +13,6 @@ import {
   User,
   Settings,
   LogOut,
-  CheckCircle,
-  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { InspiringBanner } from "./InspiringBanner";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";

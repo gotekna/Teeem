@@ -7,14 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Shield,
   AlertTriangle,
   CheckCircle2,
@@ -23,7 +15,6 @@ import {
   Users,
   HardHat,
   ClipboardCheck,
-  Calendar,
   Loader2,
   Plus,
   ChevronRight,

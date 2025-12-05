@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -19,7 +18,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { format, isToday, isTomorrow, addDays, startOfWeek } from "date-fns";
+import { format, isToday, isTomorrow } from "date-fns";
 
 interface Meeting {
   id: number;
@@ -58,7 +57,6 @@ function getMeetingDateLabel(dateStr: string): string {
 }
 
 export default function MeetingsPage() {
-  const router = useRouter();
   const [meetings, setMeetings] = React.useState<Meeting[]>([]);
   const [loading, setLoading] = React.useState(true);
 

@@ -34,7 +34,7 @@ export default function PermissionsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [permissions, setPermissions] = useState<PermissionsMap>({});
   const [categories, setCategories] = useState<CategoriesMap>({});
-  const [roles, setRoles] = useState<string[]>([]);
+  const [, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);

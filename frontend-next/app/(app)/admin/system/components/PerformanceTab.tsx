@@ -17,7 +17,6 @@ import {
   Loader2,
   RefreshCw,
   Activity,
-  Cpu,
   Database,
   Globe,
   HardDrive,
@@ -136,17 +135,6 @@ export function PerformanceTab() {
         return "text-yellow-600 dark:text-yellow-400";
       case "critical":
         return "text-red-600 dark:text-red-400";
-    }
-  };
-
-  const getStatusBg = (status: "good" | "warning" | "critical") => {
-    switch (status) {
-      case "good":
-        return "bg-green-100 dark:bg-green-900/30";
-      case "warning":
-        return "bg-yellow-100 dark:bg-yellow-900/30";
-      case "critical":
-        return "bg-red-100 dark:bg-red-900/30";
     }
   };
 

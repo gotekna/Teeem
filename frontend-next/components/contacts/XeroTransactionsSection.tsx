@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, CreditCard, FileCheck, Loader2, ExternalLink, Eye } from "lucide-react";
+import { FileText, CreditCard, FileCheck, Loader2, Eye } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { api } from "@/lib/api";
-import type { XeroInvoice, XeroCreditNote, XeroQuote, XeroPayment, XeroLink } from "@/types/xero";
+import type { XeroInvoice, XeroCreditNote, XeroQuote, XeroLink } from "@/types/xero";
 
 interface XeroTransactionsSectionProps {
   contactId: number;

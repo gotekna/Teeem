@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
 import {
   Mail,
@@ -17,7 +17,6 @@ import {
   User,
   Building2,
   Users,
-  Plus,
   RefreshCw,
   MapPin,
   DollarSign,

@@ -1,22 +1,18 @@
 "use client";
 
 /**
- * NumberEditor Component
+ * NumberEditor Component - ZERO useState
  *
  * Handles numeric cell editing for:
  * - number
  * - currency
  * - percentage
  *
- * Features:
- * - Numeric input with validation
- * - Precision control (decimal places)
- * - Min/max bounds
- * - Currency/percentage formatting
- * - Arrow key increment/decrement
+ * Uses uncontrolled input pattern (ref-based) for SSoT compliance.
+ * No useState - all state flows through atoms or refs.
  */
 
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
@@ -44,29 +40,14 @@ export function NumberEditor({
   suffix,
 }: NumberEditorProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  // Track last external value to detect external changes
+  const lastExternalValueRef = useRef<number | null>(value);
 
-  // Track internal string value for editing (allows partial input like "12.")
-  const [internalValue, setInternalValue] = useState<string>(() => {
-    if (value === null || value === undefined) return '';
-    return String(value);
-  });
-
-  // Sync internal value when external value changes
-  useEffect(() => {
-    if (value === null || value === undefined) {
-      setInternalValue('');
-    } else if (Number(internalValue) !== value) {
-      setInternalValue(String(value));
-    }
-  }, [value, internalValue]);
-
-  // Auto-focus when cell becomes focused
-  useEffect(() => {
-    if (isFocused && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isFocused]);
+  // Convert value to display string
+  const valueToString = useCallback((val: number | null | undefined): string => {
+    if (val === null || val === undefined) return '';
+    return String(val);
+  }, []);
 
   // Parse string to number
   const parseValue = useCallback(
@@ -94,6 +75,23 @@ export function NumberEditor({
     [prefix, suffix, precision, min, max]
   );
 
+  // Auto-focus when cell becomes focused
+  useEffect(() => {
+    if (isFocused && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isFocused]);
+
+  // Sync input value when external value changes (not from user typing)
+  useEffect(() => {
+    if (inputRef.current && value !== lastExternalValueRef.current) {
+      // External value changed - update input
+      inputRef.current.value = valueToString(value);
+      lastExternalValueRef.current = value;
+    }
+  }, [value, valueToString]);
+
   // Handle keyboard navigation
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -110,6 +108,10 @@ export function NumberEditor({
 
         case 'Escape':
           e.preventDefault();
+          // Revert input to last known value
+          if (inputRef.current) {
+            inputRef.current.value = valueToString(value);
+          }
           onCancel();
           break;
 
@@ -125,8 +127,12 @@ export function NumberEditor({
             const current = value ?? 0;
             const newVal = current + step;
             if (max === undefined || newVal <= max) {
-              onChange(Number(newVal.toFixed(precision)));
-              setInternalValue(String(newVal.toFixed(precision)));
+              const finalVal = Number(newVal.toFixed(precision));
+              onChange(finalVal);
+              if (inputRef.current) {
+                inputRef.current.value = String(finalVal);
+              }
+              lastExternalValueRef.current = finalVal;
             }
           }
           break;
@@ -137,84 +143,73 @@ export function NumberEditor({
             const current = value ?? 0;
             const newVal = current - step;
             if (min === undefined || newVal >= min) {
-              onChange(Number(newVal.toFixed(precision)));
-              setInternalValue(String(newVal.toFixed(precision)));
+              const finalVal = Number(newVal.toFixed(precision));
+              onChange(finalVal);
+              if (inputRef.current) {
+                inputRef.current.value = String(finalVal);
+              }
+              lastExternalValueRef.current = finalVal;
             }
           }
           break;
       }
     },
-    [onBlur, onFocusNext, onFocusPrev, onCancel, value, step, min, max, precision, onChange]
+    [onBlur, onFocusNext, onFocusPrev, onCancel, value, step, min, max, precision, onChange, valueToString]
   );
 
-  // Handle value change
+  // Handle input change - validate but don't update atom until blur
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const str = e.target.value;
 
       // Allow empty, negative sign, decimal point for partial input
       if (str === '' || str === '-' || str === '.' || str === '-.') {
-        setInternalValue(str);
-        if (str === '') {
-          onChange(null);
-        }
-        return;
+        return; // Allow typing, will validate on blur
       }
 
       // Validate numeric format (allow partial decimals like "12.")
       if (!/^-?\d*\.?\d*$/.test(str)) {
-        return; // Reject invalid characters
+        // Reject invalid characters - revert to last valid
+        e.target.value = valueToString(value);
+        return;
       }
 
-      setInternalValue(str);
-
-      // Only update external value if it's a complete number
-      if (!str.endsWith('.') && str !== '-') {
-        const parsed = parseValue(str);
-        onChange(parsed);
-      }
+      // Allow the input to update (uncontrolled)
+      // We'll parse and update the atom on blur
     },
-    [onChange, parseValue]
+    [value, valueToString]
   );
 
-  // Handle blur - finalize the value
+  // Handle blur - finalize the value and update atom
   const handleBlur = useCallback(() => {
-    // Finalize the internal value
-    const parsed = parseValue(internalValue);
+    if (!inputRef.current) {
+      onBlur();
+      return;
+    }
+
+    const inputValue = inputRef.current.value;
+    const parsed = parseValue(inputValue);
+
     if (parsed !== null) {
-      setInternalValue(String(parsed));
+      // Valid number - update input with normalized value and call onChange
+      inputRef.current.value = String(parsed);
+      lastExternalValueRef.current = parsed;
       onChange(parsed);
-    } else {
-      setInternalValue('');
+    } else if (inputValue === '' || inputValue === '-') {
+      // Empty input - null value
+      inputRef.current.value = '';
+      lastExternalValueRef.current = null;
       onChange(null);
+    } else {
+      // Invalid input - revert to last known value
+      inputRef.current.value = valueToString(value);
     }
+
     onBlur();
-  }, [internalValue, parseValue, onChange, onBlur]);
+  }, [parseValue, onChange, onBlur, value, valueToString]);
 
-  // Format display value
-  const displayValue = (() => {
-    if (isFocused) {
-      return internalValue;
-    }
-
-    if (value === null || value === undefined) {
-      return '';
-    }
-
-    let formatted = value.toFixed(precision);
-
-    // Add prefix (currency symbol)
-    if (prefix) {
-      formatted = prefix + formatted;
-    }
-
-    // Add suffix (percentage)
-    if (suffix) {
-      formatted = formatted + suffix;
-    }
-
-    return formatted;
-  })();
+  // Initial value for uncontrolled input
+  const initialValue = valueToString(value);
 
   return (
     <div className="relative w-full h-full">
@@ -222,7 +217,7 @@ export function NumberEditor({
         ref={inputRef}
         type="text"
         inputMode="decimal"
-        value={displayValue}
+        defaultValue={initialValue}
         onChange={handleChange}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}

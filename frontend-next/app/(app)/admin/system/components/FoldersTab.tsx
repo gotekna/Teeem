@@ -35,7 +35,6 @@ import {
   X,
   FolderPlus,
   ExternalLink,
-  Settings2,
   Cloud,
   FolderOpen,
   Search,
@@ -691,8 +690,6 @@ export function FoldersTab() {
   const [templates, setTemplates] = React.useState<FolderTemplate[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-  const [duplicating, setDuplicating] = React.useState<number | null>(null);
-  const [deleting, setDeleting] = React.useState<number | null>(null);
   const [selectedTemplate, setSelectedTemplate] = React.useState<FolderTemplate | null>(null);
   const [sharePointConfig, setSharePointConfig] = React.useState<SharePointConfig | null>(null);
   const [folderDialogOpen, setFolderDialogOpen] = React.useState(false);
@@ -849,7 +846,7 @@ export function FoldersTab() {
     // Auto-save to backend
     setSaving(true);
     try {
-      const response = await api.patch<{ folder_template: FolderTemplate }>(
+      await api.patch<{ folder_template: FolderTemplate }>(
         `/api/v1/folder_templates/${updatedTemplate.id}`,
         {
           folder_template: {
@@ -894,7 +891,6 @@ export function FoldersTab() {
   };
 
   const handleDuplicate = async (id: number) => {
-    setDuplicating(id);
     try {
       await api.post(`/api/v1/folder_templates/${id}/duplicate`);
       toast({ title: "Success", description: "Template duplicated successfully" });
@@ -902,15 +898,12 @@ export function FoldersTab() {
     } catch (error) {
       console.error("Failed to duplicate template:", error);
       toast({ title: "Error", description: "Failed to duplicate template", variant: "destructive" });
-    } finally {
-      setDuplicating(null);
     }
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this template?")) return;
 
-    setDeleting(id);
     try {
       await api.delete(`/api/v1/folder_templates/${id}`);
       toast({ title: "Success", description: "Template deleted successfully" });
@@ -921,8 +914,6 @@ export function FoldersTab() {
     } catch (error) {
       console.error("Failed to delete template:", error);
       toast({ title: "Error", description: "Failed to delete template", variant: "destructive" });
-    } finally {
-      setDeleting(null);
     }
   };
 

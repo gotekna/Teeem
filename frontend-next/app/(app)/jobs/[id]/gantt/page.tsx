@@ -71,11 +71,6 @@ interface ConstructionResponse {
   construction: Construction;
 }
 
-interface MoveResponse {
-  needs_confirmation?: boolean;
-  message?: string;
-}
-
 interface HistoryAction {
   type: "task_update";
   taskId: number;
@@ -204,9 +199,7 @@ export default function SmGanttPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"gantt" | "table">("table");
-  const [selectedTask, setSelectedTask] = useState<SmTask | null>(null);
   const [showResourcePanel, setShowResourcePanel] = useState(false);
-  const [dependencies, setDependencies] = useState<Dependency[]>([]);
 
   // Undo/Redo history
   const [history, setHistory] = useState<HistoryAction[]>([]);
@@ -226,7 +219,6 @@ export default function SmGanttPage() {
       // Load SM tasks and dependencies using gantt_data endpoint
       const ganttResponse = await api.get<GanttDataResponse>(`/api/v1/jobs/${id}/sm_tasks/gantt_data`);
       setTasks(ganttResponse.gantt_data?.tasks || []);
-      setDependencies(ganttResponse.gantt_data?.dependencies || []);
     } catch (err) {
       console.error("Failed to load SM Gantt data:", err);
       setError("Failed to load schedule data");
@@ -342,99 +334,10 @@ export default function SmGanttPage() {
   }, [showResourcePanel, handleUndo, handleRedo]);
 
   const handleTaskClick = (task: SmTask) => {
-    setSelectedTask(task);
     // TODO: Open task detail modal
     toast({ title: `Selected task: ${task.name}` });
   };
 
-  const handleTaskUpdate = async (taskId: number, updates: Partial<SmTask>) => {
-    // Store previous state for undo
-    const previousTask = tasks.find((t) => t.id === taskId);
-    const previousData: Partial<SmTask> | null = previousTask
-      ? {
-          start_date: previousTask.start_date,
-          end_date: previousTask.end_date,
-          duration_days: previousTask.duration_days,
-          name: previousTask.name,
-          trade: previousTask.trade,
-          status: previousTask.status,
-        }
-      : null;
-
-    try {
-      // If start_date is being changed, use the move endpoint for cascade handling
-      if (updates.start_date) {
-        const response = await api.post<MoveResponse>(`/api/v1/sm_tasks/${taskId}/move`, {
-          new_start_date: updates.start_date,
-        });
-
-        // If cascade is blocked, show the cascade modal (TODO: implement modal)
-        if (response?.needs_confirmation) {
-          toast({
-            title: "Cascade needed",
-            description: "Some tasks may need to be moved. Feature coming soon.",
-          });
-          return;
-        }
-
-        // Push to history for undo
-        if (previousData) {
-          pushToHistory({
-            type: "task_update",
-            taskId,
-            previousData,
-            newData: updates,
-          });
-        }
-
-        toast({ title: response?.message || "Task moved" });
-      } else {
-        // Regular update (not a date change)
-        await api.patch(`/api/v1/sm_tasks/${taskId}`, { sm_task: updates });
-
-        // Push to history for undo
-        if (previousData) {
-          pushToHistory({
-            type: "task_update",
-            taskId,
-            previousData,
-            newData: updates,
-          });
-        }
-
-        toast({ title: "Task updated" });
-      }
-      await loadData(); // Refresh
-    } catch (err) {
-      console.error("Failed to update task:", err);
-      toast({ title: "Failed to update task", variant: "destructive" });
-      throw err;
-    }
-  };
-
-  const handleTaskDelete = async (taskId: number) => {
-    try {
-      await api.delete(`/api/v1/sm_tasks/${taskId}`);
-      toast({ title: "Task deleted" });
-      await loadData();
-    } catch (err) {
-      console.error("Failed to delete task:", err);
-      toast({ title: "Failed to delete task", variant: "destructive" });
-      throw err;
-    }
-  };
-
-  const handleTaskCreate = async (taskData: Partial<SmTask>) => {
-    try {
-      await api.post(`/api/v1/jobs/${id}/sm_tasks`, { sm_task: taskData });
-      toast({ title: "Task created successfully" });
-      await loadData();
-    } catch (err) {
-      console.error("Failed to create task:", err);
-      toast({ title: "Failed to create task", variant: "destructive" });
-      throw err;
-    }
-  };
 
   if (loading) {
     return (

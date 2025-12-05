@@ -31,7 +31,6 @@ import {
   FileText,
   Calendar,
   Building2,
-  FolderOpen,
   RefreshCw,
   ThumbsUp,
   ThumbsDown,
@@ -113,8 +112,8 @@ export function AIVerificationModal({
       try {
         const response = await api.get<{ document_types: DocumentType[] }>("/api/v1/document_types");
         setDocumentTypes(response.document_types || []);
-      } catch (err) {
-        // Use mock data
+      } catch {
+        // Use mock data - API not available
         setDocumentTypes([
           { id: 1, name: "Company Tax Return", abbreviation: "CTR" },
           { id: 2, name: "Business Activity Statement", abbreviation: "BAS" },
@@ -161,8 +160,8 @@ export function AIVerificationModal({
       if (matchingType) {
         setSelectedTypeId(matchingType.id.toString());
       }
-    } catch (err) {
-      // Use mock AI response for demo
+    } catch {
+      // Use mock AI response for demo - API not available
       const mockSuggestion: AISuggestion = {
         display_title: "Company Tax Return FY2024",
         suggested_name: "Acme Corp - CTR - FY2024.pdf",

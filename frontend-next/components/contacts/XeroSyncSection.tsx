@@ -3,11 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  RefreshCw,
   CheckCircle,
   XCircle,
   AlertTriangle,
-  Link as LinkIcon,
+  LinkIcon,
   Settings,
   ChevronDown,
   ChevronRight,
@@ -15,7 +14,6 @@ import {
   ArrowRight,
   ArrowLeft,
   Loader2,
-  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +27,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Separator } from "@/components/ui/separator";
 import { api } from "@/lib/api";
 import { LinkXeroContactModal } from "./LinkXeroContactModal";
 import type {
@@ -71,7 +68,6 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
   const [loadingTenants, setLoadingTenants] = useState(true);
   const [linkingToTenant, setLinkingToTenant] = useState<string | null>(null);
   const [xeroContactData, setXeroContactData] = useState<XeroContact | null>(null);
-  const [loadingXeroContact, setLoadingXeroContact] = useState(false);
   const [syncConfig, setSyncConfig] = useState<SyncConfiguration | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -112,9 +108,9 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
           setSelectedLinkId(response.xero_links[0].id);
         }
       }
-    } catch (err) {
-      console.error("Failed to load Xero links:", err);
-      setSyncError(err instanceof Error ? err.message : "Failed to load Xero links");
+    } catch (_err) {
+      console.error("Failed to load Xero links:", _err);
+      setSyncError(_err instanceof Error ? _err.message : "Failed to load Xero links");
     } finally {
       setLoadingLinks(false);
     }
@@ -128,8 +124,8 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
       if (response?.success && response.config) {
         setSyncConfig(response.config);
       }
-    } catch (err) {
-      console.error("Failed to load sync config:", err);
+    } catch (_err) {
+      console.error("Failed to load sync config:", _err);
     }
   };
 
@@ -142,8 +138,8 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
       if (response?.success && response.tenants) {
         setAvailableTenants(response.tenants);
       }
-    } catch (err) {
-      console.error("Failed to load Xero tenants:", err);
+    } catch (_err) {
+      console.error("Failed to load Xero tenants:", _err);
     } finally {
       setLoadingTenants(false);
     }
@@ -165,9 +161,9 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
         setXeroLinks((prev) => [...prev, response.xero_link]);
         setSelectedLinkId(response.xero_link.id);
       }
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : "Failed to link to tenant");
-      console.error("Link to tenant error:", err);
+    } catch (_err) {
+      setSyncError(_err instanceof Error ? _err.message : "Failed to link to tenant");
+      console.error("Link to tenant error:", _err);
     } finally {
       setLinkingToTenant(null);
     }
@@ -176,7 +172,6 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
   const loadXeroContactData = async () => {
     if (!selectedLink) return;
 
-    setLoadingXeroContact(true);
     setSyncError(null);
     try {
       const response = await api.get<{ success: boolean; contact: XeroContact }>(
@@ -185,11 +180,9 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
       if (response?.success && response.contact) {
         setXeroContactData(response.contact);
       }
-    } catch (err) {
-      console.error("Failed to load Xero contact data:", err);
-      setSyncError(err instanceof Error ? err.message : "Failed to load Xero contact data");
-    } finally {
-      setLoadingXeroContact(false);
+    } catch (_err) {
+      console.error("Failed to load Xero contact data:", _err);
+      setSyncError(_err instanceof Error ? _err.message : "Failed to load Xero contact data");
     }
   };
 
@@ -206,9 +199,9 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
         // Reload Xero contact data to see updated sync
         await loadXeroContactData();
       }
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : "Failed to sync from Xero");
-      console.error("Sync from Xero error:", err);
+    } catch (_err) {
+      setSyncError(_err instanceof Error ? _err.message : "Failed to sync from Xero");
+      console.error("Sync from Xero error:", _err);
     } finally {
       setSyncing(false);
     }
@@ -229,9 +222,9 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
         // Reload Xero contact data to see updated sync
         await loadXeroContactData();
       }
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : "Failed to sync to Xero");
-      console.error("Sync to Xero error:", err);
+    } catch (_err) {
+      setSyncError(_err instanceof Error ? _err.message : "Failed to sync to Xero");
+      console.error("Sync to Xero error:", _err);
     } finally {
       setSyncing(false);
     }
@@ -262,9 +255,9 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
         // Reload Xero contact data
         await loadXeroContactData();
       }
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : "Bidirectional sync failed");
-      console.error("Bidirectional sync error:", err);
+    } catch (_err) {
+      setSyncError(_err instanceof Error ? _err.message : "Bidirectional sync failed");
+      console.error("Bidirectional sync error:", _err);
     } finally {
       setSyncing(false);
     }

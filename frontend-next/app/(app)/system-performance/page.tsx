@@ -8,8 +8,6 @@ import {
   ServerIcon,
   CpuChipIcon,
   CircleStackIcon,
-  DevicePhoneMobileIcon,
-  SignalIcon,
 } from "@heroicons/react/24/outline";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";

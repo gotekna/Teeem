@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -23,7 +23,6 @@ import {
   AlertCircle,
   FileText,
   Paperclip,
-  XCircle,
   Eye,
   ShieldCheck,
   Settings,
@@ -149,11 +148,6 @@ interface AIStats {
   rejected: number;
 }
 
-interface LegacyFolderPath {
-  id: string;
-  name: string;
-}
-
 interface JobDocumentsTabProps {
   jobId: string | number;
   jobTitle?: string;
@@ -186,7 +180,6 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [loadingLegacy, setLoadingLegacy] = useState(false);
   const [selectedLegacyFiles, setSelectedLegacyFiles] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
-  const [legacyFolderPath, setLegacyFolderPath] = useState<LegacyFolderPath[]>([]);
 
   // All Files tab state
   const [allFiles, setAllFiles] = useState<LegacyItem[]>([]);
@@ -476,7 +469,6 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
         console.log('[Legacy Import] Found', response.items?.length || 0, 'files');
         setLegacyItems(response.items || []);
         setSelectedLegacyFiles([]);
-        setLegacyFolderPath([]);
       } else {
         console.error('[Legacy Import] API returned error:', response?.error || 'Unknown error');
         setError(response?.error || 'Failed to load legacy files');
@@ -491,21 +483,6 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     }
   };
 
-  // Legacy folder navigation removed - now loads all files recursively
-  // These functions kept for compatibility but are no longer used
-  const navigateLegacyFolder = async (_folder: LegacyItem) => {
-    // No-op: all files loaded recursively
-  };
-
-  const navigateLegacyBack = async () => {
-    // No-op: all files loaded recursively
-    setLegacyFolderPath([]);
-  };
-
-  const navigateLegacyToPath = async (_index: number) => {
-    // No-op: all files loaded recursively
-    setLegacyFolderPath([]);
-  };
 
   // Import selected legacy files to the job folder
   const handleImportLegacy = async () => {

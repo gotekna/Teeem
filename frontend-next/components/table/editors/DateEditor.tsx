@@ -1,20 +1,17 @@
 "use client";
 
 /**
- * DateEditor Component
+ * DateEditor Component - Minimal useState (UI library requirement only)
  *
  * Handles date/datetime cell editing for:
  * - date
  * - datetime
  *
- * Features:
- * - Calendar picker
- * - Optional time picker
- * - Keyboard navigation
- * - Date format display
+ * Note: Radix Popover requires controlled `open` state.
+ * Manual input uses uncontrolled pattern with ref.
  */
 
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { format, parse, isValid } from 'date-fns';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
@@ -48,28 +45,39 @@ export function DateEditor({
   maxDate,
 }: DateEditorProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const lastValueRef = useRef<Date | undefined>(undefined);
+
+  // Radix Popover requires controlled open state (UI library requirement)
   const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState('');
 
   // Parse value to Date
-  const dateValue = (() => {
+  const dateValue = useMemo(() => {
     if (!value) return undefined;
     if (value instanceof Date) return value;
     const parsed = new Date(value as string);
     return isValid(parsed) ? parsed : undefined;
-  })();
+  }, [value]);
 
   // Format for display
   const displayFormat = includeTime ? `${dateFormat} HH:mm` : dateFormat;
 
-  // Update input value when date changes
+  // Format date for input
+  const formatDateForInput = useCallback(
+    (date: Date | undefined): string => {
+      if (!date) return '';
+      return format(date, displayFormat);
+    },
+    [displayFormat]
+  );
+
+  // Update input value when date changes externally
   useEffect(() => {
-    if (dateValue) {
-      setInputValue(format(dateValue, displayFormat));
-    } else {
-      setInputValue('');
+    if (inputRef.current && dateValue !== lastValueRef.current) {
+      inputRef.current.value = formatDateForInput(dateValue);
+      lastValueRef.current = dateValue;
     }
-  }, [dateValue, displayFormat]);
+  }, [dateValue, formatDateForInput]);
 
   // Auto-focus and open when cell becomes focused
   useEffect(() => {
@@ -120,10 +128,16 @@ export function DateEditor({
           date.setMinutes(dateValue.getMinutes());
         }
         onChange(date.toISOString());
-        setInputValue(format(date, displayFormat));
+        lastValueRef.current = date;
+        if (inputRef.current) {
+          inputRef.current.value = format(date, displayFormat);
+        }
       } else {
         onChange(null);
-        setInputValue('');
+        lastValueRef.current = undefined;
+        if (inputRef.current) {
+          inputRef.current.value = '';
+        }
       }
 
       if (!includeTime) {
@@ -135,45 +149,30 @@ export function DateEditor({
     [includeTime, dateValue, displayFormat, onChange, onBlur, onFocusNext]
   );
 
-  // Handle manual input
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = e.target.value;
-      setInputValue(val);
-
-      // Try to parse the input
-      try {
-        const parsed = parse(val, displayFormat, new Date());
-        if (isValid(parsed)) {
-          onChange(parsed.toISOString());
-        }
-      } catch {
-        // Invalid format, keep the input value for user to correct
-      }
-    },
-    [displayFormat, onChange]
-  );
-
-  // Handle input blur
+  // Handle manual input blur - validate and save
   const handleInputBlur = useCallback(() => {
-    // Try to parse one more time
+    if (!inputRef.current) return;
+
+    const inputValue = inputRef.current.value;
+
     try {
       const parsed = parse(inputValue, displayFormat, new Date());
       if (isValid(parsed)) {
         onChange(parsed.toISOString());
-        setInputValue(format(parsed, displayFormat));
+        inputRef.current.value = format(parsed, displayFormat);
+        lastValueRef.current = parsed;
       } else if (inputValue === '') {
         onChange(null);
+        lastValueRef.current = undefined;
+      } else {
+        // Invalid - revert to last valid value
+        inputRef.current.value = formatDateForInput(dateValue);
       }
     } catch {
       // Revert to last valid value
-      if (dateValue) {
-        setInputValue(format(dateValue, displayFormat));
-      } else {
-        setInputValue('');
-      }
+      inputRef.current.value = formatDateForInput(dateValue);
     }
-  }, [inputValue, displayFormat, dateValue, onChange]);
+  }, [displayFormat, dateValue, onChange, formatDateForInput]);
 
   // Handle popover close
   const handleOpenChange = useCallback(
@@ -191,7 +190,10 @@ export function DateEditor({
     (e: React.MouseEvent) => {
       e.stopPropagation();
       onChange(null);
-      setInputValue('');
+      lastValueRef.current = undefined;
+      if (inputRef.current) {
+        inputRef.current.value = '';
+      }
     },
     [onChange]
   );
@@ -232,8 +234,8 @@ export function DateEditor({
         <PopoverContent className="w-auto p-0" align="start">
           <div className="p-2 border-b">
             <Input
-              value={inputValue}
-              onChange={handleInputChange}
+              ref={inputRef}
+              defaultValue={formatDateForInput(dateValue)}
               onBlur={handleInputBlur}
               placeholder={displayFormat.toLowerCase()}
               className="h-8"

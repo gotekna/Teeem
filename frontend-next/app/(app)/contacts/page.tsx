@@ -3,10 +3,9 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Table,
   TableBody,
@@ -20,7 +19,6 @@ import { Loader } from "@/components/ui/loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
-import { ContactDetailDrawer } from "@/components/contacts/ContactDetailDrawer";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
@@ -34,7 +32,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { TableColumn, TableRow as TTableRow } from "@/components/table/types";
+import type { TableRow as TTableRow } from "@/components/table/types";
 
 interface Contact {
   id: number;
@@ -108,8 +106,6 @@ export default function ContactsPage() {
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
-  const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Load duplicates
   const loadDuplicates = async () => {
@@ -440,13 +436,6 @@ export default function ContactsPage() {
         onOpenChange={setMergeModalOpen}
         contacts={selectedForMerge}
         onMergeComplete={handleMergeComplete}
-      />
-
-      {/* Contact Detail Drawer */}
-      <ContactDetailDrawer
-        contactId={selectedContactId}
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
       />
     </div>
   );

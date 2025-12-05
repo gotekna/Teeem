@@ -6,9 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  User,
   Plus,
   Trash2,
   Star,
@@ -130,16 +128,6 @@ const getRoleBadgeClasses = (color: string) => {
   };
   return colorMap[color] || colorMap.gray;
 };
-
-function getInitials(name: string | undefined | null): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   const router = useRouter();

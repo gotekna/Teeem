@@ -20,7 +20,6 @@ import { Building2, User, Network, Briefcase, Maximize2, ExternalLink } from "lu
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 
 // Extended data for ownership chain
 interface OwnershipNode {
@@ -93,7 +92,7 @@ function TrustNode({ data }: { data: { label: string; entityType: string; onClic
 
 // Company node component - shows trustee + trust combined when applicable
 function CompanyNode({ data }: { data: CompanyNodeData }) {
-  const { label, isTrustee, trustName, trustEntityType, percentage, onClick } = data;
+  const { label, isTrustee, trustName, trustEntityType, onClick } = data;
 
   // Regular company (non-trustee)
   if (!isTrustee || !trustName) {
@@ -217,7 +216,7 @@ export default function PersonStructureChart({
     ): number => {
       const companyNodeId = `company-${node.company_id}`;
       const x = level * xSpacing;
-      let currentY = yStart;
+      const currentY = yStart;
 
       // Add company node
       nodes.push({
@@ -448,7 +447,7 @@ function ChartWithControls({
   hasDirectorRoles: boolean;
   hasShareholding: boolean;
 }) {
-  const { fitView, getNodes } = useReactFlow();
+  const { fitView } = useReactFlow();
 
   // Re-fit view when nodes change (e.g., filter toggle)
   const prevNodesLength = React.useRef(nodes.length);

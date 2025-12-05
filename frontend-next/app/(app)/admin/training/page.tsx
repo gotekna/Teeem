@@ -2,13 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -24,12 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  GraduationCap,
-  Play,
-  CheckCircle2,
-  Clock,
   BookOpen,
-  Award,
   ChevronLeft,
   Loader2,
   Video,
@@ -40,6 +33,8 @@ import {
   Trash,
   Users,
   BarChart3,
+  CheckCircle2,
+  GraduationCap,
 } from "lucide-react";
 import { api } from "@/lib/api";
 

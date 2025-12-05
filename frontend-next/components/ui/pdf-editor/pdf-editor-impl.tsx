@@ -14,7 +14,6 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-  arrayMove,
 } from "@dnd-kit/sortable";
 import { usePDFDocument } from "./use-pdf-document";
 import { PageThumbnail } from "./page-thumbnail";
@@ -22,7 +21,7 @@ import { EditorToolbar } from "./toolbar";
 import { AnnotationCanvas } from "./annotation-canvas";
 import type { AnnotationTool, PDFEditorProps } from "./types";
 import { cn } from "@/lib/utils";
-import { Loader2, FileText, AlertCircle, Upload } from "lucide-react";
+import { Loader2, FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {

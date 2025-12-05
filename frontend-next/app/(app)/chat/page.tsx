@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -20,11 +20,8 @@ import {
   File,
   Check,
   CheckCheck,
-  Clock,
   Briefcase,
-  Circle,
   Plus,
-  UserPlus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -137,17 +134,7 @@ export default function ChatPage() {
     loadConversations();
   }, []);
 
-  useEffect(() => {
-    if (selectedConversation) {
-      loadMessages(selectedConversation.id);
-    }
-  }, [selectedConversation]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const loadMessages = async (conversationId: number | string) => {
+  const loadMessages = useCallback(async (conversationId: number | string) => {
     setLoadingMessages(true);
     try {
       // Extract user ID from conversation ID for direct messages
@@ -161,9 +148,17 @@ export default function ChatPage() {
       }
 
       if (userId) {
-        const response = await api.get<Message[]>(`/api/v1/chat_messages?user_id=${userId}`);
+        // API response has different shape than our Message interface
+        interface ApiMessage {
+          id: number;
+          user_id: number;
+          content: string;
+          created_at: string;
+          user?: { name?: string };
+        }
+        const response = await api.get<ApiMessage[]>(`/api/v1/chat_messages?user_id=${userId}`);
         // Transform backend response to our Message format
-        const messages = (response || []).map((msg: any) => ({
+        const messages = (response || []).map((msg) => ({
           id: msg.id,
           conversation_id: Number(conversationId),
           sender_id: msg.user_id,
@@ -186,7 +181,17 @@ export default function ChatPage() {
       setMessages(getMockMessages(Number(conversationId) || 1));
     }
     setLoadingMessages(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (selectedConversation) {
+      loadMessages(selectedConversation.id);
+    }
+  }, [selectedConversation, loadMessages]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleSend = async () => {
     if (!newMessage.trim() || !selectedConversation) return;

@@ -68,12 +68,6 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 
-// Lazy load the relationship chart since it uses XYFlow
-const CaseRelationshipChart = dynamic(
-  () => import("@/components/cases/CaseRelationshipChart"),
-  { ssr: false }
-);
-
 // Lazy load the EntityChat component
 const EntityChat = dynamic(
   () => import("@/components/chat/EntityChat").then(mod => ({ default: mod.EntityChat })),
@@ -355,12 +349,6 @@ interface DuplicateReview {
   created_at: string;
 }
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-  return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB";
-}
 
 export default function CaseDetailPage() {
   const params = useParams();
@@ -422,7 +410,6 @@ export default function CaseDetailPage() {
   const [qaFilter, setQaFilter] = React.useState<"all" | "unanswered" | "important">("all");
 
   // Folder settings
-  const [showFolderSettings, setShowFolderSettings] = React.useState(false);
   const [editingFolders, setEditingFolders] = React.useState(false);
   const [folderSettings, setFolderSettings] = React.useState<{
     source_folder_paths: string[];
@@ -2927,7 +2914,7 @@ export default function CaseDetailPage() {
 
                   {/* Timeline events */}
                   <div className="space-y-6">
-                    {timelineEvents.map((event, idx) => (
+                    {timelineEvents.map((event) => (
                       <div key={event.id} className="relative pl-10">
                         {/* Timeline dot */}
                         <div

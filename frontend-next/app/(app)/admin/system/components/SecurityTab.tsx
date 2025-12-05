@@ -48,8 +48,6 @@ import {
   Pencil,
   Trash2,
   Mail,
-  Check,
-  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -513,7 +511,6 @@ function GroupsManagementTab() {
 
   React.useEffect(() => {
     loadGroups();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
   const loadGroups = async () => {

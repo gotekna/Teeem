@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -23,10 +23,8 @@ import {
   Clock,
   CheckCircle,
   Archive,
-  Filter,
   Calendar,
   User,
-  Mail,
   Sparkles,
   Trash2,
 } from "lucide-react";

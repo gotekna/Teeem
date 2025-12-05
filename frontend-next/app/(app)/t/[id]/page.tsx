@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { TeeemTableView } from "@/components/table";
-import type { TableColumn, TableRow, SavedView } from "@/components/table/types";
+import type { TableColumn, TableRow } from "@/components/table/types";
 import { api } from "@/lib/api";
 import { slugifyJobTitle, slugifyContactName, slugifyPricebookCode } from "@/lib/url-utils";
 import { Loader } from "@/components/ui/loader";
@@ -56,7 +54,6 @@ export default function TablePage() {
   const [columns, setColumns] = useState<TableColumn[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [serverSearchLoading, setServerSearchLoading] = useState(false);
 
   const tableInfo = TABLE_ROUTES[tableId];
 

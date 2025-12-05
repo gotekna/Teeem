@@ -28,13 +28,10 @@ import {
   Search,
   Package,
   Users,
-  ImageOff,
-  DollarSign,
   AlertTriangle,
   CheckCircle,
-  Link as LinkIcon,
+  LinkIcon,
   Settings,
-  FileText,
   XCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -155,11 +152,6 @@ const getHealthColor = (percentage: number): string => {
   return "red";
 };
 
-const getHealthBadgeVariant = (percentage: number): "default" | "secondary" | "destructive" | "outline" => {
-  if (percentage === 100) return "default";
-  if (percentage >= 75) return "secondary";
-  return "destructive";
-};
 
 // Health Score Ring Component
 function HealthScoreRing({ percentage, size = 64 }: { percentage: number; size?: number }) {

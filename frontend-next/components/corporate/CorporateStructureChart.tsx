@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   ReactFlow,
   Node,
@@ -15,7 +15,7 @@ import {
   Handle,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Building2, Users, Network, User, Briefcase } from "lucide-react";
+import { Building2, Network, User, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Types for structure data
@@ -91,29 +91,13 @@ interface CorporateStructureChartProps {
   onEntityClick?: (entityId: number, entityType: "company" | "person") => void;
 }
 
-// Format ACN: XXX XXX XXX (9 digits)
-function formatACN(acn: string | null): string {
-  if (!acn) return "";
-  const digits = acn.replace(/\D/g, "");
-  if (digits.length !== 9) return acn;
-  return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
-}
-
-// Format ABN: XX XXX XXX XXX (11 digits)
-function formatABN(abn: string | null): string {
-  if (!abn) return "";
-  const digits = abn.replace(/\D/g, "");
-  if (digits.length !== 11) return abn;
-  return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)} ${digits.slice(8, 11)}`;
-}
-
 // Custom node component for person
 function PersonNode({ data }: { data: PersonNodeData }) {
   const { label, email, roles, onClick } = data;
 
   return (
     <div
-      className="min-w-[280px] max-w-[350px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow text-base bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700"
+      className="min-w-[150px] max-w-[200px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow text-sm bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700"
       onClick={onClick}
     >
       {/* Connection handles */}
@@ -151,17 +135,8 @@ function EntityNode({ data }: { data: EntityNodeData }) {
   const {
     label,
     entityType,
-    code,
-    acn,
-    abn,
-    status,
     isTrustee,
     trustName,
-    dateIncorporated,
-    directors,
-    shareholders,
-    publicOfficer,
-    secretary,
     onClick,
   } = data;
 
@@ -218,7 +193,7 @@ function EntityNode({ data }: { data: EntityNodeData }) {
   return (
     <div
       className={cn(
-        "min-w-[380px] max-w-[480px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow text-base",
+        "min-w-[180px] max-w-[220px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow text-sm",
         getBackgroundColor()
       )}
       onClick={onClick}
@@ -228,116 +203,21 @@ function EntityNode({ data }: { data: EntityNodeData }) {
       <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
 
       {/* Header */}
-      <div className={cn("px-5 py-4 rounded-t-md flex items-center gap-3", getHeaderColor())}>
+      <div className={cn("px-3 py-2 rounded-t-md flex items-center gap-2", getHeaderColor())}>
         {getIcon()}
-        <span className="font-bold text-lg">{label}</span>
+        <span className="font-semibold text-sm truncate">{label}</span>
       </div>
 
-      {/* Body */}
-      <div className="px-5 py-4 text-base space-y-3">
-        {/* Entity type badge */}
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Type</span>
-          <span className="font-medium">
-            {isTrustee ? "Trustee" : entityType || "Company"}
-          </span>
+      {/* Body - Compact view */}
+      <div className="px-3 py-2 text-xs space-y-1">
+        {/* Type badge */}
+        <div className="text-muted-foreground">
+          {isTrustee ? "Trustee" : entityType || "Company"}
         </div>
-
-        {/* Code */}
-        {code && (
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Code</span>
-            <span className="font-medium">{code}</span>
-          </div>
-        )}
-
-        {/* ACN */}
-        {acn && (
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">ACN</span>
-            <span className="font-medium">{formatACN(acn)}</span>
-          </div>
-        )}
-
-        {/* ABN */}
-        {abn && (
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">ABN</span>
-            <span className="font-medium">{formatABN(abn)}</span>
-          </div>
-        )}
 
         {/* Trust Name (for trustees) */}
         {isTrustee && trustName && (
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Trustee For</span>
-            <span className="font-medium text-rose-600 truncate max-w-[120px]">{trustName}</span>
-          </div>
-        )}
-
-        {/* Status */}
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Status</span>
-          <span className={cn(
-            "font-medium",
-            status === "active" ? "text-green-600" : "text-gray-500"
-          )}>
-            {status}
-          </span>
-        </div>
-
-        {/* Incorporated Date */}
-        {dateIncorporated && (
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Incorporated</span>
-            <span className="font-medium">
-              {new Date(dateIncorporated).toLocaleDateString("en-AU", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })}
-            </span>
-          </div>
-        )}
-
-        {/* Directors */}
-        {directors && directors.length > 0 && (
-          <div className="pt-1 border-t border-gray-200 dark:border-gray-700">
-            <span className="text-muted-foreground">Directors ({directors.length})</span>
-            <div className="text-purple-700 dark:text-purple-400">
-              {directors.map((d, i) => (
-                <div key={i}>{d}</div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Shareholders */}
-        {shareholders && shareholders.length > 0 && (
-          <div className="pt-1 border-t border-gray-200 dark:border-gray-700">
-            <span className="text-muted-foreground">Shareholders ({shareholders.length})</span>
-            <div className="text-amber-700 dark:text-amber-400">
-              {shareholders.map((s, i) => (
-                <div key={i}>{s.name} ({s.percentage}%)</div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Secretary */}
-        {secretary && (
-          <div className="pt-1 border-t border-gray-200 dark:border-gray-700">
-            <span className="text-muted-foreground">Secretary</span>
-            <div className="text-blue-700 dark:text-blue-400">{secretary}</div>
-          </div>
-        )}
-
-        {/* Public Officer */}
-        {publicOfficer && (
-          <div className="pt-1 border-t border-gray-200 dark:border-gray-700">
-            <span className="text-muted-foreground">Public Officer</span>
-            <div className="text-green-700 dark:text-green-400">{publicOfficer}</div>
-          </div>
+          <div className="text-rose-600 text-xs truncate">{trustName}</div>
         )}
       </div>
     </div>
@@ -377,10 +257,10 @@ export default function CorporateStructureChart({
     const nodes: Node[] = [];
     const edges: Edge[] = [];
     let maxDepth = 1;
-    const nodeWidth = 420; // Width of a node
-    const nodeHeight = 300; // Approximate height of a node
-    const horizontalGap = 80; // Gap between nodes horizontally
-    const verticalGap = 120; // Gap between levels vertically
+    const nodeWidth = 200; // Visual width of a node (compact)
+    const nodeHeight = 100; // Approximate height of a node (compact)
+    const horizontalGap = 20; // Gap between sibling nodes horizontally
+    const verticalGap = 60; // Gap between levels vertically
     const ySpacing = nodeHeight + verticalGap; // Total vertical spacing
 
     // Helper to get people roles for a company
@@ -513,7 +393,8 @@ export default function CorporateStructureChart({
     };
 
     // Process top-level companies with proper spacing
-    let currentX = 0;
+    // Start from x=50 (left side with small margin)
+    let currentX = 50;
     data.companies.forEach((company) => {
       const treeWidth = subtreeWidths.get(company.id) || nodeWidth;
       processCompany(company, null, currentX, 20, 1);
@@ -695,8 +576,10 @@ export default function CorporateStructureChart({
     setEdges(initialEdges);
   }, [initialNodes, initialEdges, setNodes, setEdges]);
 
-  // Calculate dynamic height based on depth (420px per level + 200px buffer)
-  const chartHeight = Math.max(800, maxDepth * 420 + 200);
+  // Calculate dynamic height based on depth (500px per level + 300px buffer)
+  // Also consider number of nodes for very wide charts
+  const nodeCount = initialNodes.length;
+  const chartHeight = Math.max(900, maxDepth * 500 + 300, nodeCount * 80);
 
   return (
     <div
@@ -711,12 +594,12 @@ export default function CorporateStructureChart({
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{
-          padding: 0.15,
-          includeHiddenNodes: false,
-          minZoom: 0.1,
+          padding: 0.1,
+          includeHiddenNodes: true,
+          minZoom: 0.05,
           maxZoom: 1,
         }}
-        minZoom={0.1}
+        minZoom={0.05}
         maxZoom={1.5}
       >
         <Background color="#e5e7eb" gap={20} />

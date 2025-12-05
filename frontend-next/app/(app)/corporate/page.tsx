@@ -1605,7 +1605,7 @@ export default function CorporateDashboardPage() {
                               <td className="py-2 px-3">
                                 <div className="flex items-center gap-2">
                                   <button
-                                    onClick={() => setFullScreenPerson(person)}
+                                    onClick={() => router.push(`/corporate/structure/${person.id}`)}
                                     className="text-teal-600 hover:text-teal-800 flex items-center gap-1"
                                     title="View Structure"
                                   >

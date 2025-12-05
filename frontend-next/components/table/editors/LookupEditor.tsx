@@ -1,22 +1,20 @@
 "use client";
 
 /**
- * LookupEditor Component
+ * LookupEditor Component - Minimal useState (UI library requirement only)
  *
  * Handles lookup/relation cell editing for:
  * - lookup
  * - relation
  *
- * Features:
- * - Async search for related records
- * - Display field customization
- * - Single or multiple selection
- * - Recent selections
+ * Note: Radix Popover requires controlled `open` state.
+ * Search uses uncontrolled pattern. Loading uses ref.
+ * Records are fetched fresh each time (no local state).
  */
 
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, Loader2, X, Search } from 'lucide-react';
+import { Check, ChevronDown, Loader2, X } from 'lucide-react';
 import {
   Command,
   CommandEmpty,
@@ -37,7 +35,6 @@ import type { LookupEditorProps, LookupRecord } from './types';
 export function LookupEditor({
   value,
   onChange,
-  column,
   isFocused,
   isSaving,
   error,
@@ -48,29 +45,35 @@ export function LookupEditor({
   disabled,
   className,
   placeholder,
-  lookupTableId,
   displayField = 'name',
   multiple = false,
   records: providedRecords,
   onSearch,
 }: LookupEditorProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const recordsRef = useRef<LookupRecord[]>(providedRecords || []);
+  const isLoadingRef = useRef(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Radix Popover requires controlled open state (UI library requirement)
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [records, setRecords] = useState<LookupRecord[]>(providedRecords || []);
-  const [isLoading, setIsLoading] = useState(false);
+  // Force re-render when records or loading changes
+  const [, forceUpdate] = useState(0);
 
   // Current selection as array of IDs
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
-  const selectedIds: number[] = multiple
-    ? Array.isArray(value)
-      ? value
+  const selectedIds: number[] = useMemo(() =>
+    multiple
+      ? Array.isArray(value)
+        ? value
+        : value !== null
+        ? [value]
+        : []
       : value !== null
-      ? [value]
-      : []
-    : value !== null
-    ? [value as number]
-    : [];
+      ? [value as number]
+      : [],
+    [multiple, value]
+  );
 
   // Auto-focus and open when cell becomes focused
   useEffect(() => {
@@ -80,26 +83,53 @@ export function LookupEditor({
     }
   }, [isFocused]);
 
-  // Load records on open or search
+  // Load records when popover opens
   useEffect(() => {
-    if (!open || !onSearch) return;
+    if (open && onSearch && !isLoadingRef.current && recordsRef.current.length === 0) {
+      // Initial load with empty search
+      loadRecords('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
-    const loadRecords = async () => {
-      setIsLoading(true);
-      try {
-        const results = await onSearch(search);
-        setRecords(results);
-      } catch (err) {
-        console.error('Failed to search lookup records:', err);
-      } finally {
-        setIsLoading(false);
+  // Load records function
+  const loadRecords = useCallback(async (searchTerm: string) => {
+    if (!onSearch) return;
+
+    isLoadingRef.current = true;
+    forceUpdate(n => n + 1);
+
+    try {
+      const results = await onSearch(searchTerm);
+      recordsRef.current = results;
+    } catch (err) {
+      console.error('Failed to search lookup records:', err);
+      recordsRef.current = [];
+    } finally {
+      isLoadingRef.current = false;
+      forceUpdate(n => n + 1);
+    }
+  }, [onSearch]);
+
+  // Handle search input change (debounced)
+  const handleSearchChange = useCallback((searchTerm: string) => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      loadRecords(searchTerm);
+    }, 300);
+  }, [loadRecords]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
       }
     };
-
-    // Debounce search
-    const timer = setTimeout(loadRecords, 300);
-    return () => clearTimeout(timer);
-  }, [open, search, onSearch]);
+  }, []);
 
   // Handle keyboard navigation
   const handleKeyDown = useCallback(
@@ -160,19 +190,28 @@ export function LookupEditor({
       setOpen(isOpen);
       if (!isOpen) {
         onBlur();
-        setSearch('');
+        // Clear search input
+        if (searchInputRef.current) {
+          searchInputRef.current.value = '';
+        }
       }
     },
     [onBlur]
   );
 
   // Get record by ID
-  const getRecord = (id: number): LookupRecord | undefined =>
-    records.find((r) => r.id === id);
+  const getRecord = useCallback(
+    (id: number): LookupRecord | undefined =>
+      recordsRef.current.find((r) => r.id === id),
+    []
+  );
 
   // Get display value for a record
-  const getDisplayValue = (record: LookupRecord): string =>
-    String(record[displayField] || record.display_value || record.id);
+  const getDisplayValue = useCallback(
+    (record: LookupRecord): string =>
+      String(record[displayField] || record.display_value || record.id),
+    [displayField]
+  );
 
   // Render selected value(s)
   const renderValue = () => {
@@ -213,6 +252,9 @@ export function LookupEditor({
       </span>
     );
   };
+
+  const isLoading = isLoadingRef.current;
+  const records = recordsRef.current;
 
   return (
     <div
@@ -256,9 +298,9 @@ export function LookupEditor({
         <PopoverContent className="w-[300px] p-0" align="start">
           <Command shouldFilter={false}>
             <CommandInput
+              ref={searchInputRef}
               placeholder="Search..."
-              value={search}
-              onValueChange={setSearch}
+              onValueChange={handleSearchChange}
             />
             <CommandList>
               {isLoading ? (
@@ -268,7 +310,7 @@ export function LookupEditor({
               ) : (
                 <>
                   <CommandEmpty>
-                    {search ? 'No results found.' : 'Start typing to search...'}
+                    {searchInputRef.current?.value ? 'No results found.' : 'Start typing to search...'}
                   </CommandEmpty>
                   <CommandGroup>
                     {records.map((record) => {
