@@ -60,6 +60,7 @@ import {
   Settings,
   FolderOpen,
   FolderInput,
+  Pencil,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -410,6 +411,26 @@ export default function CaseDetailPage() {
   const [newSubCaseDescription, setNewSubCaseDescription] = React.useState("");
   const [creatingSubCase, setCreatingSubCase] = React.useState(false);
 
+  // Add contact modal
+  const [showAddContact, setShowAddContact] = React.useState(false);
+  const [contactSearchQuery, setContactSearchQuery] = React.useState("");
+  const [contactSearchResults, setContactSearchResults] = React.useState<Array<{id: number; full_name: string; email: string | null; company_name: string | null}>>([]);
+  const [searchingContacts, setSearchingContacts] = React.useState(false);
+  const [selectedContactRole, setSelectedContactRole] = React.useState("related_party");
+  const [addingContact, setAddingContact] = React.useState(false);
+
+  // Edit case modal
+  const [showEditCase, setShowEditCase] = React.useState(false);
+  const [editCaseForm, setEditCaseForm] = React.useState({
+    title: "",
+    description: "",
+    case_type: "",
+    status: "",
+    priority: "",
+    deadline: "",
+  });
+  const [savingCase, setSavingCase] = React.useState(false);
+
   // Load case
   React.useEffect(() => {
     const loadCase = async () => {
@@ -534,6 +555,97 @@ export default function CaseDetailPage() {
       console.error("Failed to load entities:", error);
     } finally {
       setLoadingEntities(false);
+    }
+  };
+
+  // Search contacts for add dialog
+  const searchContactsForCase = async (query: string) => {
+    if (!query || query.length < 2) {
+      setContactSearchResults([]);
+      return;
+    }
+    try {
+      setSearchingContacts(true);
+      const response = await api.get<{ contacts?: Array<{id: number; full_name: string; email: string | null; company_name: string | null}> }>("/api/v1/contacts", {
+        params: { search: query, per_page: 10 },
+      });
+      // Filter out contacts already in the case
+      const existingIds = contacts.map((c) => c.contact_id);
+      const filtered = (response.contacts || []).filter((c) => !existingIds.includes(c.id));
+      setContactSearchResults(filtered);
+    } catch (error) {
+      console.error("Failed to search contacts:", error);
+    } finally {
+      setSearchingContacts(false);
+    }
+  };
+
+  // Debounced search
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (showAddContact && contactSearchQuery.length >= 2) {
+        searchContactsForCase(contactSearchQuery);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [contactSearchQuery, showAddContact]);
+
+  // Add contact to case
+  const handleAddContactToCase = async (contactId: number) => {
+    try {
+      setAddingContact(true);
+      const response = await api.post<{ success: boolean; data: CaseContact }>(
+        `/api/v1/cases/${caseId}/add_contact`,
+        {
+          contact_id: contactId,
+          role: selectedContactRole,
+        }
+      );
+      if (response.success && response.data) {
+        setContacts([...contacts, response.data]);
+      }
+      // Reset dialog state
+      setShowAddContact(false);
+      setContactSearchQuery("");
+      setContactSearchResults([]);
+      setSelectedContactRole("related_party");
+    } catch (error) {
+      console.error("Failed to add contact:", error);
+    } finally {
+      setAddingContact(false);
+    }
+  };
+
+  // Open edit case modal
+  const openEditCase = () => {
+    if (!caseData) return;
+    setEditCaseForm({
+      title: caseData.title || "",
+      description: caseData.description || "",
+      case_type: caseData.case_type || "",
+      status: caseData.status || "",
+      priority: caseData.priority || "",
+      deadline: caseData.deadline || "",
+    });
+    setShowEditCase(true);
+  };
+
+  // Save case changes
+  const handleSaveCase = async () => {
+    try {
+      setSavingCase(true);
+      const response = await api.patch<{ success: boolean; data: CaseDetail }>(
+        `/api/v1/cases/${caseId}`,
+        { case: editCaseForm }
+      );
+      if (response.success && response.data) {
+        setCaseData(response.data);
+      }
+      setShowEditCase(false);
+    } catch (error) {
+      console.error("Failed to save case:", error);
+    } finally {
+      setSavingCase(false);
     }
   };
 
@@ -961,10 +1073,16 @@ export default function CaseDetailPage() {
             </div>
           </div>
         </div>
-        <Button onClick={() => setShowRunAction(true)}>
-          <Play className="h-4 w-4 mr-2" />
-          Run Action
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openEditCase}>
+            <Pencil className="h-4 w-4 mr-2" />
+            Edit
+          </Button>
+          <Button onClick={() => setShowRunAction(true)}>
+            <Play className="h-4 w-4 mr-2" />
+            Run Action
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -2169,7 +2287,7 @@ export default function CaseDetailPage() {
                       <User className="h-4 w-4 inline mr-2" />
                       Contacts ({contacts.length})
                     </CardTitle>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => setShowAddContact(true)}>
                       <Plus className="h-4 w-4 mr-2" />
                       Add Contact
                     </Button>
@@ -2689,6 +2807,214 @@ export default function CaseDetailPage() {
                 <Plus className="h-4 w-4 mr-2" />
               )}
               Create Sub-case
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Contact Dialog */}
+      <Dialog open={showAddContact} onOpenChange={(open) => {
+        setShowAddContact(open);
+        if (!open) {
+          setContactSearchQuery("");
+          setContactSearchResults([]);
+          setSelectedContactRole("related_party");
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Add Contact to Case
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select value={selectedContactRole} onValueChange={setSelectedContactRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="subject">Subject</SelectItem>
+                  <SelectItem value="witness">Witness</SelectItem>
+                  <SelectItem value="advisor">Advisor</SelectItem>
+                  <SelectItem value="opposing_party">Opposing Party</SelectItem>
+                  <SelectItem value="related_party">Related Party</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Search Contact</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, email, or company..."
+                  value={contactSearchQuery}
+                  onChange={(e) => setContactSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            {searchingContacts && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {!searchingContacts && contactSearchQuery.length >= 2 && contactSearchResults.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No contacts found matching "{contactSearchQuery}"
+              </p>
+            )}
+            {contactSearchResults.length > 0 && (
+              <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
+                {contactSearchResults.map((contact) => (
+                  <div
+                    key={contact.id}
+                    className="p-3 hover:bg-muted cursor-pointer flex items-center justify-between"
+                    onClick={() => handleAddContactToCase(contact.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-teal-100 rounded-full text-teal-600">
+                        <User className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="font-medium">{contact.full_name || "No name"}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {contact.email || "No email"}
+                          {contact.company_name && (
+                            <span className="ml-2 text-xs bg-slate-100 px-2 py-0.5 rounded">
+                              {contact.company_name}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {addingContact && (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddContact(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Case Dialog */}
+      <Dialog open={showEditCase} onOpenChange={setShowEditCase}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Edit Case
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Title</Label>
+              <Input
+                id="edit-title"
+                value={editCaseForm.title}
+                onChange={(e) => setEditCaseForm({...editCaseForm, title: e.target.value})}
+                placeholder="Case title..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={editCaseForm.description}
+                onChange={(e) => setEditCaseForm({...editCaseForm, description: e.target.value})}
+                placeholder="Case description..."
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Case Type</Label>
+                <Select
+                  value={editCaseForm.case_type}
+                  onValueChange={(value) => setEditCaseForm({...editCaseForm, case_type: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ato_audit">ATO Audit</SelectItem>
+                    <SelectItem value="legal_dispute">Legal Dispute</SelectItem>
+                    <SelectItem value="director_investigation">Director Investigation</SelectItem>
+                    <SelectItem value="compliance_review">Compliance Review</SelectItem>
+                    <SelectItem value="due_diligence">Due Diligence</SelectItem>
+                    <SelectItem value="fraud_investigation">Fraud Investigation</SelectItem>
+                    <SelectItem value="insolvency">Insolvency</SelectItem>
+                    <SelectItem value="bankruptcy">Bankruptcy</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={editCaseForm.status}
+                  onValueChange={(value) => setEditCaseForm({...editCaseForm, status: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="review">Under Review</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                <Select
+                  value={editCaseForm.priority}
+                  onValueChange={(value) => setEditCaseForm({...editCaseForm, priority: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-deadline">Deadline</Label>
+                <Input
+                  id="edit-deadline"
+                  type="date"
+                  value={editCaseForm.deadline}
+                  onChange={(e) => setEditCaseForm({...editCaseForm, deadline: e.target.value})}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditCase(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveCase} disabled={savingCase || !editCaseForm.title.trim()}>
+              {savingCase ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
