@@ -1060,7 +1060,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_100013) do
     t.datetime "updated_at", null: false
     t.datetime "last_synced_at"
     t.text "xero_sync_error"
-    t.text "contact_types", default: "{}"
+    t.text "roles", default: "{}"
     t.integer "rating", default: 0
     t.decimal "response_rate", precision: 5, scale: 2, default: "0.0"
     t.integer "avg_response_time"
