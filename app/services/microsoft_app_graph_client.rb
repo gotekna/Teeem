@@ -158,6 +158,194 @@ class MicrosoftAppGraphClient
   end
 
   # ==========================================
+  # SharePoint Site Access
+  # ==========================================
+
+  # List all SharePoint sites in the tenant
+  def list_sharepoint_sites(search: nil, top: 100)
+    params = { '$top' => top }
+    params['$select'] = 'id,name,displayName,webUrl,createdDateTime'
+
+    if search.present?
+      # Search for sites by name
+      params['$search'] = "\"#{search}\""
+    end
+
+    response = get('/sites', params)
+    (response['value'] || []).map do |site|
+      {
+        id: site['id'],
+        name: site['name'],
+        display_name: site['displayName'],
+        web_url: site['webUrl'],
+        created_at: site['createdDateTime']
+      }
+    end
+  end
+
+  # Get all sites (including root site which sometimes needs special handling)
+  def get_all_sites(top: 200)
+    # First get the root site
+    sites = []
+
+    begin
+      root_site = get('/sites/root')
+      sites << {
+        id: root_site['id'],
+        name: root_site['name'],
+        display_name: root_site['displayName'] || 'Root Site',
+        web_url: root_site['webUrl'],
+        is_root: true
+      }
+    rescue ApiError => e
+      Rails.logger.warn "[MicrosoftAppGraph] Could not get root site: #{e.message}"
+    end
+
+    # Get all other sites
+    response = get('/sites', { '$top' => top, '$select' => 'id,name,displayName,webUrl' })
+    (response['value'] || []).each do |site|
+      sites << {
+        id: site['id'],
+        name: site['name'],
+        display_name: site['displayName'],
+        web_url: site['webUrl'],
+        is_root: false
+      }
+    end
+
+    sites.uniq { |s| s[:id] }
+  end
+
+  # Get a specific SharePoint site by ID
+  def get_site(site_id)
+    response = get("/sites/#{CGI.escape(site_id)}")
+    {
+      id: response['id'],
+      name: response['name'],
+      display_name: response['displayName'],
+      web_url: response['webUrl']
+    }
+  end
+
+  # Get drives (document libraries) for a SharePoint site
+  def get_site_drives(site_id)
+    response = get("/sites/#{CGI.escape(site_id)}/drives")
+    (response['value'] || []).map do |drive|
+      {
+        id: drive['id'],
+        name: drive['name'],
+        drive_type: drive['driveType'],
+        web_url: drive['webUrl'],
+        quota_used: drive.dig('quota', 'used'),
+        quota_total: drive.dig('quota', 'total')
+      }
+    end
+  end
+
+  # ==========================================
+  # OneDrive Access (ANY user's OneDrive)
+  # ==========================================
+
+  # Get a user's OneDrive (personal drive)
+  def get_user_drive(user_identifier)
+    response = get("/users/#{CGI.escape(user_identifier)}/drive")
+    {
+      id: response['id'],
+      name: response['name'],
+      drive_type: response['driveType'],
+      web_url: response['webUrl'],
+      owner: response.dig('owner', 'user', 'displayName')
+    }
+  end
+
+  # List files in a user's OneDrive root
+  def list_user_drive_items(user_identifier, folder_path: nil, top: 100)
+    if folder_path.present?
+      endpoint = "/users/#{CGI.escape(user_identifier)}/drive/root:/#{folder_path}:/children"
+    else
+      endpoint = "/users/#{CGI.escape(user_identifier)}/drive/root/children"
+    end
+
+    params = {
+      '$top' => top,
+      '$select' => 'id,name,size,createdDateTime,lastModifiedDateTime,webUrl,folder,file,@microsoft.graph.downloadUrl'
+    }
+
+    response = get(endpoint, params)
+    (response['value'] || []).map { |item| format_drive_item(item) }
+  end
+
+  # ==========================================
+  # Drive Item Operations (works for SharePoint or OneDrive)
+  # ==========================================
+
+  # List items in a specific drive
+  def list_drive_items(drive_id, folder_path: nil, folder_id: nil, top: 100)
+    if folder_id.present?
+      endpoint = "/drives/#{CGI.escape(drive_id)}/items/#{folder_id}/children"
+    elsif folder_path.present?
+      endpoint = "/drives/#{CGI.escape(drive_id)}/root:/#{folder_path}:/children"
+    else
+      endpoint = "/drives/#{CGI.escape(drive_id)}/root/children"
+    end
+
+    params = {
+      '$top' => top,
+      '$select' => 'id,name,size,createdDateTime,lastModifiedDateTime,webUrl,folder,file,parentReference,@microsoft.graph.downloadUrl'
+    }
+
+    response = get(endpoint, params)
+    (response['value'] || []).map { |item| format_drive_item(item) }
+  end
+
+  # Get a specific item by ID
+  def get_drive_item(drive_id, item_id)
+    response = get("/drives/#{CGI.escape(drive_id)}/items/#{item_id}")
+    format_drive_item(response)
+  end
+
+  # Search for files across a drive
+  def search_drive(drive_id, query, top: 50)
+    endpoint = "/drives/#{CGI.escape(drive_id)}/root/search(q='#{CGI.escape(query)}')"
+    params = { '$top' => top }
+
+    response = get(endpoint, params)
+    (response['value'] || []).map { |item| format_drive_item(item) }
+  end
+
+  # Search across ALL SharePoint and OneDrive in the tenant
+  def search_all_files(query, top: 50)
+    # Use the search API for tenant-wide search
+    body = {
+      requests: [
+        {
+          entityTypes: ['driveItem'],
+          query: { queryString: query },
+          from: 0,
+          size: top
+        }
+      ]
+    }
+
+    response = post('/search/query', body)
+
+    results = []
+    (response.dig('value', 0, 'hitsContainers', 0, 'hits') || []).each do |hit|
+      resource = hit['resource']
+      results << {
+        id: resource['id'],
+        name: resource['name'],
+        web_url: resource['webUrl'],
+        last_modified: resource['lastModifiedDateTime'],
+        size: resource['size'],
+        drive_id: resource.dig('parentReference', 'driveId'),
+        site_id: resource.dig('parentReference', 'siteId')
+      }
+    end
+    results
+  end
+
+  # ==========================================
   # Calendar Access (for future use)
   # ==========================================
 
@@ -225,5 +413,22 @@ class MicrosoftAppGraphClient
 
       raise ApiError, "Microsoft Graph API error: #{error_msg}"
     end
+  end
+
+  def format_drive_item(item)
+    {
+      id: item['id'],
+      name: item['name'],
+      size: item['size'],
+      created_at: item['createdDateTime'],
+      modified_at: item['lastModifiedDateTime'],
+      web_url: item['webUrl'],
+      is_folder: item['folder'].present?,
+      child_count: item.dig('folder', 'childCount'),
+      mime_type: item.dig('file', 'mimeType'),
+      download_url: item['@microsoft.graph.downloadUrl'],
+      parent_drive_id: item.dig('parentReference', 'driveId'),
+      parent_path: item.dig('parentReference', 'path')
+    }
   end
 end

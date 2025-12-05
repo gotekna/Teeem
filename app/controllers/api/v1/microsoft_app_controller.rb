@@ -9,10 +9,14 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # - Mail.Read (Application) - Read all users' mail
   # - Mail.ReadWrite (Application) - Read/write all users' mail (if sending needed)
   # - User.Read.All (Application) - List users in tenant
+  # - Files.Read.All (Application) - Read all files in OneDrive/SharePoint
+  # - Sites.Read.All (Application) - Read all SharePoint sites
   APPLICATION_PERMISSIONS = [
     'https://graph.microsoft.com/Mail.Read',
     'https://graph.microsoft.com/Mail.ReadWrite',
-    'https://graph.microsoft.com/User.Read.All'
+    'https://graph.microsoft.com/User.Read.All',
+    'https://graph.microsoft.com/Files.Read.All',
+    'https://graph.microsoft.com/Sites.Read.All'
   ].freeze
 
   # GET /api/v1/microsoft_app/status
@@ -287,6 +291,214 @@ class Api::V1::MicrosoftAppController < ApplicationController
       success: true,
       message: 'Organization-wide Microsoft access has been disconnected'
     }
+  end
+
+  # ==========================================
+  # SharePoint/OneDrive Endpoints
+  # ==========================================
+
+  # GET /api/v1/microsoft_app/sharepoint_sites
+  # List all SharePoint sites in the tenant
+  def sharepoint_sites
+    unless current_user_admin?
+      return render json: { error: 'Only admins can view SharePoint sites' }, status: :forbidden
+    end
+
+    credential = OrganizationMicrosoftAppCredential.active_credential
+    unless credential&.status == 'connected'
+      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    end
+
+    begin
+      client = MicrosoftAppGraphClient.new
+      sites = client.get_all_sites(top: params[:top]&.to_i || 100)
+
+      render json: {
+        sites: sites,
+        total: sites.count
+      }
+    rescue MicrosoftAppGraphClient::ApiError => e
+      render json: { error: e.message }, status: :unprocessable_entity
+    end
+  end
+
+  # GET /api/v1/microsoft_app/site_drives
+  # List drives (document libraries) for a SharePoint site
+  def site_drives
+    unless current_user_admin?
+      return render json: { error: 'Only admins can view site drives' }, status: :forbidden
+    end
+
+    site_id = params[:site_id]
+    unless site_id.present?
+      return render json: { error: 'site_id is required' }, status: :bad_request
+    end
+
+    credential = OrganizationMicrosoftAppCredential.active_credential
+    unless credential&.status == 'connected'
+      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    end
+
+    begin
+      client = MicrosoftAppGraphClient.new
+      drives = client.get_site_drives(site_id)
+
+      render json: {
+        site_id: site_id,
+        drives: drives,
+        total: drives.count
+      }
+    rescue MicrosoftAppGraphClient::ApiError => e
+      render json: { error: e.message }, status: :unprocessable_entity
+    end
+  end
+
+  # GET /api/v1/microsoft_app/browse
+  # Browse files in a drive (SharePoint or OneDrive)
+  def browse
+    unless current_user_admin?
+      return render json: { error: 'Only admins can browse files' }, status: :forbidden
+    end
+
+    drive_id = params[:drive_id]
+    unless drive_id.present?
+      return render json: { error: 'drive_id is required' }, status: :bad_request
+    end
+
+    credential = OrganizationMicrosoftAppCredential.active_credential
+    unless credential&.status == 'connected'
+      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    end
+
+    begin
+      client = MicrosoftAppGraphClient.new
+      items = client.list_drive_items(
+        drive_id,
+        folder_path: params[:folder_path],
+        folder_id: params[:folder_id],
+        top: params[:top]&.to_i || 100
+      )
+
+      render json: {
+        drive_id: drive_id,
+        folder_path: params[:folder_path],
+        folder_id: params[:folder_id],
+        items: items,
+        total: items.count
+      }
+    rescue MicrosoftAppGraphClient::ApiError => e
+      render json: { error: e.message }, status: :unprocessable_entity
+    end
+  end
+
+  # GET /api/v1/microsoft_app/user_onedrive
+  # Access any user's OneDrive
+  def user_onedrive
+    unless current_user_admin?
+      return render json: { error: 'Only admins can access user OneDrive' }, status: :forbidden
+    end
+
+    user_email = params[:user_email]
+    unless user_email.present?
+      return render json: { error: 'user_email is required' }, status: :bad_request
+    end
+
+    credential = OrganizationMicrosoftAppCredential.active_credential
+    unless credential&.status == 'connected'
+      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    end
+
+    begin
+      client = MicrosoftAppGraphClient.new
+
+      # Get drive info
+      drive = client.get_user_drive(user_email)
+
+      # List root items
+      items = client.list_user_drive_items(
+        user_email,
+        folder_path: params[:folder_path],
+        top: params[:top]&.to_i || 100
+      )
+
+      render json: {
+        user_email: user_email,
+        drive: drive,
+        folder_path: params[:folder_path],
+        items: items,
+        total: items.count
+      }
+    rescue MicrosoftAppGraphClient::ApiError => e
+      render json: { error: e.message }, status: :unprocessable_entity
+    end
+  end
+
+  # GET /api/v1/microsoft_app/search_files
+  # Search across all SharePoint and OneDrive in the tenant
+  def search_files
+    unless current_user_admin?
+      return render json: { error: 'Only admins can search files' }, status: :forbidden
+    end
+
+    query = params[:q]
+    unless query.present?
+      return render json: { error: 'q (search query) is required' }, status: :bad_request
+    end
+
+    credential = OrganizationMicrosoftAppCredential.active_credential
+    unless credential&.status == 'connected'
+      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    end
+
+    begin
+      client = MicrosoftAppGraphClient.new
+
+      # Search in specific drive if provided, otherwise search all
+      if params[:drive_id].present?
+        results = client.search_drive(params[:drive_id], query, top: params[:top]&.to_i || 50)
+      else
+        results = client.search_all_files(query, top: params[:top]&.to_i || 50)
+      end
+
+      render json: {
+        query: query,
+        drive_id: params[:drive_id],
+        results: results,
+        total: results.count
+      }
+    rescue MicrosoftAppGraphClient::ApiError => e
+      render json: { error: e.message }, status: :unprocessable_entity
+    end
+  end
+
+  # POST /api/v1/microsoft_app/test_sharepoint
+  # Test SharePoint access specifically
+  def test_sharepoint
+    unless current_user_admin?
+      return render json: { error: 'Only admins can test SharePoint access' }, status: :forbidden
+    end
+
+    credential = OrganizationMicrosoftAppCredential.active_credential
+    unless credential&.status == 'connected'
+      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    end
+
+    begin
+      client = MicrosoftAppGraphClient.new
+      sites = client.list_sharepoint_sites(top: 5)
+
+      render json: {
+        success: true,
+        message: "SharePoint access working! Found #{sites.count} site(s).",
+        sample_sites: sites.map { |s| { name: s[:display_name], url: s[:web_url] } }
+      }
+    rescue MicrosoftAppGraphClient::ApiError => e
+      render json: {
+        success: false,
+        error: e.message,
+        hint: 'Ensure Files.Read.All and Sites.Read.All Application permissions are granted'
+      }, status: :unprocessable_entity
+    end
   end
 
   private
