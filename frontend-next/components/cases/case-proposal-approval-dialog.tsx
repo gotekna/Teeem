@@ -164,6 +164,7 @@ const CASE_TYPES = [
   { value: "due_diligence", label: "Due Diligence" },
   { value: "fraud_investigation", label: "Fraud Investigation" },
   { value: "insolvency", label: "Insolvency" },
+  { value: "bankruptcy", label: "Bankruptcy" },
   { value: "other", label: "Other" },
 ];
 
@@ -632,16 +633,16 @@ export function CaseProposalApprovalDialog({
                       </div>
 
                       {sourceFolderInputMode === "browse" ? (
-                        <div className={sourceFolderFullscreen ? "flex-1 min-h-0" : ""}>
+                        <div className={sourceFolderFullscreen ? "flex-1 min-h-0 flex flex-col" : ""}>
                           <SharePointFolderBrowser
                             onSelect={(folder, path) => {
                               if (path && !sourceFolders.includes(path)) {
                                 setSourceFolders(prev => [...prev, path]);
                               }
                             }}
-                            className={sourceFolderFullscreen ? "h-full" : "max-h-[250px]"}
+                            className={sourceFolderFullscreen ? "flex-1 min-h-0" : "max-h-[250px]"}
                           />
-                          <div className="flex justify-between items-center pt-2 border-t">
+                          <div className="flex justify-between items-center pt-2 border-t shrink-0">
                             <Button
                               variant="outline"
                               size="sm"
@@ -788,16 +789,16 @@ export function CaseProposalApprovalDialog({
                       </div>
 
                       {filingFolderInputMode === "browse" ? (
-                        <div className={filingFolderFullscreen ? "flex-1 min-h-0" : ""}>
+                        <div className={filingFolderFullscreen ? "flex-1 min-h-0 flex flex-col" : ""}>
                           <SharePointFolderBrowser
                             onSelect={(folder, path) => {
                               if (path && !filingFolders.includes(path)) {
                                 setFilingFolders(prev => [...prev, path]);
                               }
                             }}
-                            className={filingFolderFullscreen ? "h-full" : "max-h-[250px]"}
+                            className={filingFolderFullscreen ? "flex-1 min-h-0" : "max-h-[250px]"}
                           />
-                          <div className="flex justify-between items-center pt-2 border-t">
+                          <div className="flex justify-between items-center pt-2 border-t shrink-0">
                             <Button
                               variant="outline"
                               size="sm"
