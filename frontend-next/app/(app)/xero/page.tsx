@@ -601,8 +601,8 @@ export default function XeroPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={job.job_status?.name === "Active Job" ? "outline" : "secondary"}>
-                          {job.job_status?.name}
+                        <Badge variant={job.status === "active" ? "outline" : "secondary"}>
+                          {job.status}
                         </Badge>
                       </TableCell>
                     </TableRow>
