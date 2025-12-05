@@ -553,6 +553,45 @@ module Api
         end
       end
 
+      # GET /api/v1/organization_onedrive/validate_folder
+      # Validate the root folder exists and hasn't been renamed or moved
+      # Returns folder validation status and auto-updates metadata if folder was renamed
+      def validate_folder
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+          result = client.validate_root_folder
+
+          # If folder exists but was renamed, auto-update the stored metadata
+          if result[:valid] && (result[:name_changed] || result[:path_changed])
+            credential.update!(
+              root_folder_path: result[:current_path],
+              metadata: credential.metadata.merge({
+                root_folder_name: result[:name],
+                previous_name: result[:stored_name],
+                previous_path: result[:stored_path],
+                path_updated_at: Time.current
+              })
+            )
+            result[:auto_updated] = true
+            result[:message] = 'Folder location was updated to match current SharePoint path'
+          end
+
+          render json: result
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error "Failed to validate folder: #{e.message}"
+          render json: { error: "Failed to validate folder: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # POST /api/v1/organization_onedrive/create_all_job_folders
       # Create folder structure for ALL jobs that don't have folders yet
       def create_all_job_folders

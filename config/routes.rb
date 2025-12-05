@@ -992,6 +992,7 @@ Rails.application.routes.draw do
       get 'organization_onedrive/callback', to: 'organization_onedrive#callback'
       delete 'organization_onedrive/disconnect', to: 'organization_onedrive#disconnect'
       get 'organization_onedrive/browse_folders', to: 'organization_onedrive#browse_folders'
+      get 'organization_onedrive/validate_folder', to: 'organization_onedrive#validate_folder'
       patch 'organization_onedrive/change_root_folder', to: 'organization_onedrive#change_root_folder'
       post 'organization_onedrive/create_job_folders', to: 'organization_onedrive#create_job_folders'
       post 'organization_onedrive/create_all_job_folders', to: 'organization_onedrive#create_all_job_folders'
