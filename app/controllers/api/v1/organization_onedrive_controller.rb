@@ -489,10 +489,13 @@ module Api
           current_folder = nil
           breadcrumbs = []
 
+          # Get the correct drive path (handles SharePoint vs personal OneDrive)
+          drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+
           # Get folders in the specified location
           if folder_id.present?
             # Get current folder info for breadcrumb
-            current_folder_response = client.get("/me/drive/items/#{folder_id}")
+            current_folder_response = client.get("#{drive_path}/items/#{folder_id}")
             current_folder = {
               id: current_folder_response['id'],
               name: current_folder_response['name'],
@@ -515,7 +518,7 @@ module Api
             response = client.list_folder_items(folder_id)
           else
             # Browse root drive folders
-            response = client.get('/me/drive/root/children')
+            response = client.get("#{drive_path}/root/children")
           end
 
           # Filter to only show folders
@@ -1899,8 +1902,11 @@ module Api
       def change_root_folder_by_id(credential, folder_id)
         client = MicrosoftGraphClient.new(credential)
 
+        # Get the correct drive path (handles SharePoint vs personal OneDrive)
+        drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+
         # Get folder info from Graph API
-        folder_response = client.get("/me/drive/items/#{folder_id}")
+        folder_response = client.get("#{drive_path}/items/#{folder_id}")
 
         # Build the folder path from parentReference.path
         parent_path = folder_response.dig('parentReference', 'path') || ''
