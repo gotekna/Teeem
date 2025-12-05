@@ -87,7 +87,7 @@ export default function JobsPage() {
     try {
       // Load job statuses and job types for filter dropdowns
       const [statusesRes, typesRes] = await Promise.all([
-        api.get<{ success: boolean; job_statuses: JobStatus[] }>("/api/v1/job_statuses"),
+        api.get<{ success: boolean; job_statuses: JobStatus[] }>("/api/v1/job_status"),
         api.get<{ success: boolean; job_types: JobType[] }>("/api/v1/job_types"),
       ]);
 
