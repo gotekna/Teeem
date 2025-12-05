@@ -613,6 +613,7 @@ export default function CaseDetailPage() {
       const response = await api.post<{
         success: boolean;
         data: { folder_id: string; folder_name: string; folder_path: string; web_url: string };
+        message?: string;
       }>(`/api/v1/cases/${caseId}/create_folder`);
 
       if (response && response.data) {
@@ -623,9 +624,19 @@ export default function CaseDetailPage() {
           folder_path: response.data.folder_path,
           web_url: response.data.web_url,
         });
+
+        toast({
+          title: "Success",
+          description: response.message || "Case folder created successfully",
+        });
       }
     } catch (error) {
       console.error("Failed to create folder:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create case folder. Make sure OneDrive is connected.",
+        variant: "destructive",
+      });
     } finally {
       setCreatingFolder(false);
     }

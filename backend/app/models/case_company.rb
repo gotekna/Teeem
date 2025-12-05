@@ -5,7 +5,7 @@ class CaseCompany < ApplicationRecord
 
   validates :case_id, uniqueness: { scope: :company_id }
   validates :role, inclusion: {
-    in: %w[subject related_entity counterparty],
+    in: %w[subject co_primary related_entity counterparty],
     allow_blank: true
   }
 
@@ -15,6 +15,7 @@ class CaseCompany < ApplicationRecord
 
   ROLES = {
     'subject' => 'Subject of Investigation',
+    'co_primary' => 'Co-Primary Entity',
     'related_entity' => 'Related Entity',
     'counterparty' => 'Counterparty'
   }.freeze
