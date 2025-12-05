@@ -23,7 +23,19 @@ class Api::V1::UsersController < ApplicationController
   def update
     @user = User.find(params[:id])
 
-    if @user.update(user_params)
+    # Merge regular user params with admin-only params if user is admin
+    update_params = user_params
+    if current_user&.admin? && (params[:user][:role] || params[:user][:assigned_roles])
+      update_params = update_params.merge(admin_user_params)
+    elsif params[:user][:role] || params[:user][:assigned_roles]
+      # Non-admin trying to change role - reject request
+      return render json: {
+        success: false,
+        error: 'Only administrators can modify user roles'
+      }, status: :forbidden
+    end
+
+    if @user.update(update_params)
       render json: {
         success: true,
         user: @user.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at])
@@ -93,8 +105,17 @@ class Api::V1::UsersController < ApplicationController
 
   private
 
+  # Regular user params that anyone can edit
   def user_params
-    params.require(:user).permit(:name, :email, :mobile_phone, :role, assigned_roles: [])
+    params.require(:user).permit(:name, :email, :mobile_phone)
+  end
+
+  # Admin-only params (role and assigned_roles)
+  # Only administrators should be able to modify these fields
+  # Brakeman warning can be ignored: authorization check in update() prevents
+  # non-admin users from accessing these params (returns 403 Forbidden)
+  def admin_user_params
+    params.require(:user).permit(:role, assigned_roles: [])
   end
 
   # Returns user data with presence status and integration info

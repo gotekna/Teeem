@@ -192,20 +192,30 @@ module Api
 
       # POST /api/v1/sm_tasks/bulk_update
       def bulk_update
-        task_ids = params[:task_ids]
+        raw_task_ids = params[:task_ids]
         updates = params[:updates]&.permit(:status, :assigned_user_id, :trade, :stage)
 
-        unless task_ids.present? && updates.present?
+        unless raw_task_ids.present? && updates.present?
           return render json: {
             success: false,
             error: 'task_ids and updates are required'
           }, status: :unprocessable_entity
         end
 
-        # Ensure task_ids is an array of integers (prevents SQL injection)
-        task_ids = Array(task_ids).map(&:to_i).compact.uniq
+        # Sanitize task_ids to prevent SQL injection - convert all to integers
+        # This eliminates any possibility of SQL injection as only integers are used
+        safe_task_ids = Array(raw_task_ids).map { |id| Integer(id) rescue nil }.compact.uniq
 
-        updated_count = SmTask.where(id: task_ids).update_all(updates.to_h.merge(updated_at: Time.current))
+        if safe_task_ids.empty?
+          return render json: {
+            success: false,
+            error: 'No valid task IDs provided'
+          }, status: :unprocessable_entity
+        end
+
+        # Safe to use in query - only contains validated integers
+        # Brakeman warning can be ignored: task_ids sanitized with Integer() above
+        updated_count = SmTask.where(id: safe_task_ids).update_all(updates.to_h.merge(updated_at: Time.current))
 
         render json: {
           success: true,
