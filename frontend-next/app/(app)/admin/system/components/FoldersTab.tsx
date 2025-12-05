@@ -135,51 +135,38 @@ interface JobNameFormatBuilderProps {
 }
 
 function JobNameFormatBuilder({ value, separators, onChange }: JobNameFormatBuilderProps) {
-  const [draggedField, setDraggedField] = React.useState<string | null>(null);
-  const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
-
   // Get available fields (not yet in the format)
   const availableFields = JOB_NAME_FIELDS.filter(f => !value.includes(f.id));
 
   // Get selected fields with their data
   const selectedFields = value.map(id => JOB_NAME_FIELDS.find(f => f.id === id)!).filter(Boolean);
 
-  const handleDragStart = (fieldId: string) => {
-    setDraggedField(fieldId);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    setDragOverIndex(index);
-  };
-
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    if (!draggedField) return;
-
-    const isFromAvailable = !value.includes(draggedField);
-
-    if (isFromAvailable) {
-      // Add new field at position
-      const newFields = [...value];
-      newFields.splice(dropIndex, 0, draggedField);
-      onChange(newFields, separators);
-    } else {
-      // Reorder existing field
-      const currentIndex = value.indexOf(draggedField);
-      const newFields = [...value];
-      newFields.splice(currentIndex, 1);
-      const adjustedIndex = dropIndex > currentIndex ? dropIndex - 1 : dropIndex;
-      newFields.splice(adjustedIndex, 0, draggedField);
-      onChange(newFields, separators);
+  const handleAddField = (fieldId: string) => {
+    if (!value.includes(fieldId)) {
+      onChange([...value, fieldId], separators);
     }
-
-    setDraggedField(null);
-    setDragOverIndex(null);
   };
 
   const handleRemoveField = (fieldId: string) => {
     const newFields = value.filter(id => id !== fieldId);
+    onChange(newFields, separators);
+  };
+
+  const handleOrderChange = (fieldId: string, newOrder: number) => {
+    // newOrder is 1-based from user input
+    const currentIndex = value.indexOf(fieldId);
+    if (currentIndex === -1) return;
+
+    // Clamp to valid range
+    const targetIndex = Math.max(0, Math.min(value.length - 1, newOrder - 1));
+    if (targetIndex === currentIndex) return;
+
+    const newFields = [...value];
+    // Remove from current position
+    newFields.splice(currentIndex, 1);
+    // Insert at new position
+    newFields.splice(targetIndex, 0, fieldId);
+
     onChange(newFields, separators);
   };
 
@@ -198,23 +185,22 @@ function JobNameFormatBuilder({ value, separators, onChange }: JobNameFormatBuil
     <div className="space-y-4">
       {/* Available Fields */}
       <div>
-        <Label className="text-xs text-muted-foreground mb-2 block">Available Fields (drag to add)</Label>
+        <Label className="text-xs text-muted-foreground mb-2 block">Available Fields (click to add)</Label>
         <div className="flex flex-wrap gap-2">
           {availableFields.map(field => (
-            <div
+            <button
               key={field.id}
-              draggable
-              onDragStart={() => handleDragStart(field.id)}
-              onDragEnd={() => { setDraggedField(null); setDragOverIndex(null); }}
+              type="button"
+              onClick={() => handleAddField(field.id)}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border bg-background cursor-grab",
-                "hover:border-primary hover:bg-primary/5 transition-colors text-sm",
-                draggedField === field.id && "opacity-50"
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border bg-background cursor-pointer",
+                "hover:border-primary hover:bg-primary/5 transition-colors text-sm"
               )}
             >
+              <Plus className="h-3 w-3 text-muted-foreground" />
               {field.icon}
               <span>{field.label}</span>
-            </div>
+            </button>
           ))}
           {availableFields.length === 0 && (
             <span className="text-xs text-muted-foreground italic">All fields added</span>
@@ -222,75 +208,67 @@ function JobNameFormatBuilder({ value, separators, onChange }: JobNameFormatBuil
         </div>
       </div>
 
-      {/* Drop Zone / Format Builder */}
+      {/* Format Builder with Order Numbers */}
       <div>
-        <Label className="text-xs text-muted-foreground mb-2 block">Folder Name Format (drag to reorder)</Label>
+        <Label className="text-xs text-muted-foreground mb-2 block">Folder Name Format (type number to reorder)</Label>
         <div
           className={cn(
-            "min-h-[60px] border-2 border-dashed rounded-lg p-3 flex flex-wrap items-center gap-1",
-            "transition-colors",
-            value.length === 0 && "justify-center",
-            dragOverIndex !== null && "border-primary bg-primary/5"
+            "min-h-[60px] border rounded-lg p-3 bg-muted/30",
+            value.length === 0 && "flex items-center justify-center"
           )}
-          onDragOver={(e) => handleDragOver(e, value.length)}
-          onDrop={(e) => handleDrop(e, value.length)}
         >
           {value.length === 0 ? (
-            <span className="text-sm text-muted-foreground">Drag fields here to build folder name...</span>
+            <span className="text-sm text-muted-foreground">Click fields above to build folder name...</span>
           ) : (
-            selectedFields.map((field, idx) => (
-              <React.Fragment key={field.id}>
-                <div
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = "move";
-                    handleDragStart(field.id);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setDragOverIndex(idx);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleDrop(e, idx);
-                  }}
-                  onDragEnd={() => { setDraggedField(null); setDragOverIndex(null); }}
-                  className={cn(
-                    "flex items-center gap-1 px-2 py-1 rounded bg-primary/10 border border-primary/30 text-sm cursor-grab",
-                    draggedField === field.id && "opacity-50",
-                    dragOverIndex === idx && "ring-2 ring-primary ring-offset-1"
+            <div className="space-y-2">
+              {selectedFields.map((field, idx) => (
+                <div key={field.id} className="flex items-center gap-2">
+                  {/* Order Number Input */}
+                  <Input
+                    type="number"
+                    min={1}
+                    max={value.length}
+                    value={idx + 1}
+                    onChange={(e) => {
+                      const newOrder = parseInt(e.target.value);
+                      if (!isNaN(newOrder) && newOrder >= 1 && newOrder <= value.length) {
+                        handleOrderChange(field.id, newOrder);
+                      }
+                    }}
+                    className="w-12 h-8 text-center text-sm px-1"
+                  />
+
+                  {/* Field Badge */}
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-primary/10 border border-primary/30 text-sm flex-1">
+                    {field.icon}
+                    <span className="font-medium">{field.label}</span>
+                    <span className="text-muted-foreground ml-auto text-xs">{field.placeholder}</span>
+                  </div>
+
+                  {/* Separator (between fields, not after last) */}
+                  {idx < selectedFields.length - 1 && (
+                    <select
+                      value={separators[idx] || " "}
+                      onChange={(e) => handleSeparatorChange(idx, e.target.value)}
+                      className="h-8 text-xs bg-background border rounded px-2 cursor-pointer"
+                    >
+                      {SEPARATORS.map(sep => (
+                        <option key={sep.id} value={sep.value}>{sep.label}</option>
+                      ))}
+                    </select>
                   )}
-                >
-                  <GripVertical className="h-3 w-3 text-muted-foreground" />
-                  {field.icon}
-                  <span className="font-medium">{field.label}</span>
+
+                  {/* Remove Button */}
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleRemoveField(field.id);
-                    }}
-                    className="ml-1 p-0.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                    onClick={() => handleRemoveField(field.id)}
+                    className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
-                {idx < selectedFields.length - 1 && (
-                  <select
-                    value={separators[idx] || " "}
-                    onChange={(e) => handleSeparatorChange(idx, e.target.value)}
-                    className="h-7 text-xs bg-muted border-0 rounded px-1 cursor-pointer"
-                  >
-                    {SEPARATORS.map(sep => (
-                      <option key={sep.id} value={sep.value}>{sep.label}</option>
-                    ))}
-                  </select>
-                )}
-              </React.Fragment>
-            ))
+              ))}
+            </div>
           )}
         </div>
       </div>
