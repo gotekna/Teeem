@@ -133,7 +133,7 @@ class CaseRelationshipService
           id: contact.id,
           name: contact.full_name,
           email: contact.email,
-          phone: contact.mobile_phone || contact.work_phone,
+          phone: contact.mobile_phone || contact.office_phone,
           company: contact.company_name_or_trust,
           relationship_type: case_contact.relationship_type,
           formatted_relationship_type: case_contact.formatted_relationship_type,
