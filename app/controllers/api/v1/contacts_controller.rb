@@ -52,18 +52,8 @@ module Api
         # customer/supplier roles have been removed and converted to 'Employee'
         if params[:type].present? && params[:role].blank?
           case params[:type]
-<<<<<<< Updated upstream
-          when 'customers'
-            @contacts = @contacts.customers
-          when 'suppliers'
-            @contacts = @contacts.suppliers
-          when 'both'
-            # Filter for contacts that have both 'customer' and 'supplier' in roles array
-            @contacts = @contacts.where("roles @> ARRAY['customer', 'supplier']::text[]")
-=======
           when 'customers', 'suppliers', 'both'
             @contacts = @contacts.employees # All converted to Employee role
->>>>>>> Stashed changes
           end
         end
 
