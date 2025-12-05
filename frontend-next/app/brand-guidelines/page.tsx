@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,13 +14,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Moon, Sun } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Moon, Sun, Trash2 } from "lucide-react";
 import { useTheme } from "next-themes";
 
 export default function Home() {
   const { theme, setTheme } = useTheme();
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
 
   return (
+    <div className="h-screen overflow-auto">
     <div className="min-h-screen p-8 space-y-8 max-w-6xl mx-auto pb-32">
       <div className="flex justify-between items-start">
         <div>
@@ -848,6 +861,113 @@ export default function Home() {
             </CardContent>
           </Card>
 
+          {/* Confirmation Dialogs */}
+          <Card className="md:col-span-2 xl:col-span-3">
+            <CardHeader>
+              <CardTitle className="text-lg">Confirmation Dialogs</CardTitle>
+              <CardDescription>Destructive action confirmations ("Are you sure?")</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Live Demo */}
+                <div className="space-y-3">
+                  <p className="text-[11px] text-[#878787] font-medium">Live Demo</p>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Item
+                  </Button>
+                  <p className="text-[11px] text-[#606060]">
+                    Click to see the confirmation dialog pattern.
+                  </p>
+                </div>
+
+                {/* Structure */}
+                <div className="space-y-3">
+                  <p className="text-[11px] text-[#878787] font-medium">Dialog Structure</p>
+                  <div className="border p-4 space-y-3 bg-card">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">AlertDialogTitle</p>
+                      <p className="text-[11px] text-[#606060]">AlertDialogDescription</p>
+                    </div>
+                    <div className="flex gap-2 justify-end pt-2">
+                      <Button variant="outline" size="sm">Cancel</Button>
+                      <Button variant="destructive" size="sm">Delete</Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Specs */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-[11px]">
+                <div className="space-y-2">
+                  <p className="text-[#878787] font-medium">Title</p>
+                  <ul className="space-y-1">
+                    <li>• Use question format: "Delete Item?"</li>
+                    <li>• 18px font-medium (text-lg)</li>
+                    <li>• Left-aligned on desktop</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[#878787] font-medium">Description</p>
+                  <ul className="space-y-1">
+                    <li>• Explain consequences clearly</li>
+                    <li>• Include "cannot be undone" if permanent</li>
+                    <li>• 14px text-text-secondary</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[#878787] font-medium">Buttons</p>
+                  <ul className="space-y-1">
+                    <li>• Cancel: variant="outline" (left)</li>
+                    <li>• Confirm: variant="destructive" (right)</li>
+                    <li>• Action verb matches title: "Delete"</li>
+                  </ul>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Code Example */}
+              <div className="space-y-2">
+                <p className="text-[11px] text-[#878787] font-medium">Usage Pattern</p>
+                <pre className="text-[10px] bg-secondary p-4 overflow-x-auto font-mono">
+{`<AlertDialog open={showDialog} onOpenChange={setShowDialog}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Delete Item?</AlertDialogTitle>
+      <AlertDialogDescription>
+        Are you sure you want to delete this item?
+        This action cannot be undone.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction
+        onClick={handleDelete}
+        className="bg-destructive text-destructive-foreground"
+      >
+        Delete
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>`}
+                </pre>
+              </div>
+
+              <div className="pt-2 border-t text-[11px] text-[#878787] space-y-1">
+                <p><strong>Overlay:</strong> bg-[#f6f6f3]/60 (light) • bg-[#0C0C0C]/80 (dark)</p>
+                <p><strong>Content:</strong> max-w-lg • p-6 • border • bg-background</p>
+                <p><strong>Animation:</strong> fade-in + zoom-in-95 + slide-in-from-top</p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Status Indicators */}
           <Card>
             <CardHeader>
@@ -874,6 +994,28 @@ export default function Home() {
           </Card>
         </div>
       </section>
+    </div>
+
+      {/* Delete Confirmation Dialog Demo */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this item? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => setShowDeleteDialog(false)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
