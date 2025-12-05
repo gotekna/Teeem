@@ -43,6 +43,10 @@ import {
   AlertCircle,
   RefreshCw,
   CheckCircle2,
+  Type,
+  Hash,
+  MapPin,
+  Building,
 } from "lucide-react";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -95,6 +99,201 @@ interface FolderValidation {
   path_changed?: boolean;
   auto_updated?: boolean;
   message?: string;
+}
+
+// Job Name Format types
+interface JobNameField {
+  id: string;
+  label: string;
+  placeholder: string;
+  icon: React.ReactNode;
+}
+
+const JOB_NAME_FIELDS: JobNameField[] = [
+  { id: "job_number", label: "Job Number", placeholder: "047", icon: <Hash className="h-3 w-3" /> },
+  { id: "lot_number", label: "Lot Number", placeholder: "Lot 12", icon: <Hash className="h-3 w-3" /> },
+  { id: "street_number", label: "Street Number", placeholder: "83", icon: <Hash className="h-3 w-3" /> },
+  { id: "street_name", label: "Street Name", placeholder: "West Ridge", icon: <Type className="h-3 w-3" /> },
+  { id: "street_type", label: "Street Type", placeholder: "Street", icon: <Type className="h-3 w-3" /> },
+  { id: "suburb", label: "Suburb", placeholder: "Malbon", icon: <MapPin className="h-3 w-3" /> },
+  { id: "state", label: "State", placeholder: "QLD", icon: <Building className="h-3 w-3" /> },
+];
+
+// Separator options for between fields
+const SEPARATORS = [
+  { id: "space", label: "Space", value: " " },
+  { id: "dash", label: "-", value: " - " },
+  { id: "comma", label: ",", value: ", " },
+  { id: "slash", label: "/", value: " / " },
+];
+
+interface JobNameFormatBuilderProps {
+  value: string[];  // Array of field IDs in order
+  separators: Record<number, string>;  // Index -> separator value
+  onChange: (fields: string[], separators: Record<number, string>) => void;
+}
+
+function JobNameFormatBuilder({ value, separators, onChange }: JobNameFormatBuilderProps) {
+  const [draggedField, setDraggedField] = React.useState<string | null>(null);
+  const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
+
+  // Get available fields (not yet in the format)
+  const availableFields = JOB_NAME_FIELDS.filter(f => !value.includes(f.id));
+
+  // Get selected fields with their data
+  const selectedFields = value.map(id => JOB_NAME_FIELDS.find(f => f.id === id)!).filter(Boolean);
+
+  const handleDragStart = (fieldId: string) => {
+    setDraggedField(fieldId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (!draggedField) return;
+
+    const isFromAvailable = !value.includes(draggedField);
+
+    if (isFromAvailable) {
+      // Add new field at position
+      const newFields = [...value];
+      newFields.splice(dropIndex, 0, draggedField);
+      onChange(newFields, separators);
+    } else {
+      // Reorder existing field
+      const currentIndex = value.indexOf(draggedField);
+      const newFields = [...value];
+      newFields.splice(currentIndex, 1);
+      const adjustedIndex = dropIndex > currentIndex ? dropIndex - 1 : dropIndex;
+      newFields.splice(adjustedIndex, 0, draggedField);
+      onChange(newFields, separators);
+    }
+
+    setDraggedField(null);
+    setDragOverIndex(null);
+  };
+
+  const handleRemoveField = (fieldId: string) => {
+    const newFields = value.filter(id => id !== fieldId);
+    onChange(newFields, separators);
+  };
+
+  const handleSeparatorChange = (index: number, sep: string) => {
+    const newSeparators = { ...separators, [index]: sep };
+    onChange(value, newSeparators);
+  };
+
+  // Generate preview
+  const preview = selectedFields.map((field, idx) => {
+    const sep = idx < selectedFields.length - 1 ? (separators[idx] || " ") : "";
+    return field.placeholder + sep;
+  }).join("");
+
+  return (
+    <div className="space-y-4">
+      {/* Available Fields */}
+      <div>
+        <Label className="text-xs text-muted-foreground mb-2 block">Available Fields (drag to add)</Label>
+        <div className="flex flex-wrap gap-2">
+          {availableFields.map(field => (
+            <div
+              key={field.id}
+              draggable
+              onDragStart={() => handleDragStart(field.id)}
+              onDragEnd={() => { setDraggedField(null); setDragOverIndex(null); }}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border bg-background cursor-grab",
+                "hover:border-primary hover:bg-primary/5 transition-colors text-sm",
+                draggedField === field.id && "opacity-50"
+              )}
+            >
+              {field.icon}
+              <span>{field.label}</span>
+            </div>
+          ))}
+          {availableFields.length === 0 && (
+            <span className="text-xs text-muted-foreground italic">All fields added</span>
+          )}
+        </div>
+      </div>
+
+      {/* Drop Zone / Format Builder */}
+      <div>
+        <Label className="text-xs text-muted-foreground mb-2 block">Folder Name Format (drag to reorder)</Label>
+        <div
+          className={cn(
+            "min-h-[60px] border-2 border-dashed rounded-lg p-3 flex flex-wrap items-center gap-1",
+            "transition-colors",
+            value.length === 0 && "justify-center",
+            dragOverIndex !== null && "border-primary bg-primary/5"
+          )}
+          onDragOver={(e) => handleDragOver(e, value.length)}
+          onDrop={(e) => handleDrop(e, value.length)}
+        >
+          {value.length === 0 ? (
+            <span className="text-sm text-muted-foreground">Drag fields here to build folder name...</span>
+          ) : (
+            selectedFields.map((field, idx) => (
+              <React.Fragment key={field.id}>
+                <div
+                  draggable
+                  onDragStart={() => handleDragStart(field.id)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDrop={(e) => handleDrop(e, idx)}
+                  onDragEnd={() => { setDraggedField(null); setDragOverIndex(null); }}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-1 rounded bg-primary/10 border border-primary/30 text-sm cursor-grab group",
+                    draggedField === field.id && "opacity-50",
+                    dragOverIndex === idx && "ring-2 ring-primary"
+                  )}
+                >
+                  <GripVertical className="h-3 w-3 text-muted-foreground" />
+                  {field.icon}
+                  <span className="font-medium">{field.label}</span>
+                  <button
+                    onClick={() => handleRemoveField(field.id)}
+                    className="ml-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+                {idx < selectedFields.length - 1 && (
+                  <select
+                    value={separators[idx] || " "}
+                    onChange={(e) => handleSeparatorChange(idx, e.target.value)}
+                    className="h-7 text-xs bg-muted border-0 rounded px-1 cursor-pointer"
+                  >
+                    {SEPARATORS.map(sep => (
+                      <option key={sep.id} value={sep.value}>{sep.label}</option>
+                    ))}
+                  </select>
+                )}
+              </React.Fragment>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Preview */}
+      {value.length > 0 && (
+        <div className="bg-muted/50 rounded-md p-3">
+          <Label className="text-xs text-muted-foreground mb-1 block">Preview</Label>
+          <div className="font-mono text-sm">
+            <span className="text-emerald-600 dark:text-emerald-400">[Job Code]</span>
+            <span className="text-muted-foreground"> - </span>
+            <span className="text-blue-600 dark:text-blue-400">{preview || "[Project Name]"}</span>
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">
+            Example: <code className="bg-background px-1 rounded">047 - {preview || "Project Name"}</code>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function buildTree(items: FolderTemplateItem[]): FolderTemplateItem[] {
@@ -515,10 +714,30 @@ export function FoldersTab() {
   const [folderValidation, setFolderValidation] = React.useState<FolderValidation | null>(null);
   const [validatingFolder, setValidatingFolder] = React.useState(false);
 
+  // Job Name Format state
+  const [jobNameFormatDialogOpen, setJobNameFormatDialogOpen] = React.useState(false);
+  const [jobNameFormatFields, setJobNameFormatFields] = React.useState<string[]>(["street_number", "street_name", "suburb"]);
+  const [jobNameFormatSeparators, setJobNameFormatSeparators] = React.useState<Record<number, string>>({ 0: " ", 1: ", " });
+  const [savingJobNameFormat, setSavingJobNameFormat] = React.useState(false);
+
   React.useEffect(() => {
     loadTemplates();
     loadSharePointConfig();
+    loadJobNameFormat();
   }, []);
+
+  const loadJobNameFormat = async () => {
+    try {
+      const response = await api.get<{ job_folder_name_format?: { fields: string[]; separators: Record<number, string> } }>("/api/v1/organization_settings");
+      if (response?.job_folder_name_format) {
+        setJobNameFormatFields(response.job_folder_name_format.fields || []);
+        setJobNameFormatSeparators(response.job_folder_name_format.separators || {});
+      }
+    } catch (error) {
+      console.error("Failed to load job name format:", error);
+      // Use defaults - already set in state initialization
+    }
+  };
 
   const loadSharePointConfig = async () => {
     try {
@@ -773,7 +992,21 @@ export function FoldersTab() {
                         <span className="text-muted-foreground">/</span>
                         <span>{sharePointConfig.root_folder || "TEEEM Jobs"}</span>
                         <span className="text-muted-foreground">/</span>
-                        <span className="text-emerald-600 dark:text-emerald-400">{"[Job Code] - [Project Name]"}</span>
+                        <button
+                          onClick={() => setJobNameFormatDialogOpen(true)}
+                          className="text-emerald-600 dark:text-emerald-400 hover:underline hover:text-emerald-700 dark:hover:text-emerald-300 cursor-pointer"
+                          title="Click to configure job folder name format"
+                        >
+                          {"[Job Code] - "}
+                          {jobNameFormatFields.length > 0
+                            ? jobNameFormatFields.map((id, idx) => {
+                                const field = JOB_NAME_FIELDS.find(f => f.id === id);
+                                const sep = idx < jobNameFormatFields.length - 1 ? (jobNameFormatSeparators[idx] || " ") : "";
+                                return `[${field?.label || id}]${sep}`;
+                              }).join("")
+                            : "[Project Name]"
+                          }
+                        </button>
                         <span className="text-muted-foreground">/</span>
                         <span className="text-muted-foreground italic">{"[template folders...]"}</span>
                       </div>
@@ -986,6 +1219,68 @@ export function FoldersTab() {
                 <>
                   <Check className="h-4 w-4 mr-2" />
                   Save
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Job Name Format Dialog */}
+      <Dialog open={jobNameFormatDialogOpen} onOpenChange={setJobNameFormatDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Configure Job Folder Name Format</DialogTitle>
+            <DialogDescription>
+              Drag and drop fields to define how job folders are named in SharePoint.
+              The Job Code is always included as a prefix.
+            </DialogDescription>
+          </DialogHeader>
+
+          <JobNameFormatBuilder
+            value={jobNameFormatFields}
+            separators={jobNameFormatSeparators}
+            onChange={(fields, seps) => {
+              setJobNameFormatFields(fields);
+              setJobNameFormatSeparators(seps);
+            }}
+          />
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setJobNameFormatDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                setSavingJobNameFormat(true);
+                try {
+                  // TODO: Save to organization settings via API
+                  await api.patch("/api/v1/organization_settings", {
+                    job_folder_name_format: {
+                      fields: jobNameFormatFields,
+                      separators: jobNameFormatSeparators
+                    }
+                  });
+                  toast({ title: "Success", description: "Job folder name format saved" });
+                  setJobNameFormatDialogOpen(false);
+                } catch (error) {
+                  console.error("Failed to save job name format:", error);
+                  toast({ title: "Error", description: "Failed to save format", variant: "destructive" });
+                } finally {
+                  setSavingJobNameFormat(false);
+                }
+              }}
+              disabled={savingJobNameFormat || jobNameFormatFields.length === 0}
+            >
+              {savingJobNameFormat ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Save Format
                 </>
               )}
             </Button>
