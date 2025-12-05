@@ -425,11 +425,11 @@ class XeroContactSyncService
     # Only import fields where direction is 'import' or 'bidirectional'
     importable_fields = field_mappings.select { |_, dir| ['import', 'bidirectional'].include?(dir) }.keys
 
-    # Extract contact types from Xero IsCustomer/IsSupplier flags
-    contact_types = []
-    contact_types << 'customer' if xero_contact['IsCustomer'] == true
-    contact_types << 'supplier' if xero_contact['IsSupplier'] == true
-    updates[:contact_types] = contact_types if contact_types.any?
+    # Extract roles from Xero IsCustomer/IsSupplier flags
+    roles = []
+    roles << 'customer' if xero_contact['IsCustomer'] == true
+    roles << 'supplier' if xero_contact['IsSupplier'] == true
+    updates[:roles] = roles if roles.any?
 
     # Determine if this is a company contact
     is_company = xero_contact_is_company?(xero_contact)
@@ -581,10 +581,10 @@ class XeroContactSyncService
   def create_teeem_contact_from_xero(xero_contact, tenant_id)
     Rails.logger.info("Creating TEEEM contact from Xero: #{xero_contact['Name']}")
 
-    # Extract contact types from Xero IsCustomer/IsSupplier flags
-    contact_types = []
-    contact_types << 'customer' if xero_contact['IsCustomer'] == true
-    contact_types << 'supplier' if xero_contact['IsSupplier'] == true
+    # Extract roles from Xero IsCustomer/IsSupplier flags
+    roles = []
+    roles << 'customer' if xero_contact['IsCustomer'] == true
+    roles << 'supplier' if xero_contact['IsSupplier'] == true
 
     is_company = xero_contact_is_company?(xero_contact)
 
@@ -597,7 +597,7 @@ class XeroContactSyncService
       entity_type: is_company ? 'company' : 'person',
       tax_number: normalize_tax_number(xero_contact['TaxNumber']),
       email: extract_xero_email(xero_contact),
-      contact_types: contact_types.any? ? contact_types : nil,
+      roles: roles.any? ? roles : nil,
       sync_with_xero: true,
       last_synced_at: @sync_timestamp,
       xero_contact_status: xero_contact['ContactStatus'],
