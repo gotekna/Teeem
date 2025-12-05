@@ -230,14 +230,28 @@ export function LocationMap({
     const addr = suggestion.address || {};
     const houseNumber = addr.houseNumber || "";
     const street = addr.street || "";
-    const suburb = addr.suburb || "";
-    const state = addr.state || "";
-    const postcode = addr.postcode || "";
+    let suburb = addr.suburb || "";
+    let state = addr.state || "";
 
-    // Validate required fields
-    if (!suburb || !postcode) {
-      setError("Cannot save: Missing suburb or postcode. Please select a complete address.");
-      return;
+    // Try to extract suburb and state from placeName if not available
+    // Format: "5 Speargrass Drive, Logan Village Queensland 4207, Australia"
+    if (!suburb || !state) {
+      const parts = suggestion.placeName.split(",").map(p => p.trim());
+      if (parts.length >= 2) {
+        const locationPart = parts[1];
+        const stateMatch = locationPart.match(/(Queensland|New South Wales|Victoria|South Australia|Western Australia|Tasmania|Northern Territory|Australian Capital Territory|QLD|NSW|VIC|SA|WA|TAS|NT|ACT)/i);
+        if (stateMatch) {
+          const stateIndex = locationPart.indexOf(stateMatch[0]);
+          if (!suburb && stateIndex > 0) {
+            suburb = locationPart.substring(0, stateIndex).trim();
+          }
+          if (!state) {
+            state = stateMatch[0];
+          }
+        } else if (!suburb) {
+          suburb = locationPart.replace(/\d{4}/, "").trim();
+        }
+      }
     }
 
     // Pre-fill street address if available
