@@ -83,6 +83,28 @@ When discovering duplicate/conflicting implementations:
 - ✅ Use `--app teeem-rob-dev` for staging
 - ✅ Use `--app teeemlive` for production
 
+## 🔴 Local Development
+
+**When starting local servers, use these ports:**
+
+- **Frontend:** Port 3000 (`npm run dev` or `PORT=3000 npm run dev`)
+- **Backend:** Port 3001 (`bin/rails server -p 3001`)
+
+**Start commands:**
+```bash
+# Start backend on port 3001
+cd backend && bin/rails server -p 3001
+
+# Start frontend (Next.js) on port 3000
+cd frontend-next && npm run dev
+```
+
+**Local URLs:**
+- Frontend: http://localhost:3000
+- Backend: http://localhost:3001
+
+---
+
 ## 🔴 Production Deployment
 
 **Deploy to production (`teeemlive`) using the `/l` command or manually:**
