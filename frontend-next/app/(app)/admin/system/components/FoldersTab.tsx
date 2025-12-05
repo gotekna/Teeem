@@ -115,6 +115,7 @@ const JOB_NAME_FIELDS: JobNameField[] = [
   { id: "street_number", label: "Street Number", placeholder: "83", icon: <Hash className="h-3 w-3" /> },
   { id: "street_name", label: "Street Name", placeholder: "West Ridge", icon: <Type className="h-3 w-3" /> },
   { id: "street_type", label: "Street Type", placeholder: "Street", icon: <Type className="h-3 w-3" /> },
+  { id: "street_type_abbr", label: "Street Type (Abbr)", placeholder: "St", icon: <Type className="h-3 w-3" /> },
   { id: "suburb", label: "Suburb", placeholder: "Malbon", icon: <MapPin className="h-3 w-3" /> },
   { id: "state", label: "State", placeholder: "QLD", icon: <Building className="h-3 w-3" /> },
 ];
@@ -241,24 +242,40 @@ function JobNameFormatBuilder({ value, separators, onChange }: JobNameFormatBuil
               <React.Fragment key={field.id}>
                 <div
                   draggable
-                  onDragStart={() => handleDragStart(field.id)}
-                  onDragOver={(e) => handleDragOver(e, idx)}
-                  onDrop={(e) => handleDrop(e, idx)}
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    handleDragStart(field.id);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDragOverIndex(idx);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleDrop(e, idx);
+                  }}
                   onDragEnd={() => { setDraggedField(null); setDragOverIndex(null); }}
                   className={cn(
-                    "flex items-center gap-1 px-2 py-1 rounded bg-primary/10 border border-primary/30 text-sm cursor-grab group",
+                    "flex items-center gap-1 px-2 py-1 rounded bg-primary/10 border border-primary/30 text-sm cursor-grab",
                     draggedField === field.id && "opacity-50",
-                    dragOverIndex === idx && "ring-2 ring-primary"
+                    dragOverIndex === idx && "ring-2 ring-primary ring-offset-1"
                   )}
                 >
                   <GripVertical className="h-3 w-3 text-muted-foreground" />
                   {field.icon}
                   <span className="font-medium">{field.label}</span>
                   <button
-                    onClick={() => handleRemoveField(field.id)}
-                    className="ml-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleRemoveField(field.id);
+                    }}
+                    className="ml-1 p-0.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
                 {idx < selectedFields.length - 1 && (
