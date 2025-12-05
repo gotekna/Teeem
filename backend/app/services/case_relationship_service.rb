@@ -118,9 +118,10 @@ class CaseRelationshipService
     # Track companies that are shown as groups (to avoid duplicating in company nodes)
     @grouped_company_names = company_groups.keys
 
-    # Calculate total nodes for positioning
+    # Calculate total nodes for positioning - use larger radius for better spacing
     total_nodes = company_groups.count + single_contacts.count
-    radius = 280
+    # Company groups are taller, so use larger radius. Minimum 400, scale up with more nodes
+    radius = [400, 200 + (total_nodes * 60)].max
     angle_step = total_nodes > 0 ? (2 * Math::PI / total_nodes) : 0
     node_index = 0
 
@@ -135,9 +136,11 @@ class CaseRelationshipService
       # Build employees data for this company group
       employees = company_contacts.map do |case_contact|
         contact = case_contact.contact
+        # Use full_name or fallback to first + last if full_name is blank
+        display_name = contact.full_name.presence || [contact.first_name, contact.last_name].compact.join(' ').presence || 'Contact'
         {
           id: contact.id,
-          name: contact.full_name,
+          name: display_name,
           email: contact.email,
           phone: contact.mobile_phone || contact.office_phone,
           relationship_type: case_contact.relationship_type,

@@ -918,11 +918,12 @@ export function ViewManagerSheet({
                       strategy={verticalListSortingStrategy}
                     >
                       <div className="space-y-2">
-                        {views.map(view => (
+                        {views.map((view, idx) => (
                           <SortableViewItem
                             key={view.id}
                             view={view}
                             isActive={activeViewId === view.id}
+                            index={idx + 1}
                             onSelect={() => handleSelectView(view)}
                             onEdit={() => handleEditView(view)}
                             onDelete={() => {
