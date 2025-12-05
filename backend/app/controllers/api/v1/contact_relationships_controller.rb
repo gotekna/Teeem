@@ -140,14 +140,14 @@ module Api
             entity_type: other_contact&.entity_type,
             email: other_contact&.email,
             phone: other_contact&.primary_phone,
-            contact_types: other_contact&.contact_types
+            roles: other_contact&.roles
           },
           related_contact: {
             id: relationship.related_contact&.id,
             full_name: relationship.related_contact&.display_name,
             email: relationship.related_contact&.email,
             phone: relationship.related_contact&.primary_phone,
-            contact_types: relationship.related_contact&.contact_types
+            roles: relationship.related_contact&.roles
           }
         }
       end

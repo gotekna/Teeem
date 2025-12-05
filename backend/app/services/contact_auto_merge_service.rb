@@ -45,7 +45,7 @@ class ContactAutoMergeService
 
   def find_duplicate_groups
     contacts = Contact.where(deleted: [false, nil])
-                     .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :xero_contact_status, :rating, :notes, :contact_types, :website, :address)
+                     .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :xero_contact_status, :rating, :notes, :roles, :website, :address)
 
     groups = []
     seen_ids = Set.new
@@ -127,7 +127,7 @@ class ContactAutoMergeService
     score += 3 if contact.address.present?
     score += 2 if contact.notes.present?
     score += 2 if contact.rating.to_i > 0
-    score += contact.contact_types.to_a.size * 2 # More contact types = more data
+    score += contact.roles.to_a.size * 2 # More roles = more data
 
     # Prefer active Xero contacts
     score += 20 if contact.xero_contact_status == 'ACTIVE'
@@ -138,9 +138,9 @@ class ContactAutoMergeService
   def merge_contacts(target, sources, group_name)
     ActiveRecord::Base.transaction do
       sources.each do |source|
-        # Merge contact types
-        merged_types = (target.contact_types.to_a + source.contact_types.to_a).uniq
-        target.update!(contact_types: merged_types)
+        # Merge roles
+        merged_roles = (target.roles.to_a + source.roles.to_a).uniq
+        target.update!(roles: merged_roles)
 
         # Fill in missing contact information from source
         target.update!(email: source.email) if target.email.blank? && source.email.present?
