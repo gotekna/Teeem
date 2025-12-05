@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -123,49 +123,16 @@ export function LocationMap({
   const searchForAddress = async (query: string) => {
     setSearching(true);
     try {
-      // Use Nominatim (OpenStreetMap) for geocoding
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
-          query
-        )}, Australia&format=json&addressdetails=1&limit=8`
-      );
-      const data = await response.json();
-
-      const suggestions: AddressSuggestion[] = data
-        .filter((item: { address?: { country?: string } }) =>
-          item.address?.country === "Australia"
-        )
-        .map((item: {
-          place_id: string;
-          display_name: string;
-          lon: string;
-          lat: string;
-          address?: {
-            house_number?: string;
-            road?: string;
-            suburb?: string;
-            city?: string;
-            town?: string;
-            state?: string;
-            postcode?: string;
-          };
-        }) => ({
-          id: item.place_id,
-          placeName: item.display_name,
-          center: [parseFloat(item.lon), parseFloat(item.lat)] as [number, number],
-          address: {
-            houseNumber: item.address?.house_number || "",
-            street: item.address?.road || "",
-            suburb: item.address?.suburb || item.address?.city || item.address?.town || "",
-            state: item.address?.state || "",
-            postcode: item.address?.postcode || "",
-          },
-        }));
+      // Use backend proxy to Mapbox (avoids CORS issues and protects API key)
+      const data = await api.get<{ suggestions: AddressSuggestion[] }>(`/api/v1/geocode/search?q=${encodeURIComponent(query)}`);
+      const suggestions = data?.suggestions || [];
 
       setAddressSuggestions(suggestions);
       setShowSuggestions(suggestions.length > 0);
     } catch (err) {
       console.error("Address search failed:", err);
+      setAddressSuggestions([]);
+      setShowSuggestions(false);
     } finally {
       setSearching(false);
     }
