@@ -162,16 +162,20 @@ class MicrosoftAppGraphClient
   # ==========================================
 
   # List all SharePoint sites in the tenant
-  # NOTE: Microsoft Graph /sites endpoint requires search=* to return all sites
+  # NOTE: Microsoft Graph /sites endpoint requires search= parameter to return all sites
+  # Use search= (empty) for all sites, or a specific term for filtering
   def list_sharepoint_sites(search: nil, top: 100)
     params = { '$top' => top }
     params['$select'] = 'id,name,displayName,webUrl,createdDateTime'
 
     # Microsoft Graph requires search parameter to list sites
-    # Use search=* to get all sites, or specific term for filtering
-    params['$search'] = search.present? ? "\"#{search}\"" : '*'
+    # For all sites, use empty search - for specific sites, use the search term
+    if search.present?
+      params['$search'] = "\"#{search}\""
+    end
+    # Note: search= (empty) is passed via URL construction
 
-    response = get('/sites', params)
+    response = get('/sites', params, include_search: true)
     (response['value'] || []).map do |site|
       {
         id: site['id'],
@@ -201,8 +205,8 @@ class MicrosoftAppGraphClient
       Rails.logger.warn "[MicrosoftAppGraph] Could not get root site: #{e.message}"
     end
 
-    # Get all other sites - must use search=* to enumerate all sites
-    response = get('/sites', { '$top' => top, '$select' => 'id,name,displayName,webUrl', '$search' => '*' })
+    # Get all other sites - use empty search= to enumerate all sites
+    response = get('/sites', { '$top' => top, '$select' => 'id,name,displayName,webUrl' }, include_search: true)
     (response['value'] || []).each do |site|
       sites << {
         id: site['id'],
@@ -368,9 +372,15 @@ class MicrosoftAppGraphClient
     @credential.valid_access_token
   end
 
-  def get(endpoint, params = {})
+  def get(endpoint, params = {}, include_search: false)
     url = "#{GRAPH_API_BASE}#{endpoint}"
-    url += "?#{URI.encode_www_form(params)}" if params.any?
+    if params.any?
+      url += "?#{URI.encode_www_form(params)}"
+      # Add empty search= for SharePoint sites enumeration
+      url += "&search=" if include_search && !params.key?('$search')
+    elsif include_search
+      url += "?search="
+    end
 
     response = HTTP.auth("Bearer #{access_token}")
                    .headers('Content-Type' => 'application/json')
