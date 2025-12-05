@@ -408,7 +408,7 @@ class EmailToJobService
       mobile_phone: normalize_phone(customer_data['phone']),
       company_name_or_trust: customer_data['company'],
       entity_type: customer_data['entity_type'] || 'person',
-      contact_types: ['customer']
+      roles: ['customer']
     )
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.error "Failed to create customer: #{e.message}"
@@ -506,8 +506,8 @@ class EmailToJobService
       next unless contact
 
       # Check if this contact is a sales agent
-      # (they have 'sales' or 'agent' in their contact_types or their role)
-      is_sales = contact.contact_types&.any? { |t| t.match?(/sales|agent/i) } ||
+      # (they have 'sales' or 'agent' in their roles or their role)
+      is_sales = contact.roles&.any? { |t| t.match?(/sales|agent/i) } ||
                  contact.primary_role&.match?(/sales|agent/i)
 
       if is_sales
@@ -615,7 +615,7 @@ class EmailToJobService
 
       # Check if this person might be a sales agent
       is_sales_agent = contact && (
-        contact.contact_types&.any? { |t| t.match?(/sales|agent/i) } ||
+        contact.roles&.any? { |t| t.match?(/sales|agent/i) } ||
         contact.primary_role&.match?(/sales|agent/i)
       )
 
