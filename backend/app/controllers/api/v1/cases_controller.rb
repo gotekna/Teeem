@@ -865,7 +865,7 @@ module Api
           contact_id: cc.contact_id,
           contact_name: cc.contact.full_name,
           contact_email: cc.contact.email,
-          contact_phone: cc.contact.mobile_phone || cc.contact.work_phone,
+          contact_phone: cc.contact.mobile_phone || cc.contact.office_phone,
           contact_company: cc.contact.company_name_or_trust,
           contact_entity_type: cc.contact.entity_type,
           role: cc.role,
