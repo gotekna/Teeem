@@ -23,17 +23,8 @@
 const lookupCache: Record<string, Array<{ id: number; display: string }>> = {};
 const lookupFetchPromises: { [key: string]: Promise<Array<{ id: number; display: string }>> | undefined } = {};
 
-// Module-level cache for saved views (persists across component remounts, keyed by foundationId)
-interface CachedViewsEntry {
-  views: SavedView[];
-  timestamp: number;
-}
-const viewsCache: Record<number, CachedViewsEntry> = {};
-const viewsFetchPromises: Record<number, Promise<SavedView[]> | undefined> = {};
-const VIEWS_CACHE_TTL = 60000; // 1 minute TTL for views cache
-
-// Import preloaded views cache from useFoundationBySlug (populated in parallel with records)
-import { preloadedViewsCache } from '@/hooks/useFoundationBySlug';
+// Note: View caching has been moved to Jotai atoms (viewsCacheAtom in view-state-atoms.ts)
+// This eliminates the dual state management issue and provides better cache invalidation
 
 import React, {
   useState,
@@ -201,6 +192,28 @@ import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dr
 import { MergeModal } from "./MergeModal";
 import { ViewManagerSheet } from "./views";
 import { sortColumnsForModal } from "./column-utils";
+
+// Jotai atoms for centralized view state management
+import { useAtom, useSetAtom } from 'jotai';
+import {
+  activeViewIdAtom,
+  currentFiltersAtom,
+  currentFilterGroupsAtom,
+  currentInterGroupLogicAtom,
+  currentVisibleColumnsAtom,
+  currentColumnOrderAtom,
+  currentColumnWidthsAtom,
+  currentSortColumnsAtom,
+  currentGroupByColumnsAtom,
+  currentAutoFitColumnsAtom,
+  currentShowTotalsAtom,
+  foundationViewsAtom,
+  viewsLoadingAtom,
+  applyViewAtom,
+  loadFoundationViewsAtom,
+  invalidateViewsCacheAtom,
+} from '@/lib/view-state-atoms';
+import { selectDefaultView, slugifyViewName } from '@/lib/view-loading-utils';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -1081,10 +1094,12 @@ export default function TeeemTableView({
 
   const [search, setSearch] = useState("");
   const [searchAllColumns, setSearchAllColumns] = useState(false);
-  const [sortColumns, setSortColumns] = useState<SortColumn[]>([]);
-  const [columnWidths, setColumnWidths] = useState<ColumnWidthsState>(DEFAULT_COLUMN_WIDTHS);
-  const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COLUMN_ORDER);
-  const [visibleColumns, setVisibleColumns] = useState<VisibleColumnsState>(getDefaultVisibleColumns);
+
+  // View-related state now managed by Jotai atoms (SSoT)
+  const [sortColumns, setSortColumns] = useAtom(currentSortColumnsAtom);
+  const [columnWidths, setColumnWidths] = useAtom(currentColumnWidthsAtom);
+  const [columnOrder, setColumnOrder] = useAtom(currentColumnOrderAtom);
+  const [visibleColumns, setVisibleColumns] = useAtom(currentVisibleColumnsAtom);
 
   // Sync column order and visibility when COLUMNS changes (e.g., select/actions added)
   useEffect(() => {
@@ -1113,14 +1128,18 @@ export default function TeeemTableView({
     });
   }, [COLUMNS]);
   const [selectedRows, setSelectedRows] = useState<Set<number | string>>(new Set());
-  const [cascadeFilters, setCascadeFilters] = useState<CascadeFilter[]>([]);
+
+  // Filter state managed by atoms
+  const [cascadeFilters, setCascadeFilters] = useAtom(currentFiltersAtom);
   // Defensive: ensure cascadeFilters is always an array for .map/.length calls
   const safeFilters = useMemo(() => Array.isArray(cascadeFilters) ? cascadeFilters : [], [cascadeFilters]);
-  const [filterGroups, setFilterGroups] = useState<FilterGroup[]>([{ id: "default", logic: "AND" }]);
-  const [interGroupLogic, setInterGroupLogic] = useState<"AND" | "OR">("OR");
+  const [filterGroups, setFilterGroups] = useAtom(currentFilterGroupsAtom);
+  const [interGroupLogic, setInterGroupLogic] = useAtom(currentInterGroupLogicAtom);
   const [showFilters, setShowFilters] = useState(false);
-  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
-  const [activeViewId, setActiveViewId] = useState<number | string | null>(null);
+
+  // View collection state managed by atoms
+  const [savedViews, setSavedViews] = useAtom(foundationViewsAtom);
+  const [activeViewId, setActiveViewId] = useAtom(activeViewIdAtom);
   const viewsLoadingRef = useRef(false); // Prevent duplicate view fetches
   const initialViewLoadedRef = useRef(false); // Prevent re-loading views after initial load
 
@@ -1129,14 +1148,17 @@ export default function TeeemTableView({
   const [rowLimit, setRowLimit] = useState(INITIAL_ROW_LIMIT);
   const [showAllRows, setShowAllRows] = useState(false);
 
-  const [groupByColumn, setGroupByColumn] = useState<string | null>(initialGroupByColumn);
-  const [groupByColumns, setGroupByColumns] = useState<string[]>(
-    initialGroupByColumn ? [initialGroupByColumn] : []
+  // Group by state managed by atoms
+  const [groupByColumns, setGroupByColumns] = useAtom(currentGroupByColumnsAtom);
+  const [groupByColumn, setGroupByColumn] = useState<string | null>(
+    groupByColumns.length > 0 ? groupByColumns[0] : initialGroupByColumn
   );
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupViewMode, setGroupViewMode] = useState<"inline" | "panel">("inline"); // inline = groups as rows in table (default), panel = groups above header
-  const [showTotals, setShowTotals] = useState(initialShowTotals); // Show column totals in footer
-  const [autoFitColumns, setAutoFitColumns] = useState(false); // Auto-fit column widths to content
+
+  // Display options managed by atoms
+  const [showTotals, setShowTotals] = useAtom(currentShowTotalsAtom);
+  const [autoFitColumns, setAutoFitColumns] = useAtom(currentAutoFitColumnsAtom);
   const [healthPanelOpen, setHealthPanelOpen] = useState(false); // Show health check panel
   const [editingRowIds, setEditingRowIds] = useState<Set<number | string>>(new Set()); // Multi-row editing
   const [editingData, setEditingData] = useState<Record<string | number, Record<string, unknown>>>({}); // keyed by row id

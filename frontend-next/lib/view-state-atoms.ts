@@ -268,7 +268,7 @@ export const saveViewAtom = atom(
       // Import api dynamically to avoid circular dependencies
       const { api } = await import('@/lib/api');
 
-      let response: { success: boolean; error?: string; view?: { id: number } };
+      let response: { success: boolean; error?: string; view?: { id: number } } | null;
       const wrappedData = { foundation_view: viewData };
 
       if (options.isNew) {
