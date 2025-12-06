@@ -3,8 +3,6 @@
 module Api
   module V1
     class EmailToContactsController < ApplicationController
-      before_action :authenticate_user!
-
       # POST /api/v1/email_to_contacts/analyze
       # Analyzes email data and returns suggestions for contact creation
       #
