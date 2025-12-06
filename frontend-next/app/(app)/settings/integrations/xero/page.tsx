@@ -157,7 +157,7 @@ export default function XeroIntegrationPage() {
 
           case "organisation_access": {
             try {
-              const orgRes = await api.get("/api/v1/xero/organisation");
+              const orgRes = await api.get<{ success: boolean; data: any }>("/api/v1/xero/organisation");
               passed = orgRes.success && orgRes.data?.Organisations?.length > 0;
               if (!passed) errorMsg = "Could not fetch organisation data";
             } catch (err: any) {
@@ -168,7 +168,7 @@ export default function XeroIntegrationPage() {
 
           case "contacts_read": {
             try {
-              const contactsRes = await api.get("/api/v1/xero/contacts?page=1");
+              const contactsRes = await api.get<{ success: boolean; data: any }>("/api/v1/xero/contacts?page=1");
               passed = contactsRes.success;
               if (!passed) errorMsg = "Could not fetch contacts";
             } catch (err: any) {
@@ -179,7 +179,7 @@ export default function XeroIntegrationPage() {
 
           case "invoices_read": {
             try {
-              const invoicesRes = await api.get("/api/v1/xero/invoices?page=1");
+              const invoicesRes = await api.get<{ success: boolean; data: any }>("/api/v1/xero/invoices?page=1");
               passed = invoicesRes.success;
               if (!passed) errorMsg = "Could not fetch invoices";
             } catch (err: any) {
@@ -190,7 +190,7 @@ export default function XeroIntegrationPage() {
 
           case "warehouse_sync": {
             try {
-              const warehouseRes = await api.get("/api/v1/external_invoices?type=invoice&per_page=1");
+              const warehouseRes = await api.get<{ success: boolean; meta: any }>("/api/v1/external_invoices?type=invoice&per_page=1");
               passed = warehouseRes.success && warehouseRes.meta?.last_synced_at !== null;
               if (!passed) errorMsg = "Warehouse not synced - run sync first";
             } catch (err: any) {
@@ -201,7 +201,7 @@ export default function XeroIntegrationPage() {
 
           case "tracking_categories": {
             try {
-              const trackingRes = await api.get("/api/v1/xero/tracking_categories");
+              const trackingRes = await api.get<{ success: boolean; data: any }>("/api/v1/xero/tracking_categories");
               passed = trackingRes.success;
               if (!passed) errorMsg = "Could not fetch tracking categories";
             } catch (err: any) {
