@@ -2039,7 +2039,7 @@ export default function ContactDetailPage() {
                           <MultipleSelector
                             value={selectedCompanies}
                             onChange={handleCompanyChange}
-                            placeholder="Click to search companies..."
+                            placeholder="Type to search and add companies..."
                             options={availableCompanies}
                             emptyIndicator={
                               <p className="text-center text-sm text-muted-foreground">
@@ -2047,13 +2047,14 @@ export default function ContactDetailPage() {
                               </p>
                             }
                             disabled={loadingCompanies}
-                            className="w-full"
+                            className="w-full bg-white dark:bg-gray-950"
+                            badgeClassName="bg-blue-100 text-blue-900 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-100 font-medium"
                             hidePlaceholderWhenSelected
                           />
                           <p className="text-xs text-muted-foreground">
                             {formData.entity_type === 'sole_trader'
-                              ? 'Add your own business or other companies you work with. View and edit roles in the Overview tab.'
-                              : 'Add companies this person is associated with. View and edit roles in the Overview tab.'}
+                              ? '✓ Selected companies shown as blue chips above. Click × to remove. View and edit roles in the Overview tab.'
+                              : '✓ Selected companies shown as blue chips above. Click × to remove. View and edit roles in the Overview tab.'}
                           </p>
                         </div>
                       </div>
