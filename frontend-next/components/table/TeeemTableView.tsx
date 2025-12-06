@@ -1649,14 +1649,12 @@ export default function TeeemTableView({
     // Only start drag selection on the select column
     const target = e.target as HTMLElement;
     const isSelectColumn = target.closest('[data-column="select"]');
-    console.log('🖱️ MouseDown:', { rowId, rowIndex, isSelectColumn: !!isSelectColumn });
     if (!isSelectColumn) return;
 
     // Store initial position and row info, but don't start dragging yet
     dragStartPosRef.current = { x: e.clientX, y: e.clientY };
     setDragStartId(rowId);
     dragStartIndexRef.current = rowIndex;
-    console.log('✅ Drag initialized:', { rowId, rowIndex, pos: dragStartPosRef.current });
   }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -1667,16 +1665,12 @@ export default function TeeemTableView({
     const deltaY = Math.abs(e.clientY - dragStartPosRef.current.y);
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-    console.log('👆 MouseMove:', { distance, threshold: DRAG_THRESHOLD, willStartDrag: distance > DRAG_THRESHOLD });
-
     if (distance > DRAG_THRESHOLD) {
-      console.log('🚀 Drag STARTED');
       setIsDragging(true);
     }
   }, [isDragging, DRAG_THRESHOLD]);
 
   const handleMouseEnter = useCallback((rowId: number | string, rowIndex: number) => {
-    console.log('🎯 MouseEnter:', { rowId, rowIndex, isDragging, dragStartIndex: dragStartIndexRef.current });
     if (!isDragging || dragStartIndexRef.current === null) return;
 
     const startIndex = dragStartIndexRef.current;
@@ -1692,32 +1686,26 @@ export default function TeeemTableView({
       newSelection.add(row.id);
     });
 
-    console.log('📝 Selecting rows:', { range: [minIndex, maxIndex], count: rowsToSelect.length });
     setSelectedRows(newSelection);
   }, [isDragging, filteredAndSortedEntries, selectedRows, setSelectedRows]);
 
   const handleMouseUp = useCallback(() => {
-    console.log('⬆️ MouseUp:', { isDragging, dragStartId, dragStartIndex: dragStartIndexRef.current });
-
     // Don't toggle for single clicks - let the checkbox handle it
     // We only handle multi-select via dragging
 
     // Reset drag state
-    console.log('🧹 Resetting drag state');
     setIsDragging(false);
     setDragStartId(null);
     dragStartIndexRef.current = null;
     dragStartPosRef.current = null;
-  }, [isDragging, dragStartId]);
+  }, []);
 
   // Add global mouse listeners for drag selection
   useEffect(() => {
     if (dragStartId !== null) {
-      console.log('📡 Attaching document listeners');
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
       return () => {
-        console.log('🔌 Removing document listeners');
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
       };
