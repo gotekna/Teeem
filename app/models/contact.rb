@@ -218,7 +218,10 @@ class Contact < ApplicationRecord
   end
 
   def is_supplier?
-    purchase_orders.exists? || pricebook_items.exists? || price_histories.exists?
+    purchase_orders.exists? ||
+    pricebook_items.exists? ||
+    price_histories.exists? ||
+    external_invoices.bills.exists?
   end
 
   # Note: is_director? is defined below and checks actual company directorships
@@ -356,6 +359,42 @@ class Contact < ApplicationRecord
 
   def total_purchase_orders_value
     purchase_orders.sum(:total_price)
+  end
+
+  # Bill/Invoice helpers (for Xero bills from this supplier)
+  def supplier_bills
+    external_invoices.bills.active
+  end
+
+  def supplier_bills_count
+    external_invoices.bills.count
+  end
+
+  def supplier_bills_total
+    external_invoices.bills.sum(:total)
+  end
+
+  def supplier_bills_unpaid
+    external_invoices.bills.unpaid.active
+  end
+
+  def supplier_bills_unpaid_total
+    external_invoices.bills.unpaid.active.sum(:amount_due)
+  end
+
+  def supplier_bills_overdue
+    external_invoices.bills.unpaid.active.where("due_date < ?", Date.current)
+  end
+
+  def supplier_bills_overdue_total
+    supplier_bills_overdue.sum(:amount_due)
+  end
+
+  # Bill documents (PDFs attached to bills)
+  def supplier_bill_documents
+    company_documents.where(documentable_type: "ExternalInvoice")
+                     .joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
+                     .where("external_invoices.invoice_type = ?", "bill")
   end
 
   # Portal-specific methods

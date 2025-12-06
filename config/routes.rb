@@ -326,6 +326,8 @@ Rails.application.routes.draw do
           get :read_only_fields
         end
         member do
+          post :reorder_employees
+          post :reorder_companies
           get :categories
           get :internal_messages
           get :company_group_memberships
