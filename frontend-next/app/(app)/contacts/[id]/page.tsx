@@ -1105,7 +1105,7 @@ export default function ContactDetailPage() {
       }>(`/api/v1/foundations/contacts/records/${contact.id}`);
 
       // Check if contact was archived instead of deleted
-      if (response.archived) {
+      if (response?.archived) {
         alert(`✓ ${response.message}\n\nThe contact was archived (not permanently deleted) to preserve important records.`);
       }
 

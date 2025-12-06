@@ -267,13 +267,17 @@ class PriceHistoryImportService
   def find_or_create_supplier(name)
     return nil if name.blank?
 
-    # Try to find existing supplier contact
-    supplier = Contact.suppliers.find_by("LOWER(full_name) = ?", name.downcase)
+    # Try to find existing contact by name (suppliers are just contacts with purchase orders/pricebook items)
+    supplier = Contact.find_by("LOWER(full_name) = ?", name.downcase)
 
-    # Create new supplier contact if not found
+    # Create new contact if not found
     unless supplier
-      supplier = Contact.create(full_name: name, contact_types: [ "supplier" ], is_active: true)
-      @warnings << "Created new supplier: #{name}"
+      supplier = Contact.create!(
+        full_name: name,
+        entity_type: "company", # Default to company for suppliers
+        is_active: true
+      )
+      @warnings << "Created new contact: #{name}"
     end
 
     supplier

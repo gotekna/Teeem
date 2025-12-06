@@ -104,25 +104,27 @@ class SmartPoLookupService
 
   def find_supplier(supplier_preference:, category:)
     # Priority 1: Supplier code (e.g., WATER_TANKS)
+    # Note: Suppliers are just contacts with purchase orders or pricebook items
     if supplier_preference.present?
-      supplier = Contact.suppliers.find_by(supplier_code: supplier_preference)
+      supplier = Contact.find_by(supplier_code: supplier_preference)
       return supplier if supplier
     end
 
     # Priority 2: Default supplier for trade category
     if category.present?
-      supplier = Contact.suppliers.where("is_default_for_trades ? :category", category: category).first
+      supplier = Contact.where("is_default_for_trades ? :category", category: category).first
       return supplier if supplier
     end
 
-    # Priority 3: Any active supplier for trade category
+    # Priority 3: Any contact with trade categories for this category
     if category.present?
-      supplier = Contact.suppliers.where("trade_categories @> ?", [ category ].to_json).first
+      supplier = Contact.where("trade_categories @> ?", [ category ].to_json).first
       return supplier if supplier
     end
 
-    # Fallback: First active supplier
-    Contact.suppliers.where(is_active: true).first
+    # Fallback: Find any contact that has pricebook items (making them a supplier)
+    # This ensures we get an actual supplier, not just any random contact
+    Contact.joins(:pricebook_items).where(is_active: true).distinct.first
   end
 
   def find_price_book_item(description:, category:, supplier:)

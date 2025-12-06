@@ -504,44 +504,38 @@ module Api
           }
         end
 
-        # Check for linked suppliers
-        if @contact.suppliers.any?
-          suppliers_with_pos = @contact.suppliers.joins(:purchase_orders).distinct
+        # Check for purchase orders (where this contact is the supplier)
+        if @contact.purchase_orders.any?
+          # Check if any POs have been paid or invoiced
+          paid_pos = @contact.purchase_orders
+                            .where("status IN (?) OR amount_paid > 0 OR amount_invoiced > 0",
+                                   [ "paid", "invoiced", "received" ])
 
-          if suppliers_with_pos.any?
-            # Check if any POs have been paid or invoiced
-            paid_pos = PurchaseOrder.where(supplier_id: suppliers_with_pos.pluck(:id))
-                                   .where("status IN (?) OR amount_paid > 0 OR amount_invoiced > 0",
-                                          [ "paid", "invoiced", "received" ])
+          if paid_pos.any?
+            # Auto-archive instead of blocking
+            @contact.update!(is_active: false, deleted: true)
 
-            if paid_pos.any?
-              return render json: {
-                success: false,
-                error: "Cannot delete contact with purchase orders that have been paid or invoiced. This contact has #{paid_pos.count} critical purchase order(s).",
-                reason: "paid_purchase_orders",
-                count: paid_pos.count
-              }, status: :unprocessable_entity
-            end
-
-            # Check for any purchase orders at all
-            total_pos = PurchaseOrder.where(supplier_id: suppliers_with_pos.pluck(:id)).count
-            if total_pos > 0
-              return render json: {
-                success: false,
-                error: "Cannot delete contact with #{total_pos} purchase order(s). Please reassign or delete purchase orders first.",
-                reason: "has_purchase_orders",
-                count: total_pos
-              }, status: :unprocessable_entity
-            end
+            return render json: {
+              success: true,
+              archived: true,
+              message: "Contact archived (not deleted) to preserve #{paid_pos.count} paid/invoiced purchase order(s).",
+              archive_reasons: [ "#{paid_pos.count} paid/invoiced purchase order#{'s' if paid_pos.count != 1}" ]
+            }
           end
 
-          # If suppliers exist but no POs, just warn
-          return render json: {
-            success: false,
-            error: "Cannot delete contact with #{@contact.suppliers.count} linked supplier(s). Please unlink suppliers first.",
-            reason: "has_suppliers",
-            count: @contact.suppliers.count
-          }, status: :unprocessable_entity
+          # Check for any purchase orders at all
+          total_pos = @contact.purchase_orders.count
+          if total_pos > 0
+            # Auto-archive instead of blocking
+            @contact.update!(is_active: false, deleted: true)
+
+            return render json: {
+              success: true,
+              archived: true,
+              message: "Contact archived (not deleted) to preserve #{total_pos} purchase order(s).",
+              archive_reasons: [ "#{total_pos} purchase order#{'s' if total_pos != 1}" ]
+            }
+          end
         end
 
         # If all checks pass, delete the contact
