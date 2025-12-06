@@ -186,11 +186,12 @@ export default function ChatPage() {
   useEffect(() => {
     if (!selectedConversation) return;
 
+    const conversationId = selectedConversation.id;
     let cancelled = false;
 
     async function fetchMessages() {
       try {
-        await loadMessages(selectedConversation.id);
+        await loadMessages(conversationId);
       } catch (error) {
         if (!cancelled) {
           console.error("Failed to load messages in effect:", error);
