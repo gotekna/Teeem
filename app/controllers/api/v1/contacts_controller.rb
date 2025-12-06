@@ -1070,6 +1070,70 @@ module Api
               target_contact.update(link_to_cg: true) unless target_contact.link_to_cg
             end
 
+            # Transfer ContactRelationships (company/employee relationships)
+            # Outgoing relationships (source is the person, related_contact is the company)
+            source.outgoing_relationships.each do |relationship|
+              # Check if target already has this relationship
+              existing = target_contact.outgoing_relationships.find_by(
+                related_contact_id: relationship.related_contact_id,
+                relationship_type: relationship.relationship_type
+              )
+
+              if existing
+                # Relationship already exists, destroy the duplicate
+                relationship.destroy
+              else
+                # Transfer relationship to target
+                relationship.update(source_contact_id: target_id)
+              end
+            end
+
+            # Incoming relationships (source is the company, related_contact is the person)
+            source.incoming_relationships.each do |relationship|
+              # Check if target already has this relationship
+              existing = target_contact.incoming_relationships.find_by(
+                source_contact_id: relationship.source_contact_id,
+                relationship_type: relationship.relationship_type
+              )
+
+              if existing
+                # Relationship already exists, destroy the duplicate
+                relationship.destroy
+              else
+                # Transfer relationship to target
+                relationship.update(related_contact_id: target_id)
+              end
+            end
+
+            # Transfer primary_company_id if source has one and target doesn't
+            if source.primary_company_id.present? && target_contact.primary_company_id.blank?
+              target_contact.update(primary_company_id: source.primary_company_id)
+            end
+
+            # Transfer job associations
+            source.job_contacts.each do |job_contact|
+              # Check if target already has this job association
+              existing = target_contact.job_contacts.find_by(job_id: job_contact.job_id)
+
+              if existing
+                job_contact.destroy
+              else
+                job_contact.update(contact_id: target_id)
+              end
+            end
+
+            # Transfer case associations
+            source.case_contacts.each do |case_contact|
+              # Check if target already has this case association
+              existing = target_contact.case_contacts.find_by(case_record_id: case_contact.case_record_id)
+
+              if existing
+                case_contact.destroy
+              else
+                case_contact.update(contact_id: target_id)
+              end
+            end
+
             # Delete the source contact
             source.destroy
           end
