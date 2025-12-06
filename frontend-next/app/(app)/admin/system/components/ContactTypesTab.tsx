@@ -163,7 +163,7 @@ export function ContactTypesTab() {
       await api.delete(`/api/v1/contact_types/${id}`);
       toast({ title: "Success", description: "Contact type deleted" });
       loadData();
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error("Failed to delete contact type:", error);
       toast({
         title: "Cannot Delete",
