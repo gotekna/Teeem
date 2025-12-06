@@ -81,7 +81,7 @@ interface ContactsPageClientProps {
   initialError: string | null;
 }
 
-// SSoT: Valid entity_type values are: person, company, trust, sole_trader
+// SSoT: Valid entity_type values are: person, company, trust, sole_trader, price_only
 // Note: "Supplier" is NOT an entity_type - it's a virtual attribute (is_supplier?)
 // determined by whether a contact has purchase_orders, pricebook_items, or bills
 const entityTypeColors: Record<string, string> = {
@@ -89,6 +89,7 @@ const entityTypeColors: Record<string, string> = {
   company: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
   trust: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
   sole_trader: "bg-orange-100 text-orange-700 dark:bg-orange-400/10 dark:text-orange-400",
+  price_only: "bg-purple-100 text-purple-700 dark:bg-purple-400/10 dark:text-purple-400",
 };
 
 const entityTypeLabels: Record<string, string> = {
@@ -96,6 +97,7 @@ const entityTypeLabels: Record<string, string> = {
   company: "Company",
   trust: "Trust",
   sole_trader: "Sole Trader",
+  price_only: "Price Only",
 };
 
 export default function ContactsPageClient({

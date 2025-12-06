@@ -1428,8 +1428,17 @@ export function ViewManagerSheet({
                               placeholder="Search columns..."
                               value={columnSearch}
                               onChange={(e) => setColumnSearch(e.target.value)}
-                              className="h-8 pl-8 text-sm"
+                              className="h-8 pl-8 pr-8 text-sm"
                             />
+                            {columnSearch && (
+                              <button
+                                type="button"
+                                onClick={() => setColumnSearch('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         )}
                         <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto -mx-4 px-4">

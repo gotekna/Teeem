@@ -203,6 +203,22 @@ interface Contact {
   can_view_confidential?: boolean;
   // SSoT: Linked company data for company-type contacts
   linked_company?: LinkedCompany;
+  // Financial fields
+  accounts_receivable_outstanding?: number | null;
+  accounts_receivable_overdue?: number | null;
+  accounts_payable_outstanding?: number | null;
+  accounts_payable_overdue?: number | null;
+  default_discount?: number | null;
+  bill_due_day?: number | null;
+  bill_due_type?: string | null;
+  sales_due_day?: number | null;
+  sales_due_type?: string | null;
+  // ABN verification fields
+  abn_valid?: boolean | null;
+  abn_entity_name?: string | null;
+  abn_entity_type?: string | null;
+  abn_gst_registered?: boolean | null;
+  abn_verified_at?: string | null;
 }
 
 interface DirectorCompany {
@@ -3292,7 +3308,7 @@ export default function ContactDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
-                      <p className="text-xs text-muted-foreground">Tax File Number (TFN)</p>
+                      <p className="text-xs text-muted-foreground">ABN / TFN</p>
                       <p className="text-sm font-medium font-mono">
                         {contact.tax_number === "[RESTRICTED]" ? (
                           <span className="text-amber-600 flex items-center gap-1">
@@ -3305,6 +3321,146 @@ export default function ContactDetailPage() {
                         )}
                       </p>
                     </div>
+
+                    {/* ABN Verification Status */}
+                    {contact.tax_number && contact.tax_number !== "[RESTRICTED]" && contact.tax_number.replace(/\D/g, "").length === 11 && (
+                      <div className="pt-3 border-t">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs text-muted-foreground">ABN Verification</p>
+                          {contact.abn_valid ? (
+                            <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Verified
+                            </Badge>
+                          ) : contact.abn_valid === false ? (
+                            <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Invalid
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">
+                              Not Verified
+                            </Badge>
+                          )}
+                        </div>
+                        {contact.abn_entity_name && (
+                          <div className="text-sm">
+                            <p className="font-medium">{contact.abn_entity_name}</p>
+                            {contact.abn_entity_type && (
+                              <p className="text-xs text-muted-foreground">{contact.abn_entity_type}</p>
+                            )}
+                          </div>
+                        )}
+                        {contact.abn_gst_registered && (
+                          <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            GST Registered
+                          </p>
+                        )}
+                        {contact.abn_verified_at && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Verified: {new Date(contact.abn_verified_at).toLocaleDateString("en-AU")}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Financial Summary and Payment Terms Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                {/* Financial Summary */}
+                {(contact["is_supplier?"] || contact["is_customer?"]) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <FileText className="h-5 w-5" />
+                        Financial Summary
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {contact["is_customer?"] && (
+                        <>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Accounts Receivable:</span>
+                            <span className="text-sm font-medium">
+                              {contact.accounts_receivable_outstanding != null
+                                ? `$${contact.accounts_receivable_outstanding.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                : "-"}
+                            </span>
+                          </div>
+                          {contact.accounts_receivable_overdue != null && contact.accounts_receivable_overdue > 0 && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-muted-foreground">AR Overdue:</span>
+                              <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                                ${contact.accounts_receivable_overdue.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {contact["is_supplier?"] && (
+                        <>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Accounts Payable:</span>
+                            <span className="text-sm font-medium">
+                              {contact.accounts_payable_outstanding != null
+                                ? `$${contact.accounts_payable_outstanding.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                : "-"}
+                            </span>
+                          </div>
+                          {contact.accounts_payable_overdue != null && contact.accounts_payable_overdue > 0 && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-muted-foreground">AP Overdue:</span>
+                              <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                                ${contact.accounts_payable_overdue.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Payment Terms */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Percent className="h-5 w-5" />
+                      Payment Terms
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {contact["is_supplier?"] && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Bill Payment Terms</p>
+                        <p className="text-sm font-medium">
+                          {contact.bill_due_day && contact.bill_due_type
+                            ? `${contact.bill_due_day} days (${contact.bill_due_type})`
+                            : "-"}
+                        </p>
+                      </div>
+                    )}
+                    {contact["is_customer?"] && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Sales Payment Terms</p>
+                        <p className="text-sm font-medium">
+                          {contact.sales_due_day && contact.sales_due_type
+                            ? `${contact.sales_due_day} days (${contact.sales_due_type})`
+                            : "-"}
+                        </p>
+                      </div>
+                    )}
+                    {contact.default_discount != null && contact.default_discount > 0 && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Default Discount</p>
+                        <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                          {contact.default_discount}%
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

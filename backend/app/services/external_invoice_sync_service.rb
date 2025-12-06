@@ -11,6 +11,7 @@ class ExternalInvoiceSyncService
       updated: 0,
       linked_to_jobs: 0,
       linked_to_contacts: 0,
+      pos_auto_created: 0,
       errors: [],
       pages_fetched: 0,
       total_invoices: 0,
@@ -278,6 +279,11 @@ class ExternalInvoiceSyncService
       link_to_contact(invoice)
     end
 
+    # Auto-create purchase order if this is a bill with job but no existing PO
+    if invoice.invoice_type == "bill" && invoice.job_id.present? && invoice.contact_id.present?
+      auto_create_purchase_order(invoice)
+    end
+
   rescue StandardError => e
     error_msg = "Error processing invoice #{invoice_data['InvoiceNumber']}: #{e.message}"
     Rails.logger.error(error_msg)
@@ -352,6 +358,49 @@ class ExternalInvoiceSyncService
       invoice.update!(contact: link.contact)
       @stats[:linked_to_contacts] += 1
       Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{link.contact.display_name}")
+    end
+  end
+
+  def auto_create_purchase_order(invoice)
+    # Check if PO already exists for this invoice
+    existing_po = PurchaseOrder.find_by(xero_invoice_id: invoice.external_id)
+    if existing_po
+      Rails.logger.debug("PO already exists for invoice #{invoice.invoice_number}: #{existing_po.purchase_order_number}")
+      return
+    end
+
+    begin
+      # Create purchase order (without line items, so skip calculate_totals callback)
+      po = PurchaseOrder.new(
+        job_id: invoice.job_id,
+        supplier_id: invoice.contact_id,
+        status: "invoiced", # Bill already exists, so mark as invoiced
+        xero_invoice_id: invoice.external_id,
+        invoiced_amount: invoice.total,
+        invoice_date: invoice.invoice_date,
+        invoice_reference: invoice.invoice_number,
+        description: "Auto-generated from Xero bill #{invoice.invoice_number}",
+        ordered_date: invoice.invoice_date, # Use invoice date as order date
+        payment_status: invoice.status == "paid" ? "complete" : "pending"
+      )
+
+      # Set totals manually and skip callbacks to preserve values
+      po.save!(validate: false)
+      po.update_columns(
+        total: invoice.total || 0,
+        sub_total: invoice.subtotal || 0,
+        tax: invoice.total_tax || 0
+      )
+
+      Rails.logger.info("Auto-created PO #{po.purchase_order_number} for bill #{invoice.invoice_number} (Job: #{invoice.job&.title}, Supplier: #{invoice.contact&.display_name})")
+
+      # Add to stats if we have a place for it
+      @stats[:pos_auto_created] ||= 0
+      @stats[:pos_auto_created] += 1
+
+    rescue StandardError => e
+      Rails.logger.error("Failed to auto-create PO for invoice #{invoice.invoice_number}: #{e.message}")
+      # Don't raise - continue processing other invoices
     end
   end
 

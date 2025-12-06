@@ -92,7 +92,13 @@ class Contact < ApplicationRecord
 
   # Constants
   ROLES = %w[Employee sales land_agent Director Company_Secretary Public_Officer CEO GM Owner].freeze
-  ENTITY_TYPES = %w[person company trust sole_trader default_supplier].freeze
+  # SSoT: Valid entity_type values
+  # - person: Individual person
+  # - company: Business entity
+  # - trust: Trust entity
+  # - sole_trader: Individual trading business
+  # - price_only: Contact used only for pricebook pricing data (legacy suppliers with no other info)
+  ENTITY_TYPES = %w[person company trust sole_trader price_only].freeze
   EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
 
   # Xero-synced accounting fields - READ ONLY in TEEEM (synced from Xero)
@@ -172,8 +178,8 @@ class Contact < ApplicationRecord
       company_name_or_trust.presence ||
         full_name.presence ||
         "Contact ##{id}"
-    when "default_supplier"
-      # Default Supplier: legacy type, uses full_name directly
+    when "price_only"
+      # Price Only: Contact used only for pricebook pricing (e.g., web scraping, legacy data)
       full_name.presence ||
         "Contact ##{id}"
     else
@@ -621,9 +627,9 @@ class Contact < ApplicationRecord
       if company_name_or_trust.blank?
         errors.add(:company_name_or_trust, "is required for #{entity_type} contacts")
       end
-    when "default_supplier"
+    when "price_only"
       if full_name.blank?
-        errors.add(:full_name, "is required for supplier contacts")
+        errors.add(:full_name, "is required for price-only contacts")
       end
     end
   end

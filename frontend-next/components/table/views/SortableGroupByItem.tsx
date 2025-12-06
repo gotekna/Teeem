@@ -37,6 +37,7 @@ export function SortableGroupByItem({
     transform,
     transition,
     isDragging,
+    isOver,
   } = useSortable({ id });
 
   const style = {
@@ -49,8 +50,9 @@ export function SortableGroupByItem({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-2",
-        isDragging && "opacity-50"
+        "flex items-center gap-2 relative",
+        isDragging && "opacity-50 shadow-lg scale-105 z-50 border-primary bg-primary/10 p-2 rounded border",
+        isOver && !isDragging && "border-t-4 border-t-primary pt-3 mt-1"
       )}
     >
       <div

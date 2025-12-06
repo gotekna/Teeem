@@ -42,6 +42,7 @@ export function SortableViewItem({
     transform,
     transition,
     isDragging,
+    isOver,
   } = useSortable({ id: view.id });
 
   const style = {
@@ -58,11 +59,12 @@ export function SortableViewItem({
       style={style}
       onClick={onSelect}
       className={cn(
-        "flex items-center gap-1.5 p-2 rounded border cursor-pointer transition-all",
+        "flex items-center gap-1.5 p-2 rounded border cursor-pointer transition-all relative",
         isActive
           ? "bg-primary/10 border-primary"
           : "bg-background border-border hover:border-primary/50",
-        isDragging && "opacity-50 shadow-lg",
+        isDragging && "opacity-50 shadow-lg scale-105 z-50 border-primary bg-primary/10",
+        isOver && !isDragging && "border-t-4 border-t-primary pt-3 mt-1",
         isUnsaved && "border-dashed border-orange-400 bg-orange-50 dark:bg-orange-950/20"
       )}
     >

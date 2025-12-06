@@ -9,6 +9,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDroppable } from "@dnd-kit/core";
 
 interface Column {
   id: number;
@@ -32,6 +33,7 @@ interface SortableColumnItemProps {
   showWidthInput?: boolean;
   width?: number;
   onWidthChange?: (width: number) => void;
+  isOver?: boolean;
 }
 
 export function SortableColumnItem({
@@ -45,6 +47,7 @@ export function SortableColumnItem({
   showWidthInput,
   width,
   onWidthChange,
+  isOver,
 }: SortableColumnItemProps) {
   const [isEditingPosition, setIsEditingPosition] = React.useState(false);
   const [positionValue, setPositionValue] = React.useState(String(index || 1));
@@ -57,12 +60,16 @@ export function SortableColumnItem({
     transform,
     transition,
     isDragging,
+    isOver: isSortableOver,
   } = useSortable({ id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
+
+  // Use the passed isOver prop or fallback to sortable's isOver
+  const shouldShowDropIndicator = isOver ?? isSortableOver;
 
   const isSystemColumn = ['id', 'created_at', 'updated_at'].includes(column.column_name);
 
@@ -104,10 +111,11 @@ export function SortableColumnItem({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-1.5 px-2 py-1.5 rounded border transition-all",
+        "flex items-center gap-1.5 px-2 py-1.5 rounded border transition-all relative",
         isVisible ? "bg-background border-border" : "bg-muted/30 border-border",
         isSystemColumn && "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900/50",
-        isDragging && "opacity-50 shadow-lg"
+        isDragging && "opacity-50 shadow-lg scale-105 z-50 border-primary bg-primary/10",
+        shouldShowDropIndicator && !isDragging && "border-t-4 border-t-primary pt-3 mt-1"
       )}
     >
       <div
