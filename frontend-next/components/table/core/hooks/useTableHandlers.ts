@@ -16,7 +16,7 @@
 
 import { useCallback } from 'react';
 import type { DragEndEvent } from '@dnd-kit/core';
-import type { TableColumn, CascadeFilter } from '../../types';
+import type { TableColumn, CascadeFilter, SortColumn } from '../../types';
 
 export interface UseTableHandlersProps {
   /** All table columns */
@@ -29,7 +29,7 @@ export interface UseTableHandlersProps {
   setVisibleColumns: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 
   /** Set sort columns state */
-  setSortColumns: React.Dispatch<React.SetStateAction<Array<{ column: string; dir: 'asc' | 'desc' }>>>;
+  setSortColumns: React.Dispatch<React.SetStateAction<SortColumn[]>>;
 
   /** Set cascade filters state */
   setCascadeFilters: React.Dispatch<React.SetStateAction<CascadeFilter[]>>;
