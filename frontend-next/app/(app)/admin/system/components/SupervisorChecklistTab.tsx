@@ -425,7 +425,7 @@ export function SupervisorChecklistTab() {
           <div className="text-sm text-blue-800 dark:text-blue-200">
             <p className="font-medium mb-2">How it works</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Create checklist items here (e.g., "Safety barriers installed", "Site induction completed")</li>
+              <li>Create checklist items here (e.g., &quot;Safety barriers installed&quot;, &quot;Site induction completed&quot;)</li>
               <li>In Schedule Master, assign these items to tasks that require supervisor checks</li>
               <li>When a job is created, checklist items are automatically added to assigned tasks</li>
               <li>Site supervisors check off items as they complete them</li>

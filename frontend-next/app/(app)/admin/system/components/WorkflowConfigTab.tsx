@@ -15,7 +15,6 @@ import {
 import {
   Loader2,
   GripVertical,
-  Plus,
   X,
   Briefcase,
   ListChecks,

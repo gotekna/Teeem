@@ -88,7 +88,6 @@ const defaultInstructions: Record<string, string[]> = {
 };
 
 export default function AgentTasksPage() {
-  const { toast } = useToast();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentTasks, setAgentTasks] = useState<AgentTasks>({});
   const [loading, setLoading] = useState(true);

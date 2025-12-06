@@ -139,7 +139,7 @@ export function ContactTypesTab() {
       }
       setShowAddDialog(false);
       loadData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to save contact type:", error);
       toast({
         title: "Error",
@@ -159,7 +159,7 @@ export function ContactTypesTab() {
       await api.delete(`/api/v1/contact_types/${id}`);
       toast({ title: "Success", description: "Contact type deleted" });
       loadData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to delete contact type:", error);
       toast({
         title: "Cannot Delete",

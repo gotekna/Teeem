@@ -631,7 +631,7 @@ function FolderTreeEditor({ template, onUpdate, isEditable }: FolderTreeEditorPr
       <div className="border rounded-lg p-3 bg-muted/30 min-h-[200px]">
         {tree.length === 0 ? (
           <div className="text-center text-muted-foreground py-8">
-            No folders defined. Click "Add Folder" to create one.
+            No folders defined. Click &quot;Add Folder&quot; to create one.
           </div>
         ) : (
           tree.map((item) => (

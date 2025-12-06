@@ -184,9 +184,25 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedConversation) {
-      loadMessages(selectedConversation.id);
+    if (!selectedConversation) return;
+
+    let cancelled = false;
+
+    async function fetchMessages() {
+      try {
+        await loadMessages(selectedConversation.id);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to load messages in effect:", error);
+        }
+      }
     }
+
+    fetchMessages();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedConversation, loadMessages]);
 
   useEffect(() => {

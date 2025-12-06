@@ -70,13 +70,6 @@ interface TableInfo {
   has_ui?: boolean;
 }
 
-interface ColumnInfo {
-  name: string;
-  type: string;
-  nullable: boolean;
-  default?: string;
-}
-
 interface AgentInfo {
   name: string;
   description: string;

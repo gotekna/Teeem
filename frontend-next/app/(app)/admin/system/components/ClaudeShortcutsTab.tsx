@@ -249,7 +249,7 @@ export function ClaudeShortcutsTab() {
       <div>
         <h2 className="text-lg font-semibold">Claude Code Shortcuts</h2>
         <p className="text-sm text-muted-foreground">
-          Manage commands (what Claude executes) and slang (quick shortcuts like "sm" for Schedule Master)
+          Manage commands (what Claude executes) and slang (quick shortcuts like &quot;sm&quot; for Schedule Master)
         </p>
       </div>
 
@@ -430,7 +430,7 @@ export function ClaudeShortcutsTab() {
           <h3 className="text-base font-semibold">
             Slang
             <span className="ml-2 text-sm font-normal text-muted-foreground">
-              (Quick shortcuts like "sm" for Schedule Master)
+              (Quick shortcuts like &quot;sm&quot; for Schedule Master)
             </span>
           </h3>
         </div>

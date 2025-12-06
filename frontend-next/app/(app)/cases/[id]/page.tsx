@@ -144,8 +144,8 @@ interface CaseDetail {
   companies_count: number;
   jobs_count: number;
   timeline_events_count: number;
-  ai_summary: any;
-  key_findings: any[];
+  ai_summary: unknown;
+  key_findings: unknown[];
   risk_score: number | null;
   created_at: string;
   updated_at: string;
@@ -177,8 +177,8 @@ interface CaseAction {
   action_description: string;
   status: string;
   query: string | null;
-  parameters: any;
-  results: any;
+  parameters: unknown;
+  results: unknown;
   result_count: number | null;
   error_message: string | null;
   execution_time: string | null;
@@ -230,7 +230,7 @@ interface TimelineEvent {
   source: string | null;
   icon: string | null;
   color: string | null;
-  metadata: any;
+  metadata: unknown;
   created_at: string;
 }
 
@@ -290,7 +290,7 @@ interface WarehouseSummary {
   total_job_income: number;
   total_job_expenses: number;
   total_hours_logged: number;
-  inconsistencies: any[];
+  inconsistencies: unknown[];
   invoice_variances: number;
   investigation_period: {
     start: string | null;
@@ -398,7 +398,7 @@ export default function CaseDetailPage() {
   const [warehouseSummary, setWarehouseSummary] = React.useState<WarehouseSummary | null>(null);
   const [loadingWarehouse, setLoadingWarehouse] = React.useState(false);
 
-  const [relationshipGraph, setRelationshipGraph] = React.useState<any>(null);
+  const [relationshipGraph, setRelationshipGraph] = React.useState<unknown>(null);
   const [loadingRelationships, setLoadingRelationships] = React.useState(false);
 
   // Q&A and document processing
@@ -878,7 +878,7 @@ export default function CaseDetailPage() {
   const loadRelationshipGraph = async () => {
     try {
       setLoadingRelationships(true);
-      const response = await api.get<{ success: boolean; data: any }>(
+      const response = await api.get<{ success: boolean; data: unknown }>(
         `/api/v1/cases/${caseId}/relationship_graph`
       );
       setRelationshipGraph(response.data);
@@ -2145,7 +2145,7 @@ export default function CaseDetailPage() {
                             </div>
                             {action.query && (
                               <p className="text-sm text-muted-foreground mb-2">
-                                Query: "{action.query}"
+                                Query: &quot;{action.query}&quot;
                               </p>
                             )}
                             <div className="text-xs text-muted-foreground">
@@ -2904,7 +2904,7 @@ export default function CaseDetailPage() {
                   <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>No timeline events yet</p>
                   <p className="text-sm mt-1">
-                    Click "Auto-Build" to generate a timeline from warehouse data
+                    Click &quot;Auto-Build&quot; to generate a timeline from warehouse data
                   </p>
                 </div>
               ) : (
@@ -3608,7 +3608,7 @@ export default function CaseDetailPage() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {warehouseSummary.inconsistencies.map((issue: any, idx: number) => (
+                        {warehouseSummary.inconsistencies.map((issue: unknown, idx: number) => (
                           <div
                             key={idx}
                             className={cn(
@@ -3731,7 +3731,7 @@ export default function CaseDetailPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Create a new sub-case under "{caseData?.title}". The sub-case will inherit
+              Create a new sub-case under &quot;{caseData?.title}&quot;. The sub-case will inherit
               contacts, companies, and investigation settings from the parent case.
             </p>
             <div className="space-y-2">
@@ -3843,7 +3843,7 @@ export default function CaseDetailPage() {
             )}
             {!searchingContacts && contactSearchQuery.length >= 2 && contactSearchResults.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
-                No contacts found matching "{contactSearchQuery}"
+                No contacts found matching &quot;{contactSearchQuery}&quot;
               </p>
             )}
             {contactSearchResults.length > 0 && (
