@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_06_214627) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_06_234318) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1168,12 +1168,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_214627) do
     t.string "postcode"
     t.text "xero_contact_types", default: [], array: true
     t.string "middle_name"
+    t.boolean "is_team_contact", default: false, null: false
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["contact_region_id"], name: "index_contacts_on_contact_region_id"
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
+    t.index ["is_team_contact"], name: "index_contacts_on_is_team_contact"
     t.index ["linked_company_id"], name: "index_contacts_on_linked_company_id"
     t.index ["parent_id"], name: "index_contacts_on_parent_id"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
