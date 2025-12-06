@@ -332,16 +332,22 @@ export function DataHealthWidget({
                           {check.items.map((item, idx) => (
                             <div
                               key={item.id || idx}
-                              className="px-4 py-2 hover:bg-muted cursor-pointer flex items-center justify-between"
-                              onClick={(e) => {
+                              className="px-4 py-2 hover:bg-muted flex items-center justify-between"
+                            >
+                              <span className="text-sm truncate cursor-pointer flex-1" onClick={(e) => {
                                 e.stopPropagation();
                                 handleItemClick(item, check);
-                              }}
-                            >
-                              <span className="text-sm truncate">
+                              }}>
                                 {item.display || item.item_name || `Item ${item.id}`}
                               </span>
-                              <Button size="sm" className="ml-2 flex-shrink-0">
+                              <Button
+                                size="sm"
+                                className="ml-2 flex-shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleItemClick(item, check);
+                                }}
+                              >
                                 Fix
                               </Button>
                             </div>
