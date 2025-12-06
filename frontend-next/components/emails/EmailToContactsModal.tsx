@@ -860,7 +860,7 @@ export function EmailToContactsModal({
               </Button>
               <Button
                 onClick={handleCreateContacts}
-                disabled={selected.size === 0 || (caseId && !defaultReason.trim())}
+                disabled={selected.size === 0 || Boolean(caseId && !defaultReason.trim())}
               >
                 <UserPlus className="mr-2 h-4 w-4" />
                 Create {selected.size} Contact{selected.size !== 1 ? "s" : ""}

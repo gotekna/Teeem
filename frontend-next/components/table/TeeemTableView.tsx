@@ -200,6 +200,12 @@ import { ResizableColumnHeader } from "./components/ResizableColumnHeader";
 import { SortableColumnRow } from "./components/SortableColumnRow";
 import { CascadeFilterItem } from "./core/filtering/CascadeFilterItem";
 
+// Cell components (Phase 4 refactoring)
+import { SelectCheckbox, ActionsButtons, EditingActionsButtons } from "./core/cell-components";
+
+// Column renderer registry (Phase 4 refactoring)
+import { renderCell as renderCellWithRegistry } from "./core/column-renderer/ColumnRenderer";
+
 // Extracted utilities (Phase 1 refactoring)
 import { extractSelectedIds, formatCellValue, truncateText } from "./utils/table-utils";
 import { getLookupOptions, fetchLookupOptionsForTable, invalidateLookupCache } from "./utils/lookup-cache";
@@ -2418,117 +2424,9 @@ export default function TeeemTableView({
   // ============================================================================
 
   /**
-   * Helper function to render the display value of a cell (read-only view)
-   * Used by edit mode to show clickable cells with the current value
+   * Main cell renderer - routes to appropriate component based on column type
+   * Uses ColumnRenderer registry for display mode (SSoT pattern)
    */
-  const renderDisplayValue = useCallback(
-    (value: unknown, column: TableColumn, entry: TableRowType): React.ReactNode => {
-      // Handle null/undefined
-      if (value == null || value === "") {
-        return <span className="text-muted-foreground">-</span>;
-      }
-
-      // Handle boolean
-      if (typeof value === "boolean" || column.column_type === "boolean") {
-        const boolValue = typeof value === "boolean" ? value : value === "true" || value === "t" || value === true || value === 1;
-        return boolValue ? (
-          <Check className="h-4 w-4 text-green-600" />
-        ) : (
-          <X className="h-4 w-4 text-muted-foreground" />
-        );
-      }
-
-      // Handle lookup - display linked record
-      if (column.column_type === "lookup" && value) {
-        const lookupData = value as { display_value?: string; display?: string; name?: string; id?: number } | string | number;
-        if (typeof lookupData === "object") {
-          const displayText = lookupData.display_value || lookupData.display || lookupData.name;
-          if (displayText) return <span>{displayText}</span>;
-          if (lookupData.id) return <span>#{lookupData.id}</span>;
-        }
-        return <span>#{String(value)}</span>;
-      }
-
-      // Handle choice/status with badge
-      if (
-        column.column_type === "choice" ||
-        column.column_type === "single_select" ||
-        column.key === "status" ||
-        column.key === "stage"
-      ) {
-        const colorClass =
-          STATUS_COLORS[String(value).toLowerCase()] ||
-          SEVERITY_COLORS[String(value).toLowerCase()] ||
-          "bg-secondary text-secondary-foreground";
-        return (
-          <Badge variant="secondary" className={cn(colorClass)}>
-            {String(value)}
-          </Badge>
-        );
-      }
-
-      // Handle multiple_lookups - display linked records
-      if (column.column_type === "multiple_lookups" && value) {
-        const items = Array.isArray(value) ? value : [];
-        if (items.length === 0) return <span className="text-muted-foreground">-</span>;
-        return (
-          <div className="flex flex-wrap gap-1">
-            {items.slice(0, 2).map((item, idx) => (
-              <Badge key={idx} variant="secondary" className="text-xs">
-                {typeof item === "object" ? item.display_value || item.name || `#${item.id}` : String(item)}
-              </Badge>
-            ))}
-            {items.length > 2 && (
-              <Badge variant="outline" className="text-xs">
-                +{items.length - 2}
-              </Badge>
-            )}
-          </div>
-        );
-      }
-
-      // Handle date
-      if (column.column_type === "date" && value) {
-        try {
-          const date = new Date(value as string);
-          return date.toLocaleDateString("en-AU");
-        } catch {
-          return String(value);
-        }
-      }
-
-      // Handle currency
-      if (column.column_type === "currency" && typeof value === "number") {
-        return `$${value.toLocaleString("en-AU", { minimumFractionDigits: 2 })}`;
-      }
-
-      // Handle number
-      if ((column.column_type === "number" || column.column_type === "whole_number") && typeof value === "number") {
-        return value.toLocaleString("en-AU");
-      }
-
-      // Handle email
-      if (column.column_type === "email" && value) {
-        return (
-          <span className="text-blue-600">{String(value)}</span>
-        );
-      }
-
-      // Handle phone
-      if ((column.column_type === "phone" || column.column_type === "mobile") && value) {
-        return String(value);
-      }
-
-      // Default: render as string (truncated if too long)
-      const strValue = String(value);
-      if (strValue.length > 50) {
-        return <span className="truncate block">{strValue.slice(0, 50)}...</span>;
-      }
-      return strValue;
-    },
-    []
-  );
-
   const renderCellValue = useCallback(
     (entry: TableRowType, column: TableColumn) => {
       // Check for custom renderer first
@@ -2545,71 +2443,32 @@ export default function TeeemTableView({
       switch (column.key) {
         case "select":
           return (
-            <div className="flex items-center justify-center h-full w-full">
-              <Checkbox
-                checked={selectedRows.has(entry.id)}
-                onCheckedChange={() => toggleRowSelection(entry.id)}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
+            <SelectCheckbox
+              checked={selectedRows.has(entry.id)}
+              onCheckedChange={() => toggleRowSelection(entry.id)}
+            />
           );
 
         case "actions":
           if (isEditing) {
             return (
-              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); saveEditing(); }}>
-                  <Check className="h-4 w-4 text-green-600" />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); cancelEditing(); }}>
-                  <X className="h-4 w-4 text-red-600" />
-                </Button>
-              </div>
+              <EditingActionsButtons
+                onSave={saveEditing}
+                onCancel={cancelEditing}
+              />
             );
           }
           return (
-            <div className="flex items-center justify-center gap-0">
-              {onView && (
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onView(entry)}>
-                  <Eye className="h-3.5 w-3.5" />
-                </Button>
-              )}
-              {/* Edit button: inline edit if single row, bulk edit modal if multiple selected */}
-              {!viewOnly && (onRowUpdate || onEdit) && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // If multiple rows selected, open bulk edit dialog
-                    if (selectedRows.size > 1) {
-                      onEdit?.(entry);
-                    } else {
-                      // Single row or no selection: inline edit if available
-                      if (onRowUpdate) {
-                        startEditing(entry);
-                      } else {
-                        onEdit?.(entry);
-                      }
-                    }
-                  }}
-                  onDoubleClick={(e) => e.stopPropagation()}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-              )}
-              {!viewOnly && onDelete && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => onDelete(entry)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </div>
+            <ActionsButtons
+              entry={entry}
+              viewOnly={viewOnly}
+              onView={onView}
+              onEdit={onEdit}
+              onRowUpdate={onRowUpdate}
+              onDelete={onDelete}
+              onStartEditing={startEditing}
+              selectedRowsCount={selectedRows.size}
+            />
           );
       }
 
@@ -2628,7 +2487,7 @@ export default function TeeemTableView({
         // If not already editing this cell, render clickable cell that starts editing
         if (!isCellCurrentlyEditing) {
           // Render the display value with edit mode styling (hover effect, cursor)
-          const displayValue = renderDisplayValue(value, column, entry);
+          const displayValue = renderCellWithRegistry(value, column, entry, "display");
           return (
             <div
               className="w-full h-full px-1 py-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 rounded transition-colors"
