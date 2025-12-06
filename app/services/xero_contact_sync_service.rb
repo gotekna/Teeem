@@ -431,6 +431,12 @@ class XeroContactSyncService
     roles << "supplier" if xero_contact["IsSupplier"] == true
     updates[:roles] = roles if roles.any?
 
+    # Extract Xero contact types (Customer/Supplier) - can be both!
+    xero_contact_types = []
+    xero_contact_types << "Customer" if xero_contact["IsCustomer"] == true
+    xero_contact_types << "Supplier" if xero_contact["IsSupplier"] == true
+    updates[:xero_contact_types] = xero_contact_types
+
     # Determine if this is a company contact
     is_company = xero_contact_is_company?(xero_contact)
 
@@ -591,6 +597,11 @@ class XeroContactSyncService
     roles << "customer" if xero_contact["IsCustomer"] == true
     roles << "supplier" if xero_contact["IsSupplier"] == true
 
+    # Extract Xero contact types (Customer/Supplier) - can be both!
+    xero_contact_types = []
+    xero_contact_types << "Customer" if xero_contact["IsCustomer"] == true
+    xero_contact_types << "Supplier" if xero_contact["IsSupplier"] == true
+
     is_company = xero_contact_is_company?(xero_contact)
 
     contact_data = {
@@ -603,6 +614,7 @@ class XeroContactSyncService
       tax_number: normalize_tax_number(xero_contact["TaxNumber"]),
       email: extract_xero_email(xero_contact),
       roles: roles.any? ? roles : nil,
+      xero_contact_types: xero_contact_types,
       sync_with_xero: true,
       last_synced_at: @sync_timestamp,
       xero_contact_status: xero_contact["ContactStatus"],
