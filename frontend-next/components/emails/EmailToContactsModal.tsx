@@ -288,9 +288,9 @@ export function EmailToContactsModal({
 
       const response = await api.post<{
         success?: boolean;
-        created_contacts: any[];
-        created_companies: any[];
-        linked_to_companies: any[];
+        created_contacts?: any[];
+        created_companies?: any[];
+        linked_to_companies?: any[];
         added_emails?: any[];
         errors?: any[];
       }>("/api/v1/email_to_contacts/bulk_create", {
@@ -300,20 +300,20 @@ export function EmailToContactsModal({
         default_reason: caseId ? defaultReason : undefined,
       });
 
-      if (response?.success || response?.created_contacts.length > 0 || response?.added_emails?.length) {
+      if (response?.success || (response?.created_contacts?.length ?? 0) > 0 || (response?.added_emails?.length ?? 0) > 0) {
         setResults({
-          createdContacts: response.created_contacts.length,
-          createdCompanies: response.created_companies.length,
-          linkedToCompanies: response.linked_to_companies.length,
-          addedEmails: response.added_emails?.length || 0,
-          errors: response.errors || [],
+          createdContacts: response?.created_contacts?.length || 0,
+          createdCompanies: response?.created_companies?.length || 0,
+          linkedToCompanies: response?.linked_to_companies?.length || 0,
+          addedEmails: response?.added_emails?.length || 0,
+          errors: response?.errors || [],
         });
 
         setStep("results");
 
         toast({
           title: "Contacts created",
-          description: `Successfully created ${response.created_contacts.length} contact(s)`,
+          description: `Successfully created ${response?.created_contacts?.length || 0} contact(s)`,
         });
       } else {
         toast({
