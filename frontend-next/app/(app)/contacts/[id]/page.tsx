@@ -373,6 +373,8 @@ interface CaseRelationship {
   notes?: string | null;
   is_primary?: boolean;
   include_all_emails?: boolean;
+  added_at?: string | null;
+  added_by?: string | null;
 }
 
 // Contact data from company list API
@@ -401,6 +403,7 @@ interface ContactRelationship {
   id: number;
   source_contact_id: number;
   target_contact_id: number;
+  related_contact_id?: number; // Alias for target_contact_id in some API responses
   relationship_type: string;
   role_in_relationship?: string | null;
   ownership_percentage?: number | null;
@@ -469,6 +472,7 @@ export default function ContactDetailPage() {
   // Inline edit form state
   const [formData, setFormData] = useState({
     first_name: "",
+    middle_name: "",
     last_name: "",
     full_name: "",
     email: "",
@@ -997,12 +1001,12 @@ export default function ContactDetailPage() {
 
     try {
       // Fetch existing relationships for this company
-      const relationshipsResponse = await api.get(`/api/v1/contacts/${contact.id}/relationships`) as any;
+      const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${contact.id}/relationships`);
       const existingRels = relationshipsResponse.relationships.outgoing.filter(
-        (r: any) => r.related_contact_id.toString() === companyId
+        (r) => (r.related_contact_id || r.target_contact_id).toString() === companyId
       );
 
-      const existingRoleTypes = existingRels.map((r: any) => r.relationship_type);
+      const existingRoleTypes = existingRels.map((r) => r.relationship_type);
 
       // Find roles to add (in newRoles but not in existingRoleTypes)
       const rolesToAdd = newRoles.filter(role => !existingRoleTypes.includes(role));
@@ -1023,7 +1027,7 @@ export default function ContactDetailPage() {
 
       // Delete relationships for removed roles
       for (const roleType of rolesToRemove) {
-        const relToDelete = existingRels.find((r: any) => r.relationship_type === roleType);
+        const relToDelete = existingRels.find((r) => r.relationship_type === roleType);
         if (relToDelete) {
           await api.delete(`/api/v1/contacts/${contact.id}/relationships/${relToDelete.id}`);
         }
@@ -1068,9 +1072,10 @@ export default function ContactDetailPage() {
             },
           });
           console.log('[Employee Change] Relationship created successfully for:', personId);
-        } catch (err: any) {
+        } catch (err: unknown) {
           // Skip if relationship already exists
-          if (err?.response?.data?.error?.includes('already exists')) {
+          const error = err as { response?: { data?: { error?: string } } };
+          if (error?.response?.data?.error?.includes('already exists')) {
             console.log(`[Employee Change] Skipping duplicate relationship for person ${personId}`);
             continue;
           }
@@ -1081,9 +1086,9 @@ export default function ContactDetailPage() {
       // Delete relationships for removed employees
       for (const personId of removedIds) {
         console.log('[Employee Change] Deleting relationship for person:', personId);
-        const relationshipsResponse = await api.get(`/api/v1/contacts/${personId}/relationships`) as any;
+        const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${personId}/relationships`);
         const rel = relationshipsResponse.relationships.outgoing.find(
-          (r: any) => r.related_contact_id === contact.id && r.relationship_type === 'employee_of'
+          (r) => (r.related_contact_id || r.target_contact_id) === contact.id && r.relationship_type === 'employee_of'
         );
         if (rel) {
           await api.delete(`/api/v1/contacts/${personId}/relationships/${rel.id}`);
@@ -1110,9 +1115,9 @@ export default function ContactDetailPage() {
 
     try {
       // Find and delete the employee_of relationship
-      const relationshipsResponse = await api.get(`/api/v1/contacts/${employeeId}/relationships`) as any;
+      const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${employeeId}/relationships`);
       const rel = relationshipsResponse.relationships.outgoing.find(
-        (r: any) => r.related_contact_id === contact.id && r.relationship_type === 'employee_of'
+        (r) => (r.related_contact_id || r.target_contact_id) === contact.id && r.relationship_type === 'employee_of'
       );
 
       if (rel) {
@@ -1131,12 +1136,12 @@ export default function ContactDetailPage() {
 
     try {
       // Get current relationships for this employee to this company
-      const relationshipsResponse = await api.get(`/api/v1/contacts/${employeeId}/relationships`) as any;
+      const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${employeeId}/relationships`);
       const currentRels = relationshipsResponse.relationships.outgoing.filter(
-        (r: any) => r.related_contact_id === contact.id
+        (r) => (r.related_contact_id || r.target_contact_id) === contact.id
       );
 
-      const currentRoleTypes = currentRels.map((r: any) => r.relationship_type);
+      const currentRoleTypes = currentRels.map((r) => r.relationship_type);
 
       // Find roles to add
       const rolesToAdd = newRoleTypes.filter((rt: string) => !currentRoleTypes.includes(rt));
@@ -1157,7 +1162,7 @@ export default function ContactDetailPage() {
 
       // Remove old roles
       for (const roleType of rolesToRemove) {
-        const rel = currentRels.find((r: any) => r.relationship_type === roleType);
+        const rel = currentRels.find((r) => r.relationship_type === roleType);
         if (rel) {
           await api.delete(`/api/v1/contacts/${employeeId}/relationships/${rel.id}`);
         }
@@ -2352,7 +2357,7 @@ export default function ContactDetailPage() {
                     {contact.residential_address === "[RESTRICTED]" ? (
                       <div className="text-amber-600 flex items-center gap-2">
                         <Lock className="h-4 w-4" />
-                        <span>Restricted - You don't have permission to view this field</span>
+                        <span>Restricted - You don&apos;t have permission to view this field</span>
                       </div>
                     ) : contact.residential_address ? (
                       <p className="text-sm whitespace-pre-line">{contact.residential_address}</p>
