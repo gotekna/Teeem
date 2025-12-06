@@ -115,6 +115,7 @@ interface Contact {
   id: number;
   full_name: string;
   first_name: string | null;
+  middle_name: string | null;
   last_name: string | null;
   email: string | null;
   mobile_phone: string | null;
@@ -858,6 +859,7 @@ export default function ContactDetailPage() {
     if (contact) {
       setFormData({
         first_name: contact.first_name || "",
+        middle_name: contact.middle_name || "",
         last_name: contact.last_name || "",
         full_name: contact.full_name || "",
         email: contact.email || "",
@@ -1400,6 +1402,10 @@ export default function ContactDetailPage() {
                           <div className="space-y-2">
                             <Label htmlFor="first_name">First Name</Label>
                             <Input id="first_name" value={formData.first_name} onChange={(e) => handleInputChange("first_name", e.target.value)} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="middle_name">Middle Name</Label>
+                            <Input id="middle_name" value={formData.middle_name} onChange={(e) => handleInputChange("middle_name", e.target.value)} />
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="last_name">Last Name</Label>
