@@ -28,6 +28,7 @@ export interface TableColumn {
   };
   editable?: boolean; // Whether the column can be edited (default: true)
   system?: boolean; // System column like id, created_at, updated_at (default: false)
+  defaultHidden?: boolean; // Whether the column is hidden by default (default: false)
 }
 
 // Row data - generic record with id
