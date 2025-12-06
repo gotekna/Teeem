@@ -213,6 +213,8 @@ module Api
         # Add primary company and employment details
         if @contact.primary_company.present?
           company = @contact.primary_company
+          company_record = Company.find_by(contact_id: company.id)
+
           contact_json[:primary_company] = {
             id: company.id,
             name: company.display_name,
@@ -223,6 +225,9 @@ module Api
             role: @contact.primary_role,
             employment_status: @contact.employment_status,
             start_date: @contact.employment_start_date,
+            # Include ABN/ACN if company record exists
+            abn: company_record&.abn,
+            acn: company_record&.acn,
             # Include company contact details
             contact_emails: company.contact_emails.ordered.map { |e|
               { id: e.id, email: e.email, is_primary: e.is_primary, label: e.label, position: e.position }

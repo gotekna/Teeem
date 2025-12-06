@@ -110,13 +110,13 @@ export function EmailToContactsModal({
     setAnalyzing(true);
 
     try {
-      const response = await api.post("/email_to_contacts/analyze", {
+      const response: any = await api.post("/api/v1/email_to_contacts/analyze", {
         email_data: emailData,
         scope: scope,
       });
 
-      if (response.data.success) {
-        const emailCandidates: EmailCandidate[] = response.data.emails.map((e: any) => ({
+      if (response.success) {
+        const emailCandidates: EmailCandidate[] = response.emails.map((e: any) => ({
           email: e.email,
           displayName: e.display_name,
           isExistingContact: e.is_existing_contact,
@@ -158,12 +158,12 @@ export function EmailToContactsModal({
 
         toast({
           title: "Analysis complete",
-          description: `Found ${response.data.stats.total_emails} email addresses, ${response.data.stats.existing_contacts} already in contacts.`,
+          description: `Found ${response.stats.total_emails} email addresses, ${response.stats.existing_contacts} already in contacts.`,
         });
       } else {
         toast({
           title: "Analysis failed",
-          description: response.data.error || "Unknown error",
+          description: response.error || "Unknown error",
           variant: "destructive",
         });
       }
@@ -208,7 +208,7 @@ export function EmailToContactsModal({
         };
       });
 
-      const response = await api.post("/email_to_contacts/bulk_create", {
+      const response = await api.post("/api/v1/email_to_contacts/bulk_create", {
         selections: selections,
       });
 

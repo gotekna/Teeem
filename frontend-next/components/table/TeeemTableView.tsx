@@ -1137,12 +1137,30 @@ export default function TeeemTableView({
   }, [columns]);
 
   // Detect if table has email columns for Email to Contacts extraction feature
+  // Check both column definitions AND actual data structure
   const hasEmailColumns = useMemo(() => {
-    return COLUMNS.some(col =>
+    // Check if any column is explicitly marked as email type or has "email" in key
+    const hasEmailColumn = COLUMNS.some(col =>
       col.column_type === 'email' ||
       col.key.toLowerCase().includes('email')
     );
-  }, [COLUMNS]);
+
+    if (hasEmailColumn) return true;
+
+    // Check if any entry has email-related fields in the data
+    if (entries && entries.length > 0) {
+      const firstEntry = entries[0];
+      const hasEmailFields =
+        'from_email' in firstEntry ||
+        'to_emails' in firstEntry ||
+        'cc_emails' in firstEntry ||
+        'email' in firstEntry;
+
+      if (hasEmailFields) return true;
+    }
+
+    return false;
+  }, [COLUMNS, entries]);
 
   // Sticky columns configuration - columns that stay fixed on horizontal scroll
   // Order matters: select first (leftmost), then id, then name

@@ -171,6 +171,8 @@ interface Contact {
     email?: string;
     website?: string;
     address?: string;
+    abn?: string;
+    acn?: string;
     contact_emails?: ContactEmail[];
     contact_phones?: ContactPhone[];
   } | null;
@@ -994,78 +996,9 @@ export default function ContactDetailPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {/* Company Contact Details - Show when person has a primary company */}
+                    {/* Direct/Personal Contact Details Section Header */}
                     {formData.entity_type === 'person' && contact.primary_company && (
-                      <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
-                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                          <Building2 className="h-4 w-4" />
-                          {contact.primary_company.name} Contact Info
-                        </div>
-
-                        {/* Company Emails */}
-                        {contact.primary_company.contact_emails && contact.primary_company.contact_emails.length > 0 && (
-                          <div className="space-y-2">
-                            <Label className="text-xs text-muted-foreground">Emails</Label>
-                            {contact.primary_company.contact_emails
-                              .sort((a, b) => {
-                                if (a.is_primary && !b.is_primary) return -1;
-                                if (!a.is_primary && b.is_primary) return 1;
-                                return a.position - b.position;
-                              })
-                              .map((email, idx) => (
-                                <div key={idx} className="flex items-center gap-2 text-sm">
-                                  <Mail className="h-3 w-3 text-muted-foreground" />
-                                  <span>{email.email}</span>
-                                  {email.is_primary && <Badge variant="secondary" className="text-xs">Primary</Badge>}
-                                </div>
-                              ))}
-                          </div>
-                        )}
-
-                        {/* Company Phones */}
-                        {contact.primary_company.contact_phones && contact.primary_company.contact_phones.length > 0 && (
-                          <div className="space-y-2">
-                            <Label className="text-xs text-muted-foreground">Phones</Label>
-                            {contact.primary_company.contact_phones
-                              .sort((a, b) => {
-                                if (a.is_primary && !b.is_primary) return -1;
-                                if (!a.is_primary && b.is_primary) return 1;
-                                return a.position - b.position;
-                              })
-                              .map((phone, idx) => (
-                                <div key={idx} className="flex items-center gap-2 text-sm">
-                                  <Phone className="h-3 w-3 text-muted-foreground" />
-                                  <Badge variant="outline" className="text-xs">{phone.phone_type}</Badge>
-                                  <span>{phone.phone_number}</span>
-                                  {phone.is_primary && <Badge variant="secondary" className="text-xs">Primary</Badge>}
-                                </div>
-                              ))}
-                          </div>
-                        )}
-
-                        {/* Company Website */}
-                        {contact.primary_company.website && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Globe className="h-3 w-3 text-muted-foreground" />
-                            <a href={contact.primary_company.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                              {contact.primary_company.website}
-                            </a>
-                          </div>
-                        )}
-
-                        {/* Company Address */}
-                        {contact.primary_company.address && (
-                          <div className="flex items-start gap-2 text-sm">
-                            <MapPin className="h-3 w-3 text-muted-foreground mt-0.5" />
-                            <span className="whitespace-pre-line">{contact.primary_company.address}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Direct/Personal Contact Details Section */}
-                    {formData.entity_type === 'person' && contact.primary_company && (
-                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground border-t pt-4">
+                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                         <User className="h-4 w-4" />
                         Direct Contact (Personal)
                       </div>
@@ -1074,7 +1007,7 @@ export default function ContactDetailPage() {
                     {/* Emails Section */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label>Emails</Label>
+                        <Label>{formData.entity_type === 'person' && contact.primary_company ? 'Direct Email Addresses' : 'Emails'}</Label>
                         <Button
                           type="button"
                           variant="outline"
@@ -1157,13 +1090,14 @@ export default function ContactDetailPage() {
 
                     {/* Phones Section */}
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label>Phones</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                          <Label>{formData.entity_type === 'person' && contact.primary_company ? 'Direct Phone Numbers' : 'Phones'}</Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
                             const newPhone: ContactPhone = {
                               phone_number: '',
                               phone_type: 'mobile',
@@ -1176,9 +1110,13 @@ export default function ContactDetailPage() {
                             setHasChanges(true);
                           }}
                         >
-                          <Phone className="h-3 w-3 mr-1" />
-                          Add Phone
-                        </Button>
+                            <Phone className="h-3 w-3 mr-1" />
+                            Add Phone
+                          </Button>
+                        </div>
+                        {formData.entity_type === 'person' && contact.primary_company && (
+                          <p className="text-xs text-muted-foreground">Personal/direct line, mobile, or extension</p>
+                        )}
                       </div>
                       <div className="space-y-2">
                         {(contact.contact_phones || [])
@@ -1255,14 +1193,106 @@ export default function ContactDetailPage() {
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="website">Website</Label>
-                      <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} placeholder="https://example.com" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="address">Address</Label>
-                      <Textarea id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Full address" rows={2} />
-                    </div>
+                    {/* Website and Address - only show if NOT part of a company */}
+                    {!(formData.entity_type === 'person' && contact.primary_company) && (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="website">Website</Label>
+                          <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} placeholder="https://example.com" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="address">Address</Label>
+                          <Textarea id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Full address" rows={2} />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Company Contact Details - Show when person has a primary company */}
+                    {formData.entity_type === 'person' && contact.primary_company && (
+                      <div className="space-y-4 p-4 rounded-lg border bg-muted/30 mt-6">
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <Building2 className="h-4 w-4" />
+                          {contact.primary_company.name} Contact Info
+                        </div>
+
+                        {/* Company ABN/ACN */}
+                        {(contact.primary_company.abn || contact.primary_company.acn) && (
+                          <div className="flex flex-wrap gap-3">
+                            {contact.primary_company.abn && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-xs text-muted-foreground font-medium">ABN:</span>
+                                <span className="font-mono">{contact.primary_company.abn}</span>
+                              </div>
+                            )}
+                            {contact.primary_company.acn && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-xs text-muted-foreground font-medium">ACN:</span>
+                                <span className="font-mono">{contact.primary_company.acn}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Company Emails */}
+                        {contact.primary_company.contact_emails && contact.primary_company.contact_emails.length > 0 && (
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Emails</Label>
+                            {contact.primary_company.contact_emails
+                              .sort((a, b) => {
+                                if (a.is_primary && !b.is_primary) return -1;
+                                if (!a.is_primary && b.is_primary) return 1;
+                                return a.position - b.position;
+                              })
+                              .map((email, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-sm">
+                                  <Mail className="h-3 w-3 text-muted-foreground" />
+                                  <span>{email.email}</span>
+                                  {email.is_primary && <Badge variant="secondary" className="text-xs">Primary</Badge>}
+                                </div>
+                              ))}
+                          </div>
+                        )}
+
+                        {/* Company Phones */}
+                        {contact.primary_company.contact_phones && contact.primary_company.contact_phones.length > 0 && (
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Phones</Label>
+                            {contact.primary_company.contact_phones
+                              .sort((a, b) => {
+                                if (a.is_primary && !b.is_primary) return -1;
+                                if (!a.is_primary && b.is_primary) return 1;
+                                return a.position - b.position;
+                              })
+                              .map((phone, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-sm">
+                                  <Phone className="h-3 w-3 text-muted-foreground" />
+                                  <Badge variant="outline" className="text-xs">{phone.phone_type}</Badge>
+                                  <span>{phone.phone_number}</span>
+                                  {phone.is_primary && <Badge variant="secondary" className="text-xs">Primary</Badge>}
+                                </div>
+                              ))}
+                          </div>
+                        )}
+
+                        {/* Company Website */}
+                        {contact.primary_company.website && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Globe className="h-3 w-3 text-muted-foreground" />
+                            <a href={contact.primary_company.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                              {contact.primary_company.website}
+                            </a>
+                          </div>
+                        )}
+
+                        {/* Company Address */}
+                        {contact.primary_company.address && (
+                          <div className="flex items-start gap-2 text-sm">
+                            <MapPin className="h-3 w-3 text-muted-foreground mt-0.5" />
+                            <span className="whitespace-pre-line">{contact.primary_company.address}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -1322,30 +1352,37 @@ export default function ContactDetailPage() {
                 </Card>
               )}
 
-              {/* Business & Tax Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Building2 className="h-5 w-5" />
-                    Business & Tax
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="tax_number">ABN / Tax Number</Label>
-                    <Input id="tax_number" value={formData.tax_number} onChange={(e) => handleInputChange("tax_number", e.target.value)} placeholder="XX XXX XXX XXX" />
-                  </div>
-                  <div className="flex items-center justify-between py-2">
-                    <div><Label>Sync with Xero</Label><p className="text-xs text-muted-foreground">Keep synced with Xero</p></div>
-                    <Switch checked={formData.sync_with_xero} onCheckedChange={(c) => handleInputChange("sync_with_xero", c)} />
-                  </div>
-                  {contact.linked_company && (
-                    <Link href={`/corporate/companies/${contact.linked_company.id}`}>
-                      <Button variant="outline" size="sm" className="w-full"><ExternalLink className="h-4 w-4 mr-2" />View Corporate Record</Button>
-                    </Link>
-                  )}
-                </CardContent>
-              </Card>
+              {/* Business & Tax Card - Hide for people with primary company */}
+              {!(formData.entity_type === 'person' && contact.primary_company) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Building2 className="h-5 w-5" />
+                      Business & Tax
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="tax_number">
+                        {formData.entity_type === 'person' ? 'ABN (Sole Trader)' : 'ABN / Tax Number'}
+                      </Label>
+                      <Input id="tax_number" value={formData.tax_number} onChange={(e) => handleInputChange("tax_number", e.target.value)} placeholder="XX XXX XXX XXX" />
+                      {formData.entity_type === 'person' && (
+                        <p className="text-xs text-muted-foreground">For sole traders/contractors only. ACN is company-only.</p>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between py-2">
+                      <div><Label>Sync with Xero</Label><p className="text-xs text-muted-foreground">Keep synced with Xero</p></div>
+                      <Switch checked={formData.sync_with_xero} onCheckedChange={(c) => handleInputChange("sync_with_xero", c)} />
+                    </div>
+                    {contact.linked_company && (
+                      <Link href={`/corporate/companies/${contact.linked_company.id}`}>
+                        <Button variant="outline" size="sm" className="w-full"><ExternalLink className="h-4 w-4 mr-2" />View Corporate Record</Button>
+                      </Link>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Notes Card */}
               <Card>
@@ -2182,6 +2219,10 @@ export default function ContactDetailPage() {
                       : email.display_from || email.from_email,
                     received_at: email.received_at,
                     attachments: email.has_attachments ? (email.attachment_count || 1) : 0,
+                    // Include original email fields for Email to Contacts extraction feature
+                    from_email: email.from_email,
+                    to_emails: email.to_emails,
+                    cc_emails: email.cc_emails,
                   };
                 })}
                 viewOnly={true}
