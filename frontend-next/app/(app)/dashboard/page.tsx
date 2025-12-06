@@ -19,6 +19,11 @@ import {
   CheckCircle,
   BarChart3,
   LayoutDashboard,
+  Heart,
+  Shield,
+  Zap,
+  Smile,
+  Target,
 } from "lucide-react";
 import FeaturesTrackingTable from "./components/FeaturesTrackingTable";
 
@@ -122,6 +127,79 @@ export default function DashboardPage() {
               );
             })}
           </div>
+
+          {/* TEEEM Values */}
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+            <CardHeader>
+              <CardTitle className="text-xl font-bold">Our Values: TEEEM</CardTitle>
+              <CardDescription>
+                These five principles are at the heart of who we are and how we operate
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* Trust */}
+                <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border hover:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <h3 className="font-bold text-sm">Trust</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    We build trust through being <span className="font-semibold text-foreground">HOT</span>: Honest, Open, and Transparent. We say things straight, share what needs to be shared, and always act with integrity.
+                  </p>
+                </div>
+
+                {/* Empower */}
+                <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border hover:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                    <h3 className="font-bold text-sm">Empower</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    We give everyone the authority, tools, and backing to make decisions and take action. When people feel trusted and supported, they deliver their best.
+                  </p>
+                </div>
+
+                {/* Evolve */}
+                <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border hover:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <h3 className="font-bold text-sm">Evolve</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    We are committed to constant growth. We learn fast, embrace change, turn challenges into opportunities, and keep getting better every day.
+                  </p>
+                </div>
+
+                {/* Enjoy */}
+                <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border hover:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Smile className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    <h3 className="font-bold text-sm">Enjoy</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    We believe great results come when we genuinely enjoy what we do. We celebrate wins, look after each other, and keep the workplace positive and human.
+                  </p>
+                </div>
+
+                {/* Measure */}
+                <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border hover:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    <h3 className="font-bold text-sm">Measure</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    We set clear targets, track progress honestly, and use real data to improve. What we measure, we manage—and we always aim higher.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-border">
+                <p className="text-sm text-center font-medium text-muted-foreground">
+                  This is TEEEM. Simple, strong, and true to us.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Quick Actions */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

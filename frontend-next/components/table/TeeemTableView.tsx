@@ -310,6 +310,7 @@ import {
   currentSortColumnsAtom,
   currentGroupByColumnsAtom,
   currentAutoFitColumnsAtom,
+  currentSmartFitAtom,
   currentShowTotalsAtom,
   collapsedGroupsAtom,
   foundationViewsAtom,
@@ -605,6 +606,7 @@ export default function TeeemTableView({
   // Display options managed by atoms
   const [showTotals, setShowTotals] = useAtom(currentShowTotalsAtom);
   const [autoFitColumns, setAutoFitColumns] = useAtom(currentAutoFitColumnsAtom);
+  const [smartFit, setSmartFit] = useAtom(currentSmartFitAtom);
   // healthPanelOpen managed by atom (SSoT)
   const [healthPanelOpen, setHealthPanelOpen] = useAtom(healthPanelOpenAtom);
 
@@ -2121,15 +2123,19 @@ export default function TeeemTableView({
     return newWidths;
   }, [visibleColumnsInOrder, filteredAndSortedEntries]);
 
-  // Apply auto-fit widths when enabled
+  // Apply smart-fit or auto-fit widths when enabled
   useEffect(() => {
-    if (autoFitColumns && filteredAndSortedEntries.length > 0) {
+    if (smartFit && filteredAndSortedEntries.length > 0) {
+      // TEEEM Smart: priority-based intelligent widths
+      const smartWidths = calculateSmartFitWidths();
+      setColumnWidths(smartWidths);
+    } else if (autoFitColumns && filteredAndSortedEntries.length > 0) {
+      // Auto-fit: content-based widths (all columns treated equally)
       const autoWidths = calculateAutoFitWidths();
-      // Replace widths entirely when auto-fit is on (not merge)
       setColumnWidths(autoWidths);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setColumnWidths is setState function (stable), filteredAndSortedEntries.length accessed directly
-  }, [autoFitColumns, calculateAutoFitWidths, visibleColumnsInOrder]);
+  }, [smartFit, autoFitColumns, calculateSmartFitWidths, calculateAutoFitWidths, visibleColumnsInOrder]);
 
   // Get visible data columns (excluding select and actions)
   const visibleDataColumns = useMemo(() => {

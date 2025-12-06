@@ -82,7 +82,13 @@ export const currentGroupByColumnsAtom = atom<string[]>([]);
 /**
  * Auto-fit columns to content
  */
-export const currentAutoFitColumnsAtom = atom<boolean>(true);
+export const currentAutoFitColumnsAtom = atom<boolean>(false);
+
+/**
+ * TEEEM Smart auto-fit - priority-based column widths
+ * Default to true for new views
+ */
+export const currentSmartFitAtom = atom<boolean>(true);
 
 /**
  * Show totals row at bottom of table
@@ -255,6 +261,17 @@ export const applyViewAtom = atom(
       set(currentAutoFitColumnsAtom, view.autoFitColumns);
     } else if (viewAny.columns && typeof viewAny.columns.autoFitColumns === 'boolean') {
       set(currentAutoFitColumnsAtom, viewAny.columns.autoFitColumns);
+    }
+
+    // Smart fit - default to true if not specified
+    const viewSmartFit = view as SavedView & { smartFit?: boolean; columns?: { smartFit?: boolean } };
+    if (typeof viewSmartFit.smartFit === 'boolean') {
+      set(currentSmartFitAtom, viewSmartFit.smartFit);
+    } else if (viewSmartFit.columns && typeof viewSmartFit.columns.smartFit === 'boolean') {
+      set(currentSmartFitAtom, viewSmartFit.columns.smartFit);
+    } else {
+      // Default to true for TEEEM Smart
+      set(currentSmartFitAtom, true);
     }
 
     if (typeof view.showTotals === 'boolean') {

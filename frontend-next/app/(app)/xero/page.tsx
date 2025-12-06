@@ -18,6 +18,12 @@ import { Loader } from "@/components/ui/loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Search,
   RefreshCw,
   CheckCircle,
@@ -30,6 +36,12 @@ import {
   Building2,
   BarChart3,
   Calendar,
+  HelpCircle,
+  Clock,
+  TrendingUp,
+  TrendingDown,
+  Zap,
+  Database,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -40,19 +52,35 @@ interface XeroStatus {
   sync_in_progress: boolean;
 }
 
-interface XeroInvoice {
-  id: string;
+interface ExternalInvoice {
+  id: number;
+  external_id: string;
   invoice_number: string;
-  contact_name: string;
-  date: string;
+  invoice_type: "invoice" | "bill";
+  status: string;
+  invoice_date: string;
   due_date: string;
-  status: "DRAFT" | "SUBMITTED" | "AUTHORISED" | "PAID" | "VOIDED";
   total: number;
+  subtotal: number;
+  total_tax: number;
   amount_due: number;
   amount_paid: number;
-  type: "ACCREC" | "ACCPAY";
+  currency_code: string;
+  contact_id: number | null;
+  contact_name: string | null;
   job_id: number | null;
-  job_name: string | null;
+  job_title: string | null;
+}
+
+interface WarehouseResponse {
+  success: boolean;
+  data: ExternalInvoice[];
+  meta: {
+    source: string;
+    last_synced_at: string | null;
+    cache_age_seconds: number | null;
+    total_count: number;
+  };
 }
 
 interface XeroPayment {
@@ -74,16 +102,42 @@ interface XeroStats {
 }
 
 const statusColors: Record<string, string> = {
-  DRAFT: "bg-gray-100 text-gray-700 dark:bg-gray-400/10 dark:text-gray-400",
-  SUBMITTED: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
-  AUTHORISED: "bg-yellow-100 text-yellow-700 dark:bg-yellow-400/10 dark:text-yellow-500",
-  PAID: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
-  VOIDED: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
+  draft: "bg-gray-100 text-gray-700 dark:bg-gray-400/10 dark:text-gray-400",
+  submitted: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
+  approved: "bg-yellow-100 text-yellow-700 dark:bg-yellow-400/10 dark:text-yellow-500",
+  paid: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
+  voided: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
 };
+
+function formatRelativeTime(dateString: string | null): string {
+  if (!dateString) return "Never";
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+  if (diffHours < 24) return `${diffHours} hr${diffHours > 1 ? "s" : ""} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  return date.toLocaleDateString("en-AU");
+}
+
+function getCacheAgeColor(seconds: number | null): string {
+  if (!seconds) return "text-muted-foreground";
+  const hours = seconds / 3600;
+  if (hours < 1) return "text-green-600 dark:text-green-400";
+  if (hours < 24) return "text-yellow-600 dark:text-yellow-500";
+  return "text-red-600 dark:text-red-400";
+}
 
 export default function XeroPage() {
   const [status, setStatus] = useState<XeroStatus | null>(null);
-  const [invoices, setInvoices] = useState<XeroInvoice[]>([]);
+  const [invoices, setInvoices] = useState<ExternalInvoice[]>([]);
+  const [bills, setBills] = useState<ExternalInvoice[]>([]);
+  const [cacheMetadata, setCacheMetadata] = useState<WarehouseResponse["meta"] | null>(null);
   const [payments, setPayments] = useState<XeroPayment[]>([]);
   const [stats, setStats] = useState<XeroStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,20 +150,21 @@ export default function XeroPage() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [statusRes, invoicesRes, paymentsRes] = await Promise.all([
-          api.get<XeroStatus>("/api/v1/xero/status"),
-          api.get<{ invoices: XeroInvoice[] }>("/api/v1/xero/invoices"),
-          api.get<{ payments: XeroPayment[] }>("/api/v1/xero/payments"),
-        ]);
+        // Load status
+        const statusRes = await api.get<XeroStatus>("/api/v1/xero/status");
         setStatus(statusRes);
-        setInvoices(invoicesRes.invoices || []);
-        setPayments(paymentsRes.payments || []);
+
+        // Load invoices and bills from warehouse (10-100x faster than Xero API)
+        const [invoicesRes, billsRes] = await Promise.all([
+          api.get<WarehouseResponse>("/api/v1/external_invoices?type=invoice&per_page=200"),
+          api.get<WarehouseResponse>("/api/v1/external_invoices?type=bill&per_page=200"),
+        ]);
+
+        setInvoices(invoicesRes.data || []);
+        setBills(billsRes.data || []);
+        setCacheMetadata(invoicesRes.meta);
       } catch (error) {
         console.error("Failed to load Xero data:", error);
-        setStatus(getMockStatus());
-        setInvoices(getMockInvoices());
-        setPayments(getMockPayments());
-        setStats(getMockStats());
       }
       setLoading(false);
     };
