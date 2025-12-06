@@ -2173,6 +2173,114 @@ module Api
         }, status: :internal_server_error
       end
 
+      # GET /api/v1/contacts/invalid_entity_types
+      # Health check: Find contacts with invalid entity_type values
+      def invalid_entity_types
+        valid_types = Contact::ENTITY_TYPES
+        invalid = Contact.where.not(entity_type: valid_types)
+          .or(Contact.where(entity_type: nil))
+          .select(:id, :full_name, :entity_type, :is_active, :xero_id)
+
+        render json: {
+          success: true,
+          total_count: invalid.count,
+          items: invalid.map { |c|
+            {
+              id: c.id,
+              full_name: c.full_name,
+              entity_type: c.entity_type,
+              is_active: c.is_active,
+              has_xero: c.xero_id.present?,
+              issue: "Invalid entity_type: '#{c.entity_type}'. Valid values: #{valid_types.join(', ')}"
+            }
+          }
+        }
+      rescue => e
+        Rails.logger.error("Invalid entity types check error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/price_only_with_xero
+      # Health check: Find price_only contacts that are synced to Xero (should never happen)
+      def price_only_with_xero
+        violations = Contact.where(entity_type: 'price_only')
+          .where.not(xero_id: nil)
+          .select(:id, :full_name, :xero_id, :xero_contact_types, :is_active)
+
+        render json: {
+          success: true,
+          total_count: violations.count,
+          items: violations.map { |c|
+            {
+              id: c.id,
+              full_name: c.full_name,
+              xero_id: c.xero_id,
+              xero_contact_types: c.xero_contact_types,
+              is_active: c.is_active,
+              issue: "Price-only contacts cannot sync to Xero (not real entities)"
+            }
+          }
+        }
+      rescue => e
+        Rails.logger.error("Price-only with Xero check error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/company_with_first_name
+      # Health check: Find companies/trusts/price_only with first_name or last_name set
+      def company_with_first_name
+        violations = Contact.where(entity_type: [ 'company', 'trust', 'price_only' ])
+          .where("first_name IS NOT NULL OR last_name IS NOT NULL")
+          .select(:id, :full_name, :entity_type, :first_name, :last_name, :company_name_or_trust, :is_active)
+
+        render json: {
+          success: true,
+          total_count: violations.count,
+          items: violations.map { |c|
+            {
+              id: c.id,
+              full_name: c.full_name,
+              entity_type: c.entity_type,
+              first_name: c.first_name,
+              last_name: c.last_name,
+              company_name_or_trust: c.company_name_or_trust,
+              is_active: c.is_active,
+              issue: "#{c.entity_type.humanize} contacts should only have company_name_or_trust or full_name, not first_name/last_name"
+            }
+          }
+        }
+      rescue => e
+        Rails.logger.error("Company with first name check error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/person_without_name
+      # Health check: Find person/sole_trader contacts without first_name
+      def person_without_name
+        violations = Contact.where(entity_type: [ 'person', 'sole_trader' ])
+          .where("first_name IS NULL OR first_name = ''")
+          .select(:id, :full_name, :entity_type, :first_name, :last_name, :is_active)
+
+        render json: {
+          success: true,
+          total_count: violations.count,
+          items: violations.map { |c|
+            {
+              id: c.id,
+              full_name: c.full_name,
+              entity_type: c.entity_type,
+              first_name: c.first_name,
+              last_name: c.last_name,
+              is_active: c.is_active,
+              issue: "#{c.entity_type.humanize} contacts require at least a first_name"
+            }
+          }
+        }
+      rescue => e
+        Rails.logger.error("Person without name check error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       # GET /api/v1/contacts/:id/case_relationships
       # Returns all cases this contact has been involved in with relationship details
       def case_relationships

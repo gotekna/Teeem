@@ -16,6 +16,58 @@ TableHealthCheck.find_or_create_by!(
   check.display_order = 0
 end
 
+TableHealthCheck.find_or_create_by!(
+  table_name: 'contacts',
+  check_type: 'invalid_entity_type'
+) do |check|
+  check.name = 'Invalid Entity Types'
+  check.description = 'Contacts with invalid entity_type values. Valid values: person, company, trust, sole_trader, price_only. Invalid entity types can cause sync errors and display issues.'
+  check.api_endpoint = '/api/v1/contacts/invalid_entity_types'
+  check.severity = 'error'
+  check.icon = 'exclamation-triangle'
+  check.action_path = '/contacts/:id'
+  check.display_order = 1
+end
+
+TableHealthCheck.find_or_create_by!(
+  table_name: 'contacts',
+  check_type: 'price_only_with_xero'
+) do |check|
+  check.name = 'Price-Only Contacts Synced to Xero'
+  check.description = 'Contacts with entity_type "price_only" that have xero_id set. Price-only contacts should never sync to Xero as they are not real entities.'
+  check.api_endpoint = '/api/v1/contacts/price_only_with_xero'
+  check.severity = 'error'
+  check.icon = 'link-slash'
+  check.action_path = '/contacts/:id'
+  check.display_order = 2
+end
+
+TableHealthCheck.find_or_create_by!(
+  table_name: 'contacts',
+  check_type: 'company_with_first_name'
+) do |check|
+  check.name = 'Companies With Person Names'
+  check.description = 'Contacts with entity_type "company", "trust", or "price_only" that have first_name or last_name set. These should only have company_name_or_trust or full_name.'
+  check.api_endpoint = '/api/v1/contacts/company_with_first_name'
+  check.severity = 'warning'
+  check.icon = 'user-x'
+  check.action_path = '/contacts/:id'
+  check.display_order = 3
+end
+
+TableHealthCheck.find_or_create_by!(
+  table_name: 'contacts',
+  check_type: 'person_without_name'
+) do |check|
+  check.name = 'Persons Without Names'
+  check.description = 'Contacts with entity_type "person" or "sole_trader" that are missing first_name. Persons require at least a first name for proper identification.'
+  check.api_endpoint = '/api/v1/contacts/person_without_name'
+  check.severity = 'error'
+  check.icon = 'user-question'
+  check.action_path = '/contacts/:id'
+  check.display_order = 4
+end
+
 # Pricebook health checks (foundation ID 205)
 TableHealthCheck.find_or_create_by!(
   foundation_id: 205,

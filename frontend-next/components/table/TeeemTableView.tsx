@@ -98,6 +98,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { getColumnPriority, COLUMN_PRIORITY_CONFIG } from "@/lib/column-priority";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1999,6 +2000,127 @@ export default function TeeemTableView({
     return newWidths;
   }, [visibleColumnsInOrder, filteredAndSortedEntries]);
 
+  // Calculate TEEEM Smart widths based on column priority
+  const calculateSmartFitWidths = useCallback(() => {
+    const newWidths: ColumnWidthsState = {};
+    const HEADER_PADDING = 28;
+    const CELL_PADDING = 24;
+
+    // Create canvas for measurement (only for essential columns)
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const headerFont = '600 14px ui-sans-serif, system-ui, sans-serif';
+    const cellFont = '14px ui-sans-serif, system-ui, sans-serif';
+
+    // Helper function to get type-based default width
+    const getTypeBasedWidth = (col: TableColumn): number => {
+      const type = col.column_type?.toLowerCase() || 'text';
+      switch (type) {
+        case 'id': return 60;
+        case 'boolean': return 80;
+        case 'date': return 100;
+        case 'date_time':
+        case 'datetime': return 150;
+        case 'currency':
+        case 'percentage':
+        case 'number':
+        case 'decimal':
+        case 'whole_number': return 100;
+        case 'phone':
+        case 'mobile': return 120;
+        case 'email':
+        case 'url': return 200;
+        case 'choice':
+        case 'lookup':
+        case 'relation': return 150;
+        case 'multiple_lookups': return 200;
+        case 'text':
+        case 'single_line_text': return 150;
+        case 'multiple_lines_text':
+        case 'textarea': return 250;
+        default: return 150;
+      }
+    };
+
+    // Helper to measure column width using canvas
+    const measureColumnWidth = (col: Column): number => {
+      if (!ctx) return getTypeBasedWidth(col);
+
+      ctx.font = headerFont;
+      const headerText = col.label || col.key;
+      let maxWidth = ctx.measureText(headerText).width + HEADER_PADDING;
+
+      ctx.font = cellFont;
+      const sampleRows = filteredAndSortedEntries.slice(0, 100);
+      sampleRows.forEach(row => {
+        const value = row[col.key];
+        let displayText = '';
+
+        if (value === null || value === undefined) {
+          displayText = '-';
+        } else if (typeof value === 'object') {
+          const obj = value as { display?: string; name?: string };
+          displayText = obj.display || obj.name || String(value);
+        } else {
+          displayText = String(value);
+        }
+
+        if (col.column_type === 'currency' && typeof value === 'number') {
+          displayText = `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+        } else if (col.column_type === 'percentage' && typeof value === 'number') {
+          displayText = `${value.toFixed(1)}%`;
+        }
+
+        const contentWidth = ctx.measureText(displayText).width + CELL_PADDING;
+        maxWidth = Math.max(maxWidth, contentWidth);
+      });
+
+      return Math.ceil(maxWidth);
+    };
+
+    visibleColumnsInOrder.forEach(col => {
+      // Get priority tier for this column
+      const priority = getColumnPriority(col.key, col.column_type);
+      const config = COLUMN_PRIORITY_CONFIG[priority];
+
+      // Skip hidden columns
+      if (priority === 'hidden') return;
+
+      // Special handling for select/actions
+      if (col.key === 'select') {
+        newWidths[col.key] = 40;
+        return;
+      }
+      if (col.key === 'actions') {
+        newWidths[col.key] = 60;
+        return;
+      }
+
+      // For essential: use full auto-fit calculation (canvas measurement)
+      if (priority === 'essential') {
+        const measuredWidth = measureColumnWidth(col);
+        newWidths[col.key] = Math.max(config.minWidth, Math.min(config.maxWidth, measuredWidth));
+        return;
+      }
+
+      // For technical: use minimal width (will truncate and show on hover)
+      if (priority === 'technical') {
+        newWidths[col.key] = config.minWidth;
+        return;
+      }
+
+      // For supporting: use type-based optimal width
+      if (priority === 'supporting') {
+        const typeWidth = getTypeBasedWidth(col);
+        newWidths[col.key] = Math.max(config.minWidth, Math.min(config.maxWidth, typeWidth));
+        return;
+      }
+    });
+
+    return newWidths;
+  }, [visibleColumnsInOrder, filteredAndSortedEntries]);
+
   // Apply auto-fit widths when enabled
   useEffect(() => {
     if (autoFitColumns && filteredAndSortedEntries.length > 0) {
@@ -2360,15 +2482,21 @@ export default function TeeemTableView({
         );
       }
 
-      // Default: render as string (truncated if too long)
+      // Default: render as string with priority-based truncation
       const strValue = String(value);
-      if (strValue.length > 100) {
+
+      // Get priority for smart truncation
+      const priority = getColumnPriority(column.key, column.column_type);
+      const config = COLUMN_PRIORITY_CONFIG[priority];
+
+      // Apply priority-based truncation
+      if (config.truncateAt !== null && strValue.length > config.truncateAt) {
         return (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="truncate block max-w-[200px]">
-                  {strValue.slice(0, 100)}...
+                <span className="truncate block">
+                  {strValue.slice(0, config.truncateAt)}...
                 </span>
               </TooltipTrigger>
               <TooltipContent className="max-w-md">
@@ -2378,7 +2506,9 @@ export default function TeeemTableView({
           </TooltipProvider>
         );
       }
-      return strValue;
+
+      // For essential/supporting: show full text with CSS truncation if needed
+      return <span className="truncate block">{strValue}</span>;
     };
 
   // ============================================================================

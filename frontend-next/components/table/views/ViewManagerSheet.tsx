@@ -74,6 +74,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { sortHiddenColumnsAlphabetically } from "../column-utils";
+import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
 import type { SavedView, CascadeFilter, FilterGroup, SortColumn } from "../types";
 import { useSetAtom } from "jotai";
 import { foundationViewsAtom } from "@/lib/view-state-atoms";
@@ -158,7 +159,8 @@ export function ViewManagerSheet({
   const [editVisibleColumns, setEditVisibleColumns] = React.useState<Record<string, boolean>>({});
   const [editColumnOrder, setEditColumnOrder] = React.useState<string[]>([]);
   const [editColumnWidths, setEditColumnWidths] = React.useState<Record<string, number>>({});
-  const [editAutoFitColumns, setEditAutoFitColumns] = React.useState(true);
+  const [editAutoFitColumns, setEditAutoFitColumns] = React.useState(false);
+  const [editSmartFit, setEditSmartFit] = React.useState(true); // Default to TEEEM Smart
   const [editShowTotals, setEditShowTotals] = React.useState(true);
 
   // Collapse state
@@ -266,6 +268,7 @@ export function ViewManagerSheet({
     setEditColumnOrder(view.columnOrder || columns.map(c => c.column_name));
     setEditColumnWidths(view.columnWidths || {});
     setEditAutoFitColumns(view.autoFitColumns || false);
+    setEditSmartFit(view.smartFit !== false); // Default to true for TEEEM Smart
     setEditShowTotals(view.showTotals !== false);
   };
 
@@ -330,6 +333,7 @@ export function ViewManagerSheet({
         columnOrder: editColumnOrder,
         columnWidths: editColumnWidths,
         autoFitColumns: editAutoFitColumns,
+        smartFit: editSmartFit,
         showTotals: editShowTotals,
         filters: editFilters,
         filterGroups: editFilterGroups,
@@ -353,6 +357,7 @@ export function ViewManagerSheet({
           order: currentEditState.columnOrder,
           widths: currentEditState.columnWidths,
           autoFitColumns: currentEditState.autoFitColumns,
+          smartFit: currentEditState.smartFit,
           showTotals: currentEditState.showTotals,
         },
         sort_order: currentEditState.sortColumns,
@@ -387,6 +392,7 @@ export function ViewManagerSheet({
           columnOrder: currentEditState.columnOrder,
           columnWidths: currentEditState.columnWidths,
           autoFitColumns: currentEditState.autoFitColumns,
+          smartFit: currentEditState.smartFit,
           showTotals: currentEditState.showTotals,
           filters: currentEditState.filters,
           filterGroups: currentEditState.filterGroups,
@@ -900,6 +906,10 @@ export function ViewManagerSheet({
   const handleAutoFitChange = (enabled: boolean) => {
     setEditAutoFitColumns(enabled);
     onAutoFitChange?.(enabled);
+    if (enabled) {
+      // Turn off smart-fit when auto-fit is enabled
+      setEditSmartFit(false);
+    }
     if (!enabled && Object.keys(editColumnWidths).length === 0) {
       const defaultWidths: Record<string, number> = {};
       columns.forEach(col => {
@@ -908,6 +918,14 @@ export function ViewManagerSheet({
         }
       });
       setEditColumnWidths(defaultWidths);
+    }
+  };
+
+  const handleSmartFitChange = (enabled: boolean) => {
+    setEditSmartFit(enabled);
+    if (enabled) {
+      // Turn off auto-fit when smart-fit is enabled
+      setEditAutoFitColumns(false);
     }
   };
 
@@ -1416,6 +1434,18 @@ export function ViewManagerSheet({
                                   id="auto-fit"
                                   checked={editAutoFitColumns}
                                   onCheckedChange={handleAutoFitChange}
+                                  disabled={editSmartFit}
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Label htmlFor="smart-fit" className="text-xs text-muted-foreground">
+                                  TEEEM Smart
+                                  <span className="ml-1 text-[10px] text-primary">(Recommended)</span>
+                                </Label>
+                                <Switch
+                                  id="smart-fit"
+                                  checked={editSmartFit}
+                                  onCheckedChange={handleSmartFitChange}
                                 />
                               </div>
                             </div>

@@ -324,6 +324,11 @@ Rails.application.routes.draw do
           get :possible_duplicates
           get :duplicates, action: :possible_duplicates  # Alias for frontend-next
           get :read_only_fields
+          # Health check endpoints (SSoT validation)
+          get :invalid_entity_types
+          get :price_only_with_xero
+          get :company_with_first_name
+          get :person_without_name
         end
         member do
           post :reorder_employees
