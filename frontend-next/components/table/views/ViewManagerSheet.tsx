@@ -206,6 +206,7 @@ export function ViewManagerSheet({
           columnOrder: v.columns?.order || [],
           columnWidths: v.columns?.widths || {},
           autoFitColumns: v.columns?.autoFitColumns === true,
+          smartFit: v.columns?.smartFit !== false, // Default to true
           showTotals: v.columns?.showTotals !== false,
           sortColumns: Array.isArray(v.sort_order) ? v.sort_order : [],
           groupByColumns: v.group_by_columns || [],
@@ -308,7 +309,8 @@ export function ViewManagerSheet({
       columnWidths: baseView?.columnWidths || {},
       sortColumns: baseView?.sortColumns || [],
       groupByColumns: baseView?.groupByColumns || [],
-      autoFitColumns: baseView?.autoFitColumns ?? true,
+      autoFitColumns: baseView?.autoFitColumns ?? false,
+      smartFit: baseView?.smartFit ?? true, // Default to TEEEM Smart for new views
       showTotals: baseView?.showTotals ?? true,
     };
 
@@ -868,6 +870,25 @@ export function ViewManagerSheet({
   };
 
   const filteredColumns = columns.filter(c => !["id", "created_at", "updated_at"].includes(c.column_name));
+
+  // Calculate smart width for a column based on priority
+  const calculateSmartWidth = (col: Column): number => {
+    const priority = getColumnPriority(col.column_name, col.column_type);
+    const config = COLUMN_PRIORITY_CONFIG[priority];
+
+    if (priority === 'technical') {
+      return config.minWidth; // Use minimal width for technical columns
+    }
+
+    if (priority === 'essential') {
+      // For essential, we'd ideally measure but for preview just use a reasonable width
+      return Math.min(config.maxWidth, getDefaultColumnWidth(col) * 1.5);
+    }
+
+    // For supporting, use type-based width clamped to priority limits
+    const typeWidth = getDefaultColumnWidth(col);
+    return Math.max(config.minWidth, Math.min(config.maxWidth, typeWidth));
+  };
 
   // Get default width for a column based on its type
   const getDefaultColumnWidth = (col: Column): number => {
@@ -1517,9 +1538,12 @@ export function ViewManagerSheet({
                                             index={originalIndex + 1}
                                             totalVisible={visibleCols.length}
                                             onReorder={(newPos) => reorderColumnToPosition(col.column_name, newPos)}
-                                            showWidthInput={!editAutoFitColumns}
+                                            showWidthInput={!editAutoFitColumns && !editSmartFit}
                                             width={editColumnWidths[col.column_name]}
                                             onWidthChange={(w) => setEditColumnWidths(prev => ({ ...prev, [col.column_name]: w }))}
+                                            smartFit={editSmartFit}
+                                            priority={editSmartFit ? getColumnPriority(col.column_name, col.column_type) : undefined}
+                                            smartWidth={editSmartFit ? calculateSmartWidth(col) : undefined}
                                           />
                                         );
                                       });

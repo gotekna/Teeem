@@ -2044,7 +2044,7 @@ export default function TeeemTableView({
     };
 
     // Helper to measure column width using canvas
-    const measureColumnWidth = (col: Column): number => {
+    const measureColumnWidth = (col: TableColumn): number => {
       if (!ctx) return getTypeBasedWidth(col);
 
       ctx.font = headerFont;

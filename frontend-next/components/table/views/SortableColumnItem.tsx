@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
+import { Badge } from "@/components/ui/badge";
+import type { ColumnPriority } from "@/lib/column-priority";
 
 interface Column {
   id: number;
@@ -34,6 +36,9 @@ interface SortableColumnItemProps {
   width?: number;
   onWidthChange?: (width: number) => void;
   isOver?: boolean;
+  smartFit?: boolean;
+  priority?: ColumnPriority;
+  smartWidth?: number;
 }
 
 export function SortableColumnItem({
@@ -48,6 +53,9 @@ export function SortableColumnItem({
   width,
   onWidthChange,
   isOver,
+  smartFit,
+  priority,
+  smartWidth,
 }: SortableColumnItemProps) {
   const [isEditingPosition, setIsEditingPosition] = React.useState(false);
   const [positionValue, setPositionValue] = React.useState(String(index || 1));
@@ -159,6 +167,31 @@ export function SortableColumnItem({
           {column.name || column.column_name}
         </span>
       </button>
+
+      {/* Priority badge when TEEEM Smart is enabled */}
+      {smartFit && priority && (
+        <div className="flex items-center gap-1 ml-auto shrink-0">
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-[9px] px-1 py-0 h-4",
+              priority === 'essential' && "bg-green-50 text-green-700 border-green-300 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800",
+              priority === 'supporting' && "bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800",
+              priority === 'technical' && "bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800"
+            )}
+          >
+            {priority === 'essential' && '⭐ Key'}
+            {priority === 'supporting' && '📊 Data'}
+            {priority === 'technical' && '🔧 ID'}
+          </Badge>
+          {smartWidth && (
+            <span className="text-[10px] text-muted-foreground font-mono">
+              {smartWidth}px
+            </span>
+          )}
+        </div>
+      )}
+
       {showWidthInput && isVisible && (
         <input
           type="number"
