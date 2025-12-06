@@ -659,12 +659,15 @@ export default function TeeemTableView({
   // Email to Contacts modal state (local state)
   const [showEmailToContactsModal, setShowEmailToContactsModal] = useState(false);
 
-  // Drag-to-select state (local state for temporary UI interaction)
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStartId, setDragStartId] = useState<number | string | null>(null);
-  const dragStartIndexRef = useRef<number | null>(null);
-  const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
-  const DRAG_THRESHOLD = 5; // pixels - must move this far to start dragging
+  // Drag-to-select state (using refs to avoid re-renders)
+  const dragStateRef = useRef<{
+    isDragging: boolean;
+    startRowId: number | string | null;
+    startRowIndex: number | null;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const DRAG_THRESHOLD = 5;
 
   // Global Views Manager state managed by atom (SSoT)
   const [showGlobalViewsManager, setShowGlobalViewsManager] = useAtom(showGlobalViewsManagerAtom);
@@ -1644,73 +1647,64 @@ export default function TeeemTableView({
     setShowAllRows(false);
   }, [cascadeFilters, sortColumns, search, INITIAL_ROW_LIMIT]);
 
-  // Drag-to-select handlers
-  const handleMouseDown = useCallback((rowId: number | string, rowIndex: number, e: React.MouseEvent) => {
-    // Only start drag selection on the select column
-    const target = e.target as HTMLElement;
-    const isSelectColumn = target.closest('[data-column="select"]');
-    if (!isSelectColumn) return;
-
-    // Store initial position and row info, but don't start dragging yet
-    dragStartPosRef.current = { x: e.clientX, y: e.clientY };
-    setDragStartId(rowId);
-    dragStartIndexRef.current = rowIndex;
+  // Drag-to-select handlers (must be after filteredAndSortedEntries)
+  const handleSelectMouseDown = useCallback((rowId: number | string, rowIndex: number, e: React.MouseEvent) => {
+    dragStateRef.current = {
+      isDragging: false,
+      startRowId: rowId,
+      startRowIndex: rowIndex,
+      startX: e.clientX,
+      startY: e.clientY,
+    };
   }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    // Only track movement if we have a drag start position
-    if (!dragStartPosRef.current || isDragging) return;
+    if (!dragStateRef.current) return;
 
-    const deltaX = Math.abs(e.clientX - dragStartPosRef.current.x);
-    const deltaY = Math.abs(e.clientY - dragStartPosRef.current.y);
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const { isDragging, startX, startY } = dragStateRef.current;
 
-    if (distance > DRAG_THRESHOLD) {
-      setIsDragging(true);
+    if (!isDragging) {
+      // Check if we've moved enough to start dragging
+      const deltaX = Math.abs(e.clientX - startX);
+      const deltaY = Math.abs(e.clientY - startY);
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+      if (distance > DRAG_THRESHOLD) {
+        dragStateRef.current.isDragging = true;
+      }
     }
-  }, [isDragging, DRAG_THRESHOLD]);
+  }, [DRAG_THRESHOLD]);
 
-  const handleMouseEnter = useCallback((rowId: number | string, rowIndex: number) => {
-    if (!isDragging || dragStartIndexRef.current === null) return;
+  const handleRowMouseEnter = useCallback((rowId: number | string, rowIndex: number) => {
+    if (!dragStateRef.current?.isDragging) return;
 
-    const startIndex = dragStartIndexRef.current;
-    const endIndex = rowIndex;
-    const minIndex = Math.min(startIndex, endIndex);
-    const maxIndex = Math.max(startIndex, endIndex);
+    const startIndex = dragStateRef.current.startRowIndex!;
+    const minIndex = Math.min(startIndex, rowIndex);
+    const maxIndex = Math.max(startIndex, rowIndex);
 
-    // Select all rows between start and current
+    // Get visible rows from the filtered list
     const rowsToSelect = filteredAndSortedEntries.slice(minIndex, maxIndex + 1);
-    const newSelection = new Set(selectedRows);
 
-    rowsToSelect.forEach(row => {
-      newSelection.add(row.id);
+    setSelectedRows((prev) => {
+      const next = new Set(prev);
+      rowsToSelect.forEach(row => next.add(row.id));
+      return next;
     });
-
-    setSelectedRows(newSelection);
-  }, [isDragging, filteredAndSortedEntries, selectedRows, setSelectedRows]);
+  }, [filteredAndSortedEntries]);
 
   const handleMouseUp = useCallback(() => {
-    // Don't toggle for single clicks - let the checkbox handle it
-    // We only handle multi-select via dragging
-
-    // Reset drag state
-    setIsDragging(false);
-    setDragStartId(null);
-    dragStartIndexRef.current = null;
-    dragStartPosRef.current = null;
+    dragStateRef.current = null;
   }, []);
 
-  // Add global mouse listeners for drag selection
+  // Attach global mouse listeners for drag
   useEffect(() => {
-    if (dragStartId !== null) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [dragStartId, handleMouseMove, handleMouseUp]);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
 
   // Helper to extract display value from a cell (handles objects with display/name properties)
   const getDisplayValue = useCallback((value: unknown): string => {
@@ -2110,9 +2104,9 @@ export default function TeeemTableView({
   /**
    * Main cell renderer - routes to appropriate component based on column type
    * Uses ColumnRenderer registry for display mode (SSoT pattern)
+   * Not memoized to ensure select column always has latest selectedRows state
    */
-  const renderCellValue = useCallback(
-    (entry: TableRowType, column: TableColumn) => {
+  const renderCellValue = (entry: TableRowType, column: TableColumn) => {
       // Check for custom renderer first
       if (customCellRenderer) {
         const custom = customCellRenderer(entry, column.key);
@@ -2124,17 +2118,8 @@ export default function TeeemTableView({
       const rowEditingData = editingData[entry.id] || {};
 
       // Handle special column types
+      // Note: "select" column is now rendered inline in TableCell, not through this function
       switch (column.key) {
-        case "select":
-          return (
-            <div data-column="select">
-              <SelectCheckbox
-                checked={selectedRows.has(entry.id)}
-                onCheckedChange={() => toggleRowSelection(entry.id)}
-              />
-            </div>
-          );
-
         case "actions":
           if (isEditing) {
             return (
@@ -2303,30 +2288,7 @@ export default function TeeemTableView({
         );
       }
       return strValue;
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excluding toast (stable from hook)
-    [
-      customCellRenderer,
-      editingRowIds,
-      editingData,
-      selectedRows,
-      toggleRowSelection,
-      onView,
-      onEdit,
-      onDelete,
-      onRowUpdate,
-      viewOnly,
-      startEditing,
-      saveEditing,
-      cancelEditing,
-      lookupOptions,
-      lookupLoading,
-      validationErrors,
-      handleCellBlur,
-      isEditMode,
-      renderCellWithRegistry,
-    ]
-  );
+    };
 
   // ============================================================================
   // RENDER FUNCTIONS
@@ -2472,8 +2434,7 @@ export default function TeeemTableView({
                       )}
                       onClick={() => onRowClick?.(row)}
                       onDoubleClick={() => onRowDoubleClick?.(row)}
-                      onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
-                      onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
+                      onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
                     >
                       {visibleColumnsInOrder.map((column, colIndex) => {
                         const stickyStyles = getStickyColumnStyles(column.key, false);
@@ -2499,7 +2460,19 @@ export default function TeeemTableView({
                               }
                             }}
                           >
-                            {renderCellValue(row, column)}
+                            {column.key === "select" ? (
+                              <div
+                                data-column="select"
+                                onMouseDown={(e) => handleSelectMouseDown(row.id, globalIndex, e)}
+                              >
+                                <SelectCheckbox
+                                  checked={selectedRows.has(row.id)}
+                                  onCheckedChange={() => toggleRowSelection(row.id)}
+                                />
+                              </div>
+                            ) : (
+                              renderCellValue(row, column)
+                            )}
                           </TableCell>
                         );
                       })}
@@ -2573,8 +2546,7 @@ export default function TeeemTableView({
         )}
         onClick={() => onRowClick?.(row)}
         onDoubleClick={() => onRowDoubleClick?.(row)}
-        onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
-        onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
+        onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
       >
         {visibleColumnsInOrder.map((column, colIndex) => {
           const stickyStyles = getStickyColumnStyles(column.key, false);
@@ -2604,7 +2576,19 @@ export default function TeeemTableView({
                 }
               }}
             >
-              {renderCellValue(row, column)}
+              {column.key === "select" ? (
+                <div
+                  data-column="select"
+                  onMouseDown={(e) => handleSelectMouseDown(row.id, globalIndex, e)}
+                >
+                  <SelectCheckbox
+                    checked={selectedRows.has(row.id)}
+                    onCheckedChange={() => toggleRowSelection(row.id)}
+                  />
+                </div>
+              ) : (
+                renderCellValue(row, column)
+              )}
             </TableCell>
           );
         })}
@@ -2676,8 +2660,7 @@ export default function TeeemTableView({
                 )}
                 onClick={() => onRowClick?.(row)}
                 onDoubleClick={() => onRowDoubleClick?.(row)}
-                onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
-                onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
+                onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
                   const isSystemGen = isSystemGeneratedColumn(column);
@@ -2715,7 +2698,19 @@ export default function TeeemTableView({
                       }
                     }}
                   >
-                    {renderCellValue(row, column)}
+                    {column.key === "select" ? (
+                      <div
+                        data-column="select"
+                        onMouseDown={(e) => handleSelectMouseDown(row.id, globalIndex, e)}
+                      >
+                        <SelectCheckbox
+                          checked={selectedRows.has(row.id)}
+                          onCheckedChange={() => toggleRowSelection(row.id)}
+                        />
+                      </div>
+                    ) : (
+                      renderCellValue(row, column)
+                    )}
                   </TableCell>
                   );
                 })}
@@ -2904,8 +2899,7 @@ export default function TeeemTableView({
                   onDoubleClick={() =>
                     !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
                   }
-                  onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
-                  onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
+                  onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
                 >
                   {visibleColumnsInOrder.map((column, colIndex) => {
                     const isSystemGen = isSystemGeneratedColumn(column);
@@ -2945,7 +2939,19 @@ export default function TeeemTableView({
                         }
                       }}
                     >
-                      {renderCellValue(row, column)}
+                      {column.key === "select" ? (
+                        <div
+                          data-column="select"
+                          onMouseDown={(e) => handleSelectMouseDown(row.id, globalIndex, e)}
+                        >
+                          <SelectCheckbox
+                            checked={selectedRows.has(row.id)}
+                            onCheckedChange={() => toggleRowSelection(row.id)}
+                          />
+                        </div>
+                      ) : (
+                        renderCellValue(row, column)
+                      )}
                     </TableCell>
                   );
                   })}
