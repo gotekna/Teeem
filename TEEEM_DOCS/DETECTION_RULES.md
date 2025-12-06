@@ -636,6 +636,229 @@ test('ignores TEEEMTableView import', () => {
 
 ---
 
+## PATTERN-005: setState in useEffect (Cascading Renders)
+
+### Detection Strategy
+
+**Priority:** MEDIUM - Performance impact
+**Confidence:** MEDIUM - Some false positives (~20%)
+**Auto-Fix:** ❌ Manual refactoring required
+
+### Regex Rules
+
+**Primary Pattern:**
+```javascript
+/useEffect\s*\(\s*\(\s*\)\s*=>\s*\{([^}]+)\}/gs
+```
+
+**Pattern Breakdown:**
+- `useEffect\s*\(` - Match useEffect hook
+- `\(\s*\)\s*=>` - Arrow function with no parameters
+- `\{([^}]+)\}` - Capture effect body (group 1)
+- Must check body for synchronous setState calls
+
+**Additional Checks:**
+```javascript
+// Check for setState patterns in effect body
+/set[A-Z]\w+\(/  // setState, setData, setLoading, etc.
+/load[A-Z]\w+\(/ // loadData, loadMessages, etc. (may call setState)
+
+// Exclude async patterns (these are OK)
+/async\s+function|await\s+/
+```
+
+**Matches:**
+```typescript
+useEffect(() => {
+  setState(data)       // ✅ Match - sync setState
+  loadData()           // ✅ Match - might setState
+}, [deps])
+
+useEffect(() => {
+  async function load() {
+    setState(await fetch())  // ❌ No match - async OK
+  }
+  load()
+}, [deps])
+```
+
+### Context Validation
+
+**Required Checks:**
+1. **Effect Body:** Contains setState or function that might setState
+2. **Not Async:** No async/await in immediate effect body
+3. **Not Event Handler:** Not inside setTimeout/addEventListener
+4. **Intent:** No comment indicating performance optimization
+
+**Implementation:**
+```javascript
+function validateContext(effectBody, fileContent, lineNumber) {
+  // Allow if async pattern
+  if (/async\s+function|await\s+/.test(effectBody)) {
+    return false
+  }
+
+  // Allow if inside timeout/interval (with cleanup)
+  if (/setTimeout|setInterval/.test(effectBody)) {
+    return false
+  }
+
+  // Check for setState calls
+  if (/set[A-Z]\w+\(/.test(effectBody)) {
+    return true  // Direct setState - flag it
+  }
+
+  // Check for functions that might setState
+  if (/load[A-Z]\w+\(|fetch[A-Z]\w+\(/.test(effectBody)) {
+    return true  // Potential setState - flag for review
+  }
+
+  return false
+}
+```
+
+### False Positives
+
+**Known False Positives:**
+1. **Async Callbacks:**
+   ```typescript
+   useEffect(() => {
+     fetchData().then(data => setState(data))  // ❌ False positive (async)
+   }, [])
+   ```
+   **Mitigation:** Check for `.then()`, `async/await` patterns
+
+2. **Event Listeners:**
+   ```typescript
+   useEffect(() => {
+     const handler = () => setState(...)
+     window.addEventListener('click', handler)
+     return () => window.removeEventListener('click', handler)
+   }, [])
+   ```
+   **Mitigation:** Check for addEventListener pattern
+
+3. **Timers with Cleanup:**
+   ```typescript
+   useEffect(() => {
+     const timer = setTimeout(() => setState(...), 1000)
+     return () => clearTimeout(timer)
+   }, [])
+   ```
+   **Mitigation:** Check for setTimeout/setInterval
+
+### Auto-Fix Algorithm
+
+**Status:** ❌ Not Recommended
+
+**Reason:** Requires semantic understanding of data flow. Multiple valid fix strategies depending on context:
+- Convert to useMemo (if synchronous calculation)
+- Extract to event handler (if user-triggered)
+- Proper async pattern (if fetching data)
+
+**Manual Fix Required:** Yes - developer must choose appropriate pattern
+
+### Recommended Fixes
+
+**Fix 1: Use useMemo for Derived State**
+```typescript
+// Before
+useEffect(() => {
+  const filtered = data.filter(...)
+  setFiltered(filtered)
+}, [data])
+
+// After
+const filtered = useMemo(() => data.filter(...), [data])
+```
+
+**Fix 2: Proper Async Pattern**
+```typescript
+// Before
+useEffect(() => {
+  loadMessages(id)  // Calls setMessages internally
+}, [id])
+
+// After
+useEffect(() => {
+  let cancelled = false
+  async function load() {
+    const data = await loadMessages(id)
+    if (!cancelled) setMessages(data)
+  }
+  load()
+  return () => { cancelled = true }
+}, [id])
+```
+
+**Fix 3: Move to Event Handler**
+```typescript
+// Before
+useEffect(() => {
+  if (shouldUpdate) {
+    setState(newValue)
+  }
+}, [shouldUpdate])
+
+// After
+function handleUpdate() {
+  if (shouldUpdate) {
+    setState(newValue)
+  }
+}
+// Call from user action
+```
+
+### ESLint Integration
+
+**ESLint Rule:** `react-hooks/set-state-in-effect`
+
+```json
+{
+  "rules": {
+    "react-hooks/set-state-in-effect": "error"
+  }
+}
+```
+
+This rule is part of the `eslint-plugin-react-hooks` package and provides better detection than regex patterns.
+
+### Testing
+
+**Manual Test:**
+1. Open React DevTools Profiler
+2. Perform action that triggers the effect
+3. Count renders - should be minimal (1-2 max)
+4. Check for cascading effect runs
+
+**Automated Test:**
+```javascript
+// ESLint will catch this during lint
+npm run lint
+
+// Or specific file
+npx eslint app/(app)/chat/page.tsx
+```
+
+**Performance Test:**
+```javascript
+// In test file
+import { renderHook } from '@testing-library/react-hooks'
+
+test('useEffect does not cause cascading renders', () => {
+  let renderCount = 0
+  const { result, rerender } = renderHook(() => {
+    renderCount++
+    // Component logic here
+  })
+
+  rerender()
+  expect(renderCount).toBeLessThanOrEqual(2)  // Initial + 1 rerender max
+})
+```
+
+---
+
 ## Detection Performance
 
 ### Benchmarks
@@ -646,8 +869,9 @@ test('ignores TEEEMTableView import', () => {
 | PATTERN-002 | 5ms | 25ms | 200 |
 | PATTERN-003 | 8ms | 40ms | 125 |
 | PATTERN-004 | 3ms | 18ms | 333 |
+| PATTERN-005 | 6ms | 30ms | 167 |
 
-**Total Scan Time (1000 files):** ~5-8 seconds
+**Total Scan Time (1000 files):** ~6-10 seconds
 
 ### Optimization Strategies
 

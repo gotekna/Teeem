@@ -78,6 +78,7 @@ curl "https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=b
 
 # Chapter 1 contains PATTERN-001, 002, 003 (system-wide patterns)
 # Chapter 19 contains PATTERN-004 (UI/UX pattern)
+# PATTERN-005 added 2025-12-06 (performance pattern)
 ```
 
 **What you'll get:**
@@ -85,6 +86,7 @@ curl "https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=b
 - PATTERN-002: `alwaysbatchrelatedstateupdatesintosinglesetstatecall always bible setstate raceconditionbatch`
 - PATTERN-003: `alwaysprovidedependencyarraytouseeffecthooks always bible useeffect infiniteloopependencies`
 - PATTERN-004: `onlyuseteeemtableviewforalltables must bible uiux teeemtableview deprecatedtablepage`
+- PATTERN-005: `neversetstateinuseeffectbody performance useeffect setstate cascadingrenders eslint`
 
 ### Step 2: Get PR Diff
 
@@ -151,7 +153,7 @@ predecessor_ids = [...(task.predecessor_ids || [])]
 
 **PR:** #{number}
 **Branch:** {branch_name}
-**Patterns Checked:** 4 (PATTERN-001, 002, 003, 004)
+**Patterns Checked:** 5 (PATTERN-001, 002, 003, 004, 005)
 **Violations Found:** {count}
 
 ---
@@ -215,6 +217,7 @@ All changed files passed automated pattern detection.
 | PATTERN-002 (Race Conditions) | ✅ | {count} | {files} |
 | PATTERN-003 (Infinite Loops) | ✅ | {count} | {files} |
 | PATTERN-004 (Deprecated Components) | ✅ | {count} | {files} |
+| PATTERN-005 (Cascading Renders) | ✅ | {count} | {files} |
 
 ---
 
@@ -412,6 +415,71 @@ import TEEEMTableView from './TEEEMTableView'
 **Gold Standard:** `/settings?tab=gold-standard`
 
 [Read more](TEEEM_DOCS/PATTERN_LIBRARY.md#pattern-004)
+```
+
+### PATTERN-005: setState in useEffect (Cascading Renders)
+
+**ESLint Rule:** `react-hooks/set-state-in-effect`
+
+**Detection Logic:**
+```javascript
+function detectPattern005(fileContent, filePath) {
+  const violations = []
+
+  // Look for useEffect with synchronous setState calls
+  const useEffectPattern = /useEffect\s*\(\s*\(\s*\)\s*=>\s*\{([^}]+)\}/gs
+  const matches = fileContent.matchAll(useEffectPattern)
+
+  for (const match of matches) {
+    const effectBody = match[1]
+
+    // Check for direct setState or function calls that might setState
+    if (/set[A-Z]\w+\(/.test(effectBody) || /load[A-Z]\w+\(/.test(effectBody)) {
+      // Exclude async patterns (these are OK)
+      if (!/async\s+function|await\s+/.test(effectBody)) {
+        violations.push({
+          pattern: 'PATTERN-005',
+          file: filePath,
+          line: getLineNumber(fileContent, match.index),
+          code: match[0].substring(0, 100) + '...',
+          severity: 'MEDIUM',
+          autoFix: 'Move setState to async callback or use useMemo'
+        })
+      }
+    }
+  }
+
+  return violations
+}
+```
+
+**PR Comment Template:**
+```markdown
+**⚠️ PATTERN-005: setState in useEffect (Performance)**
+
+Calling setState synchronously in useEffect causes cascading renders. Effects should synchronize with external systems, not trigger immediate state updates.
+
+**Fix Option 1 (Async):**
+\`\`\`javascript
+useEffect(() => {
+  let cancelled = false
+  async function load() {
+    const data = await fetchData()
+    if (!cancelled) setState(data)
+  }
+  load()
+  return () => { cancelled = true }
+}, [deps])
+\`\`\`
+
+**Fix Option 2 (Derived State):**
+\`\`\`javascript
+const data = useMemo(() => calculateData(), [deps])
+\`\`\`
+
+**React Docs:** [You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect)
+
+[Read more](TEEEM_DOCS/PATTERN_LIBRARY.md#pattern-005)
 ```
 
 ---
@@ -648,7 +716,7 @@ The Code Guardian Agent **replaces and consolidates:**
 ║  Pre-Commit Integration:  Second layer defense        [PASS]   ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  Files Scanned:           [X]                                  ║
-║  Patterns Checked:        4 (PATTERN-001 to 004)               ║
+║  Patterns Checked:        5 (PATTERN-001 to 005)               ║
 ║  Violations Found:        0                                    ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  Tokens Used: ~X,XXX (input) / ~X,XXX (output)                 ║
@@ -671,6 +739,7 @@ The Code Guardian Agent **replaces and consolidates:**
 ║  PATTERN-002 (Race Conditions):   [X] violations               ║
 ║  PATTERN-003 (Infinite Loops):    [X] violations               ║
 ║  PATTERN-004 (Deprecated):        [X] violations               ║
+║  PATTERN-005 (Cascading Renders): [X] violations               ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  VIOLATIONS:                                                   ║
 ║  - [File:line] PATTERN-XXX: Description                        ║

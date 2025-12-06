@@ -271,6 +271,7 @@ export function EmailToContactsModal({
             email: email,
             add_to_existing_contact_id: candidate.possibleDuplicate.id,
             set_as_primary: duplicateAction.setAsPrimary || false,
+            phones: candidate?.phones || {}, // Include phone numbers when adding to existing contact
           };
         }
 

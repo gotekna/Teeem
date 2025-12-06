@@ -101,9 +101,34 @@ For EACH table component found, check:
 
 #### Structure Compliance
 - [ ] Uses Trinity table pattern (if applicable)
+- [ ] Uses TEEEMTableView component (PATTERN-004 check)
 - [ ] Proper column definitions with formatters
 - [ ] Correct header structure
 - [ ] Proper row key handling
+- [ ] **foundationIdNumeric prop present** (if foundationId exists)
+
+**foundationIdNumeric Critical Check:**
+```bash
+# Find tables WITH foundationId but WITHOUT foundationIdNumeric
+grep -r 'foundationId=' frontend-next --include="*.tsx" | grep -v 'foundationIdNumeric'
+```
+
+**Impact if missing:**
+- ❌ No Import/Export buttons
+- ❌ No Schema Editor access
+- ❌ No Advanced Filters
+- ❌ No GlobalViewsManager integration
+
+**Fix Template:**
+```tsx
+<TEEEMTableView
+  foundationId={foundationId}
+  foundationIdNumeric={foundationIdNumeric}  // ✅ ADD THIS
+  // ... other props
+/>
+```
+
+**Current Known Violations:** 20 tables (Users table + 18 others)
 
 #### Editing Compliance
 - [ ] Inline dropdown editing implemented

@@ -202,6 +202,7 @@ import { CascadeFilterItem } from "./core/filtering/CascadeFilterItem";
 
 // Cell components (Phase 4 refactoring)
 import { SelectCheckbox, ActionsButtons, EditingActionsButtons } from "./core/cell-components";
+import { RowEditingCell } from "./core/cell-components/RowEditingCell";
 
 // Column renderer registry (Phase 4 refactoring)
 import { renderCell as renderCellWithRegistry } from "./core/column-renderer/ColumnRenderer";
@@ -220,6 +221,7 @@ import { EditColumnsModal } from "./modals/EditColumnsModal";
 // Handler hooks (Phase 5 refactoring)
 import { useExportHandlers } from "./core/hooks/useExportHandlers";
 import { useSchemaHandlers } from "./core/hooks/useSchemaHandlers";
+import { useTableHandlers } from "./core/hooks/useTableHandlers";
 
 // Extracted utilities (Phase 1 refactoring)
 import { extractSelectedIds, formatCellValue, truncateText } from "./utils/table-utils";
@@ -257,8 +259,6 @@ import {
   // Editing row state
   editingRowIdsAtom,
   editingDataAtom,
-  editingCellAtom,
-  editingCellValueAtom,
   legacyValidationErrorsAtom,
   // Lookup state
   lookupOptionsAtom,
@@ -614,9 +614,6 @@ export default function TeeemTableView({
   const [editingRowIds, setEditingRowIds] = useAtom(editingRowIdsAtom);
   const [editingData, setEditingData] = useAtom(editingDataAtom);
   const [validationErrors, setValidationErrors] = useAtom(legacyValidationErrorsAtom);
-  // Cell-level inline editing state managed by atoms (SSoT)
-  const [editingCell, setEditingCell] = useAtom(editingCellAtom);
-  const [editingCellValue, setEditingCellValue] = useAtom(editingCellValueAtom);
   const [lookupOptions, setLookupOptions] = useAtom(lookupOptionsAtom);
   const [lookupLoading, setLookupLoading] = useAtom(lookupLoadingAtom);
 
@@ -1224,91 +1221,6 @@ export default function TeeemTableView({
     const isBoolean = colType === 'boolean';
     return hasChoices || isLookup || isChoice || isBoolean;
   }, []);
-
-  // Start editing a specific cell
-  const startCellEdit = useCallback((rowId: number | string, column: TableColumn) => {
-    if (!onRowUpdate) return;
-
-    // System columns that are NEVER editable
-    const NON_EDITABLE_COLUMNS = ['id', 'created_at', 'updated_at', 'select', 'actions'];
-    const isComputed = column.column_type === 'computed' || column.column_type === 'formula';
-    const isSystemColumn = NON_EDITABLE_COLUMNS.includes(column.key) || column.system === true;
-    const isColumnEditable = column.editable !== false && !isSystemColumn && !isComputed;
-
-    if (!isColumnEditable) return;
-
-    const row = entries.find(e => e.id === rowId);
-    if (!row) return;
-
-    setEditingCell({ rowId, columnKey: column.key });
-    setEditingCellValue(row[column.key]);
-
-    // Pre-fetch lookup options if needed
-    if (column.column_type === 'lookup' || column.column_type === 'relation' || column.column_type === 'multiple_lookups') {
-      if (column.lookup_config?.target_table_id) {
-        fetchLookupOptions(column);
-      }
-    }
-  }, [entries, onRowUpdate, fetchLookupOptions]);
-
-  // Save cell edit
-  const saveCellEdit = useCallback(async () => {
-    if (!editingCell || !onRowUpdate) return;
-
-    const row = entries.find(e => e.id === editingCell.rowId);
-    if (!row) return;
-
-    // Only save if value changed
-    if (row[editingCell.columnKey] !== editingCellValue) {
-      try {
-        await onRowUpdate(editingCell.rowId, editingCell.columnKey, editingCellValue);
-      } catch (error) {
-        console.error("Failed to save cell:", error);
-      }
-    }
-
-    setEditingCell(null);
-    setEditingCellValue(null);
-  }, [editingCell, editingCellValue, entries, onRowUpdate]);
-
-  // Cancel cell edit
-  const cancelCellEdit = useCallback(() => {
-    setEditingCell(null);
-    setEditingCellValue(null);
-  }, []);
-
-  // Handle cell click - single click for dropdowns
-  const handleCellClick = useCallback((e: React.MouseEvent, row: TableRowType, column: TableColumn) => {
-    // Don't interfere with row selection checkbox or actions
-    if (column.key === 'select' || column.key === 'actions') return;
-
-    // Only allow cell editing if the row is in edit mode (pencil button clicked)
-    if (!editingRowIds.has(row.id)) return;
-
-    // If already editing this cell, let the editor handle clicks
-    if (editingCell?.rowId === row.id && editingCell?.columnKey === column.key) return;
-
-    // For dropdown columns, start editing on single click
-    if (isDropdownColumn(column) && onRowUpdate) {
-      e.stopPropagation(); // Prevent row selection
-      startCellEdit(row.id, column);
-    }
-  }, [editingCell, editingRowIds, isDropdownColumn, onRowUpdate, startCellEdit]);
-
-  // Handle cell double-click - for text columns
-  const handleCellDoubleClick = useCallback((e: React.MouseEvent, row: TableRowType, column: TableColumn) => {
-    // Don't interfere with row selection checkbox or actions
-    if (column.key === 'select' || column.key === 'actions') return;
-
-    // Only allow cell editing if the row is in edit mode (pencil button clicked)
-    if (!editingRowIds.has(row.id)) return;
-
-    // For non-dropdown columns, start editing on double click
-    if (!isDropdownColumn(column) && onRowUpdate) {
-      e.stopPropagation(); // Prevent row navigation
-      startCellEdit(row.id, column);
-    }
-  }, [editingRowIds, isDropdownColumn, onRowUpdate, startCellEdit]);
 
   // ============================================================================
   // SAVED VIEWS
@@ -1956,6 +1868,67 @@ export default function TeeemTableView({
   };
 
   // ============================================================================
+  // TABLE HANDLERS (Phase 5 refactoring - extracted to useTableHandlers hook)
+  // ============================================================================
+
+  const tableHandlers = useTableHandlers({
+    COLUMNS,
+    setColumnWidths,
+    setVisibleColumns,
+    setSortColumns,
+    setCascadeFilters,
+    setShowFilters,
+    setFilterPanelOpen,
+    setGroupByColumns,
+    setCollapsedGroups,
+    collapsedGroups,
+    setSearch,
+    setSearchAllColumns,
+    search,
+    searchAllColumns,
+    onServerSearch,
+    setColumnOrder,
+    columnOrder,
+    columnWidths,
+    visibleColumns,
+    setSelectedRows,
+    selectedRows,
+    entries,
+    setShowMergeModal,
+    setRowsToMerge,
+  });
+
+  // Destructure table handlers
+  const {
+    getDefaultVisibleColumns: getDefaultVisibleColumnsFromHook,
+    handleColumnResize: handleColumnResizeFromHook,
+    hideColumn: hideColumnFromHook,
+    handleColumnDragEnd: handleColumnDragEndFromHook,
+    reorderColumnToPosition: reorderColumnToPositionFromHook,
+    getSortedColumnsForModal: getSortedColumnsForModalFromHook,
+    handleSearchFromInput: handleSearchFromInputFromHook,
+    handleSearchAllChange: handleSearchAllChangeFromHook,
+    handleSort: handleSortFromHook,
+    addFilter: addFilterFromHook,
+    addFilterForColumn: addFilterForColumnFromHook,
+    updateFilter: updateFilterFromHook,
+    removeFilter: removeFilterFromHook,
+    clearAllFilters: clearAllFiltersFromHook,
+    handleGroupByColumn: handleGroupByColumnFromHook,
+    toggleGroupCollapse: toggleGroupCollapseFromHook,
+    getAllGroupKeys: getAllGroupKeysFromHook,
+    expandAllGroups: expandAllGroupsFromHook,
+    collapseAllGroups: collapseAllGroupsFromHook,
+    toggleRowSelection: toggleRowSelectionFromHook,
+    toggleSelectAll: toggleSelectAllFromHook,
+    handleMergeClick: handleMergeClickFromHook,
+    handleMergeComplete: handleMergeCompleteFromHook,
+    getStickyColumnStyles: getStickyColumnStylesFromHook,
+    calculateAutoFitWidths: calculateAutoFitWidthsFromHook,
+    getDisplayValue: getDisplayValueFromHook,
+  } = tableHandlers;
+
+  // ============================================================================
   // EXPORT HANDLERS (Phase 5 refactoring - extracted to useExportHandlers hook)
   // ============================================================================
 
@@ -2077,576 +2050,19 @@ export default function TeeemTableView({
       const isSystemColumn = NON_EDITABLE_COLUMNS.includes(column.key) || column.system === true;
       const isColumnEditable = column.editable !== false && !isSystemColumn && !isComputed;
 
-      // NEW: Edit Mode support - when edit mode is active, start cell editing on click
-      // This bridges the old cell-level editing with the new Edit Mode toggle
-      if (isEditMode && isColumnEditable && !isEditing) {
-        const isCellCurrentlyEditing = editingCell?.rowId === entry.id && editingCell?.columnKey === column.key;
-
-        // If not already editing this cell, render clickable cell that starts editing
-        if (!isCellCurrentlyEditing) {
-          // Render the display value with edit mode styling (hover effect, cursor)
-          const displayValue = renderCellWithRegistry(value, column, entry, "display");
-          return (
-            <div
-              className="w-full h-full px-1 py-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 rounded transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                // Start cell-level editing
-                setEditingCell({ rowId: entry.id, columnKey: column.key });
-                setEditingCellValue(value);
-              }}
-              title="Click to edit"
-            >
-              {displayValue}
-            </div>
-          );
-        }
-        // If currently editing this cell, fall through to cell-level editing logic below
-      }
-
+      // Row-level editing - use RowEditingCell component
       if (isEditing && isColumnEditable) {
-        const columnType = column.column_type || 'single_line_text';
-
-        // Boolean - Switch toggle
-        if (columnType === 'boolean') {
-          const boolValue = rowEditingData[column.key] === true || rowEditingData[column.key] === 'true' || rowEditingData[column.key] === 1;
-          return (
-            <div className="flex items-center justify-center">
-              <Switch
-                checked={boolValue}
-                onCheckedChange={(checked) =>
-                  setEditingData((prev) => ({
-                    ...prev,
-                    [entry.id]: { ...prev[entry.id], [column.key]: checked },
-                  }))
-                }
-              />
-            </div>
-          );
-        }
-
-        // Choice - Searchable dropdown with predefined options
-        if (columnType === 'choice' || columnType === 'single_select' || columnType === 'multi_select') {
-          const choices = column.choices || [];
-          const choiceItems: ComboboxItem[] = choices.map((choice) => ({
-            id: choice,
-            label: choice,
-          }));
-          const currentValue = String(rowEditingData[column.key] ?? "");
-          const selectedChoice = choiceItems.find((item) => item.id === currentValue);
-
-          return (
-            <ComboboxDropdown
-              items={choiceItems}
-              selectedItem={selectedChoice}
-              onSelect={(item) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: item.id },
-                }))
-              }
-              placeholder="Select..."
-              searchPlaceholder="Search choices..."
-            />
-          );
-        }
-
-        // User - Dropdown (would need users fetched, for now use text input)
-        if (columnType === 'user') {
-          // TODO: Fetch users from API and show dropdown
-          return (
-            <Input
-              className="h-7 text-sm"
-              placeholder="User..."
-              value={String(rowEditingData[column.key] ?? "")}
-              onChange={(e) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-                }))
-              }
-            />
-          );
-        }
-
-        // Date - Date picker
-        if (columnType === 'date') {
-          const dateValue = rowEditingData[column.key];
-          let parsedDate: Date | undefined;
-          try {
-            if (dateValue) {
-              parsedDate = typeof dateValue === 'string' ? parseISO(dateValue) : new Date(dateValue as number);
-            }
-          } catch {
-            parsedDate = undefined;
-          }
-
-          return (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "h-7 w-full justify-start text-left font-normal text-sm",
-                    !parsedDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-3 w-3" />
-                  {parsedDate ? format(parsedDate, "yyyy-MM-dd") : "Pick date..."}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={parsedDate}
-                  onSelect={(date) =>
-                    setEditingData((prev) => ({
-                      ...prev,
-                      [entry.id]: { ...prev[entry.id], [column.key]: date ? format(date, "yyyy-MM-dd") : null },
-                    }))
-                  }
-                />
-              </PopoverContent>
-            </Popover>
-          );
-        }
-
-        // Date and Time - DateTime picker
-        if (columnType === 'date_and_time' || columnType === 'datetime') {
-          const dateValue = rowEditingData[column.key];
-          let parsedDate: Date | undefined;
-          try {
-            if (dateValue) {
-              parsedDate = typeof dateValue === 'string' ? parseISO(dateValue) : new Date(dateValue as number);
-            }
-          } catch {
-            parsedDate = undefined;
-          }
-
-          return (
-            <Input
-              type="datetime-local"
-              className="h-7 text-sm"
-              value={parsedDate ? format(parsedDate, "yyyy-MM-dd'T'HH:mm") : ""}
-              onChange={(e) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value ? new Date(e.target.value).toISOString() : null },
-                }))
-              }
-            />
-          );
-        }
-
-        // File Upload - Show paperclip button
-        if (columnType === 'file_upload' || columnType === 'file' || columnType === 'attachment') {
-          return (
-            <div className="flex items-center gap-1">
-              <Input
-                className="h-7 text-sm flex-1"
-                placeholder="File URL..."
-                value={String(rowEditingData[column.key] ?? "")}
-                onChange={(e) =>
-                  setEditingData((prev) => ({
-                    ...prev,
-                    [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-                  }))
-                }
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => {
-                  // TODO: Open file picker dialog
-                  toast({ title: "File upload coming soon" });
-                }}
-              >
-                <Paperclip className="h-3 w-3" />
-              </Button>
-            </div>
-          );
-        }
-
-        // Lookup - Searchable dropdown with options from related table
-        if (columnType === 'lookup' || columnType === 'relation') {
-          const options = lookupOptions[column.key] || [];
-          const isLoading = lookupLoading[column.key];
-          // Get current value - could be an object with id or just an id
-          const currentValue = rowEditingData[column.key];
-          const currentId = typeof currentValue === 'object' && currentValue !== null
-            ? (currentValue as { id?: number }).id
-            : currentValue;
-
-          // Build items with "No Record" option first
-          const lookupItems: ComboboxItem[] = [
-            { id: "__none__", label: "No Record" },
-            ...options.map((option) => ({
-              id: String(option.id),
-              label: option.display,
-            })),
-          ];
-          const selectedLookup = lookupItems.find((item) => item.id === (currentId ? String(currentId) : "__none__"));
-
-          return (
-            <ComboboxDropdown
-              items={lookupItems}
-              selectedItem={selectedLookup}
-              onSelect={(item) => {
-                if (item.id === "__none__") {
-                  setEditingData((prev) => ({
-                    ...prev,
-                    [entry.id]: { ...prev[entry.id], [column.key]: null },
-                  }));
-                  return;
-                }
-                const selectedOption = options.find(o => String(o.id) === item.id);
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: selectedOption ? { id: selectedOption.id, display: selectedOption.display } : null },
-                }));
-              }}
-              placeholder={isLoading ? "Loading..." : "Select..."}
-              searchPlaceholder="Search records..."
-              renderListItem={({ isChecked, item }) => (
-                <>
-                  <Check className={cn("mr-2 h-4 w-4", isChecked ? "opacity-100" : "opacity-0")} />
-                  {item.id === "__none__" ? (
-                    <span className="text-muted-foreground italic">{item.label}</span>
-                  ) : (
-                    item.label
-                  )}
-                </>
-              )}
-            />
-          );
-        }
-
-        // Color picker - color input
-        if (columnType === 'color_picker') {
-          return (
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                className="h-7 w-10 p-0 border rounded cursor-pointer"
-                value={String(rowEditingData[column.key] ?? "#000000")}
-                onChange={(e) =>
-                  setEditingData((prev) => ({
-                    ...prev,
-                    [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-                  }))
-                }
-              />
-              <Input
-                className="h-7 text-sm font-mono w-20"
-                value={String(rowEditingData[column.key] ?? "")}
-                onChange={(e) =>
-                  setEditingData((prev) => ({
-                    ...prev,
-                    [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-                  }))
-                }
-                placeholder="#000000"
-              />
-            </div>
-          );
-        }
-
-        // GPS Coordinates - lat/lng input
-        if (columnType === 'gps_coordinates') {
-          return (
-            <Input
-              className="h-7 text-sm font-mono"
-              placeholder="-33.8688, 151.2093"
-              value={String(rowEditingData[column.key] ?? "")}
-              onChange={(e) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-                }))
-              }
-            />
-          );
-        }
-
-        // Multiple lookups - multi-select with checkboxes
-        if (columnType === 'multiple_lookups') {
-          const options = lookupOptions[column.key] || [];
-          const currentValue = rowEditingData[column.key];
-
-          // Build a set of selected option IDs using extracted utility
-          // Handle both string values (like "corporate") and numeric IDs
-          const selectedOptionIds = extractSelectedIds(currentValue, options);
-
-          return (
-            <div
-              className="space-y-1 max-h-[150px] overflow-y-auto p-1 border rounded bg-background"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {options.length === 0 ? (
-                <p className="text-muted-foreground text-xs p-1">No options available</p>
-              ) : (
-                options.map((option) => (
-                  <label
-                    key={option.id}
-                    className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded text-xs"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Checkbox
-                      checked={selectedOptionIds.has(option.id)}
-                      onCheckedChange={(checked) => {
-                        const newIds = new Set(selectedOptionIds);
-                        if (checked) {
-                          newIds.add(option.id);
-                        } else {
-                          newIds.delete(option.id);
-                        }
-                        // Store as array of numeric IDs
-                        setEditingData((prev) => ({
-                          ...prev,
-                          [entry.id]: { ...prev[entry.id], [column.key]: Array.from(newIds) },
-                        }));
-                      }}
-                    />
-                    <span>{option.display}</span>
-                  </label>
-                ))
-              )}
-            </div>
-          );
-        }
-
-        // Structured data (JSON) - textarea for JSON editing
-        if (columnType === 'structured_data') {
-          const jsonValue = typeof rowEditingData[column.key] === 'string'
-            ? rowEditingData[column.key]
-            : JSON.stringify(rowEditingData[column.key] ?? {}, null, 2);
-          return (
-            <textarea
-              className="h-20 w-full text-xs font-mono p-2 border rounded resize-none"
-              value={String(jsonValue)}
-              onChange={(e) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-                }))
-              }
-              placeholder='{"key": "value"}'
-            />
-          );
-        }
-
-        // Array of items - tag input (uses comma-separated input)
-        if (columnType === 'array_of_items') {
-          const currentItems = Array.isArray(rowEditingData[column.key])
-            ? rowEditingData[column.key] as string[]
-            : [];
-
-          return (
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-wrap gap-1 min-h-[28px] p-1 border rounded bg-background">
-                {currentItems.map((item, idx) => (
-                  <Badge key={idx} variant="outline" className="text-xs flex items-center gap-1">
-                    {item}
-                    <button
-                      type="button"
-                      className="hover:text-destructive"
-                      onClick={() => {
-                        const newItems = currentItems.filter((_, i) => i !== idx);
-                        setEditingData((prev) => ({
-                          ...prev,
-                          [entry.id]: { ...prev[entry.id], [column.key]: newItems },
-                        }));
-                      }}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-              <Input
-                className="h-7 text-sm"
-                placeholder="Type and press Enter to add..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const input = e.currentTarget;
-                    const value = input.value.trim();
-                    if (value) {
-                      setEditingData((prev) => ({
-                        ...prev,
-                        [entry.id]: {
-                          ...prev[entry.id],
-                          [column.key]: [...currentItems, value]
-                        },
-                      }));
-                      input.value = "";
-                    }
-                  }
-                }}
-              />
-            </div>
-          );
-        }
-
-        // Australian types - text inputs with format hints
-        if (columnType === 'abn') {
-          return (
-            <Input
-              className="h-7 text-sm font-mono"
-              placeholder="XX XXX XXX XXX"
-              maxLength={14}
-              value={String(rowEditingData[column.key] ?? "")}
-              onChange={(e) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value.replace(/\D/g, '').slice(0, 11) },
-                }))
-              }
-            />
-          );
-        }
-
-        if (columnType === 'acn') {
-          return (
-            <Input
-              className="h-7 text-sm font-mono"
-              placeholder="XXX XXX XXX"
-              maxLength={11}
-              value={String(rowEditingData[column.key] ?? "")}
-              onChange={(e) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value.replace(/\D/g, '').slice(0, 9) },
-                }))
-              }
-            />
-          );
-        }
-
-        if (columnType === 'bsb') {
-          return (
-            <Input
-              className="h-7 text-sm font-mono"
-              placeholder="XXX-XXX"
-              maxLength={7}
-              value={String(rowEditingData[column.key] ?? "")}
-              onChange={(e) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value.replace(/\D/g, '').slice(0, 6) },
-                }))
-              }
-            />
-          );
-        }
-
-        if (columnType === 'bank_account') {
-          return (
-            <Input
-              className="h-7 text-sm font-mono"
-              placeholder="Account number"
-              maxLength={9}
-              value={String(rowEditingData[column.key] ?? "")}
-              onChange={(e) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value.replace(/\D/g, '').slice(0, 9) },
-                }))
-              }
-            />
-          );
-        }
-
-        if (columnType === 'postcode') {
-          return (
-            <Input
-              className="h-7 text-sm font-mono"
-              placeholder="3000"
-              maxLength={4}
-              value={String(rowEditingData[column.key] ?? "")}
-              onChange={(e) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value.replace(/\D/g, '').slice(0, 4) },
-                }))
-              }
-            />
-          );
-        }
-
-        if (columnType === 'tfn') {
-          return (
-            <Input
-              type="password"
-              className="h-7 text-sm font-mono"
-              placeholder="XXX XXX XXX"
-              maxLength={11}
-              value={String(rowEditingData[column.key] ?? "")}
-              onChange={(e) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value.replace(/\D/g, '').slice(0, 9) },
-                }))
-              }
-            />
-          );
-        }
-
-        // Number types
-        if (columnType === 'number' || columnType === 'integer' || columnType === 'decimal' || columnType === 'currency' || columnType === 'percentage') {
-          const hasError = validationErrors[entry.id]?.[column.key];
-          return (
-            <div className="relative">
-              <Input
-                type="number"
-                className={cn(
-                  "h-7 text-sm",
-                  hasError && "border-red-500 focus:ring-red-500"
-                )}
-                value={String(rowEditingData[column.key] ?? "")}
-                onChange={(e) =>
-                  setEditingData((prev) => ({
-                    ...prev,
-                    [entry.id]: { ...prev[entry.id], [column.key]: e.target.value ? Number(e.target.value) : null },
-                  }))
-                }
-                onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
-              />
-              {hasError && (
-                <span className="absolute -bottom-4 left-0 text-[10px] text-red-500 whitespace-nowrap">
-                  {hasError}
-                </span>
-              )}
-            </div>
-          );
-        }
-
-        // Default - Text input for single_line_text, long_text, email, phone, url, etc.
-        const hasError = validationErrors[entry.id]?.[column.key];
         return (
-          <div className="relative">
-            <Input
-              className={cn(
-                "h-7 text-sm",
-                hasError && "border-red-500 focus:ring-red-500"
-              )}
-              value={String(rowEditingData[column.key] ?? "")}
-              onChange={(e) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-                }))
-              }
-              onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
-            />
-            {hasError && (
-              <span className="absolute -bottom-4 left-0 text-[10px] text-red-500 whitespace-nowrap">
-                {hasError}
-              </span>
-            )}
-          </div>
+          <RowEditingCell
+            entry={entry}
+            column={column}
+            rowEditingData={rowEditingData}
+            setEditingData={setEditingData}
+            validationError={validationErrors[entry.id]?.[column.key]}
+            handleCellBlur={handleCellBlur}
+            lookupOptions={lookupOptions}
+            lookupLoading={lookupLoading}
+          />
         );
       }
 
@@ -2778,8 +2194,6 @@ export default function TeeemTableView({
       customCellRenderer,
       editingRowIds,
       editingData,
-      editingCell,
-      editingCellValue,
       selectedRows,
       toggleRowSelection,
       onView,
@@ -2790,8 +2204,6 @@ export default function TeeemTableView({
       startEditing,
       saveEditing,
       cancelEditing,
-      saveCellEdit,
-      cancelCellEdit,
       lookupOptions,
       lookupLoading,
       validationErrors,
@@ -2962,8 +2374,6 @@ export default function TeeemTableView({
                               column.key === "select" && "!border-r-0 !p-0 !h-full",
                               column.key === "actions" && "!border-l-0"
                             )}
-                            onClick={(e) => handleCellClick(e, row, column)}
-                            onDoubleClick={(e) => handleCellDoubleClick(e, row, column)}
                           >
                             {renderCellValue(row, column)}
                           </TableCell>
@@ -3059,8 +2469,6 @@ export default function TeeemTableView({
                 column.key === "select" && "!border-r-0 !p-0 !h-full",
                 column.key === "actions" && "!border-l-0"
               )}
-              onClick={(e) => handleCellClick(e, row, column)}
-              onDoubleClick={(e) => handleCellDoubleClick(e, row, column)}
             >
               {renderCellValue(row, column)}
             </TableCell>
@@ -3163,8 +2571,6 @@ export default function TeeemTableView({
                       column.key === "select" && "!border-r-0 !p-0 !h-full",
                       column.key === "actions" && "!border-l-0"
                     )}
-                    onClick={(e) => handleCellClick(e, row, column)}
-                    onDoubleClick={(e) => handleCellDoubleClick(e, row, column)}
                   >
                     {renderCellValue(row, column)}
                   </TableCell>

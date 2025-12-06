@@ -77,6 +77,13 @@ Check for known bug patterns from code-guardian.md:
 - PATTERN-002: Race conditions in async operations
 - PATTERN-003: Infinite loop in data fetching
 - PATTERN-004: Deprecated component usage
+- PATTERN-005: setState in useEffect (cascading renders)
+
+**ESLint Check for PATTERN-005:**
+```bash
+# Check for react-hooks/set-state-in-effect violations
+cd frontend-next && npm run lint 2>&1 | grep "set-state-in-effect"
+```
 
 ### Step 4: UI/UX Compliance
 
@@ -177,9 +184,10 @@ PRIORITY FIXES
 
 This command leverages checks from:
 - `gold-standard-sst.md` - Column type SSoT (31 types)
-- `code-guardian.md` - Pattern detection
-- `architecture-guardian.md` - SOLID principles
+- `code-guardian.md` - Pattern detection (5 patterns)
+- `ui-table-auditor.md` - Table compliance (including foundationIdNumeric)
 - `ui-compliance-auditor.md` - Frontend standards
+- `architecture-guardian.md` - SOLID principles
 - `ssot-agent.md` - SSoT validation
 
 ## Important Notes
