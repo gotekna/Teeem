@@ -244,8 +244,7 @@ export default function SystemHealthPage() {
               open={expandedTables.has(table.table_name)}
               onOpenChange={() => toggleTable(table.table_name)}
             >
-              <CollapsibleTrigger asChild>
-                <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-secondary/50 cursor-pointer transition-colors">
+              <CollapsibleTrigger className="flex items-center justify-between p-4 rounded-lg border hover:bg-secondary/50 cursor-pointer transition-colors w-full">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-secondary rounded">
                       {iconMap[table.table_name] || <FileText className="h-5 w-5" />}
@@ -283,7 +282,6 @@ export default function SystemHealthPage() {
                       <ChevronRight className="h-5 w-5 text-muted-foreground" />
                     )}
                   </div>
-                </div>
               </CollapsibleTrigger>
               <CollapsibleContent>
                 {table.issues.length > 0 ? (

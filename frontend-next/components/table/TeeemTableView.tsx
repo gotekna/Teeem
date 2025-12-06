@@ -1258,6 +1258,8 @@ export default function TeeemTableView({
               msg.toLowerCase().includes('entity')
             )
           );
+          console.log('[Bulk Update] hasEntityTypeErrors:', hasEntityTypeErrors);
+          console.log('[Bulk Update] foundationIdNumeric:', foundationIdNumeric);
 
           // Show error message to user
           let errorMessage = `Bulk update failed. ${response.updated_count || 0} of ${response.total_requested || ids.length} records updated.`;
@@ -1272,17 +1274,21 @@ export default function TeeemTableView({
             }
           }
 
-          // If entity_type validation errors, suggest health report
-          if (hasEntityTypeErrors) {
+          // If entity_type validation errors, automatically open health report
+          if (hasEntityTypeErrors && foundationIdNumeric) {
+            console.log('[Bulk Update] Detected entity_type errors, opening health report...');
             errorMessage += '\n\n⚠️ Some records have data quality issues that must be fixed first.';
-            errorMessage += '\n\nView the Health Report to identify and fix these issues?';
+            errorMessage += '\n\nOpening Health Report to show which records need fixing...';
 
-            const viewHealthReport = confirm(errorMessage);
-            if (viewHealthReport && foundationIdNumeric) {
-              // Redirect to health page with foundation context
-              window.location.href = `/system-health?foundation=${foundationIdNumeric}`;
-              return;
-            }
+            alert(errorMessage);
+            console.log('[Bulk Update] Alert shown, now opening window...');
+
+            // Open health report in new tab so they can fix the data
+            const healthUrl = `/system-health?foundation=${foundationIdNumeric}`;
+            console.log('[Bulk Update] Opening health report:', healthUrl);
+            window.open(healthUrl, '_blank');
+            console.log('[Bulk Update] window.open called');
+            return;
           } else {
             alert(errorMessage);
           }
