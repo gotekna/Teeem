@@ -2076,7 +2076,11 @@ When something is wrong with tables:
 Code locations that MUST match the Gold Standard Table MD:
 • `backend/app/models/column.rb` → COLUMN_SQL_TYPE_MAP
 • `backend/app/controllers/api/v1/column_types_controller.rb`
-• `frontend-next/components/table/TeeemTableView.tsx`
+• `frontend-next/components/table/TeeemTableView.tsx` (main component)
+  - Note: TeeemTableView refactored into modular structure (see /core subdirectories)
+  - Cell rendering: `core/column-renderer/`
+  - State management: `core/state/` and `core/hooks/`
+  - Filtering: `core/filtering/`
 • `frontend-next/lib/column-types.ts`
 
 NEVER: • Have code that contradicts GOLD_STANDARD_TABLE.md

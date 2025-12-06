@@ -75,6 +75,7 @@ interface ContactsPageClientProps {
   initialFoundation: Foundation | null;
   initialColumns: TableColumn[];
   initialRecords: TTableRow[];
+  initialTotalCount: number | null;
   initialError: string | null;
 }
 

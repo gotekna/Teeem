@@ -423,10 +423,15 @@ export default function ContactDetailPage() {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Company multi-select state
+  // Company multi-select state (for person contacts)
   const [availableCompanies, setAvailableCompanies] = useState<Option[]>([]);
   const [selectedCompanies, setSelectedCompanies] = useState<Option[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
+
+  // Employee multi-select state (for company contacts)
+  const [availablePeople, setAvailablePeople] = useState<Option[]>([]);
+  const [selectedEmployees, setSelectedEmployees] = useState<Option[]>([]);
+  const [loadingPeople, setLoadingPeople] = useState(false);
 
   const activeTab = searchParams.get("tab") || "overview";
   const activeSubTab = searchParams.get("subtab") || "identity";
@@ -532,6 +537,40 @@ export default function ContactDetailPage() {
       setSelectedCompanies(selected);
     }
   }, [contact?.additional_companies]);
+
+  // Fetch all people for employee multi-select dropdown (for company contacts)
+  useEffect(() => {
+    const fetchPeople = async () => {
+      setLoadingPeople(true);
+      try {
+        const response: any = await api.get("/contacts", {
+          params: { entity_type: "person" },
+        });
+        const people = response.data.contacts || [];
+        const peopleOptions: Option[] = people.map((p: any) => ({
+          value: p.id.toString(),
+          label: `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.full_name || "Unknown Person",
+        }));
+        setAvailablePeople(peopleOptions);
+      } catch (err) {
+        console.error("Failed to fetch people:", err);
+      } finally {
+        setLoadingPeople(false);
+      }
+    };
+    fetchPeople();
+  }, []);
+
+  // Populate selected employees from contact.employees (for company contacts)
+  useEffect(() => {
+    if (contact?.employees) {
+      const selected: Option[] = contact.employees.map((emp: any) => ({
+        value: emp.id.toString(),
+        label: emp.name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || "Unknown Person",
+      }));
+      setSelectedEmployees(selected);
+    }
+  }, [contact?.employees]);
 
   // SSoT: Auto-open edit modal when ?edit=true is in URL (e.g., from CG page)
   useEffect(() => {
@@ -802,7 +841,7 @@ export default function ContactDetailPage() {
         if (relationship) {
           // Need to find the actual relationship ID, not the company ID
           // Let's fetch all relationships and find the one matching this company
-          const relationshipsResponse = await api.get(`/contacts/${contact.id}/relationships`);
+          const relationshipsResponse = await api.get(`/contacts/${contact.id}/relationships`) as any;
           const rel = relationshipsResponse.data.relationships.outgoing.find(
             (r: any) => r.related_contact_id.toString() === companyId && r.relationship_type === 'employee_of'
           );
@@ -821,6 +860,47 @@ export default function ContactDetailPage() {
       console.error("Failed to update company relationships:", err);
       // Revert on error
       setSelectedCompanies(selectedCompanies);
+    }
+  };
+
+  // Handle employee selection changes (for company contacts)
+  const handleEmployeeChange = async (newSelectedEmployees: Option[]) => {
+    if (!contact) return;
+
+    const previousIds = selectedEmployees.map((e) => e.value);
+    const newIds = newSelectedEmployees.map((e) => e.value);
+
+    const addedIds = newIds.filter((id) => !previousIds.includes(id));
+    const removedIds = previousIds.filter((id) => !newIds.includes(id));
+
+    try {
+      // Create relationships FROM person TO company for added employees
+      for (const personId of addedIds) {
+        await api.post(`/contacts/${personId}/relationships`, {
+          contact_relationship: {
+            related_contact_id: contact.id,
+            relationship_type: 'employee_of',
+            is_active: true,
+          },
+        });
+      }
+
+      // Delete relationships for removed employees
+      for (const personId of removedIds) {
+        const relationshipsResponse = await api.get(`/contacts/${personId}/relationships`) as any;
+        const rel = relationshipsResponse.data.relationships.outgoing.find(
+          (r: any) => r.related_contact_id === contact.id && r.relationship_type === 'employee_of'
+        );
+        if (rel) {
+          await api.delete(`/contacts/${personId}/relationships/${rel.id}`);
+        }
+      }
+
+      setSelectedEmployees(newSelectedEmployees);
+      await loadContact();
+    } catch (err) {
+      console.error("Failed to update employee relationships:", err);
+      setSelectedEmployees(selectedEmployees);
     }
   };
 
@@ -1167,6 +1247,26 @@ export default function ContactDetailPage() {
                             </Button>
                           </Link>
                         </div>
+                      </div>
+                    )}
+                    {/* Employee multi-select - show for company/trust entity types */}
+                    {(formData.entity_type === 'company' || formData.entity_type === 'trust') && (
+                      <div className="space-y-2">
+                        <Label>Employees</Label>
+                        <MultipleSelector
+                          value={selectedEmployees}
+                          onChange={handleEmployeeChange}
+                          options={availablePeople}
+                          placeholder="Select employees..."
+                          emptyIndicator={
+                            <p className="text-center text-sm text-muted-foreground">
+                              {loadingPeople ? "Loading people..." : "No people found"}
+                            </p>
+                          }
+                          disabled={loadingPeople}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-muted-foreground">Select people who work for this {formData.entity_type === 'trust' ? 'trust' : 'company'}</p>
                       </div>
                     )}
                     {/* Primary Company - show for person entity type */}

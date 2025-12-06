@@ -220,7 +220,11 @@ In-memory table indicators:
 - Changes take effect immediately
 
 **For In-memory/Config tables:**
-- Locate source file (e.g., `frontend-next/components/table/TeeemTableView.tsx`)
+- Locate source files (TeeemTableView has modular structure):
+  - Main: `frontend-next/components/table/TeeemTableView.tsx`
+  - Column configs: Search for DEFAULT_*_COLUMNS arrays
+  - May be in: `core/state/`, `core/hooks/`, or main TeeemTableView.tsx
+  - Cell rendering: `core/column-renderer/`
 - Find column definition array (e.g., `DEFAULT_TRINITY_COLUMNS`)
 - Use Edit tool to update column properties:
   ```javascript

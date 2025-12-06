@@ -414,7 +414,8 @@ end
 **Step 2: Add to frontend validateCell**
 
 ```tsx
-// frontend-next/components/table/TeeemTableView.tsx
+// frontend-next/components/table/core/column-renderer/CellValidation.tsx
+// Note: Validation logic extracted from TeeemTableView during modular refactoring
 
 const validateCell = useCallback((columnKey: string, value: unknown, columnType?: string): string | null => {
   switch (columnType) {
