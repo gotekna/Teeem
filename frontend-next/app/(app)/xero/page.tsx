@@ -195,10 +195,16 @@ export default function XeroPage() {
     }
   };
 
-  const filteredInvoices = invoices.filter((invoice) => {
+  // Combine invoices and bills into a single array with type field
+  const allTransactions = [
+    ...invoices.map(inv => ({ ...inv, type: "ACCREC" as const })),
+    ...bills.map(bill => ({ ...bill, type: "ACCPAY" as const })),
+  ];
+
+  const filteredInvoices = allTransactions.filter((invoice) => {
     const matchesSearch =
       invoice.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      invoice.contact_name.toLowerCase().includes(searchQuery.toLowerCase());
+      (invoice.contact_name || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType =
       invoiceType === "all" ||
       (invoiceType === "receivable" && invoice.type === "ACCREC") ||
@@ -281,27 +287,76 @@ export default function XeroPage() {
         </AlertDescription>
       </Alert>
 
+      {/* Cache Age Alert */}
+      {cacheMetadata && (
+        <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/10">
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-blue-600" />
+            <Zap className="h-4 w-4 text-yellow-500" />
+          </div>
+          <AlertDescription className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="text-sm">
+                <strong>Fast Mode:</strong> Using local warehouse (10-100x faster)
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Last synced:{" "}
+                <span className={getCacheAgeColor(cacheMetadata.cache_age_seconds)}>
+                  {formatRelativeTime(cacheMetadata.last_synced_at)}
+                </span>
+              </span>
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Clock className="h-4 w-4 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="text-xs">
+                  Data is cached locally for instant loading. Click &quot;Sync Now&quot; to get latest from Xero.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-blue-600" />
+              <TrendingUp className="h-4 w-4 text-blue-600" />
               <span className="text-xs text-muted-foreground">Receivables</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">Money customers owe you</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div className="text-2xl font-bold font-mono mt-2">
-              {invoices.filter((i) => i.type === "ACCREC" && i.status !== "PAID").length}
+              {allTransactions.filter((i) => i.type === "ACCREC" && i.status !== "paid").length}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-purple-600" />
+              <TrendingDown className="h-4 w-4 text-purple-600" />
               <span className="text-xs text-muted-foreground">Payables</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">Money you owe suppliers</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div className="text-2xl font-bold font-mono mt-2">
-              {invoices.filter((i) => i.type === "ACCPAY" && i.status !== "PAID").length}
+              {allTransactions.filter((i) => i.type === "ACCPAY" && i.status !== "paid").length}
             </div>
           </CardContent>
         </Card>
@@ -310,10 +365,18 @@ export default function XeroPage() {
             <div className="flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-green-600" />
               <span className="text-xs text-muted-foreground">Outstanding</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">Total unpaid amount</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div className="text-2xl font-bold font-mono mt-2">
-              ${invoices
-                .filter((i) => i.status !== "PAID")
+              ${allTransactions
+                .filter((i) => i.status !== "paid")
                 .reduce((sum, i) => sum + i.amount_due, 0)
                 .toLocaleString()}
             </div>
@@ -324,10 +387,18 @@ export default function XeroPage() {
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-red-600" />
               <span className="text-xs text-muted-foreground">Overdue</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">Invoices/bills past due date</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div className="text-2xl font-bold font-mono mt-2 text-red-600">
-              {invoices.filter(
-                (i) => i.status !== "PAID" && new Date(i.due_date) < new Date()
+              {allTransactions.filter(
+                (i) => i.status !== "paid" && new Date(i.due_date) < new Date()
               ).length}
             </div>
           </CardContent>
