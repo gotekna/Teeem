@@ -68,6 +68,7 @@ Rails.application.routes.draw do
       get "system/metrics", to: "system#metrics"
 
       # Health checks
+      get "health/system", to: "health#system"
       get "health/pricebook", to: "health#pricebook"
       get "health/pricebook/missing_items", to: "health#missing_items"
       get "pricebook/price_health_check", to: "pricebook_items#price_health_check"
