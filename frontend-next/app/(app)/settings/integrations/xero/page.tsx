@@ -69,6 +69,10 @@ export default function XeroIntegrationPage() {
     fetchData();
   }, []);
 
+  // Note: Auto-refresh happens in backend's connection_status method
+  // If it reaches here with expired=true, the auto-refresh failed
+  // and user needs to manually reconnect via OAuth flow
+
   const handleConnect = async () => {
     setConnecting(true);
     try {
@@ -134,10 +138,17 @@ export default function XeroIntegrationPage() {
               </div>
             </div>
             {status?.connected ? (
-              <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Connected
-              </Badge>
+              status?.expired ? (
+                <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Token Expired
+                </Badge>
+              ) : (
+                <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Connected
+                </Badge>
+              )
             ) : (
               <Badge variant="secondary">
                 <XCircle className="h-3 w-3 mr-1" />
