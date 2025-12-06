@@ -132,6 +132,7 @@ interface Contact {
   "is_director?": boolean;
   is_family_member: boolean;
   xero_contact_id: string | null;
+  xero_contact_types: string[];
   sync_with_xero: boolean;
   created_at: string;
   updated_at: string;

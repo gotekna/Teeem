@@ -45,6 +45,7 @@ interface Contact {
   is_active: boolean;
   portal_enabled: boolean;
   xero_id: string | null;
+  xero_contact_types: string[];
   xero_synced: boolean;
   teeem_rating: number | null;
   supplier_code: string | null;
