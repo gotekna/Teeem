@@ -532,7 +532,7 @@ const MultipleSelector = React.forwardRef<
         <div className="relative">
           {open && (
             <CommandList
-              className="absolute top-1 z-10 w-full bg-popover text-popover-foreground shadow-md border border-border outline-none animate-in max-h-[200px] overflow-auto"
+              className="absolute top-1 z-10 w-full bg-popover text-popover-foreground shadow-md border border-border outline-none animate-in max-h-[300px] overflow-auto"
               onMouseLeave={() => {
                 setOnScrollbar(false);
               }}
@@ -559,22 +559,29 @@ const MultipleSelector = React.forwardRef<
                       className="h-full overflow-auto"
                     >
                       {dropdowns.map((option) => {
+                        const isSelected = selected.some((s) => s.value === option.value);
                         return (
                           <CommandItem
                             key={option.value}
-                            value={option.value}
+                            value={option.label}
                             disabled={option.disable}
                             onMouseDown={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
                             }}
                             onSelect={() => {
-                              if (selected.length >= maxSelected) {
+                              setInputValue("");
+                              const newOptions = isSelected
+                                ? selected.filter((s) => s.value !== option.value)
+                                : selected.length >= maxSelected
+                                ? selected
+                                : [...selected, option];
+
+                              if (!isSelected && selected.length >= maxSelected) {
                                 onMaxSelected?.(selected.length);
                                 return;
                               }
-                              setInputValue("");
-                              const newOptions = [...selected, option];
+
                               setSelected(newOptions);
                               onChange?.(newOptions);
                             }}
@@ -584,7 +591,17 @@ const MultipleSelector = React.forwardRef<
                                 "cursor-default text-muted-foreground",
                             )}
                           >
-                            {renderOption ? renderOption(option) : option.label}
+                            <div className="flex items-center gap-2 w-full">
+                              <div className={cn(
+                                "flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                isSelected ? "bg-primary text-primary-foreground" : "opacity-50"
+                              )}>
+                                {isSelected && <Check className="h-3 w-3" />}
+                              </div>
+                              <span className="flex-1">
+                                {renderOption ? renderOption(option) : option.label}
+                              </span>
+                            </div>
                           </CommandItem>
                         );
                       })}
