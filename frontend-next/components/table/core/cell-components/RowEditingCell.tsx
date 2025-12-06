@@ -306,7 +306,6 @@ export function RowEditingCell({
           }
           disabled={isLoading}
           hidePlaceholderWhenSelected
-          maxCount={3}
         />
       </div>
     );

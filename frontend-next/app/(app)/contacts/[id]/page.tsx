@@ -956,10 +956,12 @@ export default function ContactDetailPage() {
 
   // Handle employee selection changes (for company contacts)
   const handleEmployeeChange = async (newSelectedEmployees: Option[]) => {
+    console.log('[Employee Change] Called with:', newSelectedEmployees);
     if (!contact) return;
 
     const previousIds = selectedEmployees.map((e) => e.value);
     const newIds = newSelectedEmployees.map((e) => e.value);
+    console.log('[Employee Change] Previous:', previousIds, 'New:', newIds);
 
     const addedIds = newIds.filter((id) => !previousIds.includes(id));
     const removedIds = previousIds.filter((id) => !newIds.includes(id));

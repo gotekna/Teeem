@@ -45,13 +45,15 @@ namespace :contacts do
         current_first_name = contact.first_name.to_s.strip
         next if current_first_name.blank?
 
-        # Detect entity type if missing
-        if contact.entity_type.nil? || contact.entity_type.blank?
+        # Detect entity type ONLY if missing (trust existing entity_type)
+        if contact.entity_type.nil? || contact.entity_type.blank? || contact.entity_type == "default_supplier"
           is_company = COMPANY_INDICATORS.any? { |pattern| current_first_name.match?(pattern) }
           contact.entity_type = is_company ? "company" : "person"
           stats[:entity_type_detected] += 1
+          puts "  → Detected entity_type: #{contact.entity_type}"
         end
 
+        # Trust the entity_type (either existing or newly detected)
         if contact.entity_type == "person"
           # PERSON: Split "FirstName LastName"
           parts = current_first_name.split(/\s+/, 2) # Split on first space only
@@ -121,14 +123,20 @@ namespace :contacts do
 
     contacts.each do |c|
       entity_type = c.entity_type || "NULL"
-      is_company = COMPANY_INDICATORS.any? { |p| c.first_name.to_s.match?(p) }
-      detected_type = is_company ? "company" : "person"
+
+      # Only detect if entity_type is missing
+      final_type = if entity_type.in?(["NULL", "default_supplier"])
+        is_company = COMPANY_INDICATORS.any? { |p| c.first_name.to_s.match?(p) }
+        is_company ? "company" : "person"
+      else
+        entity_type
+      end
 
       puts "ID #{c.id}: '#{c.first_name}'"
       puts "  Current entity_type: #{entity_type}"
-      puts "  Detected type: #{detected_type}"
+      puts "  Will use type: #{final_type}"
 
-      if detected_type == "person"
+      if final_type == "person"
         parts = c.first_name.to_s.split(/\s+/, 2)
         puts "  → Would split to: first='#{parts[0]}' last='#{parts[1]}'"
       else
