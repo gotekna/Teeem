@@ -1203,6 +1203,106 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/organisation
+      # Fetch organisation details from Xero (for validation testing)
+      def organisation
+        begin
+          client = XeroApiClient.new
+          result = client.get("Organisation")
+
+          if result[:success]
+            render json: {
+              success: true,
+              data: result[:data]
+            }
+          else
+            render json: {
+              success: false,
+              error: "Failed to fetch organisation"
+            }, status: :unprocessable_entity
+          end
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero organisation auth error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Not authenticated with Xero"
+          }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero organisation error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to fetch organisation: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/xero/contacts
+      # Fetch contacts from Xero (for validation testing)
+      def contacts
+        begin
+          client = XeroApiClient.new
+          page = params[:page] || 1
+          result = client.get("Contacts", { page: page })
+
+          if result[:success]
+            render json: {
+              success: true,
+              data: result[:data]
+            }
+          else
+            render json: {
+              success: false,
+              error: "Failed to fetch contacts"
+            }, status: :unprocessable_entity
+          end
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero contacts auth error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Not authenticated with Xero"
+          }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero contacts error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to fetch contacts: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/xero/tracking_categories
+      # Fetch tracking categories from Xero (for validation testing)
+      def tracking_categories
+        begin
+          client = XeroApiClient.new
+          result = client.get("TrackingCategories")
+
+          if result[:success]
+            render json: {
+              success: true,
+              data: result[:data]
+            }
+          else
+            render json: {
+              success: false,
+              error: "Failed to fetch tracking categories"
+            }, status: :unprocessable_entity
+          end
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero tracking_categories auth error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Not authenticated with Xero"
+          }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero tracking_categories error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to fetch tracking categories: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       private
 
       # Make a direct Xero API request using a specific credential

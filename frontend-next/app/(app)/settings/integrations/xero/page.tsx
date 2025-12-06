@@ -43,6 +43,14 @@ interface XeroTenant {
   expired?: boolean;
 }
 
+interface ValidationTest {
+  id: string;
+  name: string;
+  description: string;
+  status: "pending" | "running" | "passed" | "failed";
+  error?: string;
+}
+
 export default function XeroIntegrationPage() {
   const router = useRouter();
   const [status, setStatus] = React.useState<XeroStatus | null>(null);
@@ -50,6 +58,8 @@ export default function XeroIntegrationPage() {
   const [loading, setLoading] = React.useState(true);
   const [connecting, setConnecting] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
+  const [validationTests, setValidationTests] = React.useState<ValidationTest[]>([]);
+  const [runningTests, setRunningTests] = React.useState(false);
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -77,6 +87,156 @@ export default function XeroIntegrationPage() {
   // Note: Auto-refresh happens in backend's connection_status method
   // If it reaches here with expired=true, the auto-refresh failed
   // and user needs to manually reconnect via OAuth flow
+
+  const runValidationTests = async () => {
+    setRunningTests(true);
+
+    const tests: ValidationTest[] = [
+      {
+        id: "oauth_connection",
+        name: "OAuth Connection",
+        description: "Verify OAuth token is valid and not expired",
+        status: "pending",
+      },
+      {
+        id: "organisation_access",
+        name: "Organisation Access",
+        description: "Fetch organisation details from Xero API",
+        status: "pending",
+      },
+      {
+        id: "contacts_read",
+        name: "Contacts Read Access",
+        description: "Test reading contacts from Xero",
+        status: "pending",
+      },
+      {
+        id: "invoices_read",
+        name: "Invoices Read Access",
+        description: "Test reading invoices from Xero",
+        status: "pending",
+      },
+      {
+        id: "warehouse_sync",
+        name: "Warehouse Sync Status",
+        description: "Check local warehouse has synced data",
+        status: "pending",
+      },
+      {
+        id: "tracking_categories",
+        name: "Tracking Categories Access",
+        description: "Verify job tracking categories are accessible",
+        status: "pending",
+      },
+    ];
+
+    setValidationTests(tests);
+
+    // Run tests sequentially
+    for (let i = 0; i < tests.length; i++) {
+      const test = tests[i];
+
+      // Mark as running
+      setValidationTests(prev => prev.map((t, idx) =>
+        idx === i ? { ...t, status: "running" } : t
+      ));
+
+      try {
+        let passed = false;
+        let errorMsg = "";
+
+        switch (test.id) {
+          case "oauth_connection": {
+            const statusRes = await api.xero.getStatus();
+            passed = statusRes.data?.connected && !statusRes.data?.expired;
+            if (!passed) {
+              errorMsg = statusRes.data?.expired ? "Token expired" : "Not connected";
+            }
+            break;
+          }
+
+          case "organisation_access": {
+            try {
+              const orgRes = await api.get("/api/v1/xero/organisation");
+              passed = orgRes.success && orgRes.data?.Organisations?.length > 0;
+              if (!passed) errorMsg = "Could not fetch organisation data";
+            } catch (err: any) {
+              errorMsg = err.message || "API call failed";
+            }
+            break;
+          }
+
+          case "contacts_read": {
+            try {
+              const contactsRes = await api.get("/api/v1/xero/contacts?page=1");
+              passed = contactsRes.success;
+              if (!passed) errorMsg = "Could not fetch contacts";
+            } catch (err: any) {
+              errorMsg = err.message || "API call failed";
+            }
+            break;
+          }
+
+          case "invoices_read": {
+            try {
+              const invoicesRes = await api.get("/api/v1/xero/invoices?page=1");
+              passed = invoicesRes.success;
+              if (!passed) errorMsg = "Could not fetch invoices";
+            } catch (err: any) {
+              errorMsg = err.message || "API call failed";
+            }
+            break;
+          }
+
+          case "warehouse_sync": {
+            try {
+              const warehouseRes = await api.get("/api/v1/external_invoices?type=invoice&per_page=1");
+              passed = warehouseRes.success && warehouseRes.meta?.last_synced_at !== null;
+              if (!passed) errorMsg = "Warehouse not synced - run sync first";
+            } catch (err: any) {
+              errorMsg = err.message || "API call failed";
+            }
+            break;
+          }
+
+          case "tracking_categories": {
+            try {
+              const trackingRes = await api.get("/api/v1/xero/tracking_categories");
+              passed = trackingRes.success;
+              if (!passed) errorMsg = "Could not fetch tracking categories";
+            } catch (err: any) {
+              errorMsg = err.message || "API call failed";
+            }
+            break;
+          }
+        }
+
+        // Mark as passed or failed
+        setValidationTests(prev => prev.map((t, idx) =>
+          idx === i ? {
+            ...t,
+            status: passed ? "passed" : "failed",
+            error: passed ? undefined : errorMsg
+          } : t
+        ));
+
+      } catch (error: any) {
+        // Mark as failed
+        setValidationTests(prev => prev.map((t, idx) =>
+          idx === i ? {
+            ...t,
+            status: "failed",
+            error: error.message || "Test failed"
+          } : t
+        ));
+      }
+
+      // Small delay between tests
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    setRunningTests(false);
+  };
 
   const handleConnect = async () => {
     setConnecting(true);
@@ -260,6 +420,116 @@ export default function XeroIntegrationPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Validation Tests */}
+          {status?.connected && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Integration Health Check</CardTitle>
+                    <CardDescription>
+                      Run tests to verify all Xero integration features are working correctly
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={runValidationTests}
+                    disabled={runningTests}
+                    variant={
+                      validationTests.length > 0 && validationTests.every(t => t.status === "passed")
+                        ? "default"
+                        : "outline"
+                    }
+                  >
+                    {runningTests ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Running Tests...
+                      </>
+                    ) : validationTests.length > 0 && validationTests.every(t => t.status === "passed") ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        All Tests Passed
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Run Health Check
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {validationTests.length === 0 ? (
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>No tests run yet</AlertTitle>
+                    <AlertDescription>
+                      Click &quot;Run Health Check&quot; to validate your Xero integration setup
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="space-y-2">
+                    {validationTests.map((test) => (
+                      <div
+                        key={test.id}
+                        className={`flex items-center justify-between p-4 border rounded-lg ${
+                          test.status === "passed"
+                            ? "border-green-500 bg-green-50/50 dark:bg-green-900/10"
+                            : test.status === "failed"
+                            ? "border-red-500 bg-red-50/50 dark:bg-red-900/10"
+                            : "border-gray-200"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="flex-shrink-0">
+                            {test.status === "passed" && (
+                              <CheckCircle2 className="h-5 w-5 text-green-600" />
+                            )}
+                            {test.status === "failed" && (
+                              <XCircle className="h-5 w-5 text-red-600" />
+                            )}
+                            {test.status === "running" && (
+                              <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                            )}
+                            {test.status === "pending" && (
+                              <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium">{test.name}</p>
+                            <p className="text-sm text-muted-foreground">{test.description}</p>
+                            {test.error && (
+                              <p className="text-sm text-red-600 mt-1">Error: {test.error}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0">
+                          {test.status === "passed" && (
+                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                              Passed
+                            </Badge>
+                          )}
+                          {test.status === "failed" && (
+                            <Badge variant="destructive">Failed</Badge>
+                          )}
+                          {test.status === "running" && (
+                            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                              Running...
+                            </Badge>
+                          )}
+                          {test.status === "pending" && (
+                            <Badge variant="secondary">Pending</Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Connected Organizations */}
           {tenants.length > 0 && (
