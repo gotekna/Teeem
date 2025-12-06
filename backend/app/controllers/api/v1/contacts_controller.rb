@@ -34,12 +34,16 @@ module Api
           @contacts = @contacts.where(is_potential_director: true)
         end
 
-        # Search by name or email
+        # Search by name or email (includes company name for team contacts)
         if params[:search].present?
           search_term = "%#{params[:search]}%"
-          @contacts = @contacts.where(
-            "full_name ILIKE ? OR email ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
-            search_term, search_term, search_term, search_term
+          @contacts = @contacts.left_outer_joins(:primary_company).where(
+            "contacts.full_name ILIKE :q OR
+             contacts.email ILIKE :q OR
+             contacts.first_name ILIKE :q OR
+             contacts.last_name ILIKE :q OR
+             (contacts.is_team_contact = true AND companies_contacts.full_name ILIKE :q)",
+            q: search_term
           )
         end
 
@@ -93,7 +97,7 @@ module Api
         director_fields = params[:is_director] == "true" ? [ :director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country, :residential_address, :drivers_licence, :passport_number, :photo_url ] : []
 
         contacts_json = @contacts.as_json(
-          only: [ :id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status, :is_family_member, :is_potential_director, :company_group_id ] + director_fields,
+          only: [ :id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status, :is_family_member, :is_potential_director, :company_group_id, :is_team_contact ] + director_fields,
           include: {
             portal_user: { only: [ :id, :email, :portal_type, :active ] },
             company_group: { only: [ :id, :name ] }

@@ -675,6 +675,10 @@ export default function TeeemTableView({
   // Ref for table container
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
+  // Refs and state for dynamic view button visibility
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [visibleViewCount, setVisibleViewCount] = useState(0);
+
   // Global Views Manager state managed by atom (SSoT)
   const [showGlobalViewsManager, setShowGlobalViewsManager] = useAtom(showGlobalViewsManagerAtom);
 
@@ -753,6 +757,43 @@ export default function TeeemTableView({
       }
     }
   }, [foundationIdNumeric, enableSchemaEditor, preloadedViews, viewOnly, tableName, foundationId]);
+
+  // Calculate how many view buttons can fit in available space
+  useEffect(() => {
+    if (!toolbarRef.current || savedViews.length === 0) return;
+
+    const calculateVisibleViews = () => {
+      const toolbar = toolbarRef.current;
+      if (!toolbar) return;
+
+      const toolbarWidth = toolbar.offsetWidth;
+      const leftSection = toolbar.querySelector('.toolbar-left') as HTMLElement;
+      const rightSection = toolbar.querySelector('.toolbar-right') as HTMLElement;
+
+      if (!leftSection || !rightSection) return;
+
+      // Calculate available space (toolbar width - left section - right section reserved space)
+      const leftWidth = leftSection.offsetWidth;
+      const rightReservedWidth = 400; // Space for Filters, More menu, etc.
+      const availableWidth = toolbarWidth - leftWidth - rightReservedWidth;
+
+      // Estimate button width (varies by view name length, use average ~120px per button)
+      const avgButtonWidth = 120;
+      const maxVisibleViews = Math.floor(availableWidth / avgButtonWidth);
+
+      setVisibleViewCount(Math.max(0, Math.min(maxVisibleViews, savedViews.length)));
+    };
+
+    calculateVisibleViews();
+
+    // Recalculate on window resize
+    const resizeObserver = new ResizeObserver(calculateVisibleViews);
+    if (toolbarRef.current) {
+      resizeObserver.observe(toolbarRef.current);
+    }
+
+    return () => resizeObserver.disconnect();
+  }, [savedViews.length]);
 
   // ============================================================================
   // HANDLERS
@@ -2534,9 +2575,9 @@ export default function TeeemTableView({
       return {
         position: 'sticky',
         right: 0,
-        zIndex: isHeader ? 30 : 10,
+        zIndex: isHeader ? 50 : 20,
         background: isHeader ? 'hsl(40, 11%, 89%)' : 'hsl(40, 11%, 95%)',
-        boxShadow: '-1px 0 0 #d4d4d4',
+        boxShadow: '-2px 0 4px rgba(0,0,0,0.1)',
       };
     }
 
@@ -3242,9 +3283,9 @@ export default function TeeemTableView({
       )}
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex items-center justify-between gap-4">
         {/* Left section: Add button + leftActions + Search */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {/* Add Row button - auto-shown when onAddRow is provided */}
           {onAddRow && (
             <Button
@@ -3278,130 +3319,42 @@ export default function TeeemTableView({
 
         {/* Actions - right side with saved views and buttons */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Saved Views - responsive: hide on small screens, show progressively on larger */}
-          {savedViews.length > 0 && (
-            <div className="flex items-center gap-1">
-              {/* Show views responsively based on screen size */}
-              {savedViews.slice(0, 2).map((view) => (
-                <TooltipProvider key={view.id}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={activeViewId === view.id ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => loadViewState(view)}
-                        className={cn(
-                          "shrink-0 whitespace-nowrap hidden sm:inline-flex",
-                          view.is_global && "border-blue-300 dark:border-blue-700"
-                        )}
-                      >
-                        {view.is_global && (
-                          <Globe className="h-3 w-3 mr-1 text-blue-500" />
-                        )}
-                        {view.name}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {view.is_global ? "Global view" : "Personal view"}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ))}
-              {/* Show more on medium screens */}
-              {savedViews.slice(2, 4).map((view) => (
-                <TooltipProvider key={view.id}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={activeViewId === view.id ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => loadViewState(view)}
-                        className={cn(
-                          "shrink-0 whitespace-nowrap hidden md:inline-flex",
-                          view.is_global && "border-blue-300 dark:border-blue-700"
-                        )}
-                      >
-                        {view.is_global && (
-                          <Globe className="h-3 w-3 mr-1 text-blue-500" />
-                        )}
-                        {view.name}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {view.is_global ? "Global view" : "Personal view"}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ))}
-              {/* Show even more on large screens */}
-              {savedViews.slice(4, 6).map((view) => (
-                <TooltipProvider key={view.id}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={activeViewId === view.id ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => loadViewState(view)}
-                        className={cn(
-                          "shrink-0 whitespace-nowrap hidden lg:inline-flex",
-                          view.is_global && "border-blue-300 dark:border-blue-700"
-                        )}
-                      >
-                        {view.is_global && (
-                          <Globe className="h-3 w-3 mr-1 text-blue-500" />
-                        )}
-                        {view.name}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {view.is_global ? "Global view" : "Personal view"}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ))}
-              {/* Dropdown for remaining views - show count based on screen size */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn(
-                    "shrink-0",
-                    // Hide on small screens if no views to show in dropdown
-                    savedViews.length === 0 && "hidden",
-                    // Hide on lg screens if 6 or fewer views
-                    savedViews.length <= 6 && "lg:hidden",
-                    // Hide on md screens if 4 or fewer views
-                    savedViews.length <= 4 && "md:hidden",
-                    // Hide on sm screens if 2 or fewer views
-                    savedViews.length <= 2 && "sm:hidden"
-                  )}>
-                    {/* Show different counts based on screen size */}
-                    <span className="sm:hidden">+{savedViews.length}</span>
-                    <span className="hidden sm:inline md:hidden">+{savedViews.length - 2}</span>
-                    <span className="hidden md:inline lg:hidden">+{savedViews.length - 4}</span>
-                    <span className="hidden lg:inline">+{savedViews.length - 6}</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {savedViews.map((view) => (
-                    <DropdownMenuItem
-                      key={view.id}
-                      onClick={() => loadViewState(view)}
-                      className={cn(
-                        activeViewId === view.id && "bg-accent"
-                      )}
-                    >
-                      {view.is_global && (
-                        <Globe className="h-3 w-3 mr-2 text-blue-500" />
-                      )}
-                      {view.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
-
           {/* Custom actions */}
           {customActions && <div className="shrink-0">{customActions}</div>}
+
+          {/* Saved Views - compact dropdown showing all views */}
+          {savedViews.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="shrink-0">
+                  <Eye className="h-4 w-4 mr-2" />
+                  Views
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                    {savedViews.length}
+                  </Badge>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 max-h-96 overflow-y-auto">
+                {savedViews.map((view) => (
+                  <DropdownMenuItem
+                    key={view.id}
+                    onClick={() => loadViewState(view)}
+                    className={cn(
+                      activeViewId === view.id && "bg-accent font-medium"
+                    )}
+                  >
+                    {view.is_global && (
+                      <Globe className="h-3 w-3 mr-2 text-blue-500" />
+                    )}
+                    <span className="flex-1">{view.name}</span>
+                    {activeViewId === view.id && (
+                      <Check className="h-3 w-3 ml-2" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {/* Filters button - auto-enabled when foundationIdNumeric is set */}
           {/* Opens GlobalViewsManager for managing saved views, filters, sorting, columns */}

@@ -158,15 +158,27 @@ class Contact < ApplicationRecord
   scope :companies, -> { where(entity_type: "company") }
   scope :trusts, -> { where(entity_type: "trust") }
 
+  # Team contact scopes
+  scope :team_contacts, -> { where(is_team_contact: true) }
+  scope :individual_contacts, -> { where(is_team_contact: false) }
+
   # Instance methods
   def display_name
     case entity_type
     when "person"
-      # Person: prefer first + last, fall back to full_name
-      "#{first_name} #{last_name}".strip.presence ||
-        full_name.presence ||
-        email ||
-        "Contact ##{id}"
+      # Team contact: append company name for clarity
+      if is_team_contact && primary_company.present?
+        person_name = "#{first_name} #{last_name}".strip.presence ||
+                      full_name.presence ||
+                      email
+        "#{person_name} - #{primary_company.display_name}"
+      else
+        # Person: prefer first + last, fall back to full_name
+        "#{first_name} #{last_name}".strip.presence ||
+          full_name.presence ||
+          email ||
+          "Contact ##{id}"
+      end
     when "sole_trader"
       # Sole Trader: prefer business name, fall back to person name
       company_name_or_trust.presence ||
