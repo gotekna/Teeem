@@ -198,6 +198,22 @@ export default function ContactsPageClient({
     }
   }, [refresh]);
 
+  // Handle single contact delete
+  const handleDelete = useCallback(async (row: TTableRow) => {
+    const contact = row as unknown as Contact;
+    if (!confirm(`Delete contact "${contact.full_name || contact.name}"?`)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/api/v1/foundations/contacts/records/${contact.id}`);
+      refresh();
+    } catch (error) {
+      console.error("Failed to delete contact:", error);
+      alert("Failed to delete contact. Please try again.");
+    }
+  }, [refresh]);
+
   // Calculate stats from records
   const stats = useMemo(() => ({
     total: records.length,
@@ -486,6 +502,7 @@ export default function ContactsPageClient({
               onRowClick={handleRowClick}
               onRowDoubleClick={handleRowDoubleClick}
               onRowUpdate={handleRowUpdate}
+              onDelete={handleDelete}
               leftActions={leftActions}
             />
           </TabsContent>
