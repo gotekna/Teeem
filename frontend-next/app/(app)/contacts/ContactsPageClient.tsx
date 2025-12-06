@@ -217,6 +217,9 @@ export default function ContactsPageClient({
     }
   }, [records, activeTab]);
 
+  // Enrich contact from web - Must be before conditional returns
+  const [enrichingContact, setEnrichingContact] = useState<number | null>(null);
+
   // Show error if initial load failed
   if (initialError) {
     return (
@@ -228,9 +231,6 @@ export default function ContactsPageClient({
       </div>
     );
   }
-
-  // Enrich contact from web
-  const [enrichingContact, setEnrichingContact] = useState<number | null>(null);
 
   const handleEnrichFromWeb = async (contactId: number) => {
     setEnrichingContact(contactId);
@@ -264,9 +264,10 @@ export default function ContactsPageClient({
       } else {
         alert(`Failed: ${response?.error || 'Unknown error'}`);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error enriching contact:", error);
-      alert(error.response?.data?.error || "Failed to enrich contact from web");
+      const errorMessage = error instanceof Error && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response && error.response.data && typeof error.response.data === 'object' && 'error' in error.response.data ? String(error.response.data.error) : "Failed to enrich contact from web";
+      alert(errorMessage);
     } finally {
       setEnrichingContact(null);
     }
