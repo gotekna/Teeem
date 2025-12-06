@@ -1206,41 +1206,72 @@ export default function TeeemTableView({
 
   // Bulk update handler
   const handleBulkUpdate = useCallback(async () => {
-    if (!bulkUpdateColumn || selectedRows.size === 0) return;
+    console.log('[Bulk Update] Starting bulk update...');
+    console.log('[Bulk Update] Column:', bulkUpdateColumn);
+    console.log('[Bulk Update] Value:', bulkUpdateValue);
+    console.log('[Bulk Update] Selected rows count:', selectedRows.size);
+    console.log('[Bulk Update] Selected row IDs:', Array.from(selectedRows));
+
+    if (!bulkUpdateColumn || selectedRows.size === 0) {
+      console.warn('[Bulk Update] Aborted - missing column or no rows selected');
+      return;
+    }
 
     setBulkUpdateSaving(true);
     try {
       const ids = Array.from(selectedRows);
       const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
+      console.log('[Bulk Update] Selected column config:', selectedCol);
 
       // For multiple_lookups, convert comma-separated string to array of integers
       let valueToSend: string | number[] = bulkUpdateValue;
       if (selectedCol?.column_type === 'multiple_lookups' && bulkUpdateValue) {
         valueToSend = bulkUpdateValue.split(',').filter(Boolean).map(id => parseInt(id, 10));
+        console.log('[Bulk Update] Converted multiple_lookups value:', bulkUpdateValue, '→', valueToSend);
       }
 
       // Use bulk_update API endpoint if foundationIdNumeric is available (much faster)
       if (foundationIdNumeric) {
-        await api.post(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_update`, {
+        const payload = {
           record_ids: ids,
           updates: { [bulkUpdateColumn]: valueToSend }
-        });
+        };
+        console.log('[Bulk Update] Using bulk_update API endpoint');
+        console.log('[Bulk Update] Foundation ID:', foundationIdNumeric);
+        console.log('[Bulk Update] Payload:', JSON.stringify(payload, null, 2));
+
+        const response = await api.post(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_update`, payload);
+        console.log('[Bulk Update] API response:', response);
       } else if (onRowUpdate) {
+        console.log('[Bulk Update] Using fallback individual updates (no foundationIdNumeric)');
         // Fallback to individual updates
         for (const id of ids) {
+          console.log(`[Bulk Update] Updating row ${id}...`);
           await onRowUpdate(id, bulkUpdateColumn, valueToSend);
         }
+        console.log('[Bulk Update] Individual updates completed');
+      } else {
+        console.error('[Bulk Update] No update mechanism available (no foundationIdNumeric and no onRowUpdate)');
       }
 
+      console.log('[Bulk Update] Success! Cleaning up...');
       setShowBulkUpdateModal(false);
       setBulkUpdateColumn("");
       setBulkUpdateValue("");
       setSelectedRows(new Set<string | number>());
+      console.log('[Bulk Update] Calling onRefresh...');
       onRefresh?.();
+      console.log('[Bulk Update] Complete!');
     } catch (error) {
-      console.error("Bulk update failed:", error);
+      console.error("[Bulk Update] ERROR:", error);
+      console.error("[Bulk Update] Error details:", {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        error: error
+      });
     } finally {
       setBulkUpdateSaving(false);
+      console.log('[Bulk Update] Saving state reset');
     }
   }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, foundationIdNumeric, onRowUpdate, onRefresh, COLUMNS]);
 

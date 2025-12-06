@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSetAtom } from "jotai";
 import Link from "next/link";
@@ -448,6 +448,9 @@ export default function ContactDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [enrichingFromWeb, setEnrichingFromWeb] = useState(false);
 
+  // Track if component is mounted to prevent state updates after deletion/navigation
+  const mountedRef = useRef(true);
+
 
   // SSoT: Dedicated state for rich data tabs
   const [directorships, setDirectorships] = useState<Directorship[]>([]);
@@ -567,6 +570,13 @@ export default function ContactDetailPage() {
       setContact({ ...contact, contact_phones: phones });
     }
   }, [contact?.id]);
+
+  // Cleanup: Set mounted to false when component unmounts
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // Load memberships when contact loads
   useEffect(() => {
@@ -805,17 +815,28 @@ export default function ContactDetailPage() {
   };
 
   const loadMemberships = async () => {
+    if (!mountedRef.current) return;
+
     try {
       setLoadingMemberships(true);
       const response = await api.get<{ success: boolean; data: CompanyGroupMembership[] }>(
         `/api/v1/contacts/${contact?.id}/company_group_memberships`
       );
+      if (!mountedRef.current) return;
       setMemberships(response.data || []);
     } catch (err) {
-      console.error("Failed to load memberships:", err);
-      setMemberships([]);
+      // Silently ignore "Contact not found" errors (happens when contact is deleted during navigation)
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (!errorMessage.includes("Contact not found") && mountedRef.current) {
+        console.error("Failed to load memberships:", err);
+      }
+      if (mountedRef.current) {
+        setMemberships([]);
+      }
     } finally {
-      setLoadingMemberships(false);
+      if (mountedRef.current) {
+        setLoadingMemberships(false);
+      }
     }
   };
 

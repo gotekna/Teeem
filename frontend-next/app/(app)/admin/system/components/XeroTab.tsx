@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Loader2,
   Check,
@@ -329,6 +330,10 @@ function XeroFieldMapping() {
   const [selectedTenant, setSelectedTenant] = React.useState<string>("");
   const [loading, setLoading] = React.useState(true);
   const [lastSyncAt, setLastSyncAt] = React.useState<string | null>(null);
+  const [validationRules, setValidationRules] = React.useState({
+    skip_sync_employees: false,
+    skip_sync_default_suppliers: false
+  });
 
   React.useEffect(() => {
     loadData();
@@ -347,6 +352,15 @@ function XeroFieldMapping() {
       // Load sync status for last sync time
       const statusResponse = await api.get<{ success: boolean; data: { last_sync_at: string | null } }>("/api/v1/xero/sync_status");
       setLastSyncAt(statusResponse.data?.last_sync_at || null);
+
+      // Load validation rules for selected tenant
+      if (tenantsResponse.tenants && tenantsResponse.tenants.length > 0) {
+        const tenantId = tenantsResponse.tenants[0].tenant_id;
+        const configResponse = await api.get<{ success: boolean; sync_configuration: { validation_rules?: { skip_sync_employees: boolean; skip_sync_default_suppliers: boolean } } }>(`/api/v1/sync_configurations/${tenantId}`);
+        if (configResponse.sync_configuration?.validation_rules) {
+          setValidationRules(configResponse.sync_configuration.validation_rules);
+        }
+      }
     } catch (error) {
       console.error("Failed to load data:", error);
     } finally {
@@ -375,6 +389,27 @@ function XeroFieldMapping() {
       case "xero-to-teeem": return "Xero → TEEEM";
       case "teeem-to-xero": return "TEEEM → Xero";
       default: return direction;
+    }
+  };
+
+  const handleSaveValidationRules = async (rules: typeof validationRules) => {
+    if (!selectedTenant) return;
+
+    try {
+      setValidationRules(rules);
+
+      await api.put(`/api/v1/sync_configurations/${selectedTenant}`, {
+        sync_configuration: {
+          cleanup_options: {
+            skip_sync_employees: rules.skip_sync_employees,
+            skip_sync_default_suppliers: rules.skip_sync_default_suppliers
+          }
+        }
+      });
+
+      toast({ title: "Success", description: "Validation rules updated" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update rules", variant: "destructive" });
     }
   };
 
@@ -553,6 +588,75 @@ function XeroFieldMapping() {
               </div>
             );
           })}
+        </CardContent>
+      </Card>
+
+      {/* Validation Rules Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-orange-600" />
+            <div>
+              <CardTitle className="text-base">Sync Validation Rules</CardTitle>
+              <CardDescription>
+                Prevent certain contact types from syncing to Xero
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Employee Rule */}
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="bg-orange-50 text-orange-700">RULE</Badge>
+                <span className="font-medium">Don&apos;t sync employees to Xero</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Contacts with the &quot;Employee&quot; role will be skipped during export to Xero
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={validationRules.skip_sync_employees}
+                onCheckedChange={(checked) => handleSaveValidationRules({
+                  ...validationRules,
+                  skip_sync_employees: checked
+                })}
+              />
+              {validationRules.skip_sync_employees && <Badge>Active</Badge>}
+            </div>
+          </div>
+
+          {/* Default Supplier Rule */}
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="bg-orange-50 text-orange-700">RULE</Badge>
+                <span className="font-medium">Don&apos;t sync default suppliers to Xero</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Contacts marked as default suppliers in pricebook will be skipped
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={validationRules.skip_sync_default_suppliers}
+                onCheckedChange={(checked) => handleSaveValidationRules({
+                  ...validationRules,
+                  skip_sync_default_suppliers: checked
+                })}
+              />
+              {validationRules.skip_sync_default_suppliers && <Badge>Active</Badge>}
+            </div>
+          </div>
+
+          {/* Info box */}
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-900">
+              ℹ️ Rules only apply to export (TEEEM → Xero). Imports from Xero are never blocked.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
