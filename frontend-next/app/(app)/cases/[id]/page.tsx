@@ -3598,7 +3598,7 @@ export default function CaseDetailPage() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {warehouseSummary.inconsistencies.map((issue: unknown, idx: number) => (
+                        {warehouseSummary.inconsistencies.map((issue: any, idx: number) => (
                           <div
                             key={idx}
                             className={cn(
