@@ -510,7 +510,9 @@ module Api
             next if [ "id", "created_at", "updated_at" ].include?(key)
             # Use send to go through model accessors (which may have safe decryption wrappers)
             begin
-              json[key] = record.send(key)
+              attr_value = record.send(key)
+              # Skip if this returned an ActiveRecord object (association) - these should only be IDs
+              json[key] = attr_value.is_a?(ActiveRecord::Base) ? nil : attr_value
             rescue ActiveRecord::Encryption::Errors::Decryption => e
               Rails.logger.warn "Decryption failed for #{record.class.name}##{record.id}.#{key}: #{e.message}"
               json[key] = nil
