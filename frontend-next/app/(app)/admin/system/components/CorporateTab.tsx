@@ -439,14 +439,6 @@ function CompaniesSubTab() {
     phone: "",
   });
 
-  React.useEffect(() => {
-    loadGroups();
-  }, []);
-
-  React.useEffect(() => {
-    loadCompanies();
-  }, [selectedGroupId, selectedStatus, loadCompanies]);
-
   const loadGroups = async () => {
     try {
       const response = await api.get<{ success: boolean; data: CompanyGroup[] }>("/api/v1/company_groups");
@@ -472,6 +464,14 @@ function CompaniesSubTab() {
       setLoading(false);
     }
   }, [selectedGroupId, selectedStatus]);
+
+  React.useEffect(() => {
+    loadGroups();
+  }, []);
+
+  React.useEffect(() => {
+    loadCompanies();
+  }, [selectedGroupId, selectedStatus, loadCompanies]);
 
   const handleOpenAddDialog = () => {
     setFormData({
