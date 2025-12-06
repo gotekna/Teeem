@@ -148,9 +148,13 @@ export function EditCaseContactDialog({
         onSaved?.();
         onOpenChange(false);
       } else {
+        const errors = response.errors || [];
+        const errorMsg = Array.isArray(errors)
+          ? errors.map((e: any) => typeof e === 'string' ? e : (e.error || JSON.stringify(e))).join("; ")
+          : "Failed to update contact";
         toast({
           title: "Error",
-          description: response.errors?.join(", ") || "Failed to update contact",
+          description: errorMsg,
           variant: "destructive",
         });
       }

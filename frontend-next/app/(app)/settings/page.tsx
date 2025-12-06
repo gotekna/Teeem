@@ -238,7 +238,11 @@ function SettingsPageContent() {
         }
         alert("Profile saved successfully!");
       } else {
-        alert(`Failed to save: ${response?.errors?.join(", ") || "Unknown error"}`);
+        const errors = response?.errors || [];
+        const errorMsg = Array.isArray(errors)
+          ? errors.map((e: any) => typeof e === 'string' ? e : (e.error || JSON.stringify(e))).join("; ")
+          : "Unknown error";
+        alert(`Failed to save: ${errorMsg}`);
       }
     } catch (error) {
       console.error("Failed to save profile:", error);

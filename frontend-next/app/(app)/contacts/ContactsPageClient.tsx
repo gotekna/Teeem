@@ -29,7 +29,6 @@ import {
   User,
   Truck,
   CheckCircle,
-  Globe,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
@@ -76,7 +75,6 @@ interface ContactsPageClientProps {
   initialFoundation: Foundation | null;
   initialColumns: TableColumn[];
   initialRecords: TTableRow[];
-  initialTotalCount: number | null;
   initialError: string | null;
 }
 
@@ -98,7 +96,6 @@ export default function ContactsPageClient({
   initialFoundation,
   initialColumns,
   initialRecords,
-  initialTotalCount,
   initialError,
 }: ContactsPageClientProps) {
   const searchParams = useSearchParams();
@@ -217,9 +214,6 @@ export default function ContactsPageClient({
     }
   }, [records, activeTab]);
 
-  // Enrich contact from web - Must be before conditional returns
-  const [enrichingContact, setEnrichingContact] = useState<number | null>(null);
-
   // Handle data health issue click (e.g., fix duplicate emails)
   const handleDataHealthIssueClick = useCallback((item: unknown, check: unknown) => {
     // Type guard for the item and check
@@ -244,47 +238,6 @@ export default function ContactsPageClient({
       </div>
     );
   }
-
-  const handleEnrichFromWeb = async (contactId: number) => {
-    setEnrichingContact(contactId);
-    try {
-      const response = await api.post<{
-        success: boolean;
-        is_sole_trader?: boolean;
-        company_created?: boolean;
-        company_linked?: boolean;
-        company?: { name: string };
-        error?: string;
-      }>(`/api/v1/contacts/${contactId}/enrich_from_web`);
-
-      if (response?.success) {
-        const { is_sole_trader, company_created, company_linked, company } = response;
-
-        let message = "Contact enriched from website";
-        if (company_created && company) {
-          message += ` and linked to new company: ${company.name}`;
-        } else if (company_linked && company) {
-          message += ` and linked to existing company: ${company.name}`;
-        } else if (is_sole_trader) {
-          message += " (identified as sole trader)";
-        }
-
-        // Refresh the table
-        await refresh();
-
-        // Show success message (you can use a toast here)
-        alert(message);
-      } else {
-        alert(`Failed: ${response?.error || 'Unknown error'}`);
-      }
-    } catch (error: unknown) {
-      console.error("Error enriching contact:", error);
-      const errorMessage = error instanceof Error && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response && error.response.data && typeof error.response.data === 'object' && 'error' in error.response.data ? String(error.response.data.error) : "Failed to enrich contact from web";
-      alert(errorMessage);
-    } finally {
-      setEnrichingContact(null);
-    }
-  };
 
   // Left actions - Add Contact button and Get Info from Web
   const leftActions = (

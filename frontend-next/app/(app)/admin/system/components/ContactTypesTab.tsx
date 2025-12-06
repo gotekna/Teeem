@@ -139,11 +139,15 @@ export function ContactTypesTab() {
       }
       setShowAddDialog(false);
       loadData();
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error("Failed to save contact type:", error);
+      const errors = error?.response?.data?.errors || [];
+      const errorMsg = Array.isArray(errors)
+        ? errors.map((e: any) => typeof e === 'string' ? e : (e.error || JSON.stringify(e))).join("; ")
+        : "Failed to save";
       toast({
         title: "Error",
-        description: error?.response?.data?.errors?.join(", ") || "Failed to save",
+        description: errorMsg,
         variant: "destructive",
       });
     } finally {

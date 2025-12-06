@@ -1038,16 +1038,6 @@ export default function CaseDetailPage() {
     }
   };
 
-  const handleSaveContactPosition = async (contactId: number, position: { x: number; y: number }) => {
-    try {
-      await api.patch(`/api/v1/cases/${caseId}/contacts/${contactId}/position`, {
-        display_position: position,
-      });
-    } catch (error) {
-      console.error("Failed to save contact position:", error);
-    }
-  };
-
   const buildTimeline = async () => {
     try {
       setLoadingTimeline(true);

@@ -445,7 +445,7 @@ function CompaniesSubTab() {
 
   React.useEffect(() => {
     loadCompanies();
-  }, [selectedGroupId, selectedStatus]);
+  }, [selectedGroupId, selectedStatus, loadCompanies]);
 
   const loadGroups = async () => {
     try {
@@ -456,7 +456,7 @@ function CompaniesSubTab() {
     }
   };
 
-  const loadCompanies = async () => {
+  const loadCompanies = React.useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -471,7 +471,7 @@ function CompaniesSubTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedGroupId, selectedStatus]);
 
   const handleOpenAddDialog = () => {
     setFormData({

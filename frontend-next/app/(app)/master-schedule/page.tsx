@@ -155,7 +155,11 @@ export default function MasterSchedulePage() {
         );
         setScheduleData(scheduleResponse);
       } else {
-        throw new Error(response?.errors?.join(", ") || "Update failed");
+        const errors = response?.errors || [];
+        const errorMsg = Array.isArray(errors)
+          ? errors.map((e: any) => typeof e === 'string' ? e : (e.error || JSON.stringify(e))).join("; ")
+          : "Update failed";
+        throw new Error(errorMsg);
       }
     } catch (err) {
       console.error("Failed to update task:", err);

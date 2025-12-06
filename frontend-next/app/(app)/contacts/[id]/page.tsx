@@ -25,11 +25,9 @@ import {
   Pencil,
   Trash2,
   User,
-  Calendar,
   Hash,
   FileText,
   Users,
-  DollarSign,
   ShieldCheck,
   AlertTriangle,
   CheckCircle,
@@ -56,6 +54,7 @@ import { XeroInvoiceDetailModal } from "@/components/contacts/XeroInvoiceDetailM
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
+import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 
 // Helper function to format ABN as XX XXX XXX XXX
 const formatABN = (abn: string | null) => {
@@ -424,6 +423,11 @@ export default function ContactDetailPage() {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
+  // Company multi-select state
+  const [availableCompanies, setAvailableCompanies] = useState<Option[]>([]);
+  const [selectedCompanies, setSelectedCompanies] = useState<Option[]>([]);
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
+
   const activeTab = searchParams.get("tab") || "overview";
   const activeSubTab = searchParams.get("subtab") || "identity";
 
@@ -492,6 +496,42 @@ export default function ContactDetailPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching contact?.id
   }, [contact?.id]);
+
+  // Fetch all companies for multi-select dropdown
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      setLoadingCompanies(true);
+      try {
+        const response = await api.get("/contacts", {
+          params: { entity_type: "company" },
+        });
+        const companies = response.data.contacts || [];
+        const companyOptions: Option[] = companies.map((c: any) => ({
+          value: c.id.toString(),
+          label: c.full_name || c.first_name || "Unknown Company",
+        }));
+        setAvailableCompanies(companyOptions);
+      } catch (err) {
+        console.error("Failed to fetch companies:", err);
+      } finally {
+        setLoadingCompanies(false);
+      }
+    };
+    fetchCompanies();
+  }, []);
+
+  // Populate selected companies from contact.additional_companies
+  useEffect(() => {
+    if (contact?.additional_companies) {
+      const selected: Option[] = contact.additional_companies
+        .filter((ac: any) => ac.relationship_type === 'employee_of' && ac.is_active)
+        .map((ac: any) => ({
+          value: ac.id.toString(),
+          label: ac.name || "Unknown Company",
+        }));
+      setSelectedCompanies(selected);
+    }
+  }, [contact?.additional_companies]);
 
   // SSoT: Auto-open edit modal when ?edit=true is in URL (e.g., from CG page)
   useEffect(() => {
@@ -726,6 +766,62 @@ export default function ContactDetailPage() {
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setHasChanges(true);
+  };
+
+  // Handle company selection changes
+  const handleCompanyChange = async (newSelectedCompanies: Option[]) => {
+    if (!contact) return;
+
+    const previousIds = selectedCompanies.map((c) => c.value);
+    const newIds = newSelectedCompanies.map((c) => c.value);
+
+    // Find added companies (in newIds but not in previousIds)
+    const addedIds = newIds.filter((id) => !previousIds.includes(id));
+
+    // Find removed companies (in previousIds but not in newIds)
+    const removedIds = previousIds.filter((id) => !newIds.includes(id));
+
+    try {
+      // Create new relationships for added companies
+      for (const companyId of addedIds) {
+        await api.post(`/contacts/${contact.id}/relationships`, {
+          contact_relationship: {
+            related_contact_id: parseInt(companyId),
+            relationship_type: 'employee_of',
+            is_active: true,
+          },
+        });
+      }
+
+      // Delete relationships for removed companies
+      for (const companyId of removedIds) {
+        // Find the relationship ID
+        const relationship = contact.additional_companies?.find(
+          (ac: any) => ac.id.toString() === companyId && ac.relationship_type === 'employee_of'
+        );
+        if (relationship) {
+          // Need to find the actual relationship ID, not the company ID
+          // Let's fetch all relationships and find the one matching this company
+          const relationshipsResponse = await api.get(`/contacts/${contact.id}/relationships`);
+          const rel = relationshipsResponse.data.relationships.outgoing.find(
+            (r: any) => r.related_contact_id.toString() === companyId && r.relationship_type === 'employee_of'
+          );
+          if (rel) {
+            await api.delete(`/contacts/${contact.id}/relationships/${rel.id}`);
+          }
+        }
+      }
+
+      // Update local state
+      setSelectedCompanies(newSelectedCompanies);
+
+      // Reload contact data to get updated relationships
+      await loadContact();
+    } catch (err) {
+      console.error("Failed to update company relationships:", err);
+      // Revert on error
+      setSelectedCompanies(selectedCompanies);
+    }
   };
 
   // Save contact changes
@@ -1029,6 +1125,26 @@ export default function ContactDetailPage() {
                         <option value="trust">Trust</option>
                       </select>
                     </div>
+                    {/* Company multi-select - show for person entity type */}
+                    {formData.entity_type === 'person' && (
+                      <div className="space-y-2">
+                        <Label>Company</Label>
+                        <MultipleSelector
+                          value={selectedCompanies}
+                          onChange={handleCompanyChange}
+                          options={availableCompanies}
+                          placeholder="Select companies..."
+                          emptyIndicator={
+                            <p className="text-center text-sm text-muted-foreground">
+                              {loadingCompanies ? "Loading companies..." : "No companies found"}
+                            </p>
+                          }
+                          disabled={loadingCompanies}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-muted-foreground">Select one or more companies this person is associated with</p>
+                      </div>
+                    )}
                     {/* Linked Company - show for company/trust entity types */}
                     {(formData.entity_type === 'company' || formData.entity_type === 'trust') && contact.linked_company && (
                       <div className="space-y-2">
