@@ -1,7 +1,7 @@
 class InspiringQuote < ApplicationRecord
   # Validations
   validates :quote, presence: true
-  validates :is_active, inclusion: { in: [true, false] }
+  validates :is_active, inclusion: { in: [ true, false ] }
 
   # Scopes
   scope :active, -> { where(is_active: true) }

@@ -19,7 +19,7 @@ namespace :views do
       actual_columns = foundation.columns.pluck(:column_name)
 
       # Always include system columns
-      system_columns = ['id', 'created_at', 'updated_at', 'user_id']
+      system_columns = [ "id", "created_at", "updated_at", "user_id" ]
       all_valid_columns = (actual_columns + system_columns).uniq
 
       puts "\n📋 Foundation: #{foundation.name} (ID: #{foundation.id})"
@@ -37,8 +37,8 @@ namespace :views do
         next unless view.columns.is_a?(Hash)
 
         # Get current visible columns from view
-        visible_map = view.columns['visible'] || {}
-        order_array = view.columns['order'] || []
+        visible_map = view.columns["visible"] || {}
+        order_array = view.columns["order"] || []
 
         # 1. Add any columns that exist in the table but not in the view
         all_valid_columns.each do |col_name|
@@ -70,8 +70,8 @@ namespace :views do
         end
 
         if view_modified
-          view.columns['visible'] = visible_map
-          view.columns['order'] = order_array.uniq  # Deduplicate just in case
+          view.columns["visible"] = visible_map
+          view.columns["order"] = order_array.uniq  # Deduplicate just in case
 
           if view.save
             updated_views += 1

@@ -1,5 +1,5 @@
 class ScheduleTemplate < ApplicationRecord
-  belongs_to :created_by, class_name: 'User'
+  belongs_to :created_by, class_name: "User"
   has_many :schedule_template_rows, dependent: :destroy
 
   validates :name, presence: true, uniqueness: true
@@ -11,7 +11,7 @@ class ScheduleTemplate < ApplicationRecord
   # Ensure only one template can be default
   def only_one_default
     if is_default? && ScheduleTemplate.where(is_default: true).where.not(id: id).exists?
-      errors.add(:is_default, 'Only one template can be set as default')
+      errors.add(:is_default, "Only one template can be set as default")
     end
   end
 

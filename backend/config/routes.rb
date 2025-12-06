@@ -14,10 +14,10 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
       # Feature Trackers
-      resources :feature_trackers, only: [:index, :create, :update, :destroy]
+      resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 
       # Notifications
-      resources :notifications, only: [:index] do
+      resources :notifications, only: [ :index ] do
         collection do
           get :unread_count
           post :mark_all_read
@@ -28,20 +28,20 @@ Rails.application.routes.draw do
       end
 
       # Authentication routes
-      post 'auth/signup', to: 'authentication#signup'
-      post 'auth/login', to: 'authentication#login'
-      get 'auth/me', to: 'authentication#me'
-      get 'auth/dev_login', to: 'authentication#dev_login'  # Dev mode only
-      get 'auth/users', to: 'authentication#users'  # Admin: list users for impersonation
-      post 'auth/impersonate/:user_id', to: 'authentication#impersonate'  # Admin: impersonate user
+      post "auth/signup", to: "authentication#signup"
+      post "auth/login", to: "authentication#login"
+      get "auth/me", to: "authentication#me"
+      get "auth/dev_login", to: "authentication#dev_login"  # Dev mode only
+      get "auth/users", to: "authentication#users"  # Admin: list users for impersonation
+      post "auth/impersonate/:user_id", to: "authentication#impersonate"  # Admin: impersonate user
 
       # Import routes
-      post 'imports/upload', to: 'imports#upload'
-      post 'imports/execute', to: 'imports#execute'
-      get 'imports/status/:session_key', to: 'imports#status'
+      post "imports/upload", to: "imports#upload"
+      post "imports/execute", to: "imports#execute"
+      get "imports/status/:session_key", to: "imports#status"
 
       # CSV Import routes
-      post 'csv_imports/job_with_pos', to: 'csv_imports#import_job_with_pos'
+      post "csv_imports/job_with_pos", to: "csv_imports#import_job_with_pos"
 
       # Email to Contacts extraction
       resources :email_to_contacts, only: [] do
@@ -52,35 +52,35 @@ Rails.application.routes.draw do
       end
 
       # Grok AI integration
-      post 'grok/chat', to: 'grok#chat'
-      get 'grok/suggest-features', to: 'grok#suggest_features'
-      post 'grok/plans', to: 'grok#create_plan'
-      get 'grok/plans', to: 'grok#list_plans'
-      get 'grok/plans/:id', to: 'grok#show_plan'
-      patch 'grok/plans/:id', to: 'grok#update_plan'
+      post "grok/chat", to: "grok#chat"
+      get "grok/suggest-features", to: "grok#suggest_features"
+      post "grok/plans", to: "grok#create_plan"
+      get "grok/plans", to: "grok#list_plans"
+      get "grok/plans/:id", to: "grok#show_plan"
+      patch "grok/plans/:id", to: "grok#update_plan"
 
       # Git integration
-      get 'git/branch_status', to: 'git#branch_status'
+      get "git/branch_status", to: "git#branch_status"
 
       # System & Performance Monitoring
-      get 'system/health', to: 'system#health'
-      get 'system/performance', to: 'system#performance'
-      get 'system/metrics', to: 'system#metrics'
+      get "system/health", to: "system#health"
+      get "system/performance", to: "system#performance"
+      get "system/metrics", to: "system#metrics"
 
       # Health checks
-      get 'health/pricebook', to: 'health#pricebook'
-      get 'health/pricebook/missing_items', to: 'health#missing_items'
-      get 'pricebook/price_health_check', to: 'pricebook_items#price_health_check'
+      get "health/pricebook", to: "health#pricebook"
+      get "health/pricebook/missing_items", to: "health#missing_items"
+      get "pricebook/price_health_check", to: "pricebook_items#price_health_check"
 
       # Geocoding proxy (uses Mapbox on backend to avoid CORS issues)
-      get 'geocode/search', to: 'geocode#search'
+      get "geocode/search", to: "geocode#search"
 
       # Job setup (types, statuses, and stages)
       resources :job_types do
         collection do
           post :reorder
         end
-        resources :statuses, controller: 'job_type_statuses', only: [:index, :create] do
+        resources :statuses, controller: "job_type_statuses", only: [ :index, :create ] do
           collection do
             post :reorder
           end
@@ -100,19 +100,19 @@ Rails.application.routes.draw do
       end
 
       # Junction table routes
-      resources :job_type_statuses, only: [:destroy]
+      resources :job_type_statuses, only: [ :destroy ]
 
       # Nested route for stages within type+status
-      get 'job_types/:job_type_id/statuses/:job_status_id/stages',
-        to: 'job_status_stages#index'
-      post 'job_types/:job_type_id/statuses/:job_status_id/stages',
-        to: 'job_status_stages#create'
-      post 'job_types/:job_type_id/statuses/:job_status_id/stages/reorder',
-        to: 'job_status_stages#reorder'
-      delete 'job_status_stages/:id', to: 'job_status_stages#destroy'
+      get "job_types/:job_type_id/statuses/:job_status_id/stages",
+        to: "job_status_stages#index"
+      post "job_types/:job_type_id/statuses/:job_status_id/stages",
+        to: "job_status_stages#create"
+      post "job_types/:job_type_id/statuses/:job_status_id/stages/reorder",
+        to: "job_status_stages#reorder"
+      delete "job_status_stages/:id", to: "job_status_stages#destroy"
 
       # Documents (simple alias for company documents)
-      resources :documents, only: [:index, :show, :update, :destroy] do
+      resources :documents, only: [ :index, :show, :update, :destroy ] do
         collection do
           post :analyze
         end
@@ -143,16 +143,16 @@ Rails.application.routes.draw do
           post :link_xero_tracking
           get :xero_tracking_options
           # AI job analysis
-          post :analyze, to: 'job_estimator#analyze'
+          post :analyze, to: "job_estimator#analyze"
           # Merge jobs
           post :merge
         end
 
         # Job contacts (nested under jobs)
-        resources :job_contacts, only: [:index, :create, :update, :destroy]
+        resources :job_contacts, only: [ :index, :create, :update, :destroy ]
 
         # Schedule tasks (nested under jobs)
-        resources :schedule_tasks, only: [:index, :create] do
+        resources :schedule_tasks, only: [ :index, :create ] do
           collection do
             post :import
             post :copy_from_template
@@ -161,7 +161,7 @@ Rails.application.routes.draw do
         end
 
         # Document tasks (nested under jobs)
-        resources :document_tasks, only: [:index] do
+        resources :document_tasks, only: [ :index ] do
           member do
             post :upload
             post :validate
@@ -169,7 +169,7 @@ Rails.application.routes.draw do
         end
 
         # Rain logs (nested under jobs)
-        resources :rain_logs, only: [:index, :show, :create, :update, :destroy] do
+        resources :rain_logs, only: [ :index, :show, :create, :update, :destroy ] do
           collection do
             get :weather_status
             post :fetch_weather
@@ -178,14 +178,14 @@ Rails.application.routes.draw do
         end
 
         # Meetings (nested under jobs)
-        resources :meetings, only: [:index, :create]
+        resources :meetings, only: [ :index, :create ]
 
         # Job claims (nested under jobs)
-        resources :job_claims, only: [:index, :create]
+        resources :job_claims, only: [ :index, :create ]
       end
 
       # Job claims (non-nested routes)
-      resources :job_claims, only: [:show, :update, :destroy] do
+      resources :job_claims, only: [ :show, :update, :destroy ] do
         collection do
           post :bulk_delete
           post :bulk_create
@@ -193,14 +193,14 @@ Rails.application.routes.draw do
       end
 
       # Schedule tasks (non-nested routes)
-      resources :schedule_tasks, only: [:show, :update, :destroy] do
+      resources :schedule_tasks, only: [ :show, :update, :destroy ] do
         member do
           patch :match_po
           delete :unmatch_po
         end
 
         # Checklist items for supervisor checks
-        resources :checklist_items, controller: 'schedule_task_checklist_items', only: [:index, :create, :update, :destroy] do
+        resources :checklist_items, controller: "schedule_task_checklist_items", only: [ :index, :create, :update, :destroy ] do
           member do
             post :toggle
           end
@@ -214,7 +214,7 @@ Rails.application.routes.draw do
         end
 
         # Project tasks (nested under projects)
-        resources :tasks, controller: 'project_tasks' do
+        resources :tasks, controller: "project_tasks" do
           member do
             post :auto_complete_subtasks
           end
@@ -222,7 +222,7 @@ Rails.application.routes.draw do
       end
 
       # Meetings (non-nested routes)
-      resources :meetings, only: [:index, :show, :update, :destroy] do
+      resources :meetings, only: [ :index, :show, :update, :destroy ] do
         member do
           post :start
           post :complete
@@ -231,7 +231,7 @@ Rails.application.routes.draw do
       end
 
       # Meeting Types configuration
-      resources :meeting_types, only: [:index, :show, :create, :update, :destroy] do
+      resources :meeting_types, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           get :categories
         end
@@ -252,11 +252,11 @@ Rails.application.routes.draw do
           post :attach_documents
         end
         # Payments nested under purchase orders
-        resources :payments, only: [:index, :create]
+        resources :payments, only: [ :index, :create ]
       end
 
       # Payments (standalone routes)
-      resources :payments, only: [:show, :update, :destroy] do
+      resources :payments, only: [ :show, :update, :destroy ] do
         member do
           post :sync_to_xero
         end
@@ -271,16 +271,16 @@ Rails.application.routes.draw do
       end
 
       # Price Book management
-      resources :pricebook, controller: 'pricebook_items', path: 'pricebook', constraints: { id: /[^\/]+/ } do
+      resources :pricebook, controller: "pricebook_items", path: "pricebook", constraints: { id: /[^\/]+/ } do
         member do
           get :history
           post :fetch_image
           post :update_image
           post :add_price
           post :set_default_supplier
-          delete 'price_histories/:history_id', to: 'pricebook_items#delete_price_history'
-          patch 'price_histories/:history_id', to: 'pricebook_items#update_price_history'
-          get 'proxy_image/:file_type', to: 'pricebook_items#proxy_image', as: :proxy_image
+          delete "price_histories/:history_id", to: "pricebook_items#delete_price_history"
+          patch "price_histories/:history_id", to: "pricebook_items#update_price_history"
+          get "proxy_image/:file_type", to: "pricebook_items#proxy_image", as: :proxy_image
         end
         collection do
           patch :bulk_update
@@ -294,7 +294,7 @@ Rails.application.routes.draw do
       end
 
       # Gold Standard Table (Demo/Reference Price Book)
-      resources :gold_standard_table, only: [:index, :create, :update, :destroy] do
+      resources :gold_standard_table, only: [ :index, :create, :update, :destroy ] do
         collection do
           post :bulk_delete
         end
@@ -304,10 +304,10 @@ Rails.application.routes.draw do
       end
 
       # Column Types - Single Source of Truth from Gold Standard Reference Table
-      resources :column_types, only: [:index, :show, :update]
+      resources :column_types, only: [ :index, :show, :update ]
 
       # Gold Table Sync Check - Compare column types across all sources
-      get 'gold_table_sync', to: 'gold_table_sync#index'
+      get "gold_table_sync", to: "gold_table_sync#index"
 
       # Contact roles management
       resources :contact_roles, only: [ :index, :create, :update, :destroy ]
@@ -341,21 +341,21 @@ Rails.application.routes.draw do
           post :link_xero_contact
           post :sync_from_xero
           post :sync_to_xero
-          post :portal_user, to: 'contacts#create_portal_user'
-          patch :portal_user, to: 'contacts#update_portal_user'
-          delete :portal_user, to: 'contacts#delete_portal_user'
+          post :portal_user, to: "contacts#create_portal_user"
+          patch :portal_user, to: "contacts#update_portal_user"
+          delete :portal_user, to: "contacts#delete_portal_user"
           post :enrich_from_web
         end
 
         # Contact relationships (nested under contacts)
-        resources :relationships, controller: 'contact_relationships', only: [:index, :create, :show, :update, :destroy] do
+        resources :relationships, controller: "contact_relationships", only: [ :index, :create, :show, :update, :destroy ] do
           collection do
             get :summary
           end
         end
 
         # Xero links (nested under contacts)
-        resources :xero_links, controller: 'contact_xero_links', only: [:index, :create, :show, :update, :destroy] do
+        resources :xero_links, controller: "contact_xero_links", only: [ :index, :create, :show, :update, :destroy ] do
           member do
             post :sync
             post :resolve_conflict
@@ -366,21 +366,21 @@ Rails.application.routes.draw do
         end
 
         # SMS messages (nested under contacts)
-        resources :sms_messages, only: [:index, :create]
+        resources :sms_messages, only: [ :index, :create ]
 
         # Contact persons (nested under contacts) - for Xero sync
-        resources :contact_persons, only: [:index, :create, :update, :destroy]
+        resources :contact_persons, only: [ :index, :create, :update, :destroy ]
 
         # Contact groups (nested under contacts)
-        resources :contact_groups, only: [:index]
+        resources :contact_groups, only: [ :index ]
       end
 
       # SMS webhooks (Twilio callbacks - not nested)
-      post 'sms/webhook', to: 'sms_messages#webhook'
-      post 'sms/status', to: 'sms_messages#status_webhook'
+      post "sms/webhook", to: "sms_messages#webhook"
+      post "sms/status", to: "sms_messages#status_webhook"
 
       # Chat messages
-      resources :chat_messages, only: [:index, :create, :destroy] do
+      resources :chat_messages, only: [ :index, :create, :destroy ] do
         collection do
           get :unread_count
           get :online_users
@@ -394,18 +394,18 @@ Rails.application.routes.draw do
       end
 
       # Users management
-      resources :users, only: [:index, :show, :update, :destroy] do
+      resources :users, only: [ :index, :show, :update, :destroy ] do
         collection do
           post :bulk_delete
         end
       end
 
       # User groups management
-      resources :user_groups, only: [:index, :create, :destroy]
+      resources :user_groups, only: [ :index, :create, :destroy ]
 
       # Workflow management
       resources :workflow_definitions
-      resources :workflow_steps, only: [:index, :show] do
+      resources :workflow_steps, only: [ :index, :show ] do
         member do
           post :approve
           post :reject
@@ -424,7 +424,7 @@ Rails.application.routes.draw do
       end
 
       # Microsoft unified auth (Outlook + OneDrive + SharePoint) - User-level OAuth
-      resources :microsoft, only: [], controller: 'microsoft_auth' do
+      resources :microsoft, only: [], controller: "microsoft_auth" do
         collection do
           get :auth_url
           get :callback
@@ -441,7 +441,7 @@ Rails.application.routes.draw do
 
       # Microsoft App-level access (Client Credentials) - Org-wide email & SharePoint access
       # Uses Application permissions - no per-user OAuth needed
-      resources :microsoft_app, only: [], controller: 'microsoft_app' do
+      resources :microsoft_app, only: [], controller: "microsoft_app" do
         collection do
           get :status
           post :setup
@@ -474,12 +474,12 @@ Rails.application.routes.draw do
           post :import
           post :import_for_job
           post :search_for_job
-          get 'job_search_suggestions/:job_id', action: :job_search_suggestions
+          get "job_search_suggestions/:job_id", action: :job_search_suggestions
         end
       end
 
       # Email Warehouse
-      resources :email_warehouse, only: [:index, :show] do
+      resources :email_warehouse, only: [ :index, :show ] do
         collection do
           get :unassigned
           get :search
@@ -487,7 +487,7 @@ Rails.application.routes.draw do
           get :sync_status
           post :sync
           post :sync_for_job
-          get 'for_job/:job_id', action: :for_job
+          get "for_job/:job_id", action: :for_job
         end
         member do
           post :assign_to_job
@@ -496,7 +496,7 @@ Rails.application.routes.draw do
       end
 
       # Email Job Proposals (AI-powered job creation from emails)
-      resources :email_job_proposals, only: [:index, :show, :create] do
+      resources :email_job_proposals, only: [ :index, :show, :create ] do
         member do
           post :approve
           post :reject
@@ -505,7 +505,7 @@ Rails.application.routes.draw do
       end
 
       # Email Case Proposals (AI-powered case creation from emails)
-      resources :email_case_proposals, only: [:index, :show, :create] do
+      resources :email_case_proposals, only: [ :index, :show, :create ] do
         collection do
           get :relationship_types
         end
@@ -520,7 +520,7 @@ Rails.application.routes.draw do
       resources :designs
 
       # Company Settings
-      resource :company_settings, only: [:show, :update] do
+      resource :company_settings, only: [ :show, :update ] do
         post :test_twilio, on: :collection
       end
 
@@ -535,12 +535,12 @@ Rails.application.routes.draw do
       resources :task_templates
 
       # Setup data management
-      post 'setup/pull_from_local', to: 'setup#pull_from_local'
-      post 'setup/sync_users', to: 'setup#sync_users'
-      post 'setup/sync_documentation_categories', to: 'setup#sync_documentation_categories'
-      post 'setup/sync_supervisor_checklists', to: 'setup#sync_supervisor_checklists'
-      post 'setup/sync_schedule_templates', to: 'setup#sync_schedule_templates'
-      post 'setup/sync_folder_templates', to: 'setup#sync_folder_templates'
+      post "setup/pull_from_local", to: "setup#pull_from_local"
+      post "setup/sync_users", to: "setup#sync_users"
+      post "setup/sync_documentation_categories", to: "setup#sync_documentation_categories"
+      post "setup/sync_supervisor_checklists", to: "setup#sync_supervisor_checklists"
+      post "setup/sync_schedule_templates", to: "setup#sync_schedule_templates"
+      post "setup/sync_folder_templates", to: "setup#sync_folder_templates"
 
       # Documentation Categories (Global)
       resources :documentation_categories do
@@ -550,9 +550,9 @@ Rails.application.routes.draw do
       end
 
       # TEEEM_DOCS Documentation Viewer
-      get 'documentation', to: 'documentation#index'
-      get 'documentation/search', to: 'documentation#search'
-      get 'documentation/:id', to: 'documentation#show'
+      get "documentation", to: "documentation#index"
+      get "documentation/search", to: "documentation#search"
+      get "documentation/:id", to: "documentation#show"
 
       # Trinity (Bible + Lexicon + Teacher combined)
       resources :trinity do
@@ -574,21 +574,21 @@ Rails.application.routes.draw do
       end
 
       # Agent definitions
-      resources :agents, only: [:index] do
+      resources :agents, only: [ :index ] do
         collection do
           get :shortcuts
         end
       end
 
       # User roles
-      resources :roles, only: [:index]
-      resources :user_roles, only: [:index, :create, :destroy]
+      resources :roles, only: [ :index ]
+      resources :user_roles, only: [ :index, :create, :destroy ]
 
       # Permissions management
-      get 'permissions', to: 'permissions#index'
-      get 'permissions/roles', to: 'permissions#roles'
-      get 'permissions/user/:id', to: 'permissions#user_permissions'
-      post 'permissions/grant', to: 'permissions#grant'
+      get "permissions", to: "permissions#index"
+      get "permissions/roles", to: "permissions#roles"
+      get "permissions/user/:id", to: "permissions#user_permissions"
+      post "permissions/grant", to: "permissions#grant"
 
       # Contact types (full CRUD for admin management)
       resources :contact_types do
@@ -598,7 +598,7 @@ Rails.application.routes.draw do
       end
 
       # Legacy routes for backwards compatibility
-      resources :documentation_entries, controller: 'trinity' do
+      resources :documentation_entries, controller: "trinity" do
         collection do
           get :stats
           post :export_lexicon
@@ -606,7 +606,7 @@ Rails.application.routes.draw do
         end
       end
 
-      resources :documented_bugs, controller: 'trinity' do
+      resources :documented_bugs, controller: "trinity" do
         collection do
           get :stats
           post :export_to_markdown, action: :export_lexicon
@@ -638,7 +638,7 @@ Rails.application.routes.draw do
           post :set_as_default
         end
         # Template rows (nested under schedule_templates)
-        resources :rows, controller: 'schedule_template_rows', except: [:index, :show] do
+        resources :rows, controller: "schedule_template_rows", except: [ :index, :show ] do
           collection do
             post :bulk_delete
             post :bulk_update
@@ -656,9 +656,9 @@ Rails.application.routes.draw do
 
       # SM Tasks (nested under jobs)
       resources :jobs, only: [] do
-        resources :sm_tasks, only: [:create] do
+        resources :sm_tasks, only: [ :create ] do
           collection do
-            get '/', action: :job_index
+            get "/", action: :job_index
             get :gantt_data
             post :copy_from_template
           end
@@ -666,7 +666,7 @@ Rails.application.routes.draw do
       end
 
       # SM Tasks (non-nested routes)
-      resources :sm_tasks, only: [:index, :show, :update, :destroy] do
+      resources :sm_tasks, only: [ :index, :show, :update, :destroy ] do
         collection do
           post :bulk_update
         end
@@ -682,23 +682,23 @@ Rails.application.routes.draw do
           post :move
           # Working drawings AI
           get :working_drawings
-          post 'working_drawings/process', to: 'sm_tasks#process_working_drawings'
-          patch 'working_drawings/pages/:page_id/override', to: 'sm_tasks#override_page_category'
+          post "working_drawings/process", to: "sm_tasks#process_working_drawings"
+          patch "working_drawings/pages/:page_id/override", to: "sm_tasks#override_page_category"
         end
 
         # Dependencies (nested under sm_tasks)
-        resources :dependencies, controller: 'sm_dependencies', only: [:index, :create]
+        resources :dependencies, controller: "sm_dependencies", only: [ :index, :create ]
       end
 
       # SM Dependencies (non-nested routes)
-      resources :sm_dependencies, only: [:show, :update, :destroy] do
+      resources :sm_dependencies, only: [ :show, :update, :destroy ] do
         member do
           post :restore
         end
       end
 
       # SM Hold Reasons (admin)
-      resources :sm_hold_reasons, only: [:index, :show, :create, :update, :destroy] do
+      resources :sm_hold_reasons, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           post :reorder
           post :seed_defaults
@@ -706,14 +706,14 @@ Rails.application.routes.draw do
       end
 
       # SM Templates (Schedule Master templates for SM Gantt)
-      resources :sm_templates, only: [:index, :show, :create, :update, :destroy] do
+      resources :sm_templates, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :set_default
         end
         collection do
           get :default
         end
-        resources :rows, controller: 'sm_template_rows', only: [:index, :show, :create, :update, :destroy] do
+        resources :rows, controller: "sm_template_rows", only: [ :index, :show, :create, :update, :destroy ] do
           member do
             post :move
           end
@@ -725,14 +725,14 @@ Rails.application.routes.draw do
       end
 
       # SM Settings (singleton - admin)
-      resource :sm_settings, only: [:show, :update]
+      resource :sm_settings, only: [ :show, :update ]
 
       # ============================================
       # SM Gantt Phase 2 - Resource Allocation
       # ============================================
 
       # SM Resources (people, equipment, materials)
-      resources :sm_resources, only: [:index, :show, :create, :update, :destroy] do
+      resources :sm_resources, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           get :schedule           # Resource schedule in Gantt format
           get :allocations        # Resource allocations list
@@ -741,43 +741,43 @@ Rails.application.routes.draw do
         collection do
           get :availability       # Availability for a date
           get :utilization        # Utilization report
-          delete 'allocations/:allocation_id', action: :remove_allocation
+          delete "allocations/:allocation_id", action: :remove_allocation
         end
       end
 
       # SM Resource Allocations (nested under tasks)
       resources :sm_tasks, only: [] do
-        resources :resource_allocations, controller: 'sm_resource_allocations', only: [:index, :create]
-        resources :time_entries, controller: 'sm_time_entries', only: [:index, :create]
+        resources :resource_allocations, controller: "sm_resource_allocations", only: [ :index, :create ]
+        resources :time_entries, controller: "sm_time_entries", only: [ :index, :create ]
       end
 
       # SM Resource Allocations (non-nested)
-      resources :sm_resource_allocations, only: [:show, :update, :destroy] do
+      resources :sm_resource_allocations, only: [ :show, :update, :destroy ] do
         member do
           post :confirm
           post :start
           post :complete
         end
         collection do
-          get 'by_resource/:resource_id', action: :by_resource
+          get "by_resource/:resource_id", action: :by_resource
           get :gantt_data
         end
       end
 
       # SM Time Entries (non-nested)
-      resources :sm_time_entries, only: [:show, :update, :destroy] do
+      resources :sm_time_entries, only: [ :show, :update, :destroy ] do
         member do
           post :approve
         end
         collection do
           post :bulk_approve
-          get 'by_resource/:resource_id', action: :by_resource
+          get "by_resource/:resource_id", action: :by_resource
           get :timesheet
           # SmTimesheetService endpoints
-          get 'resource_timesheet/:resource_id', action: :resource_timesheet
-          get 'task_timesheet/:task_id', action: :task_timesheet
+          get "resource_timesheet/:resource_id", action: :resource_timesheet
+          get "task_timesheet/:task_id", action: :task_timesheet
           get :pending_approvals
-          get 'weekly_summary/:resource_id', action: :weekly_summary
+          get "weekly_summary/:resource_id", action: :weekly_summary
           post :log_time
           get :export_payroll
         end
@@ -792,8 +792,8 @@ Rails.application.routes.draw do
           get :trends
           get :forecast
           get :export
-          get 'resource/:resource_id', action: :resource
-          get 'task/:task_id', action: :task
+          get "resource/:resource_id", action: :resource
+          get "task/:task_id", action: :task
         end
       end
 
@@ -802,16 +802,16 @@ Rails.application.routes.draw do
         collection do
           # Photos
           post :upload_photo
-          delete 'photos/:id', action: :delete_photo
+          delete "photos/:id", action: :delete_photo
 
           # GPS Check-ins
           post :checkin
           get :checkins
-          get 'site_status/:job_id', action: :site_status
+          get "site_status/:job_id", action: :site_status
 
           # Voice Notes
           post :record_voice_note
-          post 'voice_notes/:id/transcribe', action: :transcribe_voice_note
+          post "voice_notes/:id/transcribe", action: :transcribe_voice_note
 
           # Offline Sync
           post :sync
@@ -821,8 +821,8 @@ Rails.application.routes.draw do
       # Field endpoints nested under tasks
       resources :sm_tasks, only: [] do
         member do
-          get 'photos', to: 'sm_field#task_photos'
-          get 'voice_notes', to: 'sm_field#task_voice_notes'
+          get "photos", to: "sm_field#task_photos"
+          get "voice_notes", to: "sm_field#task_voice_notes"
         end
       end
 
@@ -841,27 +841,27 @@ Rails.application.routes.draw do
 
       # Activities nested under jobs
       resources :jobs, only: [] do
-        resources :sm_activities, only: [:index], controller: 'sm_activities'
+        resources :sm_activities, only: [ :index ], controller: "sm_activities"
       end
 
       # Activities nested under tasks
       resources :sm_tasks, only: [] do
         member do
-          get :activities, to: 'sm_activities#task_activities'
+          get :activities, to: "sm_activities#task_activities"
         end
-        resources :comments, controller: 'sm_comments', only: [:index, :create]
+        resources :comments, controller: "sm_comments", only: [ :index, :create ]
       end
 
       # Comments (non-nested)
-      resources :sm_comments, only: [:show, :update, :destroy] do
+      resources :sm_comments, only: [ :show, :update, :destroy ] do
         member do
           get :replies
           post :reply
         end
         collection do
           get :mentions
-          post 'mentions/:id/read', action: :mark_mention_read
-          post 'mentions/read_all', action: :mark_all_mentions_read
+          post "mentions/:id/read", action: :mark_mention_read
+          post "mentions/read_all", action: :mark_all_mentions_read
         end
       end
 
@@ -872,7 +872,7 @@ Rails.application.routes.draw do
       resources :jobs, only: [] do
         scope module: :sm do
           # Analytics endpoints
-          resources :sm_analytics, only: [], controller: '/api/v1/sm_analytics' do
+          resources :sm_analytics, only: [], controller: "/api/v1/sm_analytics" do
             collection do
               get :critical_path
               get :delay_impact
@@ -880,14 +880,14 @@ Rails.application.routes.draw do
               get :s_curve
               get :baselines
               post :baselines, action: :create_baseline
-              get 'baselines/:id/compare', action: :compare_baseline
+              get "baselines/:id/compare", action: :compare_baseline
               get :variance
               get :summary
             end
           end
 
           # AI endpoints
-          resources :sm_ai, only: [], controller: '/api/v1/sm_ai' do
+          resources :sm_ai, only: [], controller: "/api/v1/sm_ai" do
             collection do
               get :suggestions
               get :predictions
@@ -899,7 +899,7 @@ Rails.application.routes.draw do
       end
 
       # AI duration estimation (no construction required)
-      post 'sm_ai/estimate_duration', to: 'sm_ai#estimate_duration'
+      post "sm_ai/estimate_duration", to: "sm_ai#estimate_duration"
 
       # ============================================
       # SM Gantt - Integrations
@@ -925,14 +925,14 @@ Rails.application.routes.draw do
       # ============================================
 
       # Public Holidays
-      resources :public_holidays, only: [:index, :create, :destroy] do
+      resources :public_holidays, only: [ :index, :create, :destroy ] do
         collection do
           get :dates
         end
       end
 
       # Bug Hunter Tests
-      resources :bug_hunter_tests, only: [:index] do
+      resources :bug_hunter_tests, only: [ :index ] do
         collection do
           get :history
           delete :cleanup
@@ -957,7 +957,7 @@ Rails.application.routes.draw do
           get :status
           delete :disconnect
           get :invoices
-          get 'invoices/:id', action: :invoice_detail, as: :invoice_detail
+          get "invoices/:id", action: :invoice_detail, as: :invoice_detail
           get :invoices_by_tracking
           get :payments
           get :credit_notes
@@ -981,17 +981,17 @@ Rails.application.routes.draw do
       end
 
       # Xero contact lookup (separate route for /api/v1/xero/contacts/:id)
-      get 'xero/contacts/:id', to: 'xero#show_contact'
+      get "xero/contacts/:id", to: "xero#show_contact"
 
       # Xero tenants (available organizations)
-      get 'xero/tenants', to: 'xero#tenants'
+      get "xero/tenants", to: "xero#tenants"
 
       # Xero Webhooks (separate controller for webhook handling)
-      post 'xero/webhooks', to: 'xero_webhooks#receive'
-      get 'xero/webhooks/intent', to: 'xero_webhooks#verify_intent'
+      post "xero/webhooks", to: "xero_webhooks#receive"
+      get "xero/webhooks/intent", to: "xero_webhooks#verify_intent"
 
       # Sync Configurations (per-Xero-org settings for contact sync)
-      resources :sync_configurations, param: :xero_tenant_id, only: [:index, :show, :update] do
+      resources :sync_configurations, param: :xero_tenant_id, only: [ :index, :show, :update ] do
         member do
           post :preview
         end
@@ -1002,7 +1002,7 @@ Rails.application.routes.draw do
       end
 
       # External Invoices (cached invoice data from Xero/MYOB/QuickBooks)
-      resources :external_invoices, only: [:index, :show, :create, :update] do
+      resources :external_invoices, only: [ :index, :show, :create, :update ] do
         collection do
           get :sync_status
           get :by_tracking
@@ -1010,75 +1010,75 @@ Rails.application.routes.draw do
           post :push_pending
         end
       end
-      get 'external_invoices/by_job/:job_id', to: 'external_invoices#by_job', as: :external_invoices_by_job
-      get 'external_invoices/by_contact/:contact_id', to: 'external_invoices#by_contact', as: :external_invoices_by_contact
+      get "external_invoices/by_job/:job_id", to: "external_invoices#by_job", as: :external_invoices_by_job
+      get "external_invoices/by_contact/:contact_id", to: "external_invoices#by_contact", as: :external_invoices_by_contact
 
       # OneDrive integration (per-job - legacy)
-      get 'onedrive/authorize', to: 'one_drive#authorize'
-      get 'onedrive/callback', to: 'one_drive#callback'
-      get 'onedrive/status', to: 'one_drive#status'
-      delete 'onedrive/disconnect', to: 'one_drive#disconnect'
-      post 'onedrive/create_folders', to: 'one_drive#create_folders'
-      get 'onedrive/folders', to: 'one_drive#list_items'
-      post 'onedrive/upload', to: 'one_drive#upload'
-      get 'onedrive/download', to: 'one_drive#download'
+      get "onedrive/authorize", to: "one_drive#authorize"
+      get "onedrive/callback", to: "one_drive#callback"
+      get "onedrive/status", to: "one_drive#status"
+      delete "onedrive/disconnect", to: "one_drive#disconnect"
+      post "onedrive/create_folders", to: "one_drive#create_folders"
+      get "onedrive/folders", to: "one_drive#list_items"
+      post "onedrive/upload", to: "one_drive#upload"
+      get "onedrive/download", to: "one_drive#download"
 
       # OneDrive integration (organization-wide)
-      get 'organization_onedrive/status', to: 'organization_onedrive#status'
-      get 'organization_onedrive/authorize', to: 'organization_onedrive#authorize'
-      get 'organization_onedrive/callback', to: 'organization_onedrive#callback'
-      delete 'organization_onedrive/disconnect', to: 'organization_onedrive#disconnect'
-      get 'organization_onedrive/browse_folders', to: 'organization_onedrive#browse_folders'
-      get 'organization_onedrive/validate_folder', to: 'organization_onedrive#validate_folder'
-      patch 'organization_onedrive/change_root_folder', to: 'organization_onedrive#change_root_folder'
-      post 'organization_onedrive/create_job_folders', to: 'organization_onedrive#create_job_folders'
-      post 'organization_onedrive/create_all_job_folders', to: 'organization_onedrive#create_all_job_folders'
-      get 'organization_onedrive/job_folders', to: 'organization_onedrive#list_job_items'
-      post 'organization_onedrive/upload', to: 'organization_onedrive#upload'
-      get 'organization_onedrive/download', to: 'organization_onedrive#download'
-      get 'organization_onedrive/folder_contents', to: 'organization_onedrive#folder_contents'
-      get 'organization_onedrive/preview_pricebook_matches', to: 'organization_onedrive#preview_pricebook_matches'
-      post 'organization_onedrive/apply_pricebook_matches', to: 'organization_onedrive#apply_pricebook_matches'
-      post 'organization_onedrive/sync_pricebook_images', to: 'organization_onedrive#sync_pricebook_images'
-      get 'organization_onedrive/sharepoint_sites', to: 'organization_onedrive#sharepoint_sites'
-      post 'organization_onedrive/use_sharepoint_site', to: 'organization_onedrive#use_sharepoint_site'
-      post 'organization_onedrive/use_personal_drive', to: 'organization_onedrive#use_personal_drive'
-      post 'organization_onedrive/sync_corporate_documents', to: 'organization_onedrive#sync_corporate_documents'
-      get 'organization_onedrive/search', to: 'organization_onedrive#search'
-      get 'organization_onedrive/preview_private_folders', to: 'organization_onedrive#preview_private_folders'
-      post 'organization_onedrive/create_private_folders', to: 'organization_onedrive#create_private_folders'
-      post 'organization_onedrive/copy_files', to: 'organization_onedrive#copy_files'
-      get 'organization_onedrive/legacy_files', to: 'organization_onedrive#legacy_files'
-      post 'organization_onedrive/import_legacy', to: 'organization_onedrive#import_legacy'
-      post 'organization_onedrive/run_migration', to: 'organization_onedrive#run_migration'
-      get 'organization_onedrive/job_all_files', to: 'organization_onedrive#job_all_files'
-      post 'organization_onedrive/sync_job_documents', to: 'organization_onedrive#sync_job_documents'
+      get "organization_onedrive/status", to: "organization_onedrive#status"
+      get "organization_onedrive/authorize", to: "organization_onedrive#authorize"
+      get "organization_onedrive/callback", to: "organization_onedrive#callback"
+      delete "organization_onedrive/disconnect", to: "organization_onedrive#disconnect"
+      get "organization_onedrive/browse_folders", to: "organization_onedrive#browse_folders"
+      get "organization_onedrive/validate_folder", to: "organization_onedrive#validate_folder"
+      patch "organization_onedrive/change_root_folder", to: "organization_onedrive#change_root_folder"
+      post "organization_onedrive/create_job_folders", to: "organization_onedrive#create_job_folders"
+      post "organization_onedrive/create_all_job_folders", to: "organization_onedrive#create_all_job_folders"
+      get "organization_onedrive/job_folders", to: "organization_onedrive#list_job_items"
+      post "organization_onedrive/upload", to: "organization_onedrive#upload"
+      get "organization_onedrive/download", to: "organization_onedrive#download"
+      get "organization_onedrive/folder_contents", to: "organization_onedrive#folder_contents"
+      get "organization_onedrive/preview_pricebook_matches", to: "organization_onedrive#preview_pricebook_matches"
+      post "organization_onedrive/apply_pricebook_matches", to: "organization_onedrive#apply_pricebook_matches"
+      post "organization_onedrive/sync_pricebook_images", to: "organization_onedrive#sync_pricebook_images"
+      get "organization_onedrive/sharepoint_sites", to: "organization_onedrive#sharepoint_sites"
+      post "organization_onedrive/use_sharepoint_site", to: "organization_onedrive#use_sharepoint_site"
+      post "organization_onedrive/use_personal_drive", to: "organization_onedrive#use_personal_drive"
+      post "organization_onedrive/sync_corporate_documents", to: "organization_onedrive#sync_corporate_documents"
+      get "organization_onedrive/search", to: "organization_onedrive#search"
+      get "organization_onedrive/preview_private_folders", to: "organization_onedrive#preview_private_folders"
+      post "organization_onedrive/create_private_folders", to: "organization_onedrive#create_private_folders"
+      post "organization_onedrive/copy_files", to: "organization_onedrive#copy_files"
+      get "organization_onedrive/legacy_files", to: "organization_onedrive#legacy_files"
+      post "organization_onedrive/import_legacy", to: "organization_onedrive#import_legacy"
+      post "organization_onedrive/run_migration", to: "organization_onedrive#run_migration"
+      get "organization_onedrive/job_all_files", to: "organization_onedrive#job_all_files"
+      post "organization_onedrive/sync_job_documents", to: "organization_onedrive#sync_job_documents"
 
       # AI document analysis endpoints
-      post 'organization_onedrive/analyze_job_documents', to: 'organization_onedrive#analyze_job_documents'
-      get 'organization_onedrive/documents_needing_review', to: 'organization_onedrive#documents_needing_review'
-      post 'organization_onedrive/approve_document_rename', to: 'organization_onedrive#approve_document_rename'
-      post 'organization_onedrive/bulk_approve_renames', to: 'organization_onedrive#bulk_approve_renames'
+      post "organization_onedrive/analyze_job_documents", to: "organization_onedrive#analyze_job_documents"
+      get "organization_onedrive/documents_needing_review", to: "organization_onedrive#documents_needing_review"
+      post "organization_onedrive/approve_document_rename", to: "organization_onedrive#approve_document_rename"
+      post "organization_onedrive/bulk_approve_renames", to: "organization_onedrive#bulk_approve_renames"
 
       # Organization-wide data stats
-      get 'organization/data_stats', to: 'organization#data_stats'
+      get "organization/data_stats", to: "organization#data_stats"
 
       # Organization settings (job folder name format, etc.)
-      get 'organization_settings', to: 'organization#settings'
-      patch 'organization_settings', to: 'organization#update_settings'
+      get "organization_settings", to: "organization#settings"
+      patch "organization_settings", to: "organization#update_settings"
 
       # Schema information
-      get 'schema', to: 'schema#index'
-      get 'schema/tables', to: 'schema#tables'
-      get 'schema/in_memory_tables', to: 'schema#in_memory_tables'
-      get 'schema/system_table_columns/:table_name', to: 'schema#system_table_columns'
-      get 'schema/columns', to: 'schema#all_columns'  # All columns across all tables for Developer Tools
-      post 'schema/sync_system_tables', to: 'schema#sync_system_tables'  # Audit system tables sync status
-      post 'schema/sync_has_ui_from_production', to: 'schema#sync_has_ui_from_production'  # Sync has_ui from production
+      get "schema", to: "schema#index"
+      get "schema/tables", to: "schema#tables"
+      get "schema/in_memory_tables", to: "schema#in_memory_tables"
+      get "schema/system_table_columns/:table_name", to: "schema#system_table_columns"
+      get "schema/columns", to: "schema#all_columns"  # All columns across all tables for Developer Tools
+      post "schema/sync_system_tables", to: "schema#sync_system_tables"  # Audit system tables sync status
+      post "schema/sync_has_ui_from_production", to: "schema#sync_has_ui_from_production"  # Sync has_ui from production
 
       # Foundation management (tables renamed to foundations)
       # Backward-compatible alias for /api/v1/tables
-      resources :tables, controller: 'foundations', only: [:index, :show, :create, :update, :destroy]
+      resources :tables, controller: "foundations", only: [ :index, :show, :create, :update, :destroy ]
 
       resources :foundations do
         collection do
@@ -1090,7 +1090,7 @@ Rails.application.routes.draw do
         end
 
         # Column management
-        resources :columns, only: [:create, :update, :destroy] do
+        resources :columns, only: [ :create, :update, :destroy ] do
           collection do
             post :test_formula
           end
@@ -1121,14 +1121,14 @@ Rails.application.routes.draw do
 
       # Foundation views (user-specific saved views)
       # Backward-compatible alias for /api/v1/table_views
-      resources :table_views, controller: 'foundation_views', only: [:index, :show, :create, :update, :destroy] do
+      resources :table_views, controller: "foundation_views", only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           post :reorder
           post :create_all_setup_views
         end
       end
 
-      resources :foundation_views, only: [:index, :show, :create, :update, :destroy] do
+      resources :foundation_views, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           post :reorder
           post :create_all_setup_views
@@ -1137,17 +1137,17 @@ Rails.application.routes.draw do
       end
 
       # Estimates management (from Unreal Engine or other sources)
-      resources :estimates, only: [:index, :show, :destroy] do
+      resources :estimates, only: [ :index, :show, :destroy ] do
         member do
           patch :match
           post :generate_purchase_orders
-          post :ai_review, to: 'estimate_reviews#create'
+          post :ai_review, to: "estimate_reviews#create"
         end
-        resources :reviews, controller: 'estimate_reviews', only: [:index]
+        resources :reviews, controller: "estimate_reviews", only: [ :index ]
       end
 
       # Estimate Reviews (AI Plan Analysis)
-      resources :estimate_reviews, only: [:show, :destroy]
+      resources :estimate_reviews, only: [ :show, :destroy ]
 
       # Unreal Variables management
       resources :unreal_variables
@@ -1163,8 +1163,8 @@ Rails.application.routes.draw do
         member do
           get :directors
           post :add_director
-          put 'directors/:director_id', to: 'companies#update_director'
-          delete 'directors/:director_id', to: 'companies#remove_director'
+          put "directors/:director_id", to: "companies#update_director"
+          delete "directors/:director_id", to: "companies#remove_director"
           get :compliance_items
           get :activities
           get :documents
@@ -1177,27 +1177,27 @@ Rails.application.routes.draw do
         end
 
         # Bank Accounts (nested under companies)
-        resources :bank_accounts, only: [:index]
+        resources :bank_accounts, only: [ :index ]
 
         # Shareholdings (nested under companies)
-        resources :shareholdings, controller: 'company_shareholdings', only: [:index, :show, :create, :update, :destroy] do
+        resources :shareholdings, controller: "company_shareholdings", only: [ :index, :show, :create, :update, :destroy ] do
           collection do
             post :transfer
           end
         end
 
         # Share Transfers (nested under companies)
-        resources :share_transfers, only: [:index, :show, :create, :update, :destroy]
+        resources :share_transfers, only: [ :index, :show, :create, :update, :destroy ]
 
         # Loans (nested under companies)
-        resources :loans, controller: 'company_loans', only: [:index, :show, :create, :update, :destroy] do
+        resources :loans, controller: "company_loans", only: [ :index, :show, :create, :update, :destroy ] do
           member do
             post :payment
           end
         end
 
         # Dividends (nested under companies)
-        resources :dividends, only: [:index, :show, :create, :update, :destroy] do
+        resources :dividends, only: [ :index, :show, :create, :update, :destroy ] do
           member do
             get :payments
             post :calculate_payments
@@ -1207,7 +1207,7 @@ Rails.application.routes.draw do
         end
 
         # Minutes (nested under companies)
-        resources :minutes, controller: 'company_minutes', only: [:index, :show, :create, :update, :destroy] do
+        resources :minutes, controller: "company_minutes", only: [ :index, :show, :create, :update, :destroy ] do
           member do
             post :sign
             post :generate_from_template
@@ -1218,17 +1218,17 @@ Rails.application.routes.draw do
         end
 
         # Per-Company Xero Integration
-        get 'xero/status', to: 'company_xero#status'
-        get 'xero/authorize', to: 'company_xero#authorize'
-        get 'xero/callback', to: 'company_xero#callback'
-        post 'xero/disconnect', to: 'company_xero#disconnect'
-        post 'xero/sync', to: 'company_xero#sync'
-        get 'xero/tenants', to: 'company_xero#tenants'
+        get "xero/status", to: "company_xero#status"
+        get "xero/authorize", to: "company_xero#authorize"
+        get "xero/callback", to: "company_xero#callback"
+        post "xero/disconnect", to: "company_xero#disconnect"
+        post "xero/sync", to: "company_xero#sync"
+        get "xero/tenants", to: "company_xero#tenants"
         # Bank sync endpoints
-        get 'xero/bank_accounts', to: 'company_xero#bank_accounts'
-        post 'xero/link_bank_account', to: 'company_xero#link_bank_account'
-        post 'xero/sync_transactions', to: 'company_xero#sync_transactions'
-        get 'xero/transactions', to: 'company_xero#transactions'
+        get "xero/bank_accounts", to: "company_xero#bank_accounts"
+        post "xero/link_bank_account", to: "company_xero#link_bank_account"
+        post "xero/sync_transactions", to: "company_xero#sync_transactions"
+        get "xero/transactions", to: "company_xero#transactions"
       end
 
       # Company Groups
@@ -1276,18 +1276,18 @@ Rails.application.routes.draw do
           post :run_action
 
           # Contact positions for chart
-          patch 'contacts/:contact_id/position', action: :update_contact_position
+          patch "contacts/:contact_id/position", action: :update_contact_position
           # Case contact relationship details
-          get 'contacts/:contact_id', action: :get_case_contact
-          patch 'contacts/:contact_id', action: :update_case_contact
-          delete 'contacts/:contact_id', action: :remove_contact
+          get "contacts/:contact_id", action: :get_case_contact
+          patch "contacts/:contact_id", action: :update_case_contact
+          delete "contacts/:contact_id", action: :remove_contact
 
           # Create sub-case
           post :create_child
 
           # Document management
           get :qa_pairs
-          patch 'qa_pairs/:qa_id', action: :update_qa_pair
+          patch "qa_pairs/:qa_id", action: :update_qa_pair
           get :duplicates
           post :resolve_duplicate
           get :processing_status
@@ -1301,13 +1301,13 @@ Rails.application.routes.draw do
       end
 
       # Consolidation / Intercompany Reconciliation
-      resources :consolidation, only: [:index] do
+      resources :consolidation, only: [ :index ] do
         collection do
           get :mismatches
-          get 'company/:company_id', to: 'consolidation#company_summary', as: :company_summary
+          get "company/:company_id", to: "consolidation#company_summary", as: :company_summary
         end
       end
-      resources :consolidation, param: :company_group_id, only: [:show] do
+      resources :consolidation, param: :company_group_id, only: [ :show ] do
         member do
           post :reconcile
           get :relationships
@@ -1316,7 +1316,7 @@ Rails.application.routes.draw do
       end
 
       # Company Loans (global view)
-      get 'company_loans', to: 'company_loans#all'
+      get "company_loans", to: "company_loans#all"
 
       # Minute Templates
       resources :minute_templates do
@@ -1328,7 +1328,7 @@ Rails.application.routes.draw do
       # Xero Chart of Accounts (Standard COA per group)
       resources :xero_chart_of_accounts do
         collection do
-          get 'for_company/:company_id', action: :for_company
+          get "for_company/:company_id", action: :for_company
           post :sync_from_xero
           post :copy_to_group
         end
@@ -1343,9 +1343,9 @@ Rails.application.routes.draw do
         end
         collection do
           # Public routes (no auth required)
-          get 'public/:access_token', action: :show_public
-          post 'public/:access_token/submit', action: :submit
-          post 'public/:access_token/upload', action: :upload_document
+          get "public/:access_token", action: :show_public
+          post "public/:access_token/submit", action: :submit
+          post "public/:access_token/upload", action: :upload_document
         end
       end
 
@@ -1389,8 +1389,8 @@ Rails.application.routes.draw do
           get :service_history
           post :add_service
           get :insurance
-          post :insurance, to: 'assets#update_insurance'
-          put :insurance, to: 'assets#update_insurance'
+          post :insurance, to: "assets#update_insurance"
+          put :insurance, to: "assets#update_insurance"
           get :documents
         end
       end
@@ -1422,7 +1422,7 @@ Rails.application.routes.draw do
       end
 
       # Company Xero Connections
-      resources :company_xero_connections, only: [:index, :show, :destroy] do
+      resources :company_xero_connections, only: [ :index, :show, :destroy ] do
         collection do
           get :auth_url
           post :callback
@@ -1430,19 +1430,19 @@ Rails.application.routes.draw do
         member do
           post :sync_accounts
           get :status
-          delete :disconnect, to: 'company_xero_connections#disconnect'
+          delete :disconnect, to: "company_xero_connections#disconnect"
         end
       end
 
       # Company Compliance Items
-      resources :company_compliance_items, only: [:index, :show, :create, :update, :destroy] do
+      resources :company_compliance_items, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :mark_completed
         end
       end
 
       # Compliance Calendar (dashboard view)
-      resources :compliance_calendar, only: [:index] do
+      resources :compliance_calendar, only: [ :index ] do
         collection do
           get :summary
           get :overdue
@@ -1455,7 +1455,7 @@ Rails.application.routes.draw do
 
       # WHS (Workplace Health & Safety) Module
       # SWMS (Safe Work Method Statements)
-      resources :whs_swms, only: [:index, :show, :create, :update, :destroy] do
+      resources :whs_swms, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :submit_for_approval
           post :approve
@@ -1466,7 +1466,7 @@ Rails.application.routes.draw do
       end
 
       # WHS Inspections
-      resources :whs_inspections, only: [:index, :show, :create, :update, :destroy] do
+      resources :whs_inspections, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :start
           post :complete
@@ -1474,10 +1474,10 @@ Rails.application.routes.draw do
       end
 
       # WHS Inspection Templates
-      resources :whs_inspection_templates, only: [:index, :show, :create, :update, :destroy]
+      resources :whs_inspection_templates, only: [ :index, :show, :create, :update, :destroy ]
 
       # WHS Incidents
-      resources :whs_incidents, only: [:index, :show, :create, :update, :destroy] do
+      resources :whs_incidents, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :investigate
           post :close
@@ -1486,7 +1486,7 @@ Rails.application.routes.draw do
       end
 
       # WHS Inductions
-      resources :whs_inductions, only: [:index, :show, :create, :update, :destroy] do
+      resources :whs_inductions, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :complete
           post :mark_expired
@@ -1494,10 +1494,10 @@ Rails.application.routes.draw do
       end
 
       # WHS Induction Templates
-      resources :whs_induction_templates, only: [:index, :show, :create, :update, :destroy]
+      resources :whs_induction_templates, only: [ :index, :show, :create, :update, :destroy ]
 
       # WHS Action Items
-      resources :whs_action_items, only: [:index, :show, :create, :update, :destroy] do
+      resources :whs_action_items, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :start
           post :complete
@@ -1506,10 +1506,10 @@ Rails.application.routes.draw do
       end
 
       # WHS Settings
-      resources :whs_settings, only: [:index, :show, :create, :update, :destroy] do
+      resources :whs_settings, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
-          get 'key/:key', action: :show_by_key
-          patch 'key/:key', action: :update_by_key
+          get "key/:key", action: :show_by_key
+          patch "key/:key", action: :update_by_key
         end
       end
 
@@ -1525,22 +1525,22 @@ Rails.application.routes.draw do
       end
 
       # Financial Reports
-      get 'financial_reports/balance_sheet', to: 'financial_reports#balance_sheet'
-      get 'financial_reports/profit_loss', to: 'financial_reports#profit_loss'
-      get 'financial_reports/job_profitability', to: 'financial_reports#job_profitability'
-      get 'financial_reports/account_balances', to: 'financial_reports#account_balances'
-      get 'financial_reports/trial_balance', to: 'financial_reports#trial_balance'
+      get "financial_reports/balance_sheet", to: "financial_reports#balance_sheet"
+      get "financial_reports/profit_loss", to: "financial_reports#profit_loss"
+      get "financial_reports/job_profitability", to: "financial_reports#job_profitability"
+      get "financial_reports/account_balances", to: "financial_reports#account_balances"
+      get "financial_reports/trial_balance", to: "financial_reports#trial_balance"
 
       # Financial Exports
-      get 'financial_exports/transactions', to: 'financial_exports#transactions'
-      get 'financial_exports/balance_sheet', to: 'financial_exports#balance_sheet'
-      get 'financial_exports/profit_loss', to: 'financial_exports#profit_loss'
-      get 'financial_exports/job_profitability', to: 'financial_exports#job_profitability'
-      get 'financial_exports/chart_of_accounts', to: 'financial_exports#chart_of_accounts'
-      get 'financial_exports/accountant_package', to: 'financial_exports#accountant_package'
+      get "financial_exports/transactions", to: "financial_exports#transactions"
+      get "financial_exports/balance_sheet", to: "financial_exports#balance_sheet"
+      get "financial_exports/profit_loss", to: "financial_exports#profit_loss"
+      get "financial_exports/job_profitability", to: "financial_exports#job_profitability"
+      get "financial_exports/chart_of_accounts", to: "financial_exports#chart_of_accounts"
+      get "financial_exports/accountant_package", to: "financial_exports#accountant_package"
 
       # Chart of Accounts
-      resources :chart_of_accounts, only: [:index, :show, :create, :update, :destroy] do
+      resources :chart_of_accounts, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           get :balance
         end
@@ -1550,7 +1550,7 @@ Rails.application.routes.draw do
       end
 
       # Pay Now Requests (admin/supervisor interface)
-      resources :pay_now_requests, only: [:index, :show] do
+      resources :pay_now_requests, only: [ :index, :show ] do
         member do
           post :approve
           post :reject
@@ -1573,31 +1573,31 @@ Rails.application.routes.draw do
 
       # Portal Users Admin Management (uses regular auth, not portal auth)
       # This is an admin-only endpoint at /api/v1/portal/users
-      scope '/portal' do
-        resources :portal_users, path: 'users', only: [:index, :show]
+      scope "/portal" do
+        resources :portal_users, path: "users", only: [ :index, :show ]
       end
 
       # Subcontractor Portal routes (for external subcontractor access)
       namespace :portal do
         # Portal authentication
-        post 'auth/login', to: 'authentication#login'
-        post 'auth/signup', to: 'authentication#signup'
-        post 'auth/forgot_password', to: 'authentication#forgot_password'
-        post 'auth/reset_password', to: 'authentication#reset_password'
-        get 'auth/me', to: 'authentication#me'
+        post "auth/login", to: "authentication#login"
+        post "auth/signup", to: "authentication#signup"
+        post "auth/forgot_password", to: "authentication#forgot_password"
+        post "auth/reset_password", to: "authentication#reset_password"
+        get "auth/me", to: "authentication#me"
 
         # Quote requests (subcontractor view)
-        resources :quote_requests, only: [:index, :show] do
+        resources :quote_requests, only: [ :index, :show ] do
           member do
             post :reject
           end
         end
 
         # Quote responses (submit and manage quotes)
-        resources :quote_responses, only: [:create, :update, :show]
+        resources :quote_responses, only: [ :create, :update, :show ]
 
         # Jobs tracking
-        resources :jobs, only: [:index, :show] do
+        resources :jobs, only: [ :index, :show ] do
           member do
             post :mark_arrival
             post :mark_complete
@@ -1607,7 +1607,7 @@ Rails.application.routes.draw do
         end
 
         # SM Gantt Tasks (supplier schedule view)
-        resources :sm_tasks, only: [:index, :show, :update] do
+        resources :sm_tasks, only: [ :index, :show, :update ] do
           member do
             post :add_comment
             get :comments
@@ -1621,7 +1621,7 @@ Rails.application.routes.draw do
         end
 
         # Invoices
-        resources :invoices, only: [:index, :show, :create, :update, :destroy] do
+        resources :invoices, only: [ :index, :show, :create, :update, :destroy ] do
           member do
             post :retry_sync
           end
@@ -1631,7 +1631,7 @@ Rails.application.routes.draw do
         end
 
         # Accounting integrations
-        resources :accounting_integrations, only: [:index, :show, :destroy] do
+        resources :accounting_integrations, only: [ :index, :show, :destroy ] do
           collection do
             get :oauth_url
             post :oauth_callback
@@ -1643,7 +1643,7 @@ Rails.application.routes.draw do
         end
 
         # Kudos system
-        resources :kudos, only: [:index] do
+        resources :kudos, only: [ :index ] do
           collection do
             get :leaderboard
             get :events
@@ -1653,7 +1653,7 @@ Rails.application.routes.draw do
         end
 
         # Pay Now requests (supplier early payment)
-        resources :pay_now_requests, only: [:index, :show, :create, :destroy] do
+        resources :pay_now_requests, only: [ :index, :show, :create, :destroy ] do
           member do
             post :upload_documents
           end
@@ -1678,24 +1678,24 @@ Rails.application.routes.draw do
       # Data Warehouse API
       namespace :warehouse do
         # Metadata (data dictionary)
-        get '/', to: 'warehouse_metadata#index', as: :metadata_index
-        get 'metadata', to: 'warehouse_metadata#index', as: :metadata
-        get 'metadata/:id', to: 'warehouse_metadata#show', as: :metadata_show
+        get "/", to: "warehouse_metadata#index", as: :metadata_index
+        get "metadata", to: "warehouse_metadata#index", as: :metadata
+        get "metadata/:id", to: "warehouse_metadata#show", as: :metadata_show
 
         # Export endpoints
-        get 'export', to: 'warehouse_exports#index', as: :export
-        get 'export/:id', to: 'warehouse_exports#show', as: :export_view
+        get "export", to: "warehouse_exports#index", as: :export
+        get "export/:id", to: "warehouse_exports#show", as: :export_view
 
         # Status and health
-        get 'status', to: 'warehouse_status#index', as: :status
-        get 'status/:id', to: 'warehouse_status#show', as: :status_view
-        get 'health', to: 'warehouse_status#health', as: :health
-        post 'refresh', to: 'warehouse_status#refresh', as: :refresh
+        get "status", to: "warehouse_status#index", as: :status
+        get "status/:id", to: "warehouse_status#show", as: :status_view
+        get "health", to: "warehouse_status#health", as: :health
+        post "refresh", to: "warehouse_status#refresh", as: :refresh
       end
 
       # External integrations (API endpoints for third-party systems)
       namespace :external do
-        post 'unreal_estimates', to: 'unreal_estimates#create'
+        post "unreal_estimates", to: "unreal_estimates#create"
       end
     end
   end

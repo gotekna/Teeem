@@ -3,7 +3,7 @@
 module Api
   module V1
     class NotificationsController < ApplicationController
-      before_action :set_notification, only: [:mark_read]
+      before_action :set_notification, only: [ :mark_read ]
 
       # GET /api/v1/notifications
       def index
@@ -40,7 +40,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'All notifications marked as read'
+          message: "All notifications marked as read"
         }
       end
 
@@ -67,7 +67,7 @@ module Api
 
       def notification_link(notification)
         case notification.notifiable_type
-        when 'SmTask'
+        when "SmTask"
           "/tasks" # For now, link to tasks page
         else
           nil

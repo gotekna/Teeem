@@ -1,8 +1,8 @@
 module Api
   module V1
     class FoundationsController < ApplicationController
-      skip_before_action :authorize_request, only: [:table_ids]
-      before_action :set_foundation, only: [:show, :update, :destroy, :health, :schema]
+      skip_before_action :authorize_request, only: [ :table_ids ]
+      before_action :set_foundation, only: [ :show, :update, :destroy, :health, :schema ]
 
       # GET /api/v1/foundations
       def index
@@ -183,20 +183,20 @@ module Api
         # Key tables that the frontend needs to know about
         # Map frontend key -> database slug
         key_mapping = {
-          'gold-standard' => 'gold-standard-reference',
-          'jobs' => 'jobs',
-          'pricebook' => 'pricebook',
-          'contacts' => 'contacts',
-          'companies' => 'company',
-          'features-tracking' => 'feature-tracker',
+          "gold-standard" => "gold-standard-reference",
+          "jobs" => "jobs",
+          "pricebook" => "pricebook",
+          "contacts" => "contacts",
+          "companies" => "company",
+          "features-tracking" => "feature-tracker",
           # Corporate module tables
-          'company-activity' => 'company-activity',
-          'company-compliance-item' => 'company-compliance-item',
-          'company-director' => 'company-director',
-          'company-document' => 'company-document',
-          'company-setting' => 'company-setting',
-          'company-xero-account' => 'company-xero-account',
-          'company-xero-connection' => 'company-xero-connection'
+          "company-activity" => "company-activity",
+          "company-compliance-item" => "company-compliance-item",
+          "company-director" => "company-director",
+          "company-document" => "company-document",
+          "company-setting" => "company-setting",
+          "company-xero-account" => "company-xero-account",
+          "company-xero-connection" => "company-xero-connection"
         }
 
         db_slugs = key_mapping.values
@@ -219,20 +219,20 @@ module Api
           tables_by_id: by_id,
           # Convenience: uppercase key format matching frontend constants
           TABLE_IDS: {
-            GOLD_STANDARD: slug_to_id['gold-standard'],
-            JOBS: slug_to_id['jobs'],
-            PRICEBOOK: slug_to_id['pricebook'],
-            CONTACTS: slug_to_id['contacts'],
-            COMPANIES: slug_to_id['companies'],
-            FEATURES_TRACKING: slug_to_id['features-tracking'],
+            GOLD_STANDARD: slug_to_id["gold-standard"],
+            JOBS: slug_to_id["jobs"],
+            PRICEBOOK: slug_to_id["pricebook"],
+            CONTACTS: slug_to_id["contacts"],
+            COMPANIES: slug_to_id["companies"],
+            FEATURES_TRACKING: slug_to_id["features-tracking"],
             # Corporate module
-            COMPANY_ACTIVITY: slug_to_id['company-activity'],
-            COMPANY_COMPLIANCE_ITEM: slug_to_id['company-compliance-item'],
-            COMPANY_DIRECTOR: slug_to_id['company-director'],
-            COMPANY_DOCUMENT: slug_to_id['company-document'],
-            COMPANY_SETTING: slug_to_id['company-setting'],
-            COMPANY_XERO_ACCOUNT: slug_to_id['company-xero-account'],
-            COMPANY_XERO_CONNECTION: slug_to_id['company-xero-connection']
+            COMPANY_ACTIVITY: slug_to_id["company-activity"],
+            COMPANY_COMPLIANCE_ITEM: slug_to_id["company-compliance-item"],
+            COMPANY_DIRECTOR: slug_to_id["company-director"],
+            COMPANY_DOCUMENT: slug_to_id["company-document"],
+            COMPANY_SETTING: slug_to_id["company-setting"],
+            COMPANY_XERO_ACCOUNT: slug_to_id["company-xero-account"],
+            COMPANY_XERO_CONNECTION: slug_to_id["company-xero-connection"]
           }.compact
         }
       end
@@ -243,7 +243,7 @@ module Api
         if @foundation.is_live
           return render json: {
             success: false,
-            errors: ['Cannot delete a live foundation. Set it to draft first.']
+            errors: [ "Cannot delete a live foundation. Set it to draft first." ]
           }, status: :unprocessable_entity
         end
 
@@ -253,7 +253,7 @@ module Api
           if record_count > 0
             return render json: {
               success: false,
-              errors: ["Cannot delete a foundation that contains #{record_count} record(s). Delete all records first."]
+              errors: [ "Cannot delete a foundation that contains #{record_count} record(s). Delete all records first." ]
             }, status: :unprocessable_entity
           end
         rescue => e
@@ -263,10 +263,10 @@ module Api
         # Check if other foundations have lookup columns referencing this foundation
         referencing_columns = Column.where(lookup_foundation_id: @foundation.id).includes(:foundation)
         if referencing_columns.any?
-          foundation_names = referencing_columns.map { |col| col.foundation.name }.uniq.join(', ')
+          foundation_names = referencing_columns.map { |col| col.foundation.name }.uniq.join(", ")
           return render json: {
             success: false,
-            errors: ["Cannot delete this foundation because it is referenced by lookup columns in: #{foundation_names}. Remove those lookup columns first."]
+            errors: [ "Cannot delete this foundation because it is referenced by lookup columns in: #{foundation_names}. Remove those lookup columns first." ]
           }, status: :unprocessable_entity
         end
 
@@ -278,7 +278,7 @@ module Api
             drop_result = builder.drop_database_table
 
             unless drop_result[:success]
-              raise ActiveRecord::Rollback, drop_result[:errors].join(', ')
+              raise ActiveRecord::Rollback, drop_result[:errors].join(", ")
             end
 
             # Delete the foundation record (this will also cascade delete columns via dependent: :destroy)
@@ -289,13 +289,13 @@ module Api
         rescue ActiveRecord::Rollback => e
           render json: {
             success: false,
-            errors: [e.message]
+            errors: [ e.message ]
           }, status: :unprocessable_entity
         rescue => e
           Rails.logger.error "Error deleting foundation: #{e.message}"
           render json: {
             success: false,
-            errors: ["Failed to delete foundation: #{e.message}"]
+            errors: [ "Failed to delete foundation: #{e.message}" ]
           }, status: :internal_server_error
         end
       end
@@ -310,12 +310,12 @@ module Api
           Foundation.includes(:columns).find_by!(slug: params[:id])
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Foundation not found' }, status: :not_found
+        render json: { error: "Foundation not found" }, status: :not_found
       end
 
       # Get columns for system foundations from the model schema
       def system_foundation_columns
-        return [] unless @foundation.table_type == 'system' && @foundation.model_class.present?
+        return [] unless @foundation.table_type == "system" && @foundation.model_class.present?
 
         begin
           model = @foundation.model_class.constantize
@@ -328,7 +328,7 @@ module Api
               column_name: col.name,
               column_type: map_sql_type_to_column_type(col.type),
               required: !col.null,
-              is_title: col.name == 'title' || col.name == 'name',
+              is_title: col.name == "title" || col.name == "name",
               is_unique: false,
               position: position
             }
@@ -342,21 +342,21 @@ module Api
       def map_sql_type_to_column_type(sql_type)
         case sql_type
         when :string, :text
-          'text'
+          "text"
         when :integer, :bigint
-          'number'
+          "number"
         when :decimal, :float
-          'currency'
+          "currency"
         when :boolean
-          'boolean'
+          "boolean"
         when :date
-          'date'
+          "date"
         when :datetime, :timestamp
-          'datetime'
+          "datetime"
         when :json, :jsonb
-          'json'
+          "json"
         else
-          'text'
+          "text"
         end
       end
 
@@ -386,18 +386,18 @@ module Api
         all_columns.each { |col| visible_columns[col] = true }
         # Note: 'select' and 'actions' are UI-only pseudo-columns, not database columns
         # Only add 'id' to visible columns as it's a real database column
-        visible_columns['id'] = true
+        visible_columns["id"] = true
 
         # Build column order array (includes UI-only columns for frontend display)
-        column_order = ['select', 'id', 'actions'] + all_columns
+        column_order = [ "select", "id", "actions" ] + all_columns
 
         # Create the Setup view
         current_user.foundation_views.create!(
           foundation_id: foundation.id,
-          name: 'Setup',
-          view_type: 'custom',
+          name: "Setup",
+          view_type: "custom",
           filters: {
-            interGroupLogic: 'OR',
+            interGroupLogic: "OR",
             cascadeFilters: [],
             filterGroups: []
           },
@@ -496,7 +496,7 @@ module Api
 
               column_data
             end
-          elsif foundation.table_type == 'system'
+          elsif foundation.table_type == "system"
             # Fallback: auto-detect columns from model schema for system foundations without defined columns
             json[:columns] = system_foundation_columns
           else
@@ -516,7 +516,7 @@ module Api
 
         # Always include columns info for list view
         unless include_columns
-          if foundation.table_type == 'system'
+          if foundation.table_type == "system"
             json[:columns] = system_foundation_columns.map do |col|
               {
                 id: col[:id],

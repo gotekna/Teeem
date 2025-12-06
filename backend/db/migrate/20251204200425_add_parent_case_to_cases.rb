@@ -8,6 +8,6 @@ class AddParentCaseToCases < ActiveRecord::Migration[8.0]
     add_column :cases, :hierarchy_level, :integer, default: 0
 
     # Index for finding all children of a case
-    add_index :cases, [:parent_case_id, :status], name: 'index_cases_on_parent_and_status'
+    add_index :cases, [ :parent_case_id, :status ], name: 'index_cases_on_parent_and_status'
   end
 end

@@ -16,13 +16,13 @@ class MeetingParticipant < ApplicationRecord
   scope :organizers, -> { where(is_organizer: true) }
   scope :required, -> { where(is_required: true) }
   scope :optional, -> { where(is_required: false) }
-  scope :accepted, -> { where(response_status: 'accepted') }
-  scope :declined, -> { where(response_status: 'declined') }
-  scope :pending, -> { where(response_status: 'pending') }
+  scope :accepted, -> { where(response_status: "accepted") }
+  scope :declined, -> { where(response_status: "declined") }
+  scope :pending, -> { where(response_status: "pending") }
 
   # Helper methods
   def participant_name
-    user&.name || contact&.name || 'Unknown'
+    user&.name || contact&.name || "Unknown"
   end
 
   def participant_email
@@ -30,28 +30,28 @@ class MeetingParticipant < ApplicationRecord
   end
 
   def accept!
-    update(response_status: 'accepted')
+    update(response_status: "accepted")
   end
 
   def decline!
-    update(response_status: 'declined')
+    update(response_status: "declined")
   end
 
   def tentative!
-    update(response_status: 'tentative')
+    update(response_status: "tentative")
   end
 
   private
 
   def must_have_user_or_contact
     if user_id.blank? && contact_id.blank?
-      errors.add(:base, 'Must have either a user or contact')
+      errors.add(:base, "Must have either a user or contact")
     end
   end
 
   def cannot_have_both_user_and_contact
     if user_id.present? && contact_id.present?
-      errors.add(:base, 'Cannot have both user and contact')
+      errors.add(:base, "Cannot have both user and contact")
     end
   end
 
@@ -64,7 +64,7 @@ class MeetingParticipant < ApplicationRecord
                                .exists?
 
     if existing_organizer
-      errors.add(:is_organizer, 'only one organizer allowed per meeting')
+      errors.add(:is_organizer, "only one organizer allowed per meeting")
     end
   end
 end

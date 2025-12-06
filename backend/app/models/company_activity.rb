@@ -10,12 +10,12 @@ class CompanyActivity < ApplicationRecord
   # Scopes
   scope :recent, -> { order(created_at: :desc) }
   scope :by_type, ->(type) { where(activity_type: type) }
-  scope :since, ->(date) { where('created_at >= ?', date) }
+  scope :since, ->(date) { where("created_at >= ?", date) }
   scope :between, ->(start_date, end_date) { where(created_at: start_date..end_date) }
 
   # Instance methods
   def formatted_activity_type
-    activity_type.to_s.titleize.gsub('_', ' ')
+    activity_type.to_s.titleize.gsub("_", " ")
   end
 
   def performed_by_name
@@ -23,7 +23,7 @@ class CompanyActivity < ApplicationRecord
     when User
       performed_by.name || performed_by.email
     else
-      'System'
+      "System"
     end
   end
 
@@ -40,7 +40,7 @@ class CompanyActivity < ApplicationRecord
     when 86400..2591999
       "#{(distance / 86400).to_i} days ago"
     else
-      created_at.strftime('%d %b %Y')
+      created_at.strftime("%d %b %Y")
     end
   end
 end

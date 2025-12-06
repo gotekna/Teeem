@@ -19,6 +19,6 @@ class CreateCaseEmailQa < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :case_email_qas, [:case_id, :is_answered]
+    add_index :case_email_qas, [ :case_id, :is_answered ]
   end
 end

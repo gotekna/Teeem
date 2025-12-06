@@ -1,40 +1,40 @@
 class ContactRelationship < ApplicationRecord
-  belongs_to :source_contact, class_name: 'Contact'
-  belongs_to :related_contact, class_name: 'Contact'
+  belongs_to :source_contact, class_name: "Contact"
+  belongs_to :related_contact, class_name: "Contact"
 
   # Relationship type options
   RELATIONSHIP_TYPES = [
     # Employment
-    'employee_of',
-    'contractor_for',
+    "employee_of",
+    "contractor_for",
 
     # Company roles
-    'director_of',
-    'shareholder_of',
-    'authorized_signatory_of',
-    'beneficial_owner_of',
+    "director_of",
+    "shareholder_of",
+    "authorized_signatory_of",
+    "beneficial_owner_of",
 
     # Trust roles
-    'trustee_of',
-    'beneficiary_of',
-    'appointor_of',
+    "trustee_of",
+    "beneficiary_of",
+    "appointor_of",
 
     # Ownership
-    'owner_of',
-    'co_owner_with',
+    "owner_of",
+    "co_owner_with",
 
     # Business relationships
-    'partner_in',
-    'parent_company',
-    'subsidiary',
+    "partner_in",
+    "parent_company",
+    "subsidiary",
 
     # Legacy/General
-    'previous_client',
-    'referral',
-    'supplier_alternate',
-    'related_project',
-    'family_member',
-    'other'
+    "previous_client",
+    "referral",
+    "supplier_alternate",
+    "related_project",
+    "family_member",
+    "other"
   ].freeze
 
   # Validations
@@ -49,10 +49,10 @@ class ContactRelationship < ApplicationRecord
   scope :active, -> { where(is_active: true) }
   scope :inactive, -> { where(is_active: false) }
   scope :by_type, ->(type) { where(relationship_type: type) }
-  scope :employment, -> { where(relationship_type: ['employee_of', 'contractor_for']) }
-  scope :company_roles, -> { where(relationship_type: ['director_of', 'shareholder_of', 'authorized_signatory_of', 'beneficial_owner_of']) }
-  scope :trust_roles, -> { where(relationship_type: ['trustee_of', 'beneficiary_of', 'appointor_of']) }
-  scope :ownership, -> { where(relationship_type: ['owner_of', 'co_owner_with', 'shareholder_of']) }
+  scope :employment, -> { where(relationship_type: [ "employee_of", "contractor_for" ]) }
+  scope :company_roles, -> { where(relationship_type: [ "director_of", "shareholder_of", "authorized_signatory_of", "beneficial_owner_of" ]) }
+  scope :trust_roles, -> { where(relationship_type: [ "trustee_of", "beneficiary_of", "appointor_of" ]) }
+  scope :ownership, -> { where(relationship_type: [ "owner_of", "co_owner_with", "shareholder_of" ]) }
 
   # Callbacks for bidirectional sync
   after_create :create_reverse_relationship

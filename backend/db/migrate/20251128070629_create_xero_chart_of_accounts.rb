@@ -11,7 +11,7 @@ class CreateXeroChartOfAccounts < ActiveRecord::Migration[8.0]
 
       t.timestamps
     end
-    add_index :xero_chart_of_accounts, [:company_group_id, :account_code],
+    add_index :xero_chart_of_accounts, [ :company_group_id, :account_code ],
               unique: true, name: 'idx_xero_coa_group_code'
     add_index :xero_chart_of_accounts, :account_code
     add_index :xero_chart_of_accounts, :account_type

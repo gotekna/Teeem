@@ -20,7 +20,7 @@ class SmRolloverJob < ApplicationJob
     settings = SmSetting.instance
     return unless settings.rollover_enabled?
 
-    timezone = settings.rollover_timezone || 'Australia/Sydney'
+    timezone = settings.rollover_timezone || "Australia/Sydney"
     today = Time.current.in_time_zone(timezone).to_date
 
     # Find all past-due tasks
@@ -54,8 +54,8 @@ class SmRolloverJob < ApplicationJob
 
   def find_past_due_tasks(today, company_id)
     scope = SmTask.joins(:construction)
-                  .where('sm_tasks.start_date < ?', today)
-                  .where.not(status: 'completed')
+                  .where("sm_tasks.start_date < ?", today)
+                  .where.not(status: "completed")
                   .where(is_hold_task: false)
                   .order(:construction_id, :sequence_order)
 
@@ -151,11 +151,11 @@ class SmRolloverJob < ApplicationJob
   end
 
   def schedule_next_rollover(settings)
-    timezone = settings.rollover_timezone || 'Australia/Sydney'
-    rollover_time = settings.rollover_time || '00:00'
+    timezone = settings.rollover_timezone || "Australia/Sydney"
+    rollover_time = settings.rollover_time || "00:00"
 
     # Parse rollover time
-    hour, minute = rollover_time.split(':').map(&:to_i)
+    hour, minute = rollover_time.split(":").map(&:to_i)
 
     # Calculate next rollover time
     now = Time.current.in_time_zone(timezone)
@@ -182,9 +182,9 @@ class SmRolloverJob < ApplicationJob
       return unless settings.rollover_enabled?
 
       # Schedule first run
-      timezone = settings.rollover_timezone || 'Australia/Sydney'
-      rollover_time = settings.rollover_time || '00:00'
-      hour, minute = rollover_time.split(':').map(&:to_i)
+      timezone = settings.rollover_timezone || "Australia/Sydney"
+      rollover_time = settings.rollover_time || "00:00"
+      hour, minute = rollover_time.split(":").map(&:to_i)
 
       now = Time.current.in_time_zone(timezone)
       next_run = now.change(hour: hour, min: minute)

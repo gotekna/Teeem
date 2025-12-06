@@ -25,7 +25,7 @@ class EmailToContactExtractionService
   # @param email_data [Array<Hash>] Array of email records with from_email, to_emails, cc_emails, body, etc.
   # @param scope [String] 'current_view' or 'all_history' (for future use)
   # @return [Hash] Analysis results with email candidates and suggestions
-  def extract_and_analyze(email_data, scope: 'current_view')
+  def extract_and_analyze(email_data, scope: "current_view")
     # Extract all unique email addresses
     all_emails = extract_emails_from_data(email_data)
 
@@ -57,7 +57,7 @@ class EmailToContactExtractionService
         end
 
         # If we're suggesting to link to a company, check for possible duplicates
-        if suggested_company && suggested_company[:exists] && suggested_company[:action] == 'link'
+        if suggested_company && suggested_company[:exists] && suggested_company[:action] == "link"
           possible_duplicate = find_possible_duplicate(email, suggested_company[:existing_company_id])
         end
       end
@@ -71,9 +71,9 @@ class EmailToContactExtractionService
       # Extract phone numbers from signature
       phones = {}
       if @email_data
-        sender_emails = @email_data.select { |r| r['from_email']&.downcase&.include?(email.downcase) }
+        sender_emails = @email_data.select { |r| r["from_email"]&.downcase&.include?(email.downcase) }
         sender_emails.each do |record|
-          text = record['body'] || record['signature'] || ''
+          text = record["body"] || record["signature"] || ""
           next if text.blank?
 
           signature = extract_signature_from_text(text)
@@ -141,7 +141,7 @@ class EmailToContactExtractionService
 
             # Check if email already exists on any contact
             if Contact.exists?(email: new_email)
-              errors << { email: selection[:email], error: 'Email already exists on another contact' }
+              errors << { email: selection[:email], error: "Email already exists on another contact" }
               next
             end
 
@@ -163,7 +163,7 @@ class EmailToContactExtractionService
             if phones[:mobile].present? && !phone_exists_for_contact?(contact, phones[:mobile])
               contact.contact_phones.create!(
                 phone_number: phones[:mobile],
-                phone_type: 'mobile',
+                phone_type: "mobile",
                 is_primary: false,
                 position: contact.contact_phones.count
               )
@@ -172,7 +172,7 @@ class EmailToContactExtractionService
             if phones[:office].present? && !phone_exists_for_contact?(contact, phones[:office])
               contact.contact_phones.create!(
                 phone_number: phones[:office],
-                phone_type: 'office',
+                phone_type: "office",
                 is_primary: false,
                 position: contact.contact_phones.count
               )
@@ -181,7 +181,7 @@ class EmailToContactExtractionService
             if phones[:direct].present? && !phone_exists_for_contact?(contact, phones[:direct])
               contact.contact_phones.create!(
                 phone_number: phones[:direct],
-                phone_type: 'office',
+                phone_type: "office",
                 is_primary: false,
                 position: contact.contact_phones.count
               )
@@ -199,7 +199,7 @@ class EmailToContactExtractionService
 
           # Skip if contact already exists
           if Contact.exists?(email: normalize_email(selection[:email]))
-            errors << { email: selection[:email], error: 'Contact already exists' }
+            errors << { email: selection[:email], error: "Contact already exists" }
             next
           end
 
@@ -223,7 +223,7 @@ class EmailToContactExtractionService
             email: normalize_email(selection[:email]),
             first_name: parsed_name[:first_name],
             last_name: parsed_name[:last_name],
-            entity_type: selection[:entity_type] || 'person',
+            entity_type: selection[:entity_type] || "person",
             primary_company_id: company_id,
             mobile_phone: phones[:mobile],
             office_phone: phones[:office] || phones[:direct],
@@ -293,7 +293,7 @@ class EmailToContactExtractionService
       linked_to_companies: [],
       linked_to_cases: [],
       added_emails: [],
-      errors: [{ error: 'Transaction failed' }]
+      errors: [ { error: "Transaction failed" } ]
     }
   end
 
@@ -305,22 +305,22 @@ class EmailToContactExtractionService
 
     email_data.each do |record|
       # Extract from from_email
-      if record['from_email'].present?
-        emails << record['from_email']
+      if record["from_email"].present?
+        emails << record["from_email"]
       end
 
       # Extract from to_emails array
-      if record['to_emails'].is_a?(Array)
-        emails.concat(record['to_emails'].compact)
-      elsif record['to_emails'].present?
-        emails << record['to_emails']
+      if record["to_emails"].is_a?(Array)
+        emails.concat(record["to_emails"].compact)
+      elsif record["to_emails"].present?
+        emails << record["to_emails"]
       end
 
       # Extract from cc_emails array
-      if record['cc_emails'].is_a?(Array)
-        emails.concat(record['cc_emails'].compact)
-      elsif record['cc_emails'].present?
-        emails << record['cc_emails']
+      if record["cc_emails"].is_a?(Array)
+        emails.concat(record["cc_emails"].compact)
+      elsif record["cc_emails"].present?
+        emails << record["cc_emails"]
       end
     end
 
@@ -365,12 +365,12 @@ class EmailToContactExtractionService
 
   # Basic email validation
   def valid_email?(email)
-    email.include?('@') && email.match?(/\A[^@\s]+@[^@\s]+\.[^@\s]+\z/)
+    email.include?("@") && email.match?(/\A[^@\s]+@[^@\s]+\.[^@\s]+\z/)
   end
 
   # Extract domain from email
   def extract_domain(email)
-    email.split('@').last.to_s.downcase
+    email.split("@").last.to_s.downcase
   end
 
   # Check if domain is a generic consumer email domain
@@ -405,7 +405,7 @@ class EmailToContactExtractionService
         name: existing_company_from_domain[:name],
         exists: true,
         existing_company_id: existing_company_from_domain[:id],
-        action: 'link'
+        action: "link"
       }
     else
       # Check if companies already exist by name
@@ -422,7 +422,7 @@ class EmailToContactExtractionService
               id: company.contact_id,
               name: company.contact&.full_name || company.name
             }},
-            action: 'link'
+            action: "link"
           }
         else
           # Single match
@@ -431,7 +431,7 @@ class EmailToContactExtractionService
             name: existing_company.contact&.full_name || existing_company.name || suggested_name,
             exists: true,
             existing_company_id: existing_company.contact_id,
-            action: 'link'
+            action: "link"
           }
         end
       else
@@ -441,7 +441,7 @@ class EmailToContactExtractionService
           name: suggested_name,
           exists: false,
           existing_company_id: nil,
-          action: 'create',
+          action: "create",
           website_details: website_details
         }
       end
@@ -453,13 +453,13 @@ class EmailToContactExtractionService
   # "abc-construction.com" => "ABC Construction"
   def format_company_name(domain)
     # Remove common TLDs
-    name = domain.gsub(/\.(com|net|org|au|uk|co|io|dev|app|tech|biz|info)(\..*)?$/, '')
+    name = domain.gsub(/\.(com|net|org|au|uk|co|io|dev|app|tech|biz|info)(\..*)?$/, "")
 
     # Replace hyphens and underscores with spaces
-    name = name.tr('-_', ' ')
+    name = name.tr("-_", " ")
 
     # Capitalize each word
-    name.split.map(&:capitalize).join(' ')
+    name.split.map(&:capitalize).join(" ")
   end
 
   # Fetch company details from website
@@ -467,9 +467,9 @@ class EmailToContactExtractionService
     return {} unless domain.present?
 
     begin
-      require 'net/http'
-      require 'uri'
-      require 'timeout'
+      require "net/http"
+      require "uri"
+      require "timeout"
 
       # Construct website URL
       website_url = "https://#{domain}"
@@ -477,9 +477,9 @@ class EmailToContactExtractionService
 
       # Set up HTTP request with timeout
       response = Timeout.timeout(10) do
-        Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', open_timeout: 5, read_timeout: 5) do |http|
+        Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: 5, read_timeout: 5) do |http|
           request = Net::HTTP::Get.new(uri)
-          request['User-Agent'] = 'Mozilla/5.0 (compatible; TEEEMBot/1.0)'
+          request["User-Agent"] = "Mozilla/5.0 (compatible; TEEEMBot/1.0)"
           http.request(request)
         end
       end
@@ -496,24 +496,24 @@ class EmailToContactExtractionService
       if html =~ /<title[^>]*>(.*?)<\/title>/im
         title = Regexp.last_match(1).strip
         # Clean up title (remove common suffixes)
-        details[:full_name] = title.gsub(/\s*[-|]\s*(Home|Welcome|About).*$/i, '').strip
+        details[:full_name] = title.gsub(/\s*[-|]\s*(Home|Welcome|About).*$/i, "").strip
       end
 
       # Extract ABN (Australian Business Number - 11 digits)
       # Matches: "ABN 12 345 678 901", "ABN: 12345678901", "A.B.N. 12 345 678 901"
       if html =~ /(?:ABN|A\.B\.N\.?)[:\s]*(\d{2}\s?\d{3}\s?\d{3}\s?\d{3})/i
-        details[:abn] = Regexp.last_match(1).gsub(/\s/, '')
+        details[:abn] = Regexp.last_match(1).gsub(/\s/, "")
       end
 
       # Extract ACN (Australian Company Number - 9 digits)
       # Matches: "ACN 123 456 789", "ACN: 123456789", "A.C.N. 123 456 789"
       if html =~ /(?:ACN|A\.C\.N\.?)[:\s]*(\d{3}\s?\d{3}\s?\d{3})/i
-        details[:acn] = Regexp.last_match(1).gsub(/\s/, '')
+        details[:acn] = Regexp.last_match(1).gsub(/\s/, "")
       end
 
       # Extract phone numbers (Australian format)
       if html =~ /(\+61\s?\d{1,2}\s?\d{4}\s?\d{4})|(\(0\d\)\s?\d{4}\s?\d{4})|(0\d\s?\d{4}\s?\d{4})/
-        details[:phone] = Regexp.last_match(0).gsub(/\s+/, ' ').strip
+        details[:phone] = Regexp.last_match(0).gsub(/\s+/, " ").strip
       end
 
       # Extract email addresses (prioritize info@, contact@, or admin@)
@@ -545,7 +545,7 @@ class EmailToContactExtractionService
       if details[:full_name].blank?
         # Look for company name in common heading patterns
         if html =~ /<h1[^>]*>(.*?)<\/h1>/im
-          h1_text = Regexp.last_match(1).gsub(/<[^>]+>/, '').strip
+          h1_text = Regexp.last_match(1).gsub(/<[^>]+>/, "").strip
           details[:full_name] = h1_text unless h1_text.blank?
         end
       end
@@ -568,7 +568,7 @@ class EmailToContactExtractionService
 
     # Find emails from this sender
     sender_emails = @email_data.select do |record|
-      record['from_email']&.downcase&.include?(email.downcase)
+      record["from_email"]&.downcase&.include?(email.downcase)
     end
 
     return nil if sender_emails.empty?
@@ -578,7 +578,7 @@ class EmailToContactExtractionService
 
     sender_emails.each do |record|
       # Try to extract from body or signature field
-      text = record['body'] || record['signature'] || ''
+      text = record["body"] || record["signature"] || ""
       next if text.blank?
 
       # Extract signature (text after common signature delimiters)
@@ -596,7 +596,7 @@ class EmailToContactExtractionService
     website_details = fetch_company_details_from_website(domain)
 
     # Check if this company already exists
-    existing_companies = find_existing_companies('', company_name)
+    existing_companies = find_existing_companies("", company_name)
 
     if existing_companies.any?
       # Company exists
@@ -609,16 +609,16 @@ class EmailToContactExtractionService
             id: company.contact_id,
             name: company.contact&.full_name || company.name
           }},
-          action: 'link',
-          source: 'signature'
+          action: "link",
+          source: "signature"
         }
       else
         {
           name: existing_companies.first.contact&.full_name || company_name,
           exists: true,
           existing_company_id: existing_companies.first.contact_id,
-          action: 'link',
-          source: 'signature'
+          action: "link",
+          source: "signature"
         }
       end
     else
@@ -627,8 +627,8 @@ class EmailToContactExtractionService
         name: company_name,
         exists: false,
         existing_company_id: nil,
-        action: 'create',
-        source: 'signature',
+        action: "create",
+        source: "signature",
         website_details: website_details
       }
     end
@@ -682,7 +682,7 @@ class EmailToContactExtractionService
       if match && match[1]
         company_name = match[1].strip
         # Clean up the name
-        company_name = company_name.gsub(/\s+/, ' ')  # Normalize spaces
+        company_name = company_name.gsub(/\s+/, " ")  # Normalize spaces
         return company_name if company_name.length > 2 && company_name.length < 100
       end
     end
@@ -769,11 +769,11 @@ class EmailToContactExtractionService
     return nil if phone.blank?
 
     # Remove all non-digit characters except +
-    clean = phone.gsub(/[^\d+]/, '')
+    clean = phone.gsub(/[^\d+]/, "")
 
     # Convert +61 to 0 for Australian numbers
-    if clean.start_with?('+61')
-      clean = '0' + clean[3..]
+    if clean.start_with?("+61")
+      clean = "0" + clean[3..]
     end
 
     clean
@@ -785,7 +785,7 @@ class EmailToContactExtractionService
     return nil if company_contact_id.blank?
 
     # Extract name from email local part
-    local_part = email.split('@').first
+    local_part = email.split("@").first
     name_parts = local_part.split(/[._-]/).map(&:downcase)
 
     # Find contacts at this company
@@ -804,7 +804,7 @@ class EmailToContactExtractionService
           id: contact.id,
           name: contact.full_name,
           email: contact.email,
-          match_confidence: (matching_parts.length.to_f / [name_parts.length, contact_name_parts.length].min * 100).round
+          match_confidence: (matching_parts.length.to_f / [ name_parts.length, contact_name_parts.length ].min * 100).round
         }
       end
     end
@@ -837,7 +837,7 @@ class EmailToContactExtractionService
 
     # Try exact match first (through contact)
     exact_matches = Company.joins(:contact)
-                           .where('LOWER(contacts.full_name) = ?', suggested_name.downcase)
+                           .where("LOWER(contacts.full_name) = ?", suggested_name.downcase)
                            .limit(10)
 
     matches.concat(exact_matches) if exact_matches.any?
@@ -845,9 +845,9 @@ class EmailToContactExtractionService
     # Try partial match - find companies where the name starts with the suggested name
     # This will match "Tekna" to "Tekna Homes", "Tekna Admin", etc.
     partial_matches = Company.joins(:contact)
-                             .where('LOWER(contacts.full_name) LIKE ?', "#{suggested_name.downcase}%")
+                             .where("LOWER(contacts.full_name) LIKE ?", "#{suggested_name.downcase}%")
                              .where.not(id: matches.map(&:id))  # Exclude already found
-                             .order('LENGTH(contacts.full_name)')
+                             .order("LENGTH(contacts.full_name)")
                              .limit(10)
 
     matches.concat(partial_matches) if partial_matches.any?
@@ -855,8 +855,8 @@ class EmailToContactExtractionService
     # Also try reverse - if suggested name contains an existing company name
     if matches.empty?
       contained_matches = Company.joins(:contact)
-                                 .where('LOWER(?) LIKE CONCAT(\'%\', LOWER(contacts.full_name), \'%\')', suggested_name)
-                                 .order('LENGTH(contacts.full_name) DESC')
+                                 .where("LOWER(?) LIKE CONCAT('%', LOWER(contacts.full_name), '%')", suggested_name)
+                                 .order("LENGTH(contacts.full_name) DESC")
                                  .limit(10)
 
       matches.concat(contained_matches) if contained_matches.any?
@@ -868,16 +868,16 @@ class EmailToContactExtractionService
   # Handle company action (link, create, or none)
   def handle_company_action(action, company_id, company_name, created_companies, website_details = {})
     case action
-    when 'link'
+    when "link"
       company_id.to_i if company_id.present?
-    when 'create'
+    when "create"
       # Use full_name from website details if available, otherwise use company_name
       full_company_name = website_details[:full_name].presence || company_name
 
       # Create company contact first with website details
       company_contact = Contact.create!(
         full_name: full_company_name,
-        entity_type: 'company',
+        entity_type: "company",
         is_active: true,
         created_by: @user.id,
         website: website_details[:website],
@@ -889,7 +889,7 @@ class EmailToContactExtractionService
       company = Company.create!(
         name: full_company_name,
         contact_id: company_contact.id,
-        status: 'active',
+        status: "active",
         abn: website_details[:abn],
         acn: website_details[:acn],
         registered_office_address: website_details[:address],
@@ -916,17 +916,17 @@ class EmailToContactExtractionService
       if parts.length == 1
         { first_name: parts[0], last_name: nil }
       else
-        { first_name: parts[0], last_name: parts[1..-1].join(' ') }
+        { first_name: parts[0], last_name: parts[1..-1].join(" ") }
       end
     else
       # Try to extract from email (e.g., john.doe@example.com => John Doe)
-      local_part = email.split('@').first
+      local_part = email.split("@").first
       name_parts = local_part.split(/[._-]/).map(&:capitalize)
 
       if name_parts.length == 1
         { first_name: name_parts[0], last_name: nil }
       else
-        { first_name: name_parts[0], last_name: name_parts[1..-1].join(' ') }
+        { first_name: name_parts[0], last_name: name_parts[1..-1].join(" ") }
       end
     end
   end

@@ -98,6 +98,6 @@ class CreateSmTasks < ActiveRecord::Migration[8.0]
     add_index :sm_tasks, :confirm_status
     add_index :sm_tasks, :is_hold_task, where: "is_hold_task = true"
     add_index :sm_tasks, :parent_task_id
-    add_index :sm_tasks, [:construction_id, :task_number], unique: true
+    add_index :sm_tasks, [ :construction_id, :task_number ], unique: true
   end
 end

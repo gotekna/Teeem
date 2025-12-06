@@ -3,8 +3,8 @@
 return unless defined?(Sentry)
 
 Sentry.init do |config|
-  config.dsn = ENV['SENTRY_DSN']
-  config.breadcrumbs_logger = [:active_support_logger, :http_logger]
+  config.dsn = ENV["SENTRY_DSN"]
+  config.breadcrumbs_logger = [ :active_support_logger, :http_logger ]
 
   # Set traces_sample_rate to 1.0 to capture 100%
   # of transactions for tracing.
@@ -22,14 +22,14 @@ Sentry.init do |config|
 
   # Set the environment
   config.environment = Rails.env
-  config.release = ENV['HEROKU_SLUG_COMMIT'] || ENV['GIT_COMMIT'] || 'unknown'
+  config.release = ENV["HEROKU_SLUG_COMMIT"] || ENV["GIT_COMMIT"] || "unknown"
 
   # Enable performance monitoring
   config.enable_tracing = true
 
   # Ignore common exceptions that don't need tracking
   config.excluded_exceptions += [
-    'ActionController::RoutingError',
-    'ActiveRecord::RecordNotFound'
+    "ActionController::RoutingError",
+    "ActiveRecord::RecordNotFound"
   ]
 end

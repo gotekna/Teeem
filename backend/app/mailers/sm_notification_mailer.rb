@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SmNotificationMailer < ApplicationMailer
-  default from: 'notifications@teeem.com.au'
+  default from: "notifications@teeem.com.au"
 
   def task_reminder(to:, task:)
     @task = task
@@ -48,7 +48,7 @@ class SmNotificationMailer < ApplicationMailer
     @constructions = constructions
     @tasks_due_today = SmTask.where(construction_id: constructions.pluck(:id))
                              .where(start_date: Date.current)
-                             .where.not(status: 'completed')
+                             .where.not(status: "completed")
 
     mail(
       to: to,

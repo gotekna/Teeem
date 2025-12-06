@@ -1,11 +1,12 @@
 # frozen_string_literal: true
+
 # Clean TEEEM_BIBLE.md to contain ONLY rules (MUST/NEVER/ALWAYS)
 # Remove all code blocks, implementations, and HOW-TO content
 # Add cross-references to TEEEM_TEACHER.md for implementations
 
-bible_path = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_BIBLE.md')
-backup_path = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_BIBLE.md.backup')
-content = File.read(bible_path, encoding: 'UTF-8')
+bible_path = Rails.root.join("..", "TEEEM_DOCS", "TEEEM_BIBLE.md")
+backup_path = Rails.root.join("..", "TEEEM_DOCS", "TEEEM_BIBLE.md.backup")
+content = File.read(bible_path, encoding: "UTF-8")
 
 puts "📖 Cleaning TEEEM_BIBLE.md..."
 puts "📄 Original size: #{content.length} characters (#{content.lines.count} lines)"
@@ -56,31 +57,31 @@ cleaned_content = content.gsub(/## RULE #(\d+(?:\.\d+)?[A-Z]?): (.+?)\n(.+?)(?=\
 end
 
 # Remove all code blocks
-cleaned_content = cleaned_content.gsub(/```\w*\n.+?```/m, '')
+cleaned_content = cleaned_content.gsub(/```\w*\n.+?```/m, "")
 
 # Remove "Implementation:" sections
-cleaned_content = cleaned_content.gsub(/\*\*Implementation:\*\*.+?(?=\n##|\n\*\*|---|\z)/m, '')
+cleaned_content = cleaned_content.gsub(/\*\*Implementation:\*\*.+?(?=\n##|\n\*\*|---|\z)/m, "")
 
 # Remove "Code location:" sections
-cleaned_content = cleaned_content.gsub(/\*\*Code location:\*\*.+?\n/, '')
+cleaned_content = cleaned_content.gsub(/\*\*Code location:\*\*.+?\n/, "")
 
 # Remove "Files:" sections
-cleaned_content = cleaned_content.gsub(/\*\*Files:\*\*.+?(?=\n##|\n\*\*|---|\z)/m, '')
+cleaned_content = cleaned_content.gsub(/\*\*Files:\*\*.+?(?=\n##|\n\*\*|---|\z)/m, "")
 
 # Remove "Pattern:" sections with code
-cleaned_content = cleaned_content.gsub(/\*\*Pattern:\*\*.+?(?=\n##|\n\*\*|---|\z)/m, '')
+cleaned_content = cleaned_content.gsub(/\*\*Pattern:\*\*.+?(?=\n##|\n\*\*|---|\z)/m, "")
 
 # Remove "Why:" explanation sections (these go in Lexicon)
-cleaned_content = cleaned_content.gsub(/\*\*Why:\*\*.+?(?=\n##|\n\*\*|---|\z)/m, '')
+cleaned_content = cleaned_content.gsub(/\*\*Why:\*\*.+?(?=\n##|\n\*\*|---|\z)/m, "")
 
 # Remove "Example:" sections
-cleaned_content = cleaned_content.gsub(/\*\*Example:\*\*.+?(?=\n##|\n\*\*|---|\z)/m, '')
+cleaned_content = cleaned_content.gsub(/\*\*Example:\*\*.+?(?=\n##|\n\*\*|---|\z)/m, "")
 
 # Remove multiple blank lines
 cleaned_content = cleaned_content.gsub(/\n{3,}/, "\n\n")
 
 # Write cleaned version
-output_path = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_BIBLE_CLEAN.md')
+output_path = Rails.root.join("..", "TEEEM_DOCS", "TEEEM_BIBLE_CLEAN.md")
 File.write(output_path, cleaned_content)
 
 puts "✅ Cleaned Bible written to: TEEEM_BIBLE_CLEAN.md"

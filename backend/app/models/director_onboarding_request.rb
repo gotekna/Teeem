@@ -1,8 +1,8 @@
 class DirectorOnboardingRequest < ApplicationRecord
   belongs_to :contact, optional: true
   belongs_to :company, optional: true
-  belongs_to :reviewed_by, class_name: 'User', optional: true
-  belongs_to :invited_by, class_name: 'User', optional: true
+  belongs_to :reviewed_by, class_name: "User", optional: true
+  belongs_to :invited_by, class_name: "User", optional: true
 
   # Status constants
   STATUSES = %w[pending submitted approved rejected expired].freeze
@@ -26,11 +26,11 @@ class DirectorOnboardingRequest < ApplicationRecord
 
   before_validation :generate_access_token, on: :create
 
-  scope :pending, -> { where(status: 'pending') }
-  scope :submitted, -> { where(status: 'submitted') }
-  scope :approved, -> { where(status: 'approved') }
-  scope :rejected, -> { where(status: 'rejected') }
-  scope :needs_review, -> { where(status: 'submitted') }
+  scope :pending, -> { where(status: "pending") }
+  scope :submitted, -> { where(status: "submitted") }
+  scope :approved, -> { where(status: "approved") }
+  scope :rejected, -> { where(status: "rejected") }
+  scope :needs_review, -> { where(status: "submitted") }
 
   def full_name
     "#{first_name} #{last_name}".strip
@@ -43,24 +43,24 @@ class DirectorOnboardingRequest < ApplicationRecord
   end
 
   def submitted?
-    status == 'submitted'
+    status == "submitted"
   end
 
   def approved?
-    status == 'approved'
+    status == "approved"
   end
 
   def rejected?
-    status == 'rejected'
+    status == "rejected"
   end
 
   def pending?
-    status == 'pending'
+    status == "pending"
   end
 
   def submit!(ip_address: nil)
     update!(
-      status: 'submitted',
+      status: "submitted",
       submitted_at: Time.current,
       consent_given: true,
       consent_given_at: Time.current,
@@ -79,13 +79,13 @@ class DirectorOnboardingRequest < ApplicationRecord
           company: company,
           contact: contact_record
         ) do |cd|
-          cd.position = 'director'
+          cd.position = "director"
           cd.is_current = true
         end
       end
 
       update!(
-        status: 'approved',
+        status: "approved",
         reviewed_by: reviewer,
         reviewed_at: Time.current,
         review_notes: notes,
@@ -96,7 +96,7 @@ class DirectorOnboardingRequest < ApplicationRecord
 
   def reject!(reviewer:, notes: nil)
     update!(
-      status: 'rejected',
+      status: "rejected",
       reviewed_by: reviewer,
       reviewed_at: Time.current,
       review_notes: notes
@@ -104,8 +104,8 @@ class DirectorOnboardingRequest < ApplicationRecord
   end
 
   def compliance_score
-    required_fields = [:director_id, :date_of_birth, :residential_address, :drivers_licence]
-    optional_fields = [:passport_number, :photo_url, :place_of_birth]
+    required_fields = [ :director_id, :date_of_birth, :residential_address, :drivers_licence ]
+    optional_fields = [ :passport_number, :photo_url, :place_of_birth ]
 
     filled_required = required_fields.count { |f| send(f).present? }
     filled_optional = optional_fields.count { |f| send(f).present? }
@@ -118,10 +118,10 @@ class DirectorOnboardingRequest < ApplicationRecord
 
   def missing_required_fields
     required = {
-      director_id: 'Director ID',
-      date_of_birth: 'Date of Birth',
-      residential_address: 'Residential Address',
-      drivers_licence: 'Drivers Licence'
+      director_id: "Director ID",
+      date_of_birth: "Date of Birth",
+      residential_address: "Residential Address",
+      drivers_licence: "Drivers Licence"
     }
 
     required.select { |field, _| send(field).blank? }.values

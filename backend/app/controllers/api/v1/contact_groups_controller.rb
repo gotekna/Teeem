@@ -21,7 +21,7 @@ module Api
       def set_contact
         @contact = Contact.find(params[:contact_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Contact not found' }, status: :not_found
+        render json: { success: false, error: "Contact not found" }, status: :not_found
       end
     end
   end

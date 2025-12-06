@@ -23,14 +23,14 @@ class CreateJobFoldersJob < ApplicationJob
     construction = Construction.find(construction_id)
 
     # Mark as processing
-    construction.update!(onedrive_folder_creation_status: 'processing')
+    construction.update!(onedrive_folder_creation_status: "processing")
 
     # Get organization OneDrive credential
     credential = OrganizationOneDriveCredential.active_credential
 
     unless credential&.valid_credential?
       construction.update!(
-        onedrive_folder_creation_status: 'failed',
+        onedrive_folder_creation_status: "failed",
         onedrive_folders_created_at: nil
       )
       Rails.logger.error "CreateJobFoldersJob failed: OneDrive not connected"
@@ -46,7 +46,7 @@ class CreateJobFoldersJob < ApplicationJob
 
     unless template
       construction.update!(
-        onedrive_folder_creation_status: 'failed',
+        onedrive_folder_creation_status: "failed",
         onedrive_folders_created_at: nil
       )
       Rails.logger.error "CreateJobFoldersJob failed: No folder template found"
@@ -62,7 +62,7 @@ class CreateJobFoldersJob < ApplicationJob
       if existing_folder
         # Folders already exist, mark as completed
         construction.update!(
-          onedrive_folder_creation_status: 'completed',
+          onedrive_folder_creation_status: "completed",
           onedrive_folders_created_at: Time.current
         )
         Rails.logger.info "CreateJobFoldersJob: Folders already exist for Construction ##{construction_id}"
@@ -77,7 +77,7 @@ class CreateJobFoldersJob < ApplicationJob
 
       # Mark construction as completed
       construction.update!(
-        onedrive_folder_creation_status: 'completed',
+        onedrive_folder_creation_status: "completed",
         onedrive_folders_created_at: Time.current
       )
 
@@ -85,7 +85,7 @@ class CreateJobFoldersJob < ApplicationJob
 
     rescue MicrosoftGraphClient::AuthenticationError => e
       construction.update!(
-        onedrive_folder_creation_status: 'failed',
+        onedrive_folder_creation_status: "failed",
         onedrive_folders_created_at: nil
       )
       Rails.logger.error "CreateJobFoldersJob authentication failed for Construction ##{construction_id}: #{e.message}"
@@ -93,7 +93,7 @@ class CreateJobFoldersJob < ApplicationJob
 
     rescue MicrosoftGraphClient::APIError => e
       construction.update!(
-        onedrive_folder_creation_status: 'failed',
+        onedrive_folder_creation_status: "failed",
         onedrive_folders_created_at: nil
       )
       Rails.logger.error "CreateJobFoldersJob API error for Construction ##{construction_id}: #{e.message}"
@@ -101,7 +101,7 @@ class CreateJobFoldersJob < ApplicationJob
 
     rescue StandardError => e
       construction.update!(
-        onedrive_folder_creation_status: 'failed',
+        onedrive_folder_creation_status: "failed",
         onedrive_folders_created_at: nil
       )
       Rails.logger.error "CreateJobFoldersJob failed for Construction ##{construction_id}: #{e.message}"

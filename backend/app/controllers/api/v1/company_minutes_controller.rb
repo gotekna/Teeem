@@ -2,7 +2,7 @@ module Api
   module V1
     class CompanyMinutesController < ApplicationController
       before_action :set_company
-      before_action :set_minute, only: [:show, :update, :destroy, :sign, :generate_pdf]
+      before_action :set_minute, only: [ :show, :update, :destroy, :sign, :generate_pdf ]
 
       # GET /api/v1/companies/:company_id/minutes
       def index
@@ -17,7 +17,7 @@ module Api
 
         # Filter by year
         if params[:year].present?
-          @minutes = @minutes.where('EXTRACT(YEAR FROM meeting_date) = ?', params[:year])
+          @minutes = @minutes.where("EXTRACT(YEAR FROM meeting_date) = ?", params[:year])
         end
 
         render json: {
@@ -73,10 +73,10 @@ module Api
 
       # DELETE /api/v1/companies/:company_id/minutes/:id
       def destroy
-        if @minute.status == 'signed' || @minute.status == 'filed'
+        if @minute.status == "signed" || @minute.status == "filed"
           return render json: {
             success: false,
-            errors: ['Cannot delete signed or filed minutes']
+            errors: [ "Cannot delete signed or filed minutes" ]
           }, status: :unprocessable_entity
         end
 
@@ -92,12 +92,12 @@ module Api
         if signed_by.blank?
           return render json: {
             success: false,
-            errors: ['Signatory names required']
+            errors: [ "Signatory names required" ]
           }, status: :unprocessable_entity
         end
 
         @minute.update!(
-          status: 'signed',
+          status: "signed",
           signed_by: signed_by,
           signed_date: signed_date
         )
@@ -116,18 +116,18 @@ module Api
 
         # Build variables from company data
         company_variables = {
-          'company_name' => @company.name,
-          'acn' => @company.formatted_acn,
-          'abn' => @company.formatted_abn,
-          'registered_office' => @company.registered_office_address,
-          'principal_place' => @company.principal_place_of_business,
-          'meeting_date' => @minute.meeting_date.strftime('%d %B %Y')
+          "company_name" => @company.name,
+          "acn" => @company.formatted_acn,
+          "abn" => @company.formatted_abn,
+          "registered_office" => @company.registered_office_address,
+          "principal_place" => @company.principal_place_of_business,
+          "meeting_date" => @minute.meeting_date.strftime("%d %B %Y")
         }
 
         # Add director info
         if @company.current_directors.any?
-          company_variables['director_name'] = @company.current_directors.first.full_name
-          company_variables['director_names'] = @company.current_directors.map(&:full_name).join(', ')
+          company_variables["director_name"] = @company.current_directors.first.full_name
+          company_variables["director_names"] = @company.current_directors.map(&:full_name).join(", ")
         end
 
         # Merge with provided variables
@@ -155,18 +155,18 @@ module Api
 
         # Build variables from company data
         company_variables = {
-          'company_name' => @company.name,
-          'acn' => @company.formatted_acn,
-          'abn' => @company.formatted_abn,
-          'registered_office' => @company.registered_office_address,
-          'principal_place' => @company.principal_place_of_business,
-          'meeting_date' => meeting_date.to_date.strftime('%d %B %Y')
+          "company_name" => @company.name,
+          "acn" => @company.formatted_acn,
+          "abn" => @company.formatted_abn,
+          "registered_office" => @company.registered_office_address,
+          "principal_place" => @company.principal_place_of_business,
+          "meeting_date" => meeting_date.to_date.strftime("%d %B %Y")
         }
 
         # Add director info
         if @company.current_directors.any?
-          company_variables['director_name'] = @company.current_directors.first.full_name
-          company_variables['director_names'] = @company.current_directors.map(&:full_name).join(', ')
+          company_variables["director_name"] = @company.current_directors.first.full_name
+          company_variables["director_names"] = @company.current_directors.map(&:full_name).join(", ")
         end
 
         # Merge with provided variables
@@ -180,7 +180,7 @@ module Api
           title: params[:title] || template.name,
           meeting_date: meeting_date,
           content: content,
-          status: 'draft'
+          status: "draft"
         )
 
         render json: {
@@ -190,7 +190,7 @@ module Api
       rescue ActiveRecord::RecordInvalid => e
         render json: {
           success: false,
-          errors: [e.message]
+          errors: [ e.message ]
         }, status: :unprocessable_entity
       end
 
@@ -242,17 +242,17 @@ module Api
 
       def generate_content_from_template(template)
         variables = {
-          'company_name' => @company.name,
-          'acn' => @company.formatted_acn,
-          'abn' => @company.formatted_abn,
-          'meeting_date' => Date.current.strftime('%d %B %Y')
+          "company_name" => @company.name,
+          "acn" => @company.formatted_acn,
+          "abn" => @company.formatted_abn,
+          "meeting_date" => Date.current.strftime("%d %B %Y")
         }
 
         render_template(template.body, variables)
       end
 
       def render_template(body, variables)
-        return '' unless body.present?
+        return "" unless body.present?
 
         result = body.dup
         variables.each do |key, value|

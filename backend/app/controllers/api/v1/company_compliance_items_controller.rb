@@ -1,7 +1,7 @@
 module Api
   module V1
     class CompanyComplianceItemsController < ApplicationController
-      before_action :set_compliance_item, only: [:show, :update, :destroy, :mark_completed]
+      before_action :set_compliance_item, only: [ :show, :update, :destroy, :mark_completed ]
 
       # GET /api/v1/company_compliance_items
       def index
@@ -17,8 +17,8 @@ module Api
         @items = @items.by_type(params[:compliance_type]) if params[:compliance_type].present?
 
         # Special filters
-        @items = @items.overdue if params[:overdue] == 'true'
-        @items = @items.due_soon(params[:days]&.to_i || 30) if params[:due_soon] == 'true'
+        @items = @items.overdue if params[:overdue] == "true"
+        @items = @items.due_soon(params[:days]&.to_i || 30) if params[:due_soon] == "true"
 
         # Sort
         @items = @items.order(:due_date)
@@ -26,8 +26,8 @@ module Api
         render json: {
           success: true,
           compliance_items: @items.as_json(
-            include: { company: { only: [:id, :name] } },
-            methods: [:days_until_due, :formatted_compliance_type, :overdue?, :due_soon?]
+            include: { company: { only: [ :id, :name ] } },
+            methods: [ :days_until_due, :formatted_compliance_type, :overdue?, :due_soon? ]
           )
         }
       end
@@ -37,8 +37,8 @@ module Api
         render json: {
           success: true,
           compliance_item: @item.as_json(
-            include: { company: { only: [:id, :name] } },
-            methods: [:days_until_due, :formatted_compliance_type, :reminder_days]
+            include: { company: { only: [ :id, :name ] } },
+            methods: [ :days_until_due, :formatted_compliance_type, :reminder_days ]
           )
         }
       end
@@ -50,8 +50,8 @@ module Api
         if @item.save
           render json: {
             success: true,
-            message: 'Compliance item created successfully',
-            compliance_item: @item.as_json(methods: [:formatted_compliance_type])
+            message: "Compliance item created successfully",
+            compliance_item: @item.as_json(methods: [ :formatted_compliance_type ])
           }, status: :created
         else
           render json: {
@@ -66,8 +66,8 @@ module Api
         if @item.update(compliance_item_params)
           render json: {
             success: true,
-            message: 'Compliance item updated successfully',
-            compliance_item: @item.as_json(methods: [:formatted_compliance_type])
+            message: "Compliance item updated successfully",
+            compliance_item: @item.as_json(methods: [ :formatted_compliance_type ])
           }
         else
           render json: {
@@ -82,7 +82,7 @@ module Api
         @item.destroy
         render json: {
           success: true,
-          message: 'Compliance item deleted successfully'
+          message: "Compliance item deleted successfully"
         }
       end
 
@@ -92,8 +92,8 @@ module Api
 
         render json: {
           success: true,
-          message: 'Compliance item marked as completed',
-          compliance_item: @item.as_json(methods: [:formatted_compliance_type])
+          message: "Compliance item marked as completed",
+          compliance_item: @item.as_json(methods: [ :formatted_compliance_type ])
         }
       end
 
@@ -102,7 +102,7 @@ module Api
       def set_compliance_item
         @item = CompanyComplianceItem.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Compliance item not found' }, status: :not_found
+        render json: { success: false, error: "Compliance item not found" }, status: :not_found
       end
 
       def compliance_item_params

@@ -24,7 +24,7 @@ class ImportLegacyFilesJob < ApplicationJob
       ActivityLog.create(
         user: user,
         trackable: job,
-        action: 'imported_legacy_files',
+        action: "imported_legacy_files",
         details: {
           imported_count: result[:imported].length,
           error_count: result[:errors].length,

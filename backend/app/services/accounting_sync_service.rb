@@ -4,15 +4,15 @@ class AccountingSyncService
     integration = invoice.accounting_integration
 
     unless integration&.active?
-      return { success: false, error: 'No active accounting integration found' }
+      return { success: false, error: "No active accounting integration found" }
     end
 
     # Refresh token if expired
     if integration.token_expired?
       refresh_result = integration.refresh_token!
       unless refresh_result
-        invoice.update(status: 'failed', error_message: 'Failed to refresh access token')
-        return { success: false, error: 'Failed to refresh access token' }
+        invoice.update(status: "failed", error_message: "Failed to refresh access token")
+        return { success: false, error: "Failed to refresh access token" }
       end
     end
 
@@ -24,7 +24,7 @@ class AccountingSyncService
 
       if result[:success]
         invoice.update(
-          status: 'synced',
+          status: "synced",
           external_invoice_id: result[:external_invoice_id],
           synced_at: Time.current,
           error_message: nil
@@ -35,7 +35,7 @@ class AccountingSyncService
         { success: true, external_invoice_id: result[:external_invoice_id] }
       else
         invoice.update(
-          status: 'failed',
+          status: "failed",
           error_message: result[:error]
         )
 
@@ -43,7 +43,7 @@ class AccountingSyncService
       end
     rescue => e
       invoice.update(
-        status: 'failed',
+        status: "failed",
         error_message: e.message
       )
 
@@ -56,11 +56,11 @@ class AccountingSyncService
     integration = invoice.accounting_integration
 
     unless integration&.active?
-      return { success: false, error: 'No active accounting integration' }
+      return { success: false, error: "No active accounting integration" }
     end
 
     unless invoice.external_invoice_id
-      return { success: false, error: 'Invoice not synced yet' }
+      return { success: false, error: "Invoice not synced yet" }
     end
 
     adapter = get_adapter(integration)
@@ -72,7 +72,7 @@ class AccountingSyncService
         # Update payment status
         if result[:paid] && !invoice.paid_at
           invoice.update(
-            status: 'paid',
+            status: "paid",
             paid_at: result[:paid_at] || Time.current
           )
         end
@@ -88,9 +88,9 @@ class AccountingSyncService
 
   # Sync all pending invoices
   def self.sync_all_pending
-    pending_invoices = SubcontractorInvoice.where(status: 'pending')
+    pending_invoices = SubcontractorInvoice.where(status: "pending")
                                           .joins(:accounting_integration)
-                                          .where(accounting_integrations: { sync_status: 'active' })
+                                          .where(accounting_integrations: { sync_status: "active" })
 
     results = {
       total: pending_invoices.count,
@@ -114,7 +114,7 @@ class AccountingSyncService
 
   # Check payment status for all synced invoices
   def self.check_all_payment_statuses
-    synced_invoices = SubcontractorInvoice.where(status: 'synced')
+    synced_invoices = SubcontractorInvoice.where(status: "synced")
                                          .where.not(external_invoice_id: nil)
 
     results = {
@@ -155,13 +155,13 @@ class AccountingSyncService
 
   def self.get_adapter(integration)
     case integration.system_type
-    when 'xero'
+    when "xero"
       AccountingAdapters::XeroAdapter.new(integration)
-    when 'myob'
+    when "myob"
       AccountingAdapters::MyobAdapter.new(integration)
-    when 'quickbooks'
+    when "quickbooks"
       AccountingAdapters::QuickbooksAdapter.new(integration)
-    when 'reckon'
+    when "reckon"
       AccountingAdapters::ReckonAdapter.new(integration)
     else
       raise "Unsupported accounting system: #{integration.system_type}"
@@ -179,15 +179,15 @@ module AccountingAdapters
     end
 
     def create_invoice(invoice)
-      raise NotImplementedError, 'Subclass must implement create_invoice'
+      raise NotImplementedError, "Subclass must implement create_invoice"
     end
 
     def get_invoice_status(external_invoice_id)
-      raise NotImplementedError, 'Subclass must implement get_invoice_status'
+      raise NotImplementedError, "Subclass must implement get_invoice_status"
     end
 
     def get_statistics
-      raise NotImplementedError, 'Subclass must implement get_statistics'
+      raise NotImplementedError, "Subclass must implement get_statistics"
     end
 
     protected
@@ -202,9 +202,9 @@ module AccountingAdapters
 
     def http_headers
       {
-        'Authorization' => "Bearer #{access_token}",
-        'Content-Type' => 'application/json',
-        'Accept' => 'application/json'
+        "Authorization" => "Bearer #{access_token}",
+        "Content-Type" => "application/json",
+        "Accept" => "application/json"
       }
     end
 
@@ -231,7 +231,7 @@ module AccountingAdapters
 
   # Xero adapter
   class XeroAdapter < BaseAdapter
-    XERO_API_URL = 'https://api.xero.com/api.xro/2.0'.freeze
+    XERO_API_URL = "https://api.xero.com/api.xro/2.0".freeze
 
     def create_invoice(invoice)
       payload = invoice_payload(invoice)
@@ -247,7 +247,7 @@ module AccountingAdapters
       {
         success: true,
         external_invoice_id: "XERO-INV-#{SecureRandom.hex(8)}",
-        message: 'Invoice created successfully (placeholder)'
+        message: "Invoice created successfully (placeholder)"
       }
     rescue => e
       { success: false, error: e.message }
@@ -263,7 +263,7 @@ module AccountingAdapters
       # Placeholder response
       {
         success: true,
-        status: 'AUTHORISED',
+        status: "AUTHORISED",
         paid: false,
         paid_at: nil
       }
@@ -284,7 +284,7 @@ module AccountingAdapters
 
     def xero_invoice_payload(payload)
       {
-        Type: 'ACCREC',
+        Type: "ACCREC",
         Contact: {
           Name: payload[:contact_name],
           EmailAddress: payload[:contact_email]
@@ -298,7 +298,7 @@ module AccountingAdapters
             Description: payload[:description],
             Quantity: 1.0,
             UnitAmount: payload[:amount],
-            AccountCode: '200' # Revenue account
+            AccountCode: "200" # Revenue account
           }
         ]
       }
@@ -307,7 +307,7 @@ module AccountingAdapters
 
   # MYOB adapter
   class MyobAdapter < BaseAdapter
-    MYOB_API_URL = 'https://api.myob.com/accountright'.freeze
+    MYOB_API_URL = "https://api.myob.com/accountright".freeze
 
     def create_invoice(invoice)
       payload = invoice_payload(invoice)
@@ -316,7 +316,7 @@ module AccountingAdapters
       {
         success: true,
         external_invoice_id: "MYOB-INV-#{SecureRandom.hex(8)}",
-        message: 'Invoice created successfully (placeholder)'
+        message: "Invoice created successfully (placeholder)"
       }
     rescue => e
       { success: false, error: e.message }
@@ -326,7 +326,7 @@ module AccountingAdapters
       # TODO: Implement actual MYOB API call
       {
         success: true,
-        status: 'Open',
+        status: "Open",
         paid: false,
         paid_at: nil
       }
@@ -346,7 +346,7 @@ module AccountingAdapters
 
   # QuickBooks adapter
   class QuickbooksAdapter < BaseAdapter
-    QB_API_URL = 'https://quickbooks.api.intuit.com/v3'.freeze
+    QB_API_URL = "https://quickbooks.api.intuit.com/v3".freeze
 
     def create_invoice(invoice)
       payload = invoice_payload(invoice)
@@ -355,7 +355,7 @@ module AccountingAdapters
       {
         success: true,
         external_invoice_id: "QB-INV-#{SecureRandom.hex(8)}",
-        message: 'Invoice created successfully (placeholder)'
+        message: "Invoice created successfully (placeholder)"
       }
     rescue => e
       { success: false, error: e.message }
@@ -365,7 +365,7 @@ module AccountingAdapters
       # TODO: Implement actual QuickBooks API call
       {
         success: true,
-        status: 'Unpaid',
+        status: "Unpaid",
         paid: false,
         paid_at: nil
       }

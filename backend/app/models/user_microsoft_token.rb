@@ -18,9 +18,9 @@ class UserMicrosoftToken < ApplicationRecord
   validates :user_id, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
 
-  scope :connected, -> { where(status: 'connected') }
-  scope :needs_refresh, -> { where('token_expires_at < ?', 5.minutes.from_now) }
-  scope :with_errors, -> { where(status: 'error') }
+  scope :connected, -> { where(status: "connected") }
+  scope :needs_refresh, -> { where("token_expires_at < ?", 5.minutes.from_now) }
+  scope :with_errors, -> { where(status: "error") }
 
   # Check if token needs refresh
   def needs_refresh?
@@ -32,12 +32,12 @@ class UserMicrosoftToken < ApplicationRecord
 
   # Check if token is valid and connected
   def connected?
-    status == 'connected' && access_token.present? && !needs_refresh?
+    status == "connected" && access_token.present? && !needs_refresh?
   end
 
   # Mark as error with message
   def mark_error!(message)
-    update!(status: 'error', sync_error: message)
+    update!(status: "error", sync_error: message)
   end
 
   # Mark as connected after successful OAuth
@@ -48,7 +48,7 @@ class UserMicrosoftToken < ApplicationRecord
       token_expires_at: Time.current + tokens[:expires_in].to_i.seconds,
       scopes: tokens[:scope],
       email: tokens[:email],
-      status: 'connected',
+      status: "connected",
       sync_error: nil
     )
   end
@@ -59,7 +59,7 @@ class UserMicrosoftToken < ApplicationRecord
       access_token: nil,
       refresh_token: nil,
       token_expires_at: nil,
-      status: 'disconnected',
+      status: "disconnected",
       sync_error: nil
     )
   end
@@ -69,23 +69,23 @@ class UserMicrosoftToken < ApplicationRecord
     return false unless refresh_token.present?
 
     response = HTTParty.post(
-      'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+      "https://login.microsoftonline.com/common/oauth2/v2.0/token",
       body: {
-        client_id: ENV['OUTLOOK_CLIENT_ID'],
-        client_secret: ENV['OUTLOOK_CLIENT_SECRET'],
+        client_id: ENV["OUTLOOK_CLIENT_ID"],
+        client_secret: ENV["OUTLOOK_CLIENT_SECRET"],
         refresh_token: refresh_token,
-        grant_type: 'refresh_token',
-        scope: REQUIRED_SCOPES.join(' ')
+        grant_type: "refresh_token",
+        scope: REQUIRED_SCOPES.join(" ")
       }
     )
 
     if response.success?
       data = response.parsed_response
       mark_connected!(
-        access_token: data['access_token'],
-        refresh_token: data['refresh_token'] || refresh_token,
-        expires_in: data['expires_in'],
-        scope: data['scope']
+        access_token: data["access_token"],
+        refresh_token: data["refresh_token"] || refresh_token,
+        expires_in: data["expires_in"],
+        scope: data["scope"]
       )
       true
     else

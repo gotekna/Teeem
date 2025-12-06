@@ -16,7 +16,7 @@ module Api
       #   - stats: Summary statistics
       def analyze
         email_data = params[:email_data] || []
-        scope = params[:scope] || 'current_view'
+        scope = params[:scope] || "current_view"
 
         service = EmailToContactExtractionService.new(user: current_user)
         result = service.extract_and_analyze(email_data, scope: scope)
@@ -57,7 +57,7 @@ module Api
         if selections.empty?
           return render json: {
             success: false,
-            error: 'No selections provided'
+            error: "No selections provided"
           }, status: :bad_request
         end
 

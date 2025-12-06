@@ -10,11 +10,11 @@
 class SmCascadeService
   # Lock priority (lower = stronger lock)
   LOCK_PRIORITY = {
-    'supplier_confirm' => 1,
-    'confirm' => 2,
-    'started' => 3,
-    'completed' => 4,
-    'manually_positioned' => 5
+    "supplier_confirm" => 1,
+    "confirm" => 2,
+    "started" => 3,
+    "completed" => 4,
+    "manually_positioned" => 5
   }.freeze
 
   attr_reader :task, :construction, :options, :calendar
@@ -97,7 +97,7 @@ class SmCascadeService
           dep.update!(
             active: false,
             deleted_at: Time.current,
-            deleted_reason: 'cascade_conflict',
+            deleted_reason: "cascade_conflict",
             deleted_by_id: cascade_params[:user_id]
           )
           results[:broken_dependencies] << dep
@@ -113,7 +113,7 @@ class SmCascadeService
           confirm: false,
           manually_positioned: false,
           manually_positioned_at: nil,
-          confirm_status: successor.supplier_confirm? ? 'moved_after_confirm' : nil,
+          confirm_status: successor.supplier_confirm? ? "moved_after_confirm" : nil,
           updated_by_id: cascade_params[:user_id]
         )
         results[:unlocked_tasks] << successor
@@ -245,11 +245,11 @@ class SmCascadeService
   end
 
   def get_lock_type(task)
-    return 'supplier_confirm' if task.supplier_confirm?
-    return 'confirm' if task.confirm?
-    return 'started' if task.status_started?
-    return 'completed' if task.status_completed?
-    return 'manually_positioned' if task.manually_positioned?
+    return "supplier_confirm" if task.supplier_confirm?
+    return "confirm" if task.confirm?
+    return "started" if task.status_started?
+    return "completed" if task.status_completed?
+    return "manually_positioned" if task.manually_positioned?
     nil
   end
 
@@ -266,15 +266,15 @@ class SmCascadeService
     earliest_start = deps.map do |dep|
       predecessor = dep.predecessor_task
       case dep.dependency_type
-      when 'FS' # Finish-to-Start
+      when "FS" # Finish-to-Start
         calendar.add_working_days(predecessor.end_date, dep.lag_days + 1)
-      when 'SS' # Start-to-Start
+      when "SS" # Start-to-Start
         calendar.add_working_days(predecessor.start_date, dep.lag_days)
-      when 'FF' # Finish-to-Finish
+      when "FF" # Finish-to-Finish
         # Work backwards from when predecessor finishes
         target_end = calendar.add_working_days(predecessor.end_date, dep.lag_days)
         calendar.subtract_working_days(target_end, successor.duration_days - 1)
-      when 'SF' # Start-to-Finish (rare)
+      when "SF" # Start-to-Finish (rare)
         target_end = calendar.add_working_days(predecessor.start_date, dep.lag_days)
         calendar.subtract_working_days(target_end, successor.duration_days - 1)
       else
@@ -292,17 +292,17 @@ class SmCascadeService
     predecessor = task
 
     case dependency.dependency_type
-    when 'FS'
+    when "FS"
       new_pred_end = task.end_date + date_delta.days
       new_start = calendar.add_working_days(new_pred_end, dependency.lag_days + 1)
-    when 'SS'
+    when "SS"
       new_pred_start = task.start_date + date_delta.days
       new_start = calendar.add_working_days(new_pred_start, dependency.lag_days)
-    when 'FF'
+    when "FF"
       new_pred_end = task.end_date + date_delta.days
       target_end = calendar.add_working_days(new_pred_end, dependency.lag_days)
       new_start = calendar.subtract_working_days(target_end, successor.duration_days - 1)
-    when 'SF'
+    when "SF"
       new_pred_start = task.start_date + date_delta.days
       target_end = calendar.add_working_days(new_pred_start, dependency.lag_days)
       new_start = calendar.subtract_working_days(target_end, successor.duration_days - 1)
@@ -362,7 +362,7 @@ class SmCascadeService
         dep.update!(
           active: false,
           deleted_at: Time.current,
-          deleted_reason: 'rollover',
+          deleted_reason: "rollover",
           deleted_by_rollover: true
         )
         results[:deleted_dependencies] << {
@@ -375,7 +375,7 @@ class SmCascadeService
         if successor.supplier_confirm?
           successor.update!(
             supplier_confirm: false,
-            confirm_status: 'moved_after_confirm'
+            confirm_status: "moved_after_confirm"
           )
           results[:supplier_confirms_cleared] += 1
         end
@@ -405,7 +405,7 @@ class SmCascadeService
       will_cascade: unlocked.count,
       blocked: blocked.count,
       cross_job: cross_job.count,
-      direction: date_delta > 0 ? 'forward' : 'backward',
+      direction: date_delta > 0 ? "forward" : "backward",
       days_moved: date_delta.abs
     }
   end

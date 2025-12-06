@@ -10,7 +10,7 @@ namespace :corporate do
       # Try to get the Corporate File folder by listing root and finding it
       puts "\nLooking for 'Corporate File' folder..."
       root_items = client.get("/drives/#{client.instance_variable_get(:@credential).drive_id}/root/children")
-      corporate_folder = root_items['value'].find { |item| item['name'] == 'Corporate File' && item['folder'] }
+      corporate_folder = root_items["value"].find { |item| item["name"] == "Corporate File" && item["folder"] }
 
       if corporate_folder
         puts "✅ Found: Corporate File"
@@ -23,14 +23,14 @@ namespace :corporate do
         puts "-" * 80
         items = client.get("/drives/#{client.instance_variable_get(:@credential).drive_id}/items/#{corporate_folder['id']}/children")
 
-        items['value'].each do |item|
-          if item['folder']
+        items["value"].each do |item|
+          if item["folder"]
             puts "📁 #{item['name']}"
 
             # List contents of each company group folder
             subfolder_items = client.get("/drives/#{client.instance_variable_get(:@credential).drive_id}/items/#{item['id']}/children")
-            subfolder_items['value'].each do |subitem|
-              prefix = subitem['folder'] ? "  📁" : "  📄"
+            subfolder_items["value"].each do |subitem|
+              prefix = subitem["folder"] ? "  📁" : "  📄"
               puts "#{prefix} #{subitem['name']}"
             end
             puts ""
@@ -48,7 +48,7 @@ namespace :corporate do
         puts ""
         puts "Listing root folders to help locate it:"
         root_items = client.get("/drives/#{client.instance_variable_get(:@credential).drive_id}/root/children")
-        root_items['value'].select { |i| i['folder'] }.each do |folder|
+        root_items["value"].select { |i| i["folder"] }.each do |folder|
           puts "  📁 #{folder['name']}"
         end
       end

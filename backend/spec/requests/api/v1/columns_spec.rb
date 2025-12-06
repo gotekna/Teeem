@@ -7,7 +7,7 @@ RSpec.describe "Api::V1::Columns", type: :request do
       name: "Status",
       column_name: "status",
       column_type: "choice",
-      available_choices: ["Open", "Closed", "Pending"]
+      available_choices: [ "Open", "Closed", "Pending" ]
     )
     # Create the database table with the new column
     builder = TableBuilder.new(table.reload)
@@ -121,7 +121,7 @@ RSpec.describe "Api::V1::Columns", type: :request do
         # Merge "Open" and "Pending" into "Active"
         post "/api/v1/tables/#{table.id}/columns/#{choice_column.id}/merge_choices",
              params: {
-               source_values: ["Open", "Pending"],
+               source_values: [ "Open", "Pending" ],
                target_value: "Active"
              }
 
@@ -150,7 +150,7 @@ RSpec.describe "Api::V1::Columns", type: :request do
         # Merge "Pending" into "Closed" (which already exists)
         post "/api/v1/tables/#{table.id}/columns/#{choice_column.id}/merge_choices",
              params: {
-               source_values: ["Pending"],
+               source_values: [ "Pending" ],
                target_value: "Closed"
              }
 
@@ -172,7 +172,7 @@ RSpec.describe "Api::V1::Columns", type: :request do
 
         it "requires target_value" do
           post "/api/v1/tables/#{table.id}/columns/#{choice_column.id}/merge_choices",
-               params: { source_values: ["Open"] }
+               params: { source_values: [ "Open" ] }
 
           expect(response).to have_http_status(:bad_request)
         end

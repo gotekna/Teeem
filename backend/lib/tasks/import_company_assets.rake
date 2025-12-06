@@ -4,7 +4,7 @@ namespace :corporate do
     puts "Importing Company Assets from Corporate File.xlsx"
     puts "=" * 80
 
-    file_path = Rails.root.join('..', 'Corporate File.xlsx').to_s
+    file_path = Rails.root.join("..", "Corporate File.xlsx").to_s
     spreadsheet = Roo::Spreadsheet.open(file_path)
 
     stats = {
@@ -14,7 +14,7 @@ namespace :corporate do
     }
 
     # Iterate through company sheets
-    company_sheets = ['Co Invest Homes', 'Co Invest Capital', 'Team Harder', 'Tekna', 'Tekna Drafting', 'Tekna Homes']
+    company_sheets = [ "Co Invest Homes", "Co Invest Capital", "Team Harder", "Tekna", "Tekna Drafting", "Tekna Homes" ]
 
     company_sheets.each do |sheet_name|
       next unless spreadsheet.sheets.include?(sheet_name)
@@ -53,7 +53,7 @@ namespace :corporate do
       headers = sheet.row(header_row)
 
       # Find column indices
-      item_col = headers.index { |h| h.to_s.downcase.include?('item') }
+      item_col = headers.index { |h| h.to_s.downcase.include?("item") }
       purchase_date_col = headers.index { |h| h.to_s.downcase =~ /purchase.*date/i }
       purchase_price_col = headers.index { |h| h.to_s.downcase =~ /purchase.*price/i }
       sale_date_col = headers.index { |h| h.to_s.downcase =~ /sale.*date/i }
@@ -76,44 +76,44 @@ namespace :corporate do
         # Parse purchase date
         purchase_date_raw = row[purchase_date_col]
         purchase_date = case purchase_date_raw
-                        when Date, DateTime, Time then purchase_date_raw.to_date
-                        when String then Date.parse(purchase_date_raw) rescue nil
-                        when Numeric then Date.new(1899, 12, 30) + purchase_date_raw.to_i
-                        else nil
-                        end
+        when Date, DateTime, Time then purchase_date_raw.to_date
+        when String then Date.parse(purchase_date_raw) rescue nil
+        when Numeric then Date.new(1899, 12, 30) + purchase_date_raw.to_i
+        else nil
+        end
 
         # Parse purchase price
         purchase_price_raw = row[purchase_price_col]
         purchase_price = case purchase_price_raw
-                         when Numeric then purchase_price_raw.to_f
-                         when String
-                           cleaned = purchase_price_raw.to_s.gsub(/[$,]/, '').strip
+        when Numeric then purchase_price_raw.to_f
+        when String
+                           cleaned = purchase_price_raw.to_s.gsub(/[$,]/, "").strip
                            cleaned.to_f if cleaned.present?
-                         else nil
-                         end
+        else nil
+        end
 
         # Parse sale date
         sale_date_raw = sale_date_col ? row[sale_date_col] : nil
         sale_date = case sale_date_raw
-                    when Date, DateTime, Time then sale_date_raw.to_date
-                    when String then Date.parse(sale_date_raw) rescue nil
-                    when Numeric then Date.new(1899, 12, 30) + sale_date_raw.to_i
-                    else nil
-                    end
+        when Date, DateTime, Time then sale_date_raw.to_date
+        when String then Date.parse(sale_date_raw) rescue nil
+        when Numeric then Date.new(1899, 12, 30) + sale_date_raw.to_i
+        else nil
+        end
 
         # Determine asset type
         asset_type = if item_name =~ /building|property|unit|house|land/i
-                       'property'
-                     elsif item_name =~ /loan|equity|debt|finance/i
-                       'other'
-                     elsif item_name =~ /vehicle|car|truck|van/i
-                       'vehicle'
-                     else
-                       'other'
-                     end
+                       "property"
+        elsif item_name =~ /loan|equity|debt|finance/i
+                       "other"
+        elsif item_name =~ /vehicle|car|truck|van/i
+                       "vehicle"
+        else
+                       "other"
+        end
 
         # Determine status
-        status = sale_date.present? ? 'disposed' : 'active'
+        status = sale_date.present? ? "disposed" : "active"
 
         begin
           # Check if asset already exists

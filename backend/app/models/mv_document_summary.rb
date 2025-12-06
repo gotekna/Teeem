@@ -1,7 +1,7 @@
 # Read-only model for mv_document_summary materialized view
 # This view pre-computes document metrics by company/type/status
 class MvDocumentSummary < ApplicationRecord
-  self.table_name = 'mv_document_summary'
+  self.table_name = "mv_document_summary"
 
   # Read-only - prevent accidental writes
   def readonly?
@@ -17,9 +17,9 @@ class MvDocumentSummary < ApplicationRecord
   scope :for_year, ->(year) { where(document_year: year) }
   scope :for_type, ->(type) { where(document_type: type) }
   scope :for_category, ->(category) { where(document_category: category) }
-  scope :pending_verification, -> { where(ai_verification_status: [nil, 'pending']) }
-  scope :verified, -> { where(ai_verification_status: 'verified') }
-  scope :needs_review, -> { where(ai_verification_status: ['mismatch', 'needs_review']) }
+  scope :pending_verification, -> { where(ai_verification_status: [ nil, "pending" ]) }
+  scope :verified, -> { where(ai_verification_status: "verified") }
+  scope :needs_review, -> { where(ai_verification_status: [ "mismatch", "needs_review" ]) }
 
   # Aggregations
   def self.total_documents

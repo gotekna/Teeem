@@ -103,21 +103,21 @@ class CaseDocumentDuplicateService
     name = filename.to_s
 
     # Remove file extension
-    name = name.sub(/\.[^.]+$/, '')
+    name = name.sub(/\.[^.]+$/, "")
 
     # Replace underscores and dashes with spaces
-    name = name.gsub(/[_-]/, ' ')
+    name = name.gsub(/[_-]/, " ")
 
     # Remove common prefixes (company codes, etc.)
-    name = name.sub(/^[A-Z]{2,5}\s+/, '')
+    name = name.sub(/^[A-Z]{2,5}\s+/, "")
 
     # Expand common abbreviations
     expansions = {
-      'CTR' => 'Company Tax Return',
-      'TTR' => 'Trust Tax Return',
-      'BAS' => 'Business Activity Statement',
-      'FS' => 'Financial Statements',
-      'FY' => 'Financial Year'
+      "CTR" => "Company Tax Return",
+      "TTR" => "Trust Tax Return",
+      "BAS" => "Business Activity Statement",
+      "FS" => "Financial Statements",
+      "FY" => "Financial Year"
     }
 
     expansions.each do |abbr, full|
@@ -125,7 +125,7 @@ class CaseDocumentDuplicateService
     end
 
     # Clean up extra spaces
-    name = name.gsub(/\s+/, ' ').strip
+    name = name.gsub(/\s+/, " ").strip
 
     # Titleize
     name.titleize

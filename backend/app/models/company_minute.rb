@@ -9,9 +9,9 @@ class CompanyMinute < ApplicationRecord
   validates :status, inclusion: { in: %w[draft approved signed filed] }
 
   # Scopes
-  scope :drafts, -> { where(status: 'draft') }
-  scope :signed, -> { where(status: 'signed') }
-  scope :filed, -> { where(status: 'filed') }
+  scope :drafts, -> { where(status: "draft") }
+  scope :signed, -> { where(status: "signed") }
+  scope :filed, -> { where(status: "filed") }
   scope :by_date, -> { order(meeting_date: :desc) }
   scope :recent, -> { by_date.limit(10) }
 
@@ -19,19 +19,19 @@ class CompanyMinute < ApplicationRecord
   after_create :create_activity
 
   def draft?
-    status == 'draft'
+    status == "draft"
   end
 
   def signed?
-    status == 'signed'
+    status == "signed"
   end
 
   def filed?
-    status == 'filed'
+    status == "filed"
   end
 
   def can_sign?
-    draft? || status == 'approved'
+    draft? || status == "approved"
   end
 
   def can_file?
@@ -48,8 +48,8 @@ class CompanyMinute < ApplicationRecord
       acn: company.formatted_acn,
       abn: company.formatted_abn,
       registered_office: company.registered_office_address,
-      meeting_date: meeting_date&.strftime('%d %B %Y'),
-      current_date: Date.today.strftime('%d %B %Y')
+      meeting_date: meeting_date&.strftime("%d %B %Y"),
+      current_date: Date.today.strftime("%d %B %Y")
     }
 
     self.content = minute_template.generate_content(default_values.merge(values))
@@ -59,7 +59,7 @@ class CompanyMinute < ApplicationRecord
 
   def create_activity
     company.company_activities.create!(
-      activity_type: 'minute_created',
+      activity_type: "minute_created",
       description: "Minutes created: #{title}",
       related: self
     )

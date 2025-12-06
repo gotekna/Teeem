@@ -1,13 +1,14 @@
 # frozen_string_literal: true
+
 # Import Chapter 1 Teacher entries
 
 entries = [
   {
-    section_number: '1.1',
-    title: 'JWT Token Handling Implementation',
-    entry_type: 'integration',
-    difficulty: 'intermediate',
-    summary: 'Complete JWT authentication pattern using JsonWebToken service for encoding and decoding tokens.',
+    section_number: "1.1",
+    title: "JWT Token Handling Implementation",
+    entry_type: "integration",
+    difficulty: "intermediate",
+    summary: "Complete JWT authentication pattern using JsonWebToken service for encoding and decoding tokens.",
     code_example: <<~'CODE',
       # backend/app/services/json_web_token.rb
       class JsonWebToken
@@ -39,14 +40,14 @@ entries = [
         render json: { error: 'Unauthorized' }, status: :unauthorized
       end
     CODE
-    related_rules: 'TEEEM_BIBLE.md RULE #1.1'
+    related_rules: "TEEEM_BIBLE.md RULE #1.1"
   },
   {
-    section_number: '1.2',
-    title: 'Password Complexity Validation',
-    entry_type: 'util',
-    difficulty: 'beginner',
-    summary: '12-character minimum password with complexity rules using custom validation.',
+    section_number: "1.2",
+    title: "Password Complexity Validation",
+    entry_type: "util",
+    difficulty: "beginner",
+    summary: "12-character minimum password with complexity rules using custom validation.",
     code_example: <<~'CODE',
       # app/models/user.rb
       has_secure_password
@@ -77,14 +78,14 @@ entries = [
         password_digest.nil? || password.present?
       end
     CODE
-    related_rules: 'TEEEM_BIBLE.md RULE #1.2'
+    related_rules: "TEEEM_BIBLE.md RULE #1.2"
   },
   {
-    section_number: '1.3',
-    title: 'Role-Based Access Control',
-    entry_type: 'feature',
-    difficulty: 'intermediate',
-    summary: 'Permission system using hardcoded roles and model-based permission methods.',
+    section_number: "1.3",
+    title: "Role-Based Access Control",
+    entry_type: "feature",
+    difficulty: "intermediate",
+    summary: "Permission system using hardcoded roles and model-based permission methods.",
     code_example: <<~'CODE',
       # app/models/user.rb
       ROLES = %w[user admin product_owner estimator supervisor builder].freeze
@@ -110,14 +111,14 @@ entries = [
         end
       end
     CODE
-    related_rules: 'TEEEM_BIBLE.md RULE #1.3'
+    related_rules: "TEEEM_BIBLE.md RULE #1.3"
   },
   {
-    section_number: '1.4',
-    title: 'Rate Limiting with Rack::Attack',
-    entry_type: 'integration',
-    difficulty: 'intermediate',
-    summary: 'Configure rate limiting on auth endpoints using Rack::Attack middleware.',
+    section_number: "1.4",
+    title: "Rate Limiting with Rack::Attack",
+    entry_type: "integration",
+    difficulty: "intermediate",
+    summary: "Configure rate limiting on auth endpoints using Rack::Attack middleware.",
     code_example: <<~'CODE',
       # config/initializers/rack_attack.rb
       Rack::Attack.throttle('auth/ip', limit: 5, period: 20.seconds) do |req|
@@ -134,14 +135,14 @@ entries = [
         req.ip
       end
     CODE
-    related_rules: 'TEEEM_BIBLE.md RULE #1.4'
+    related_rules: "TEEEM_BIBLE.md RULE #1.4"
   },
   {
-    section_number: '1.5',
-    title: 'OAuth Integration with OmniAuth',
-    entry_type: 'integration',
-    difficulty: 'advanced',
-    summary: 'Microsoft Office 365 OAuth integration using OmniAuth gem.',
+    section_number: "1.5",
+    title: "OAuth Integration with OmniAuth",
+    entry_type: "integration",
+    difficulty: "advanced",
+    summary: "Microsoft Office 365 OAuth integration using OmniAuth gem.",
     code_example: <<~'CODE',
       # config/initializers/omniauth.rb
       Rails.application.config.middleware.use OmniAuth::Builder do
@@ -162,14 +163,14 @@ entries = [
         end
       end
     CODE
-    related_rules: 'TEEEM_BIBLE.md RULE #1.5'
+    related_rules: "TEEEM_BIBLE.md RULE #1.5"
   },
   {
-    section_number: '1.6',
-    title: 'Password Reset Flow with Secure Tokens',
-    entry_type: 'feature',
-    difficulty: 'intermediate',
-    summary: 'Secure password reset using hashed tokens with 2-hour expiration.',
+    section_number: "1.6",
+    title: "Password Reset Flow with Secure Tokens",
+    entry_type: "feature",
+    difficulty: "intermediate",
+    summary: "Secure password reset using hashed tokens with 2-hour expiration.",
     code_example: <<~'CODE',
       # Generate reset token
       def reset_password
@@ -198,14 +199,14 @@ entries = [
         end
       end
     CODE
-    related_rules: 'TEEEM_BIBLE.md RULE #1.6'
+    related_rules: "TEEEM_BIBLE.md RULE #1.6"
   },
   {
-    section_number: '1.7',
-    title: 'Portal User Separation',
-    entry_type: 'feature',
-    difficulty: 'advanced',
-    summary: 'Isolated portal_users table with activity logging and account lockout.',
+    section_number: "1.7",
+    title: "Portal User Separation",
+    entry_type: "feature",
+    difficulty: "advanced",
+    summary: "Isolated portal_users table with activity logging and account lockout.",
     code_example: <<~'CODE',
       # app/models/portal_user.rb
       class PortalUser < ApplicationRecord
@@ -243,7 +244,7 @@ entries = [
         )
       end
     CODE
-    related_rules: 'TEEEM_BIBLE.md RULE #1.7'
+    related_rules: "TEEEM_BIBLE.md RULE #1.7"
   }
 ]
 
@@ -256,7 +257,7 @@ entries.each do |attrs|
   )
 
   entry.assign_attributes(
-    chapter_name: 'Authentication & Users',
+    chapter_name: "Authentication & Users",
     title: attrs[:title],
     entry_type: attrs[:entry_type],
     difficulty: attrs[:difficulty],

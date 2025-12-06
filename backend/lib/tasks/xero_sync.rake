@@ -5,7 +5,7 @@ namespace :xero do
     puts "This may take several minutes for large datasets."
     puts ""
 
-    service = ExternalInvoiceSyncService.new(source: 'xero')
+    service = ExternalInvoiceSyncService.new(source: "xero")
     result = service.sync
 
     puts ""
@@ -39,13 +39,13 @@ namespace :xero do
 
   desc "Incremental sync - only fetch invoices modified recently"
   task sync_invoices_incremental: :environment do
-    since = ENV['SINCE'] ? Time.parse(ENV['SINCE']) : nil
+    since = ENV["SINCE"] ? Time.parse(ENV["SINCE"]) : nil
 
     puts "Starting incremental invoice sync from Xero..."
     puts "Since: #{since || 'last sync time'}"
     puts ""
 
-    service = ExternalInvoiceSyncService.new(source: 'xero')
+    service = ExternalInvoiceSyncService.new(source: "xero")
     result = service.sync_incremental(since: since)
 
     puts ""
@@ -56,7 +56,7 @@ namespace :xero do
 
   desc "Sync invoices for a specific tenant"
   task sync_invoices_tenant: :environment do
-    tenant_id = ENV['TENANT_ID']
+    tenant_id = ENV["TENANT_ID"]
     unless tenant_id
       puts "ERROR: TENANT_ID environment variable required"
       puts "Usage: rails xero:sync_invoices_tenant TENANT_ID=xxx-yyy-zzz"
@@ -65,7 +65,7 @@ namespace :xero do
 
     puts "Starting invoice sync for tenant #{tenant_id}..."
 
-    service = ExternalInvoiceSyncService.new(source: 'xero', tenant_id: tenant_id)
+    service = ExternalInvoiceSyncService.new(source: "xero", tenant_id: tenant_id)
     result = service.sync
 
     puts ""

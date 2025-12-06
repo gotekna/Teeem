@@ -6,63 +6,63 @@
 # See GANTT_ARCHITECTURE_PLAN.md Section 2.1
 #
 class SmTask < ApplicationRecord
-  self.table_name = 'tasks'
+  self.table_name = "tasks"
 
   # Status enum
   enum :status, {
-    not_started: 'not_started',
-    started: 'started',
-    completed: 'completed'
+    not_started: "not_started",
+    started: "started",
+    completed: "completed"
   }, prefix: true
 
   # Confirm status enum
   enum :confirm_status, {
-    confirm_requested: 'confirm_requested',
-    supplier_confirmed: 'supplier_confirmed',
-    moved_after_confirm: 'moved_after_confirm'
+    confirm_requested: "confirm_requested",
+    supplier_confirmed: "supplier_confirmed",
+    moved_after_confirm: "moved_after_confirm"
   }, prefix: true, default: nil
 
   # Associations
   belongs_to :job
-  belongs_to :template_row, class_name: 'ScheduleTemplateRow', optional: true
-  belongs_to :parent_task, class_name: 'SmTask', optional: true
-  has_many :children, class_name: 'SmTask', foreign_key: :parent_task_id, dependent: :nullify
+  belongs_to :template_row, class_name: "ScheduleTemplateRow", optional: true
+  belongs_to :parent_task, class_name: "SmTask", optional: true
+  has_many :children, class_name: "SmTask", foreign_key: :parent_task_id, dependent: :nullify
 
-  belongs_to :hold_reason, class_name: 'SmHoldReason', optional: true
-  belongs_to :hold_started_by, class_name: 'User', optional: true
-  belongs_to :hold_released_by, class_name: 'User', optional: true
-  belongs_to :supplier_confirmed_by, class_name: 'User', optional: true
+  belongs_to :hold_reason, class_name: "SmHoldReason", optional: true
+  belongs_to :hold_started_by, class_name: "User", optional: true
+  belongs_to :hold_released_by, class_name: "User", optional: true
+  belongs_to :supplier_confirmed_by, class_name: "User", optional: true
 
   belongs_to :purchase_order, optional: true
-  belongs_to :assigned_user, class_name: 'User', optional: true
-  belongs_to :supplier, class_name: 'Contact', optional: true
-  belongs_to :checklist, class_name: 'SupervisorChecklistTemplate', optional: true
+  belongs_to :assigned_user, class_name: "User", optional: true
+  belongs_to :supplier, class_name: "Contact", optional: true
+  belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
 
-  belongs_to :created_by, class_name: 'User', optional: true
-  belongs_to :updated_by, class_name: 'User', optional: true
+  belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :updated_by, class_name: "User", optional: true
 
   # Dependencies (separate table per Rule 9.25)
-  has_many :predecessor_dependencies, class_name: 'SmDependency', foreign_key: :successor_task_id, dependent: :destroy
-  has_many :successor_dependencies, class_name: 'SmDependency', foreign_key: :predecessor_task_id, dependent: :destroy
+  has_many :predecessor_dependencies, class_name: "SmDependency", foreign_key: :successor_task_id, dependent: :destroy
+  has_many :successor_dependencies, class_name: "SmDependency", foreign_key: :predecessor_task_id, dependent: :destroy
   has_many :predecessors, through: :predecessor_dependencies, source: :predecessor_task
   has_many :successors, through: :successor_dependencies, source: :successor_task
 
   # Logs
-  has_many :rollover_logs, class_name: 'SmRolloverLog', dependent: :destroy
-  has_many :parent_spawn_logs, class_name: 'SmSpawnLog', foreign_key: :parent_task_id, dependent: :destroy
-  has_many :spawned_spawn_logs, class_name: 'SmSpawnLog', foreign_key: :spawned_task_id, dependent: :destroy
-  has_many :hold_logs, class_name: 'SmHoldLog', dependent: :destroy
-  has_many :working_drawing_pages, class_name: 'SmWorkingDrawingPage', dependent: :destroy
+  has_many :rollover_logs, class_name: "SmRolloverLog", dependent: :destroy
+  has_many :parent_spawn_logs, class_name: "SmSpawnLog", foreign_key: :parent_task_id, dependent: :destroy
+  has_many :spawned_spawn_logs, class_name: "SmSpawnLog", foreign_key: :spawned_task_id, dependent: :destroy
+  has_many :hold_logs, class_name: "SmHoldLog", dependent: :destroy
+  has_many :working_drawing_pages, class_name: "SmWorkingDrawingPage", dependent: :destroy
 
   # Phase 2: Resource Allocations
-  has_many :resource_allocations, class_name: 'SmResourceAllocation', dependent: :destroy
-  has_many :time_entries, class_name: 'SmTimeEntry', dependent: :destroy
+  has_many :resource_allocations, class_name: "SmResourceAllocation", dependent: :destroy
+  has_many :time_entries, class_name: "SmTimeEntry", dependent: :destroy
 
   # Phase 3: Field & Collaboration
-  has_many :task_photos, class_name: 'SmTaskPhoto', dependent: :destroy
-  has_many :voice_notes, class_name: 'SmVoiceNote', dependent: :destroy
-  has_many :comments, class_name: 'SmComment', dependent: :destroy
-  has_many :activities, class_name: 'SmActivity', dependent: :nullify
+  has_many :task_photos, class_name: "SmTaskPhoto", dependent: :destroy
+  has_many :voice_notes, class_name: "SmVoiceNote", dependent: :destroy
+  has_many :comments, class_name: "SmComment", dependent: :destroy
+  has_many :activities, class_name: "SmActivity", dependent: :nullify
 
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
@@ -75,13 +75,13 @@ class SmTask < ApplicationRecord
   validate :end_date_after_start_date
 
   # Scopes
-  scope :active, -> { where.not(status: 'completed') }
+  scope :active, -> { where.not(status: "completed") }
   scope :hold_tasks, -> { where(is_hold_task: true) }
   scope :regular_tasks, -> { where(is_hold_task: false) }
   scope :ordered, -> { order(:sequence_order) }
   scope :by_trade, ->(trade) { where(trade: trade) if trade.present? }
   scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
-  scope :past_due, -> { where('start_date < ?', Date.current).active }
+  scope :past_due, -> { where("start_date < ?", Date.current).active }
 
   # Callbacks
   before_validation :set_task_number, on: :create
@@ -94,21 +94,21 @@ class SmTask < ApplicationRecord
   end
 
   def lock_type
-    return 'supplier_confirm' if supplier_confirm?
-    return 'confirm' if confirm?
-    return 'started' if status_started?
-    return 'completed' if status_completed?
-    return 'manually_positioned' if manually_positioned?
+    return "supplier_confirm" if supplier_confirm?
+    return "confirm" if confirm?
+    return "started" if status_started?
+    return "completed" if status_completed?
+    return "manually_positioned" if manually_positioned?
     nil
   end
 
   def lock_priority
     case lock_type
-    when 'supplier_confirm' then 1
-    when 'confirm' then 2
-    when 'started' then 3
-    when 'completed' then 4
-    when 'manually_positioned' then 5
+    when "supplier_confirm" then 1
+    when "confirm" then 2
+    when "started" then 3
+    when "completed" then 4
+    when "manually_positioned" then 5
     else nil
     end
   end
@@ -136,7 +136,7 @@ class SmTask < ApplicationRecord
   def start!
     return false unless status_not_started?
     update!(
-      status: 'started',
+      status: "started",
       started_at: Time.current
     )
   end
@@ -145,7 +145,7 @@ class SmTask < ApplicationRecord
   def complete!(passed: nil)
     return false unless status_started? || status_not_started?
     update!(
-      status: 'completed',
+      status: "completed",
       completed_at: Time.current,
       passed: passed
     )
@@ -191,7 +191,7 @@ class SmTask < ApplicationRecord
   def end_date_after_start_date
     return unless start_date.present? && end_date.present?
     if end_date < start_date
-      errors.add(:end_date, 'must be on or after start date')
+      errors.add(:end_date, "must be on or after start date")
     end
   end
 end

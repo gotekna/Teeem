@@ -16,7 +16,7 @@ class CreateKnownParties < ActiveRecord::Migration[8.0]
     end
 
     add_index :known_parties, :email, unique: true, where: "email IS NOT NULL"
-    add_index :known_parties, [:name, :organisation], unique: true
+    add_index :known_parties, [ :name, :organisation ], unique: true
     add_index :known_parties, :relationship_type
   end
 end

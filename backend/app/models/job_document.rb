@@ -1,25 +1,25 @@
 class JobDocument < ApplicationRecord
   belongs_to :job
   belongs_to :document_type, optional: true
-  belongs_to :ai_suggested_type, class_name: 'DocumentType', optional: true
-  belongs_to :rename_approved_by, class_name: 'User', optional: true
+  belongs_to :ai_suggested_type, class_name: "DocumentType", optional: true
+  belongs_to :rename_approved_by, class_name: "User", optional: true
 
   # File type enum based on extension
   FILE_TYPE_MAP = {
-    'rvt' => 'revit_project',
-    'rfa' => 'revit_family',
-    'dwg' => 'autocad',
-    'dxf' => 'autocad_export',
-    'dwfx' => 'design_web',
-    'pdf' => 'pdf',
-    'jpg' => 'image',
-    'jpeg' => 'image',
-    'png' => 'image',
-    'heic' => 'image',
-    'xlsx' => 'spreadsheet',
-    'xls' => 'spreadsheet',
-    'docx' => 'document',
-    'doc' => 'document'
+    "rvt" => "revit_project",
+    "rfa" => "revit_family",
+    "dwg" => "autocad",
+    "dxf" => "autocad_export",
+    "dwfx" => "design_web",
+    "pdf" => "pdf",
+    "jpg" => "image",
+    "jpeg" => "image",
+    "png" => "image",
+    "heic" => "image",
+    "xlsx" => "spreadsheet",
+    "xls" => "spreadsheet",
+    "docx" => "document",
+    "doc" => "document"
   }.freeze
 
   # Sync status enum
@@ -32,10 +32,10 @@ class JobDocument < ApplicationRecord
   # Scopes
   scope :cad_files, -> { where(file_type: %w[revit_project revit_family autocad autocad_export design_web]) }
   scope :documents, -> { where(file_type: %w[pdf document]) }
-  scope :images, -> { where(file_type: 'image') }
-  scope :spreadsheets, -> { where(file_type: 'spreadsheet') }
-  scope :in_folder, ->(folder) { where('folder_path LIKE ?', "%#{folder}%") }
-  scope :synced, -> { where(sync_status: 'synced') }
+  scope :images, -> { where(file_type: "image") }
+  scope :spreadsheets, -> { where(file_type: "spreadsheet") }
+  scope :in_folder, ->(folder) { where("folder_path LIKE ?", "%#{folder}%") }
+  scope :synced, -> { where(sync_status: "synced") }
   scope :needs_sync, -> { where(sync_status: %w[pending error]) }
 
   # Callbacks
@@ -45,8 +45,8 @@ class JobDocument < ApplicationRecord
 
   # Determine file type from extension
   def self.file_type_for(extension)
-    ext = extension.to_s.downcase.delete_prefix('.')
-    FILE_TYPE_MAP[ext] || 'other'
+    ext = extension.to_s.downcase.delete_prefix(".")
+    FILE_TYPE_MAP[ext] || "other"
   end
 
   # Detect document type based on file extension
@@ -84,7 +84,7 @@ class JobDocument < ApplicationRecord
   def set_file_extension
     return if file_extension.present? || file_name.blank?
 
-    self.file_extension = File.extname(file_name).delete_prefix('.').downcase
+    self.file_extension = File.extname(file_name).delete_prefix(".").downcase
   end
 
   def set_file_type

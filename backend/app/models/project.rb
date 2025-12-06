@@ -1,5 +1,5 @@
 class Project < ApplicationRecord
-  belongs_to :project_manager, class_name: 'User'
+  belongs_to :project_manager, class_name: "User"
   belongs_to :job
   has_many :project_tasks, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
@@ -9,15 +9,15 @@ class Project < ApplicationRecord
   validates :project_code, presence: true, uniqueness: true
   validates :status, inclusion: { in: %w[planning active complete on_hold] }
 
-  scope :active, -> { where(status: ['planning', 'active']) }
-  scope :completed, -> { where(status: 'complete') }
+  scope :active, -> { where(status: [ "planning", "active" ]) }
+  scope :completed, -> { where(status: "complete") }
 
   def total_tasks
     project_tasks.count
   end
 
   def completed_tasks
-    project_tasks.where(status: 'complete').count
+    project_tasks.where(status: "complete").count
   end
 
   def progress_percentage
@@ -45,10 +45,10 @@ class Project < ApplicationRecord
   end
 
   def overdue_tasks
-    project_tasks.where('planned_end_date < ? AND status != ?', CompanySetting.today, 'complete')
+    project_tasks.where("planned_end_date < ? AND status != ?", CompanySetting.today, "complete")
   end
 
   def upcoming_tasks
-    project_tasks.where('planned_start_date <= ? AND status = ?', 1.week.from_now, 'not_started')
+    project_tasks.where("planned_start_date <= ? AND status = ?", 1.week.from_now, "not_started")
   end
 end

@@ -1,7 +1,7 @@
 module Api
   module V1
     class PurchaseOrdersController < ApplicationController
-      before_action :set_purchase_order, only: [:show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents]
+      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents ]
 
       # GET /api/v1/purchase_orders
       # Params: construction_id, supplier_id, status, search, sort_by, sort_direction, page, per_page
@@ -23,7 +23,7 @@ module Api
         if params[:search].present?
           search_term = "%#{params[:search]}%"
           @purchase_orders = @purchase_orders.where(
-            'purchase_order_number ILIKE ? OR description ILIKE ? OR ted_task ILIKE ?',
+            "purchase_order_number ILIKE ? OR description ILIKE ? OR ted_task ILIKE ?",
             search_term, search_term, search_term
           )
         end
@@ -36,16 +36,16 @@ module Api
         end
 
         # Sorting
-        sort_by = params[:sort_by] || 'created_at'
-        sort_direction = params[:sort_direction] || 'desc'
+        sort_by = params[:sort_by] || "created_at"
+        sort_direction = params[:sort_direction] || "desc"
         allowed_sort_columns = %w[purchase_order_number total required_date status created_at]
-        sort_column = allowed_sort_columns.include?(sort_by) ? sort_by : 'created_at'
+        sort_column = allowed_sort_columns.include?(sort_by) ? sort_by : "created_at"
 
         @purchase_orders = @purchase_orders.order("#{sort_column} #{sort_direction}")
 
         # Pagination
         page = params[:page]&.to_i || 1
-        per_page = [params[:per_page]&.to_i || 50, 100].min  # Default 50, max 100
+        per_page = [ params[:per_page]&.to_i || 50, 100 ].min  # Default 50, max 100
         total_count = @purchase_orders.count
         total_pages = (total_count.to_f / per_page).ceil
 
@@ -54,17 +54,17 @@ module Api
         render json: {
           purchase_orders: @purchase_orders.as_json(
             include: {
-              supplier: { only: [:id, :full_name], methods: [:display_name] },
+              supplier: { only: [ :id, :full_name ], methods: [ :display_name ] },
               job: {
-                only: [:id, :title],
-                methods: [:site_supervisor_info]
+                only: [ :id, :title ],
+                methods: [ :site_supervisor_info ]
               },
               line_items: {
-                include: { pricebook_item: { only: [:id, :item_code, :item_name, :current_price] } },
-                methods: [:price_drift, :price_outdated?, :price_status, :price_status_label]
+                include: { pricebook_item: { only: [ :id, :item_code, :item_name, :current_price ] } },
+                methods: [ :price_drift, :price_outdated?, :price_status, :price_status_label ]
               }
             },
-            methods: [:timing_warnings, :delivery_aligned_with_tasks?]
+            methods: [ :timing_warnings, :delivery_aligned_with_tasks? ]
           ),
           pagination: {
             current_page: page,
@@ -82,28 +82,28 @@ module Api
         render json: {
           **@purchase_order.as_json(
             include: {
-              supplier: { only: [:id, :full_name, :email, :phone, :address], methods: [:display_name] },
+              supplier: { only: [ :id, :full_name, :email, :phone, :address ], methods: [ :display_name ] },
               job: {
-                only: [:id, :title],
-                methods: [:site_supervisor_info]
+                only: [ :id, :title ],
+                methods: [ :site_supervisor_info ]
               },
-              schedule_tasks: { only: [:id, :title, :supplier_category] },
+              schedule_tasks: { only: [ :id, :title, :supplier_category ] },
               line_items: {
-                include: { pricebook_item: { only: [:id, :item_code, :item_name, :unit_of_measure], methods: [:active_price] } },
-                methods: [:price_drift, :price_outdated?, :price_status, :price_status_label]
+                include: { pricebook_item: { only: [ :id, :item_code, :item_name, :unit_of_measure ], methods: [ :active_price ] } },
+                methods: [ :price_drift, :price_outdated?, :price_status, :price_status_label ]
               },
               project_tasks: {
-                only: [:id, :name, :planned_start_date, :planned_end_date, :status],
-                methods: [:materials_status]
+                only: [ :id, :name, :planned_start_date, :planned_end_date, :status ],
+                methods: [ :materials_status ]
               },
               document_tasks: {
-                only: [:id, :name, :description, :category, :has_document, :is_validated],
-                methods: [:document_url]
+                only: [ :id, :name, :description, :category, :has_document, :is_validated ],
+                methods: [ :document_url ]
               }
             },
-            methods: [:timing_warnings, :delivery_aligned_with_tasks?]
+            methods: [ :timing_warnings, :delivery_aligned_with_tasks? ]
           ),
-          company_setting: company_setting.as_json(only: [:company_name, :abn, :gst_number, :email, :phone, :address, :logo_url])
+          company_setting: company_setting.as_json(only: [ :company_name, :abn, :gst_number, :email, :phone, :address, :logo_url ])
         }
       end
 
@@ -134,15 +134,15 @@ module Api
           end
         end
       rescue ActiveRecord::RecordNotFound => e
-        render json: { errors: ["#{e.model || 'Record'} not found"] }, status: :unprocessable_entity
+        render json: { errors: [ "#{e.model || 'Record'} not found" ] }, status: :unprocessable_entity
       rescue => e
-        render json: { errors: [e.message] }, status: :unprocessable_entity
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
       # PATCH/PUT /api/v1/purchase_orders/:id
       def update
         unless @purchase_order.can_edit?
-          render json: { error: 'Cannot edit purchase order in current status' }, status: :unprocessable_entity
+          render json: { error: "Cannot edit purchase order in current status" }, status: :unprocessable_entity
           return
         end
 
@@ -170,15 +170,15 @@ module Api
           end
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { errors: ['Schedule task not found'] }, status: :unprocessable_entity
+        render json: { errors: [ "Schedule task not found" ] }, status: :unprocessable_entity
       rescue => e
-        render json: { errors: [e.message] }, status: :unprocessable_entity
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
       # DELETE /api/v1/purchase_orders/:id
       def destroy
         unless @purchase_order.can_cancel?
-          render json: { error: 'Cannot delete purchase order in current status' }, status: :unprocessable_entity
+          render json: { error: "Cannot delete purchase order in current status" }, status: :unprocessable_entity
           return
         end
 
@@ -189,7 +189,7 @@ module Api
       # POST /api/v1/purchase_orders/:id/approve
       def approve
         unless @purchase_order.can_approve?
-          render json: { error: 'Purchase order cannot be approved in current status' }, status: :unprocessable_entity
+          render json: { error: "Purchase order cannot be approved in current status" }, status: :unprocessable_entity
           return
         end
 
@@ -255,7 +255,7 @@ module Api
           supplier_id: lookup_result[:supplier].id,
           description: params[:task_description],
           delivery_address: lookup_result[:metadata][:delivery_address],
-          status: params[:status] || 'draft',
+          status: params[:status] || "draft",
           required_date: params[:required_date],
           budget: lookup_result[:total_with_gst],
           line_items_attributes: [
@@ -303,7 +303,7 @@ module Api
               supplier_id: lookup_result[:supplier].id,
               description: po_request[:task_description],
               delivery_address: lookup_result[:metadata][:delivery_address],
-              status: po_request[:status] || 'draft',
+              status: po_request[:status] || "draft",
               required_date: po_request[:required_date],
               budget: lookup_result[:total_with_gst],
               line_items_attributes: [
@@ -384,7 +384,7 @@ module Api
 
           if invalid_docs.any?
             return render json: {
-              error: 'Some documents do not belong to this job'
+              error: "Some documents do not belong to this job"
             }, status: :unprocessable_entity
           end
         end
@@ -393,7 +393,7 @@ module Api
         @purchase_order.document_task_ids = document_task_ids
 
         render json: {
-          message: 'Documents updated successfully',
+          message: "Documents updated successfully",
           attached_count: document_task_ids.length,
           document_tasks: @purchase_order.document_tasks.map do |doc|
             {

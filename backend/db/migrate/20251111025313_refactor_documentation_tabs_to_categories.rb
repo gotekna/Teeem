@@ -5,8 +5,8 @@ class RefactorDocumentationTabsToCategories < ActiveRecord::Migration[8.0]
 
     # Remove construction_id foreign key and column
     remove_foreign_key :documentation_categories, :constructions
-    remove_index :documentation_categories, [:construction_id, :sequence_order]
-    remove_index :documentation_categories, [:construction_id, :name]
+    remove_index :documentation_categories, [ :construction_id, :sequence_order ]
+    remove_index :documentation_categories, [ :construction_id, :name ]
     remove_column :documentation_categories, :construction_id, :bigint
 
     # Add new index on name (globally unique)

@@ -1,5 +1,5 @@
 class OrganizationOneDriveCredential < ApplicationRecord
-  belongs_to :connected_by, class_name: 'User', optional: true
+  belongs_to :connected_by, class_name: "User", optional: true
 
   # Encrypt sensitive tokens
   encrypts :access_token
@@ -42,7 +42,7 @@ class OrganizationOneDriveCredential < ApplicationRecord
 
   # Get folder path for a specific construction/job
   def job_folder_path(construction)
-    job_code = construction.id.to_s.rjust(3, '0')
+    job_code = construction.id.to_s.rjust(3, "0")
     "#{jobs_root_folder_path}/#{job_code} - #{construction.title}"
   end
 

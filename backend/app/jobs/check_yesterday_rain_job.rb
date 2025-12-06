@@ -21,7 +21,7 @@ class CheckYesterdayRainJob < ApplicationJob
     rain_logs_created = 0
     errors = []
 
-    Job.where(status: 'Active').find_each do |job|
+    Job.where(status: "Active").find_each do |job|
       active_jobs_checked += 1
 
       # Get location from job
@@ -29,7 +29,7 @@ class CheckYesterdayRainJob < ApplicationJob
 
       unless location
         Rails.logger.warn("No location found for job #{job.id} - #{job.title}")
-        errors << { job_id: job.id, error: 'No location' }
+        errors << { job_id: job.id, error: "No location" }
         next
       end
 
@@ -53,7 +53,7 @@ class CheckYesterdayRainJob < ApplicationJob
           date: target_date,
           rainfall_mm: rainfall_mm,
           severity: RainLog.calculate_severity(rainfall_mm),
-          source: 'automatic',
+          source: "automatic",
           weather_api_response: weather_data[:raw_response],
           notes: "Auto-detected: #{weather_data[:condition]} at #{weather_data[:location]}"
         )
@@ -119,8 +119,8 @@ class CheckYesterdayRainJob < ApplicationJob
 
     # Fallback: try to extract from job title
     # (e.g., "XC KIT 06/25 72 - 32 Mcilwraith" => try address part)
-    if job.title.include?('-')
-      potential_location = job.title.split('-').last.strip
+    if job.title.include?("-")
+      potential_location = job.title.split("-").last.strip
       return potential_location if potential_location.present?
     end
 

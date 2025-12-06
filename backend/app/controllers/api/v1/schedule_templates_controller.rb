@@ -2,9 +2,9 @@ module Api
   module V1
     class ScheduleTemplatesController < ApplicationController
       before_action :authorize_request
-      before_action :set_schedule_template, only: [:show, :update, :destroy, :duplicate, :set_as_default]
-      before_action :check_can_create_templates, only: [:create, :duplicate]
-      before_action :check_can_edit_templates, only: [:update, :destroy, :set_as_default]
+      before_action :set_schedule_template, only: [ :show, :update, :destroy, :duplicate, :set_as_default ]
+      before_action :check_can_create_templates, only: [ :create, :duplicate ]
+      before_action :check_can_edit_templates, only: [ :update, :destroy, :set_as_default ]
 
       # GET /api/v1/schedule_templates
       def index
@@ -53,7 +53,7 @@ module Api
       def destroy
         # Don't allow deleting the default template
         if @schedule_template.is_default?
-          return render json: { error: 'Cannot delete the default template' }, status: :forbidden
+          return render json: { error: "Cannot delete the default template" }, status: :forbidden
         end
 
         @schedule_template.destroy
@@ -94,7 +94,7 @@ module Api
         if template
           render json: template_json_with_rows(template)
         else
-          render json: { error: 'No default template found' }, status: :not_found
+          render json: { error: "No default template found" }, status: :not_found
         end
       end
 
@@ -103,7 +103,7 @@ module Api
       def set_schedule_template
         @schedule_template = ScheduleTemplate.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Template not found' }, status: :not_found
+        render json: { error: "Template not found" }, status: :not_found
       end
 
       def template_params
@@ -112,13 +112,13 @@ module Api
 
       def check_can_create_templates
         unless @current_user&.can_create_templates?
-          render json: { error: 'Unauthorized' }, status: :forbidden
+          render json: { error: "Unauthorized" }, status: :forbidden
         end
       end
 
       def check_can_edit_templates
         unless @current_user&.can_create_templates?
-          render json: { error: 'Unauthorized' }, status: :forbidden
+          render json: { error: "Unauthorized" }, status: :forbidden
         end
       end
 

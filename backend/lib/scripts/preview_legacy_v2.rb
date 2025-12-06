@@ -5,7 +5,7 @@ puts "Job: #{job.title}"
 puts ""
 
 # Load document types with aliases
-doc_types = DocumentType.where(scope: ['job', 'both']).where.not(aliases: nil)
+doc_types = DocumentType.where(scope: [ "job", "both" ]).where.not(aliases: nil)
 puts "Loaded #{doc_types.count} document types with aliases"
 puts ""
 
@@ -21,7 +21,7 @@ def classify_with_doc_types(filename, doc_types)
     next unless dt.file_extensions.present?
     if dt.file_extensions.include?(ext)
       # For common extensions like .pdf, check aliases too
-      if ['.pdf', '.xlsx', '.docx'].include?(ext)
+      if [ ".pdf", ".xlsx", ".docx" ].include?(ext)
         # Need alias match for common extensions
         next unless dt.aliases.present?
         if dt.aliases.any? { |a| name.include?(a.downcase) }

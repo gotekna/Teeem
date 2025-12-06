@@ -2,7 +2,7 @@ module Api
   module V1
     class ContactRelationshipsController < ApplicationController
       before_action :set_contact
-      before_action :set_relationship, only: [:show, :update, :destroy]
+      before_action :set_relationship, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/contacts/:contact_id/relationships
       def index
@@ -13,8 +13,8 @@ module Api
         render json: {
           success: true,
           relationships: {
-            outgoing: outgoing.map { |rel| serialize_relationship(rel, 'outgoing') },
-            incoming: incoming.map { |rel| serialize_relationship(rel, 'incoming') }
+            outgoing: outgoing.map { |rel| serialize_relationship(rel, "outgoing") },
+            incoming: incoming.map { |rel| serialize_relationship(rel, "incoming") }
           },
           relationship_types: ContactRelationship::RELATIONSHIP_TYPES
         }
@@ -90,7 +90,7 @@ module Api
         unless @relationship
           render json: {
             success: false,
-            errors: ["Relationship not found"]
+            errors: [ "Relationship not found" ]
           }, status: :not_found
         end
       end
@@ -112,7 +112,7 @@ module Api
 
       def serialize_relationship(relationship, direction = nil)
         # Determine the "other" contact based on perspective
-        other_contact = if direction == 'incoming'
+        other_contact = if direction == "incoming"
           relationship.source_contact
         else
           relationship.related_contact

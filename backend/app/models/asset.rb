@@ -17,11 +17,11 @@ class Asset < ApplicationRecord
   validates :abbreviation, format: { with: /\A[A-Z0-9\-]+\z/, message: "must be uppercase letters, numbers, or hyphens", allow_blank: true }
 
   # Scopes
-  scope :active, -> { where(status: 'active') }
-  scope :disposed, -> { where(status: 'disposed') }
-  scope :vehicles, -> { where(asset_type: 'vehicle') }
-  scope :equipment, -> { where(asset_type: 'equipment') }
-  scope :property, -> { where(asset_type: 'property') }
+  scope :active, -> { where(status: "active") }
+  scope :disposed, -> { where(status: "disposed") }
+  scope :vehicles, -> { where(asset_type: "vehicle") }
+  scope :equipment, -> { where(asset_type: "equipment") }
+  scope :property, -> { where(asset_type: "property") }
   scope :by_type, ->(type) { where(asset_type: type) }
 
   # Callbacks
@@ -38,11 +38,11 @@ class Asset < ApplicationRecord
   end
 
   def active?
-    status == 'active'
+    status == "active"
   end
 
   def has_insurance?
-    asset_insurance.present? && asset_insurance.status == 'active'
+    asset_insurance.present? && asset_insurance.status == "active"
   end
 
   def insurance_expiring_soon?(days = 30)
@@ -100,11 +100,11 @@ class Asset < ApplicationRecord
 
   def create_activity
     # Skip activity creation for bulk imports
-    return if Rails.env.development? && caller.any? { |line| line.include?('import') }
+    return if Rails.env.development? && caller.any? { |line| line.include?("import") }
 
     user = (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
     company.company_activities.create!(
-      activity_type: 'asset_added',
+      activity_type: "asset_added",
       description: "Asset added: #{display_name}",
       change_details: { asset_id: id, asset_type: asset_type, purchase_price: purchase_price },
       user: user
@@ -116,22 +116,22 @@ class Asset < ApplicationRecord
   def create_update_activity
     return unless saved_changes.any?
     # Skip activity creation for bulk imports
-    return if Rails.env.development? && caller.any? { |line| line.include?('import') }
+    return if Rails.env.development? && caller.any? { |line| line.include?("import") }
 
     user = (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
 
-    if saved_change_to_status? && status == 'disposed'
+    if saved_change_to_status? && status == "disposed"
       company.company_activities.create!(
-        activity_type: 'asset_disposed',
+        activity_type: "asset_disposed",
         description: "Asset disposed: #{display_name}",
         change_details: { asset_id: id },
         user: user
       )
     else
       company.company_activities.create!(
-        activity_type: 'asset_updated',
+        activity_type: "asset_updated",
         description: "Asset updated: #{display_name}",
-        change_details: { asset_id: id, changes: saved_changes.except('updated_at') },
+        change_details: { asset_id: id, changes: saved_changes.except("updated_at") },
         user: user
       )
     end

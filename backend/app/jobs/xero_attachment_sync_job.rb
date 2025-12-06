@@ -20,7 +20,7 @@ class XeroAttachmentSyncJob < ApplicationJob
 
     unless invoice
       Rails.logger.warn("[XeroAttachmentSyncJob] Invoice #{external_invoice_id} not found")
-      return { success: false, error: 'Invoice not found' }
+      return { success: false, error: "Invoice not found" }
     end
 
     service = XeroAttachmentSyncService.new(invoice)
@@ -71,7 +71,7 @@ class XeroAttachmentSyncJob < ApplicationJob
         end
       rescue StandardError => e
         results[:failed] += 1
-        results[:errors] << { invoice_id: invoice.id, errors: [e.message] }
+        results[:errors] << { invoice_id: invoice.id, errors: [ e.message ] }
         Rails.logger.error("[XeroAttachmentSyncJob] Error processing invoice #{invoice.id}: #{e.message}")
       end
 

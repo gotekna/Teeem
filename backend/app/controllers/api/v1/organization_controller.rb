@@ -11,7 +11,7 @@ module Api
         render json: {
           success: true,
           job_folder_name_format: company_setting.job_folder_name_format || {
-            fields: ["street_number", "street_name", "suburb"],
+            fields: [ "street_number", "street_name", "suburb" ],
             separators: { "0" => " ", "1" => ", " }
           }
         }
@@ -46,7 +46,7 @@ module Api
           by_source: documents.group(:source).count,
           by_folder: documents.group(:folder).count,
           by_ai_status: documents.group(:ai_verification_status).count,
-          verified_count: documents.where(ai_verification_status: 'verified').count,
+          verified_count: documents.where(ai_verification_status: "verified").count,
           needs_review_count: documents.where(ai_verification_status: %w[mismatch needs_review pending]).count,
           total_file_size: documents.sum(:file_size) || 0,
           latest_upload: documents.maximum(:created_at)
@@ -109,12 +109,12 @@ module Api
           connected: onedrive_credential.present?,
           site_url: onedrive_credential&.drive_name || "SharePoint",
           site_path: onedrive_credential&.root_folder_path || "/Shared Documents",
-          total_synced: documents.where(source: 'onedrive').count,
-          last_sync: onedrive_credential&.last_synced_at || documents.where(source: 'onedrive').maximum(:last_modified_at)
+          total_synced: documents.where(source: "onedrive").count,
+          last_sync: onedrive_credential&.last_synced_at || documents.where(source: "onedrive").maximum(:last_modified_at)
         }
 
         # Xero stats
-        xero_connections = CompanyXeroConnection.where(connection_status: 'connected')
+        xero_connections = CompanyXeroConnection.where(connection_status: "connected")
         xero_stats = {
           connected: xero_connections.exists?,
           tenant_name: xero_connections.first&.xero_tenant_name,
@@ -126,10 +126,10 @@ module Api
         job_doc_stats = if defined?(JobDocument)
           {
             total_files: JobDocument.count,
-            revit_files: JobDocument.where("file_extension IN (?)", ['.rvt', '.rfa']).count,
-            autocad_files: JobDocument.where("file_extension IN (?)", ['.dwg', '.dxf']).count,
-            pdf_files: JobDocument.where(file_extension: '.pdf').count,
-            image_files: JobDocument.where("file_extension IN (?)", ['.jpg', '.jpeg', '.png', '.gif', '.heic']).count,
+            revit_files: JobDocument.where("file_extension IN (?)", [ ".rvt", ".rfa" ]).count,
+            autocad_files: JobDocument.where("file_extension IN (?)", [ ".dwg", ".dxf" ]).count,
+            pdf_files: JobDocument.where(file_extension: ".pdf").count,
+            image_files: JobDocument.where("file_extension IN (?)", [ ".jpg", ".jpeg", ".png", ".gif", ".heic" ]).count,
             total_size: JobDocument.sum(:file_size) || 0
           }
         else

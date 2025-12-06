@@ -40,7 +40,7 @@ namespace :documentation do
 
   desc "Sync a specific category to all jobs (pass NAME='Category Name')"
   task sync_category: :environment do
-    category_name = ENV['NAME']
+    category_name = ENV["NAME"]
 
     unless category_name
       puts "ERROR: Please provide NAME='Category Name'"

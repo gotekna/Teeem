@@ -4,12 +4,12 @@ class Api::V1::ColumnTypesController < ApplicationController
   # GET /api/v1/column_types
   # Returns all column type definitions from the Gold Standard Reference table
   def index
-    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: 'Gold Standard Reference')
+    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: "Gold Standard Reference")
 
     unless gold_standard_foundation
       render json: {
         success: false,
-        error: 'Gold Standard Reference table not found',
+        error: "Gold Standard Reference table not found",
         data: []
       }, status: :not_found
       return
@@ -24,13 +24,13 @@ class Api::V1::ColumnTypesController < ApplicationController
     end
 
     # Sort by category and label
-    sorted_types = column_types.sort_by { |t| [category_order(t[:category]), t[:label]] }
+    sorted_types = column_types.sort_by { |t| [ category_order(t[:category]), t[:label] ] }
 
     render json: {
       success: true,
       data: sorted_types,
       total: sorted_types.count,
-      source: 'Gold Standard Reference Table',
+      source: "Gold Standard Reference Table",
       table_id: gold_standard_foundation.id,
       has_sample_data: sample_data.present?
     }
@@ -39,12 +39,12 @@ class Api::V1::ColumnTypesController < ApplicationController
   # GET /api/v1/column_types/:column_type
   # Returns specific column type definition
   def show
-    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: 'Gold Standard Reference')
+    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: "Gold Standard Reference")
 
     unless gold_standard_foundation
       render json: {
         success: false,
-        error: 'Gold Standard Reference table not found'
+        error: "Gold Standard Reference table not found"
       }, status: :not_found
       return
     end
@@ -68,12 +68,12 @@ class Api::V1::ColumnTypesController < ApplicationController
   # PATCH /api/v1/column_types/:column_type
   # Updates metadata for a specific column type in the Gold Standard table
   def update
-    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: 'Gold Standard Reference')
+    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: "Gold Standard Reference")
 
     unless gold_standard_foundation
       render json: {
         success: false,
-        error: 'Gold Standard Reference table not found'
+        error: "Gold Standard Reference table not found"
       }, status: :not_found
       return
     end
@@ -101,13 +101,13 @@ class Api::V1::ColumnTypesController < ApplicationController
     if column.update(update_params)
       render json: {
         success: true,
-        message: 'Column type updated successfully',
+        message: "Column type updated successfully",
         data: format_column_type(column.reload)
       }
     else
       render json: {
         success: false,
-        error: 'Failed to update column type',
+        error: "Failed to update column type",
         errors: column.errors.full_messages
       }, status: :unprocessable_entity
     end
@@ -118,7 +118,7 @@ class Api::V1::ColumnTypesController < ApplicationController
   # Get sample data from gold_standard_items table
   def get_sample_data
     # Query the gold_standard_items table directly
-    result = ActiveRecord::Base.connection.exec_query('SELECT * FROM gold_standard_items LIMIT 1')
+    result = ActiveRecord::Base.connection.exec_query("SELECT * FROM gold_standard_items LIMIT 1")
     result.first if result.any?
   rescue StandardError => e
     Rails.logger.error "Failed to fetch sample data: #{e.message}"
@@ -165,53 +165,53 @@ class Api::V1::ColumnTypesController < ApplicationController
   def categorize_column_type(type)
     categories = {
       # Text (6)
-      'single_line_text' => 'Text',
-      'multiple_lines_text' => 'Text',
-      'email' => 'Text',
-      'phone' => 'Text',
-      'mobile' => 'Text',
-      'url' => 'Text',
+      "single_line_text" => "Text",
+      "multiple_lines_text" => "Text",
+      "email" => "Text",
+      "phone" => "Text",
+      "mobile" => "Text",
+      "url" => "Text",
       # Numbers (4)
-      'number' => 'Numbers',
-      'whole_number' => 'Numbers',
-      'currency' => 'Numbers',
-      'percentage' => 'Numbers',
+      "number" => "Numbers",
+      "whole_number" => "Numbers",
+      "currency" => "Numbers",
+      "percentage" => "Numbers",
       # Date & Time (2)
-      'date' => 'Date & Time',
-      'date_and_time' => 'Date & Time',
+      "date" => "Date & Time",
+      "date_and_time" => "Date & Time",
       # Special (4)
-      'gps_coordinates' => 'Special',
-      'color_picker' => 'Special',
-      'file_upload' => 'Special',
-      'action_buttons' => 'Special',
+      "gps_coordinates" => "Special",
+      "color_picker" => "Special",
+      "file_upload" => "Special",
+      "action_buttons" => "Special",
       # Selection (2)
-      'boolean' => 'Selection',
-      'choice' => 'Selection',
+      "boolean" => "Selection",
+      "choice" => "Selection",
       # Relationships (3)
-      'lookup' => 'Relationships',
-      'multiple_lookups' => 'Relationships',
-      'user' => 'Relationships',
+      "lookup" => "Relationships",
+      "multiple_lookups" => "Relationships",
+      "user" => "Relationships",
       # Computed (1)
-      'computed' => 'Computed',
+      "computed" => "Computed",
       # Advanced (3)
-      'structured_data' => 'Advanced',
-      'array_of_items' => 'Advanced',
-      'searchable_text' => 'Advanced',
+      "structured_data" => "Advanced",
+      "array_of_items" => "Advanced",
+      "searchable_text" => "Advanced",
       # Australian (6)
-      'abn' => 'Australian',
-      'acn' => 'Australian',
-      'bsb' => 'Australian',
-      'bank_account' => 'Australian',
-      'postcode' => 'Australian',
-      'tfn' => 'Australian'
+      "abn" => "Australian",
+      "acn" => "Australian",
+      "bsb" => "Australian",
+      "bank_account" => "Australian",
+      "postcode" => "Australian",
+      "tfn" => "Australian"
     }
-    categories[type] || 'Other'
+    categories[type] || "Other"
   end
 
   # Get SQL type from Column model mapping
   # Uses Column::COLUMN_SQL_TYPE_MAP which is the single source of truth
   def get_sql_type(column_type)
-    Column::COLUMN_SQL_TYPE_MAP[column_type] || 'UNKNOWN'
+    Column::COLUMN_SQL_TYPE_MAP[column_type] || "UNKNOWN"
   end
 
   # Get validation rules for a column type
@@ -226,108 +226,108 @@ class Api::V1::ColumnTypesController < ApplicationController
     # Source: TEEEM_DOCS/GOLD_STANDARD_TABLE.md
     fallback_rules = {
       # Text (6)
-      'single_line_text' => 'Optional, max 255 characters',
-      'multiple_lines_text' => 'Supports line breaks, unlimited length',
-      'email' => 'Must contain @, valid email format',
-      'phone' => 'Format: (03) 9123 4567 or 1300 numbers',
-      'mobile' => 'Format: 04XX XXX XXX, starts with 04',
-      'url' => 'Valid URL, starts with http:// or https://',
+      "single_line_text" => "Optional, max 255 characters",
+      "multiple_lines_text" => "Supports line breaks, unlimited length",
+      "email" => "Must contain @, valid email format",
+      "phone" => "Format: (03) 9123 4567 or 1300 numbers",
+      "mobile" => "Format: 04XX XXX XXX, starts with 04",
+      "url" => "Valid URL, starts with http:// or https://",
       # Numbers (4)
-      'number' => 'Decimal numbers, up to 2 decimal places',
-      'whole_number' => 'Integers only, no decimals',
-      'currency' => 'Positive, 2 decimals, displays with $',
-      'percentage' => '0-100, displays with % symbol',
+      "number" => "Decimal numbers, up to 2 decimal places",
+      "whole_number" => "Integers only, no decimals",
+      "currency" => "Positive, 2 decimals, displays with $",
+      "percentage" => "0-100, displays with % symbol",
       # Date & Time (2)
-      'date' => 'Stored: YYYY-MM-DD, Display: DD/MM/YYYY',
-      'date_and_time' => 'Full timestamp with time',
+      "date" => "Stored: YYYY-MM-DD, Display: DD/MM/YYYY",
+      "date_and_time" => "Full timestamp with time",
       # Special (4)
-      'gps_coordinates' => 'Latitude, Longitude format',
-      'color_picker' => 'Hex color format #RRGGBB',
-      'file_upload' => 'File path or URL to uploaded file',
-      'action_buttons' => 'JSON config for row actions',
+      "gps_coordinates" => "Latitude, Longitude format",
+      "color_picker" => "Hex color format #RRGGBB",
+      "file_upload" => "File path or URL to uploaded file",
+      "action_buttons" => "JSON config for row actions",
       # Selection (2)
-      'boolean' => 'True or False only',
-      'choice' => 'Must be one of predefined options',
+      "boolean" => "True or False only",
+      "choice" => "Must be one of predefined options",
       # Relationships (3)
-      'lookup' => 'Must reference valid value from linked table',
-      'multiple_lookups' => 'Array of IDs stored as JSON',
-      'user' => 'Must reference valid user ID',
+      "lookup" => "Must reference valid value from linked table",
+      "multiple_lookups" => "Array of IDs stored as JSON",
+      "user" => "Must reference valid user ID",
       # Computed (1)
-      'computed' => 'Read-only, calculated from formula',
+      "computed" => "Read-only, calculated from formula",
       # Advanced (3)
-      'structured_data' => 'Valid JSON object, supports nesting',
-      'array_of_items' => 'Array of text values',
-      'searchable_text' => 'Read-only, auto-generated for search',
+      "structured_data" => "Valid JSON object, supports nesting",
+      "array_of_items" => "Array of text values",
+      "searchable_text" => "Read-only, auto-generated for search",
       # Australian (6)
-      'abn' => '11 digits, format: XX XXX XXX XXX',
-      'acn' => '9 digits, format: XXX XXX XXX',
-      'bsb' => '6 digits, format: XXX-XXX',
-      'bank_account' => 'Up to 9 digits',
-      'postcode' => 'Exactly 4 digits',
-      'tfn' => '9 digits, format: XXX XXX XXX'
+      "abn" => "11 digits, format: XX XXX XXX XXX",
+      "acn" => "9 digits, format: XXX XXX XXX",
+      "bsb" => "6 digits, format: XXX-XXX",
+      "bank_account" => "Up to 9 digits",
+      "postcode" => "Exactly 4 digits",
+      "tfn" => "9 digits, format: XXX XXX XXX"
     }
 
-    fallback_rules[column.column_type] || 'No validation rules defined'
+    fallback_rules[column.column_type] || "No validation rules defined"
   end
 
   # Get example value for a column type
   def get_example(column)
     examples = {
-      'single_line_text' => 'CONC-001, STL-042A',
-      'multiple_lines_text' => 'This is a longer description\nwith multiple lines',
-      'email' => 'john.doe@example.com',
-      'phone' => '(02) 1234 5678',
-      'mobile' => '0412 345 678',
-      'url' => 'https://example.com/document',
-      'number' => '123.45',
-      'whole_number' => '42',
-      'currency' => '$1,234.56',
-      'percentage' => '15.5%',
-      'date' => '19/11/2024',
-      'date_and_time' => '19/11/2024 16:45',
-      'gps_coordinates' => '-33.8688, 151.2093',
-      'color_picker' => '#3498DB',
-      'file_upload' => '/uploads/document.pdf',
-      'action_buttons' => '{"buttons": [{"label": "View", "action": "view"}, {"label": "Edit", "action": "edit"}]}',
-      'boolean' => 'true, false',
-      'choice' => 'Active, Pending, Complete',
-      'lookup' => 'Customer: ABC Corp',
-      'multiple_lookups' => 'Tag1, Tag2, Tag3',
-      'user' => 'John Doe',
-      'computed' => '={price} * {quantity}'
+      "single_line_text" => "CONC-001, STL-042A",
+      "multiple_lines_text" => 'This is a longer description\nwith multiple lines',
+      "email" => "john.doe@example.com",
+      "phone" => "(02) 1234 5678",
+      "mobile" => "0412 345 678",
+      "url" => "https://example.com/document",
+      "number" => "123.45",
+      "whole_number" => "42",
+      "currency" => "$1,234.56",
+      "percentage" => "15.5%",
+      "date" => "19/11/2024",
+      "date_and_time" => "19/11/2024 16:45",
+      "gps_coordinates" => "-33.8688, 151.2093",
+      "color_picker" => "#3498DB",
+      "file_upload" => "/uploads/document.pdf",
+      "action_buttons" => '{"buttons": [{"label": "View", "action": "view"}, {"label": "Edit", "action": "edit"}]}',
+      "boolean" => "true, false",
+      "choice" => "Active, Pending, Complete",
+      "lookup" => "Customer: ABC Corp",
+      "multiple_lookups" => "Tag1, Tag2, Tag3",
+      "user" => "John Doe",
+      "computed" => "={price} * {quantity}"
     }
 
-    examples[column.column_type] || 'No example available'
+    examples[column.column_type] || "No example available"
   end
 
   # Get usage description for a column type
   def get_used_for(column)
     descriptions = {
-      'single_line_text' => 'Unique identifier code for inventory',
-      'multiple_lines_text' => 'Detailed notes, descriptions, comments',
-      'email' => 'Contact email addresses',
-      'phone' => 'Landline phone numbers',
-      'mobile' => 'Mobile phone numbers',
-      'url' => 'Links to documents, websites, resources',
-      'number' => 'Quantities, measurements, decimal values',
-      'whole_number' => 'Counts, IDs, whole number quantities',
-      'currency' => 'Prices, costs, monetary amounts',
-      'percentage' => 'Discounts, completion rates, percentages',
-      'date' => 'Start dates, due dates, milestones',
-      'date_and_time' => 'Timestamps, created/updated times',
-      'gps_coordinates' => 'Location data, addresses with coordinates',
-      'color_picker' => 'Status colors, category colors',
-      'file_upload' => 'Attachments, documents, images',
-      'action_buttons' => 'Row-level actions like View, Edit, Download, Approve, Process',
-      'boolean' => 'Yes/No flags, active/inactive status',
-      'choice' => 'Status, priority, category selection',
-      'lookup' => 'Link to related record in another table',
-      'multiple_lookups' => 'Tags, categories, multiple selections',
-      'user' => 'Assigned user, created by, owner',
-      'computed' => 'Calculated totals, formulas, derived values'
+      "single_line_text" => "Unique identifier code for inventory",
+      "multiple_lines_text" => "Detailed notes, descriptions, comments",
+      "email" => "Contact email addresses",
+      "phone" => "Landline phone numbers",
+      "mobile" => "Mobile phone numbers",
+      "url" => "Links to documents, websites, resources",
+      "number" => "Quantities, measurements, decimal values",
+      "whole_number" => "Counts, IDs, whole number quantities",
+      "currency" => "Prices, costs, monetary amounts",
+      "percentage" => "Discounts, completion rates, percentages",
+      "date" => "Start dates, due dates, milestones",
+      "date_and_time" => "Timestamps, created/updated times",
+      "gps_coordinates" => "Location data, addresses with coordinates",
+      "color_picker" => "Status colors, category colors",
+      "file_upload" => "Attachments, documents, images",
+      "action_buttons" => "Row-level actions like View, Edit, Download, Approve, Process",
+      "boolean" => "Yes/No flags, active/inactive status",
+      "choice" => "Status, priority, category selection",
+      "lookup" => "Link to related record in another table",
+      "multiple_lookups" => "Tags, categories, multiple selections",
+      "user" => "Assigned user, created by, owner",
+      "computed" => "Calculated totals, formulas, derived values"
     }
 
-    descriptions[column.column_type] || 'No usage description available'
+    descriptions[column.column_type] || "No usage description available"
   end
 
   # Format column name to display label
@@ -339,14 +339,14 @@ class Api::V1::ColumnTypesController < ApplicationController
   # Category ordering for sorting
   def category_order(category)
     order = {
-      'Text' => 1,
-      'Numbers' => 2,
-      'Date & Time' => 3,
-      'Special' => 4,
-      'Selection' => 5,
-      'Relationships' => 6,
-      'Computed' => 7,
-      'Other' => 8
+      "Text" => 1,
+      "Numbers" => 2,
+      "Date & Time" => 3,
+      "Special" => 4,
+      "Selection" => 5,
+      "Relationships" => 6,
+      "Computed" => 7,
+      "Other" => 8
     }
     order[category] || 99
   end

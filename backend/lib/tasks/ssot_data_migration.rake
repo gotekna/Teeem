@@ -14,15 +14,15 @@ namespace :ssot do
       begin
         # Determine entity type for the contact
         entity_type = if company.trust_name.present?
-                        'trust'
-                      else
-                        'company'
-                      end
+                        "trust"
+        else
+                        "company"
+        end
 
         # Try to find an existing Contact by ABN match
         contact = if company.abn.present?
                     Contact.find_by(tax_number: company.abn)
-                  end
+        end
 
         # If not found by ABN, try by exact name match
         contact ||= Contact.find_by(
@@ -90,7 +90,7 @@ namespace :ssot do
         )
 
         if membership.new_record?
-          membership.membership_type = 'director'
+          membership.membership_type = "director"
           membership.is_active = director.is_current
           membership.save!
           puts "  [CREATED] Director membership: #{director.contact.display_name} -> #{director.company.company_group.name}"
@@ -99,14 +99,14 @@ namespace :ssot do
           skipped += 1
         end
       rescue StandardError => e
-        errors << { type: 'director', contact: director.contact&.display_name, error: e.message }
+        errors << { type: "director", contact: director.contact&.display_name, error: e.message }
         puts "  [ERROR] Director #{director.contact&.display_name}: #{e.message}"
       end
     end
 
     # Process Shareholders (Contact-based)
     puts "\nProcessing Shareholders..."
-    CompanyShareholding.where(shareholder_type: 'Contact').includes(:company).find_each do |shareholding|
+    CompanyShareholding.where(shareholder_type: "Contact").includes(:company).find_each do |shareholding|
       next unless shareholding.company&.company_group_id
       next unless shareholding.shareholder_id
 
@@ -120,14 +120,14 @@ namespace :ssot do
         )
 
         if membership.new_record?
-          membership.membership_type = 'shareholder'
+          membership.membership_type = "shareholder"
           membership.is_active = true
           membership.save!
           puts "  [CREATED] Shareholder membership: #{contact.display_name} -> #{shareholding.company.company_group.name}"
           memberships_created += 1
         else
           # Update membership type if already exists as director
-          if membership.membership_type == 'director'
+          if membership.membership_type == "director"
             # Person is both director and shareholder - keep as director (higher privilege)
             skipped += 1
           else
@@ -135,7 +135,7 @@ namespace :ssot do
           end
         end
       rescue StandardError => e
-        errors << { type: 'shareholder', contact_id: shareholding.shareholder_id, error: e.message }
+        errors << { type: "shareholder", contact_id: shareholding.shareholder_id, error: e.message }
         puts "  [ERROR] Shareholder #{shareholding.shareholder_id}: #{e.message}"
       end
     end
@@ -152,9 +152,9 @@ namespace :ssot do
         )
 
         if membership.new_record?
-          membership.membership_type = company.trust_name.present? ? 'trust_entity' : 'company_entity'
+          membership.membership_type = company.trust_name.present? ? "trust_entity" : "company_entity"
           membership.company_id = company.id  # Link back to Company record
-          membership.is_active = company.status == 'active'
+          membership.is_active = company.status == "active"
           membership.save!
           puts "  [CREATED] Entity membership: #{company.name} -> #{company.company_group.name}"
           memberships_created += 1
@@ -166,7 +166,7 @@ namespace :ssot do
           skipped += 1
         end
       rescue StandardError => e
-        errors << { type: 'company', company: company.name, error: e.message }
+        errors << { type: "company", company: company.name, error: e.message }
         puts "  [ERROR] Company #{company.name}: #{e.message}"
       end
     end
@@ -184,7 +184,7 @@ namespace :ssot do
   end
 
   desc "Run full SSoT data migration (link companies, then create memberships)"
-  task migrate_all: [:link_companies_to_contacts, :create_memberships] do
+  task migrate_all: [ :link_companies_to_contacts, :create_memberships ] do
     puts "\n" + "=" * 60
     puts "Full SSoT Migration Complete!"
     puts "=" * 60

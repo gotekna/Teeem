@@ -125,17 +125,17 @@ class EmailWarehouseSyncService
     return folders unless response.is_a?(Net::HTTPSuccess)
 
     data = JSON.parse(response.body)
-    top_folders = data['value'] || []
+    top_folders = data["value"] || []
 
     top_folders.each do |folder|
       # Skip folders we don't want (Deleted Items, Junk, etc.)
-      next if folder['displayName'].in?(['Deleted Items', 'Junk Email', 'Conversation History', 'Sync Issues'])
+      next if folder["displayName"].in?([ "Deleted Items", "Junk Email", "Conversation History", "Sync Issues" ])
 
-      folders << { id: folder['id'], name: folder['displayName'] }
+      folders << { id: folder["id"], name: folder["displayName"] }
 
       # Get child folders (subfolders)
-      if folder['childFolderCount'].to_i > 0
-        child_folders = fetch_child_folders(folder['id'], folder['displayName'])
+      if folder["childFolderCount"].to_i > 0
+        child_folders = fetch_child_folders(folder["id"], folder["displayName"])
         folders.concat(child_folders)
       end
     end
@@ -144,7 +144,7 @@ class EmailWarehouseSyncService
   rescue StandardError => e
     Rails.logger.error "[EmailSync] Failed to fetch mail folders: #{e.message}"
     # Fallback to basic folders if API fails
-    [{ id: 'inbox', name: 'Inbox' }, { id: 'sentitems', name: 'Sent Items' }]
+    [ { id: "inbox", name: "Inbox" }, { id: "sentitems", name: "Sent Items" } ]
   end
 
   # Recursively fetch child folders
@@ -158,15 +158,15 @@ class EmailWarehouseSyncService
     return folders unless response.is_a?(Net::HTTPSuccess)
 
     data = JSON.parse(response.body)
-    child_folders = data['value'] || []
+    child_folders = data["value"] || []
 
     child_folders.each do |folder|
       folder_path = "#{parent_name}/#{folder['displayName']}"
-      folders << { id: folder['id'], name: folder_path }
+      folders << { id: folder["id"], name: folder_path }
 
       # Recurse into grandchildren
-      if folder['childFolderCount'].to_i > 0
-        grandchildren = fetch_child_folders(folder['id'], folder_path, depth + 1)
+      if folder["childFolderCount"].to_i > 0
+        grandchildren = fetch_child_folders(folder["id"], folder_path, depth + 1)
         folders.concat(grandchildren)
       end
     end
@@ -196,7 +196,7 @@ class EmailWarehouseSyncService
         )
 
         # Classify email using heuristics (and queue for AI if uncertain)
-        if email&.persisted? && !ENV['DISABLE_EMAIL_CLASSIFICATION']
+        if email&.persisted? && !ENV["DISABLE_EMAIL_CLASSIFICATION"]
           EmailClassificationService.new(email).classify!
         end
 
@@ -237,7 +237,7 @@ class EmailWarehouseSyncService
     end
 
     data = JSON.parse(response.body)
-    emails = parse_outlook_emails(data['value'] || [])
+    emails = parse_outlook_emails(data["value"] || [])
     emails
   rescue StandardError => e
     Rails.logger.error "[EmailSync] Failed to fetch emails: #{e.class} - #{e.message}"
@@ -248,22 +248,22 @@ class EmailWarehouseSyncService
   def parse_outlook_emails(emails)
     emails.map do |email|
       {
-        internet_message_id: email['internetMessageId'],
-        outlook_id: email['id'],
-        conversation_id: email['conversationId'],
-        subject: email['subject'],
-        body_text: email.dig('body', 'contentType') == 'text' ? email.dig('body', 'content') : nil,
-        body_html: email.dig('body', 'contentType') == 'html' ? email.dig('body', 'content') : nil,
-        from_email: email.dig('from', 'emailAddress', 'address'),
-        from_name: email.dig('from', 'emailAddress', 'name'),
-        to_emails: email['toRecipients']&.map { |r| r.dig('emailAddress', 'address') } || [],
-        cc_emails: email['ccRecipients']&.map { |r| r.dig('emailAddress', 'address') } || [],
-        received_at: email['receivedDateTime'],
-        sent_at: email['sentDateTime'],
-        has_attachments: email['hasAttachments'] || false,
-        importance: email['importance'],
-        is_read: email['isRead'],
-        internet_headers: parse_internet_headers(email['internetMessageHeaders'])
+        internet_message_id: email["internetMessageId"],
+        outlook_id: email["id"],
+        conversation_id: email["conversationId"],
+        subject: email["subject"],
+        body_text: email.dig("body", "contentType") == "text" ? email.dig("body", "content") : nil,
+        body_html: email.dig("body", "contentType") == "html" ? email.dig("body", "content") : nil,
+        from_email: email.dig("from", "emailAddress", "address"),
+        from_name: email.dig("from", "emailAddress", "name"),
+        to_emails: email["toRecipients"]&.map { |r| r.dig("emailAddress", "address") } || [],
+        cc_emails: email["ccRecipients"]&.map { |r| r.dig("emailAddress", "address") } || [],
+        received_at: email["receivedDateTime"],
+        sent_at: email["sentDateTime"],
+        has_attachments: email["hasAttachments"] || false,
+        importance: email["importance"],
+        is_read: email["isRead"],
+        internet_headers: parse_internet_headers(email["internetMessageHeaders"])
       }
     end
   end
@@ -273,13 +273,13 @@ class EmailWarehouseSyncService
     return {} unless headers_array.is_a?(Array)
 
     headers_array.each_with_object({}) do |header, hash|
-      hash[header['name']] = header['value'] if header['name'] && header['value']
+      hash[header["name"]] = header["value"] if header["name"] && header["value"]
     end
   end
 
   def make_graph_request(url)
     credential = @user.outlook_credential
-    raise SyncError, 'Outlook not connected' unless credential
+    raise SyncError, "Outlook not connected" unless credential
 
     access_token = credential.valid_access_token
 
@@ -288,8 +288,8 @@ class EmailWarehouseSyncService
     http.use_ssl = true
 
     request = Net::HTTP::Get.new(uri.request_uri)
-    request['Authorization'] = "Bearer #{access_token}"
-    request['Content-Type'] = 'application/json'
+    request["Authorization"] = "Bearer #{access_token}"
+    request["Content-Type"] = "application/json"
 
     http.request(request)
   end
@@ -322,7 +322,7 @@ class EmailWarehouseSyncService
 
   def update_recent_thread_flags
     recent_conversations = EmailWarehouse
-      .where('created_at > ?', 1.hour.ago)
+      .where("created_at > ?", 1.hour.ago)
       .distinct
       .pluck(:conversation_id)
       .compact
@@ -341,7 +341,7 @@ class EmailWarehouseSyncService
   end
 
   def auto_match_recent_emails(since)
-    EmailWarehouse.unassigned.where('created_at > ?', since).find_each do |email|
+    EmailWarehouse.unassigned.where("created_at > ?", since).find_each do |email|
       email.auto_assign_to_job!(min_confidence: 0.8)
     rescue StandardError => e
       Rails.logger.error "Auto-match failed for email #{email.id}: #{e.message}"

@@ -2,7 +2,7 @@ module Api
   module V1
     class ScheduleTaskChecklistItemsController < ApplicationController
       before_action :set_schedule_task
-      before_action :set_checklist_item, only: [:update, :destroy, :toggle]
+      before_action :set_checklist_item, only: [ :update, :destroy, :toggle ]
 
       # GET /api/v1/schedule_tasks/:schedule_task_id/checklist_items
       def index
@@ -36,7 +36,7 @@ module Api
           @item.uncomplete!
         else
           # Get current user name from auth context if available
-          user_name = current_user&.name || 'User'
+          user_name = current_user&.name || "User"
           @item.complete!(user_name)
         end
 

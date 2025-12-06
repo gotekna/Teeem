@@ -9,7 +9,7 @@ class FactJobDailySnapshot < ApplicationRecord
   scope :for_date, ->(date) { where(snapshot_date: date) }
   scope :for_date_range, ->(start_date, end_date) { where(snapshot_date: start_date..end_date) }
   scope :for_status, ->(status) { where(job_status: status) }
-  scope :recent, ->(days = 30) { where('snapshot_date >= ?', days.days.ago.to_date) }
+  scope :recent, ->(days = 30) { where("snapshot_date >= ?", days.days.ago.to_date) }
 
   # Trend analysis - get metrics over time for a job
   def self.job_trend(job_id, days: 30)
@@ -41,29 +41,29 @@ class FactJobDailySnapshot < ApplicationRecord
   def self.daily_totals(date)
     for_date(date)
       .select(
-        'SUM(total_income) as total_income',
-        'SUM(total_expenses) as total_expenses',
-        'SUM(profit) as total_profit',
-        'AVG(profit_margin) as avg_profit_margin',
-        'SUM(task_count) as total_tasks',
-        'SUM(completed_task_count) as total_completed',
-        'AVG(completion_rate) as avg_completion_rate',
-        'COUNT(*) as job_count'
+        "SUM(total_income) as total_income",
+        "SUM(total_expenses) as total_expenses",
+        "SUM(profit) as total_profit",
+        "AVG(profit_margin) as avg_profit_margin",
+        "SUM(task_count) as total_tasks",
+        "SUM(completed_task_count) as total_completed",
+        "AVG(completion_rate) as avg_completion_rate",
+        "COUNT(*) as job_count"
       )
       .first
   end
 
   # Weekly trend (aggregated by week)
   def self.weekly_trend(weeks: 12)
-    where('snapshot_date >= ?', weeks.weeks.ago.to_date)
+    where("snapshot_date >= ?", weeks.weeks.ago.to_date)
       .group("DATE_TRUNC('week', snapshot_date)")
       .select(
         "DATE_TRUNC('week', snapshot_date)::date as week_start",
-        'AVG(profit) as avg_profit',
-        'AVG(completion_rate) as avg_completion_rate',
-        'SUM(hours_logged) as total_hours',
-        'COUNT(DISTINCT job_id) as job_count'
+        "AVG(profit) as avg_profit",
+        "AVG(completion_rate) as avg_completion_rate",
+        "SUM(hours_logged) as total_hours",
+        "COUNT(DISTINCT job_id) as job_count"
       )
-      .order('week_start')
+      .order("week_start")
   end
 end

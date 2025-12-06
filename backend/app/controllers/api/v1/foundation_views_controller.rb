@@ -1,9 +1,9 @@
 module Api
   module V1
     class FoundationViewsController < ApplicationController
-      skip_before_action :authorize_request, only: [:index]  # Allow unauthenticated access to read views (global views visible to all)
-      before_action :set_current_user_if_token_present, only: [:index]  # Try to get current user from token if provided
-      before_action :set_foundation_view, only: [:show, :update, :destroy]
+      skip_before_action :authorize_request, only: [ :index ]  # Allow unauthenticated access to read views (global views visible to all)
+      before_action :set_current_user_if_token_present, only: [ :index ]  # Try to get current user from token if provided
+      before_action :set_foundation_view, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/foundation_views
       # GET /api/v1/foundation_views?foundation_id=123
@@ -40,7 +40,7 @@ module Api
 
         render json: {
           success: true,
-          views: all_views.sort_by { |v| [v.is_global? ? 0 : 1, v.display_order || 999, v.created_at] }
+          views: all_views.sort_by { |v| [ v.is_global? ? 0 : 1, v.display_order || 999, v.created_at ] }
         }
       end
 
@@ -168,7 +168,7 @@ module Api
         # Support both nested foundation_view params (from frontend) and direct params (backward compatibility)
         view_data = params[:foundation_view] || params
         foundation_id = view_data[:foundation_id]
-        view_name = view_data[:name] || 'Default View'
+        view_name = view_data[:name] || "Default View"
 
         unless foundation_id
           return render json: {
@@ -191,7 +191,7 @@ module Api
         view_params = {
           foundation_id: foundation_id,
           name: view_name,
-          view_type: view_data[:view_type] || 'custom',
+          view_type: view_data[:view_type] || "custom",
           filters: view_data[:filters] || {},
           columns: view_data[:columns] || {},
           sort_order: view_data[:sort_order] || [],
@@ -234,7 +234,7 @@ module Api
                           FoundationView.global_views.find_by(id: params[:id])
 
         unless @foundation_view
-          return render json: {
+          render json: {
             success: false,
             error: "View not found"
           }, status: :not_found
@@ -251,7 +251,7 @@ module Api
           :group_by_column,
           filters: {},  # Allow arbitrary hash structure for complex filters
           columns: {},  # Allow arbitrary hash structure for columns config
-          sort_order: [:column, :dir],
+          sort_order: [ :column, :dir ],
           group_by_columns: []
         ).tap do |permitted|
           # Manually permit complex nested structures that Rails strong params can't handle
@@ -291,10 +291,10 @@ module Api
 
       foundations.each do |foundation|
         # Check if user already has a Setup view for this foundation
-        existing_setup = current_user.foundation_views.find_by(foundation_id: foundation.id, name: 'Setup')
+        existing_setup = current_user.foundation_views.find_by(foundation_id: foundation.id, name: "Setup")
 
         if existing_setup
-          results[:skipped] << { foundation_id: foundation.id, foundation_name: foundation.name, reason: 'Setup view already exists' }
+          results[:skipped] << { foundation_id: foundation.id, foundation_name: foundation.name, reason: "Setup view already exists" }
           next
         end
 
@@ -326,18 +326,18 @@ module Api
         all_columns.each { |col| visible_columns[col] = true }
         # Note: 'select' and 'actions' are UI-only pseudo-columns, not database columns
         # Only add 'id' to visible columns as it's a real database column
-        visible_columns['id'] = true
+        visible_columns["id"] = true
 
         # Build column order array (includes UI-only columns for frontend display)
-        column_order = ['select', 'id', 'actions'] + all_columns
+        column_order = [ "select", "id", "actions" ] + all_columns
 
         # Create the Setup view
         user.foundation_views.create!(
           foundation_id: foundation.id,
-          name: 'Setup',
-          view_type: 'custom',
+          name: "Setup",
+          view_type: "custom",
           filters: {
-            interGroupLogic: 'OR',
+            interGroupLogic: "OR",
             cascadeFilters: [],
             filterGroups: []
           },

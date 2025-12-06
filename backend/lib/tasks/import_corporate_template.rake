@@ -6,10 +6,10 @@ namespace :corporate do
 
     # Define the folder structure from Corporate File.xlsx spreadsheet
     folder_structure = {
-      "Assets" => ["Assets Register"],
-      "BAS" => ["BAS"],
-      "Company Setup" => ["Company Setup"],
-      "Constitution" => ["Constitution"],
+      "Assets" => [ "Assets Register" ],
+      "BAS" => [ "BAS" ],
+      "Company Setup" => [ "Company Setup" ],
+      "Constitution" => [ "Constitution" ],
       "General" => [
         "AGM Minutes",
         "AGM Solvency Minutes",
@@ -36,8 +36,8 @@ namespace :corporate do
         "AGM Minutes",
         "AGM Solvency Minutes"
       ],
-      "Register of Members" => ["Register of Members"],
-      "Structure" => ["Structure"],
+      "Register of Members" => [ "Register of Members" ],
+      "Structure" => [ "Structure" ],
       "Trust Deed" => [
         "Deed of Variation",
         "Trust Deed"
@@ -45,7 +45,7 @@ namespace :corporate do
     }
 
     # Create or find the template
-    template = FolderTemplate.find_or_create_by!(name: 'Corporate Documents')
+    template = FolderTemplate.find_or_create_by!(name: "Corporate Documents")
 
     puts "Template: #{template.name}"
     puts "=" * 80

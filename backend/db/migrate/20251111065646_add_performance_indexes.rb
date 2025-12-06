@@ -24,7 +24,7 @@ class AddPerformanceIndexes < ActiveRecord::Migration[8.0]
 
     # Contacts table indexes
     safe_add_index :contacts, :email
-    safe_add_index :contacts, [:xero_id, :last_synced_at], name: 'index_contacts_on_xero_id_and_last_synced_at'
+    safe_add_index :contacts, [ :xero_id, :last_synced_at ], name: 'index_contacts_on_xero_id_and_last_synced_at'
 
     # Schedule tasks table indexes
     safe_add_index :schedule_tasks, :construction_id

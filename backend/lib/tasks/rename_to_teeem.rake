@@ -10,22 +10,22 @@ namespace :teeem do
         changes_made = false
 
         if entry.title&.match?(/trapid/i)
-          entry.title = entry.title.gsub(/TRAPID/i, 'TEEEM').gsub(/Trapid/i, 'TEEEM').gsub(/trapid/i, 'teeem')
+          entry.title = entry.title.gsub(/TRAPID/i, "TEEEM").gsub(/Trapid/i, "TEEEM").gsub(/trapid/i, "teeem")
           changes_made = true
         end
 
         if entry.content&.match?(/trapid/i)
-          entry.content = entry.content.gsub(/TRAPID/i, 'TEEEM').gsub(/Trapid/i, 'TEEEM').gsub(/trapid/i, 'teeem')
+          entry.content = entry.content.gsub(/TRAPID/i, "TEEEM").gsub(/Trapid/i, "TEEEM").gsub(/trapid/i, "teeem")
           changes_made = true
         end
 
         if entry.dense_index&.match?(/trapid/i)
-          entry.dense_index = entry.dense_index.gsub(/TRAPID/i, 'TEEEM').gsub(/Trapid/i, 'TEEEM').gsub(/trapid/i, 'teeem')
+          entry.dense_index = entry.dense_index.gsub(/TRAPID/i, "TEEEM").gsub(/Trapid/i, "TEEEM").gsub(/trapid/i, "teeem")
           changes_made = true
         end
 
         if entry.component&.match?(/trapid/i)
-          entry.component = entry.component.gsub(/TrapidTableView/i, 'TeeemTableView').gsub(/trapid/i, 'teeem')
+          entry.component = entry.component.gsub(/TrapidTableView/i, "TeeemTableView").gsub(/trapid/i, "teeem")
           changes_made = true
         end
 
@@ -47,17 +47,17 @@ namespace :teeem do
         changes_made = false
 
         if rule.respond_to?(:title) && rule.title&.match?(/trapid/i)
-          rule.title = rule.title.gsub(/TRAPID/i, 'TEEEM').gsub(/Trapid/i, 'TEEEM').gsub(/trapid/i, 'teeem')
+          rule.title = rule.title.gsub(/TRAPID/i, "TEEEM").gsub(/Trapid/i, "TEEEM").gsub(/trapid/i, "teeem")
           changes_made = true
         end
 
         if rule.respond_to?(:content) && rule.content&.match?(/trapid/i)
-          rule.content = rule.content.gsub(/TRAPID/i, 'TEEEM').gsub(/Trapid/i, 'TEEEM').gsub(/trapid/i, 'teeem')
+          rule.content = rule.content.gsub(/TRAPID/i, "TEEEM").gsub(/Trapid/i, "TEEEM").gsub(/trapid/i, "teeem")
           changes_made = true
         end
 
         if rule.respond_to?(:description) && rule.description&.match?(/trapid/i)
-          rule.description = rule.description.gsub(/TRAPID/i, 'TEEEM').gsub(/Trapid/i, 'TEEEM').gsub(/trapid/i, 'teeem')
+          rule.description = rule.description.gsub(/TRAPID/i, "TEEEM").gsub(/Trapid/i, "TEEEM").gsub(/trapid/i, "teeem")
           changes_made = true
         end
 
@@ -78,17 +78,17 @@ namespace :teeem do
         changes_made = false
 
         if agent.respond_to?(:name) && agent.name&.match?(/trapid/i)
-          agent.name = agent.name.gsub(/trapid/i, 'teeem')
+          agent.name = agent.name.gsub(/trapid/i, "teeem")
           changes_made = true
         end
 
         if agent.respond_to?(:description) && agent.description&.match?(/trapid/i)
-          agent.description = agent.description.gsub(/TRAPID/i, 'TEEEM').gsub(/Trapid/i, 'TEEEM').gsub(/trapid/i, 'teeem')
+          agent.description = agent.description.gsub(/TRAPID/i, "TEEEM").gsub(/Trapid/i, "TEEEM").gsub(/trapid/i, "teeem")
           changes_made = true
         end
 
         if agent.respond_to?(:system_prompt) && agent.system_prompt&.match?(/trapid/i)
-          agent.system_prompt = agent.system_prompt.gsub(/TRAPID/i, 'TEEEM').gsub(/Trapid/i, 'TEEEM').gsub(/trapid/i, 'teeem')
+          agent.system_prompt = agent.system_prompt.gsub(/TRAPID/i, "TEEEM").gsub(/Trapid/i, "TEEEM").gsub(/trapid/i, "teeem")
           changes_made = true
         end
 
@@ -106,7 +106,7 @@ namespace :teeem do
     if defined?(FeatureTracker) && FeatureTracker.table_exists?
       count = 0
       FeatureTracker.where("feature_name ILIKE '%trapid%'").find_each do |feature|
-        feature.feature_name = feature.feature_name.gsub(/TRAPID/i, 'TEEEM').gsub(/Trapid/i, 'TEEEM')
+        feature.feature_name = feature.feature_name.gsub(/TRAPID/i, "TEEEM").gsub(/Trapid/i, "TEEEM")
         feature.save!
         count += 1
       end
@@ -116,10 +116,10 @@ namespace :teeem do
     end
 
     # Update Column records (rename component references if component column exists)
-    if defined?(Column) && Column.table_exists? && Column.column_names.include?('component')
+    if defined?(Column) && Column.table_exists? && Column.column_names.include?("component")
       count = 0
       Column.where("component ILIKE '%trapid%'").find_each do |column|
-        column.component = column.component.gsub(/TrapidTableView/i, 'TeeemTableView')
+        column.component = column.component.gsub(/TrapidTableView/i, "TeeemTableView")
         column.save!
         count += 1
       end

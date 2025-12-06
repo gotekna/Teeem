@@ -57,7 +57,7 @@ module Api
           data: serialize_invoice(invoice, include_details: true)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Invoice not found' }, status: :not_found
+        render json: { success: false, error: "Invoice not found" }, status: :not_found
       end
 
       # GET /api/v1/external_invoices/by_job/:job_id
@@ -75,7 +75,7 @@ module Api
         quotes = invoices.quotes
 
         # Get last sync time
-        last_sync = ExternalInvoice.where(source: 'xero').maximum(:last_synced_at)
+        last_sync = ExternalInvoice.where(source: "xero").maximum(:last_synced_at)
 
         render json: {
           success: true,
@@ -93,13 +93,13 @@ module Api
             tracking_option_name: job.xero_tracking_option_name
           },
           meta: {
-            source: 'local_cache',
+            source: "local_cache",
             last_synced_at: last_sync&.iso8601,
             cache_age_seconds: last_sync ? (Time.current - last_sync).to_i : nil
           }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Job not found' }, status: :not_found
+        render json: { success: false, error: "Job not found" }, status: :not_found
       end
 
       # GET /api/v1/external_invoices/by_tracking
@@ -110,7 +110,7 @@ module Api
         unless tracking_option_name.present?
           return render json: {
             success: false,
-            error: 'tracking_option_name is required'
+            error: "tracking_option_name is required"
           }, status: :bad_request
         end
 
@@ -131,7 +131,7 @@ module Api
         bills = invoices.bills
 
         # Get last sync time
-        last_sync = ExternalInvoice.where(source: 'xero').maximum(:last_synced_at)
+        last_sync = ExternalInvoice.where(source: "xero").maximum(:last_synced_at)
 
         render json: {
           success: true,
@@ -143,7 +143,7 @@ module Api
             tracking_option_name: tracking_option_name
           },
           meta: {
-            source: 'local_cache',
+            source: "local_cache",
             last_synced_at: last_sync&.iso8601,
             cache_age_seconds: last_sync ? (Time.current - last_sync).to_i : nil
           }
@@ -165,7 +165,7 @@ module Api
         quotes = invoices.quotes
 
         # Get last sync time
-        last_sync = ExternalInvoice.where(source: 'xero').maximum(:last_synced_at)
+        last_sync = ExternalInvoice.where(source: "xero").maximum(:last_synced_at)
 
         render json: {
           success: true,
@@ -182,13 +182,13 @@ module Api
             contact_name: contact.display_name
           },
           meta: {
-            source: 'local_cache',
+            source: "local_cache",
             last_synced_at: last_sync&.iso8601,
             cache_age_seconds: last_sync ? (Time.current - last_sync).to_i : nil
           }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Contact not found' }, status: :not_found
+        render json: { success: false, error: "Contact not found" }, status: :not_found
       end
 
       # GET /api/v1/external_invoices/sync_status
@@ -214,8 +214,8 @@ module Api
       # Trigger a background sync (for admin/manual refresh)
       def trigger_sync
         # For now, run sync inline (later can move to background job)
-        source = params[:source] || 'xero'
-        incremental = params[:incremental] != 'false'
+        source = params[:source] || "xero"
+        incremental = params[:incremental] != "false"
 
         service = ExternalInvoiceSyncService.new(source: source)
 
@@ -240,7 +240,7 @@ module Api
       # POST /api/v1/external_invoices/push_pending
       # Push all pending invoices to Xero
       def push_pending
-        source = params[:source] || 'xero'
+        source = params[:source] || "xero"
         tenant_id = params[:tenant_id]
 
         service = ExternalInvoiceSyncService.new(source: source, tenant_id: tenant_id)
@@ -265,20 +265,20 @@ module Api
         push_to_xero = params[:push_to_xero] != false
 
         unless tenant_id.present?
-          return render json: { success: false, error: 'tenant_id is required' }, status: :bad_request
+          return render json: { success: false, error: "tenant_id is required" }, status: :bad_request
         end
 
         # Build invoice attributes from params
         invoice_attrs = {
-          invoice_type: params[:invoice_type] || 'sales_invoice',
-          status: params[:status] || 'draft',
+          invoice_type: params[:invoice_type] || "sales_invoice",
+          status: params[:status] || "draft",
           invoice_date: params[:invoice_date] || Date.current,
           due_date: params[:due_date],
           reference: params[:reference],
           contact_id: params[:contact_id],
           job_id: params[:job_id],
           line_items: params[:line_items] || [],
-          currency_code: params[:currency_code] || 'AUD',
+          currency_code: params[:currency_code] || "AUD",
           subtotal: params[:subtotal],
           total_tax: params[:total_tax],
           total: params[:total]
@@ -288,24 +288,24 @@ module Api
         if invoice_attrs[:contact_id].present?
           link = ContactExternalLink.find_by(
             contact_id: invoice_attrs[:contact_id],
-            source: 'xero',
+            source: "xero",
             tenant_id: tenant_id
           )
           invoice_attrs[:external_contact_id] = link&.external_contact_id
           invoice_attrs[:contact_name] = link&.contact&.display_name
         end
 
-        service = ExternalInvoiceSyncService.new(source: 'xero', tenant_id: tenant_id)
+        service = ExternalInvoiceSyncService.new(source: "xero", tenant_id: tenant_id)
 
         if push_to_xero
           invoice = service.create_and_push(invoice_attrs, tenant_id: tenant_id)
         else
           invoice = ExternalInvoice.create!(
-            source: 'xero',
+            source: "xero",
             tenant_id: tenant_id,
             created_in_teeem: true,
             pending_push: true,
-            sync_direction: 'export_only',
+            sync_direction: "export_only",
             teeem_updated_at: Time.current,
             **invoice_attrs
           )
@@ -354,7 +354,7 @@ module Api
           data: serialize_invoice(invoice, include_details: true)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Invoice not found' }, status: :not_found
+        render json: { success: false, error: "Invoice not found" }, status: :not_found
       rescue StandardError => e
         Rails.logger.error("Update invoice failed: #{e.message}")
         render json: {

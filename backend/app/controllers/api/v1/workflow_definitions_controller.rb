@@ -1,7 +1,7 @@
 module Api
   module V1
     class WorkflowDefinitionsController < ApplicationController
-      before_action :set_workflow_definition, only: [:show, :update, :destroy]
+      before_action :set_workflow_definition, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/workflow_definitions
       def index
@@ -57,7 +57,7 @@ module Api
         @workflow_definition.destroy
         render json: {
           success: true,
-          message: 'Workflow definition deleted successfully'
+          message: "Workflow definition deleted successfully"
         }
       end
 

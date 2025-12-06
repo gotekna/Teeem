@@ -28,7 +28,7 @@ class CleanSlateSupplierToContact < ActiveRecord::Migration[8.0]
         contact.mobile_phone = supplier.phone
         contact.address = supplier.address
         contact.notes = supplier.notes
-        contact.contact_types = ['supplier']
+        contact.contact_types = [ 'supplier' ]
         contact.primary_contact_type = 'supplier'
         contact.rating = supplier.rating
         contact.response_rate = supplier.response_rate

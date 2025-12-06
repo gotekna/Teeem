@@ -8,8 +8,8 @@
 class SmTemplate < ApplicationRecord
   # Associations
   has_many :sm_template_rows, dependent: :destroy
-  belongs_to :created_by, class_name: 'User', optional: true
-  belongs_to :updated_by, class_name: 'User', optional: true
+  belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :updated_by, class_name: "User", optional: true
 
   # Validations
   validates :name, presence: true, length: { maximum: 255 }

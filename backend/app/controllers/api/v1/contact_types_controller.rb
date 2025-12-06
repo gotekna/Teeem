@@ -3,13 +3,13 @@
 module Api
   module V1
     class ContactTypesController < ApplicationController
-      before_action :set_contact_type, only: [:show, :update, :destroy]
+      before_action :set_contact_type, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/contact_types
       # Returns all contact types (active and inactive) for admin management
       def index
         # If ?for_select=true, return simplified format for dropdowns
-        if params[:for_select] == 'true'
+        if params[:for_select] == "true"
           render json: ContactType.for_select
         else
           contact_types = ContactType.ordered

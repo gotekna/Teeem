@@ -2,7 +2,7 @@ module Api
   module V1
     class JobContactsController < ApplicationController
       before_action :set_job
-      before_action :set_job_contact, only: [:update, :destroy]
+      before_action :set_job_contact, only: [ :update, :destroy ]
 
       # GET /api/v1/jobs/:job_id/job_contacts
       def index
@@ -53,7 +53,7 @@ module Api
         # Prevent deleting the last client contact (internal team can be removed)
         client_contacts = @job.job_contacts.where.not(role: JobContact::INTERNAL_ROLES)
         if !@job_contact.internal_team? && client_contacts.count <= 1
-          render json: { error: 'Cannot remove the last client contact from a job. At least one client is required.' }, status: :unprocessable_entity
+          render json: { error: "Cannot remove the last client contact from a job. At least one client is required." }, status: :unprocessable_entity
           return
         end
 
@@ -92,13 +92,13 @@ module Api
 
         if job_contact.user.present?
           response[:user] = job_contact.user.as_json(
-            only: [:id, :name, :email]
+            only: [ :id, :name, :email ]
           )
           response[:relationships_count] = 0
           response[:relationships] = []
         elsif job_contact.contact.present?
           response[:contact] = job_contact.contact.as_json(
-            only: [:id, :first_name, :last_name, :full_name, :company_name_or_trust, :email, :mobile_phone, :office_phone]
+            only: [ :id, :first_name, :last_name, :full_name, :company_name_or_trust, :email, :mobile_phone, :office_phone ]
           )
           # Add company_name alias for frontend compatibility
           response[:contact][:company_name] = job_contact.contact.company_name_or_trust

@@ -3,7 +3,7 @@
 # - Creates CaseEmailQa entries
 # - Updates case.unanswered_questions_count
 class CaseQaExtractionService
-  CLAUDE_MODEL = 'claude-3-haiku-20240307'
+  CLAUDE_MODEL = "claude-3-haiku-20240307"
   MAX_TOKENS = 2000
 
   attr_reader :case_record, :results
@@ -64,7 +64,7 @@ class CaseQaExtractionService
   end
 
   def get_thread_context(email)
-    return [email] unless email.conversation_id.present?
+    return [ email ] unless email.conversation_id.present?
 
     EmailWarehouse
       .where(conversation_id: email.conversation_id)
@@ -133,7 +133,7 @@ class CaseQaExtractionService
   end
 
   def call_claude_api(prompt)
-    api_key = ENV['ANTHROPIC_API_KEY']
+    api_key = ENV["ANTHROPIC_API_KEY"]
     raise "ANTHROPIC_API_KEY not configured" unless api_key
 
     client = Anthropic::Client.new(
@@ -145,7 +145,7 @@ class CaseQaExtractionService
       parameters: {
         model: CLAUDE_MODEL,
         max_tokens: MAX_TOKENS,
-        messages: [{ role: "user", content: prompt }]
+        messages: [ { role: "user", content: prompt } ]
       }
     )
 
@@ -158,7 +158,7 @@ class CaseQaExtractionService
     return [] unless json_match
 
     data = JSON.parse(json_match[0])
-    data['qa_pairs'] || []
+    data["qa_pairs"] || []
   rescue JSON::ParserError => e
     Rails.logger.error "[CaseQAExtraction] JSON parse error: #{e.message}"
     []
@@ -168,7 +168,7 @@ class CaseQaExtractionService
     # Check if this Q&A already exists (avoid duplicates)
     existing = CaseEmailQa.find_by(
       case_id: case_record.id,
-      question: qa_data['question']
+      question: qa_data["question"]
     )
     return if existing
 
@@ -176,19 +176,19 @@ class CaseQaExtractionService
       case: case_record,
       case_email: case_email,
       email_warehouse: case_email.email_warehouse,
-      question: qa_data['question'],
-      answer: qa_data['answer'],
-      question_from: qa_data['question_from'],
-      answer_from: qa_data['answer_from'],
-      question_date: parse_date(qa_data['question_date']),
-      answer_date: parse_date(qa_data['answer_date']),
-      is_answered: qa_data['is_answered'] || false,
-      is_important: qa_data['is_important'] || false,
-      category: qa_data['category']
+      question: qa_data["question"],
+      answer: qa_data["answer"],
+      question_from: qa_data["question_from"],
+      answer_from: qa_data["answer_from"],
+      question_date: parse_date(qa_data["question_date"]),
+      answer_date: parse_date(qa_data["answer_date"]),
+      is_answered: qa_data["is_answered"] || false,
+      is_important: qa_data["is_important"] || false,
+      category: qa_data["category"]
     )
 
     @results[:questions_found] += 1
-    if qa_data['is_answered']
+    if qa_data["is_answered"]
       @results[:answered] += 1
     else
       @results[:unanswered] += 1
@@ -209,6 +209,6 @@ class CaseQaExtractionService
 
   def strip_html(html)
     return nil if html.blank?
-    html.gsub(/<[^>]*>/, ' ').gsub(/\s+/, ' ').strip
+    html.gsub(/<[^>]*>/, " ").gsub(/\s+/, " ").strip
   end
 end

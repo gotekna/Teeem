@@ -1,7 +1,7 @@
 module Api
   module V1
     class EstimatesController < ApplicationController
-      before_action :set_estimate, only: [:show, :match, :destroy, :generate_purchase_orders]
+      before_action :set_estimate, only: [ :show, :match, :destroy, :generate_purchase_orders ]
 
       def index
         estimates = Estimate.includes(:construction, :estimate_line_items)
@@ -29,7 +29,7 @@ module Api
         if construction_id.blank?
           render json: {
             success: false,
-            error: 'construction_id is required'
+            error: "construction_id is required"
           }, status: :unprocessable_entity
           return
         end
@@ -68,7 +68,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Estimate deleted successfully'
+          message: "Estimate deleted successfully"
         }
       end
 
@@ -90,7 +90,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Estimate not found'
+          error: "Estimate not found"
         }, status: :not_found
       end
 

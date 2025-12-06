@@ -10,7 +10,7 @@ class CreatePortalAccessLogs < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :portal_access_logs, [:portal_user_id, :created_at]
+    add_index :portal_access_logs, [ :portal_user_id, :created_at ]
     add_index :portal_access_logs, :action
     add_index :portal_access_logs, :created_at
   end

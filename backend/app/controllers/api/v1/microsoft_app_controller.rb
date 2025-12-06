@@ -3,7 +3,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # This uses Application permissions, not Delegated permissions
   # Once set up, can access ANY user's mailbox without individual OAuth
 
-  skip_before_action :authorize_request, only: [:admin_consent_callback]
+  skip_before_action :authorize_request, only: [ :admin_consent_callback ]
 
   # Required Application permissions in Azure AD:
   # - Mail.Read (Application) - Read all users' mail
@@ -12,30 +12,30 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # - Files.Read.All (Application) - Read all files in OneDrive/SharePoint
   # - Sites.Read.All (Application) - Read all SharePoint sites
   APPLICATION_PERMISSIONS = [
-    'https://graph.microsoft.com/Mail.Read',
-    'https://graph.microsoft.com/Mail.ReadWrite',
-    'https://graph.microsoft.com/User.Read.All',
-    'https://graph.microsoft.com/Files.Read.All',
-    'https://graph.microsoft.com/Sites.Read.All'
+    "https://graph.microsoft.com/Mail.Read",
+    "https://graph.microsoft.com/Mail.ReadWrite",
+    "https://graph.microsoft.com/User.Read.All",
+    "https://graph.microsoft.com/Files.Read.All",
+    "https://graph.microsoft.com/Sites.Read.All"
   ].freeze
 
   # GET /api/v1/microsoft_app/status
   # Check the org-wide Microsoft app credential status
   def status
     # Check if env vars are configured
-    env_configured = ENV['OUTLOOK_CLIENT_ID'].present? &&
-                     ENV['OUTLOOK_CLIENT_SECRET'].present? &&
-                     ENV['OUTLOOK_TENANT_ID'].present?
+    env_configured = ENV["OUTLOOK_CLIENT_ID"].present? &&
+                     ENV["OUTLOOK_CLIENT_SECRET"].present? &&
+                     ENV["OUTLOOK_TENANT_ID"].present?
 
     credential = OrganizationMicrosoftAppCredential.active_credential
 
     if credential.nil?
       render json: {
         configured: false,
-        status: 'not_configured',
-        message: 'Organization-wide Microsoft access not configured',
+        status: "not_configured",
+        message: "Organization-wide Microsoft access not configured",
         env_configured: env_configured,
-        tenant_id: ENV['OUTLOOK_TENANT_ID']
+        tenant_id: ENV["OUTLOOK_TENANT_ID"]
       }
     else
       render json: {
@@ -56,17 +56,17 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Initial setup - uses existing OUTLOOK_* env vars OR manual input
   def setup
     unless current_user_admin?
-      return render json: { error: 'Only admins can configure organization-wide Microsoft access' }, status: :forbidden
+      return render json: { error: "Only admins can configure organization-wide Microsoft access" }, status: :forbidden
     end
 
     # Use env vars if available, otherwise use params
-    client_id = params[:client_id].presence || ENV['OUTLOOK_CLIENT_ID']
-    client_secret = params[:client_secret].presence || ENV['OUTLOOK_CLIENT_SECRET']
-    tenant_id = params[:tenant_id].presence || ENV['OUTLOOK_TENANT_ID']
+    client_id = params[:client_id].presence || ENV["OUTLOOK_CLIENT_ID"]
+    client_secret = params[:client_secret].presence || ENV["OUTLOOK_CLIENT_SECRET"]
+    tenant_id = params[:tenant_id].presence || ENV["OUTLOOK_TENANT_ID"]
 
     if client_id.blank? || client_secret.blank? || tenant_id.blank?
       return render json: {
-        error: 'Missing credentials. Either set OUTLOOK_CLIENT_ID, OUTLOOK_CLIENT_SECRET, OUTLOOK_TENANT_ID env vars or provide them manually.'
+        error: "Missing credentials. Either set OUTLOOK_CLIENT_ID, OUTLOOK_CLIENT_SECRET, OUTLOOK_TENANT_ID env vars or provide them manually."
       }, status: :unprocessable_entity
     end
 
@@ -78,18 +78,18 @@ class Api::V1::MicrosoftAppController < ApplicationController
       client_secret: client_secret,
       tenant_id: tenant_id,
       setup_by: current_user,
-      status: 'pending'
+      status: "pending"
     )
 
     if credential.save
       render json: {
         success: true,
-        message: 'App credentials saved. Now grant admin consent to activate.',
+        message: "App credentials saved. Now grant admin consent to activate.",
         admin_consent_url: admin_consent_url_for(credential),
         using_env_vars: params[:client_id].blank?
       }
     else
-      render json: { error: credential.errors.full_messages.join(', ') }, status: :unprocessable_entity
+      render json: { error: credential.errors.full_messages.join(", ") }, status: :unprocessable_entity
     end
   end
 
@@ -97,16 +97,16 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Quick setup using existing env vars - no manual input needed
   def setup_from_env
     unless current_user_admin?
-      return render json: { error: 'Only admins can configure organization-wide Microsoft access' }, status: :forbidden
+      return render json: { error: "Only admins can configure organization-wide Microsoft access" }, status: :forbidden
     end
 
-    client_id = ENV['OUTLOOK_CLIENT_ID']
-    client_secret = ENV['OUTLOOK_CLIENT_SECRET']
-    tenant_id = ENV['OUTLOOK_TENANT_ID']
+    client_id = ENV["OUTLOOK_CLIENT_ID"]
+    client_secret = ENV["OUTLOOK_CLIENT_SECRET"]
+    tenant_id = ENV["OUTLOOK_TENANT_ID"]
 
     if client_id.blank? || client_secret.blank? || tenant_id.blank?
       return render json: {
-        error: 'Environment variables not configured. Please set OUTLOOK_CLIENT_ID, OUTLOOK_CLIENT_SECRET, and OUTLOOK_TENANT_ID.'
+        error: "Environment variables not configured. Please set OUTLOOK_CLIENT_ID, OUTLOOK_CLIENT_SECRET, and OUTLOOK_TENANT_ID."
       }, status: :unprocessable_entity
     end
 
@@ -118,12 +118,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
       client_secret: client_secret,
       tenant_id: tenant_id,
       setup_by: current_user,
-      status: 'pending'
+      status: "pending"
     )
 
     render json: {
       success: true,
-      message: 'Using existing Microsoft credentials. Now grant admin consent to enable organization-wide access.',
+      message: "Using existing Microsoft credentials. Now grant admin consent to enable organization-wide access.",
       admin_consent_url: admin_consent_url_for(credential),
       tenant_id: tenant_id
     }
@@ -133,17 +133,17 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Get URL for Azure AD admin to grant organization-wide consent
   def admin_consent_url
     unless current_user_admin?
-      return render json: { error: 'Only admins can request organization-wide consent' }, status: :forbidden
+      return render json: { error: "Only admins can request organization-wide consent" }, status: :forbidden
     end
 
     credential = OrganizationMicrosoftAppCredential.active_credential
     unless credential
-      return render json: { error: 'Please set up app credentials first' }, status: :unprocessable_entity
+      return render json: { error: "Please set up app credentials first" }, status: :unprocessable_entity
     end
 
     render json: {
       admin_consent_url: admin_consent_url_for(credential),
-      message: 'Click this URL to grant organization-wide consent. You must be an Azure AD admin.'
+      message: "Click this URL to grant organization-wide consent. You must be an Azure AD admin."
     }
   end
 
@@ -156,14 +156,14 @@ class Api::V1::MicrosoftAppController < ApplicationController
     tenant = params[:tenant]
     state = params[:state]
 
-    frontend_url = ENV['FRONTEND_URL'] || 'http://localhost:3000'
+    frontend_url = ENV["FRONTEND_URL"] || "http://localhost:3000"
 
     if error.present?
       Rails.logger.error "[MicrosoftApp] Admin consent error: #{error} - #{error_description}"
       return redirect_to "#{frontend_url}/settings/integrations/microsoft?app_consent_error=#{CGI.escape(error_description || error)}", allow_other_host: true
     end
 
-    if admin_consent == 'True'
+    if admin_consent == "True"
       # Find and update the credential
       credential = OrganizationMicrosoftAppCredential.active_credential
 
@@ -175,14 +175,14 @@ class Api::V1::MicrosoftAppController < ApplicationController
           if state.present?
             begin
               state_data = JSON.parse(Base64.urlsafe_decode64(state))
-              admin_user = User.find_by(id: state_data['admin_id'])
+              admin_user = User.find_by(id: state_data["admin_id"])
               admin_email = admin_user&.email
             rescue => e
               Rails.logger.warn "[MicrosoftApp] Could not decode state: #{e.message}"
             end
           end
 
-          credential.mark_admin_consent!(admin_email || 'unknown')
+          credential.mark_admin_consent!(admin_email || "unknown")
           Rails.logger.info "[MicrosoftApp] Admin consent granted and connection verified for tenant #{tenant}"
 
           redirect_to "#{frontend_url}/settings/integrations/microsoft?app_consent_success=true", allow_other_host: true
@@ -203,18 +203,18 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Test the connection
   def test
     unless current_user_admin?
-      return render json: { error: 'Only admins can test organization-wide Microsoft access' }, status: :forbidden
+      return render json: { error: "Only admins can test organization-wide Microsoft access" }, status: :forbidden
     end
 
     credential = OrganizationMicrosoftAppCredential.active_credential
     unless credential
-      return render json: { error: 'No app credential configured' }, status: :not_found
+      return render json: { error: "No app credential configured" }, status: :not_found
     end
 
     if credential.test_connection!
       render json: {
         success: true,
-        message: 'Connection successful! Can access organization mailboxes.',
+        message: "Connection successful! Can access organization mailboxes.",
         status: credential.status
       }
     else
@@ -230,12 +230,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # List all users in the tenant that can be synced
   def users
     unless current_user_admin?
-      return render json: { error: 'Only admins can view organization users' }, status: :forbidden
+      return render json: { error: "Only admins can view organization users" }, status: :forbidden
     end
 
     credential = OrganizationMicrosoftAppCredential.active_credential
-    unless credential&.status == 'connected'
-      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    unless credential&.status == "connected"
+      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
     end
 
     users = credential.list_tenant_users
@@ -250,12 +250,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Configure which users' emails to sync
   def configure_sync
     unless current_user_admin?
-      return render json: { error: 'Only admins can configure sync settings' }, status: :forbidden
+      return render json: { error: "Only admins can configure sync settings" }, status: :forbidden
     end
 
     credential = OrganizationMicrosoftAppCredential.active_credential
     unless credential
-      return render json: { error: 'No app credential configured' }, status: :not_found
+      return render json: { error: "No app credential configured" }, status: :not_found
     end
 
     # Update sync configuration
@@ -264,7 +264,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
     sync_config = {
       sync_all: params[:sync_all] || false,
       user_emails: params[:user_emails] || [],
-      folders: params[:folders] || ['inbox', 'sentitems'],
+      folders: params[:folders] || [ "inbox", "sentitems" ],
       sync_years: params[:sync_years] || 3
     }
 
@@ -272,7 +272,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
     render json: {
       success: true,
-      message: 'Sync configuration updated',
+      message: "Sync configuration updated",
       sync_config: credential.sync_config
     }
   end
@@ -281,7 +281,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Remove the organization-wide Microsoft access
   def disconnect
     unless current_user_admin?
-      return render json: { error: 'Only admins can disconnect organization-wide Microsoft access' }, status: :forbidden
+      return render json: { error: "Only admins can disconnect organization-wide Microsoft access" }, status: :forbidden
     end
 
     credential = OrganizationMicrosoftAppCredential.active_credential
@@ -289,7 +289,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
     render json: {
       success: true,
-      message: 'Organization-wide Microsoft access has been disconnected'
+      message: "Organization-wide Microsoft access has been disconnected"
     }
   end
 
@@ -301,12 +301,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # List all SharePoint sites in the tenant
   def sharepoint_sites
     unless current_user_admin?
-      return render json: { error: 'Only admins can view SharePoint sites' }, status: :forbidden
+      return render json: { error: "Only admins can view SharePoint sites" }, status: :forbidden
     end
 
     credential = OrganizationMicrosoftAppCredential.active_credential
-    unless credential&.status == 'connected'
-      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    unless credential&.status == "connected"
+      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
     end
 
     begin
@@ -326,17 +326,17 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # List drives (document libraries) for a SharePoint site
   def site_drives
     unless current_user_admin?
-      return render json: { error: 'Only admins can view site drives' }, status: :forbidden
+      return render json: { error: "Only admins can view site drives" }, status: :forbidden
     end
 
     site_id = params[:site_id]
     unless site_id.present?
-      return render json: { error: 'site_id is required' }, status: :bad_request
+      return render json: { error: "site_id is required" }, status: :bad_request
     end
 
     credential = OrganizationMicrosoftAppCredential.active_credential
-    unless credential&.status == 'connected'
-      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    unless credential&.status == "connected"
+      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
     end
 
     begin
@@ -357,17 +357,17 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Browse files in a drive (SharePoint or OneDrive)
   def browse
     unless current_user_admin?
-      return render json: { error: 'Only admins can browse files' }, status: :forbidden
+      return render json: { error: "Only admins can browse files" }, status: :forbidden
     end
 
     drive_id = params[:drive_id]
     unless drive_id.present?
-      return render json: { error: 'drive_id is required' }, status: :bad_request
+      return render json: { error: "drive_id is required" }, status: :bad_request
     end
 
     credential = OrganizationMicrosoftAppCredential.active_credential
-    unless credential&.status == 'connected'
-      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    unless credential&.status == "connected"
+      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
     end
 
     begin
@@ -395,17 +395,17 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Access any user's OneDrive
   def user_onedrive
     unless current_user_admin?
-      return render json: { error: 'Only admins can access user OneDrive' }, status: :forbidden
+      return render json: { error: "Only admins can access user OneDrive" }, status: :forbidden
     end
 
     user_email = params[:user_email]
     unless user_email.present?
-      return render json: { error: 'user_email is required' }, status: :bad_request
+      return render json: { error: "user_email is required" }, status: :bad_request
     end
 
     credential = OrganizationMicrosoftAppCredential.active_credential
-    unless credential&.status == 'connected'
-      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    unless credential&.status == "connected"
+      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
     end
 
     begin
@@ -437,17 +437,17 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Search across all SharePoint and OneDrive in the tenant
   def search_files
     unless current_user_admin?
-      return render json: { error: 'Only admins can search files' }, status: :forbidden
+      return render json: { error: "Only admins can search files" }, status: :forbidden
     end
 
     query = params[:q]
     unless query.present?
-      return render json: { error: 'q (search query) is required' }, status: :bad_request
+      return render json: { error: "q (search query) is required" }, status: :bad_request
     end
 
     credential = OrganizationMicrosoftAppCredential.active_credential
-    unless credential&.status == 'connected'
-      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    unless credential&.status == "connected"
+      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
     end
 
     begin
@@ -475,12 +475,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Test SharePoint access specifically
   def test_sharepoint
     unless current_user_admin?
-      return render json: { error: 'Only admins can test SharePoint access' }, status: :forbidden
+      return render json: { error: "Only admins can test SharePoint access" }, status: :forbidden
     end
 
     credential = OrganizationMicrosoftAppCredential.active_credential
-    unless credential&.status == 'connected'
-      return render json: { error: 'Organization Microsoft access not connected' }, status: :not_found
+    unless credential&.status == "connected"
+      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
     end
 
     begin
@@ -496,7 +496,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
       render json: {
         success: false,
         error: e.message,
-        hint: 'Ensure Files.Read.All and Sites.Read.All Application permissions are granted'
+        hint: "Ensure Files.Read.All and Sites.Read.All Application permissions are granted"
       }, status: :unprocessable_entity
     end
   end
@@ -504,7 +504,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
   private
 
   def current_user_admin?
-    current_user&.role == 'admin' || current_user&.permissions&.include?('admin')
+    current_user&.role == "admin" || current_user&.permissions&.include?("admin")
   end
 
   def admin_consent_url_for(credential)

@@ -3,7 +3,7 @@
 module Api
   module V1
     class LeadsController < ApplicationController
-      before_action :set_lead, only: [:show, :update, :destroy, :update_status]
+      before_action :set_lead, only: [ :show, :update, :destroy, :update_status ]
 
       # GET /api/v1/leads
       def index
@@ -11,7 +11,7 @@ module Api
 
         # Apply filters
         @leads = @leads.by_status(params[:status]) if params[:status].present?
-        @leads = @leads.active if params[:active_only] == 'true'
+        @leads = @leads.active if params[:active_only] == "true"
 
         render json: {
           success: true,
@@ -19,8 +19,8 @@ module Api
           meta: {
             total_count: Lead.count,
             active_count: Lead.active.count,
-            won_count: Lead.by_status('won').count,
-            lost_count: Lead.by_status('lost').count
+            won_count: Lead.by_status("won").count,
+            lost_count: Lead.by_status("lost").count
           }
         }
       end
@@ -40,7 +40,7 @@ module Api
         if @lead.save
           render json: {
             success: true,
-            message: 'Lead created successfully',
+            message: "Lead created successfully",
             lead: lead_to_json(@lead)
           }, status: :created
         else
@@ -72,7 +72,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Lead deleted successfully'
+          message: "Lead deleted successfully"
         }
       end
 
@@ -105,7 +105,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Lead not found'
+          error: "Lead not found"
         }, status: :not_found
       end
 

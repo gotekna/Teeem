@@ -6,11 +6,11 @@ class CompanyShareholding < ApplicationRecord
   # Validations
   validates :number_of_shares, presence: true, numericality: { greater_than: 0 }
   validates :share_class, presence: true
-  validates :shareholder_id, uniqueness: { scope: [:company_id, :shareholder_type, :share_class], message: 'already holds this class of shares' }
+  validates :shareholder_id, uniqueness: { scope: [ :company_id, :shareholder_type, :share_class ], message: "already holds this class of shares" }
 
   # Scopes
-  scope :ordinary, -> { where(share_class: 'ordinary') }
-  scope :preference, -> { where(share_class: 'preference') }
+  scope :ordinary, -> { where(share_class: "ordinary") }
+  scope :preference, -> { where(share_class: "preference") }
   scope :beneficially_held, -> { where(beneficially_held: true) }
 
   # Callbacks
@@ -29,7 +29,7 @@ class CompanyShareholding < ApplicationRecord
     when Company
       shareholder.name
     else
-      'Unknown'
+      "Unknown"
     end
   end
 
@@ -38,12 +38,12 @@ class CompanyShareholding < ApplicationRecord
   # SSoT: Automatically create ContactCompanyGroupMembership for shareholders
   def ensure_ssot_shareholder_membership
     return unless company&.company_group_id.present?
-    return unless shareholder_type == 'Contact' && shareholder_id.present?
+    return unless shareholder_type == "Contact" && shareholder_id.present?
 
     ContactCompanyGroupMembership.find_or_create_by!(
       contact_id: shareholder_id,
       company_group_id: company.company_group_id,
-      membership_type: 'shareholder'
+      membership_type: "shareholder"
     ) do |m|
       m.is_active = true
     end

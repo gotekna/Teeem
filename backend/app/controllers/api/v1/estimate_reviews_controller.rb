@@ -1,8 +1,8 @@
 module Api
   module V1
     class EstimateReviewsController < ApplicationController
-      before_action :set_estimate, only: [:create]
-      before_action :set_review, only: [:show]
+      before_action :set_estimate, only: [ :create ]
+      before_action :set_review, only: [ :show ]
 
       # POST /api/v1/estimates/:estimate_id/ai_review
       def create
@@ -15,7 +15,7 @@ module Api
         end
 
         # Check for existing processing review
-        existing_review = @estimate.estimate_reviews.find_by(status: 'processing')
+        existing_review = @estimate.estimate_reviews.find_by(status: "processing")
         if existing_review
           return render json: {
             success: false,
@@ -26,7 +26,7 @@ module Api
         end
 
         # Create review record
-        review = @estimate.estimate_reviews.create!(status: 'pending')
+        review = @estimate.estimate_reviews.create!(status: "pending")
 
         # Enqueue background job
         AiReviewJob.perform_later(@estimate.id)
@@ -34,7 +34,7 @@ module Api
         render json: {
           success: true,
           review_id: review.id,
-          status: 'processing',
+          status: "processing",
           message: "AI review started. This may take 30-60 seconds."
         }, status: :accepted
       rescue StandardError => e
@@ -133,7 +133,7 @@ module Api
           review_id: @review.id,
           status: @review.status,
           reviewed_at: @review.reviewed_at,
-          error: @review.ai_findings&.dig('error') || 'Review failed',
+          error: @review.ai_findings&.dig("error") || "Review failed",
           ai_findings: @review.ai_findings
         }
       end

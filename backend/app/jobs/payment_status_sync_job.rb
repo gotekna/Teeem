@@ -34,7 +34,7 @@ class PaymentStatusSyncJob < ApplicationJob
 
   def sync_all_pending_invoices
     # Find all synced invoices that haven't been paid
-    invoices = SubcontractorInvoice.where(status: 'synced')
+    invoices = SubcontractorInvoice.where(status: "synced")
                                   .where.not(external_invoice_id: nil)
                                   .includes(:accounting_integration)
 

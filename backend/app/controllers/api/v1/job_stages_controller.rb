@@ -1,7 +1,7 @@
 module Api
   module V1
     class JobStagesController < ApplicationController
-      before_action :set_job_stage, only: [:show, :update, :destroy]
+      before_action :set_job_stage, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/job_stages
       # Optional params: ?job_type_id=X&job_status_id=Y (for filtering)

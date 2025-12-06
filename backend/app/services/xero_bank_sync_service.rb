@@ -20,14 +20,14 @@ class XeroBankSyncService
       local_account = match_local_bank_account(xero_account)
 
       {
-        xero_account_id: xero_account['AccountID'],
-        xero_account_name: xero_account['Name'],
-        xero_account_number: xero_account['BankAccountNumber'],
-        xero_bank_account_type: xero_account['BankAccountType'],
+        xero_account_id: xero_account["AccountID"],
+        xero_account_name: xero_account["Name"],
+        xero_account_number: xero_account["BankAccountNumber"],
+        xero_bank_account_type: xero_account["BankAccountType"],
         local_bank_account_id: local_account&.id,
         local_bank_account_name: local_account&.display_name,
         matched: local_account.present?,
-        linked: local_account&.xero_account_id == xero_account['AccountID']
+        linked: local_account&.xero_account_id == xero_account["AccountID"]
       }
     end
 
@@ -50,7 +50,7 @@ class XeroBankSyncService
 
     { success: true, bank_account: bank_account }
   rescue ActiveRecord::RecordNotFound
-    { success: false, error: 'Bank account not found' }
+    { success: false, error: "Bank account not found" }
   rescue StandardError => e
     { success: false, error: e.message }
   end
@@ -60,13 +60,13 @@ class XeroBankSyncService
     ensure_valid_token!
 
     accounts_to_sync = if bank_account_id
-      [company.bank_accounts.find(bank_account_id)]
+      [ company.bank_accounts.find(bank_account_id) ]
     else
       company.bank_accounts.where.not(xero_account_id: nil)
     end
 
     if accounts_to_sync.empty?
-      return { success: false, error: 'No linked bank accounts to sync' }
+      return { success: false, error: "No linked bank accounts to sync" }
     end
 
     total_synced = 0
@@ -120,39 +120,39 @@ class XeroBankSyncService
   private
 
   def validate_connection!
-    raise XeroApiClient::AuthenticationError, 'Company is not connected to Xero' unless connection&.connected?
+    raise XeroApiClient::AuthenticationError, "Company is not connected to Xero" unless connection&.connected?
   end
 
   def ensure_valid_token!
     if connection.needs_refresh?
       unless connection.refresh_tokens!
-        raise XeroApiClient::AuthenticationError, 'Failed to refresh Xero tokens'
+        raise XeroApiClient::AuthenticationError, "Failed to refresh Xero tokens"
       end
     end
   end
 
   def fetch_xero_bank_accounts
     client = XeroApiClient.new
-    response = make_xero_request(client, 'Accounts', { where: 'Type=="BANK"' })
+    response = make_xero_request(client, "Accounts", { where: 'Type=="BANK"' })
 
     if response[:success]
-      response[:data]['Accounts'] || []
+      response[:data]["Accounts"] || []
     else
-      raise XeroApiClient::ApiError, 'Failed to fetch bank accounts from Xero'
+      raise XeroApiClient::ApiError, "Failed to fetch bank accounts from Xero"
     end
   end
 
   def match_local_bank_account(xero_account)
-    xero_account_number = xero_account['BankAccountNumber']&.gsub(/\D/, '')
+    xero_account_number = xero_account["BankAccountNumber"]&.gsub(/\D/, "")
     return nil unless xero_account_number.present?
 
     # First try to find by xero_account_id (already linked)
-    linked = company.bank_accounts.find_by(xero_account_id: xero_account['AccountID'])
+    linked = company.bank_accounts.find_by(xero_account_id: xero_account["AccountID"])
     return linked if linked
 
     # Then try to match by account number (last 4-10 digits)
     company.bank_accounts.find do |ba|
-      local_number = ba.account_number&.gsub(/\D/, '')
+      local_number = ba.account_number&.gsub(/\D/, "")
       next unless local_number.present?
 
       # Match if last 6+ digits match
@@ -199,20 +199,20 @@ class XeroBankSyncService
     # Build where clause for date range and bank account
     where_clause = "BankAccount.AccountID==Guid(\"#{xero_account_id}\")"
 
-    response = make_xero_request(client, 'BankTransactions', {
+    response = make_xero_request(client, "BankTransactions", {
       where: where_clause,
-      order: 'Date DESC'
+      order: "Date DESC"
     })
 
     if response[:success]
-      transactions = response[:data]['BankTransactions'] || []
+      transactions = response[:data]["BankTransactions"] || []
       # Filter by date range (Xero API doesn't support date range in where for BankTransactions)
       transactions.select do |tx|
-        tx_date = Date.parse(tx['Date']) rescue nil
+        tx_date = Date.parse(tx["Date"]) rescue nil
         tx_date && tx_date >= from_date && tx_date <= to_date
       end
     else
-      raise XeroApiClient::ApiError, 'Failed to fetch transactions from Xero'
+      raise XeroApiClient::ApiError, "Failed to fetch transactions from Xero"
     end
   end
 

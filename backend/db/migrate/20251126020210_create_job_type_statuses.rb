@@ -8,7 +8,7 @@ class CreateJobTypeStatuses < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :job_type_statuses, [:job_type_id, :job_status_id], unique: true
+    add_index :job_type_statuses, [ :job_type_id, :job_status_id ], unique: true
     add_index :job_type_statuses, :position
   end
 end

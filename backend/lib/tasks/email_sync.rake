@@ -60,7 +60,7 @@ namespace :email_warehouse do
   task clear_status: :environment do
     EmailSyncStatus.find_each do |status|
       status.update(
-        status: 'completed',
+        status: "completed",
         last_sync_at: Time.current,
         total_emails_synced: EmailWarehouse.count
       )

@@ -1,7 +1,7 @@
 module Api
   module V1
     class SyncConfigurationsController < ApplicationController
-      before_action :set_sync_configuration, only: [:show, :update, :preview]
+      before_action :set_sync_configuration, only: [ :show, :update, :preview ]
 
       # GET /api/v1/sync_configurations
       def index
@@ -65,7 +65,7 @@ module Api
         render json: {
           success: true,
           available_fields: available_field_mappings,
-          directions: ['import', 'export', 'bidirectional', 'none']
+          directions: [ "import", "export", "bidirectional", "none" ]
         }
       end
 
@@ -102,12 +102,12 @@ module Api
         unless @sync_configuration
           # Try to get tenant name from xero_links
           link = ContactXeroLink.find_by(xero_tenant_id: params[:xero_tenant_id])
-          tenant_name = link&.xero_tenant_name || 'Unknown'
+          tenant_name = link&.xero_tenant_name || "Unknown"
 
           @sync_configuration = SyncConfiguration.create!(
             xero_tenant_id: params[:xero_tenant_id],
             xero_tenant_name: tenant_name,
-            accounting_system: 'xero',
+            accounting_system: "xero",
             sync_enabled: true,
             field_mappings: SyncConfiguration::DEFAULT_FIELD_MAPPINGS,
             cleanup_options: SyncConfiguration::DEFAULT_CLEANUP_OPTIONS,
@@ -161,21 +161,21 @@ module Api
 
       def available_field_mappings
         [
-          { field: 'name', label: 'Contact Name', xero_field: 'Name', required: true },
-          { field: 'first_name', label: 'First Name', xero_field: 'FirstName', required: false },
-          { field: 'last_name', label: 'Last Name', xero_field: 'LastName', required: false },
-          { field: 'email', label: 'Email', xero_field: 'EmailAddress', required: true },
-          { field: 'mobile_phone', label: 'Mobile Phone', xero_field: 'Phones.MOBILE', required: false },
-          { field: 'office_phone', label: 'Office Phone', xero_field: 'Phones.DEFAULT', required: false },
-          { field: 'tax_number', label: 'ABN', xero_field: 'TaxNumber', required: true },
-          { field: 'bank_bsb', label: 'Bank BSB', xero_field: 'BankAccountDetails.BSB', required: true },
-          { field: 'bank_account_number', label: 'Bank Account', xero_field: 'BankAccountDetails.AccountNumber', required: true },
-          { field: 'bank_account_name', label: 'Bank Account Name', xero_field: 'BankAccountDetails.AccountName', required: true },
-          { field: 'bill_due_day', label: 'Bill Due Day', xero_field: 'PaymentTerms.Bills.Day', required: true },
-          { field: 'bill_due_type', label: 'Bill Due Type', xero_field: 'PaymentTerms.Bills.Type', required: true },
-          { field: 'sales_due_day', label: 'Sales Due Day', xero_field: 'PaymentTerms.Sales.Day', required: true },
-          { field: 'sales_due_type', label: 'Sales Due Type', xero_field: 'PaymentTerms.Sales.Type', required: true },
-          { field: 'contact_persons', label: 'Primary Person', xero_field: 'ContactPersons', required: false }
+          { field: "name", label: "Contact Name", xero_field: "Name", required: true },
+          { field: "first_name", label: "First Name", xero_field: "FirstName", required: false },
+          { field: "last_name", label: "Last Name", xero_field: "LastName", required: false },
+          { field: "email", label: "Email", xero_field: "EmailAddress", required: true },
+          { field: "mobile_phone", label: "Mobile Phone", xero_field: "Phones.MOBILE", required: false },
+          { field: "office_phone", label: "Office Phone", xero_field: "Phones.DEFAULT", required: false },
+          { field: "tax_number", label: "ABN", xero_field: "TaxNumber", required: true },
+          { field: "bank_bsb", label: "Bank BSB", xero_field: "BankAccountDetails.BSB", required: true },
+          { field: "bank_account_number", label: "Bank Account", xero_field: "BankAccountDetails.AccountNumber", required: true },
+          { field: "bank_account_name", label: "Bank Account Name", xero_field: "BankAccountDetails.AccountName", required: true },
+          { field: "bill_due_day", label: "Bill Due Day", xero_field: "PaymentTerms.Bills.Day", required: true },
+          { field: "bill_due_type", label: "Bill Due Type", xero_field: "PaymentTerms.Bills.Type", required: true },
+          { field: "sales_due_day", label: "Sales Due Day", xero_field: "PaymentTerms.Sales.Day", required: true },
+          { field: "sales_due_type", label: "Sales Due Type", xero_field: "PaymentTerms.Sales.Type", required: true },
+          { field: "contact_persons", label: "Primary Person", xero_field: "ContactPersons", required: false }
         ]
       end
 
@@ -185,13 +185,13 @@ module Api
         sync_enabled = SyncConfiguration.where(sync_enabled: true).exists?
 
         if !sync_enabled
-          'disabled'
+          "disabled"
         elsif errors_count > 0
-          'error'
+          "error"
         elsif conflicts_count > 0
-          'warning'
+          "warning"
         else
-          'healthy'
+          "healthy"
         end
       end
 
@@ -214,17 +214,17 @@ module Api
       end
 
       def organization_status(config, links)
-        return 'disabled' unless config.sync_enabled
+        return "disabled" unless config.sync_enabled
 
         errors_count = links.with_errors.count
         conflicts_count = links.with_conflicts.count
 
         if errors_count > 0
-          'error'
+          "error"
         elsif conflicts_count > 0
-          'warning'
+          "warning"
         else
-          'healthy'
+          "healthy"
         end
       end
 

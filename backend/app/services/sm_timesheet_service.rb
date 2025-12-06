@@ -19,7 +19,7 @@ class SmTimesheetService
   end
 
   # Log time entry
-  def log_time(task:, resource:, date:, hours:, entry_type: 'regular', description: nil, start_time: nil, end_time: nil, break_minutes: 0)
+  def log_time(task:, resource:, date:, hours:, entry_type: "regular", description: nil, start_time: nil, end_time: nil, break_minutes: 0)
     @errors = []
 
     entry = SmTimeEntry.new(
@@ -45,7 +45,7 @@ class SmTimesheetService
 
     if entry.save
       # Update allocation status if linked
-      allocation&.update(status: 'in_progress') if allocation&.planned?
+      allocation&.update(status: "in_progress") if allocation&.planned?
 
       { success: true, time_entry: entry, errors: [] }
     else
@@ -86,7 +86,7 @@ class SmTimesheetService
         day_entries = by_date[date] || []
         {
           date: date,
-          day_name: date.strftime('%A'),
+          day_name: date.strftime("%A"),
           is_weekend: date.saturday? || date.sunday?,
           total_hours: day_entries.sum(&:total_hours).to_f,
           entries: day_entries.map { |e| entry_to_json(e) }
@@ -147,8 +147,8 @@ class SmTimesheetService
   # Reject/delete time entry
   def reject_entry(entry_id:, reason: nil)
     entry = SmTimeEntry.find_by(id: entry_id)
-    return { success: false, errors: ['Entry not found'] } unless entry
-    return { success: false, errors: ['Cannot delete approved entry'] } if entry.approved?
+    return { success: false, errors: [ "Entry not found" ] } unless entry
+    return { success: false, errors: [ "Cannot delete approved entry" ] } if entry.approved?
 
     entry.destroy
     { success: true }
@@ -220,7 +220,7 @@ class SmTimesheetService
       day_entries = entries.select { |e| e.entry_date == date }
       {
         date: date,
-        day_name: date.strftime('%a'),
+        day_name: date.strftime("%a"),
         hours: day_entries.sum(&:total_hours).to_f,
         entry_count: day_entries.count,
         is_approved: day_entries.all?(&:approved?)
@@ -234,8 +234,8 @@ class SmTimesheetService
     json = {
       id: entry.id,
       entry_date: entry.entry_date,
-      start_time: entry.start_time&.strftime('%H:%M'),
-      end_time: entry.end_time&.strftime('%H:%M'),
+      start_time: entry.start_time&.strftime("%H:%M"),
+      end_time: entry.end_time&.strftime("%H:%M"),
       break_minutes: entry.break_minutes,
       total_hours: entry.total_hours.to_f,
       entry_type: entry.entry_type,

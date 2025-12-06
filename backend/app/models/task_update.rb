@@ -26,6 +26,6 @@ class TaskUpdate < ApplicationRecord
     parts << "Status: #{status_before} → #{status_after}" if status_changed?
     parts << "Progress: #{progress_before}% → #{progress_after}%" if progress_changed?
     parts << "Photos: #{photo_urls.count}" if has_photos?
-    parts.join(', ')
+    parts.join(", ")
   end
 end

@@ -1,26 +1,26 @@
 module Api
   module V1
     class PricebookCategoriesController < ApplicationController
-      before_action :set_pricebook_category, only: [:show, :update, :destroy]
+      before_action :set_pricebook_category, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/pricebook_categories
       def index
         @categories = PricebookCategory.ordered
 
         # Filter by active status
-        @categories = @categories.active if params[:active] == 'true'
+        @categories = @categories.active if params[:active] == "true"
 
         # Include items count if requested
         # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
-        if params[:include_counts] == 'true'
+        if params[:include_counts] == "true"
           @categories = @categories.left_joins(:pricebook_items)
-                                   .select('pricebook_categories.*, COUNT(pricebook.id) as items_count')
-                                   .group('pricebook_categories.id')
+                                   .select("pricebook_categories.*, COUNT(pricebook.id) as items_count")
+                                   .group("pricebook_categories.id")
         end
 
         render json: {
           success: true,
-          categories: @categories.map { |c| category_json(c, params[:include_counts] == 'true') }
+          categories: @categories.map { |c| category_json(c, params[:include_counts] == "true") }
         }
       end
 
@@ -71,7 +71,7 @@ module Api
         name = @pricebook_category.name
         items_count = @pricebook_category.pricebook_items.count
 
-        if items_count > 0 && params[:force] != 'true'
+        if items_count > 0 && params[:force] != "true"
           render json: {
             success: false,
             error: "Cannot delete category '#{name}' - it has #{items_count} items. Use force=true to delete anyway (items will have null category)."

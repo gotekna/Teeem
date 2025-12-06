@@ -12,9 +12,9 @@ class CompanyComplianceItem < ApplicationRecord
   # Scopes
   scope :pending, -> { where(completed: false) }
   scope :completed_items, -> { where(completed: true) }
-  scope :overdue, -> { where('due_date < ? AND completed = ?', Date.today, false) }
+  scope :overdue, -> { where("due_date < ? AND completed = ?", Date.today, false) }
   scope :due_soon, ->(days = 30) {
-    where('due_date BETWEEN ? AND ? AND completed = ?', Date.today, days.days.from_now, false)
+    where("due_date BETWEEN ? AND ? AND completed = ?", Date.today, days.days.from_now, false)
   }
   scope :by_type, ->(type) { where(item_type: type) }
   scope :recurring, -> { where.not(recurrence: nil) }
@@ -49,7 +49,7 @@ class CompanyComplianceItem < ApplicationRecord
   end
 
   def formatted_item_type
-    item_type.to_s.titleize.gsub('_', ' ')
+    item_type.to_s.titleize.gsub("_", " ")
   end
 
   private
@@ -58,15 +58,15 @@ class CompanyComplianceItem < ApplicationRecord
     return unless recurrence.present?
 
     next_due_date = case recurrence
-                    when 'annual'
+    when "annual"
                       due_date + 1.year
-                    when 'quarterly'
+    when "quarterly"
                       due_date + 3.months
-                    when 'monthly'
+    when "monthly"
                       due_date + 1.month
-                    else
+    else
                       nil
-                    end
+    end
 
     return unless next_due_date.present?
 

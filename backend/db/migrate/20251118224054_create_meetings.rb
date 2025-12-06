@@ -20,6 +20,6 @@ class CreateMeetings < ActiveRecord::Migration[8.0]
     add_index :meetings, :start_time
     add_index :meetings, :status
     add_index :meetings, :meeting_type
-    add_index :meetings, [:construction_id, :start_time]
+    add_index :meetings, [ :construction_id, :start_time ]
   end
 end

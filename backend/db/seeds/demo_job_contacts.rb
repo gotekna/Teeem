@@ -19,7 +19,7 @@ acme_corp = create_contact(
   mobile_phone: "0412 345 678",
   office_phone: "07 3333 4444",
   entity_type: "company",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   is_active: true
 )
 puts "  Created company: #{acme_corp.full_name}"
@@ -31,7 +31,7 @@ sunshine_builders = create_contact(
   mobile_phone: "0423 456 789",
   office_phone: "07 3222 5555",
   entity_type: "company",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   is_active: true
 )
 puts "  Created company: #{sunshine_builders.full_name}"
@@ -42,7 +42,7 @@ westpac_bank = create_contact(
   email: "loans@westpac.com.au",
   office_phone: "13 20 32",
   entity_type: "company",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   is_active: true
 )
 puts "  Created company: #{westpac_bank.full_name}"
@@ -55,7 +55,7 @@ john_smith = create_contact(
   email: "john.smith@acmeconstruction.com.au",
   mobile_phone: "0412 111 222",
   entity_type: "person",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   is_active: true
 )
 puts "  Created person: #{john_smith.full_name}"
@@ -67,7 +67,7 @@ sarah_jones = create_contact(
   email: "sarah.jones@email.com",
   mobile_phone: "0423 222 333",
   entity_type: "person",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   is_active: true
 )
 puts "  Created person: #{sarah_jones.full_name}"
@@ -79,7 +79,7 @@ mike_wilson = create_contact(
   email: "mike.wilson@sunshinebuilders.com.au",
   mobile_phone: "0434 333 444",
   entity_type: "person",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   is_active: true
 )
 puts "  Created person: #{mike_wilson.full_name}"
@@ -91,7 +91,7 @@ emma_broker = create_contact(
   email: "emma@mortgagebrokers.com.au",
   mobile_phone: "0445 444 555",
   entity_type: "person",
-  contact_types: ["sales"],
+  contact_types: [ "sales" ],
   primary_role: "Mortgage Broker",
   is_active: true
 )
@@ -104,7 +104,7 @@ bank_manager = create_contact(
   email: "david.chen@westpac.com.au",
   mobile_phone: "0456 555 666",
   entity_type: "person",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   primary_role: "Bank Manager",
   is_active: true
 )

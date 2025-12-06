@@ -1,11 +1,11 @@
 class PurchaseOrder < ApplicationRecord
   # Associations
   belongs_to :job, counter_cache: true
-  belongs_to :supplier, class_name: 'Contact', optional: true
+  belongs_to :supplier, class_name: "Contact", optional: true
   alias_method :contact, :supplier  # Alias for backwards compatibility
   belongs_to :estimate, optional: true
   belongs_to :quote_response, optional: true
-  has_many :line_items, class_name: 'PurchaseOrderLineItem', dependent: :destroy
+  has_many :line_items, class_name: "PurchaseOrderLineItem", dependent: :destroy
   has_many :payments, dependent: :destroy
   has_many :project_tasks, dependent: :nullify
   has_many :schedule_tasks, dependent: :nullify
@@ -34,22 +34,22 @@ class PurchaseOrder < ApplicationRecord
 
   # Status enum
   enum :status, {
-    draft: 'draft',
-    pending: 'pending',
-    approved: 'approved',
-    sent: 'sent',
-    received: 'received',
-    invoiced: 'invoiced',
-    paid: 'paid',
-    cancelled: 'cancelled'
+    draft: "draft",
+    pending: "pending",
+    approved: "approved",
+    sent: "sent",
+    received: "received",
+    invoiced: "invoiced",
+    paid: "paid",
+    cancelled: "cancelled"
   }
 
   # Payment status enum (for Xero invoice matching)
   enum :payment_status, {
-    pending: 'pending',
-    part_payment: 'part_payment',
-    complete: 'complete',
-    manual_review: 'manual_review'
+    pending: "pending",
+    part_payment: "part_payment",
+    complete: "complete",
+    manual_review: "manual_review"
   }, prefix: :payment
 
   # Callbacks
@@ -64,8 +64,8 @@ class PurchaseOrder < ApplicationRecord
   scope :by_status, ->(status) { where(status: status) if status.present? }
   scope :by_construction, ->(job_id) { where(job_id: job_id) if job_id.present? }
   scope :recent, -> { order(created_at: :desc) }
-  scope :overdue, -> { where('required_date < ? AND status NOT IN (?)', CompanySetting.today, ['received', 'cancelled']) }
-  scope :pending_approval, -> { where(status: 'pending') }
+  scope :overdue, -> { where("required_date < ? AND status NOT IN (?)", CompanySetting.today, [ "received", "cancelled" ]) }
+  scope :pending_approval, -> { where(status: "pending") }
   scope :for_schedule, -> { where(creates_schedule_tasks: true) }
   scope :visible_to_suppliers, -> { where(visible_to_supplier: true) }
   scope :by_supplier, ->(supplier_id) { where(supplier_id: supplier_id) if supplier_id.present? }
@@ -94,7 +94,7 @@ class PurchaseOrder < ApplicationRecord
   # Instance methods
   def to_param
     # Use the 6-digit number as the slug
-    purchase_order_number&.sub(/^PO-/, '')
+    purchase_order_number&.sub(/^PO-/, "")
   end
 
   def calculate_totals
@@ -134,7 +134,7 @@ class PurchaseOrder < ApplicationRecord
 
   def approve!(user_id = nil)
     result = update(
-      status: 'approved',
+      status: "approved",
       approved_by_id: user_id,
       approved_at: Time.current
     )
@@ -143,13 +143,13 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def send_to_supplier!(document_url: nil)
-    result = update(status: 'sent', ordered_date: CompanySetting.today)
+    result = update(status: "sent", ordered_date: CompanySetting.today)
     log_activity(:sent, document_url: document_url) if result
     result
   end
 
   def mark_received!
-    result = update(status: 'received', received_date: CompanySetting.today)
+    result = update(status: "received", received_date: CompanySetting.today)
     log_activity(:received) if result
     result
   end
@@ -159,7 +159,7 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def can_approve?
-    status == 'pending'
+    status == "pending"
   end
 
   def can_cancel?
@@ -200,7 +200,7 @@ class PurchaseOrder < ApplicationRecord
 
   # Workflow helper methods
   def active_workflow
-    workflow_instances.find_by(status: ['pending', 'in_progress'])
+    workflow_instances.find_by(status: [ "pending", "in_progress" ])
   end
 
   def has_active_workflow?
@@ -208,34 +208,34 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def workflow_status
-    active_workflow&.status || 'none'
+    active_workflow&.status || "none"
   end
 
   def current_workflow_step
-    active_workflow&.workflow_steps&.find_by(status: ['pending', 'in_progress'])
+    active_workflow&.workflow_steps&.find_by(status: [ "pending", "in_progress" ])
   end
 
   # Determine payment status based on invoice amount
   # Returns the appropriate payment_status based on invoice amount vs PO total
   def determine_payment_status(invoice_amount)
-    return 'pending' if invoice_amount.nil? || invoice_amount.zero?
-    return 'manual_review' if total.nil? || total.zero?
+    return "pending" if invoice_amount.nil? || invoice_amount.zero?
+    return "manual_review" if total.nil? || total.zero?
 
     # Check if invoice exceeds PO total by $1 or more FIRST
     if invoice_amount > total && (invoice_amount - total) >= 1.0
-      return 'manual_review'
+      return "manual_review"
     end
 
     percentage = (invoice_amount / total * 100).round(2)
 
     # Within 5% tolerance (95% - 105%)
     if percentage >= 95.0 && percentage <= 105.0
-      'complete'
+      "complete"
     # Partial payment (less than 95% of total)
     elsif percentage < 95.0
-      'part_payment'
+      "part_payment"
     else
-      'pending'
+      "pending"
     end
   end
 
@@ -280,7 +280,7 @@ class PurchaseOrder < ApplicationRecord
     transaction do
       update!(
         completed_at: time,
-        status: 'received'
+        status: "received"
       )
       KudosEvent.record_completion(self, time) if contact&.subcontractor_account
     end
@@ -295,8 +295,8 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def create_subcontractor_invoice!(amount: nil)
-    raise 'PO not yet received' unless received?
-    raise 'Invoice already exists' if subcontractor_invoices.any?
+    raise "PO not yet received" unless received?
+    raise "Invoice already exists" if subcontractor_invoices.any?
 
     invoice_amount = amount || total
     raise "Invoice amount (#{invoice_amount}) exceeds PO amount (#{total})" if invoice_amount > total
@@ -306,7 +306,7 @@ class PurchaseOrder < ApplicationRecord
       contact: contact,
       accounting_integration: contact.accounting_integration,
       amount: invoice_amount,
-      status: 'draft'
+      status: "draft"
     )
   end
 

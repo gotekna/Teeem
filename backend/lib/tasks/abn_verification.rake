@@ -4,7 +4,7 @@ namespace :contacts do
     task check_format: :environment do
       puts "Checking ABN format for all contacts..."
 
-      contacts_with_abn = Contact.where.not(tax_number: [nil, ''])
+      contacts_with_abn = Contact.where.not(tax_number: [ nil, "" ])
       total = contacts_with_abn.count
       puts "Found #{total} contacts with ABN/tax_number"
 
@@ -40,7 +40,7 @@ namespace :contacts do
 
     desc "Verify ABNs via ABR API (requires ABR_GUID env var)"
     task verify: :environment do
-      unless ENV['ABR_GUID'].present?
+      unless ENV["ABR_GUID"].present?
         puts "ERROR: ABR_GUID environment variable not set."
         puts "Register at https://abr.business.gov.au/RegisterAgreement.aspx to get your GUID"
         exit 1
@@ -49,7 +49,7 @@ namespace :contacts do
       puts "Verifying ABNs via ABR API..."
 
       # Get contacts that need verification
-      contacts = Contact.where.not(tax_number: [nil, ''])
+      contacts = Contact.where.not(tax_number: [ nil, "" ])
                         .where(abn_verified_at: nil)
       total = contacts.count
       puts "Found #{total} contacts with unverified ABNs"
@@ -98,11 +98,11 @@ namespace :contacts do
       puts "=== ABN Verification Status ==="
       puts ""
 
-      total_with_abn = Contact.where.not(tax_number: [nil, '']).count
+      total_with_abn = Contact.where.not(tax_number: [ nil, "" ]).count
       verified = Contact.where.not(abn_verified_at: nil).count
       valid = Contact.where(abn_valid: true).count
       invalid = Contact.where(abn_valid: false).count
-      unverified = Contact.where.not(tax_number: [nil, '']).where(abn_verified_at: nil).count
+      unverified = Contact.where.not(tax_number: [ nil, "" ]).where(abn_verified_at: nil).count
       gst_registered = Contact.where(abn_gst_registered: true).count
 
       puts "Total contacts with ABN: #{total_with_abn}"
@@ -121,14 +121,14 @@ namespace :contacts do
     end
 
     desc "Test ABN lookup (single ABN)"
-    task :test, [:abn] => :environment do |t, args|
+    task :test, [ :abn ] => :environment do |t, args|
       unless args[:abn]
         puts "Usage: rake contacts:abn:test[ABN]"
         puts "Example: rake contacts:abn:test[51824753556]"
         exit 1
       end
 
-      unless ENV['ABR_GUID'].present?
+      unless ENV["ABR_GUID"].present?
         puts "ERROR: ABR_GUID environment variable not set."
         exit 1
       end

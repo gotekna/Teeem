@@ -101,7 +101,7 @@ director_links.each do |dl|
   company = Company.find_by(name: dl[:company])
   director = Contact.find_by("full_name ILIKE ?", "%#{dl[:director]}%")
   next unless company && director
-  
+
   CompanyDirector.find_or_create_by!(company: company, contact: director) do |cd|
     cd.position = dl[:position]
     cd.is_current = true
@@ -119,7 +119,7 @@ shareholdings_data = [
 shareholdings_data.each do |sh|
   company = Company.find_by(name: sh[:company])
   next unless company
-  
+
   # Find or create shareholder contact
   shareholder = Contact.find_or_create_by!(full_name: sh[:shareholder]) do |c|
     c.first_name = sh[:shareholder].split.first
@@ -127,7 +127,7 @@ shareholdings_data.each do |sh|
     c.entity_type = sh[:shareholder].include?('Pty') || sh[:shareholder].include?('Trust') ? 'company' : 'person'
     c.is_active = true
   end
-  
+
   CompanyShareholding.find_or_create_by!(
     company: company,
     shareholder: shareholder,
@@ -164,7 +164,7 @@ bank_accounts_data = [
 bank_accounts_data.each do |ba|
   company = Company.find_by(name: ba[:company])
   next unless company
-  
+
   BankAccount.find_or_create_by!(
     company: company,
     bsb: ba[:bsb],

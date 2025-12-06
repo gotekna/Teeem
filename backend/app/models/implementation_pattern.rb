@@ -23,9 +23,9 @@ class ImplementationPattern < ApplicationRecord
   scope :ordered, -> { order(:chapter_number, :section_number) }
 
   # Convenience scopes
-  scope :simple, -> { where(complexity: 'simple') }
-  scope :medium, -> { where(complexity: 'medium') }
-  scope :complex, -> { where(complexity: 'complex') }
+  scope :simple, -> { where(complexity: "simple") }
+  scope :medium, -> { where(complexity: "medium") }
+  scope :complex, -> { where(complexity: "complex") }
 
   # Search
   def self.search(query)
@@ -38,14 +38,14 @@ class ImplementationPattern < ApplicationRecord
   # Display methods
   def complexity_emoji
     case complexity
-    when 'simple'
-      '🟢'
-    when 'medium'
-      '🟡'
-    when 'complex'
-      '🔴'
+    when "simple"
+      "🟢"
+    when "medium"
+      "🟡"
+    when "complex"
+      "🔴"
     else
-      '⚪'
+      "⚪"
     end
   end
 
@@ -126,10 +126,10 @@ class ImplementationPattern < ApplicationRecord
       sections << "### Code Examples"
       sections << ""
       code_examples.each do |example|
-        sections << "**#{example['description']}**" if example['description'].present?
+        sections << "**#{example['description']}**" if example["description"].present?
         sections << ""
         sections << "```#{example['language']}"
-        sections << example['code']
+        sections << example["code"]
         sections << "```"
         sections << ""
       end
@@ -173,8 +173,8 @@ class ImplementationPattern < ApplicationRecord
       migration_guide,
       integration,
       notes,
-      languages&.join(' '),
-      tags&.join(' ')
-    ].compact.join(' ')
+      languages&.join(" "),
+      tags&.join(" ")
+    ].compact.join(" ")
   end
 end

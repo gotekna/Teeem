@@ -1,7 +1,7 @@
-require 'anthropic'
+require "anthropic"
 
 class EmailToCaseService
-  CLAUDE_MODEL = 'claude-sonnet-4-5-20250929'
+  CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
   MAX_TOKENS = 3000
   RATE_LIMIT_PER_HOUR = 20
 
@@ -32,7 +32,7 @@ class EmailToCaseService
 
     # Get AI prompt and response for logging
     prompt = build_extraction_prompt(thread_context)
-    ai_response = extracted_data.delete('_raw_response')
+    ai_response = extracted_data.delete("_raw_response")
 
     # Create proposal record
     proposal = EmailCaseProposal.create!(
@@ -43,8 +43,8 @@ class EmailToCaseService
       ai_response_raw: ai_response,
       processing_time_ms: processing_time,
       ai_model_used: CLAUDE_MODEL,
-      confidence_score: extracted_data['confidence_score'],
-      status: 'pending'
+      confidence_score: extracted_data["confidence_score"],
+      status: "pending"
     )
 
     Rails.logger.info "Created case proposal #{proposal.id} from email #{@email.id} with confidence #{extracted_data['confidence_score']}"
@@ -62,7 +62,7 @@ class EmailToCaseService
       email_warehouse: @email,
       created_by: @user,
       extracted_data: { error: e.message },
-      status: 'error',
+      status: "error",
       error_message: e.message
     )
   end
@@ -81,32 +81,32 @@ class EmailToCaseService
 
     # Create the case
     case_record = CaseRecord.create!(
-      title: user_edits['case_title'] || case_data['case_title'] || "Case from #{@email.from_email}",
-      case_type: user_edits['case_type'] || case_data['case_type'] || 'other',
-      description: user_edits['description'] || case_data['description'],
-      priority: user_edits['priority'] || case_data['priority'] || 'normal',
-      deadline: user_edits['deadline'],
+      title: user_edits["case_title"] || case_data["case_title"] || "Case from #{@email.from_email}",
+      case_type: user_edits["case_type"] || case_data["case_type"] || "other",
+      description: user_edits["description"] || case_data["description"],
+      priority: user_edits["priority"] || case_data["priority"] || "normal",
+      deadline: user_edits["deadline"],
       created_by: @user,
-      assigned_to_id: user_edits['assigned_to_id'] || @user.id,
-      investigation_start_date: parse_date(case_data.dig('key_dates', 0, 'date')),
+      assigned_to_id: user_edits["assigned_to_id"] || @user.id,
+      investigation_start_date: parse_date(case_data.dig("key_dates", 0, "date")),
       metadata: {
-        source: 'email_proposal',
+        source: "email_proposal",
         email_warehouse_id: @email.id,
         proposal_id: proposal.id
       }
     )
 
     # Add involved parties as contacts
-    add_involved_parties(case_record, case_data['involved_parties'], user_edits)
+    add_involved_parties(case_record, case_data["involved_parties"], user_edits)
 
     # Link related jobs
-    link_related_jobs(case_record, case_data['related_jobs'], user_edits)
+    link_related_jobs(case_record, case_data["related_jobs"], user_edits)
 
     # Link related companies
-    link_related_companies(case_record, case_data['related_companies'], user_edits)
+    link_related_companies(case_record, case_data["related_companies"], user_edits)
 
     # Link the source email to the case
-    case_record.add_email(@email, relevance: 'key_evidence', notes: 'Initial case email', added_by: @user)
+    case_record.add_email(@email, relevance: "key_evidence", notes: "Initial case email", added_by: @user)
 
     # Link all emails in the thread
     link_email_thread(case_record)
@@ -128,7 +128,7 @@ class EmailToCaseService
   def check_rate_limit!
     recent_count = EmailCaseProposal
       .where(created_by: @user)
-      .where('created_at > ?', 1.hour.ago)
+      .where("created_at > ?", 1.hour.ago)
       .count
 
     if recent_count >= RATE_LIMIT_PER_HOUR
@@ -143,16 +143,16 @@ class EmailToCaseService
         .where(conversation_id: @email.conversation_id)
         .order(received_at: :asc)
     else
-      [@email]
+      [ @email ]
     end
 
     thread_emails.map do |email|
       {
         from: "#{email.from_name} <#{email.from_email}>",
-        to: email.to_emails&.join(', '),
-        cc: email.cc_emails&.join(', '),
+        to: email.to_emails&.join(", "),
+        cc: email.cc_emails&.join(", "),
         subject: email.subject,
-        date: email.received_at&.strftime('%Y-%m-%d %H:%M'),
+        date: email.received_at&.strftime("%Y-%m-%d %H:%M"),
         body: email.body_text.presence || strip_html(email.body_html)
       }
     end
@@ -169,7 +169,7 @@ class EmailToCaseService
       extracted = parse_json_response(response)
 
       # Add raw response for logging
-      extracted['_raw_response'] = raw_response
+      extracted["_raw_response"] = raw_response
 
       # Enrich with existing contact/job detection
       enrich_with_existing_data(extracted)
@@ -178,13 +178,13 @@ class EmailToCaseService
     rescue JSON::ParserError => e
       Rails.logger.error "Claude returned invalid JSON: #{e.message}"
       {
-        'case_title' => @email.subject,
-        'case_type' => 'other',
-        'description' => 'AI extraction failed - please review manually',
-        'confidence_score' => 0.1,
-        'error' => 'AI returned invalid response',
-        'missing_info' => ['all fields - AI extraction failed'],
-        '_raw_response' => response
+        "case_title" => @email.subject,
+        "case_type" => "other",
+        "description" => "AI extraction failed - please review manually",
+        "confidence_score" => 0.1,
+        "error" => "AI returned invalid response",
+        "missing_info" => [ "all fields - AI extraction failed" ],
+        "_raw_response" => response
       }
     end
   end
@@ -316,7 +316,7 @@ class EmailToCaseService
   end
 
   def call_claude_api(prompt)
-    api_key = ENV['ANTHROPIC_API_KEY']
+    api_key = ENV["ANTHROPIC_API_KEY"]
     raise AIExtractionError, "ANTHROPIC_API_KEY not configured" unless api_key
 
     client = Anthropic::Client.new(
@@ -355,79 +355,79 @@ class EmailToCaseService
 
   def enrich_with_existing_data(extracted)
     # Match involved parties to existing contacts and known_parties
-    (extracted['involved_parties'] || []).each do |party|
+    (extracted["involved_parties"] || []).each do |party|
       # First check if we know this party from previous cases
       known = KnownParty.find_match(
-        name: party['name'],
-        email: party['email'],
-        organisation: party['company']
+        name: party["name"],
+        email: party["email"],
+        organisation: party["company"]
       )
 
       if known
         # Pre-fill from known party data
-        party['relationship_type'] ||= known.relationship_type if known.relationship_type.present?
-        party['alignment'] ||= known.default_alignment if known.default_alignment.present?
-        party['phone'] ||= known.phone if known.phone.present?
-        party['company'] ||= known.organisation if known.organisation.present?
-        party['email'] ||= known.email if known.email.present?
-        party['known_party_id'] = known.id
-        party['seen_before'] = true
-        party['seen_count'] = known.seen_count
+        party["relationship_type"] ||= known.relationship_type if known.relationship_type.present?
+        party["alignment"] ||= known.default_alignment if known.default_alignment.present?
+        party["phone"] ||= known.phone if known.phone.present?
+        party["company"] ||= known.organisation if known.organisation.present?
+        party["email"] ||= known.email if known.email.present?
+        party["known_party_id"] = known.id
+        party["seen_before"] = true
+        party["seen_count"] = known.seen_count
       end
 
       # Then check for existing contact
       contact = nil
-      if party['email'].present?
-        contact = Contact.find_by(email: party['email'])
+      if party["email"].present?
+        contact = Contact.find_by(email: party["email"])
       end
-      contact ||= Contact.find_by(full_name: party['name']) if party['name'].present?
+      contact ||= Contact.find_by(full_name: party["name"]) if party["name"].present?
 
       if contact
-        party['contact_id'] = contact.id
-        party['contact_exists'] = true
-        party['full_name'] = contact.full_name if party['name'].blank?
+        party["contact_id"] = contact.id
+        party["contact_exists"] = true
+        party["full_name"] = contact.full_name if party["name"].blank?
         # Update party with contact details if missing
-        party['email'] ||= contact.email
-        party['phone'] ||= contact.mobile_phone
-        party['company'] ||= contact.company_name_or_trust
+        party["email"] ||= contact.email
+        party["phone"] ||= contact.mobile_phone
+        party["company"] ||= contact.company_name_or_trust
       else
-        party['contact_exists'] = false
+        party["contact_exists"] = false
       end
     end
 
     # Match related jobs
-    (extracted['related_jobs'] || []).each do |job_ref|
-      if job_ref['job_id'].present?
-        job = Job.find_by(id: job_ref['job_id'].to_s.gsub(/[^\d]/, ''))
+    (extracted["related_jobs"] || []).each do |job_ref|
+      if job_ref["job_id"].present?
+        job = Job.find_by(id: job_ref["job_id"].to_s.gsub(/[^\d]/, ""))
         if job
-          job_ref['job_found'] = true
-          job_ref['job_title'] = job.title
+          job_ref["job_found"] = true
+          job_ref["job_title"] = job.title
         end
-      elsif job_ref['address_match'].present?
+      elsif job_ref["address_match"].present?
         # Try to find job by address
-        job = Job.where('LOWER(title) LIKE ?', "%#{job_ref['address_match'].downcase}%").first
+        job = Job.where("LOWER(title) LIKE ?", "%#{job_ref['address_match'].downcase}%").first
         if job
-          job_ref['job_id'] = job.id
-          job_ref['job_found'] = true
-          job_ref['job_title'] = job.title
+          job_ref["job_id"] = job.id
+          job_ref["job_found"] = true
+          job_ref["job_title"] = job.title
         end
       end
     end
 
     # Match related companies
-    (extracted['related_companies'] || []).each do |company_ref|
+    (extracted["related_companies"] || []).each do |company_ref|
       company = nil
-      if company_ref['acn'].present?
-        company = Company.find_by(acn: company_ref['acn'].gsub(/\s/, ''))
-      elsif company_ref['abn'].present?
-        company = Company.find_by(abn: company_ref['abn'].gsub(/\s/, ''))
-      elsif company_ref['name'].present?
-        company = Company.where('LOWER(name) LIKE ?', "%#{company_ref['name'].downcase}%").first
+      if company_ref["acn"].present?
+        company = Company.find_by(acn: company_ref["acn"].gsub(/\s/, ""))
+      elsif company_ref["abn"].present?
+        company = Company.find_by(abn: company_ref["abn"].gsub(/\s/, ""))
+      elsif company_ref["name"].present?
+        company = Company.where("LOWER(name) LIKE ?", "%#{company_ref['name'].downcase}%").first
       end
 
       if company
-        company_ref['company_id'] = company.id
-        company_ref['company_found'] = true
+        company_ref["company_id"] = company.id
+        company_ref["company_found"] = true
       end
     end
 
@@ -438,7 +438,7 @@ class EmailToCaseService
     return unless parties.is_a?(Array)
 
     # Include any manually added contacts from user edits
-    manual_contacts = user_edits['additional_contacts'] || []
+    manual_contacts = user_edits["additional_contacts"] || []
 
     all_parties = parties + manual_contacts
 
@@ -446,47 +446,47 @@ class EmailToCaseService
       contact = nil
 
       # Skip placeholder emails
-      email = party['email']
-      email = nil if email.blank? || email == 'email@example.com' || email&.include?('example.com')
+      email = party["email"]
+      email = nil if email.blank? || email == "email@example.com" || email&.include?("example.com")
 
-      if party['contact_id'].present?
-        contact = Contact.find_by(id: party['contact_id'])
+      if party["contact_id"].present?
+        contact = Contact.find_by(id: party["contact_id"])
       elsif email.present?
         contact = Contact.find_by(email: email)
-      elsif party['name'].present?
+      elsif party["name"].present?
         # Try to find by exact name match
-        contact = Contact.find_by(full_name: party['name'])
+        contact = Contact.find_by(full_name: party["name"])
       end
 
       # Update existing contact with new details if provided
       if contact
         updates = {}
         updates[:email] = email if email.present? && contact.email.blank?
-        updates[:mobile_phone] = party['phone'] if party['phone'].present? && contact.mobile_phone.blank?
-        updates[:company_name_or_trust] = party['company'] if party['company'].present? && contact.company_name_or_trust.blank?
+        updates[:mobile_phone] = party["phone"] if party["phone"].present? && contact.mobile_phone.blank?
+        updates[:company_name_or_trust] = party["company"] if party["company"].present? && contact.company_name_or_trust.blank?
         contact.update(updates) if updates.present?
       end
 
       # Create contact if doesn't exist and has enough info (name is required, email optional)
-      if contact.nil? && party['name'].present?
+      if contact.nil? && party["name"].present?
         # Find or create company if specified
         company_contact = nil
-        if party['company'].present?
-          company_contact = find_or_create_company(party['company'])
+        if party["company"].present?
+          company_contact = find_or_create_company(party["company"])
         end
 
         contact = Contact.create(
           email: email,
-          full_name: party['name'],
-          mobile_phone: party['phone'],
-          company_name_or_trust: party['company'],
+          full_name: party["name"],
+          mobile_phone: party["phone"],
+          company_name_or_trust: party["company"],
           primary_company_id: company_contact&.id,
-          entity_type: 'person'
+          entity_type: "person"
         )
       end
 
       # Upsert to known_parties for future reference
-      if party['name'].present?
+      if party["name"].present?
         known_party = KnownParty.upsert_from_party(party)
         known_party&.update(contact_id: contact.id) if contact && known_party && known_party.contact_id.nil?
       end
@@ -496,18 +496,18 @@ class EmailToCaseService
       # Link to case
       case_record.add_contact(
         contact,
-        role: map_relationship_to_role(party['relationship_type']),
-        notes: party['notes'],
-        is_primary: party['is_primary'] || false
+        role: map_relationship_to_role(party["relationship_type"]),
+        notes: party["notes"],
+        is_primary: party["is_primary"] || false
       )
 
       # Update the case_contact with relationship_type and alignment
       case_contact = CaseContact.find_by(case_id: case_record.id, contact_id: contact.id)
       if case_contact
         case_contact.update(
-          relationship_type: party['relationship_type'],
-          alignment: party['alignment'] || 'neutral',
-          relationship_description: party['notes']
+          relationship_type: party["relationship_type"],
+          alignment: party["alignment"] || "neutral",
+          relationship_description: party["notes"]
         )
       end
     end
@@ -517,13 +517,13 @@ class EmailToCaseService
     return nil if company_name.blank?
 
     # Try to find existing company by name (case-insensitive)
-    company = Contact.where(entity_type: 'company')
-                     .where('LOWER(full_name) = LOWER(?)', company_name.strip)
+    company = Contact.where(entity_type: "company")
+                     .where("LOWER(full_name) = LOWER(?)", company_name.strip)
                      .first
 
     # Also check trading_name and company_name_or_trust
-    company ||= Contact.where(entity_type: 'company')
-                       .where('LOWER(trading_name) = LOWER(?) OR LOWER(company_name_or_trust) = LOWER(?)',
+    company ||= Contact.where(entity_type: "company")
+                       .where("LOWER(trading_name) = LOWER(?) OR LOWER(company_name_or_trust) = LOWER(?)",
                               company_name.strip, company_name.strip)
                        .first
 
@@ -531,7 +531,7 @@ class EmailToCaseService
     if company.nil?
       company = Contact.create(
         full_name: company_name.strip,
-        entity_type: 'company'
+        entity_type: "company"
       )
       Rails.logger.info "[EmailToCase] Created new company contact: #{company.full_name} (ID: #{company.id})"
     end
@@ -542,27 +542,27 @@ class EmailToCaseService
   def map_relationship_to_role(relationship_type)
     # Map granular relationship types to the broader case roles
     mapping = {
-      'client' => 'subject',
-      'accountant' => 'advisor',
-      'lawyer' => 'advisor',
-      'previous_accountant' => 'advisor',
-      'advisor' => 'advisor',
-      'opposing_party' => 'opposing_party',
-      'witness' => 'witness',
-      'related_party' => 'related_party',
-      'ato_officer' => 'opposing_party',
-      'afsa_officer' => 'opposing_party',
-      'inspector_general' => 'opposing_party',
-      'trustee' => 'opposing_party',
-      'director' => 'subject',
-      'shareholder' => 'related_party',
-      'bank_manager' => 'related_party',
-      'insurer' => 'related_party',
-      'broker' => 'related_party',
-      'creditor' => 'opposing_party',
-      'debtor' => 'subject'
+      "client" => "subject",
+      "accountant" => "advisor",
+      "lawyer" => "advisor",
+      "previous_accountant" => "advisor",
+      "advisor" => "advisor",
+      "opposing_party" => "opposing_party",
+      "witness" => "witness",
+      "related_party" => "related_party",
+      "ato_officer" => "opposing_party",
+      "afsa_officer" => "opposing_party",
+      "inspector_general" => "opposing_party",
+      "trustee" => "opposing_party",
+      "director" => "subject",
+      "shareholder" => "related_party",
+      "bank_manager" => "related_party",
+      "insurer" => "related_party",
+      "broker" => "related_party",
+      "creditor" => "opposing_party",
+      "debtor" => "subject"
     }
-    mapping[relationship_type] || 'related_party'
+    mapping[relationship_type] || "related_party"
   end
 
   def link_related_jobs(case_record, jobs, user_edits)
@@ -570,17 +570,17 @@ class EmailToCaseService
 
     # From AI extraction
     (jobs || []).each do |job_ref|
-      job_ids << job_ref['job_id'] if job_ref['job_id'].present? && job_ref['job_found']
+      job_ids << job_ref["job_id"] if job_ref["job_id"].present? && job_ref["job_found"]
     end
 
     # From user edits
-    job_ids += (user_edits['job_ids'] || [])
+    job_ids += (user_edits["job_ids"] || [])
 
     job_ids.uniq.each do |job_id|
       job = Job.find_by(id: job_id)
       next unless job
 
-      case_record.add_job(job, relevance: 'direct')
+      case_record.add_job(job, relevance: "direct")
     end
   end
 
@@ -589,19 +589,19 @@ class EmailToCaseService
 
     # From AI extraction
     (companies || []).each do |company_ref|
-      company_ids << { id: company_ref['company_id'], role: company_ref['role'] } if company_ref['company_found']
+      company_ids << { id: company_ref["company_id"], role: company_ref["role"] } if company_ref["company_found"]
     end
 
     # From user edits
-    (user_edits['company_ids'] || []).each do |company_id|
-      company_ids << { id: company_id, role: 'subject' }
+    (user_edits["company_ids"] || []).each do |company_id|
+      company_ids << { id: company_id, role: "subject" }
     end
 
     company_ids.uniq { |c| c[:id] }.each do |company_ref|
       company = Company.find_by(id: company_ref[:id])
       next unless company
 
-      case_record.add_company(company, role: company_ref[:role] || 'subject')
+      case_record.add_company(company, role: company_ref[:role] || "subject")
     end
   end
 
@@ -620,7 +620,7 @@ class EmailToCaseService
       relevance = calculate_thread_email_relevance(email, case_record)
 
       # Only link if minimally relevant
-      next if relevance == 'irrelevant'
+      next if relevance == "irrelevant"
 
       case_record.add_email(
         email,
@@ -634,13 +634,13 @@ class EmailToCaseService
   # Calculate relevance of thread email based on content
   def calculate_thread_email_relevance(email, case_record)
     # Check if email mentions case title/details
-    return 'key_evidence' if case_record.title.present? && email.subject&.downcase&.include?(case_record.title.downcase)
+    return "key_evidence" if case_record.title.present? && email.subject&.downcase&.include?(case_record.title.downcase)
 
     # Default to supporting if it's a business email
-    return 'supporting' if email.is_business_email?
+    return "supporting" if email.is_business_email?
 
     # Otherwise irrelevant
-    'irrelevant'
+    "irrelevant"
   end
 
   def sync_pdf_attachments_if_needed
@@ -658,10 +658,10 @@ class EmailToCaseService
   def strip_html(html)
     return nil if html.blank?
 
-    html.gsub(/<[^>]*>/, ' ')
-        .gsub(/&nbsp;/, ' ')
-        .gsub(/&[a-z]+;/, ' ')
-        .gsub(/\s+/, ' ')
+    html.gsub(/<[^>]*>/, " ")
+        .gsub(/&nbsp;/, " ")
+        .gsub(/&[a-z]+;/, " ")
+        .gsub(/\s+/, " ")
         .strip
   end
 

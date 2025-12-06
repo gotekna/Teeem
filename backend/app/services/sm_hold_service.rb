@@ -27,7 +27,7 @@ class SmHoldService
 
     ActiveRecord::Base.transaction do
       # 1. Check if already on hold
-      existing_hold = construction.sm_tasks.hold_tasks.where(status: 'not_started').first
+      existing_hold = construction.sm_tasks.hold_tasks.where(status: "not_started").first
       if existing_hold
         result[:error] = "Job is already on hold: #{existing_hold.hold_reason&.name || 'Unknown reason'}"
         raise ActiveRecord::Rollback
@@ -44,7 +44,7 @@ class SmHoldService
         task_number: 1,
         sequence_order: 1,
         name: "HOLD: #{hold_reason.name}",
-        status: 'not_started',
+        status: "not_started",
         start_date: Date.current,
         end_date: Date.current,
         duration_days: 1,
@@ -53,7 +53,7 @@ class SmHoldService
         hold_notes: notes,
         hold_started_at: Time.current,
         hold_started_by: user,
-        color: hold_reason.color || '#EF4444', # Red
+        color: hold_reason.color || "#EF4444", # Red
         created_by: user
       )
 
@@ -68,7 +68,7 @@ class SmHoldService
         SmDependency.create!(
           predecessor_task: hold_task,
           successor_task: root_task,
-          dependency_type: 'FS',
+          dependency_type: "FS",
           lag_days: 0,
           active: true,
           created_by: user
@@ -80,7 +80,7 @@ class SmHoldService
         construction: construction,
         hold_task: hold_task,
         hold_reason: hold_reason,
-        event_type: 'hold_started',
+        event_type: "hold_started",
         notes: notes,
         hold_started_at: Time.current,
         hold_started_by: user,
@@ -111,9 +111,9 @@ class SmHoldService
 
     ActiveRecord::Base.transaction do
       # 1. Find active hold task
-      hold_task = construction.sm_tasks.hold_tasks.where(status: 'not_started').first
+      hold_task = construction.sm_tasks.hold_tasks.where(status: "not_started").first
       unless hold_task
-        result[:error] = 'Job is not currently on hold'
+        result[:error] = "Job is not currently on hold"
         raise ActiveRecord::Rollback
       end
 
@@ -121,7 +121,7 @@ class SmHoldService
 
       # 2. Mark hold task as completed
       hold_task.update!(
-        status: 'completed',
+        status: "completed",
         completed_at: Time.current,
         hold_released_at: Time.current,
         hold_released_by: user,
@@ -133,7 +133,7 @@ class SmHoldService
         construction: construction,
         hold_task: hold_task,
         hold_reason: hold_reason,
-        event_type: 'hold_released',
+        event_type: "hold_released",
         notes: notes,
         hold_started_at: hold_task.hold_started_at,
         hold_started_by: hold_task.hold_started_by,
@@ -166,7 +166,7 @@ class SmHoldService
 
   # Get current hold status
   def hold_status
-    hold_task = construction.sm_tasks.hold_tasks.where(status: 'not_started').first
+    hold_task = construction.sm_tasks.hold_tasks.where(status: "not_started").first
 
     if hold_task
       {
@@ -214,7 +214,7 @@ class SmHoldService
   private
 
   def last_hold_log
-    log = SmHoldLog.where(construction: construction, event_type: 'hold_released')
+    log = SmHoldLog.where(construction: construction, event_type: "hold_released")
                    .order(created_at: :desc)
                    .first
 

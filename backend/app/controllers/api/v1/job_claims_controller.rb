@@ -3,8 +3,8 @@
 module Api
   module V1
     class JobClaimsController < ApplicationController
-      before_action :set_job, only: [:index, :create]
-      before_action :set_job_claim, only: [:show, :update, :destroy]
+      before_action :set_job, only: [ :index, :create ]
+      before_action :set_job_claim, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/jobs/:job_id/job_claims
       def index
@@ -16,15 +16,15 @@ module Api
         end
 
         # Filter unpaid only
-        if params[:unpaid] == 'true'
+        if params[:unpaid] == "true"
           @job_claims = @job_claims.unpaid
         end
 
         render json: {
           success: true,
           job_claims: @job_claims.as_json(
-            only: [:id, :job_id, :invoice_number, :description, :amount, :amount_paid, :amount_due, :status, :date, :due_date, :xero_invoice_id, :xero_contact_id, :contact_name, :contact_id, :created_at, :updated_at],
-            methods: [:payment_percentage, :outstanding_amount]
+            only: [ :id, :job_id, :invoice_number, :description, :amount, :amount_paid, :amount_due, :status, :date, :due_date, :xero_invoice_id, :xero_contact_id, :contact_name, :contact_id, :created_at, :updated_at ],
+            methods: [ :payment_percentage, :outstanding_amount ]
           )
         }
       end
@@ -34,11 +34,11 @@ module Api
         render json: {
           success: true,
           job_claim: @job_claim.as_json(
-            only: [:id, :job_id, :invoice_number, :description, :amount, :amount_paid, :amount_due, :status, :date, :due_date, :xero_invoice_id, :xero_contact_id, :contact_name, :contact_id, :created_at, :updated_at],
-            methods: [:payment_percentage, :outstanding_amount],
+            only: [ :id, :job_id, :invoice_number, :description, :amount, :amount_paid, :amount_due, :status, :date, :due_date, :xero_invoice_id, :xero_contact_id, :contact_name, :contact_id, :created_at, :updated_at ],
+            methods: [ :payment_percentage, :outstanding_amount ],
             include: {
-              job: { only: [:id, :title] },
-              contact: { only: [:id, :full_name, :email] }
+              job: { only: [ :id, :title ] },
+              contact: { only: [ :id, :full_name, :email ] }
             }
           )
         }
@@ -52,8 +52,8 @@ module Api
           render json: {
             success: true,
             job_claim: @job_claim.as_json(
-              only: [:id, :job_id, :invoice_number, :description, :amount, :amount_paid, :amount_due, :status, :date, :due_date, :xero_invoice_id, :xero_contact_id, :contact_name, :contact_id, :created_at, :updated_at],
-              methods: [:payment_percentage, :outstanding_amount]
+              only: [ :id, :job_id, :invoice_number, :description, :amount, :amount_paid, :amount_due, :status, :date, :due_date, :xero_invoice_id, :xero_contact_id, :contact_name, :contact_id, :created_at, :updated_at ],
+              methods: [ :payment_percentage, :outstanding_amount ]
             )
           }, status: :created
         else
@@ -70,8 +70,8 @@ module Api
           render json: {
             success: true,
             job_claim: @job_claim.as_json(
-              only: [:id, :job_id, :invoice_number, :description, :amount, :amount_paid, :amount_due, :status, :date, :due_date, :xero_invoice_id, :xero_contact_id, :contact_name, :contact_id, :created_at, :updated_at],
-              methods: [:payment_percentage, :outstanding_amount]
+              only: [ :id, :job_id, :invoice_number, :description, :amount, :amount_paid, :amount_due, :status, :date, :due_date, :xero_invoice_id, :xero_contact_id, :contact_name, :contact_id, :created_at, :updated_at ],
+              methods: [ :payment_percentage, :outstanding_amount ]
             )
           }
         else
@@ -87,7 +87,7 @@ module Api
         @job_claim.destroy
         render json: {
           success: true,
-          message: 'Job claim deleted successfully'
+          message: "Job claim deleted successfully"
         }
       end
 
@@ -95,7 +95,7 @@ module Api
       # Batch delete with 1000 item cap for performance
       def bulk_delete
         ids = params[:ids]
-        return render json: { success: false, error: 'No IDs provided' }, status: :bad_request if ids.blank?
+        return render json: { success: false, error: "No IDs provided" }, status: :bad_request if ids.blank?
 
         # Cap at 1000 items per request to prevent abuse
         ids = ids.first(1000) if ids.is_a?(Array)
@@ -106,7 +106,7 @@ module Api
 
         job_claims.each do |job_claim|
           # Check if claim is linked to Xero (may want to preserve these)
-          if job_claim.xero_invoice_id.present? && params[:force] != 'true'
+          if job_claim.xero_invoice_id.present? && params[:force] != "true"
             errors << { id: job_claim.id, invoice_number: job_claim.invoice_number, error: "Linked to Xero invoice" }
             next
           end
@@ -127,7 +127,7 @@ module Api
       # Batch create with 1000 item cap for performance
       def bulk_create
         claims_data = params[:claims]
-        return render json: { success: false, error: 'No claims data provided' }, status: :bad_request if claims_data.blank?
+        return render json: { success: false, error: "No claims data provided" }, status: :bad_request if claims_data.blank?
 
         # Cap at 1000 items per request
         claims_data = claims_data.first(1000) if claims_data.is_a?(Array)
@@ -148,7 +148,7 @@ module Api
             description: claim_data[:description],
             amount: claim_data[:amount],
             amount_paid: claim_data[:amount_paid] || 0,
-            status: claim_data[:status] || 'draft',
+            status: claim_data[:status] || "draft",
             date: claim_data[:date],
             due_date: claim_data[:due_date],
             xero_invoice_id: claim_data[:xero_invoice_id],
@@ -159,9 +159,9 @@ module Api
 
           if job_claim.save
             created_count += 1
-            created_claims << job_claim.as_json(only: [:id, :job_id, :invoice_number, :amount, :status])
+            created_claims << job_claim.as_json(only: [ :id, :job_id, :invoice_number, :amount, :status ])
           else
-            errors << { index: index, invoice_number: claim_data[:invoice_number], error: job_claim.errors.full_messages.join(', ') }
+            errors << { index: index, invoice_number: claim_data[:invoice_number], error: job_claim.errors.full_messages.join(", ") }
           end
         end
 
@@ -179,13 +179,13 @@ module Api
       def set_job
         @job = Job.find(params[:job_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Job not found' }, status: :not_found
+        render json: { success: false, error: "Job not found" }, status: :not_found
       end
 
       def set_job_claim
         @job_claim = JobClaim.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Job claim not found' }, status: :not_found
+        render json: { success: false, error: "Job claim not found" }, status: :not_found
       end
 
       def job_claim_params

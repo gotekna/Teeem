@@ -1,16 +1,16 @@
-require 'net/http'
-require 'json'
+require "net/http"
+require "json"
 
 class WeatherApiClient
-  BASE_URL = 'https://api.weatherapi.com/v1'
+  BASE_URL = "https://api.weatherapi.com/v1"
 
   class Error < StandardError; end
   class ConfigurationError < Error; end
   class ApiError < Error; end
 
   def initialize
-    @api_key = ENV['WEATHER_API_KEY']
-    raise ConfigurationError, 'WEATHER_API_KEY not configured' if @api_key.blank?
+    @api_key = ENV["WEATHER_API_KEY"]
+    raise ConfigurationError, "WEATHER_API_KEY not configured" if @api_key.blank?
   end
 
   # Fetch historical weather data for a specific date and location
@@ -18,13 +18,13 @@ class WeatherApiClient
   # @param date [Date] Date to fetch weather for
   # @return [Hash] Weather data including rainfall
   def fetch_historical(location, date)
-    raise ArgumentError, 'Location cannot be blank' if location.blank?
-    raise ArgumentError, 'Date cannot be blank' if date.blank?
-    raise ArgumentError, 'Date cannot be in the future' if date > Date.current
+    raise ArgumentError, "Location cannot be blank" if location.blank?
+    raise ArgumentError, "Date cannot be blank" if date.blank?
+    raise ArgumentError, "Date cannot be in the future" if date > Date.current
 
-    url = build_url('/history.json', {
+    url = build_url("/history.json", {
       q: location,
-      dt: date.strftime('%Y-%m-%d')
+      dt: date.strftime("%Y-%m-%d")
     })
 
     response = make_request(url)
@@ -38,19 +38,19 @@ class WeatherApiClient
   # @param response [Hash] Raw API response
   # @return [Hash] Normalized weather data
   def parse_response(response)
-    day_data = response.dig('forecast', 'forecastday', 0, 'day')
+    day_data = response.dig("forecast", "forecastday", 0, "day")
 
     return {} unless day_data
 
     {
-      rainfall_mm: day_data['totalprecip_mm'].to_f,
-      date: response.dig('forecast', 'forecastday', 0, 'date'),
-      location: response.dig('location', 'name'),
-      region: response.dig('location', 'region'),
-      country: response.dig('location', 'country'),
-      max_temp_c: day_data['maxtemp_c'].to_f,
-      min_temp_c: day_data['mintemp_c'].to_f,
-      condition: day_data.dig('condition', 'text'),
+      rainfall_mm: day_data["totalprecip_mm"].to_f,
+      date: response.dig("forecast", "forecastday", 0, "date"),
+      location: response.dig("location", "name"),
+      region: response.dig("location", "region"),
+      country: response.dig("location", "country"),
+      max_temp_c: day_data["maxtemp_c"].to_f,
+      min_temp_c: day_data["mintemp_c"].to_f,
+      condition: day_data.dig("condition", "text"),
       raw_response: response
     }
   end

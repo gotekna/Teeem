@@ -1,7 +1,7 @@
 module Api
   module V1
     class XeroChartOfAccountsController < ApplicationController
-      before_action :set_account, only: [:show, :update, :destroy]
+      before_action :set_account, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/xero_chart_of_accounts
       def index
@@ -10,7 +10,7 @@ module Api
         # Filter by company group
         if params[:company_group_id].present?
           @accounts = @accounts.for_group(params[:company_group_id])
-        elsif params[:global] == 'true'
+        elsif params[:global] == "true"
           @accounts = @accounts.global
         end
 
@@ -20,7 +20,7 @@ module Api
         end
 
         # Filter by active status
-        @accounts = @accounts.where(active: true) unless params[:include_inactive] == 'true'
+        @accounts = @accounts.where(active: true) unless params[:include_inactive] == "true"
 
         @accounts = @accounts.by_code
 
@@ -102,39 +102,39 @@ module Api
         unless tenant_id.present?
           return render json: {
             success: false,
-            errors: ['Xero tenant ID required']
+            errors: [ "Xero tenant ID required" ]
           }, status: :unprocessable_entity
         end
 
         begin
           client = XeroApiClient.new
-          result = client.get('Accounts', tenant_id: tenant_id)
+          result = client.get("Accounts", tenant_id: tenant_id)
 
           unless result[:success]
             return render json: {
               success: false,
-              errors: ["Failed to fetch accounts: #{result[:error]}"]
+              errors: [ "Failed to fetch accounts: #{result[:error]}" ]
             }, status: :unprocessable_entity
           end
 
-          accounts = result[:data]['Accounts'] || []
+          accounts = result[:data]["Accounts"] || []
           stats = { created: 0, updated: 0, skipped: 0 }
 
           accounts.each do |xero_account|
             # Skip system accounts
-            next if xero_account['SystemAccount'].present?
+            next if xero_account["SystemAccount"].present?
 
             account = XeroChartOfAccount.find_or_initialize_by(
               company_group_id: company_group_id,
-              account_code: xero_account['Code']
+              account_code: xero_account["Code"]
             )
 
             account.assign_attributes(
-              account_name: xero_account['Name'],
-              account_type: xero_account['Type'],
-              tax_type: xero_account['TaxType'],
-              description: xero_account['Description'],
-              active: xero_account['Status'] == 'ACTIVE'
+              account_name: xero_account["Name"],
+              account_type: xero_account["Type"],
+              tax_type: xero_account["TaxType"],
+              description: xero_account["Description"],
+              active: xero_account["Status"] == "ACTIVE"
             )
 
             if account.new_record?
@@ -156,7 +156,7 @@ module Api
         rescue StandardError => e
           render json: {
             success: false,
-            errors: [e.message]
+            errors: [ e.message ]
           }, status: :unprocessable_entity
         end
       end
@@ -176,7 +176,7 @@ module Api
         if source_accounts.empty?
           return render json: {
             success: false,
-            errors: ['No accounts found in source group']
+            errors: [ "No accounts found in source group" ]
           }, status: :unprocessable_entity
         end
 
@@ -212,7 +212,7 @@ module Api
       rescue ActiveRecord::RecordInvalid => e
         render json: {
           success: false,
-          errors: [e.message]
+          errors: [ e.message ]
         }, status: :unprocessable_entity
       end
 

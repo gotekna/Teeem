@@ -6,9 +6,9 @@ namespace :pricebook do
     puts "="*60
 
     # Use CSV files from db/import_data
-    suppliers_file = Rails.root.join('db', 'import_data', 'suppliers.csv')
-    items_file = Rails.root.join('db', 'import_data', 'pricebook_items.csv')
-    history_file = Rails.root.join('db', 'import_data', 'price_history.csv')
+    suppliers_file = Rails.root.join("db", "import_data", "suppliers.csv")
+    items_file = Rails.root.join("db", "import_data", "pricebook_items.csv")
+    history_file = Rails.root.join("db", "import_data", "price_history.csv")
 
     unless File.exist?(suppliers_file)
       puts "Error: Suppliers file not found at #{suppliers_file}"
@@ -52,7 +52,7 @@ namespace :pricebook do
         response_rate: row[:response_rate]&.to_f || 0,
         avg_response_time: row[:avg_response_time]&.to_i,
         notes: row[:notes],
-        is_active: row[:is_active] == 'false' ? false : true
+        is_active: row[:is_active] == "false" ? false : true
       )
 
       # Map supplier name to ID for linking
@@ -79,13 +79,13 @@ namespace :pricebook do
         item_code: row[:item_code],
         item_name: row[:item_name],
         category: row[:category].present? && !row[:category].strip.empty? ? row[:category] : nil,
-        unit_of_measure: row[:unit_of_measure].present? ? row[:unit_of_measure] : 'Each',
+        unit_of_measure: row[:unit_of_measure].present? ? row[:unit_of_measure] : "Each",
         current_price: current_price,
         supplier_id: supplier_id,
         brand: row[:brand].present? && !row[:brand].strip.empty? ? row[:brand] : nil,
         notes: row[:notes].present? && !row[:notes].strip.empty? ? row[:notes] : nil,
-        is_active: row[:is_active] == 'false' ? false : true,
-        needs_pricing_review: row[:needs_pricing_review] == 'true' ? true : false,
+        is_active: row[:is_active] == "false" ? false : true,
+        needs_pricing_review: row[:needs_pricing_review] == "true" ? true : false,
         price_last_updated_at: row[:price_last_updated_at].present? ? Time.parse(row[:price_last_updated_at]) : nil
       )
 
@@ -124,7 +124,7 @@ namespace :pricebook do
         pricebook_item_id: item_id,
         old_price: row[:old_price].present? && !row[:old_price].strip.empty? ? row[:old_price].to_f : nil,
         new_price: row[:new_price].present? && !row[:new_price].strip.empty? ? row[:new_price].to_f : nil,
-        change_reason: row[:change_reason] || 'import',
+        change_reason: row[:change_reason] || "import",
         supplier_id: supplier_id,
         quote_reference: row[:quote_reference],
         created_at: row[:created_at].present? ? Time.parse(row[:created_at]) : Time.current

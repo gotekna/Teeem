@@ -1,8 +1,8 @@
-require 'net/http'
-require 'json'
+require "net/http"
+require "json"
 
 class OutlookService
-  GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0'
+  GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 
   class NotConnectedError < StandardError; end
 
@@ -22,7 +22,7 @@ class OutlookService
     search_query = options[:search]
     filter = options[:filter]
     top = options[:top] || 50
-    folder = options[:folder] || 'inbox'
+    folder = options[:folder] || "inbox"
 
     # Build the API endpoint
     endpoint = "/me/mailFolders/#{folder}/messages"
@@ -40,7 +40,7 @@ class OutlookService
 
     if response.is_a?(Net::HTTPSuccess)
       data = JSON.parse(response.body)
-      parse_email_list(data['value'])
+      parse_email_list(data["value"])
     else
       Rails.logger.error "Failed to search Outlook emails: #{response.code} - #{response.body}"
       []
@@ -101,7 +101,7 @@ class OutlookService
 
     if response.is_a?(Net::HTTPSuccess)
       data = JSON.parse(response.body)
-      data['value'].map { |folder| { id: folder['id'], name: folder['displayName'], unread_count: folder['unreadItemCount'], total_items: folder['totalItemCount'] } }
+      data["value"].map { |folder| { id: folder["id"], name: folder["displayName"], unread_count: folder["unreadItemCount"], total_items: folder["totalItemCount"] } }
     else
       Rails.logger.error "Failed to list Outlook folders: #{response.code} - #{response.body}"
       []
@@ -116,7 +116,7 @@ class OutlookService
 
     if response.is_a?(Net::HTTPSuccess)
       data = JSON.parse(response.body)
-      data['value']
+      data["value"]
     else
       Rails.logger.error "Failed to fetch attachments: #{response.code} - #{response.body}"
       []
@@ -132,9 +132,9 @@ class OutlookService
     if response.is_a?(Net::HTTPSuccess)
       data = JSON.parse(response.body)
       {
-        filename: data['name'],
-        content_type: data['contentType'],
-        content: Base64.decode64(data['contentBytes'])
+        filename: data["name"],
+        content_type: data["contentType"],
+        content: Base64.decode64(data["contentBytes"])
       }
     else
       Rails.logger.error "Failed to download attachment: #{response.code} - #{response.body}"
@@ -148,7 +148,7 @@ class OutlookService
     credential = @user.outlook_credential
 
     if credential.nil?
-      raise NotConnectedError, 'Outlook not connected. Please connect your Outlook account in settings.'
+      raise NotConnectedError, "Outlook not connected. Please connect your Outlook account in settings."
     end
 
     # This will automatically refresh the token if expired
@@ -170,8 +170,8 @@ class OutlookService
       req
     end
 
-    request['Authorization'] = "Bearer #{@access_token}"
-    request['Content-Type'] = 'application/json'
+    request["Authorization"] = "Bearer #{@access_token}"
+    request["Content-Type"] = "application/json"
 
     http.request(request)
   end
@@ -182,23 +182,23 @@ class OutlookService
 
   def parse_email(email)
     {
-      message_id: email['internetMessageId'],
-      from: email['from']&.dig('emailAddress', 'address'),
-      from_email: email['from']&.dig('emailAddress', 'address'),
-      to: email['toRecipients']&.map { |r| r.dig('emailAddress', 'address') } || [],
-      to_emails: email['toRecipients']&.map { |r| r.dig('emailAddress', 'address') } || [],
-      cc: email['ccRecipients']&.map { |r| r.dig('emailAddress', 'address') } || [],
-      cc_emails: email['ccRecipients']&.map { |r| r.dig('emailAddress', 'address') } || [],
-      subject: email['subject'],
-      body_text: (email['body']&.dig('contentType') == 'text' ? email['body']&.dig('content') : nil),
-      body_html: (email['body']&.dig('contentType') == 'html' ? email['body']&.dig('content') : nil),
-      text_body: (email['body']&.dig('contentType') == 'text' ? email['body']&.dig('content') : nil),
-      html_body: (email['body']&.dig('contentType') == 'html' ? email['body']&.dig('content') : nil),
-      received_at: email['receivedDateTime'],
-      date: email['receivedDateTime'],
-      has_attachments: email['hasAttachments'],
-      outlook_id: email['id'],
-      conversation_id: email['conversationId']
+      message_id: email["internetMessageId"],
+      from: email["from"]&.dig("emailAddress", "address"),
+      from_email: email["from"]&.dig("emailAddress", "address"),
+      to: email["toRecipients"]&.map { |r| r.dig("emailAddress", "address") } || [],
+      to_emails: email["toRecipients"]&.map { |r| r.dig("emailAddress", "address") } || [],
+      cc: email["ccRecipients"]&.map { |r| r.dig("emailAddress", "address") } || [],
+      cc_emails: email["ccRecipients"]&.map { |r| r.dig("emailAddress", "address") } || [],
+      subject: email["subject"],
+      body_text: (email["body"]&.dig("contentType") == "text" ? email["body"]&.dig("content") : nil),
+      body_html: (email["body"]&.dig("contentType") == "html" ? email["body"]&.dig("content") : nil),
+      text_body: (email["body"]&.dig("contentType") == "text" ? email["body"]&.dig("content") : nil),
+      html_body: (email["body"]&.dig("contentType") == "html" ? email["body"]&.dig("content") : nil),
+      received_at: email["receivedDateTime"],
+      date: email["receivedDateTime"],
+      has_attachments: email["hasAttachments"],
+      outlook_id: email["id"],
+      conversation_id: email["conversationId"]
     }
   end
 end

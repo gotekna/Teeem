@@ -10,13 +10,13 @@ class CreateJobOnedriveFoldersJob < ApplicationJob
     Rails.logger.info "[OneDrive] Creating folders for job #{job_id}: #{job.title}"
 
     # Update status to processing
-    job.update_column(:onedrive_folder_creation_status, 'processing')
+    job.update_column(:onedrive_folder_creation_status, "processing")
 
     credential = OrganizationOneDriveCredential.active_credential
 
     unless credential&.valid_credential?
       Rails.logger.warn "[OneDrive] No valid credential found, skipping folder creation for job #{job_id}"
-      job.update_column(:onedrive_folder_creation_status, 'failed')
+      job.update_column(:onedrive_folder_creation_status, "failed")
       return
     end
 
@@ -30,16 +30,16 @@ class CreateJobOnedriveFoldersJob < ApplicationJob
         Rails.logger.error error_msg
 
         # If folder not found, this is a critical configuration issue
-        if folder_validation[:error_type] == 'not_found'
-          job.update_column(:onedrive_folder_creation_status, 'folder_not_found')
+        if folder_validation[:error_type] == "not_found"
+          job.update_column(:onedrive_folder_creation_status, "folder_not_found")
           Rails.logger.error "[OneDrive] Root folder has been deleted or moved. Please reconfigure the root folder in Settings."
           return # Don't retry - this needs admin intervention
-        elsif folder_validation[:error_type] == 'not_configured'
-          job.update_column(:onedrive_folder_creation_status, 'not_configured')
+        elsif folder_validation[:error_type] == "not_configured"
+          job.update_column(:onedrive_folder_creation_status, "not_configured")
           Rails.logger.warn "[OneDrive] No root folder configured. Please configure in Settings."
           return # Don't retry - needs configuration
         else
-          job.update_column(:onedrive_folder_creation_status, 'failed')
+          job.update_column(:onedrive_folder_creation_status, "failed")
           raise StandardError, folder_validation[:error] # Retry for transient errors
         end
       end
@@ -49,7 +49,7 @@ class CreateJobOnedriveFoldersJob < ApplicationJob
 
       if existing_folder
         Rails.logger.info "[OneDrive] Folder already exists for job #{job_id}"
-        job.update_column(:onedrive_folder_creation_status, 'completed')
+        job.update_column(:onedrive_folder_creation_status, "completed")
         return
       end
 
@@ -67,23 +67,23 @@ class CreateJobOnedriveFoldersJob < ApplicationJob
       end
 
       Rails.logger.info "[OneDrive] Successfully created folders for job #{job_id}: #{job_folder['webUrl']}"
-      job.update_column(:onedrive_folder_creation_status, 'completed')
+      job.update_column(:onedrive_folder_creation_status, "completed")
 
       # Mark credential as synced
       credential.mark_synced!
 
     rescue MicrosoftGraphClient::AuthenticationError => e
       Rails.logger.error "[OneDrive] Authentication failed for job #{job_id}: #{e.message}"
-      job.update_column(:onedrive_folder_creation_status, 'failed')
+      job.update_column(:onedrive_folder_creation_status, "failed")
       raise # Re-raise to trigger retry
     rescue MicrosoftGraphClient::APIError => e
       Rails.logger.error "[OneDrive] API error for job #{job_id}: #{e.message}"
-      job.update_column(:onedrive_folder_creation_status, 'failed')
+      job.update_column(:onedrive_folder_creation_status, "failed")
       raise # Re-raise to trigger retry
     rescue StandardError => e
       Rails.logger.error "[OneDrive] Failed to create folders for job #{job_id}: #{e.message}"
       Rails.logger.error e.backtrace.join("\n")
-      job.update_column(:onedrive_folder_creation_status, 'failed')
+      job.update_column(:onedrive_folder_creation_status, "failed")
       raise # Re-raise to trigger retry
     end
   end

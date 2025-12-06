@@ -1,9 +1,9 @@
-require 'json'
+require "json"
 
 namespace :corporate do
   desc "Import shareholdings and parent relationships from JSON file"
   task import_shareholdings: :environment do
-    file_path = Rails.root.join('db', 'shareholdings_data.json')
+    file_path = Rails.root.join("db", "shareholdings_data.json")
 
     unless File.exist?(file_path)
       puts "ERROR: #{file_path} not found"
@@ -17,30 +17,30 @@ namespace :corporate do
 
     # Helper to find company by name
     find_company = ->(name) {
-      Company.where('LOWER(name) LIKE ?', "%#{name.downcase.gsub('pty ltd', '').strip}%").first
+      Company.where("LOWER(name) LIKE ?", "%#{name.downcase.gsub('pty ltd', '').strip}%").first
     }
 
     # Helper to find contact by name
     find_contact = ->(name) {
-      Contact.where('LOWER(full_name) LIKE ?', "%#{name.downcase}%").first
+      Contact.where("LOWER(full_name) LIKE ?", "%#{name.downcase}%").first
     }
 
     # Import shareholdings
     puts "\n--- Importing Shareholdings ---"
     shareholdings_count = 0
 
-    data['shareholdings'].each do |sh|
-      company = find_company.call(sh['company_name'])
+    data["shareholdings"].each do |sh|
+      company = find_company.call(sh["company_name"])
       unless company
         puts "  Company not found: #{sh['company_name']}"
         next
       end
 
-      shareholder = if sh['shareholder_type'] == 'Company'
-                      find_company.call(sh['shareholder_name'])
-                    else
-                      find_contact.call(sh['shareholder_name'])
-                    end
+      shareholder = if sh["shareholder_type"] == "Company"
+                      find_company.call(sh["shareholder_name"])
+      else
+                      find_contact.call(sh["shareholder_name"])
+      end
 
       unless shareholder
         puts "  Shareholder not found: #{sh['shareholder_name']} (#{sh['shareholder_type']})"
@@ -53,10 +53,10 @@ namespace :corporate do
         shareholder_type: shareholder.class.name
       )
       cs.update!(
-        number_of_shares: sh['number_of_shares'],
-        share_class: sh['share_class'],
-        beneficially_held: sh['beneficially_held'],
-        beneficial_owner: sh['beneficial_owner']
+        number_of_shares: sh["number_of_shares"],
+        share_class: sh["share_class"],
+        beneficially_held: sh["beneficially_held"],
+        beneficial_owner: sh["beneficial_owner"]
       )
       shareholdings_count += 1
       puts "  #{company.name} owned by #{sh['shareholder_name']} (#{sh['number_of_shares']} shares)"
@@ -66,12 +66,12 @@ namespace :corporate do
     puts "\n--- Setting Parent Relationships ---"
     parents_count = 0
 
-    data['parent_relationships'].each do |rel|
-      child = find_company.call(rel['child_name'])
-      parent = find_company.call(rel['parent_name'])
+    data["parent_relationships"].each do |rel|
+      child = find_company.call(rel["child_name"])
+      parent = find_company.call(rel["parent_name"])
 
       if child && parent
-        child.update!(parent_company_id: parent.id, hierarchy_level: rel['hierarchy_level'])
+        child.update!(parent_company_id: parent.id, hierarchy_level: rel["hierarchy_level"])
         parents_count += 1
         puts "  #{child.name} -> #{parent.name}"
       else

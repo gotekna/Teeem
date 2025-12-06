@@ -31,7 +31,7 @@ else
 
     # Update job status
     job.update!(
-      onedrive_folder_creation_status: 'completed',
+      onedrive_folder_creation_status: "completed",
       onedrive_folders_created_at: Time.current
     )
     puts "✓ Job updated with folder info"

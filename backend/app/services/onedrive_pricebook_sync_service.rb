@@ -25,7 +25,7 @@ class OnedrivePricebookSyncService
     return { success: false, error: "Could not access folder: #{@folder_path}" } unless folder
 
     # Get all files in the folder
-    files = list_folder_files(client, folder['id'])
+    files = list_folder_files(client, folder["id"])
     Rails.logger.info "Found #{files.count} files in folder '#{@folder_path}'"
 
     # Get all active pricebook items
@@ -45,29 +45,29 @@ class OnedrivePricebookSyncService
     # We'll only do fuzzy matching during actual sync if needed
     matches = []
     files.each do |file|
-      filename_without_ext = File.basename(file['name'], '.*')
+      filename_without_ext = File.basename(file["name"], ".*")
       normalized_filename = normalize_name(filename_without_ext)
 
       # Only try exact match (instant lookup in hash)
       matching_items = items_by_name[normalized_filename]
 
       similarity = matching_items && matching_items.any? ? 100 : 0
-      match_type = matching_items && matching_items.any? ? 'exact' : 'no_match'
+      match_type = matching_items && matching_items.any? ? "exact" : "no_match"
 
       # Determine file type
-      file_type = if is_qr_code_file?(file['name'])
-        'qr_code'
-      elsif is_spec_file?(file['name']) || is_spec_file_by_name?(file['name'])
-        'spec'
+      file_type = if is_qr_code_file?(file["name"])
+        "qr_code"
+      elsif is_spec_file?(file["name"]) || is_spec_file_by_name?(file["name"])
+        "spec"
       else
-        'photo'
+        "photo"
       end
 
       if matching_items && matching_items.any?
         matching_items.each do |item|
           matches << {
-            file_id: file['id'],
-            filename: file['name'],
+            file_id: file["id"],
+            filename: file["name"],
             file_type: file_type,
             item_id: item.id,
             item_code: item.item_code,
@@ -78,14 +78,14 @@ class OnedrivePricebookSyncService
         end
       else
         matches << {
-          file_id: file['id'],
-          filename: file['name'],
+          file_id: file["id"],
+          filename: file["name"],
           file_type: file_type,
           item_id: nil,
           item_code: nil,
           item_name: nil,
           similarity: 0,
-          match_type: 'no_match'
+          match_type: "no_match"
         }
       end
     end
@@ -115,15 +115,15 @@ class OnedrivePricebookSyncService
     return { success: false, error: "Could not access folder: #{@folder_path}" } unless folder
 
     # Get all files in the folder
-    files_response = list_folder_files(client, folder['id'])
-    files_by_id = files_response.index_by { |f| f['id'] }
+    files_response = list_folder_files(client, folder["id"])
+    files_by_id = files_response.index_by { |f| f["id"] }
 
     # Collect updates to perform in batch
     updates_to_perform = []
 
     accepted_matches.each do |match|
-      file_id = match['file_id']
-      item_id = match['item_id']
+      file_id = match["file_id"]
+      item_id = match["item_id"]
 
       next unless file_id && item_id
 
@@ -167,7 +167,7 @@ class OnedrivePricebookSyncService
     return { success: false, error: "Could not access folder: #{@folder_path}" } unless folder
 
     # Get all files in the folder
-    files = list_folder_files(client, folder['id'])
+    files = list_folder_files(client, folder["id"])
     Rails.logger.info "Found #{files.count} files in folder '#{@folder_path}'"
     Rails.logger.info "First 10 files: #{files.first(10).map { |f| f['name'] }.join(', ')}" if files.any?
 
@@ -208,17 +208,17 @@ class OnedrivePricebookSyncService
 
   def find_or_create_folder(client, folder_path)
     # Handle nested folder paths like "00 - TEEEM/Photos for Price Book"
-    path_parts = folder_path.split('/')
+    path_parts = folder_path.split("/")
     current_parent_path = "/me/drive/root"
     current_folder = nil
 
     path_parts.each do |folder_name|
       # Get children of current parent
       response = client.get("#{current_parent_path}/children")
-      folders = response['value'] || []
+      folders = response["value"] || []
 
       # Find folder in current level
-      folder = folders.find { |f| f['name'] == folder_name && f['folder'] }
+      folder = folders.find { |f| f["name"] == folder_name && f["folder"] }
 
       if folder
         current_folder = folder
@@ -228,7 +228,7 @@ class OnedrivePricebookSyncService
         response = client.post("#{current_parent_path}/children", {
           name: folder_name,
           folder: {},
-          '@microsoft.graph.conflictBehavior' => 'fail'
+          "@microsoft.graph.conflictBehavior" => "fail"
         })
         current_folder = response
         current_parent_path = "/me/drive/items/#{response['id']}"
@@ -250,23 +250,23 @@ class OnedrivePricebookSyncService
     # Follow pagination to get all files
     while next_link
       response = client.get(next_link)
-      files = response['value'] || []
+      files = response["value"] || []
       all_files.concat(files)
 
       # Check for next page
-      next_link = response['@odata.nextLink']
+      next_link = response["@odata.nextLink"]
       # If nextLink is a full URL, extract the path and remove /v1.0 prefix
-      if next_link && next_link.start_with?('https://')
+      if next_link && next_link.start_with?("https://")
         next_link = URI.parse(next_link).request_uri
         # Remove /v1.0 prefix since client.get will add it via GRAPH_API_BASE
-        next_link = next_link.sub(%r{^/v1\.0}, '')
+        next_link = next_link.sub(%r{^/v1\.0}, "")
       end
     end
 
     Rails.logger.info "Retrieved #{all_files.length} total files from OneDrive"
 
     # Filter for image and document files (specs)
-    all_files.select { |f| f['file'] && (is_image_file?(f['name']) || is_spec_file?(f['name'])) }
+    all_files.select { |f| f["file"] && (is_image_file?(f["name"]) || is_spec_file?(f["name"])) }
   end
 
   def is_image_file?(filename)
@@ -280,7 +280,7 @@ class OnedrivePricebookSyncService
   end
 
   def is_qr_code_file?(filename)
-    filename.downcase.include?('qr') || filename.downcase.include?('qrcode')
+    filename.downcase.include?("qr") || filename.downcase.include?("qrcode")
   end
 
   def is_spec_file_by_name?(filename)
@@ -307,7 +307,7 @@ class OnedrivePricebookSyncService
 
     # Match each file to an item
     files.each_with_index do |file, index|
-      filename_without_ext = File.basename(file['name'], '.*')
+      filename_without_ext = File.basename(file["name"], ".*")
       normalized_filename = normalize_name(filename_without_ext)
 
       if index < 5
@@ -330,7 +330,7 @@ class OnedrivePricebookSyncService
           matched_items.add(item.id)
         end
       else
-        @results[:unmatched_files] << file['name']
+        @results[:unmatched_files] << file["name"]
       end
     end
 
@@ -373,7 +373,7 @@ class OnedrivePricebookSyncService
   def find_fuzzy_matches(filename, items, items_by_name)
     # Use fuzzy matching with 80% similarity threshold
     # This handles typos, extra spaces, and minor differences
-    require 'fuzzy_match'
+    require "fuzzy_match"
 
     # Get all item names
     item_names = items_by_name.keys
@@ -398,7 +398,7 @@ class OnedrivePricebookSyncService
 
   def calculate_similarity(str1, str2)
     # Levenshtein distance based similarity
-    longer = [str1.length, str2.length].max
+    longer = [ str1.length, str2.length ].max
     return 1.0 if longer == 0
 
     distance = levenshtein_distance(str1, str2)
@@ -435,12 +435,12 @@ class OnedrivePricebookSyncService
     # Get direct download URL from the file metadata
     # Note: @microsoft.graph.downloadUrl expires after 1 hour, but it's embeddable
     # We store the file_id so we can refresh the URL later if needed
-    file_id = file['id']
-    filename = file['name']
+    file_id = file["id"]
+    filename = file["name"]
 
     # The children endpoint doesn't include @microsoft.graph.downloadUrl
     # We need to fetch it separately using the /content endpoint
-    download_url = file['@microsoft.graph.downloadUrl']
+    download_url = file["@microsoft.graph.downloadUrl"]
     if download_url.blank?
       # Get the download URL by fetching the file's content redirect
       download_url = "https://graph.microsoft.com/v1.0/me/drive/items/#{file_id}/content"
@@ -454,9 +454,9 @@ class OnedrivePricebookSyncService
       item_name: item.item_name,
       item_code: item.item_code,
       filename: filename,
-      image_source: 'onedrive',
+      image_source: "onedrive",
       image_fetched_at: Time.current,
-      image_fetch_status: 'success'
+      image_fetch_status: "success"
     }
 
     if is_qr_code_file?(filename)
@@ -493,9 +493,9 @@ class OnedrivePricebookSyncService
         begin
           # Merge all updates for this item
           merged_update = {
-            image_source: 'onedrive',
+            image_source: "onedrive",
             image_fetched_at: Time.current,
-            image_fetch_status: 'success'
+            image_fetch_status: "success"
           }
 
           item_updates.each do |update_data|
@@ -539,8 +539,8 @@ class OnedrivePricebookSyncService
     # Remove special characters, extra spaces, and convert to lowercase
     name.to_s
       .downcase
-      .gsub(/[^a-z0-9\s]/, ' ')  # Replace special chars with space
-      .gsub(/\s+/, ' ')           # Collapse multiple spaces
+      .gsub(/[^a-z0-9\s]/, " ")  # Replace special chars with space
+      .gsub(/\s+/, " ")           # Collapse multiple spaces
       .strip
   end
 end

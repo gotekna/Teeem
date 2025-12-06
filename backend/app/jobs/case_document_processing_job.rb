@@ -15,7 +15,7 @@ class CaseDocumentProcessingJob < ApplicationJob
 
     Rails.logger.info "[CaseDocumentProcessing] Starting for case #{case_id}: #{case_record.title}"
 
-    case_record.update!(document_processing_status: 'processing')
+    case_record.update!(document_processing_status: "processing")
 
     results = {
       organization: nil,
@@ -54,13 +54,13 @@ class CaseDocumentProcessingJob < ApplicationJob
       end
 
       results[:completed_at] = Time.current
-      case_record.update!(document_processing_status: 'completed')
+      case_record.update!(document_processing_status: "completed")
 
       Rails.logger.info "[CaseDocumentProcessing] Completed successfully for case #{case_id}"
 
     rescue => e
       results[:errors] << e.message
-      case_record.update!(document_processing_status: 'failed')
+      case_record.update!(document_processing_status: "failed")
 
       Rails.logger.error "[CaseDocumentProcessing] Failed for case #{case_id}: #{e.message}"
       Rails.logger.error e.backtrace.first(10).join("\n")

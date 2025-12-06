@@ -24,8 +24,8 @@ class AddXeroFieldsToBankAccountsAndCreateBankTransactions < ActiveRecord::Migra
       t.timestamps
 
       t.index :xero_transaction_id, unique: true
-      t.index [:company_id, :transaction_date]
-      t.index [:bank_account_id, :transaction_date]
+      t.index [ :company_id, :transaction_date ]
+      t.index [ :bank_account_id, :transaction_date ]
       t.index :status
     end
   end

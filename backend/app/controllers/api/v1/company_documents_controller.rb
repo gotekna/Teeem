@@ -1,8 +1,8 @@
 module Api
   module V1
     class CompanyDocumentsController < ApplicationController
-      skip_before_action :authorize_request, only: [:content]
-      before_action :set_document, only: [:show, :update, :destroy, :download, :content, :preview, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback, :upload_edited, :split, :restore]
+      skip_before_action :authorize_request, only: [ :content ]
+      before_action :set_document, only: [ :show, :update, :destroy, :download, :content, :preview, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback, :upload_edited, :split, :restore ]
 
       # GET /api/v1/company_documents
       def index
@@ -18,8 +18,8 @@ module Api
         @documents = @documents.by_asset(params[:asset_id]) if params[:asset_id].present?
 
         # Filter by with/without asset
-        @documents = @documents.with_asset if params[:with_asset] == 'true'
-        @documents = @documents.without_asset if params[:without_asset] == 'true'
+        @documents = @documents.with_asset if params[:with_asset] == "true"
+        @documents = @documents.without_asset if params[:without_asset] == "true"
 
         # Filter by type
         @documents = @documents.by_type(params[:document_type]) if params[:document_type].present?
@@ -43,11 +43,11 @@ module Api
           success: true,
           documents: @documents.as_json(
             include: {
-              company: { only: [:id, :name, :code] },
-              user: { only: [:id, :name, :email] },
-              asset: { only: [:id, :name, :description, :abbreviation], methods: [:display_name] }
+              company: { only: [ :id, :name, :code ] },
+              user: { only: [ :id, :name, :email ] },
+              asset: { only: [ :id, :name, :description, :abbreviation ], methods: [ :display_name ] }
             },
-            methods: [:formatted_document_type, :file_size_mb]
+            methods: [ :formatted_document_type, :file_size_mb ]
           )
         }
       end
@@ -58,11 +58,11 @@ module Api
           success: true,
           document: @document.as_json(
             include: {
-              company: { only: [:id, :name, :code] },
-              user: { only: [:id, :name, :email] },
-              asset: { only: [:id, :name, :description, :abbreviation], methods: [:display_name] }
+              company: { only: [ :id, :name, :code ] },
+              user: { only: [ :id, :name, :email ] },
+              asset: { only: [ :id, :name, :description, :abbreviation ], methods: [ :display_name ] }
             },
-            methods: [:formatted_document_type, :file_size_mb]
+            methods: [ :formatted_document_type, :file_size_mb ]
           )
         }
       end
@@ -83,8 +83,8 @@ module Api
         if @document.save
           render json: {
             success: true,
-            message: 'Document uploaded successfully',
-            document: @document.as_json(methods: [:formatted_document_type])
+            message: "Document uploaded successfully",
+            document: @document.as_json(methods: [ :formatted_document_type ])
           }, status: :created
         else
           render json: {
@@ -99,8 +99,8 @@ module Api
         if @document.update(document_params)
           render json: {
             success: true,
-            message: 'Document updated successfully',
-            document: @document.as_json(methods: [:formatted_document_type])
+            message: "Document updated successfully",
+            document: @document.as_json(methods: [ :formatted_document_type ])
           }
         else
           render json: {
@@ -115,7 +115,7 @@ module Api
         @document.destroy
         render json: {
           success: true,
-          message: 'Document deleted successfully'
+          message: "Document deleted successfully"
         }
       end
 
@@ -128,7 +128,7 @@ module Api
         else
           render json: {
             success: false,
-            error: 'No file available for download'
+            error: "No file available for download"
           }, status: :not_found
         end
       end
@@ -139,7 +139,7 @@ module Api
         unless @document.onedrive_file_id.present?
           return render json: {
             success: false,
-            error: 'No OneDrive file available'
+            error: "No OneDrive file available"
           }, status: :unprocessable_entity
         end
 
@@ -148,7 +148,7 @@ module Api
           unless credential
             return render json: {
               success: false,
-              error: 'OneDrive credentials not available in this environment'
+              error: "OneDrive credentials not available in this environment"
             }, status: :service_unavailable
           end
 
@@ -158,29 +158,29 @@ module Api
           # Determine content type from file extension
           content_type = case @document.file_name&.downcase
           when /\.pdf$/
-            'application/pdf'
+            "application/pdf"
           when /\.png$/
-            'image/png'
+            "image/png"
           when /\.jpe?g$/
-            'image/jpeg'
+            "image/jpeg"
           when /\.gif$/
-            'image/gif'
+            "image/gif"
           when /\.docx?$/
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           when /\.xlsx?$/
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           else
-            'application/octet-stream'
+            "application/octet-stream"
           end
 
           # Set CORS headers for frontend access
-          response.headers['Access-Control-Allow-Origin'] = request.headers['Origin'] || '*'
-          response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-          response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+          response.headers["Access-Control-Allow-Origin"] = request.headers["Origin"] || "*"
+          response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+          response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
 
           send_data file_content,
             type: content_type,
-            disposition: 'inline',
+            disposition: "inline",
             filename: @document.file_name
         rescue MicrosoftGraphClient::APIError => e
           render json: {
@@ -191,7 +191,7 @@ module Api
           Rails.logger.error "Document content fetch error: #{e.message}"
           render json: {
             success: false,
-            error: 'Failed to fetch document content'
+            error: "Failed to fetch document content"
           }, status: :internal_server_error
         end
       end
@@ -202,7 +202,7 @@ module Api
         unless @document.onedrive_file_id.present?
           return render json: {
             success: false,
-            error: 'No OneDrive file available for preview',
+            error: "No OneDrive file available for preview",
             fallback_url: @document.file_url
           }, status: :unprocessable_entity
         end
@@ -213,7 +213,7 @@ module Api
           unless credential
             return render json: {
               success: false,
-              error: 'OneDrive not configured',
+              error: "OneDrive not configured",
               fallback_url: @document.file_url
             }, status: :unprocessable_entity
           end
@@ -226,12 +226,12 @@ module Api
               success: true,
               preview_url: preview_url,
               file_name: @document.file_name,
-              file_type: @document.file_name&.split('.')&.last&.downcase
+              file_type: @document.file_name&.split(".")&.last&.downcase
             }
           else
             render json: {
               success: false,
-              error: 'Preview not available for this file type',
+              error: "Preview not available for this file type",
               fallback_url: @document.file_url
             }, status: :unprocessable_entity
           end
@@ -239,21 +239,21 @@ module Api
           Rails.logger.error "OneDrive auth error getting preview: #{e.message}"
           render json: {
             success: false,
-            error: 'OneDrive authentication error',
+            error: "OneDrive authentication error",
             fallback_url: @document.file_url
           }, status: :unauthorized
         rescue MicrosoftGraphClient::APIError => e
           Rails.logger.error "OneDrive API error getting preview: #{e.message}"
           render json: {
             success: false,
-            error: 'Failed to get preview from OneDrive',
+            error: "Failed to get preview from OneDrive",
             fallback_url: @document.file_url
           }, status: :unprocessable_entity
         rescue ActiveRecord::Encryption::Errors::Decryption => e
           Rails.logger.error "OneDrive credential decryption error: #{e.message}"
           render json: {
             success: false,
-            error: 'OneDrive credentials not available in this environment',
+            error: "OneDrive credentials not available in this environment",
             fallback_url: @document.file_url
           }, status: :service_unavailable
         end
@@ -266,18 +266,18 @@ module Api
           user_validated_at: Time.current,
           user_validated_by: current_user,
           validation_required: false,
-          ai_verification_status: 'verified'
+          ai_verification_status: "verified"
         )
 
         render json: {
           success: true,
-          message: 'Document validated successfully',
+          message: "Document validated successfully",
           document: @document.as_json(
             include: {
-              company: { only: [:id, :name, :code] },
-              user: { only: [:id, :name, :email] }
+              company: { only: [ :id, :name, :code ] },
+              user: { only: [ :id, :name, :email ] }
             },
-            methods: [:formatted_document_type, :file_size_mb]
+            methods: [ :formatted_document_type, :file_size_mb ]
           )
         }
       end
@@ -289,7 +289,7 @@ module Api
         unless @document.onedrive_file_id.present?
           return render json: {
             success: false,
-            error: 'No OneDrive file available for this document'
+            error: "No OneDrive file available for this document"
           }, status: :unprocessable_entity
         end
 
@@ -298,7 +298,7 @@ module Api
 
         if auto_apply_threshold && auto_apply_threshold > 0
           # Run synchronously for bulk operations
-          @document.update!(ai_verification_status: 'processing')
+          @document.update!(ai_verification_status: "processing")
           result = DocumentVerificationService.new(@document).verify!
 
           auto_applied = false
@@ -308,7 +308,7 @@ module Api
               title: @document.ai_suggested_name,
               folder: @document.ai_suggested_folder,
               document_type: @document.ai_suggested_type,
-              ai_verification_status: 'verified',
+              ai_verification_status: "verified",
               user_validated_at: Time.current,
               user_validated_by: current_user
             )
@@ -321,22 +321,22 @@ module Api
             auto_applied: auto_applied,
             document: @document.as_json(
               include: {
-                company: { only: [:id, :name, :code] },
-                user: { only: [:id, :name, :email] }
+                company: { only: [ :id, :name, :code ] },
+                user: { only: [ :id, :name, :email ] }
               },
-              methods: [:formatted_document_type, :file_size_mb]
+              methods: [ :formatted_document_type, :file_size_mb ]
             )
           }
         else
           # Async mode - queue background job (existing behavior)
-          @document.update!(ai_verification_status: 'processing')
+          @document.update!(ai_verification_status: "processing")
           DocumentVerificationJob.perform_later(@document.id)
 
           render json: {
             success: true,
-            message: 'AI verification started',
+            message: "AI verification started",
             document_id: @document.id,
-            status: 'processing'
+            status: "processing"
           }
         end
       end
@@ -347,14 +347,14 @@ module Api
         unless @document.ai_suggested_name.present?
           return render json: {
             success: false,
-            error: 'No AI suggestion available'
+            error: "No AI suggestion available"
           }, status: :unprocessable_entity
         end
 
         old_title = @document.title
         @document.update!(
           title: @document.ai_suggested_name,
-          ai_verification_status: 'verified',
+          ai_verification_status: "verified",
           user_validated_at: Time.current,
           user_validated_by: current_user
         )
@@ -364,10 +364,10 @@ module Api
           message: "Document renamed from '#{old_title}' to '#{@document.title}'",
           document: @document.as_json(
             include: {
-              company: { only: [:id, :name, :code] },
-              user: { only: [:id, :name, :email] }
+              company: { only: [ :id, :name, :code ] },
+              user: { only: [ :id, :name, :email ] }
             },
-            methods: [:formatted_document_type, :file_size_mb]
+            methods: [ :formatted_document_type, :file_size_mb ]
           )
         }
       end
@@ -412,7 +412,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Feedback recorded for AI learning',
+          message: "Feedback recorded for AI learning",
           feedback_id: feedback.id
         }
       rescue ActiveRecord::RecordInvalid => e
@@ -466,11 +466,11 @@ module Api
           # Determine action type
           action = if old_values[:company_id] != new_values[:company_id] || old_values[:folder] != new_values[:folder]
                      "moved"
-                   elsif old_values[:title] != new_values[:title]
+          elsif old_values[:title] != new_values[:title]
                      "renamed"
-                   else
+          else
                      "updated"
-                   end
+          end
 
           # Create activity log entry - use user-provided notes if available, otherwise use automated action summary
           DocumentActivity.log(
@@ -484,15 +484,15 @@ module Api
 
           render json: {
             success: true,
-            message: result[:message] || 'Document relocated successfully',
+            message: result[:message] || "Document relocated successfully",
             skipped: result[:skipped],
             actions: result[:actions],
             document: @document.as_json(
               include: {
-                company: { only: [:id, :name, :code] },
-                user: { only: [:id, :name, :email] }
+                company: { only: [ :id, :name, :code ] },
+                user: { only: [ :id, :name, :email ] }
               },
-              methods: [:formatted_document_type, :file_size_mb]
+              methods: [ :formatted_document_type, :file_size_mb ]
             )
           }
         else
@@ -511,11 +511,11 @@ module Api
       def upload_edited
         # Support both file upload and base64 data from PDF editor
         unless params[:file].present? || params[:file_data].present?
-          return render json: { success: false, error: 'No file or file_data provided' }, status: :bad_request
+          return render json: { success: false, error: "No file or file_data provided" }, status: :bad_request
         end
 
         new_filename = params[:file_name] || params[:filename] || @document.title
-        create_new = params[:create_new] == 'true' || params[:create_new] == true
+        create_new = params[:create_new] == "true" || params[:create_new] == true
 
         begin
           credential = OrganizationOneDriveCredential.active_credential
@@ -533,7 +533,7 @@ module Api
           if create_new
             # Create a new document in the same folder
             file_info = client.get_item(@document.onedrive_file_id)
-            parent_folder_id = file_info.dig('parentReference', 'id')
+            parent_folder_id = file_info.dig("parentReference", "id")
 
             result = client.upload_file_content(parent_folder_id, new_filename, content)
 
@@ -543,20 +543,20 @@ module Api
               title: new_filename,
               folder: @document.folder,
               document_type: params[:document_type] || @document.document_type,
-              source: 'edited',
+              source: "edited",
               onedrive_file_id: result[:id],
               file_size: content.bytesize,
               financial_years: @document.financial_years,
-              ai_verification_status: 'pending',
+              ai_verification_status: "pending",
               ai_analysis_notes: "Created from edited version of #{@document.title}"
             )
 
             render json: {
               success: true,
-              message: 'New document created successfully',
+              message: "New document created successfully",
               document: new_document.as_json(
-                include: { company: { only: [:id, :name, :code] } },
-                methods: [:formatted_document_type, :file_size_mb]
+                include: { company: { only: [ :id, :name, :code ] } },
+                methods: [ :formatted_document_type, :file_size_mb ]
               )
             }
           else
@@ -571,10 +571,10 @@ module Api
 
             render json: {
               success: true,
-              message: 'Document updated successfully',
+              message: "Document updated successfully",
               document: @document.reload.as_json(
-                include: { company: { only: [:id, :name, :code] } },
-                methods: [:formatted_document_type, :file_size_mb]
+                include: { company: { only: [ :id, :name, :code ] } },
+                methods: [ :formatted_document_type, :file_size_mb ]
               )
             }
           end
@@ -590,7 +590,7 @@ module Api
         splits = params[:splits]
 
         unless splits.present? && splits.is_a?(Array)
-          return render json: { success: false, error: 'splits array required' }, status: :bad_request
+          return render json: { success: false, error: "splits array required" }, status: :bad_request
         end
 
         service = DocumentSplitService.new(@document)
@@ -602,8 +602,8 @@ module Api
             message: "Document split into #{result[:documents].length} files",
             documents: result[:documents].map do |doc|
               doc.as_json(
-                include: { company: { only: [:id, :name, :code] } },
-                methods: [:formatted_document_type, :file_size_mb]
+                include: { company: { only: [ :id, :name, :code ] } },
+                methods: [ :formatted_document_type, :file_size_mb ]
               )
             end
           }
@@ -627,7 +627,7 @@ module Api
       def analyze_duplicates
         document_ids = params[:document_ids]
         unless document_ids.is_a?(Array) && document_ids.present?
-          return render json: { success: false, error: 'document_ids array required' }, status: :bad_request
+          return render json: { success: false, error: "document_ids array required" }, status: :bad_request
         end
 
         result = DocumentDuplicateService.analyze_duplicates(document_ids)
@@ -645,11 +645,11 @@ module Api
         document_ids = params[:document_ids]
 
         unless action.present?
-          return render json: { success: false, error: 'action_type required' }, status: :bad_request
+          return render json: { success: false, error: "action_type required" }, status: :bad_request
         end
 
         unless document_ids.is_a?(Array) && document_ids.present?
-          return render json: { success: false, error: 'document_ids array required' }, status: :bad_request
+          return render json: { success: false, error: "document_ids array required" }, status: :bad_request
         end
 
         options = {
@@ -675,7 +675,7 @@ module Api
       def auto_resolve_duplicates
         result = DocumentDuplicateService.auto_resolve_all(
           company_id: params[:company_id],
-          dry_run: params[:dry_run] == 'true' || params[:dry_run] == true
+          dry_run: params[:dry_run] == "true" || params[:dry_run] == true
         )
 
         render json: { success: true, **result }
@@ -704,7 +704,7 @@ module Api
       def permanently_delete
         document_ids = params[:document_ids]
         unless document_ids.is_a?(Array) && document_ids.present?
-          return render json: { success: false, error: 'document_ids array required' }, status: :bad_request
+          return render json: { success: false, error: "document_ids array required" }, status: :bad_request
         end
 
         result = DocumentDuplicateService.permanently_delete(document_ids)
@@ -714,7 +714,7 @@ module Api
       # GET /api/v1/company_documents/counts
       # Returns document counts per tab/category for a company
       def counts
-        return render json: { success: false, error: 'company_id required' }, status: :bad_request unless params[:company_id].present?
+        return render json: { success: false, error: "company_id required" }, status: :bad_request unless params[:company_id].present?
 
         base_documents = CompanyDocument.where(company_id: params[:company_id])
 
@@ -727,7 +727,7 @@ module Api
         end
 
         # Total count
-        counts['total'] = base_documents.count
+        counts["total"] = base_documents.count
 
         render json: { success: true, counts: counts }
       end
@@ -737,7 +737,7 @@ module Api
       def set_document
         @document = CompanyDocument.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Document not found' }, status: :not_found
+        render json: { success: false, error: "Document not found" }, status: :not_found
       end
 
       def document_params

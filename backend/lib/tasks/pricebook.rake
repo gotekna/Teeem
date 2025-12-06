@@ -22,7 +22,7 @@ namespace :pricebook do
 
     # Step 2: Import Suppliers
     puts "\nStep 2: Importing suppliers..."
-    suppliers_file = ENV['SUPPLIERS_CSV'] || Rails.root.join('tmp', 'suppliers.csv')
+    suppliers_file = ENV["SUPPLIERS_CSV"] || Rails.root.join("tmp", "suppliers.csv")
 
     unless File.exist?(suppliers_file)
       puts "  ⚠ Suppliers file not found at: #{suppliers_file}"
@@ -44,7 +44,7 @@ namespace :pricebook do
         response_rate: row[:response_rate]&.to_f || 0,
         avg_response_time: row[:avg_response_time]&.to_i,
         notes: row[:notes],
-        is_active: row[:is_active] == 'false' ? false : true
+        is_active: row[:is_active] == "false" ? false : true
       )
 
       # Map supplier name to ID for linking
@@ -56,7 +56,7 @@ namespace :pricebook do
 
     # Step 3: Import Price Book Items
     puts "\nStep 3: Importing price book items..."
-    items_file = ENV['ITEMS_CSV'] || Rails.root.join('tmp', 'pricebook_items.csv')
+    items_file = ENV["ITEMS_CSV"] || Rails.root.join("tmp", "pricebook_items.csv")
 
     unless File.exist?(items_file)
       puts "  ⚠ Items file not found at: #{items_file}"
@@ -78,13 +78,13 @@ namespace :pricebook do
         item_code: row[:item_code],
         item_name: row[:item_name],
         category: row[:category].present? && !row[:category].strip.empty? ? row[:category] : nil,
-        unit_of_measure: row[:unit_of_measure].present? ? row[:unit_of_measure] : 'Each',
+        unit_of_measure: row[:unit_of_measure].present? ? row[:unit_of_measure] : "Each",
         current_price: current_price,
         supplier_id: supplier_id,
         brand: row[:brand].present? && !row[:brand].strip.empty? ? row[:brand] : nil,
         notes: row[:notes].present? && !row[:notes].strip.empty? ? row[:notes] : nil,
-        is_active: row[:is_active] == 'false' ? false : true,
-        needs_pricing_review: row[:needs_pricing_review] == 'true' ? true : false,
+        is_active: row[:is_active] == "false" ? false : true,
+        needs_pricing_review: row[:needs_pricing_review] == "true" ? true : false,
         price_last_updated_at: row[:price_last_updated_at].present? ? Time.parse(row[:price_last_updated_at]) : nil
       )
 
@@ -97,7 +97,7 @@ namespace :pricebook do
 
     # Step 4: Import Price History
     puts "\nStep 4: Importing price history..."
-    history_file = ENV['HISTORY_CSV'] || Rails.root.join('tmp', 'price_history.csv')
+    history_file = ENV["HISTORY_CSV"] || Rails.root.join("tmp", "price_history.csv")
 
     unless File.exist?(history_file)
       puts "  ⚠ Price history file not found at: #{history_file}"
@@ -126,7 +126,7 @@ namespace :pricebook do
         pricebook_item_id: item_id,
         old_price: row[:old_price]&.to_f,
         new_price: row[:new_price]&.to_f,
-        change_reason: row[:change_reason] || 'import',
+        change_reason: row[:change_reason] || "import",
         supplier_id: supplier_id,
         quote_reference: row[:quote_reference],
         created_at: row[:created_at].present? ? Time.parse(row[:created_at]) : Time.current
@@ -149,14 +149,14 @@ namespace :pricebook do
 
   desc "Import EasyBuild CSV with categories"
   task import_easybuild: :environment do
-    require 'csv'
+    require "csv"
 
     puts "\n" + "="*60
     puts "EASYBUILD PRICE BOOK IMPORT WITH CATEGORIES"
     puts "="*60
 
     # Path to the CSV file
-    csv_file = ENV['CSV_FILE'] || Rails.root.join('..', 'easybuildapp development Price Books(in).csv')
+    csv_file = ENV["CSV_FILE"] || Rails.root.join("..", "easybuildapp development Price Books(in).csv")
 
     unless File.exist?(csv_file)
       puts "\n❌ ERROR: CSV file not found at: #{csv_file}"
@@ -184,21 +184,21 @@ namespace :pricebook do
     CSV.foreach(csv_file, headers: true) do |row|
       begin
         # Skip if no item code
-        item_code = row['code']&.strip
+        item_code = row["code"]&.strip
         if item_code.blank?
           stats[:skipped] += 1
           next
         end
 
         # Map CSV columns to model fields
-        item_name = row['description']&.strip
-        unit_of_measure = row['unit']&.strip || 'Each'
-        price = row['price']&.strip
+        item_name = row["description"]&.strip
+        unit_of_measure = row["unit"]&.strip || "Each"
+        price = row["price"]&.strip
         current_price = price.present? && !price.empty? ? price.to_f : nil
-        supplier_name = row['default_supplier']&.strip
-        category = row['category']&.strip
-        status = row['status']&.strip
-        is_active = status == 'Active'
+        supplier_name = row["default_supplier"]&.strip
+        category = row["category"]&.strip
+        status = row["status"]&.strip
+        is_active = status == "Active"
 
         # Track category if present
         stats[:categories] << category if category.present?
@@ -302,23 +302,23 @@ namespace :pricebook do
     puts "Generating CSV templates..."
 
     # Suppliers template
-    CSV.open(Rails.root.join('tmp', 'suppliers_template.csv'), 'w') do |csv|
+    CSV.open(Rails.root.join("tmp", "suppliers_template.csv"), "w") do |csv|
       csv << %w[name contact_person email phone address rating response_rate avg_response_time notes is_active]
-      csv << ['TL Supply', 'John Smith', 'john@tlsupply.com.au', '1300 123 456', '123 Trade St', 4, 85.5, 24, 'Reliable supplier', true]
+      csv << [ "TL Supply", "John Smith", "john@tlsupply.com.au", "1300 123 456", "123 Trade St", 4, 85.5, 24, "Reliable supplier", true ]
     end
     puts "  ✓ Created tmp/suppliers_template.csv"
 
     # Price book items template
-    CSV.open(Rails.root.join('tmp', 'pricebook_items_template.csv'), 'w') do |csv|
+    CSV.open(Rails.root.join("tmp", "pricebook_items_template.csv"), "w") do |csv|
       csv << %w[item_code item_name category unit_of_measure current_price supplier_name brand notes is_active needs_pricing_review price_last_updated_at]
-      csv << ['DPP', 'Wiring Double Power Point', 'Electrical', 'Each', 51.00, 'TL Supply', 'Clipsal', '', true, false, '2024-01-15']
+      csv << [ "DPP", "Wiring Double Power Point", "Electrical", "Each", 51.00, "TL Supply", "Clipsal", "", true, false, "2024-01-15" ]
     end
     puts "  ✓ Created tmp/pricebook_items_template.csv"
 
     # Price history template
-    CSV.open(Rails.root.join('tmp', 'price_history_template.csv'), 'w') do |csv|
+    CSV.open(Rails.root.join("tmp", "price_history_template.csv"), "w") do |csv|
       csv << %w[item_code old_price new_price change_reason supplier_name quote_reference created_at]
-      csv << ['DPP', 48.00, 51.00, 'price_increase', 'TL Supply', 'Q-2024-001', '2024-01-15']
+      csv << [ "DPP", 48.00, 51.00, "price_increase", "TL Supply", "Q-2024-001", "2024-01-15" ]
     end
     puts "  ✓ Created tmp/price_history_template.csv"
 

@@ -32,7 +32,7 @@ class ScheduleCascadeService
 
   def cascade
     # Only cascade if start_date or duration changed
-    return [@task] unless cascade_needed?
+    return [ @task ] unless cascade_needed?
 
     Rails.logger.info "🔄 CASCADE: Task #{@task.id} changed (#{@changed_attributes.join(', ')})"
 
@@ -98,7 +98,7 @@ class ScheduleCascadeService
     @template.schedule_template_rows.select do |row|
       next false if row.predecessor_ids.blank?
 
-      row.predecessor_ids.any? { |pred| (pred['id'] || pred[:id]).to_i == predecessor_id }
+      row.predecessor_ids.any? { |pred| (pred["id"] || pred[:id]).to_i == predecessor_id }
     end
   end
 
@@ -107,14 +107,14 @@ class ScheduleCascadeService
     # NOTE: predecessor_ids are 1-based (1, 2, 3...) while sequence_order is 0-based (0, 1, 2...)
     predecessor_id = predecessor_task.sequence_order + 1  # Convert 0-based to 1-based
     pred_entry = dependent_task.predecessor_ids.find do |pred|
-      (pred['id'] || pred[:id]).to_i == predecessor_id
+      (pred["id"] || pred[:id]).to_i == predecessor_id
     end
 
     return nil unless pred_entry
 
     # Extract dependency type and lag
-    dep_type = pred_entry['type'] || pred_entry[:type] || 'FS'
-    lag = (pred_entry['lag'] || pred_entry[:lag] || 0).to_i
+    dep_type = pred_entry["type"] || pred_entry[:type] || "FS"
+    lag = (pred_entry["lag"] || pred_entry[:lag] || 0).to_i
 
     # Calculate based on dependency type
     predecessor_start = predecessor_task.start_date
@@ -124,16 +124,16 @@ class ScheduleCascadeService
     predecessor_end = predecessor_start + (duration - 1)
 
     calculated_start = case dep_type
-    when 'FS' # Finish-to-Start (most common)
+    when "FS" # Finish-to-Start (most common)
       # Task finishes at end of predecessor_end day
       # Next task starts on predecessor_end (not +1, tasks can start same day one ends)
       predecessor_end + lag
-    when 'SS' # Start-to-Start
+    when "SS" # Start-to-Start
       predecessor_start + lag
-    when 'FF' # Finish-to-Finish
+    when "FF" # Finish-to-Finish
       dependent_end = predecessor_end + lag
       dependent_end - (dependent_task.duration || 1)
-    when 'SF' # Start-to-Finish (rare)
+    when "SF" # Start-to-Finish (rare)
       dependent_end = predecessor_start + lag
       dependent_end - (dependent_task.duration || 1)
     else
@@ -175,17 +175,17 @@ class ScheduleCascadeService
   def working_day?(date)
     # Check company settings for working days configuration
     working_days = @company_settings.working_days || {
-      'monday' => true,
-      'tuesday' => true,
-      'wednesday' => true,
-      'thursday' => true,
-      'friday' => true,
-      'saturday' => false,
-      'sunday' => false
+      "monday" => true,
+      "tuesday" => true,
+      "wednesday" => true,
+      "thursday" => true,
+      "friday" => true,
+      "saturday" => false,
+      "sunday" => false
     }
 
     # Get day name in lowercase (e.g., "monday", "tuesday")
-    day_name = date.strftime('%A').downcase
+    day_name = date.strftime("%A").downcase
 
     # Return whether this day is configured as a working day
     working_days[day_name] == true
@@ -194,14 +194,14 @@ class ScheduleCascadeService
   # Map timezone to region code for public holidays
   def timezone_to_region(timezone)
     case timezone
-    when 'Australia/Brisbane' then 'QLD'
-    when 'Australia/Sydney', 'Australia/Melbourne' then 'NSW'
-    when 'Australia/Adelaide' then 'SA'
-    when 'Australia/Perth' then 'WA'
-    when 'Australia/Hobart' then 'TAS'
-    when 'Australia/Darwin' then 'NT'
-    when 'Pacific/Auckland' then 'NZ'
-    else 'QLD' # Default to QLD
+    when "Australia/Brisbane" then "QLD"
+    when "Australia/Sydney", "Australia/Melbourne" then "NSW"
+    when "Australia/Adelaide" then "SA"
+    when "Australia/Perth" then "WA"
+    when "Australia/Hobart" then "TAS"
+    when "Australia/Darwin" then "NT"
+    when "Pacific/Auckland" then "NZ"
+    else "QLD" # Default to QLD
     end
   end
 
@@ -215,7 +215,7 @@ class ScheduleCascadeService
 
     holiday_dates = PublicHoliday
       .for_region(@region)
-      .where('EXTRACT(YEAR FROM date) IN (?)', year_range.to_a)
+      .where("EXTRACT(YEAR FROM date) IN (?)", year_range.to_a)
       .pluck(:date)
 
     Set.new(holiday_dates)

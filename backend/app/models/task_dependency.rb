@@ -1,6 +1,6 @@
 class TaskDependency < ApplicationRecord
-  belongs_to :successor_task, class_name: 'ProjectTask'
-  belongs_to :predecessor_task, class_name: 'ProjectTask'
+  belongs_to :successor_task, class_name: "ProjectTask"
+  belongs_to :predecessor_task, class_name: "ProjectTask"
 
   validates :dependency_type, inclusion: {
     in: %w[finish_to_start start_to_start finish_to_finish start_to_finish]
@@ -14,10 +14,10 @@ class TaskDependency < ApplicationRecord
 
   # Convenience aliases
   DEPENDENCY_TYPES = {
-    fs: 'finish_to_start',
-    ss: 'start_to_start',
-    ff: 'finish_to_finish',
-    sf: 'start_to_finish'
+    fs: "finish_to_start",
+    ss: "start_to_start",
+    ff: "finish_to_finish",
+    sf: "start_to_finish"
   }.freeze
 
   private
@@ -27,7 +27,7 @@ class TaskDependency < ApplicationRecord
     return if successor_task.id == predecessor_task.id # Caught by no_self_dependency
 
     if creates_circular_dependency?
-      errors.add(:base, 'Cannot create circular dependency')
+      errors.add(:base, "Cannot create circular dependency")
     end
   end
 
@@ -35,7 +35,7 @@ class TaskDependency < ApplicationRecord
     return unless successor_task && predecessor_task
 
     if successor_task.project_id != predecessor_task.project_id
-      errors.add(:base, 'Tasks must be in the same project')
+      errors.add(:base, "Tasks must be in the same project")
     end
   end
 
@@ -43,7 +43,7 @@ class TaskDependency < ApplicationRecord
     return unless successor_task_id && predecessor_task_id
 
     if successor_task_id == predecessor_task_id
-      errors.add(:base, 'Task cannot depend on itself')
+      errors.add(:base, "Task cannot depend on itself")
     end
   end
 
@@ -51,7 +51,7 @@ class TaskDependency < ApplicationRecord
     # Check if adding this dependency would create a cycle
     # This is a simplified check - full implementation would need graph traversal
     visited = Set.new
-    to_visit = [predecessor_task_id]
+    to_visit = [ predecessor_task_id ]
 
     while to_visit.any?
       current_id = to_visit.pop

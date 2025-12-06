@@ -69,7 +69,7 @@ class Api::V1::GrokController < ApplicationController
       title: params[:title],
       description: params[:description],
       conversation: params[:conversation] || [],
-      status: params[:status] || 'planning'
+      status: params[:status] || "planning"
     )
 
     if plan.persisted?

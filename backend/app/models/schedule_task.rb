@@ -61,11 +61,11 @@ class ScheduleTask < ApplicationRecord
   # Calculate progress percentage based on status
   def calculate_progress
     case status
-    when 'completed', 'Completed'
+    when "completed", "Completed"
       100
-    when 'in_progress', 'In Progress'
+    when "in_progress", "In Progress"
       50
-    when 'not_started', 'Not Started'
+    when "not_started", "Not Started"
       0
     else
       0
@@ -75,7 +75,7 @@ class ScheduleTask < ApplicationRecord
   # Suggest matching purchase orders based on title and supplier
   def suggested_purchase_orders(limit = 5)
     job.purchase_orders.where.not(id: purchase_order_id).where(
-      'LOWER(description) LIKE ? OR LOWER(ted_task) LIKE ?',
+      "LOWER(description) LIKE ? OR LOWER(ted_task) LIKE ?",
       "%#{title.downcase}%",
       "%#{title.downcase}%"
     ).limit(limit)

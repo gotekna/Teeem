@@ -510,7 +510,7 @@ export default function ContactDetailPage() {
         const response: any = await api.get("/api/v1/contacts", {
           params: { entity_type: "company" },
         });
-        const companies = response.data.contacts || [];
+        const companies = response.contacts || [];
         const companyOptions: Option[] = companies.map((c: any) => ({
           value: c.id.toString(),
           label: c.full_name || c.first_name || "Unknown Company",
@@ -546,7 +546,7 @@ export default function ContactDetailPage() {
         const response: any = await api.get("/api/v1/contacts", {
           params: { entity_type: "person" },
         });
-        const people = response.data.contacts || [];
+        const people = response.contacts || [];
         const peopleOptions: Option[] = people.map((p: any) => ({
           value: p.id.toString(),
           label: `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.full_name || "Unknown Person",
@@ -823,7 +823,7 @@ export default function ContactDetailPage() {
     try {
       // Create new relationships for added companies
       for (const companyId of addedIds) {
-        await api.post(`/contacts/${contact.id}/relationships`, {
+        await api.post(`/api/v1/contacts/${contact.id}/relationships`, {
           contact_relationship: {
             related_contact_id: parseInt(companyId),
             relationship_type: 'employee_of',
@@ -841,12 +841,12 @@ export default function ContactDetailPage() {
         if (relationship) {
           // Need to find the actual relationship ID, not the company ID
           // Let's fetch all relationships and find the one matching this company
-          const relationshipsResponse = await api.get(`/contacts/${contact.id}/relationships`) as any;
-          const rel = relationshipsResponse.data.relationships.outgoing.find(
+          const relationshipsResponse = await api.get(`/api/v1/contacts/${contact.id}/relationships`) as any;
+          const rel = relationshipsResponse.relationships.outgoing.find(
             (r: any) => r.related_contact_id.toString() === companyId && r.relationship_type === 'employee_of'
           );
           if (rel) {
-            await api.delete(`/contacts/${contact.id}/relationships/${rel.id}`);
+            await api.delete(`/api/v1/contacts/${contact.id}/relationships/${rel.id}`);
           }
         }
       }
@@ -876,7 +876,7 @@ export default function ContactDetailPage() {
     try {
       // Create relationships FROM person TO company for added employees
       for (const personId of addedIds) {
-        await api.post(`/contacts/${personId}/relationships`, {
+        await api.post(`/api/v1/contacts/${personId}/relationships`, {
           contact_relationship: {
             related_contact_id: contact.id,
             relationship_type: 'employee_of',
@@ -887,12 +887,12 @@ export default function ContactDetailPage() {
 
       // Delete relationships for removed employees
       for (const personId of removedIds) {
-        const relationshipsResponse = await api.get(`/contacts/${personId}/relationships`) as any;
-        const rel = relationshipsResponse.data.relationships.outgoing.find(
+        const relationshipsResponse = await api.get(`/api/v1/contacts/${personId}/relationships`) as any;
+        const rel = relationshipsResponse.relationships.outgoing.find(
           (r: any) => r.related_contact_id === contact.id && r.relationship_type === 'employee_of'
         );
         if (rel) {
-          await api.delete(`/contacts/${personId}/relationships/${rel.id}`);
+          await api.delete(`/api/v1/contacts/${personId}/relationships/${rel.id}`);
         }
       }
 

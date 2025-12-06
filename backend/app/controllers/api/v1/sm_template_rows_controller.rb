@@ -4,7 +4,7 @@ module Api
   module V1
     class SmTemplateRowsController < ApplicationController
       before_action :set_template
-      before_action :set_row, only: [:show, :update, :destroy, :move]
+      before_action :set_row, only: [ :show, :update, :destroy, :move ]
 
       # GET /api/v1/sm_templates/:sm_template_id/rows
       def index
@@ -70,7 +70,7 @@ module Api
         # Soft delete
         @row.update!(is_active: false, updated_by: current_user)
 
-        render json: { success: true, message: 'Row deleted' }
+        render json: { success: true, message: "Row deleted" }
       end
 
       # POST /api/v1/sm_templates/:sm_template_id/rows/:id/move
@@ -78,7 +78,7 @@ module Api
         new_position = params[:position].to_f
 
         if new_position <= 0
-          return render json: { success: false, error: 'Invalid position' }, status: :unprocessable_entity
+          return render json: { success: false, error: "Invalid position" }, status: :unprocessable_entity
         end
 
         @row.update!(sequence_order: new_position, updated_by: current_user)
@@ -161,7 +161,7 @@ module Api
           :spawn_photo_task, :spawn_scan_task, :pass_fail_enabled,
           :order_time_days, :call_time_days,
           :show_in_docs_tab, :color,
-          predecessor_ids: [:id, :type, :lag],
+          predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
           spawn_office_tasks: [],
           documentation_category_ids: [],
@@ -182,7 +182,7 @@ module Api
           :has_subtasks, :subtask_count,
           :spawn_photo_task, :spawn_scan_task, :pass_fail_enabled,
           :color,
-          predecessor_ids: [:id, :type, :lag],
+          predecessor_ids: [ :id, :type, :lag ],
           subtask_names: [],
           tags: []
         )

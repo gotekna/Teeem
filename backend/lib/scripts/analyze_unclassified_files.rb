@@ -31,7 +31,7 @@ unclassified_names.each do |name|
   puts ""
 
   # For PDFs, try to get metadata or first page text
-  if name.end_with?('.pdf')
+  if name.end_with?(".pdf")
     begin
       # Get file metadata from OneDrive
       metadata = client.get_file(file[:id])
@@ -46,25 +46,25 @@ unclassified_names.each do |name|
         puts "SUGGESTED CLASSIFICATION:"
 
         # Analyze filename patterns
-        if name.include?('Westridge') && !name.include?('Form')
+        if name.include?("Westridge") && !name.include?("Form")
           puts "  -> 04 Plans (Sales or Presentation plans based on 'Westridge' naming)"
           puts "  -> Type: SPLAN (Sales Plan)"
-        elsif name.include?('Referral Agency Response')
+        elsif name.include?("Referral Agency Response")
           puts "  -> 03 Certification/Council (Agency referral response)"
           puts "  -> Type: COUNCIL"
-        elsif name.include?('Minor Change')
+        elsif name.include?("Minor Change")
           puts "  -> 03 Certification/Council (Approval amendment)"
           puts "  -> Type: COUNCIL"
-        elsif name.include?('Form 1')
+        elsif name.include?("Form 1")
           puts "  -> 02 PreCon/Contracts (Form 1 - Building application)"
           puts "  -> Type: JCON (or new type: FORM1)"
         elsif name.match?(/^\d+\.\d+.*-en-AU/)
           puts "  -> 02 PreCon/Colour Selection (Product spec - Blanco sink)"
           puts "  -> Type: COLOR"
-        elsif name == 'Vanity.pdf'
+        elsif name == "Vanity.pdf"
           puts "  -> 02 PreCon/Colour Selection (Bathroom fixture spec)"
           puts "  -> Type: COLOR"
-        elsif name.include?('Install')
+        elsif name.include?("Install")
           puts "  -> 03 Certification (Installation certificate)"
           puts "  -> Type: CERT"
         end

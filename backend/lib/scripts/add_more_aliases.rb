@@ -19,31 +19,31 @@ puts "=== ADDING MORE ALIASES ==="
 
 updates = {
   # Plans - add more patterns
-  "SPLAN" => ["sales plan", "lot plan", "presentation plan", "westridge", "lot 83", "lot plan",
-              "lot_", "revised plan", "amended plan", "architectural plan"],
+  "SPLAN" => [ "sales plan", "lot plan", "presentation plan", "westridge", "lot 83", "lot plan",
+              "lot_", "revised plan", "amended plan", "architectural plan" ],
 
   # Contracts - add QBCC, Q-Leave patterns
-  "JCON" => ["job contract", "building contract", "qbcc contract", "qbcc_contract", "reiq contract",
+  "JCON" => [ "job contract", "building contract", "qbcc contract", "qbcc_contract", "reiq contract",
              "land contract", "form 1", "form1", "building application", "engagement", "agreement",
-             "qbcc", "q leave", "qleave", "q-leave", "notice of cover", "stage two"],
+             "qbcc", "q leave", "qleave", "q-leave", "notice of cover", "stage two" ],
 
   # Colour Selection - add more spec patterns
-  "COLOR" => ["colour selection", "color selection", "selections", "vanity", "sink", "tap", "mixer",
+  "COLOR" => [ "colour selection", "color selection", "selections", "vanity", "sink", "tap", "mixer",
               "faucet", "subline", "blanco", "specsheet", "spec sheet", "userguide", "user guide",
               "userinstall", "product spec", "fixture spec", "appliance spec", "haier", "bosch",
-              "specifications", "tekna_specifications", "cora spec", "cora"],
+              "specifications", "tekna_specifications", "cora spec", "cora" ],
 
   # Council - add Redland pattern
-  "COUNCIL" => ["council approval", "council permit", "referral agency", "minor change", "existing approval",
+  "COUNCIL" => [ "council approval", "council permit", "referral agency", "minor change", "existing approval",
                 "development approval", "concurrence", "car24", "decision notice", "driveway", "crossover",
-                "redland council", "redland city"],
+                "redland council", "redland city" ],
 
   # Plans - certified (for approved plans)
-  "CPLAN" => ["certified plan", "certification plan", "approved plan", "approved_revised", "revised architectural"],
+  "CPLAN" => [ "certified plan", "certification plan", "approved plan", "approved_revised", "revised architectural" ],
 
   # Engineering/DWG - add engineering patterns
-  "DWG" => ["autocad drawing", "cad drawing", "engineering drawing", "truss", "design",
-            "revised engineering", "structural", "engineering"],
+  "DWG" => [ "autocad drawing", "cad drawing", "engineering drawing", "truss", "design",
+            "revised engineering", "structural", "engineering" ]
 
   # Sales
   # Need a new document type for summary/general sales docs
@@ -71,8 +71,8 @@ sales_type.assign_attributes(
   naming_format: "{CompanyCode} {JobCode} Sales {Description}",
   scope: "job",
   category: "general",
-  aliases: ["sales", "summary", "brief", "proposal", "quote request"],
-  file_extensions: [".pdf", ".docx"],
+  aliases: [ "sales", "summary", "brief", "proposal", "quote request" ],
+  file_extensions: [ ".pdf", ".docx" ],
   active: true
 )
 if sales_type.new_record?
@@ -85,6 +85,6 @@ end
 
 puts ""
 puts "=== VERIFICATION ==="
-DocumentType.where(scope: ['job', 'both']).where.not(aliases: nil).order(:abbreviation).each do |dt|
+DocumentType.where(scope: [ "job", "both" ]).where.not(aliases: nil).order(:abbreviation).each do |dt|
   puts "#{dt.abbreviation}: #{dt.aliases.length} aliases"
 end

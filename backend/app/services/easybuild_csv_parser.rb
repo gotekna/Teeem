@@ -1,4 +1,4 @@
-require 'csv'
+require "csv"
 
 class EasybuildCsvParser
   class ParseError < StandardError; end
@@ -15,9 +15,9 @@ class EasybuildCsvParser
   def initialize(csv_file_path_or_content)
     @csv_content = if csv_file_path_or_content.is_a?(String) && File.exist?(csv_file_path_or_content)
                      File.read(csv_file_path_or_content)
-                   else
+    else
                      csv_file_path_or_content
-                   end
+    end
     @errors = []
     @warnings = []
   end
@@ -72,7 +72,7 @@ class EasybuildCsvParser
 
   def extract_job_name(rows)
     # Get job name from first row with non-empty construction field
-    job_name = rows.find { |row| row['construction'].present? }&.[]('construction')
+    job_name = rows.find { |row| row["construction"].present? }&.[]("construction")
 
     if job_name.blank?
       raise ParseError, "Could not extract job name from CSV. 'construction' column is empty."
@@ -87,20 +87,20 @@ class EasybuildCsvParser
 
     rows.each_with_index do |row, index|
       # Skip rows without PO number
-      next if row['purchase_order_number'].blank?
+      next if row["purchase_order_number"].blank?
 
       # Skip rows with empty total
-      next if row['total'].blank? || row['total'].to_f.zero?
+      next if row["total"].blank? || row["total"].to_f.zero?
 
       po_data = {
-        po_number: row['purchase_order_number']&.strip,
-        supplier_name: row['supplier']&.strip,
-        total: parse_money(row['total']),
-        subtotal: parse_money(row['sub_total']),
-        tax: parse_money(row['tax']),
-        description: row['ted_task']&.strip,
-        notes: row['sams_notes']&.strip,
-        status: parse_status(row['xero_complete']),
+        po_number: row["purchase_order_number"]&.strip,
+        supplier_name: row["supplier"]&.strip,
+        total: parse_money(row["total"]),
+        subtotal: parse_money(row["sub_total"]),
+        tax: parse_money(row["tax"]),
+        description: row["ted_task"]&.strip,
+        notes: row["sams_notes"]&.strip,
+        status: parse_status(row["xero_complete"]),
         row_number: index + 2 # +2 because: 1-indexed + 1 for header row
       }
 
@@ -126,17 +126,17 @@ class EasybuildCsvParser
 
   def parse_money(value)
     return nil if value.blank?
-    value.to_s.gsub(/[^\d.-]/, '').to_f.round(2)
+    value.to_s.gsub(/[^\d.-]/, "").to_f.round(2)
   end
 
   def parse_status(xero_complete)
     case xero_complete&.downcase
-    when 'true', '1', 'yes'
-      'Paid'
-    when 'false', '0', 'no'
-      'Pending'
+    when "true", "1", "yes"
+      "Paid"
+    when "false", "0", "no"
+      "Pending"
     else
-      'Pending'
+      "Pending"
     end
   end
 end

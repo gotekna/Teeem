@@ -6,14 +6,14 @@ class KudosEvent < ApplicationRecord
 
   # Enums
   enum :event_type, {
-    quote_submitted: 'quote_submitted',
-    quote_accepted: 'quote_accepted',
-    job_confirmed: 'job_confirmed',
-    arrived_on_time: 'arrived_on_time',
-    arrived_late: 'arrived_late',
-    completed_on_time: 'completed_on_time',
-    completed_late: 'completed_late',
-    quality_rating: 'quality_rating'
+    quote_submitted: "quote_submitted",
+    quote_accepted: "quote_accepted",
+    job_confirmed: "job_confirmed",
+    arrived_on_time: "arrived_on_time",
+    arrived_late: "arrived_late",
+    completed_on_time: "completed_on_time",
+    completed_late: "completed_late",
+    quality_rating: "quality_rating"
   }
 
   # Validations
@@ -25,8 +25,8 @@ class KudosEvent < ApplicationRecord
   after_create :update_subcontractor_kudos_score
 
   # Scopes
-  scope :positive, -> { where('points_awarded > 0') }
-  scope :negative, -> { where('points_awarded < 0') }
+  scope :positive, -> { where("points_awarded > 0") }
+  scope :negative, -> { where("points_awarded < 0") }
   scope :recent, -> { order(created_at: :desc) }
   scope :for_account, ->(account_id) { where(subcontractor_account_id: account_id) }
   scope :by_type, ->(type) { where(event_type: type) }
@@ -44,7 +44,7 @@ class KudosEvent < ApplicationRecord
     create!(
       subcontractor_account: purchase_order.contact.subcontractor_account,
       purchase_order: purchase_order,
-      event_type: is_on_time ? 'arrived_on_time' : 'arrived_late',
+      event_type: is_on_time ? "arrived_on_time" : "arrived_late",
       expected_time: expected,
       actual_time: actual_time,
       points_awarded: points
@@ -63,7 +63,7 @@ class KudosEvent < ApplicationRecord
     create!(
       subcontractor_account: purchase_order.contact.subcontractor_account,
       purchase_order: purchase_order,
-      event_type: is_on_time ? 'completed_on_time' : 'completed_late',
+      event_type: is_on_time ? "completed_on_time" : "completed_late",
       expected_time: expected,
       actual_time: actual_time,
       points_awarded: points

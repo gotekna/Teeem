@@ -1,7 +1,7 @@
 class DropUnusedExperimentalTables < ActiveRecord::Migration[8.0]
   def up
     # Delete orphaned records from the tables table where the actual DB tables no longer exist
-    orphaned_table_ids = [2, 34, 36, 102, 103, 107, 108, 133, 134, 135, 136, 138, 167, 168, 169, 172]
+    orphaned_table_ids = [ 2, 34, 36, 102, 103, 107, 108, 133, 134, 135, 136, 138, 167, 168, 169, 172 ]
 
     orphaned_table_ids.each do |table_id|
       table_record = Table.find_by(id: table_id)

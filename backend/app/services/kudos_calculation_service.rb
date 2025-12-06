@@ -45,7 +45,7 @@ class KudosCalculationService
     end
 
     # Normalize to 0-1000 scale
-    normalized_score = [[weighted_score, 0].max, MAX_KUDOS_SCORE].min
+    normalized_score = [ [ weighted_score, 0 ].max, MAX_KUDOS_SCORE ].min
     normalized_score.round(2)
   end
 
@@ -121,7 +121,7 @@ class KudosCalculationService
       {
         total_events: type_events.count,
         weighted_points: weighted_points.round(2),
-        average_points: (weighted_points / [type_events.count, 1].max).round(2),
+        average_points: (weighted_points / [ type_events.count, 1 ].max).round(2),
         recent_events: type_events.first(5).map { |e| event_summary(e) }
       }
     end
@@ -140,24 +140,24 @@ class KudosCalculationService
   # Get tier information for a score
   def self.tier_info(score)
     tier = case score
-           when 0...100 then 'bronze'
-           when 100...300 then 'silver'
-           when 300...600 then 'gold'
-           when 600...900 then 'platinum'
-           else 'diamond'
-           end
+    when 0...100 then "bronze"
+    when 100...300 then "silver"
+    when 300...600 then "gold"
+    when 600...900 then "platinum"
+    else "diamond"
+    end
 
     tier_ranges = {
-      'bronze' => { min: 0, max: 100, color: '#CD7F32' },
-      'silver' => { min: 100, max: 300, color: '#C0C0C0' },
-      'gold' => { min: 300, max: 600, color: '#FFD700' },
-      'platinum' => { min: 600, max: 900, color: '#E5E4E2' },
-      'diamond' => { min: 900, max: 1000, color: '#B9F2FF' }
+      "bronze" => { min: 0, max: 100, color: "#CD7F32" },
+      "silver" => { min: 100, max: 300, color: "#C0C0C0" },
+      "gold" => { min: 300, max: 600, color: "#FFD700" },
+      "platinum" => { min: 600, max: 900, color: "#E5E4E2" },
+      "diamond" => { min: 900, max: 1000, color: "#B9F2FF" }
     }
 
     range = tier_ranges[tier]
     progress = ((score - range[:min]).to_f / (range[:max] - range[:min]) * 100).round(1)
-    progress = [progress, 100].min # Cap at 100%
+    progress = [ progress, 100 ].min # Cap at 100%
 
     {
       tier: tier,
@@ -175,7 +175,7 @@ class KudosCalculationService
   # Get leaderboard data
   def self.leaderboard(limit: 100)
     SubcontractorAccount.where(active: true)
-                        .where('kudos_score > 0')
+                        .where("kudos_score > 0")
                         .order(kudos_score: :desc)
                         .limit(limit)
                         .map.with_index(1) do |account, rank|
@@ -194,7 +194,7 @@ class KudosCalculationService
   # Get rank for a specific subcontractor
   def self.get_rank(subcontractor_account)
     SubcontractorAccount.where(active: true)
-                        .where('kudos_score > ?', subcontractor_account.kudos_score)
+                        .where("kudos_score > ?", subcontractor_account.kudos_score)
                         .count + 1
   end
 
@@ -203,7 +203,7 @@ class KudosCalculationService
     start_date = months.months.ago.beginning_of_month
 
     events_by_month = subcontractor_account.kudos_events
-                                           .where('created_at >= ?', start_date)
+                                           .where("created_at >= ?", start_date)
                                            .group_by { |e| e.created_at.beginning_of_month }
 
     trend_data = []
@@ -214,7 +214,7 @@ class KudosCalculationService
       total_points = month_events.sum(&:points_awarded)
 
       trend_data << {
-        month: current_date.strftime('%B %Y'),
+        month: current_date.strftime("%B %Y"),
         total_events: month_events.count,
         total_points: total_points,
         average_points_per_event: month_events.any? ? (total_points.to_f / month_events.count).round(2) : 0,
@@ -306,48 +306,48 @@ class KudosCalculationService
   end
 
   def self.recent_trend(events)
-    return 'insufficient_data' if events.count < 10
+    return "insufficient_data" if events.count < 10
 
     recent_events = events.first(10)
     older_events = events.offset(10).limit(10)
 
-    return 'insufficient_data' if older_events.empty?
+    return "insufficient_data" if older_events.empty?
 
     recent_avg = recent_events.sum(&:points_awarded).to_f / recent_events.count
     older_avg = older_events.sum(&:points_awarded).to_f / older_events.count
 
     if recent_avg > older_avg * 1.1
-      'improving'
+      "improving"
     elsif recent_avg < older_avg * 0.9
-      'declining'
+      "declining"
     else
-      'stable'
+      "stable"
     end
   end
 
   def self.strength_description(event_type, avg_points)
     case event_type
-    when 'quote_response'
-      'Consistently provides fast quote responses'
-    when 'arrival'
-      'Excellent punctuality for job arrivals'
-    when 'completion'
-      'Consistently completes jobs on time or early'
+    when "quote_response"
+      "Consistently provides fast quote responses"
+    when "arrival"
+      "Excellent punctuality for job arrivals"
+    when "completion"
+      "Consistently completes jobs on time or early"
     else
-      'Strong performance in this area'
+      "Strong performance in this area"
     end
   end
 
   def self.improvement_description(event_type, avg_points)
     case event_type
-    when 'quote_response'
-      'Consider responding to quote requests more quickly'
-    when 'arrival'
-      'Focus on arriving on time for scheduled jobs'
-    when 'completion'
-      'Work on completing jobs by the expected date'
+    when "quote_response"
+      "Consider responding to quote requests more quickly"
+    when "arrival"
+      "Focus on arriving on time for scheduled jobs"
+    when "completion"
+      "Work on completing jobs by the expected date"
     else
-      'Room for improvement in this area'
+      "Room for improvement in this area"
     end
   end
 end

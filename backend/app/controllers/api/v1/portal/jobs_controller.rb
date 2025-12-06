@@ -18,9 +18,9 @@ module Api
 
           # Categorize jobs
           data = {
-            upcoming: purchase_orders.where(status: 'approved').where('arrived_at IS NULL').map { |po| job_json(po) },
-            in_progress: purchase_orders.where(status: 'approved').where('arrived_at IS NOT NULL AND completed_at IS NULL').map { |po| job_json(po) },
-            completed: purchase_orders.where(status: 'approved').where('completed_at IS NOT NULL').map { |po| job_json(po) },
+            upcoming: purchase_orders.where(status: "approved").where("arrived_at IS NULL").map { |po| job_json(po) },
+            in_progress: purchase_orders.where(status: "approved").where("arrived_at IS NOT NULL AND completed_at IS NULL").map { |po| job_json(po) },
+            completed: purchase_orders.where(status: "approved").where("completed_at IS NOT NULL").map { |po| job_json(po) },
             all_jobs: purchase_orders.map { |po| job_json(po) }
           }
 
@@ -54,7 +54,7 @@ module Api
           purchase_order = current_contact.purchase_orders.find(params[:id])
 
           if purchase_order.arrived_at.present?
-            render json: { success: false, error: 'Arrival already recorded' }, status: :unprocessable_entity
+            render json: { success: false, error: "Arrival already recorded" }, status: :unprocessable_entity
             return
           end
 
@@ -63,14 +63,14 @@ module Api
           if purchase_order.mark_arrived!(arrival_time)
             render json: {
               success: true,
-              message: 'Arrival recorded successfully',
+              message: "Arrival recorded successfully",
               data: job_json(purchase_order),
               kudos_awarded: calculate_arrival_kudos(purchase_order)
             }
           else
             render json: {
               success: false,
-              error: 'Failed to record arrival',
+              error: "Failed to record arrival",
               errors: purchase_order.errors.full_messages
             }, status: :unprocessable_entity
           end
@@ -82,12 +82,12 @@ module Api
           purchase_order = current_contact.purchase_orders.find(params[:id])
 
           if purchase_order.completed_at.present?
-            render json: { success: false, error: 'Completion already recorded' }, status: :unprocessable_entity
+            render json: { success: false, error: "Completion already recorded" }, status: :unprocessable_entity
             return
           end
 
           unless purchase_order.arrived_at.present?
-            render json: { success: false, error: 'Cannot mark complete before arrival' }, status: :unprocessable_entity
+            render json: { success: false, error: "Cannot mark complete before arrival" }, status: :unprocessable_entity
             return
           end
 
@@ -96,14 +96,14 @@ module Api
           if purchase_order.mark_completed!(completion_time)
             render json: {
               success: true,
-              message: 'Job marked as complete',
+              message: "Job marked as complete",
               data: job_json(purchase_order),
               kudos_awarded: calculate_completion_kudos(purchase_order)
             }
           else
             render json: {
               success: false,
-              error: 'Failed to mark complete',
+              error: "Failed to mark complete",
               errors: purchase_order.errors.full_messages
             }, status: :unprocessable_entity
           end
@@ -119,10 +119,10 @@ module Api
 
           render json: {
             success: true,
-            message: 'Photo upload endpoint (to be implemented with file storage)',
+            message: "Photo upload endpoint (to be implemented with file storage)",
             data: {
               job_id: purchase_order.id,
-              note: 'File upload implementation pending'
+              note: "File upload implementation pending"
             }
           }
         end
@@ -137,25 +137,25 @@ module Api
             reported_by: current_portal_user.display_name,
             issue_type: params[:issue_type],
             description: params[:description],
-            severity: params[:severity] || 'medium'
+            severity: params[:severity] || "medium"
           }
 
           # Store in metadata for now (could be expanded to separate issues table)
           metadata = purchase_order.metadata || {}
-          metadata['issues'] ||= []
-          metadata['issues'] << issue_details
+          metadata["issues"] ||= []
+          metadata["issues"] << issue_details
 
           if purchase_order.update(metadata: metadata)
             # TODO: Send notification to builder
             render json: {
               success: true,
-              message: 'Issue reported successfully',
+              message: "Issue reported successfully",
               data: issue_details
             }
           else
             render json: {
               success: false,
-              error: 'Failed to report issue',
+              error: "Failed to report issue",
               errors: purchase_order.errors.full_messages
             }, status: :unprocessable_entity
           end
@@ -182,7 +182,7 @@ module Api
               postcode: purchase_order.construction.postcode
             },
             builder: {
-              name: purchase_order.construction.business_name || 'Builder'
+              name: purchase_order.construction.business_name || "Builder"
             },
             is_arrived: purchase_order.arrived_at.present?,
             is_completed: purchase_order.completed_at.present?,
@@ -216,19 +216,19 @@ module Api
 
         def invoice_status_for_po(purchase_order)
           invoices = purchase_order.subcontractor_invoices
-          return 'not_invoiced' if invoices.empty?
-          return 'paid' if invoices.any?(&:paid?)
-          return 'synced' if invoices.any?(&:synced?)
-          'pending'
+          return "not_invoiced" if invoices.empty?
+          return "paid" if invoices.any?(&:paid?)
+          return "synced" if invoices.any?(&:synced?)
+          "pending"
         end
 
         def calculate_arrival_kudos(purchase_order)
-          event = purchase_order.kudos_events.where(event_type: 'arrival').last
+          event = purchase_order.kudos_events.where(event_type: "arrival").last
           event&.points_awarded || 0
         end
 
         def calculate_completion_kudos(purchase_order)
-          event = purchase_order.kudos_events.where(event_type: 'completion').last
+          event = purchase_order.kudos_events.where(event_type: "completion").last
           event&.points_awarded || 0
         end
       end

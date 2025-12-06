@@ -9,7 +9,7 @@ module HealthChecks
   #
   class ConsolidationCheck < BaseCheck
     def self.check_type
-      'consolidation'
+      "consolidation"
     end
 
     # Intercompany balance mismatches
@@ -17,12 +17,12 @@ module HealthChecks
       mismatches = find_intercompany_mismatches
 
       build_result(
-        name: 'Intercompany Balance Mismatches',
-        description: 'Intercompany balances that do not match between related entities.',
+        name: "Intercompany Balance Mismatches",
+        description: "Intercompany balances that do not match between related entities.",
         severity: :critical,
         items: mismatches,
-        icon: 'arrows-right-left',
-        action_path: '/corporate/cg-new'
+        icon: "arrows-right-left",
+        action_path: "/corporate/cg-new"
       )
     end
 

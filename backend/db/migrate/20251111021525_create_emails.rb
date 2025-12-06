@@ -33,7 +33,7 @@ class CreateEmails < ActiveRecord::Migration[8.0]
 
     add_index :emails, :message_id, unique: true
     add_index :emails, :from_email
-    add_index :emails, [:construction_id, :received_at]
+    add_index :emails, [ :construction_id, :received_at ]
     add_index :emails, :received_at
   end
 end

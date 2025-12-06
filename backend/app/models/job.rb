@@ -1,6 +1,6 @@
 class Job < ApplicationRecord
   # Explicitly set table name since it was renamed from 'constructions' to 'jobs'
-  self.table_name = 'jobs'
+  self.table_name = "jobs"
 
   # Associations
   has_many :purchase_orders, dependent: :destroy
@@ -34,11 +34,11 @@ class Job < ApplicationRecord
 
   # Enums
   enum :onedrive_folder_creation_status, {
-    not_requested: 'not_requested',
-    pending: 'pending',
-    processing: 'processing',
-    completed: 'completed',
-    failed: 'failed'
+    not_requested: "not_requested",
+    pending: "pending",
+    processing: "processing",
+    completed: "completed",
+    failed: "failed"
   }, prefix: :folders, default: :not_requested
 
   # Validations
@@ -50,7 +50,7 @@ class Job < ApplicationRecord
 
   # Check if job is in Enquiry status (relaxed validations for leads/proposals)
   def enquiry_status?
-    job_status&.name == 'Enquiry'
+    job_status&.name == "Enquiry"
   end
 
   # Callbacks
@@ -61,7 +61,7 @@ class Job < ApplicationRecord
   after_update :log_status_and_stage_changes
 
   # Scopes
-  scope :active, -> { joins(:job_status).where(job_statuses: { name: 'Active Job' }) }
+  scope :active, -> { joins(:job_status).where(job_statuses: { name: "Active Job" }) }
 
   # Archival scopes (Sprint 8: Scale Preparation)
   scope :archived, -> { where.not(archived_at: nil) }
@@ -69,8 +69,8 @@ class Job < ApplicationRecord
   scope :archivable, -> {
     # Jobs that are completed/cancelled and haven't been modified in 90+ days
     joins(:job_status)
-      .where(job_status: { name: ['Completed', 'Cancelled', 'Archived'] })
-      .where('jobs.updated_at < ?', 90.days.ago)
+      .where(job_status: { name: [ "Completed", "Cancelled", "Archived" ] })
+      .where("jobs.updated_at < ?", 90.days.ago)
       .where(archived_at: nil)
   }
 
@@ -80,7 +80,7 @@ class Job < ApplicationRecord
       name: name || "#{title} - Master Schedule",
       project_code: "PROJ-#{id}",
       project_manager: project_manager,
-      status: 'planning',
+      status: "planning",
       start_date: CompanySetting.today
     )
   end
@@ -131,14 +131,14 @@ class Job < ApplicationRecord
 
   # Check if OneDrive folders have not been requested yet
   def folders_not_requested?
-    onedrive_folder_creation_status == 'not_requested'
+    onedrive_folder_creation_status == "not_requested"
   end
 
   # Trigger OneDrive folder creation if not already created
   def create_folders_if_needed!(template_id = nil)
     return unless folders_not_requested?
 
-    update!(onedrive_folder_creation_status: 'pending')
+    update!(onedrive_folder_creation_status: "pending")
     CreateJobFoldersJob.perform_later(id, template_id)
   end
 
@@ -149,7 +149,7 @@ class Job < ApplicationRecord
 
   # Get client contact (from invoices)
   def client
-    job_contacts.find_by(role: 'client')&.contact
+    job_contacts.find_by(role: "client")&.contact
   end
 
   # Link client from invoice contacts
@@ -211,7 +211,7 @@ class Job < ApplicationRecord
     return false if archived?
 
     # Must be in a terminal status
-    return false unless job_status&.name.in?(['Completed', 'Cancelled', 'Archived'])
+    return false unless job_status&.name.in?([ "Completed", "Cancelled", "Archived" ])
 
     # Must have no recent activity (90 days)
     updated_at < 90.days.ago
@@ -263,7 +263,7 @@ class Job < ApplicationRecord
 
     # Queue the folder creation job (runs in background)
     CreateJobOnedriveFoldersJob.perform_later(id)
-    update_column(:onedrive_folder_creation_status, 'pending')
+    update_column(:onedrive_folder_creation_status, "pending")
   rescue StandardError => e
     Rails.logger.error "Failed to queue OneDrive folder creation for job #{id}: #{e.message}"
   end

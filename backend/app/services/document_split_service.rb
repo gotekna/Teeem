@@ -1,4 +1,4 @@
-require 'hexapdf'
+require "hexapdf"
 
 class DocumentSplitService
   class SplitError < StandardError; end
@@ -45,7 +45,7 @@ class DocumentSplitService
 
     # Mark original document as split (or delete it)
     @document.update!(
-      ai_verification_status: 'split',
+      ai_verification_status: "split",
       ai_analysis_notes: "Split into #{created_documents.length} documents: #{created_documents.map(&:title).join(', ')}"
     )
 
@@ -101,10 +101,10 @@ class DocumentSplitService
     # Parse page range string like "1-2" or "3" or "1,3,5"
     pages = []
 
-    range_string.to_s.split(',').each do |part|
+    range_string.to_s.split(",").each do |part|
       part = part.strip
-      if part.include?('-')
-        start_page, end_page = part.split('-').map(&:to_i)
+      if part.include?("-")
+        start_page, end_page = part.split("-").map(&:to_i)
         pages.concat((start_page..end_page).to_a)
       else
         pages << part.to_i
@@ -153,7 +153,7 @@ class DocumentSplitService
 
     # Get parent folder from original file
     file_info = client.get_item(@document.onedrive_file_id)
-    file_info.dig('parentReference', 'id')
+    file_info.dig("parentReference", "id")
   end
 
   def create_document_record(split_config, onedrive_file_id, file_size)
@@ -162,12 +162,12 @@ class DocumentSplitService
       title: split_config[:title],
       folder: split_config[:folder] || @document.folder,
       document_type: split_config[:document_type],
-      source: 'split',
+      source: "split",
       onedrive_file_id: onedrive_file_id,
       file_size: file_size,
       financial_years: split_config[:financial_years] || @document.financial_years,
       ref_date: split_config[:ref_date],
-      ai_verification_status: 'verified', # Auto-verified since user defined the split
+      ai_verification_status: "verified", # Auto-verified since user defined the split
       ai_analysis_notes: "Split from #{@document.title}"
     )
   end

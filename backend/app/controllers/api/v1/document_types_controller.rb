@@ -1,7 +1,7 @@
 module Api
   module V1
     class DocumentTypesController < ApplicationController
-      before_action :set_document_type, only: [:show, :update, :destroy]
+      before_action :set_document_type, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/document_types
       def index
@@ -23,10 +23,10 @@ module Api
         end
 
         # Filter by active status
-        @document_types = @document_types.active unless params[:include_inactive] == 'true'
+        @document_types = @document_types.active unless params[:include_inactive] == "true"
 
         # Optionally group by folder
-        if params[:grouped] == 'true'
+        if params[:grouped] == "true"
           render json: {
             success: true,
             data: DocumentType.grouped_by_folder.transform_values { |types|
@@ -96,7 +96,7 @@ module Api
         if @document_type.company_documents.any?
           return render json: {
             success: false,
-            errors: ['Cannot delete document type with existing documents']
+            errors: [ "Cannot delete document type with existing documents" ]
           }, status: :unprocessable_entity
         end
 

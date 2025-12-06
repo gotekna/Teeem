@@ -1,30 +1,30 @@
 class CorporateOneDriveService
   # Standard folder structure for corporate documents
   FOLDER_STRUCTURE = {
-    'Loans and Security' => ['Loan Agreement', 'Security Deed', 'PPSR', 'Return of Gift Deed'],
-    'Company Setup' => [],
-    'Constitution' => [],
-    'Register of Members' => [],
-    'Structure' => [],
-    'Assets' => [],
-    'Minutes' => [],
-    'BAS' => [],
-    'Trust Deed' => [],
-    'General' => [
-      'Solvency ASIC',
-      'ATO Tax Return',
-      'Dividends',
-      'EOY ATO',
-      'ASIC Docs',
-      'ATO Docs',
-      'ASIC Key',
-      'Corporate Key',
-      'Officers',
-      'Bank Statements',
-      'Distribution',
-      'EOY ASIC',
-      'Registered Office',
-      'Tax Consolidation'
+    "Loans and Security" => [ "Loan Agreement", "Security Deed", "PPSR", "Return of Gift Deed" ],
+    "Company Setup" => [],
+    "Constitution" => [],
+    "Register of Members" => [],
+    "Structure" => [],
+    "Assets" => [],
+    "Minutes" => [],
+    "BAS" => [],
+    "Trust Deed" => [],
+    "General" => [
+      "Solvency ASIC",
+      "ATO Tax Return",
+      "Dividends",
+      "EOY ATO",
+      "ASIC Docs",
+      "ATO Docs",
+      "ASIC Key",
+      "Corporate Key",
+      "Officers",
+      "Bank Statements",
+      "Distribution",
+      "EOY ASIC",
+      "Registered Office",
+      "Tax Consolidation"
     ]
   }.freeze
 
@@ -49,14 +49,14 @@ class CorporateOneDriveService
     begin
       # Create root company folder
       root_folder = create_or_find_folder(folder_name)
-      company_folder_id = root_folder['id']
+      company_folder_id = root_folder["id"]
 
       # Create subfolders
       FOLDER_STRUCTURE.each do |parent_folder, subfolders|
         parent = create_or_find_folder(parent_folder, parent_id: company_folder_id)
 
         subfolders.each do |subfolder|
-          create_or_find_folder(subfolder, parent_id: parent['id'])
+          create_or_find_folder(subfolder, parent_id: parent["id"])
         end
       end
 
@@ -122,7 +122,7 @@ class CorporateOneDriveService
   # Returns a hash describing the structure without creating anything
   def preview_private_folder_structure(dry_run: true)
     structure = {
-      root: '00 TEEEM PRIVATE',
+      root: "00 TEEEM PRIVATE",
       groups: []
     }
 
@@ -170,8 +170,8 @@ class CorporateOneDriveService
     Rails.logger.info "Creating private folder structure..."
 
     # Get or create 00 TEEEM PRIVATE folder
-    private_folder = create_or_find_folder('00 TEEEM PRIVATE')
-    private_folder_id = private_folder['id']
+    private_folder = create_or_find_folder("00 TEEEM PRIVATE")
+    private_folder_id = private_folder["id"]
 
     results = {
       private_folder_id: private_folder_id,
@@ -184,7 +184,7 @@ class CorporateOneDriveService
 
       # Create group folder
       group_folder = create_or_find_folder(group.name, parent_id: private_folder_id)
-      group_folder_id = group_folder['id']
+      group_folder_id = group_folder["id"]
 
       group_result = {
         name: group.name,
@@ -198,13 +198,13 @@ class CorporateOneDriveService
 
         # Create company folder
         company_folder = create_or_find_folder(company_folder_name, parent_id: group_folder_id)
-        company_folder_id = company_folder['id']
+        company_folder_id = company_folder["id"]
 
         # Create document type subfolders
         subfolders_created = []
         DOCUMENT_TYPE_FOLDERS.each do |folder_name|
           subfolder = create_or_find_folder(folder_name, parent_id: company_folder_id)
-          subfolders_created << { name: folder_name, id: subfolder['id'] }
+          subfolders_created << { name: folder_name, id: subfolder["id"] }
         end
 
         # Update company with OneDrive folder info
@@ -234,7 +234,7 @@ class CorporateOneDriveService
 
   # Scan company folder and categorise documents
   def scan_company_documents(company)
-    return { success: false, error: 'Company has no OneDrive folder' } unless company.onedrive_folder_id.present?
+    return { success: false, error: "Company has no OneDrive folder" } unless company.onedrive_folder_id.present?
 
     documents = []
     scan_folder_recursive(company.onedrive_folder_id, documents)
@@ -256,7 +256,7 @@ class CorporateOneDriveService
   # Format: {YYYY-MM-DD} - {Document Type} - {Description}.{ext}
   def rename_document(file_id, document_date:, document_type:, description:)
     file = @client.get_file(file_id)
-    extension = File.extname(file['name'])
+    extension = File.extname(file["name"])
 
     new_name = format_document_name(
       date: document_date,
@@ -270,7 +270,7 @@ class CorporateOneDriveService
     })
 
     @stats[:documents_renamed] += 1
-    { success: true, old_name: file['name'], new_name: new_name }
+    { success: true, old_name: file["name"], new_name: new_name }
   rescue MicrosoftGraphClient::APIError => e
     @stats[:errors] << "Failed to rename #{file_id}: #{e.message}"
     { success: false, error: e.message }
@@ -291,7 +291,7 @@ class CorporateOneDriveService
 
   # Auto-organise documents in a company folder
   def organise_company_documents(company, dry_run: true)
-    return { success: false, error: 'Company has no OneDrive folder' } unless company.onedrive_folder_id.present?
+    return { success: false, error: "Company has no OneDrive folder" } unless company.onedrive_folder_id.present?
 
     scan_result = scan_company_documents(company)
     return scan_result unless scan_result[:success]
@@ -311,8 +311,8 @@ class CorporateOneDriveService
       next unless target_folder
 
       # Check if already in correct folder
-      if doc[:parent_id] == target_folder['id']
-        actions << { file: doc[:name], action: 'skip', reason: 'already in correct folder' }
+      if doc[:parent_id] == target_folder["id"]
+        actions << { file: doc[:name], action: "skip", reason: "already in correct folder" }
         next
       end
 
@@ -320,14 +320,14 @@ class CorporateOneDriveService
         file: doc[:name],
         file_id: doc[:id],
         detected_type: detected_type,
-        target_folder: target_folder['name'],
-        target_folder_id: target_folder['id'],
-        action: 'move'
+        target_folder: target_folder["name"],
+        target_folder_id: target_folder["id"],
+        action: "move"
       }
 
       unless dry_run
-        move_result = move_document(doc[:id], target_folder['id'])
-        action[:result] = move_result[:success] ? 'success' : 'failed'
+        move_result = move_document(doc[:id], target_folder["id"])
+        action[:result] = move_result[:success] ? "success" : "failed"
         action[:error] = move_result[:error] if move_result[:error]
       end
 
@@ -348,7 +348,7 @@ class CorporateOneDriveService
     file = @client.get_file(file_id)
 
     # Parse document name
-    parsed = parse_document_name(file['name'])
+    parsed = parse_document_name(file["name"])
     document_type = DocumentType.find_by(name: parsed[:type])
 
     company_document = company.company_documents.find_or_initialize_by(
@@ -356,17 +356,17 @@ class CorporateOneDriveService
     )
 
     company_document.assign_attributes(
-      document_name: parsed[:description] || file['name'],
+      document_name: parsed[:description] || file["name"],
       document_type: document_type&.category,
       document_type_record: document_type,
-      file_name: file['name'],
-      file_size: file['size'],
+      file_name: file["name"],
+      file_size: file["size"],
       year: parsed[:date]&.year,
-      folder: file.dig('parentReference', 'path')&.split('/').last,
-      storage_type: 'electronic',
+      folder: file.dig("parentReference", "path")&.split("/").last,
+      storage_type: "electronic",
       onedrive_file_id: file_id,
-      onedrive_web_url: file['webUrl'],
-      company_code: extract_company_code(file['name'], company)
+      onedrive_web_url: file["webUrl"],
+      company_code: extract_company_code(file["name"], company)
     )
 
     company_document.save!
@@ -383,8 +383,8 @@ class CorporateOneDriveService
   # Extract company code from filename (e.g., "ATO Tax Return FY19 TD.pdf" -> "TD")
   def extract_company_code(filename, company)
     # Try to extract code from filename pattern: "filename CODE.extension"
-    name_without_ext = File.basename(filename, '.*')
-    parts = name_without_ext.split(' ')
+    name_without_ext = File.basename(filename, ".*")
+    parts = name_without_ext.split(" ")
 
     # Check if last part matches company code
     if parts.last && company.code.present? && parts.last.upcase == company.code.upcase
@@ -392,7 +392,7 @@ class CorporateOneDriveService
     end
 
     # Try to find any known company code in the filename
-    Company.where.not(code: [nil, '']).find_each do |c|
+    Company.where.not(code: [ nil, "" ]).find_each do |c|
       if name_without_ext.match?(/\b#{Regexp.escape(c.code)}\b/i)
         return c.code.upcase
       end
@@ -423,7 +423,7 @@ class CorporateOneDriveService
       @client.list_folder_items
     end
 
-    items['value']&.find { |item| item['name'] == name && item['folder'] }
+    items["value"]&.find { |item| item["name"] == name && item["folder"] }
   rescue MicrosoftGraphClient::APIError
     nil
   end
@@ -433,22 +433,22 @@ class CorporateOneDriveService
 
     items = @client.list_folder_items(folder_id)
 
-    items['value']&.each do |item|
+    items["value"]&.each do |item|
       doc = {
-        id: item['id'],
-        name: item['name'],
-        path: item.dig('parentReference', 'path'),
-        parent_id: item.dig('parentReference', 'id'),
-        size: item['size'],
-        modified: item['lastModifiedDateTime'],
-        web_url: item['webUrl'],
-        is_folder: item['folder'].present?
+        id: item["id"],
+        name: item["name"],
+        path: item.dig("parentReference", "path"),
+        parent_id: item.dig("parentReference", "id"),
+        size: item["size"],
+        modified: item["lastModifiedDateTime"],
+        web_url: item["webUrl"],
+        is_folder: item["folder"].present?
       }
       documents << doc
 
       # Recurse into subfolders
-      if item['folder']
-        scan_folder_recursive(item['id'], documents, depth + 1)
+      if item["folder"]
+        scan_folder_recursive(item["id"], documents, depth + 1)
       end
     end
   end
@@ -459,7 +459,7 @@ class CorporateOneDriveService
     documents.each do |doc|
       next if doc[:is_folder]
 
-      type = detect_document_type(doc[:name]) || 'Uncategorised'
+      type = detect_document_type(doc[:name]) || "Uncategorised"
       categorised[type] << doc
     end
 
@@ -471,20 +471,20 @@ class CorporateOneDriveService
 
     # Map keywords to document types
     type_keywords = {
-      'Constitution' => %w[constitution],
-      'Loan Agreement' => %w[loan agreement],
-      'Security Deed' => %w[security deed],
-      'PPSR' => %w[ppsr personal property],
-      'ATO Tax Return' => %w[tax return ato],
-      'BAS' => %w[bas activity statement],
-      'Solvency ASIC' => %w[solvency asic 484],
-      'Minutes' => %w[minutes meeting resolution],
-      'Distribution' => %w[distribution],
-      'Dividends' => %w[dividend],
-      'Bank Statements' => %w[bank statement],
-      'Trust Deed' => %w[trust deed],
-      'Officers' => %w[officer director secretary appointment resignation],
-      'Assets' => %w[asset register depreciation]
+      "Constitution" => %w[constitution],
+      "Loan Agreement" => %w[loan agreement],
+      "Security Deed" => %w[security deed],
+      "PPSR" => %w[ppsr personal property],
+      "ATO Tax Return" => %w[tax return ato],
+      "BAS" => %w[bas activity statement],
+      "Solvency ASIC" => %w[solvency asic 484],
+      "Minutes" => %w[minutes meeting resolution],
+      "Distribution" => %w[distribution],
+      "Dividends" => %w[dividend],
+      "Bank Statements" => %w[bank statement],
+      "Trust Deed" => %w[trust deed],
+      "Officers" => %w[officer director secretary appointment resignation],
+      "Assets" => %w[asset register depreciation]
     }
 
     type_keywords.each do |type, keywords|
@@ -503,14 +503,14 @@ class CorporateOneDriveService
     return folder unless folder.nil?
 
     # Check in General subfolder
-    general_folder = find_folder('General', company_folder_id)
+    general_folder = find_folder("General", company_folder_id)
     return nil unless general_folder
 
-    find_folder(doc_type.folder, general_folder['id']) || find_folder(document_type, general_folder['id'])
+    find_folder(doc_type.folder, general_folder["id"]) || find_folder(document_type, general_folder["id"])
   end
 
   def format_document_name(date:, type:, description:, extension:, company: nil)
-    date_str = date.strftime('%Y-%m-%d')
+    date_str = date.strftime("%Y-%m-%d")
     # Standard format: {Company Code} - {YYYY-MM-DD} - {Document Type} - {Description}.{ext}
     if company
       company_identifier = company.code.presence || company.name.split.map(&:first).join.upcase
@@ -535,11 +535,11 @@ class CorporateOneDriveService
       {
         date: nil,
         type: detect_document_type(filename),
-        description: File.basename(filename, '.*'),
+        description: File.basename(filename, ".*"),
         extension: File.extname(filename)
       }
     end
   rescue ArgumentError
-    { date: nil, type: nil, description: filename, extension: '' }
+    { date: nil, type: nil, description: filename, extension: "" }
   end
 end

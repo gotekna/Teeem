@@ -14,8 +14,8 @@ class CreateContactXeroLinks < ActiveRecord::Migration[8.0]
       t.jsonb :metadata, default: {}
       t.timestamps
 
-      t.index [:contact_id, :xero_tenant_id], unique: true, name: 'idx_contact_xero_links_contact_tenant'
-      t.index [:xero_tenant_id, :xero_contact_id], unique: true, name: 'idx_contact_xero_links_tenant_xero_id'
+      t.index [ :contact_id, :xero_tenant_id ], unique: true, name: 'idx_contact_xero_links_contact_tenant'
+      t.index [ :xero_tenant_id, :xero_contact_id ], unique: true, name: 'idx_contact_xero_links_tenant_xero_id'
       t.index :xero_tenant_id
       t.index :sync_enabled
     end

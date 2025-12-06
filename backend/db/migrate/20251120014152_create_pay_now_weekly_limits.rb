@@ -22,7 +22,7 @@ class CreatePayNowWeeklyLimits < ActiveRecord::Migration[8.0]
       # Indexes for performance
       t.index :week_start_date
       t.index :active
-      t.index [:active, :week_start_date], name: 'index_pay_now_weekly_limits_on_active_and_week'
+      t.index [ :active, :week_start_date ], name: 'index_pay_now_weekly_limits_on_active_and_week'
     end
   end
 end

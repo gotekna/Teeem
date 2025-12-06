@@ -33,12 +33,12 @@ RSpec.describe ScheduleCascadeService, type: :service do
           sequence_order: 1,
           start_date: 5, # Saturday
           duration: 1,
-          predecessor_ids: [{ id: 1, type: 'FS', lag: 2 }], # 2 day lag lands on Saturday
+          predecessor_ids: [ { id: 1, type: 'FS', lag: 2 } ], # 2 day lag lands on Saturday
           manually_positioned: false
         )
 
         # Trigger cascade
-        service = ScheduleCascadeService.new(task1, [:start_date])
+        service = ScheduleCascadeService.new(task1, [ :start_date ])
         affected = service.cascade
 
         task2.reload
@@ -79,11 +79,11 @@ RSpec.describe ScheduleCascadeService, type: :service do
           sequence_order: 1,
           start_date: 5, # Should become Dec 29 after skipping weekend and holidays
           duration: 1,
-          predecessor_ids: [{ id: 1, type: 'FS', lag: 5 }],
+          predecessor_ids: [ { id: 1, type: 'FS', lag: 5 } ],
           manually_positioned: false
         )
 
-        service = ScheduleCascadeService.new(task1, [:start_date])
+        service = ScheduleCascadeService.new(task1, [ :start_date ])
         affected = service.cascade
 
         task2.reload
@@ -117,14 +117,14 @@ RSpec.describe ScheduleCascadeService, type: :service do
           sequence_order: 1,
           start_date: 5, # Saturday
           duration: 1,
-          predecessor_ids: [{ id: 1, type: 'FS', lag: 2 }],
+          predecessor_ids: [ { id: 1, type: 'FS', lag: 2 } ],
           supplier_confirm: true, # LOCKED - should stay on Saturday
           manually_positioned: false
         )
 
         original_start = task2.start_date
 
-        service = ScheduleCascadeService.new(task1, [:start_date])
+        service = ScheduleCascadeService.new(task1, [ :start_date ])
         service.cascade
 
         task2.reload
@@ -147,12 +147,12 @@ RSpec.describe ScheduleCascadeService, type: :service do
           sequence_order: 1,
           start_date: 5, # Saturday
           duration: 1,
-          predecessor_ids: [{ id: 1, type: 'FS', lag: 2 }],
+          predecessor_ids: [ { id: 1, type: 'FS', lag: 2 } ],
           manually_positioned: true # User set this explicitly
         )
 
         # Service should skip manually positioned tasks entirely
-        service = ScheduleCascadeService.new(task1, [:start_date])
+        service = ScheduleCascadeService.new(task1, [ :start_date ])
         affected = service.cascade
 
         # Task 2 should NOT be in affected list
@@ -175,11 +175,11 @@ RSpec.describe ScheduleCascadeService, type: :service do
           sequence_order: 1,
           start_date: 10,
           duration: 1,
-          predecessor_ids: [{ id: 1, type: 'FS', lag: 0 }],
+          predecessor_ids: [ { id: 1, type: 'FS', lag: 0 } ],
           manually_positioned: false
         )
 
-        service = ScheduleCascadeService.new(task1, [:start_date])
+        service = ScheduleCascadeService.new(task1, [ :start_date ])
         service.cascade
 
         task2.reload
@@ -208,11 +208,11 @@ RSpec.describe ScheduleCascadeService, type: :service do
           sequence_order: 1,
           start_date: 10,
           duration: 1,
-          predecessor_ids: [{ id: 1, type: 'SS', lag: 1 }],
+          predecessor_ids: [ { id: 1, type: 'SS', lag: 1 } ],
           manually_positioned: false
         )
 
-        service = ScheduleCascadeService.new(task1, [:start_date])
+        service = ScheduleCascadeService.new(task1, [ :start_date ])
         service.cascade
 
         task2.reload
@@ -243,7 +243,7 @@ RSpec.describe ScheduleCascadeService, type: :service do
         sequence_order: 1,
         start_date: 2,
         duration: 2,
-        predecessor_ids: [{ id: 1, type: 'FS', lag: 0 }],
+        predecessor_ids: [ { id: 1, type: 'FS', lag: 0 } ],
         manually_positioned: false
       )
 
@@ -252,14 +252,14 @@ RSpec.describe ScheduleCascadeService, type: :service do
         sequence_order: 2,
         start_date: 4,
         duration: 1,
-        predecessor_ids: [{ id: 2, type: 'FS', lag: 0 }],
+        predecessor_ids: [ { id: 2, type: 'FS', lag: 0 } ],
         manually_positioned: false
       )
 
       # Change task1's start date
       task1.update_column(:start_date, 5)
 
-      service = ScheduleCascadeService.new(task1, [:start_date])
+      service = ScheduleCascadeService.new(task1, [ :start_date ])
       affected = service.cascade
 
       # All 3 tasks should be in affected list

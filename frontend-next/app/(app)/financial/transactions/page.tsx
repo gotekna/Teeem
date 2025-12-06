@@ -394,6 +394,7 @@ export default function FinancialTransactionsPage() {
       <TeeemTableView
         category="financial"
         foundationId="financial-transactions"
+        foundationIdNumeric={199}
         tableName="Financial Transactions"
         entries={transactions}
         columns={TRANSACTION_COLUMNS}

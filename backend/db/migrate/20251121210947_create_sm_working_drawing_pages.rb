@@ -21,6 +21,6 @@ class CreateSmWorkingDrawingPages < ActiveRecord::Migration[8.0]
 
     # Indexes
     add_index :sm_working_drawing_pages, :category
-    add_index :sm_working_drawing_pages, [:task_id, :page_number], unique: true
+    add_index :sm_working_drawing_pages, [ :task_id, :page_number ], unique: true
   end
 end

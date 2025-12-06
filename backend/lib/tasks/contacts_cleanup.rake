@@ -11,17 +11,17 @@ namespace :contacts do
     # Option A: Auto-classify obvious ones
 
     # 1. Classify as COMPANY (has company_name_or_trust)
-    company_candidates = null_contacts.where.not(company_name_or_trust: [nil, ''])
+    company_candidates = null_contacts.where.not(company_name_or_trust: [ nil, "" ])
     puts "\nClassifying #{company_candidates.count} as 'company' (have company_name_or_trust)..."
-    company_count = company_candidates.update_all(entity_type: 'company')
+    company_count = company_candidates.update_all(entity_type: "company")
     puts "  ✓ Updated #{company_count} records"
 
     # 2. Classify as PERSON (has both first_name AND last_name)
     person_candidates = null_contacts.where(entity_type: nil) # Re-query after previous update
-                                     .where.not(first_name: [nil, ''])
-                                     .where.not(last_name: [nil, ''])
+                                     .where.not(first_name: [ nil, "" ])
+                                     .where.not(last_name: [ nil, "" ])
     puts "\nClassifying #{person_candidates.count} as 'person' (have first + last name)..."
-    person_count = person_candidates.update_all(entity_type: 'person')
+    person_count = person_candidates.update_all(entity_type: "person")
     puts "  ✓ Updated #{person_count} records"
 
     # 3. Report remaining ambiguous

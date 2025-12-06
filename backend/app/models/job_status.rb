@@ -1,5 +1,5 @@
 class JobStatus < ApplicationRecord
-  self.table_name = 'job_status'
+  self.table_name = "job_status"
 
   # Many-to-many relationship with JobType through job_type_statuses
   has_many :jobs

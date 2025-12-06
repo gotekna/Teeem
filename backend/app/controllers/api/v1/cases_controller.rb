@@ -30,20 +30,20 @@ module Api
         cases = cases.assigned_to_user(params[:assigned_to]) if params[:assigned_to].present?
 
         # Filter overdue
-        cases = cases.overdue if params[:overdue] == 'true'
+        cases = cases.overdue if params[:overdue] == "true"
 
         # Search by title/number
         if params[:search].present?
-          cases = cases.where('title ILIKE ? OR case_number ILIKE ?', "%#{params[:search]}%", "%#{params[:search]}%")
+          cases = cases.where("title ILIKE ? OR case_number ILIKE ?", "%#{params[:search]}%", "%#{params[:search]}%")
         end
 
         # Sorting
         cases = case params[:sort]
-                when 'deadline' then cases.order(:deadline)
-                when 'priority' then cases.order(Arel.sql("CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END"))
-                when 'created' then cases.order(created_at: :desc)
-                else cases.recent_first
-                end
+        when "deadline" then cases.order(:deadline)
+        when "priority" then cases.order(Arel.sql("CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END"))
+        when "created" then cases.order(created_at: :desc)
+        else cases.recent_first
+        end
 
         render json: {
           success: true,
@@ -243,7 +243,7 @@ module Api
             financial_summary: service.financial_summary,
             invoice_reconciliation: service.invoice_reconciliation,
             anomalies: service.financial_anomalies,
-            inconsistencies: service.find_inconsistencies.select { |i| i[:type].include?('financial') }
+            inconsistencies: service.find_inconsistencies.select { |i| i[:type].include?("financial") }
           }
         }
       end
@@ -305,28 +305,28 @@ module Api
       def add_document
         doc = CompanyDocument.find(params[:document_id])
         case_doc = @case.add_document(doc,
-          relevance: params[:relevance] || 'supporting',
+          relevance: params[:relevance] || "supporting",
           notes: params[:notes],
           added_by: current_user
         )
 
         render json: { success: true, data: serialize_case_document(case_doc) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Document not found' }, status: :not_found
+        render json: { success: false, error: "Document not found" }, status: :not_found
       end
 
       # POST /api/v1/cases/:id/add_email
       def add_email
         email = EmailWarehouse.find(params[:email_id])
         case_email = @case.add_email(email,
-          relevance: params[:relevance] || 'supporting',
+          relevance: params[:relevance] || "supporting",
           notes: params[:notes],
           added_by: current_user
         )
 
         render json: { success: true, data: serialize_case_email(case_email) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Email not found' }, status: :not_found
+        render json: { success: false, error: "Email not found" }, status: :not_found
       end
 
       # POST /api/v1/cases/:id/add_contact
@@ -337,13 +337,13 @@ module Api
         if params[:reason].blank?
           render json: {
             success: false,
-            error: 'Reason is required when adding a contact to a case'
+            error: "Reason is required when adding a contact to a case"
           }, status: :unprocessable_entity
           return
         end
 
         case_contact = @case.add_contact(contact,
-          role: params[:role] || 'related_party',
+          role: params[:role] || "related_party",
           notes: params[:notes],
           is_primary: params[:is_primary] || false,
           reason: params[:reason],
@@ -352,7 +352,7 @@ module Api
 
         render json: { success: true, data: serialize_case_contact(case_contact) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Contact not found' }, status: :not_found
+        render json: { success: false, error: "Contact not found" }, status: :not_found
       rescue ActiveRecord::RecordInvalid => e
         render json: { success: false, errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
@@ -361,27 +361,27 @@ module Api
       def add_company
         company = Company.find(params[:company_id])
         case_company = @case.add_company(company,
-          role: params[:role] || 'related_entity',
+          role: params[:role] || "related_entity",
           notes: params[:notes],
           is_primary: params[:is_primary] || false
         )
 
         render json: { success: true, data: serialize_case_company(case_company) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Company not found' }, status: :not_found
+        render json: { success: false, error: "Company not found" }, status: :not_found
       end
 
       # POST /api/v1/cases/:id/add_job
       def add_job
         job = Job.find(params[:job_id])
         case_job = @case.add_job(job,
-          relevance: params[:relevance] || 'direct',
+          relevance: params[:relevance] || "direct",
           notes: params[:notes]
         )
 
         render json: { success: true, data: serialize_case_job(case_job) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Job not found' }, status: :not_found
+        render json: { success: false, error: "Job not found" }, status: :not_found
       end
 
       # ============================================
@@ -412,7 +412,7 @@ module Api
 
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
+        render json: { success: false, error: "Contact not linked to this case" }, status: :not_found
       end
 
       # GET /api/v1/cases/:id/contacts/:contact_id
@@ -439,7 +439,7 @@ module Api
           roles: CaseContact::ROLES.map { |k, v| { value: k, label: v } }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
+        render json: { success: false, error: "Contact not linked to this case" }, status: :not_found
       end
 
       # PATCH /api/v1/cases/:id/contacts/:contact_id
@@ -477,7 +477,7 @@ module Api
           }, status: :unprocessable_entity
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
+        render json: { success: false, error: "Contact not linked to this case" }, status: :not_found
       end
 
       # DELETE /api/v1/cases/:id/contacts/:contact_id
@@ -488,7 +488,7 @@ module Api
         # Check if contact is actually linked to this case
         case_contact = @case.case_contacts.find_by(contact: contact)
         unless case_contact
-          render json: { success: false, error: 'Contact not linked to this case' }, status: :not_found
+          render json: { success: false, error: "Contact not linked to this case" }, status: :not_found
           return
         end
 
@@ -500,7 +500,7 @@ module Api
           message: "Contact removed from case. All related emails were also removed."
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Contact not found' }, status: :not_found
+        render json: { success: false, error: "Contact not found" }, status: :not_found
       end
 
       # ============================================
@@ -511,9 +511,9 @@ module Api
       def qa_pairs
         qa = @case.case_email_qas.includes(:case_email, :email_warehouse).order(created_at: :desc)
 
-        qa = qa.answered if params[:answered] == 'true'
-        qa = qa.unanswered if params[:answered] == 'false'
-        qa = qa.important if params[:important] == 'true'
+        qa = qa.answered if params[:answered] == "true"
+        qa = qa.unanswered if params[:answered] == "false"
+        qa = qa.important if params[:important] == "true"
         qa = qa.by_category(params[:category]) if params[:category].present?
 
         render json: {
@@ -531,8 +531,8 @@ module Api
       def duplicates
         reviews = @case.document_duplicate_reviews.includes(:existing_document, :new_document, :resolved_by)
 
-        reviews = reviews.pending if params[:status] == 'pending'
-        reviews = reviews.resolved if params[:status] == 'resolved'
+        reviews = reviews.pending if params[:status] == "pending"
+        reviews = reviews.resolved if params[:status] == "resolved"
 
         render json: {
           success: true,
@@ -550,11 +550,11 @@ module Api
         review = @case.document_duplicate_reviews.find(params[:review_id])
 
         case params[:resolution]
-        when 'keep_existing'
+        when "keep_existing"
           review.keep_existing!(current_user)
-        when 'replace'
+        when "replace"
           review.replace!(current_user)
-        when 'keep_both'
+        when "keep_both"
           new_doc = CompanyDocument.create!(
             company_id: @case.company_id,
             title: review.new_file_name,
@@ -566,13 +566,13 @@ module Api
           )
           review.keep_both!(current_user, new_doc)
         else
-          render json: { success: false, error: 'Invalid resolution' }, status: :unprocessable_entity
+          render json: { success: false, error: "Invalid resolution" }, status: :unprocessable_entity
           return
         end
 
         render json: { success: true, data: serialize_duplicate_review(review) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Duplicate review not found' }, status: :not_found
+        render json: { success: false, error: "Duplicate review not found" }, status: :not_found
       end
 
       # GET /api/v1/cases/:id/processing_status
@@ -594,10 +594,10 @@ module Api
 
       # POST /api/v1/cases/:id/reprocess_documents
       def reprocess_documents
-        @case.update!(document_processing_status: 'pending')
+        @case.update!(document_processing_status: "pending")
         CaseDocumentProcessingJob.perform_later(@case.id)
 
-        render json: { success: true, message: 'Document processing job queued' }
+        render json: { success: true, message: "Document processing job queued" }
       end
 
       # PATCH /api/v1/cases/:id/folder_settings
@@ -616,7 +616,7 @@ module Api
             filing_folder_paths: @case.filing_folder_paths,
             file_action: @case.file_action
           },
-          message: 'Folder settings updated'
+          message: "Folder settings updated"
         }
       end
 
@@ -642,7 +642,7 @@ module Api
 
         render json: { success: true, data: serialize_qa_pair(qa) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Q&A pair not found' }, status: :not_found
+        render json: { success: false, error: "Q&A pair not found" }, status: :not_found
       end
 
       # ============================================
@@ -659,17 +659,17 @@ module Api
           render json: {
             success: true,
             data: {
-              folder_id: folder['id'],
-              folder_name: folder['name'],
+              folder_id: folder["id"],
+              folder_name: folder["name"],
               folder_path: @case.onedrive_folder_path,
-              web_url: folder['webUrl']
+              web_url: folder["webUrl"]
             },
-            message: 'Case folder created successfully'
+            message: "Case folder created successfully"
           }
         else
           render json: {
             success: false,
-            error: 'Failed to create folder. Make sure OneDrive is connected.'
+            error: "Failed to create folder. Make sure OneDrive is connected."
           }, status: :unprocessable_entity
         end
       end
@@ -693,10 +693,10 @@ module Api
             success: true,
             data: {
               has_folder: true,
-              folder_id: folder['id'],
-              folder_name: folder['name'],
+              folder_id: folder["id"],
+              folder_name: folder["name"],
               folder_path: @case.onedrive_folder_path,
-              web_url: folder['webUrl']
+              web_url: folder["webUrl"]
             }
           }
         else
@@ -706,7 +706,7 @@ module Api
             data: {
               has_folder: false,
               folder_missing: true,
-              message: 'Folder was deleted from OneDrive'
+              message: "Folder was deleted from OneDrive"
             }
           }
         end
@@ -723,7 +723,7 @@ module Api
           query: params[:query],
           parameters: params[:parameters] || {},
           created_by: current_user,
-          status: 'pending'
+          status: "pending"
         )
 
         # Execute synchronously for now (could be async with job)
@@ -756,7 +756,7 @@ module Api
       def set_case
         @case = CaseRecord.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Case not found' }, status: :not_found
+        render json: { success: false, error: "Case not found" }, status: :not_found
       end
 
       def case_params
@@ -802,57 +802,57 @@ module Api
           service = @case.warehouse_service
 
           results = case action.action_type
-                    when 'document_search'
+          when "document_search"
                       service.search_documents(
-                        keywords: action.parameters['keywords'] || action.query,
-                        document_type: action.parameters['document_type'],
-                        date_range: action.parameters['date_range']
+                        keywords: action.parameters["keywords"] || action.query,
+                        document_type: action.parameters["document_type"],
+                        date_range: action.parameters["date_range"]
                       )
-                    when 'email_search'
+          when "email_search"
                       service.search_emails(
-                        query: action.parameters['query'] || action.query,
-                        date_range: action.parameters['date_range']
+                        query: action.parameters["query"] || action.query,
+                        date_range: action.parameters["date_range"]
                       ).map { |e| serialize_email_warehouse(e) }
-                    when 'timeline_build'
+          when "timeline_build"
                       service.build_timeline(
-                        start_date: action.parameters['start_date']&.to_date,
-                        end_date: action.parameters['end_date']&.to_date
+                        start_date: action.parameters["start_date"]&.to_date,
+                        end_date: action.parameters["end_date"]&.to_date
                       )
-                    when 'financial_analysis'
+          when "financial_analysis"
                       {
                         job_metrics: service.job_metrics_for_entities,
                         financial_summary: service.financial_summary,
                         anomalies: service.financial_anomalies,
                         reconciliation: service.invoice_reconciliation
                       }
-                    when 'invoice_reconciliation'
+          when "invoice_reconciliation"
                       service.invoice_reconciliation
-                    when 'document_completeness'
+          when "document_completeness"
                       service.document_completeness
-                    when 'resource_audit'
+          when "resource_audit"
                       {
                         resource_utilization: service.resource_utilization,
                         task_metrics: service.task_metrics
                       }
-                    when 'entity_analysis'
-                      contact_id = action.parameters['contact_id']
-                      company_id = action.parameters['company_id']
+          when "entity_analysis"
+                      contact_id = action.parameters["contact_id"]
+                      company_id = action.parameters["company_id"]
                       if contact_id
                         service.analyze_contact(contact_id)
                       elsif company_id
                         service.analyze_company(company_id)
                       else
-                        { error: 'No contact_id or company_id provided' }
+                        { error: "No contact_id or company_id provided" }
                       end
-                    when 'inconsistency_check'
+          when "inconsistency_check"
                       service.find_inconsistencies
-                    when 'summary_report'
+          when "summary_report"
                       service.generate_summary
-                    when 'full_analysis'
+          when "full_analysis"
                       execute_full_analysis(action, service)
-                    else
+          else
                       { message: "Action type '#{action.action_type}' not implemented" }
-                    end
+          end
 
           action.complete!(
             results: results,
@@ -890,10 +890,10 @@ module Api
             next
           end
 
-          @case.add_email(email, relevance: 'supporting', added_by: current_user)
+          @case.add_email(email, relevance: "supporting", added_by: current_user)
           results[:emails_imported] += 1
         end
-        results[:steps_completed] << 'email_import'
+        results[:steps_completed] << "email_import"
 
         # Step 2: Extract entities (contacts/companies) from imported emails using AI
         Rails.logger.info "[FullAnalysis] Step 2: Extracting entities for case #{@case.id}"
@@ -904,7 +904,7 @@ module Api
           # Extract contacts from email addresses
           extract_contacts_from_email(email, results)
         end
-        results[:steps_completed] << 'entity_extraction'
+        results[:steps_completed] << "entity_extraction"
 
         # Step 3: Extract Q&A from emails
         Rails.logger.info "[FullAnalysis] Step 3: Extracting Q&A for case #{@case.id}"
@@ -919,7 +919,7 @@ module Api
           Rails.logger.error "[FullAnalysis] Q&A extraction failed: #{e.message}"
           results[:qa_extracted][:error] = e.message
         end
-        results[:steps_completed] << 'qa_extraction'
+        results[:steps_completed] << "qa_extraction"
 
         # Step 4: Build timeline from all sources
         Rails.logger.info "[FullAnalysis] Step 4: Building timeline for case #{@case.id}"
@@ -951,12 +951,12 @@ module Api
           )
           results[:timeline_events] += 1
         end
-        results[:steps_completed] << 'timeline_build'
+        results[:steps_completed] << "timeline_build"
 
         # Step 5: Extract links/URLs from email bodies
         Rails.logger.info "[FullAnalysis] Step 5: Extracting links for case #{@case.id}"
         results[:links_found] = extract_links_from_case_emails
-        results[:steps_completed] << 'link_extraction'
+        results[:steps_completed] << "link_extraction"
 
         Rails.logger.info "[FullAnalysis] Complete for case #{@case.id}: #{results.inspect}"
         results
@@ -965,7 +965,7 @@ module Api
       # Extract contacts from email addresses and add to case
       def extract_contacts_from_email(email, results)
         # Collect all email addresses from this email
-        all_emails = [email.from_email]
+        all_emails = [ email.from_email ]
         all_emails += email.to_emails if email.to_emails.present?
         all_emails += email.cc_emails if email.cc_emails.present?
         all_emails = all_emails.compact.uniq
@@ -979,7 +979,7 @@ module Api
           if contact
             # Link existing contact to case if not already linked
             unless @case.case_contacts.exists?(contact_id: contact.id)
-              @case.add_contact(contact, role: 'related_party')
+              @case.add_contact(contact, role: "related_party")
               results[:entities_extracted][:contacts] += 1
             end
           end
@@ -1001,9 +1001,9 @@ module Api
           urls = body.scan(%r{https?://[^\s<>"']+})
           urls.each do |url|
             # Clean up trailing punctuation
-            clean_url = url.gsub(/[.,;:!?)]+$/, '')
+            clean_url = url.gsub(/[.,;:!?)]+$/, "")
             links << {
-              type: 'url',
+              type: "url",
               value: clean_url,
               email_id: email.id,
               email_subject: email.subject
@@ -1013,9 +1013,9 @@ module Api
           # Extract OneDrive/SharePoint links specifically
           onedrive_links = body.scan(%r{https://[^\s]*(?:sharepoint\.com|onedrive\.live\.com)[^\s<>"']*})
           onedrive_links.each do |link|
-            clean_link = link.gsub(/[.,;:!?)]+$/, '')
+            clean_link = link.gsub(/[.,;:!?)]+$/, "")
             links << {
-              type: 'onedrive',
+              type: "onedrive",
               value: clean_link,
               email_id: email.id,
               email_subject: email.subject
@@ -1027,7 +1027,7 @@ module Api
           file_paths = body.scan(%r{(?:[A-Za-z]:\\[^\s<>"']+|\\\\[^\s<>"']+|/(?:Users|home|var|tmp|documents?|files?)/[^\s<>"']+)}i)
           file_paths.each do |path|
             links << {
-              type: 'file_path',
+              type: "file_path",
               value: path,
               email_id: email.id,
               email_subject: email.subject
@@ -1097,7 +1097,7 @@ module Api
           # Folder settings
           source_folder_paths: c.source_folder_paths || [],
           filing_folder_paths: c.filing_folder_paths || [],
-          file_action: c.file_action || 'copy'
+          file_action: c.file_action || "copy"
         )
       end
 

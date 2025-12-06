@@ -11,7 +11,7 @@ class Api::V1::UserGroupsController < ApplicationController
     if @user_group.save
       render json: { success: true, group: { value: @user_group.name, label: @user_group.label } }, status: :created
     else
-      render json: { success: false, error: @user_group.errors.full_messages.join(', ') }, status: :unprocessable_entity
+      render json: { success: false, error: @user_group.errors.full_messages.join(", ") }, status: :unprocessable_entity
     end
   end
 
@@ -21,14 +21,14 @@ class Api::V1::UserGroupsController < ApplicationController
     @user_group = UserGroup.find_by(name: params[:id]) || UserGroup.find_by(id: params[:id])
 
     if @user_group.nil?
-      render json: { error: 'Group not found' }, status: :not_found
+      render json: { error: "Group not found" }, status: :not_found
       return
     end
 
     if @user_group.destroy
-      render json: { success: true, message: 'Group deleted successfully' }
+      render json: { success: true, message: "Group deleted successfully" }
     else
-      render json: { success: false, error: 'Failed to delete group' }, status: :unprocessable_entity
+      render json: { success: false, error: "Failed to delete group" }, status: :unprocessable_entity
     end
   end
 

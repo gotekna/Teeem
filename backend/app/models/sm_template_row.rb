@@ -14,14 +14,14 @@ class SmTemplateRow < ApplicationRecord
 
   # Associations
   belongs_to :sm_template
-  belongs_to :parent_row, class_name: 'SmTemplateRow', optional: true
-  has_many :children, class_name: 'SmTemplateRow', foreign_key: :parent_row_id, dependent: :nullify
+  belongs_to :parent_row, class_name: "SmTemplateRow", optional: true
+  has_many :children, class_name: "SmTemplateRow", foreign_key: :parent_row_id, dependent: :nullify
 
-  belongs_to :supplier, class_name: 'Contact', optional: true
-  belongs_to :checklist, class_name: 'SupervisorChecklistTemplate', optional: true
+  belongs_to :supplier, class_name: "Contact", optional: true
+  belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
 
-  belongs_to :created_by, class_name: 'User', optional: true
-  belongs_to :updated_by, class_name: 'User', optional: true
+  belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :updated_by, class_name: "User", optional: true
 
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
@@ -65,16 +65,16 @@ class SmTemplateRow < ApplicationRecord
 
   # Format predecessors as "2FS+3, 5SS" etc
   def predecessor_display
-    return 'None' if predecessor_task_ids.empty?
+    return "None" if predecessor_task_ids.empty?
 
-    predecessor_task_ids.map { |pred| format_predecessor(pred) }.compact.join(', ')
+    predecessor_task_ids.map { |pred| format_predecessor(pred) }.compact.join(", ")
   end
 
   # Format predecessors with task names
   def predecessor_display_names
-    return 'None' if predecessor_task_ids.empty?
+    return "None" if predecessor_task_ids.empty?
 
-    predecessor_task_ids.map { |pred| format_predecessor_with_name(pred) }.compact.join(', ')
+    predecessor_task_ids.map { |pred| format_predecessor_with_name(pred) }.compact.join(", ")
   end
 
   private
@@ -88,7 +88,7 @@ class SmTemplateRow < ApplicationRecord
 
   def supplier_required_if_auto_po
     if create_po_on_job_start? && supplier_id.blank?
-      errors.add(:supplier_id, 'must be present when Auto PO is enabled')
+      errors.add(:supplier_id, "must be present when Auto PO is enabled")
     end
   end
 
@@ -106,12 +106,12 @@ class SmTemplateRow < ApplicationRecord
     return if predecessor_ids.blank?
 
     predecessor_ids.each_with_index do |pred, idx|
-      unless pred.is_a?(Hash) && pred['id'].present?
+      unless pred.is_a?(Hash) && pred["id"].present?
         errors.add(:predecessor_ids, "entry #{idx} must have an id")
         next
       end
 
-      if pred['type'].present? && !DEPENDENCY_TYPES.include?(pred['type'])
+      if pred["type"].present? && !DEPENDENCY_TYPES.include?(pred["type"])
         errors.add(:predecessor_ids, "entry #{idx} has invalid type '#{pred['type']}'")
       end
     end
@@ -120,9 +120,9 @@ class SmTemplateRow < ApplicationRecord
   def format_predecessor(pred_data)
     return nil unless pred_data.is_a?(Hash)
 
-    task_id = pred_data['id'] || pred_data[:id]
-    dep_type = pred_data['type'] || pred_data[:type] || 'FS'
-    lag = (pred_data['lag'] || pred_data[:lag] || 0).to_i
+    task_id = pred_data["id"] || pred_data[:id]
+    dep_type = pred_data["type"] || pred_data[:type] || "FS"
+    lag = (pred_data["lag"] || pred_data[:lag] || 0).to_i
 
     return nil unless task_id
 
@@ -134,9 +134,9 @@ class SmTemplateRow < ApplicationRecord
   def format_predecessor_with_name(pred_data)
     return nil unless pred_data.is_a?(Hash)
 
-    task_id = pred_data['id'] || pred_data[:id]
-    dep_type = pred_data['type'] || pred_data[:type] || 'FS'
-    lag = (pred_data['lag'] || pred_data[:lag] || 0).to_i
+    task_id = pred_data["id"] || pred_data[:id]
+    dep_type = pred_data["type"] || pred_data[:type] || "FS"
+    lag = (pred_data["lag"] || pred_data[:lag] || 0).to_i
 
     return nil unless task_id
 

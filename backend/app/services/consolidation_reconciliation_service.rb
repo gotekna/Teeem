@@ -11,7 +11,7 @@ class ConsolidationReconciliationService
     report = ReconciliationReport.create!(
       company_group: company_group,
       as_of_date: as_of_date,
-      status: 'running',
+      status: "running",
       started_at: Time.current
     )
 
@@ -106,8 +106,8 @@ class ConsolidationReconciliationService
     {
       company_id: company.id,
       company_name: company.name,
-      total_receivables: balances.where('amount > 0').sum(:amount),
-      total_payables: balances.where('amount < 0').sum(:amount).abs,
+      total_receivables: balances.where("amount > 0").sum(:amount),
+      total_payables: balances.where("amount < 0").sum(:amount).abs,
       net_position: balances.sum(:amount),
       balance_count: balances.count,
       related_companies: balances.map do |b|
@@ -212,9 +212,9 @@ class ConsolidationReconciliationService
   def categorize_severity(discrepancy)
     abs_discrepancy = discrepancy.abs
     case
-    when abs_discrepancy < 100 then 'low'
-    when abs_discrepancy < 10_000 then 'medium'
-    else 'high'
+    when abs_discrepancy < 100 then "low"
+    when abs_discrepancy < 10_000 then "medium"
+    else "high"
     end
   end
 end

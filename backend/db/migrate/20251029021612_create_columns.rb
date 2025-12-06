@@ -24,7 +24,7 @@ class CreateColumns < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :columns, [:table_id, :column_name], unique: true
+    add_index :columns, [ :table_id, :column_name ], unique: true
     add_index :columns, :lookup_table_id
   end
 end

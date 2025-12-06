@@ -7,7 +7,7 @@
 #
 class SmSetting < ApplicationRecord
   # Associations
-  belongs_to :default_template, class_name: 'ScheduleTemplate', optional: true
+  belongs_to :default_template, class_name: "ScheduleTemplate", optional: true
 
   # Singleton pattern - always use instance method
   def self.instance
@@ -20,15 +20,15 @@ class SmSetting < ApplicationRecord
 
   # Available timezones (Australian focus)
   TIMEZONES = [
-    'Australia/Brisbane',
-    'Australia/Sydney',
-    'Australia/Melbourne',
-    'Australia/Adelaide',
-    'Australia/Perth',
-    'Australia/Darwin',
-    'Australia/Hobart',
-    'Pacific/Auckland',
-    'UTC'
+    "Australia/Brisbane",
+    "Australia/Sydney",
+    "Australia/Melbourne",
+    "Australia/Adelaide",
+    "Australia/Perth",
+    "Australia/Darwin",
+    "Australia/Hobart",
+    "Pacific/Auckland",
+    "UTC"
   ].freeze
 
   # Get current time in configured timezone

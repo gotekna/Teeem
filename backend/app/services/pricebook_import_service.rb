@@ -1,4 +1,4 @@
-require 'csv'
+require "csv"
 
 class PricebookImportService
   attr_reader :errors, :warnings, :stats
@@ -54,7 +54,7 @@ class PricebookImportService
         category: row[:category],
         current_price: row[:current_price] || row[:price],
         supplier_name: row[:supplier] || row[:supplier_name],
-        unit_of_measure: row[:unit_of_measure] || row[:unit] || 'Each'
+        unit_of_measure: row[:unit_of_measure] || row[:unit] || "Each"
       }
     end
 
@@ -85,7 +85,7 @@ class PricebookImportService
 
     # Validate CSV headers
     headers = CSV.open(@file_path, &:readline)
-    required_headers = ['item_code', 'item_name']
+    required_headers = [ "item_code", "item_name" ]
 
     missing_headers = required_headers - headers.map(&:downcase)
     unless missing_headers.empty?
@@ -153,7 +153,7 @@ class PricebookImportService
       current_price: current_price,
       supplier: supplier,
       default_supplier: supplier, # Set default supplier to match the supplier from spreadsheet
-      unit_of_measure: row[:unit_of_measure] || row[:unit] || 'Each',
+      unit_of_measure: row[:unit_of_measure] || row[:unit] || "Each",
       brand: row[:brand]&.strip,
       notes: row[:notes]&.strip,
       needs_pricing_review: current_price.nil?
@@ -188,7 +188,7 @@ class PricebookImportService
     return nil unless @options[:create_suppliers]
 
     supplier = Contact.suppliers.find_or_create_by(full_name: supplier_name.strip) do |c|
-      c.roles = ['supplier']
+      c.roles = [ "supplier" ]
       c.is_active = true
     end
     @stats[:suppliers_created] += 1 if supplier.previously_new_record?
@@ -199,8 +199,8 @@ class PricebookImportService
     return nil if price_str.blank?
 
     # Remove currency symbols and commas
-    cleaned = price_str.to_s.gsub(/[$,\s]/, '')
-    return nil if cleaned.blank? || cleaned == '-'
+    cleaned = price_str.to_s.gsub(/[$,\s]/, "")
+    return nil if cleaned.blank? || cleaned == "-"
 
     Float(cleaned)
   rescue ArgumentError, TypeError

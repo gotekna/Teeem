@@ -6,7 +6,7 @@ class AddDocumentableToCompanyDocuments < ActiveRecord::Migration[8.0]
     add_column :company_documents, :documentable_type, :string
     add_column :company_documents, :documentable_id, :bigint
 
-    add_index :company_documents, [:documentable_type, :documentable_id],
+    add_index :company_documents, [ :documentable_type, :documentable_id ],
               name: 'idx_company_docs_documentable'
   end
 end

@@ -54,7 +54,7 @@ class SmResourceService
         .where(allocation_date: date)
         .sum(:allocated_hours)
       capacity = resource.availability_hours_per_day || 8.0
-      available = [capacity - allocated_hours, 0].max
+      available = [ capacity - allocated_hours, 0 ].max
 
       {
         resource_id: resource.id,
@@ -125,7 +125,7 @@ class SmResourceService
           allocation_date: date
         )
         allocation.allocated_hours = hours_per_day
-        allocation.status = 'planned'
+        allocation.status = "planned"
         allocation.save!
         allocations << allocation
       end
@@ -143,7 +143,7 @@ class SmResourceService
     allocation.destroy
     { success: true }
   rescue StandardError => e
-    { success: false, errors: [e.message] }
+    { success: false, errors: [ e.message ] }
   end
 
   # Get resource schedule (Gantt data format)

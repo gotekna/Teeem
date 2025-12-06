@@ -21,14 +21,14 @@ class ColumnTypeDefinition < ApplicationRecord
   # Count columns using this type (excluding system tables)
   def column_count(exclude_system: true)
     scope = columns.joins(:foundation)
-    scope = scope.where.not(foundations: { table_type: 'system' }) if exclude_system
+    scope = scope.where.not(foundations: { table_type: "system" }) if exclude_system
     scope.count
   end
 
   # Count compliant columns (matching current version)
   def compliant_column_count
     columns.joins(:foundation)
-           .where.not(foundations: { table_type: 'system' })
+           .where.not(foundations: { table_type: "system" })
            .where(type_version_applied: version)
            .count
   end

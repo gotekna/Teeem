@@ -20,7 +20,7 @@ class RenameDocumentedBugsToDocumentationEntries < ActiveRecord::Migration[8.0]
 
     # Add new index for section_number
     add_index :documentation_entries, :section_number
-    add_index :documentation_entries, [:chapter_number, :section_number]
+    add_index :documentation_entries, [ :chapter_number, :section_number ]
 
     # Note: entry_type values will now include:
     # Lexicon types: 'bug', 'architecture', 'test', 'performance', 'dev_note', 'common_issue'

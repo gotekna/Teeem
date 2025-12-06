@@ -19,7 +19,7 @@ class AddUniqueConstraintToPriceHistories < ActiveRecord::Migration[8.0]
     # Using created_at truncated to seconds to allow for legitimate rapid updates
     # but prevent exact duplicates from race conditions
     add_index :price_histories,
-              [:pricebook_item_id, :supplier_id, :new_price, :created_at],
+              [ :pricebook_item_id, :supplier_id, :new_price, :created_at ],
               unique: true,
               name: 'index_price_histories_on_unique_combination',
               comment: 'Prevents duplicate price history entries from race conditions'

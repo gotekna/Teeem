@@ -10,7 +10,7 @@ class ClassifyEmailWithAiJob < ApplicationJob
 
   # Skip this job if Anthropic API key is not configured
   def self.enabled?
-    ENV['ANTHROPIC_API_KEY'].present?
+    ENV["ANTHROPIC_API_KEY"].present?
   end
 
   def perform(email_warehouse_id)
@@ -19,7 +19,7 @@ class ClassifyEmailWithAiJob < ApplicationJob
 
     # Skip if already confidently classified
     current = email.email_classification || {}
-    return if current['confidence'].to_f >= 0.8
+    return if current["confidence"].to_f >= 0.8
 
     # Check rate limit
     if rate_limit_exceeded?
@@ -35,8 +35,8 @@ class ClassifyEmailWithAiJob < ApplicationJob
     email.update_column(
       :email_classification,
       result.merge(
-        method: 'ai',
-        model: 'claude-3-haiku-20240307'
+        method: "ai",
+        model: "claude-3-haiku-20240307"
       )
     )
 
@@ -70,37 +70,37 @@ class ClassifyEmailWithAiJob < ApplicationJob
     PROMPT
 
     response = client.messages(
-      model: 'claude-3-haiku-20240307',
+      model: "claude-3-haiku-20240307",
       max_tokens: 200,
-      messages: [{ role: 'user', content: prompt }]
+      messages: [ { role: "user", content: prompt } ]
     )
 
     # Parse JSON response
-    text = response.dig('content', 0, 'text')
+    text = response.dig("content", 0, "text")
     result = JSON.parse(text)
 
     # Validate response format
-    unless %w[business marketing spam transactional].include?(result['email_type'])
+    unless %w[business marketing spam transactional].include?(result["email_type"])
       raise "Invalid email_type: #{result['email_type']}"
     end
 
-    unless result['confidence'].is_a?(Numeric) && result['confidence'].between?(0, 1)
+    unless result["confidence"].is_a?(Numeric) && result["confidence"].between?(0, 1)
       raise "Invalid confidence: #{result['confidence']}"
     end
 
     {
-      email_type: result['email_type'],
-      confidence: result['confidence'],
-      reasoning: result['reasoning'] || '',
+      email_type: result["email_type"],
+      confidence: result["confidence"],
+      reasoning: result["reasoning"] || "",
       classified_at: Time.current
     }
   rescue JSON::ParserError => e
     Rails.logger.error "[EmailClassification] Failed to parse AI response: #{e.message}"
     # Fallback to low-confidence business classification
     {
-      email_type: 'business',
+      email_type: "business",
       confidence: 0.3,
-      reasoning: 'AI classification failed, defaulting to business',
+      reasoning: "AI classification failed, defaulting to business",
       classified_at: Time.current
     }
   end
@@ -108,7 +108,7 @@ class ClassifyEmailWithAiJob < ApplicationJob
   def rate_limit_exceeded?
     # Count AI classifications in the last hour
     recent_count = EmailWarehouse
-      .where("email_classification->>'method' = ?", 'ai')
+      .where("email_classification->>'method' = ?", "ai")
       .where("(email_classification->>'classified_at')::timestamp > ?", RATE_LIMIT_PERIOD.ago)
       .count
 

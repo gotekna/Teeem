@@ -1,4 +1,4 @@
-require 'roo'
+require "roo"
 
 class SpreadsheetParser
   PREVIEW_ROW_COUNT = 10
@@ -61,7 +61,7 @@ class SpreadsheetParser
     end
 
     extension = File.extname(@file_path).downcase
-    unless ['.csv', '.xlsx', '.xls'].include?(extension)
+    unless [ ".csv", ".xlsx", ".xls" ].include?(extension)
       @errors << "Invalid file format. Please upload CSV or Excel files only."
       return false
     end
@@ -85,7 +85,7 @@ class SpreadsheetParser
     return [] unless @spreadsheet
 
     preview_rows = []
-    end_row = [2 + PREVIEW_ROW_COUNT - 1, @spreadsheet.last_row].min
+    end_row = [ 2 + PREVIEW_ROW_COUNT - 1, @spreadsheet.last_row ].min
 
     (2..end_row).each do |row_number|
       row_data = {}
@@ -101,7 +101,7 @@ class SpreadsheetParser
   def total_rows
     return 0 unless @spreadsheet
     # Subtract 1 for header row
-    [@spreadsheet.last_row - 1, 0].max
+    [ @spreadsheet.last_row - 1, 0 ].max
   end
 
   def detect_column_types
@@ -126,7 +126,7 @@ class SpreadsheetParser
 
   def suggested_table_name
     # Try to derive a table name from the filename
-    filename = File.basename(@file_path, '.*')
+    filename = File.basename(@file_path, ".*")
     filename.titleize
   end
 end

@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmFieldController < ApplicationController
-      before_action :set_task, only: [:upload_photo, :task_photos, :record_voice_note, :task_voice_notes]
+      before_action :set_task, only: [ :upload_photo, :task_photos, :record_voice_note, :task_voice_notes ]
 
       # ==========================================
       # PHOTOS
@@ -47,7 +47,7 @@ module Api
 
         # Only allow deletion by uploader or admin
         unless photo.uploaded_by_id == current_user&.id || current_user&.admin?
-          return render json: { success: false, error: 'Not authorized' }, status: :forbidden
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
         end
 
         photo.destroy
@@ -69,7 +69,7 @@ module Api
           user: current_user,
           latitude: params[:latitude],
           longitude: params[:longitude],
-          checkin_type: params[:checkin_type] || 'arrival',
+          checkin_type: params[:checkin_type] || "arrival",
           device_info: request.user_agent,
           sm_task_id: params[:task_id]
         )
@@ -92,7 +92,7 @@ module Api
         checkins = checkins.where(construction_id: params[:job_id]) if params[:job_id]
         checkins = checkins.where(resource_id: params[:resource_id]) if params[:resource_id]
         checkins = checkins.for_date(Date.parse(params[:date])) if params[:date]
-        checkins = checkins.today if params[:today] == 'true'
+        checkins = checkins.today if params[:today] == "true"
 
         checkins = checkins.recent.limit(params[:limit] || 50)
 
@@ -110,8 +110,8 @@ module Api
         # Find who's currently on site (arrived but not departed)
         on_site = []
         today_checkins.group_by(&:resource_id).each do |resource_id, resource_checkins|
-          arrivals = resource_checkins.select { |c| c.checkin_type == 'arrival' }
-          departures = resource_checkins.select { |c| c.checkin_type == 'departure' }
+          arrivals = resource_checkins.select { |c| c.checkin_type == "arrival" }
+          departures = resource_checkins.select { |c| c.checkin_type == "departure" }
 
           # If more arrivals than departures, they're still on site
           if arrivals.count > departures.count
@@ -327,13 +327,13 @@ module Api
 
       def upload_to_cloudinary(base64_data)
         # Decode and upload to Cloudinary
-        CloudinaryService.upload_base64(base64_data, folder: 'sm_task_photos')
+        CloudinaryService.upload_base64(base64_data, folder: "sm_task_photos")
       rescue StandardError => e
         { success: false, error: e.message }
       end
 
       def upload_audio_to_cloudinary(base64_data)
-        CloudinaryService.upload_base64(base64_data, folder: 'sm_voice_notes', resource_type: 'video')
+        CloudinaryService.upload_base64(base64_data, folder: "sm_voice_notes", resource_type: "video")
       rescue StandardError => e
         { success: false, error: e.message }
       end

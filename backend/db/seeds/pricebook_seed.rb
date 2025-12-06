@@ -84,7 +84,7 @@ electrical_items = [
     supplier: bunnings,
     unit_of_measure: "Each",
     brand: "Brilliant"
-  },
+  }
 ]
 
 electrical_items.each do |item_data|
@@ -121,7 +121,7 @@ plumbing_items = [
     supplier: reece,
     unit_of_measure: "Each",
     brand: "Methven"
-  },
+  }
 ]
 
 plumbing_items.each do |item_data|
@@ -147,7 +147,7 @@ carpentry_items = [
     category: "Carpentry",
     current_price: 65.00,
     supplier: bunnings,
-    unit_of_measure: "Sheet",
+    unit_of_measure: "Sheet"
   },
   {
     item_code: "DOOR-STD",
@@ -157,7 +157,7 @@ carpentry_items = [
     supplier: bunnings,
     unit_of_measure: "Each",
     brand: "Corinthian"
-  },
+  }
 ]
 
 carpentry_items.each do |item_data|

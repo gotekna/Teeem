@@ -94,7 +94,7 @@ namespace :cases do
     marketing_case_emails = CaseEmail
       .joins(:email_warehouse)
       .where("email_warehouse.email_classification->>'email_type' IN (?)",
-             ['marketing', 'spam'])
+             [ "marketing", "spam" ])
       .where("email_warehouse.email_classification->>'confidence' > ?", 0.5)
 
     if marketing_case_emails.empty?
@@ -133,7 +133,7 @@ namespace :cases do
 
   desc "Remove marketing emails from cases (run audit first!)"
   task remove_marketing_emails: :environment do
-    dry_run = ENV['DRY_RUN'] != 'false'
+    dry_run = ENV["DRY_RUN"] != "false"
 
     puts "\n========================================="
     puts "Remove Marketing Emails from Cases"
@@ -149,7 +149,7 @@ namespace :cases do
     marketing_case_emails = CaseEmail
       .joins(:email_warehouse)
       .where("email_warehouse.email_classification->>'email_type' IN (?)",
-             ['marketing', 'spam'])
+             [ "marketing", "spam" ])
       .where("email_warehouse.email_classification->>'confidence' > ?", 0.5)
 
     if marketing_case_emails.empty?
@@ -175,9 +175,9 @@ namespace :cases do
       # Actually remove them
       count = 0
       marketing_case_emails.find_each do |case_email|
-        email_type = case_email.email_warehouse.email_classification['email_type']
+        email_type = case_email.email_warehouse.email_classification["email_type"]
         case_email.update(
-          relevance: 'irrelevant',
+          relevance: "irrelevant",
           notes: "[AUTO-REMOVED] Classified as #{email_type} email by EmailClassificationService"
         )
         count += 1
@@ -197,7 +197,7 @@ namespace :cases do
     results = CaseEmail
       .joins(:email_warehouse)
       .where("email_warehouse.email_classification->>'email_type' IN (?)",
-             ['marketing', 'spam'])
+             [ "marketing", "spam" ])
       .where("email_warehouse.email_classification->>'confidence' > ?", 0.5)
       .group(:case_id)
       .count

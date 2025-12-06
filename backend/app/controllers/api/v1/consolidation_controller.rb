@@ -1,7 +1,7 @@
 module Api
   module V1
     class ConsolidationController < ApplicationController
-      before_action :set_company_group, only: [:show, :reconcile, :relationships, :reports]
+      before_action :set_company_group, only: [ :show, :reconcile, :relationships, :reports ]
 
       # GET /api/v1/consolidation
       # Returns list of company groups with consolidation summary
@@ -140,13 +140,13 @@ module Api
       def company_summary
         company = Company.find_by_slug_or_id(params[:company_id])
         unless company
-          return render json: { success: false, error: 'Company not found' }, status: :not_found
+          return render json: { success: false, error: "Company not found" }, status: :not_found
         end
 
         unless company.company_group
           return render json: {
             success: false,
-            error: 'Company is not part of a group'
+            error: "Company is not part of a group"
           }, status: :bad_request
         end
 
@@ -164,7 +164,7 @@ module Api
       def set_company_group
         @company_group = CompanyGroup.find(params[:company_group_id] || params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Company group not found' }, status: :not_found
+        render json: { success: false, error: "Company group not found" }, status: :not_found
       end
 
       def format_report(report)

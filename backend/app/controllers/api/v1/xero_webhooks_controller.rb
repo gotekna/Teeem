@@ -6,7 +6,7 @@ module Api
       skip_before_action :authorize_request, raise: false
 
       # Xero webhook signature header
-      XERO_SIGNATURE_HEADER = 'x-xero-signature'.freeze
+      XERO_SIGNATURE_HEADER = "x-xero-signature".freeze
 
       # POST /api/v1/xero/webhooks
       def receive
@@ -31,8 +31,8 @@ module Api
         end
 
         # Handle different event types
-        events = payload['events'] || []
-        tenant_id = payload['tenantId']
+        events = payload["events"] || []
+        tenant_id = payload["tenantId"]
 
         Rails.logger.info("Received Xero webhook with #{events.length} events for tenant #{tenant_id}")
 
@@ -62,30 +62,30 @@ module Api
       def verify_signature(payload, signature)
         return false if signature.blank?
 
-        webhook_key = ENV['XERO_WEBHOOK_KEY']
+        webhook_key = ENV["XERO_WEBHOOK_KEY"]
         return true if webhook_key.blank? # Skip verification if no key configured
 
         # Xero uses HMAC-SHA256 for webhook signatures
         expected_signature = Base64.strict_encode64(
-          OpenSSL::HMAC.digest('SHA256', webhook_key, payload)
+          OpenSSL::HMAC.digest("SHA256", webhook_key, payload)
         )
 
         ActiveSupport::SecurityUtils.secure_compare(expected_signature, signature)
       end
 
       def process_webhook_event(event, tenant_id)
-        event_type = event['eventType']
-        event_category = event['eventCategory']
-        resource_id = event['resourceId']
+        event_type = event["eventType"]
+        event_category = event["eventCategory"]
+        resource_id = event["resourceId"]
 
         Rails.logger.info("Processing Xero webhook: #{event_category}/#{event_type} for resource #{resource_id}")
 
         case event_category
-        when 'CONTACT'
+        when "CONTACT"
           handle_contact_event(event_type, resource_id, tenant_id)
-        when 'INVOICE'
+        when "INVOICE"
           handle_invoice_event(event_type, resource_id, tenant_id)
-        when 'PAYMENT'
+        when "PAYMENT"
           handle_payment_event(event_type, resource_id, tenant_id)
         else
           Rails.logger.info("Unhandled Xero webhook category: #{event_category}")
@@ -103,13 +103,13 @@ module Api
         )
 
         case event_type
-        when 'CREATE', 'UPDATE'
+        when "CREATE", "UPDATE"
           if link
             # Contact already linked - queue sync job
             XeroContactSyncJob.perform_later(
               contact_id: link.contact_id,
               tenant_id: tenant_id,
-              action: 'sync_from_xero'
+              action: "sync_from_xero"
             )
             Rails.logger.info("Queued sync for contact #{link.contact_id} from Xero")
           else
@@ -117,21 +117,21 @@ module Api
             XeroContactSyncJob.perform_later(
               xero_contact_id: xero_contact_id,
               tenant_id: tenant_id,
-              action: 'import_from_xero'
+              action: "import_from_xero"
             )
             Rails.logger.info("Queued import for new Xero contact #{xero_contact_id}")
           end
-        when 'DELETE'
+        when "DELETE"
           if link
             # Contact deleted in Xero - handle based on cleanup options
             config = SyncConfiguration.find_by(xero_tenant_id: tenant_id)
             cleanup_options = config&.cleanup_options || {}
 
-            if cleanup_options['unlink_deleted_xero_contacts']
+            if cleanup_options["unlink_deleted_xero_contacts"]
               link.destroy!
               Rails.logger.info("Deleted link for removed Xero contact #{xero_contact_id}")
             else
-              link.update!(sync_error: 'Contact was deleted in Xero')
+              link.update!(sync_error: "Contact was deleted in Xero")
               Rails.logger.info("Marked link as error for removed Xero contact #{xero_contact_id}")
             end
           end
@@ -141,11 +141,11 @@ module Api
       def handle_invoice_event(event_type, invoice_id, tenant_id)
         # Queue invoice sync job
         case event_type
-        when 'CREATE', 'UPDATE'
+        when "CREATE", "UPDATE"
           XeroInvoiceSyncJob.perform_later(
             xero_invoice_id: invoice_id,
             tenant_id: tenant_id,
-            action: 'sync_from_xero'
+            action: "sync_from_xero"
           ) if defined?(XeroInvoiceSyncJob)
         end
       rescue StandardError => e
@@ -155,11 +155,11 @@ module Api
       def handle_payment_event(event_type, payment_id, tenant_id)
         # Queue payment sync job
         case event_type
-        when 'CREATE', 'UPDATE'
+        when "CREATE", "UPDATE"
           XeroPaymentSyncJob.perform_later(
             xero_payment_id: payment_id,
             tenant_id: tenant_id,
-            action: 'sync_from_xero'
+            action: "sync_from_xero"
           ) if defined?(XeroPaymentSyncJob)
         end
       rescue StandardError => e

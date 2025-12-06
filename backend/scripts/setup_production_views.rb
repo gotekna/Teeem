@@ -8,7 +8,7 @@ puts "\n🔧 Setting up Setup views on PRODUCTION...\n\n"
 
 # Get all tables except Import tables and system tables
 tables = Table.where.not("name LIKE ?", "Import%")
-             .where.not(name: ["Table Views", "columns"])
+             .where.not(name: [ "Table Views", "columns" ])
              .order(:name)
 
 puts "Processing #{tables.count} tables...\n\n"
@@ -43,7 +43,7 @@ tables.each do |table|
       visible_columns[col] = true
     end
 
-    column_order = ['select', 'id', 'actions'] + all_columns
+    column_order = [ 'select', 'id', 'actions' ] + all_columns
 
     default_view.update!(
       name: 'Setup',
@@ -53,7 +53,7 @@ tables.each do |table|
         'order' => column_order
       },
       filters: [],
-      filter_groups: [{ 'id' => 'default', 'logic' => 'AND' }],
+      filter_groups: [ { 'id' => 'default', 'logic' => 'AND' } ],
       inter_group_logic: 'OR'
     )
 
@@ -73,7 +73,7 @@ tables.each do |table|
         visible_columns[col] = true
       end
 
-      column_order = ['select', 'id', 'actions'] + all_columns
+      column_order = [ 'select', 'id', 'actions' ] + all_columns
 
       setup_view = TableView.create!(
         table_id: table.id,
@@ -85,7 +85,7 @@ tables.each do |table|
           'order' => column_order
         },
         filters: [],
-        filter_groups: [{ 'id' => 'default', 'logic' => 'AND' }],
+        filter_groups: [ { 'id' => 'default', 'logic' => 'AND' } ],
         inter_group_logic: 'OR',
         sort_columns: []
       )

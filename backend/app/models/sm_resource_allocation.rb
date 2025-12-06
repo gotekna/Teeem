@@ -9,34 +9,34 @@ class SmResourceAllocation < ApplicationRecord
   STATUSES = %w[planned confirmed in_progress completed].freeze
 
   # Associations
-  belongs_to :task, class_name: 'SmTask'
-  belongs_to :resource, class_name: 'SmResource'
+  belongs_to :task, class_name: "SmTask"
+  belongs_to :resource, class_name: "SmResource"
 
   # Validations
   validates :status, inclusion: { in: STATUSES }
 
   # Scopes
-  scope :planned, -> { where(status: 'planned') }
-  scope :confirmed, -> { where(status: 'confirmed') }
-  scope :in_progress, -> { where(status: 'in_progress') }
-  scope :completed, -> { where(status: 'completed') }
+  scope :planned, -> { where(status: "planned") }
+  scope :confirmed, -> { where(status: "confirmed") }
+  scope :in_progress, -> { where(status: "in_progress") }
+  scope :completed, -> { where(status: "completed") }
   scope :for_date, ->(date) { where(allocation_date: date) }
   scope :for_date_range, ->(start_date, end_date) { where(allocation_date: start_date..end_date) }
 
   # Status helpers
   def planned?
-    status == 'planned'
+    status == "planned"
   end
 
   def confirmed?
-    status == 'confirmed'
+    status == "confirmed"
   end
 
   def in_progress?
-    status == 'in_progress'
+    status == "in_progress"
   end
 
   def completed?
-    status == 'completed'
+    status == "completed"
   end
 end

@@ -54,7 +54,7 @@ class JobClientLinkerService
     end
 
     # Check if already linked as client
-    existing_link = JobContact.find_by(job_id: job.id, contact_id: contact.id, role: 'client')
+    existing_link = JobContact.find_by(job_id: job.id, contact_id: contact.id, role: "client")
     if existing_link
       @stats[:already_linked] += 1
       return existing_link
@@ -64,7 +64,7 @@ class JobClientLinkerService
     job_contact = JobContact.new(
       job_id: job.id,
       contact_id: contact.id,
-      role: 'client',
+      role: "client",
       primary: !job.job_contacts.primary.exists? # Make primary if no primary exists
     )
 

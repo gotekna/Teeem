@@ -100,7 +100,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Reminders queued'
+          message: "Reminders queued"
         }
       end
 
@@ -113,7 +113,7 @@ module Api
           start_date: params[:start_date].present? ? Date.parse(params[:start_date]) : nil,
           end_date: params[:end_date].present? ? Date.parse(params[:end_date]) : nil,
           status: params[:status],
-          include_completed: params[:include_completed] == 'true'
+          include_completed: params[:include_completed] == "true"
         }
       end
 

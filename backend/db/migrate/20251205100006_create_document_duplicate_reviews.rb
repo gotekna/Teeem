@@ -19,7 +19,7 @@ class CreateDocumentDuplicateReviews < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :document_duplicate_reviews, [:case_id, :status]
+    add_index :document_duplicate_reviews, [ :case_id, :status ]
     add_foreign_key :document_duplicate_reviews, :users, column: :resolved_by_id
   end
 end

@@ -8,10 +8,10 @@
 class SmDependency < ApplicationRecord
   # Dependency type enum
   DEPENDENCY_TYPES = {
-    'FS' => 'Finish-to-Start',
-    'SS' => 'Start-to-Start',
-    'FF' => 'Finish-to-Finish',
-    'SF' => 'Start-to-Finish'
+    "FS" => "Finish-to-Start",
+    "SS" => "Start-to-Start",
+    "FF" => "Finish-to-Finish",
+    "SF" => "Start-to-Finish"
   }.freeze
 
   # Deleted reason enum
@@ -25,10 +25,10 @@ class SmDependency < ApplicationRecord
   ].freeze
 
   # Associations
-  belongs_to :predecessor_task, class_name: 'SmTask'
-  belongs_to :successor_task, class_name: 'SmTask'
-  belongs_to :created_by, class_name: 'User', optional: true
-  belongs_to :deleted_by, class_name: 'User', optional: true
+  belongs_to :predecessor_task, class_name: "SmTask"
+  belongs_to :successor_task, class_name: "SmTask"
+  belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :deleted_by, class_name: "User", optional: true
 
   # Validations
   validates :dependency_type, presence: true, inclusion: { in: DEPENDENCY_TYPES.keys }
@@ -41,7 +41,7 @@ class SmDependency < ApplicationRecord
   # Scopes
   scope :active, -> { where(active: true) }
   scope :inactive, -> { where(active: false) }
-  scope :for_task, ->(task_id) { where('predecessor_task_id = ? OR successor_task_id = ?', task_id, task_id) }
+  scope :for_task, ->(task_id) { where("predecessor_task_id = ? OR successor_task_id = ?", task_id, task_id) }
   scope :deleted_by_rollover, -> { inactive.where(deleted_by_rollover: true) }
 
   # Display helper for dependency type
@@ -50,7 +50,7 @@ class SmDependency < ApplicationRecord
   end
 
   def lag_display
-    return '' if lag_days.zero?
+    return "" if lag_days.zero?
     lag_days.positive? ? "+#{lag_days}" : lag_days.to_s
   end
 
@@ -65,7 +65,7 @@ class SmDependency < ApplicationRecord
       deleted_at: Time.current,
       deleted_reason: reason,
       deleted_by: user,
-      deleted_by_rollover: reason == 'rollover'
+      deleted_by_rollover: reason == "rollover"
     )
   end
 
@@ -84,7 +84,7 @@ class SmDependency < ApplicationRecord
 
   def no_self_dependency
     if predecessor_task_id == successor_task_id
-      errors.add(:base, 'Task cannot depend on itself')
+      errors.add(:base, "Task cannot depend on itself")
     end
   end
 
@@ -93,14 +93,14 @@ class SmDependency < ApplicationRecord
 
     # Check if adding this dependency would create a cycle
     if would_create_cycle?
-      errors.add(:base, 'This dependency would create a circular reference')
+      errors.add(:base, "This dependency would create a circular reference")
     end
   end
 
   def would_create_cycle?
     # BFS to check if successor_task can reach predecessor_task through existing dependencies
     visited = Set.new
-    queue = [successor_task_id]
+    queue = [ successor_task_id ]
 
     while queue.any?
       current_id = queue.shift

@@ -41,7 +41,7 @@ module SsotAuthorization
     filtered = contact_attributes.dup
     CONFIDENTIAL_FIELDS.each do |field|
       if filtered.key?(field) && filtered[field].present?
-        filtered[field] = '[RESTRICTED]'
+        filtered[field] = "[RESTRICTED]"
       end
     end
     filtered

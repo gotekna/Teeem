@@ -4,7 +4,7 @@ namespace :corporate do
     task create_folders: :environment do
       service = CorporateOneDriveService.new
 
-      Company.where(status: 'active').find_each do |company|
+      Company.where(status: "active").find_each do |company|
         puts "Creating folders for: #{company.name}"
         result = service.create_company_folders(company)
 
@@ -19,7 +19,7 @@ namespace :corporate do
     end
 
     desc "Scan and report on documents for a company"
-    task :scan, [:company_id] => :environment do |t, args|
+    task :scan, [ :company_id ] => :environment do |t, args|
       company = Company.find(args[:company_id])
       service = CorporateOneDriveService.new
 
@@ -40,10 +40,10 @@ namespace :corporate do
     end
 
     desc "Organise documents for a company (dry_run by default)"
-    task :organise, [:company_id, :execute] => :environment do |t, args|
+    task :organise, [ :company_id, :execute ] => :environment do |t, args|
       company = Company.find(args[:company_id])
       service = CorporateOneDriveService.new
-      dry_run = args[:execute] != 'true'
+      dry_run = args[:execute] != "true"
 
       puts "Organising documents for: #{company.name}"
       puts dry_run ? "(DRY RUN - no changes will be made)" : "(EXECUTING - files will be moved)"
@@ -57,9 +57,9 @@ namespace :corporate do
           puts "  #{action}: #{items.count}"
         end
 
-        if result[:actions].any? { |a| a[:action] == 'move' }
+        if result[:actions].any? { |a| a[:action] == "move" }
           puts "\nFiles to move:"
-          result[:actions].select { |a| a[:action] == 'move' }.each do |action|
+          result[:actions].select { |a| a[:action] == "move" }.each do |action|
             puts "  #{action[:file]} -> #{action[:target_folder]}"
             puts "    Result: #{action[:result]}" if action[:result]
           end
@@ -79,19 +79,19 @@ namespace :corporate do
       # Define required documents per company type
       required_documents = {
         annual: [
-          { type: 'EOY ASIC', description: 'End of Year ASIC Statement' },
-          { type: 'EOY ATO', description: 'End of Year ATO Statement' },
-          { type: 'Solvency ASIC', description: 'Solvency Declaration' },
-          { type: 'ATO Tax Return', description: 'Company Tax Return' }
+          { type: "EOY ASIC", description: "End of Year ASIC Statement" },
+          { type: "EOY ATO", description: "End of Year ATO Statement" },
+          { type: "Solvency ASIC", description: "Solvency Declaration" },
+          { type: "ATO Tax Return", description: "Company Tax Return" }
         ],
         setup: [
-          { type: 'Certificate of Registration', description: 'ASIC Registration Certificate' },
-          { type: 'Constitution', description: 'Company Constitution' },
-          { type: 'Corporate Key', description: 'Corporate Key Document' }
+          { type: "Certificate of Registration", description: "ASIC Registration Certificate" },
+          { type: "Constitution", description: "Company Constitution" },
+          { type: "Corporate Key", description: "Corporate Key Document" }
         ],
         optional: [
-          { type: 'Bank Statements', description: 'EOY Bank Statements' },
-          { type: 'Minutes', description: 'Annual Solvency Minutes' }
+          { type: "Bank Statements", description: "EOY Bank Statements" },
+          { type: "Minutes", description: "Annual Solvency Minutes" }
         ]
       }
 
@@ -103,7 +103,7 @@ namespace :corporate do
       total_missing = 0
       company_reports = []
 
-      Company.joins(:company_group).where(status: 'active').order('company_groups.name, companies.name').find_each do |company|
+      Company.joins(:company_group).where(status: "active").order("company_groups.name, companies.name").find_each do |company|
         missing = []
         found = []
         documents_with_urls = []
@@ -115,7 +115,7 @@ namespace :corporate do
             documents_with_urls = scan[:documents]
           end
         else
-          missing << { type: 'OneDrive Folder', year: nil, severity: 'high', description: 'No OneDrive folder linked', url: nil }
+          missing << { type: "OneDrive Folder", year: nil, severity: "high", description: "No OneDrive folder linked", url: nil }
         end
 
         # Helper to find document and return with URL
@@ -132,12 +132,12 @@ namespace :corporate do
           if doc
             found << req.merge(url: doc[:web_url], name: doc[:name])
           else
-            missing << { type: req[:type], year: nil, severity: 'medium', description: req[:description], url: nil }
+            missing << { type: req[:type], year: nil, severity: "medium", description: req[:description], url: nil }
           end
         end
 
         # Check annual documents for current and previous FY
-        [current_fy, previous_fy].each do |fy|
+        [ current_fy, previous_fy ].each do |fy|
           required_documents[:annual].each do |req|
             pattern = "#{req[:type]}.*fy#{fy.to_s[-2..]}"
             alt_pattern = "#{req[:type]}.*#{fy}"
@@ -153,7 +153,7 @@ namespace :corporate do
               missing << {
                 type: req[:type],
                 year: fy,
-                severity: fy == current_fy ? 'high' : 'medium',
+                severity: fy == current_fy ? "high" : "medium",
                 description: "#{req[:description]} for FY#{fy.to_s[-2..]}",
                 url: nil
               }
@@ -164,17 +164,17 @@ namespace :corporate do
         # Check bank statements for each bank account
         company.bank_accounts.active.each do |account|
           last4 = account.account_number.last(4)
-          [current_fy, previous_fy].each do |fy|
+          [ current_fy, previous_fy ].each do |fy|
             pattern = /eoy.*#{last4}.*fy#{fy.to_s[-2..]}/i
             doc = documents_with_urls.find { |d| d[:name].match?(pattern) }
 
             if doc
-              found << { type: 'Bank Statement', year: fy, account: account.display_name, url: doc[:web_url], name: doc[:name] }
+              found << { type: "Bank Statement", year: fy, account: account.display_name, url: doc[:web_url], name: doc[:name] }
             else
               missing << {
-                type: 'Bank Statement',
+                type: "Bank Statement",
                 year: fy,
-                severity: fy == current_fy ? 'medium' : 'low',
+                severity: fy == current_fy ? "medium" : "low",
                 description: "EOY #{account.institution_name} #{account.masked_account_number} FY#{fy.to_s[-2..]}",
                 url: nil
               }
@@ -186,11 +186,11 @@ namespace :corporate do
         if company.respond_to?(:company_loans) && company.company_loans.exists?
           has_active_loans = company.company_loans.as_lender.active.any? || company.company_loans.as_borrower.active.any? rescue false
           if has_active_loans
-            loan_doc = documents_with_urls.find { |d| d[:name].downcase.include?('loan') }
+            loan_doc = documents_with_urls.find { |d| d[:name].downcase.include?("loan") }
             if loan_doc
-              found << { type: 'Loan Agreement', url: loan_doc[:web_url], name: loan_doc[:name] }
+              found << { type: "Loan Agreement", url: loan_doc[:web_url], name: loan_doc[:name] }
             else
-              missing << { type: 'Loan Agreement', year: nil, severity: 'high', description: 'Loan documents for active loans', url: nil }
+              missing << { type: "Loan Agreement", year: nil, severity: "high", description: "Loan documents for active loans", url: nil }
             end
           end
         end
@@ -200,21 +200,21 @@ namespace :corporate do
         if company.onedrive_folder_id.present?
           first_doc = documents_with_urls.find { |d| d[:web_url].present? }
           if first_doc && first_doc[:web_url]
-            folder_url = first_doc[:web_url].split('/').tap { |parts| parts.pop }.join('/') rescue nil
+            folder_url = first_doc[:web_url].split("/").tap { |parts| parts.pop }.join("/") rescue nil
           end
         end
 
         company_reports << {
           company: company,
-          group: company.company_group&.name || 'Ungrouped',
+          group: company.company_group&.name || "Ungrouped",
           folder_url: folder_url,
           missing: missing,
           found: found,
           found_count: found.count,
           missing_count: missing.count,
-          high_severity: missing.count { |m| m[:severity] == 'high' },
-          medium_severity: missing.count { |m| m[:severity] == 'medium' },
-          low_severity: missing.count { |m| m[:severity] == 'low' }
+          high_severity: missing.count { |m| m[:severity] == "high" },
+          medium_severity: missing.count { |m| m[:severity] == "medium" },
+          low_severity: missing.count { |m| m[:severity] == "low" }
         }
 
         total_missing += missing.count
@@ -265,7 +265,7 @@ namespace :corporate do
               items = missing.select { |m| m[:severity] == severity }
               next if items.empty?
 
-              severity_label = { 'high' => '🔴 MISSING', 'medium' => '🟡 MISSING', 'low' => '⚪ Optional' }[severity]
+              severity_label = { "high" => "🔴 MISSING", "medium" => "🟡 MISSING", "low" => "⚪ Optional" }[severity]
               puts "  #{severity_label}:"
               items.each do |m|
                 puts "    - #{m[:description]}"
@@ -289,24 +289,24 @@ namespace :corporate do
 
     desc "Generate missing documents report as HTML with clickable links"
     task missing_report_html: :environment do
-      require 'erb'
+      require "erb"
 
       # Define required documents per company type
       required_documents = {
         annual: [
-          { type: 'EOY ASIC', description: 'End of Year ASIC Statement' },
-          { type: 'EOY ATO', description: 'End of Year ATO Statement' },
-          { type: 'Solvency ASIC', description: 'Solvency Declaration' },
-          { type: 'ATO Tax Return', description: 'Company Tax Return' }
+          { type: "EOY ASIC", description: "End of Year ASIC Statement" },
+          { type: "EOY ATO", description: "End of Year ATO Statement" },
+          { type: "Solvency ASIC", description: "Solvency Declaration" },
+          { type: "ATO Tax Return", description: "Company Tax Return" }
         ],
         setup: [
-          { type: 'Certificate of Registration', description: 'ASIC Registration Certificate' },
-          { type: 'Constitution', description: 'Company Constitution' },
-          { type: 'Corporate Key', description: 'Corporate Key Document' }
+          { type: "Certificate of Registration", description: "ASIC Registration Certificate" },
+          { type: "Constitution", description: "Company Constitution" },
+          { type: "Corporate Key", description: "Corporate Key Document" }
         ],
         optional: [
-          { type: 'Bank Statements', description: 'EOY Bank Statements' },
-          { type: 'Minutes', description: 'Annual Solvency Minutes' }
+          { type: "Bank Statements", description: "EOY Bank Statements" },
+          { type: "Minutes", description: "Annual Solvency Minutes" }
         ]
       }
 
@@ -316,7 +316,7 @@ namespace :corporate do
       service = CorporateOneDriveService.new
       company_reports = []
 
-      Company.joins(:company_group).where(status: 'active').order('company_groups.name, companies.name').find_each do |company|
+      Company.joins(:company_group).where(status: "active").order("company_groups.name, companies.name").find_each do |company|
         missing = []
         found = []
         documents_with_urls = []
@@ -325,7 +325,7 @@ namespace :corporate do
           scan = service.scan_company_documents(company)
           documents_with_urls = scan[:success] ? scan[:documents] : []
         else
-          missing << { type: 'OneDrive Folder', severity: 'high', description: 'No OneDrive folder linked', url: nil }
+          missing << { type: "OneDrive Folder", severity: "high", description: "No OneDrive folder linked", url: nil }
         end
 
         find_doc = ->(pattern) {
@@ -337,31 +337,31 @@ namespace :corporate do
           if doc
             found << req.merge(url: doc[:web_url], name: doc[:name])
           else
-            missing << { type: req[:type], severity: 'medium', description: req[:description], url: nil }
+            missing << { type: req[:type], severity: "medium", description: req[:description], url: nil }
           end
         end
 
-        [current_fy, previous_fy].each do |fy|
+        [ current_fy, previous_fy ].each do |fy|
           required_documents[:annual].each do |req|
             pattern = "#{req[:type]}.*fy#{fy.to_s[-2..]}"
             doc = documents_with_urls.find { |d| d[:name].downcase.match?(/#{pattern}/i) }
             if doc
               found << req.merge(year: fy, url: doc[:web_url], name: doc[:name])
             else
-              missing << { type: req[:type], year: fy, severity: fy == current_fy ? 'high' : 'medium', description: "#{req[:description]} FY#{fy.to_s[-2..]}", url: nil }
+              missing << { type: req[:type], year: fy, severity: fy == current_fy ? "high" : "medium", description: "#{req[:description]} FY#{fy.to_s[-2..]}", url: nil }
             end
           end
         end
 
         company.bank_accounts.active.each do |account|
           last4 = account.account_number.last(4)
-          [current_fy, previous_fy].each do |fy|
+          [ current_fy, previous_fy ].each do |fy|
             pattern = /eoy.*#{last4}.*fy#{fy.to_s[-2..]}/i
             doc = documents_with_urls.find { |d| d[:name].match?(pattern) }
             if doc
-              found << { type: 'Bank Statement', year: fy, account: account.display_name, url: doc[:web_url], name: doc[:name] }
+              found << { type: "Bank Statement", year: fy, account: account.display_name, url: doc[:web_url], name: doc[:name] }
             else
-              missing << { type: 'Bank Statement', year: fy, severity: fy == current_fy ? 'medium' : 'low', description: "EOY #{account.institution_name} #{account.masked_account_number} FY#{fy.to_s[-2..]}", url: nil }
+              missing << { type: "Bank Statement", year: fy, severity: fy == current_fy ? "medium" : "low", description: "EOY #{account.institution_name} #{account.masked_account_number} FY#{fy.to_s[-2..]}", url: nil }
             end
           end
         end
@@ -369,18 +369,18 @@ namespace :corporate do
         folder_url = nil
         if company.onedrive_folder_id.present?
           first_doc = documents_with_urls.find { |d| d[:web_url].present? }
-          folder_url = first_doc[:web_url].split('/').tap { |p| p.pop }.join('/') rescue nil if first_doc
+          folder_url = first_doc[:web_url].split("/").tap { |p| p.pop }.join("/") rescue nil if first_doc
         end
 
         company_reports << {
           company: company,
-          group: company.company_group&.name || 'Ungrouped',
+          group: company.company_group&.name || "Ungrouped",
           folder_url: folder_url,
           missing: missing,
           found: found,
-          high_severity: missing.count { |m| m[:severity] == 'high' },
-          medium_severity: missing.count { |m| m[:severity] == 'medium' },
-          low_severity: missing.count { |m| m[:severity] == 'low' }
+          high_severity: missing.count { |m| m[:severity] == "high" },
+          medium_severity: missing.count { |m| m[:severity] == "medium" },
+          low_severity: missing.count { |m| m[:severity] == "low" }
         }
       end
 
@@ -434,18 +434,18 @@ namespace :corporate do
         reports.sort_by { |r| -r[:high_severity] }.each do |report|
           company = report[:company]
           status_class = if report[:high_severity] > 0
-            'status-critical'
+            "status-critical"
           elsif report[:medium_severity] > 0
-            'status-warning'
+            "status-warning"
           else
-            'status-ok'
+            "status-ok"
           end
           status_text = if report[:high_severity] > 0
             "#{report[:high_severity]} critical"
           elsif report[:medium_severity] > 0
             "#{report[:medium_severity]} warnings"
           else
-            'OK'
+            "OK"
           end
 
           html += <<~CARD
@@ -513,17 +513,17 @@ namespace :corporate do
       SUMMARY
 
       # Save to file
-      output_path = Rails.root.join('tmp', 'corporate_missing_report.html')
+      output_path = Rails.root.join("tmp", "corporate_missing_report.html")
       File.write(output_path, html)
       puts "HTML report generated: #{output_path}"
       puts "Open in browser: file://#{output_path}"
 
       # Also try to open in default browser on macOS
-      system("open #{output_path}") if RUBY_PLATFORM.include?('darwin')
+      system("open #{output_path}") if RUBY_PLATFORM.include?("darwin")
     end
 
     desc "Sync OneDrive documents to database for a company"
-    task :sync_db, [:company_id] => :environment do |t, args|
+    task :sync_db, [ :company_id ] => :environment do |t, args|
       company = Company.find(args[:company_id])
       service = CorporateOneDriveService.new
 
@@ -554,8 +554,8 @@ namespace :corporate do
     end
 
     desc "Reorganise and rename all documents in OneDrive to standard naming convention"
-    task :reorganise_all, [:execute] => :environment do |t, args|
-      dry_run = args[:execute] != 'true'
+    task :reorganise_all, [ :execute ] => :environment do |t, args|
+      dry_run = args[:execute] != "true"
       service = CorporateOneDriveService.new
 
       puts "="*80
@@ -566,7 +566,7 @@ namespace :corporate do
 
       total_actions = { moved: 0, renamed: 0, skipped: 0, errors: 0 }
 
-      Company.joins(:company_group).where(status: 'active').order('company_groups.name, companies.name').find_each do |company|
+      Company.joins(:company_group).where(status: "active").order("company_groups.name, companies.name").find_each do |company|
         next unless company.onedrive_folder_id.present?
 
         puts "\n#{company.name}"
@@ -577,11 +577,11 @@ namespace :corporate do
         if result[:success]
           result[:actions].each do |action|
             case action[:action]
-            when 'move'
+            when "move"
               total_actions[:moved] += 1
               puts "  📁 MOVE: #{action[:file]} -> #{action[:target_folder]}"
               puts "      Result: #{action[:result]}" unless dry_run
-            when 'skip'
+            when "skip"
               total_actions[:skipped] += 1
             end
           end
@@ -633,10 +633,10 @@ namespace :corporate do
     end
 
     desc "Rename documents in a company folder to standard naming convention"
-    task :rename, [:company_id, :execute] => :environment do |t, args|
+    task :rename, [ :company_id, :execute ] => :environment do |t, args|
       company = Company.find(args[:company_id])
       service = CorporateOneDriveService.new
-      dry_run = args[:execute] != 'true'
+      dry_run = args[:execute] != "true"
 
       puts "Renaming documents for: #{company.name}"
       puts dry_run ? "(DRY RUN - no changes will be made)" : "(EXECUTING - files will be renamed)"
@@ -688,7 +688,7 @@ namespace :corporate do
       # Standard format: {Company Code} - {YYYY-MM-DD} - {Document Type} - {Description}.{ext}
       # Example: GEN 2612 - 2024-06-30 - Constitution - Amended.pdf
       extension = File.extname(filename)
-      basename = File.basename(filename, '.*')
+      basename = File.basename(filename, ".*")
 
       # Try to extract date from filename
       date_match = basename.match(/(\d{4}[-_]\d{2}[-_]\d{2})|FY(\d{2,4})|(\d{1,2})[-_](\d{1,2})[-_](\d{2,4})/)
@@ -696,7 +696,7 @@ namespace :corporate do
 
       if date_match
         if date_match[1]
-          date = Date.parse(date_match[1].gsub('_', '-')) rescue nil
+          date = Date.parse(date_match[1].gsub("_", "-")) rescue nil
         elsif date_match[2]
           fy = date_match[2].to_i
           fy = 2000 + fy if fy < 100
@@ -714,18 +714,18 @@ namespace :corporate do
 
       # Build description
       description = basename
-        .gsub(/\d{4}[-_]\d{2}[-_]\d{2}/, '')
-        .gsub(/FY\d{2,4}/i, '')
-        .gsub(/\d{1,2}[-_]\d{1,2}[-_]\d{2,4}/, '')
-        .gsub(doc_type, '')
-        .gsub(company.name, '')
-        .gsub(company.code || '', '')
-        .gsub(/[-_]+/, ' ')
+        .gsub(/\d{4}[-_]\d{2}[-_]\d{2}/, "")
+        .gsub(/FY\d{2,4}/i, "")
+        .gsub(/\d{1,2}[-_]\d{1,2}[-_]\d{2,4}/, "")
+        .gsub(doc_type, "")
+        .gsub(company.name, "")
+        .gsub(company.code || "", "")
+        .gsub(/[-_]+/, " ")
         .strip
-        .squeeze(' ')
+        .squeeze(" ")
 
       # Build new filename
-      date_str = date ? date.strftime('%Y-%m-%d') : Date.today.strftime('%Y-%m-%d')
+      date_str = date ? date.strftime("%Y-%m-%d") : Date.today.strftime("%Y-%m-%d")
 
       # Use code as single source of truth
       company_identifier = company.code.presence || company.name.split.map(&:first).join.upcase
@@ -744,24 +744,24 @@ namespace :corporate do
       filename_lower = filename.downcase
 
       type_keywords = {
-        'Constitution' => %w[constitution],
-        'Certificate of Registration' => %w[certificate registration cert reg],
-        'Corporate Key' => %w[corporate key],
-        'Loan Agreement' => %w[loan agreement],
-        'Security Deed' => %w[security deed],
-        'PPSR' => %w[ppsr personal property],
-        'ATO Tax Return' => %w[tax return itr],
-        'BAS' => %w[bas activity statement],
-        'Solvency ASIC' => %w[solvency 484],
-        'EOY ASIC' => %w[eoy asic annual return],
-        'EOY ATO' => %w[eoy ato],
-        'Minutes' => %w[minutes meeting resolution],
-        'Distribution' => %w[distribution],
-        'Dividends' => %w[dividend],
-        'Bank Statement' => %w[bank statement],
-        'Trust Deed' => %w[trust deed],
-        'Officers' => %w[officer director secretary appointment resignation 484],
-        'Assets' => %w[asset register depreciation]
+        "Constitution" => %w[constitution],
+        "Certificate of Registration" => %w[certificate registration cert reg],
+        "Corporate Key" => %w[corporate key],
+        "Loan Agreement" => %w[loan agreement],
+        "Security Deed" => %w[security deed],
+        "PPSR" => %w[ppsr personal property],
+        "ATO Tax Return" => %w[tax return itr],
+        "BAS" => %w[bas activity statement],
+        "Solvency ASIC" => %w[solvency 484],
+        "EOY ASIC" => %w[eoy asic annual return],
+        "EOY ATO" => %w[eoy ato],
+        "Minutes" => %w[minutes meeting resolution],
+        "Distribution" => %w[distribution],
+        "Dividends" => %w[dividend],
+        "Bank Statement" => %w[bank statement],
+        "Trust Deed" => %w[trust deed],
+        "Officers" => %w[officer director secretary appointment resignation 484],
+        "Assets" => %w[asset register depreciation]
       }
 
       type_keywords.each do |type, keywords|
@@ -791,7 +791,7 @@ namespace :corporate do
       end
 
       linked = 0
-      Company.where(status: 'active').find_each do |company|
+      Company.where(status: "active").find_each do |company|
         next if company.onedrive_folder_id.present?
 
         # Try to find matching folder
@@ -802,14 +802,14 @@ namespace :corporate do
           company.name.split.first
         ].compact.map(&:downcase)
 
-        matching_folder = root_items['value']&.find do |item|
-          item['folder'] && folder_patterns.any? { |p| item['name'].downcase.include?(p) }
+        matching_folder = root_items["value"]&.find do |item|
+          item["folder"] && folder_patterns.any? { |p| item["name"].downcase.include?(p) }
         end
 
         if matching_folder
           company.update(
-            onedrive_folder_id: matching_folder['id'],
-            onedrive_folder_path: matching_folder['name']
+            onedrive_folder_id: matching_folder["id"],
+            onedrive_folder_path: matching_folder["name"]
           )
           linked += 1
           puts "  ✓ #{company.name} -> #{matching_folder['name']}"

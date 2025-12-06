@@ -8,7 +8,7 @@ class JobMatcherService
   end
 
   def call
-    return { success: false, error: 'Job name cannot be empty' } if @job_name.blank?
+    return { success: false, error: "Job name cannot be empty" } if @job_name.blank?
 
     matches = find_matches
     best_match = matches.first
@@ -62,14 +62,14 @@ class JobMatcherService
 
     # Calculate Levenshtein distance
     distance = levenshtein_distance(normalized_job, normalized_title)
-    max_length = [normalized_job.length, normalized_title.length].max
+    max_length = [ normalized_job.length, normalized_title.length ].max
 
     # Convert distance to similarity percentage
     similarity = (1.0 - (distance.to_f / max_length)) * 100
 
     # Bonus points for substring matches
     if normalized_title.include?(normalized_job) || normalized_job.include?(normalized_title)
-      similarity = [similarity + 20, 95.0].min
+      similarity = [ similarity + 20, 95.0 ].min
     end
 
     # Bonus for word matches
@@ -77,18 +77,18 @@ class JobMatcherService
     title_words = normalized_title.split
     common_words = job_words & title_words
     if common_words.any?
-      word_match_bonus = (common_words.length.to_f / [job_words.length, title_words.length].max) * 15
-      similarity = [similarity + word_match_bonus, 99.0].min
+      word_match_bonus = (common_words.length.to_f / [ job_words.length, title_words.length ].max) * 15
+      similarity = [ similarity + word_match_bonus, 99.0 ].min
     end
 
-    [similarity, 0.0].max
+    [ similarity, 0.0 ].max
   end
 
   def normalize_string(str)
     str.to_s
        .downcase
-       .gsub(/[^a-z0-9\s]/, '') # Remove special characters
-       .gsub(/\s+/, ' ')        # Normalize whitespace
+       .gsub(/[^a-z0-9\s]/, "") # Remove special characters
+       .gsub(/\s+/, " ")        # Normalize whitespace
        .strip
   end
 

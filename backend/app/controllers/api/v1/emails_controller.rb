@@ -1,5 +1,4 @@
 class Api::V1::EmailsController < ApplicationController
-
   # GET /api/v1/emails
   # Get all emails, optionally filtered by construction
   def index
@@ -68,7 +67,7 @@ class Api::V1::EmailsController < ApplicationController
     construction_id = params[:job_id]
 
     if construction_id.blank?
-      render json: { error: 'construction_id is required' }, status: :unprocessable_entity
+      render json: { error: "construction_id is required" }, status: :unprocessable_entity
       return
     end
 
@@ -125,5 +124,4 @@ class Api::V1::EmailsController < ApplicationController
   def update_params
     params.require(:email).permit(:job_id, :user_id)
   end
-
 end

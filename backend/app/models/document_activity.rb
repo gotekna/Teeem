@@ -29,8 +29,8 @@ class DocumentActivity < ApplicationRecord
       "Renamed from '#{old_values['title']}' to '#{new_values['title']}'"
     when "moved"
       parts = []
-      parts << "company #{old_values['company_id']} → #{new_values['company_id']}" if old_values['company_id'] != new_values['company_id']
-      parts << "folder #{old_values['folder']} → #{new_values['folder']}" if old_values['folder'] != new_values['folder']
+      parts << "company #{old_values['company_id']} → #{new_values['company_id']}" if old_values["company_id"] != new_values["company_id"]
+      parts << "folder #{old_values['folder']} → #{new_values['folder']}" if old_values["folder"] != new_values["folder"]
       "Moved: #{parts.join(', ')}"
     when "validated"
       "Document naming validated"

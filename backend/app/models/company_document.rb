@@ -4,9 +4,9 @@ class CompanyDocument < ApplicationRecord
   belongs_to :contact, optional: true  # For documents linked to people (family members, directors)
   belongs_to :user, optional: true
   belongs_to :asset, optional: true
-  belongs_to :loan, class_name: 'CompanyLoan', optional: true
-  belongs_to :document_type_record, class_name: 'DocumentType', foreign_key: 'document_type_id', optional: true
-  belongs_to :user_validated_by, class_name: 'User', optional: true
+  belongs_to :loan, class_name: "CompanyLoan", optional: true
+  belongs_to :document_type_record, class_name: "DocumentType", foreign_key: "document_type_id", optional: true
+  belongs_to :user_validated_by, class_name: "User", optional: true
 
   # Polymorphic association - link to PurchaseOrder, ExternalInvoice, Job, etc.
   belongs_to :documentable, polymorphic: true, optional: true
@@ -19,8 +19,8 @@ class CompanyDocument < ApplicationRecord
   has_many :cases, through: :case_documents, source: :case_record
 
   # Duplicate tracking
-  has_many :duplicate_reviews_as_existing, class_name: 'DocumentDuplicateReview', foreign_key: :existing_document_id, dependent: :destroy
-  has_many :duplicate_reviews_as_new, class_name: 'DocumentDuplicateReview', foreign_key: :new_document_id, dependent: :nullify
+  has_many :duplicate_reviews_as_existing, class_name: "DocumentDuplicateReview", foreign_key: :existing_document_id, dependent: :destroy
+  has_many :duplicate_reviews_as_new, class_name: "DocumentDuplicateReview", foreign_key: :new_document_id, dependent: :nullify
 
   # Active Storage for file upload
   has_one_attached :file
@@ -46,13 +46,13 @@ class CompanyDocument < ApplicationRecord
 
   # Legacy abbreviations for fallback (when DB is unavailable)
   LEGACY_ABBREVIATIONS = {
-    'CTR' => 'Company Tax Return',
-    'TTR' => 'Trust Tax Return',
-    'BAS' => 'Business Activity Statement',
-    'PPSR' => 'PPSR Registration',
-    'CA' => 'Client Advice',
-    'AA' => 'Accountant Advice',
-    'LA' => 'Legal Advice'
+    "CTR" => "Company Tax Return",
+    "TTR" => "Trust Tax Return",
+    "BAS" => "Business Activity Statement",
+    "PPSR" => "PPSR Registration",
+    "CA" => "Client Advice",
+    "AA" => "Accountant Advice",
+    "LA" => "Legal Advice"
   }.freeze
 
   # Document type abbreviations for display title generation
@@ -60,12 +60,12 @@ class CompanyDocument < ApplicationRecord
   def self.document_type_abbreviations
     @abbreviations_cache ||= begin
       # Build hash from database: abbreviation => display_name (or name if no display_name)
-      db_abbrs = DocumentType.where.not(abbreviation: [nil, ''])
+      db_abbrs = DocumentType.where.not(abbreviation: [ nil, "" ])
                              .pluck(:abbreviation, :display_name, :name)
                              .each_with_object({}) do |(abbr, display_name, name), hash|
         # Use display_name if set, otherwise extract display name from name
         # e.g., "CTR - Company Tax Return" -> "Company Tax Return"
-        display = display_name.presence || name.to_s.sub(/\A\w+\s*-\s*/, '')
+        display = display_name.presence || name.to_s.sub(/\A\w+\s*-\s*/, "")
         hash[abbr] = display
       end
       # Merge with legacy fallback (DB takes precedence)
@@ -103,14 +103,14 @@ class CompanyDocument < ApplicationRecord
     # 1. folder field matching the tab name (SharePoint synced documents)
     # 2. document_type matching a DocumentType whose tabs array contains this tab
     joins("LEFT JOIN document_types ON document_types.name = company_documents.document_type")
-      .where("UPPER(company_documents.folder) = ? OR document_types.tabs @> ?", tab.upcase, [tab].to_json)
+      .where("UPPER(company_documents.folder) = ? OR document_types.tabs @> ?", tab.upcase, [ tab ].to_json)
   }
   scope :by_source, ->(source) { where(source: source) }
   scope :by_asset, ->(asset_id) { where(asset_id: asset_id) }
   scope :with_asset, -> { where.not(asset_id: nil) }
   scope :without_asset, -> { where(asset_id: nil) }
-  scope :electronic, -> { where(storage_type: 'electronic') }
-  scope :manual, -> { where(storage_type: 'manual') }
+  scope :electronic, -> { where(storage_type: "electronic") }
+  scope :manual, -> { where(storage_type: "manual") }
   scope :recent, -> { order(created_at: :desc) }
   # Filter by financial year using PostgreSQL array contains
   scope :by_financial_year, ->(year) { where("financial_years @> ARRAY[?]::integer[]", year.to_i) }
@@ -123,7 +123,7 @@ class CompanyDocument < ApplicationRecord
 
   # Instance methods
   def formatted_document_type
-    document_type.to_s.titleize.gsub('_', ' ')
+    document_type.to_s.titleize.gsub("_", " ")
   end
 
   def file_size_mb
@@ -165,7 +165,7 @@ class CompanyDocument < ApplicationRecord
 
     performer = user || (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
     company.company_activities.create!(
-      activity_type: 'document_uploaded',
+      activity_type: "document_uploaded",
       description: "Document uploaded: #{title}",
       change_details: {
         document_type: document_type,
@@ -197,7 +197,7 @@ class CompanyDocument < ApplicationRecord
     # Company codes are typically 1-5 uppercase letters at the start
     if company&.code.present?
       # Match exact company code at start (case insensitive)
-      display = display.sub(/\A#{Regexp.escape(company.code)}\s+/i, '')
+      display = display.sub(/\A#{Regexp.escape(company.code)}\s+/i, "")
     end
 
     # Expand FY to full year (FY21 → 2021, FY2021 → 2021)
@@ -206,10 +206,10 @@ class CompanyDocument < ApplicationRecord
 
     # Expand S/US to Signed/Unsigned BEFORE expanding CTR/TTR
     # "US CTR FY24" -> "Unsigned CTR FY24" -> "Unsigned Company Tax Return 2024"
-    display = display.gsub(/\bUS\s+CTR\b/i, 'Unsigned CTR')
-    display = display.gsub(/\bS\s+CTR\b/i, 'Signed CTR')
-    display = display.gsub(/\bUS\s+TTR\b/i, 'Unsigned TTR')
-    display = display.gsub(/\bS\s+TTR\b/i, 'Signed TTR')
+    display = display.gsub(/\bUS\s+CTR\b/i, "Unsigned CTR")
+    display = display.gsub(/\bS\s+CTR\b/i, "Signed CTR")
+    display = display.gsub(/\bUS\s+TTR\b/i, "Unsigned TTR")
+    display = display.gsub(/\bS\s+TTR\b/i, "Signed TTR")
 
     # Expand document type abbreviations from database
     self.class.document_type_abbreviations.each do |abbr, full|
@@ -217,14 +217,14 @@ class CompanyDocument < ApplicationRecord
     end
 
     # Titleize DRAFT/AMENDED
-    display = display.gsub(/\bDRAFT\b/i, 'Draft')
-    display = display.gsub(/\bAMENDED\b/i, 'Amended')
+    display = display.gsub(/\bDRAFT\b/i, "Draft")
+    display = display.gsub(/\bAMENDED\b/i, "Amended")
 
     # Remove file extension
-    display = display.sub(/\.(pdf|docx?|xlsx?|png|jpg|jpeg)$/i, '')
+    display = display.sub(/\.(pdf|docx?|xlsx?|png|jpg|jpeg)$/i, "")
 
     # Clean up extra spaces
-    display = display.gsub(/\s+/, ' ').strip
+    display = display.gsub(/\s+/, " ").strip
 
     self.display_title = display
   end

@@ -1,10 +1,10 @@
-require 'anthropic'
-require 'base64'
+require "anthropic"
+require "base64"
 
 class PlanReviewService
   MAX_FILE_SIZE = 20.megabytes
   MAX_PAGES_PER_PDF = 10
-  PLAN_FOLDER_PATHS = ['01 - Plans', '02 - Engineering', '03 - Specifications'].freeze
+  PLAN_FOLDER_PATHS = [ "01 - Plans", "02 - Engineering", "03 - Specifications" ].freeze
 
   class PDFNotFoundError < StandardError; end
   class FileTooLargeError < StandardError; end
@@ -19,7 +19,7 @@ class PlanReviewService
   def execute
     # Create or get existing review
     @review = @estimate.estimate_reviews.create!(
-      status: 'processing',
+      status: "processing",
       items_matched: 0,
       items_mismatched: 0,
       items_missing: 0,
@@ -53,7 +53,7 @@ class PlanReviewService
 
       # Step 9: Update review with results
       @review.update!(
-        status: 'completed',
+        status: "completed",
         ai_findings: parsed_analysis,
         discrepancies: discrepancies,
         items_matched: discrepancies[:matched_count],
@@ -113,24 +113,24 @@ class PlanReviewService
         next unless folder
 
         # List all items in folder
-        items = client.list_folder_items(folder['id'])
+        items = client.list_folder_items(folder["id"])
 
         # Filter for PDF files
-        pdfs = items['value']&.select { |item| item['name']&.end_with?('.pdf') } || []
+        pdfs = items["value"]&.select { |item| item["name"]&.end_with?(".pdf") } || []
 
         pdfs.each do |pdf|
           # Check file size
-          if pdf['size'] > MAX_FILE_SIZE
+          if pdf["size"] > MAX_FILE_SIZE
             Rails.logger.warn "Skipping large PDF: #{pdf['name']} (#{pdf['size']} bytes)"
             next
           end
 
           # Download file content
-          content = client.download_file(pdf['id'])
+          content = client.download_file(pdf["id"])
 
           pdf_files << {
-            name: pdf['name'],
-            size: pdf['size'],
+            name: pdf["name"],
+            size: pdf["size"],
             content: content
           }
         end
@@ -161,10 +161,10 @@ class PlanReviewService
     # Get estimate line items
     line_items = @estimate.estimate_line_items.map do |item|
       {
-        category: item.category || 'General',
+        category: item.category || "General",
         item: item.description,
         quantity: item.quantity,
-        unit: item.unit || 'ea'
+        unit: item.unit || "ea"
       }
     end
 
@@ -227,7 +227,7 @@ class PlanReviewService
   end
 
   def send_to_claude_api(pdf_data, prompt)
-    api_key = ENV['ANTHROPIC_API_KEY']
+    api_key = ENV["ANTHROPIC_API_KEY"]
     raise StandardError, "ANTHROPIC_API_KEY not configured" unless api_key
 
     client = Anthropic::Client.new(access_token: api_key)
@@ -292,7 +292,7 @@ class PlanReviewService
   end
 
   def identify_discrepancies(parsed_analysis)
-    plan_items = parsed_analysis['items'] || []
+    plan_items = parsed_analysis["items"] || []
     estimate_items = @estimate.estimate_line_items.to_a
 
     matched = []
@@ -306,17 +306,17 @@ class PlanReviewService
 
       if matching_estimate
         # Check quantity difference
-        plan_qty = plan_item['quantity'].to_f
+        plan_qty = plan_item["quantity"].to_f
         estimate_qty = matching_estimate.quantity.to_f
 
         diff_percent = ((plan_qty - estimate_qty).abs / plan_qty * 100).round(2) if plan_qty > 0
 
         if diff_percent && diff_percent > 10
-          severity = diff_percent > 20 ? 'high' : 'medium'
+          severity = diff_percent > 20 ? "high" : "medium"
           mismatched << {
-            type: 'quantity_mismatch',
-            category: plan_item['category'],
-            item: plan_item['item'],
+            type: "quantity_mismatch",
+            category: plan_item["category"],
+            item: plan_item["item"],
             plan_quantity: plan_qty,
             estimate_quantity: estimate_qty,
             difference_percent: diff_percent,
@@ -325,20 +325,20 @@ class PlanReviewService
           }
         else
           matched << {
-            item: plan_item['item'],
-            category: plan_item['category'],
+            item: plan_item["item"],
+            category: plan_item["category"],
             quantity: plan_qty
           }
         end
       else
         # Missing from estimate
         missing << {
-          type: 'missing_from_estimate',
-          category: plan_item['category'],
-          item: plan_item['item'],
-          plan_quantity: plan_item['quantity'],
-          severity: 'medium',
-          recommendation: 'Consider adding to estimate'
+          type: "missing_from_estimate",
+          category: plan_item["category"],
+          item: plan_item["item"],
+          plan_quantity: plan_item["quantity"],
+          severity: "medium",
+          recommendation: "Consider adding to estimate"
         }
       end
     end
@@ -349,12 +349,12 @@ class PlanReviewService
 
       unless found_in_plans
         extra << {
-          type: 'extra_in_estimate',
+          type: "extra_in_estimate",
           category: estimate_item.category,
           item: estimate_item.description,
           estimate_quantity: estimate_item.quantity,
-          severity: 'low',
-          recommendation: 'Verify if this item is still required'
+          severity: "low",
+          recommendation: "Verify if this item is still required"
         }
       end
     end
@@ -377,8 +377,8 @@ class PlanReviewService
   end
 
   def items_match?(plan_item, estimate_item)
-    plan_desc = plan_item['item'].downcase.gsub(/[^a-z0-9]/, '')
-    estimate_desc = estimate_item.description.downcase.gsub(/[^a-z0-9]/, '')
+    plan_desc = plan_item["item"].downcase.gsub(/[^a-z0-9]/, "")
+    estimate_desc = estimate_item.description.downcase.gsub(/[^a-z0-9]/, "")
 
     # Check if one contains the other or they're very similar
     plan_desc.include?(estimate_desc) || estimate_desc.include?(plan_desc)
@@ -400,12 +400,12 @@ class PlanReviewService
     penalty = (mismatched * 5) + (missing * 3) + (extra * 2)
 
     # Ensure score is between 0 and 100
-    [base_score - penalty, 0].max.round(2)
+    [ base_score - penalty, 0 ].max.round(2)
   end
 
   def handle_error(message)
     @review&.update!(
-      status: 'failed',
+      status: "failed",
       ai_findings: { error: message },
       reviewed_at: Time.current
     )

@@ -7,31 +7,31 @@ class RefreshMaterializedViewsJob < ApplicationJob
   # Note: Views with unique indexes can use CONCURRENTLY, others cannot
   VIEWS = {
     # Core views
-    job_summary: { name: 'mv_job_summary', concurrent: true },
-    financial_summary: { name: 'mv_financial_summary', concurrent: false },
-    document_summary: { name: 'mv_document_summary', concurrent: false },
-    document_completeness: { name: 'mv_document_completeness', concurrent: false },
-    invoice_po_reconciliation: { name: 'mv_invoice_po_reconciliation', concurrent: true },
-    resource_utilization: { name: 'mv_resource_utilization', concurrent: false },
-    job_document_status: { name: 'mv_job_document_status', concurrent: true },
-    task_metrics: { name: 'mv_task_metrics', concurrent: false },
+    job_summary: { name: "mv_job_summary", concurrent: true },
+    financial_summary: { name: "mv_financial_summary", concurrent: false },
+    document_summary: { name: "mv_document_summary", concurrent: false },
+    document_completeness: { name: "mv_document_completeness", concurrent: false },
+    invoice_po_reconciliation: { name: "mv_invoice_po_reconciliation", concurrent: true },
+    resource_utilization: { name: "mv_resource_utilization", concurrent: false },
+    job_document_status: { name: "mv_job_document_status", concurrent: true },
+    task_metrics: { name: "mv_task_metrics", concurrent: false },
     # Time-based rollup views
-    financial_summary_weekly: { name: 'mv_financial_summary_weekly', concurrent: false },
-    financial_summary_quarterly: { name: 'mv_financial_summary_quarterly', concurrent: false },
-    financial_summary_yearly: { name: 'mv_financial_summary_yearly', concurrent: false },
-    job_summary_monthly: { name: 'mv_job_summary_monthly', concurrent: false }
+    financial_summary_weekly: { name: "mv_financial_summary_weekly", concurrent: false },
+    financial_summary_quarterly: { name: "mv_financial_summary_quarterly", concurrent: false },
+    financial_summary_yearly: { name: "mv_financial_summary_yearly", concurrent: false },
+    job_summary_monthly: { name: "mv_job_summary_monthly", concurrent: false }
   }.freeze
 
   # Refresh one or all materialized views
   # @param view_name [Symbol, String, nil] - :all, :job_summary, :financial_summary, :document_summary, :document_completeness
   def perform(view_name = :all)
     views_to_refresh = case view_name.to_sym
-                       when :all then VIEWS
-                       else
+    when :all then VIEWS
+    else
                          view_config = VIEWS[view_name.to_sym]
                          raise ArgumentError, "Unknown view: #{view_name}. Available: #{VIEWS.keys.join(', ')}" unless view_config
                          { view_name.to_sym => view_config }
-                       end
+    end
 
     results = {}
 
@@ -79,9 +79,9 @@ class RefreshMaterializedViewsJob < ApplicationJob
     safe_view_name = ActiveRecord::Base.connection.quote_table_name(view_name)
     sql = if concurrently
             "REFRESH MATERIALIZED VIEW CONCURRENTLY #{safe_view_name}"
-          else
+    else
             "REFRESH MATERIALIZED VIEW #{safe_view_name}"
-          end
+    end
 
     ActiveRecord::Base.connection.execute(sql)
   end
@@ -89,7 +89,7 @@ class RefreshMaterializedViewsJob < ApplicationJob
   def start_refresh_log(view_name)
     return nil unless defined?(MvRefreshLog)
 
-    MvRefreshLog.start_refresh(view_name, triggered_by: 'scheduled')
+    MvRefreshLog.start_refresh(view_name, triggered_by: "scheduled")
   rescue StandardError => e
     Rails.logger.warn("[Warehouse] Failed to start refresh log for #{view_name}: #{e.message}")
     nil

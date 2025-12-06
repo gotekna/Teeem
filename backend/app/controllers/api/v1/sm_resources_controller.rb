@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmResourcesController < ApplicationController
-      before_action :set_resource, only: [:show, :update, :destroy, :schedule, :allocations, :allocate]
+      before_action :set_resource, only: [ :show, :update, :destroy, :schedule, :allocations, :allocate ]
 
       # GET /api/v1/sm_resources
       def index
@@ -13,7 +13,7 @@ module Api
         @resources = @resources.where(resource_type: params[:type]) if params[:type].present?
 
         # Filter by active status
-        @resources = @resources.active if params[:active_only] == 'true'
+        @resources = @resources.active if params[:active_only] == "true"
 
         render json: {
           success: true,
@@ -45,7 +45,7 @@ module Api
         if @resource.save
           render json: {
             success: true,
-            message: 'Resource created successfully',
+            message: "Resource created successfully",
             resource: resource_to_json(@resource)
           }, status: :created
         else
@@ -79,13 +79,13 @@ module Api
           @resource.update!(is_active: false)
           render json: {
             success: true,
-            message: 'Resource deactivated (has associated allocations)'
+            message: "Resource deactivated (has associated allocations)"
           }
         else
           @resource.destroy
           render json: {
             success: true,
-            message: 'Resource deleted successfully'
+            message: "Resource deleted successfully"
           }
         end
       end
@@ -126,7 +126,7 @@ module Api
       rescue ArgumentError => e
         render json: {
           success: false,
-          error: 'Invalid date format'
+          error: "Invalid date format"
         }, status: :unprocessable_entity
       end
 
@@ -199,9 +199,9 @@ module Api
 
         dates = if params[:dates].present?
                   params[:dates].map { |d| Date.parse(d) }
-                else
+        else
                   nil
-                end
+        end
 
         result = service.allocate_to_task(
           task: task,
@@ -246,7 +246,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Resource not found'
+          error: "Resource not found"
         }, status: :not_found
       end
 

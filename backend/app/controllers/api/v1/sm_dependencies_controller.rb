@@ -3,8 +3,8 @@
 module Api
   module V1
     class SmDependenciesController < ApplicationController
-      before_action :set_sm_task, only: [:index, :create]
-      before_action :set_dependency, only: [:show, :update, :destroy, :restore]
+      before_action :set_sm_task, only: [ :index, :create ]
+      before_action :set_dependency, only: [ :show, :update, :destroy, :restore ]
 
       # GET /api/v1/sm_tasks/:sm_task_id/dependencies
       def index
@@ -40,7 +40,7 @@ module Api
         if @dependency.save
           render json: {
             success: true,
-            message: 'Dependency created successfully',
+            message: "Dependency created successfully",
             dependency: dependency_to_json(@dependency)
           }, status: :created
         else
@@ -68,13 +68,13 @@ module Api
 
       # DELETE /api/v1/sm_dependencies/:id
       def destroy
-        reason = params[:reason] || 'user_manual'
+        reason = params[:reason] || "user_manual"
 
         @dependency.soft_delete!(reason: reason, user: current_user)
 
         render json: {
           success: true,
-          message: 'Dependency removed successfully'
+          message: "Dependency removed successfully"
         }
       end
 
@@ -83,7 +83,7 @@ module Api
         unless @dependency.deleted_at.present?
           return render json: {
             success: false,
-            error: 'Dependency is not deleted'
+            error: "Dependency is not deleted"
           }, status: :unprocessable_entity
         end
 
@@ -91,7 +91,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Dependency restored successfully',
+          message: "Dependency restored successfully",
           dependency: dependency_to_json(@dependency)
         }
       end
@@ -103,7 +103,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Task not found'
+          error: "Task not found"
         }, status: :not_found
       end
 
@@ -112,7 +112,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Dependency not found'
+          error: "Dependency not found"
         }, status: :not_found
       end
 

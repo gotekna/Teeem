@@ -59,7 +59,7 @@ class WorkflowExecutionService
       instance = WorkflowInstance.create!(
         workflow_definition: workflow_definition,
         subject: subject,
-        status: 'pending',
+        status: "pending",
         started_at: Time.current,
         metadata: metadata
       )
@@ -71,7 +71,7 @@ class WorkflowExecutionService
     # Get all pending workflows for a user
     def pending_for_user(user)
       WorkflowStep.includes(:workflow_instance)
-                   .where(status: ['pending', 'in_progress'])
+                   .where(status: [ "pending", "in_progress" ])
                    .select { |step| step.can_action?(user) }
     end
 
@@ -79,7 +79,7 @@ class WorkflowExecutionService
     def workflow_for_subject(subject)
       WorkflowInstance.find_by(
         subject: subject,
-        status: ['pending', 'in_progress']
+        status: [ "pending", "in_progress" ]
       )
     end
 

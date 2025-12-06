@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'anthropic'
+require "anthropic"
 
 # Service for AI-powered analysis of job documents
 # Analyzes filenames and folder paths to suggest document types and standardized names
@@ -49,7 +49,7 @@ class JobDocumentAiAnalyzer
       ai_reasoning: analysis[:reasoning],
       ai_analyzed_at: Time.current,
       original_file_name: original_name,
-      rename_status: 'pending'
+      rename_status: "pending"
     )
 
     {
@@ -69,7 +69,7 @@ class JobDocumentAiAnalyzer
   private
 
   def analyze_with_claude
-    api_key = ENV['ANTHROPIC_API_KEY']
+    api_key = ENV["ANTHROPIC_API_KEY"]
     raise AnalysisError, "ANTHROPIC_API_KEY not configured" unless api_key
 
     client = Anthropic::Client.new(access_token: api_key)
@@ -81,14 +81,14 @@ class JobDocumentAiAnalyzer
         parameters: {
           model: MODEL,
           max_tokens: 1024,
-          messages: [{ role: "user", content: prompt }]
+          messages: [ { role: "user", content: prompt } ]
         }
       )
 
       parse_response(response)
 
     rescue Anthropic::Error => e
-      if e.message.include?('429') || e.message.downcase.include?('rate limit')
+      if e.message.include?("429") || e.message.downcase.include?("rate limit")
         retries += 1
         if retries <= MAX_RETRIES
           delay = INITIAL_RETRY_DELAY * (2 ** (retries - 1))
@@ -110,7 +110,7 @@ class JobDocumentAiAnalyzer
 
     # Job context
     job_code = "J#{@job.id.to_s.rjust(3, '0')}"
-    job_title = @job.title.to_s.split(',').first.to_s.strip
+    job_title = @job.title.to_s.split(",").first.to_s.strip
 
     <<~PROMPT
       Analyze this job document and suggest the best document type and standardized filename.
@@ -190,20 +190,20 @@ class JobDocumentAiAnalyzer
     return analysis[:proposed_name] if format.blank?
 
     # Australian date format
-    au_date = analysis[:extracted_date].presence || Date.current.strftime('%d-%m-%Y')
+    au_date = analysis[:extracted_date].presence || Date.current.strftime("%d-%m-%Y")
 
     # Job placeholders
     job_code = "J#{@job.id.to_s.rjust(3, '0')}"
-    job_title = @job.title.to_s.split(',').first.to_s.strip.gsub(/[^\w\s-]/, '').strip[0..30]
+    job_title = @job.title.to_s.split(",").first.to_s.strip.gsub(/[^\w\s-]/, "").strip[0..30]
 
-    format.gsub!('{JobCode}', job_code)
-    format.gsub!('{JobTitle}', job_title)
-    format.gsub!('{Date}', au_date)
-    format.gsub!('{Description}', analysis[:extracted_description].presence || 'Document')
-    format.gsub!('{Number}', '01')
-    format.gsub!('{CertType}', analysis[:extracted_description].presence || 'Certificate')
-    format.gsub!('{Consultant}', analysis[:extracted_description].presence || 'Consultant')
-    format.gsub!('{CompanyCode}', 'XC')
+    format.gsub!("{JobCode}", job_code)
+    format.gsub!("{JobTitle}", job_title)
+    format.gsub!("{Date}", au_date)
+    format.gsub!("{Description}", analysis[:extracted_description].presence || "Document")
+    format.gsub!("{Number}", "01")
+    format.gsub!("{CertType}", analysis[:extracted_description].presence || "Certificate")
+    format.gsub!("{Consultant}", analysis[:extracted_description].presence || "Consultant")
+    format.gsub!("{CompanyCode}", "XC")
 
     result = format.strip
     result += ".#{@document.file_extension}" if @document.file_extension.present? && !result.downcase.end_with?(".#{@document.file_extension.downcase}")

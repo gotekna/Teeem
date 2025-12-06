@@ -1,10 +1,10 @@
 module Api
   module V1
     class CompaniesController < ApplicationController
-      before_action :set_company, only: [:show, :update, :destroy, :directors, :add_director,
+      before_action :set_company, only: [ :show, :update, :destroy, :directors, :add_director,
                                          :update_director, :remove_director, :compliance_items,
                                          :activities, :documents, :assets, :hierarchy, :shareholders,
-                                         :investments, :trust_roles, :data_stats]
+                                         :investments, :trust_roles, :data_stats ]
 
       # GET /api/v1/companies
       def index
@@ -27,18 +27,18 @@ module Api
         end
 
         # Sorting
-        sort_by = params[:sort_by] || 'name'
-        sort_order = params[:sort_order] || 'asc'
+        sort_by = params[:sort_by] || "name"
+        sort_order = params[:sort_order] || "asc"
         @companies = @companies.order("#{sort_by} #{sort_order}")
 
         render json: {
           success: true,
           companies: @companies.as_json(
             include: {
-              current_directors: { only: [:id, :full_name, :email] },
-              company_xero_connection: { only: [:id, :connection_status, :xero_tenant_name] }
+              current_directors: { only: [ :id, :full_name, :email ] },
+              company_xero_connection: { only: [ :id, :connection_status, :xero_tenant_name ] }
             },
-            methods: [:formatted_acn, :formatted_abn, :has_xero_connection?]
+            methods: [ :formatted_acn, :formatted_abn, :has_xero_connection? ]
           ),
           total: @companies.count
         }
@@ -48,21 +48,21 @@ module Api
       def show
         company_json = @company.as_json(
           include: {
-            bank_accounts: { only: [:id, :institution_name, :status], methods: [:display_name, :masked_account_number] },
+            bank_accounts: { only: [ :id, :institution_name, :status ], methods: [ :display_name, :masked_account_number ] },
             # Note: active_assets removed - assets table not yet migrated
-            pending_compliance_items: { only: [:id, :title, :due_date, :completed], methods: [:days_until_due] },
-            company_xero_connection: { only: [:id, :connection_status, :xero_tenant_name, :last_sync_at] },
-            consolidation_parent: { only: [:id, :name] }
+            pending_compliance_items: { only: [ :id, :title, :due_date, :completed ], methods: [ :days_until_due ] },
+            company_xero_connection: { only: [ :id, :connection_status, :xero_tenant_name, :last_sync_at ] },
+            consolidation_parent: { only: [ :id, :name ] }
           },
-          methods: [:formatted_acn, :formatted_abn, :has_xero_connection?, :sharepoint_folder_url]
+          methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :sharepoint_folder_url ]
           # Note: total_asset_value removed - depends on assets table
         )
 
         # Serialize current directors separately (company_directors.current returns CompanyDirector objects)
-        company_json['current_directors'] = @company.company_directors.current.includes(:contact).map do |director|
+        company_json["current_directors"] = @company.company_directors.current.includes(:contact).map do |director|
           director.as_json(
-            include: { contact: { only: [:id, :full_name, :email, :mobile_phone] } },
-            methods: [:formatted_position]
+            include: { contact: { only: [ :id, :full_name, :email, :mobile_phone ] } },
+            methods: [ :formatted_position ]
           )
         end
 
@@ -76,8 +76,8 @@ module Api
         if @company.save
           render json: {
             success: true,
-            message: 'Company created successfully',
-            company: @company.as_json(methods: [:formatted_acn, :formatted_abn])
+            message: "Company created successfully",
+            company: @company.as_json(methods: [ :formatted_acn, :formatted_abn ])
           }, status: :created
         else
           render json: {
@@ -92,8 +92,8 @@ module Api
         if @company.update(company_params)
           render json: {
             success: true,
-            message: 'Company updated successfully',
-            company: @company.as_json(methods: [:formatted_acn, :formatted_abn])
+            message: "Company updated successfully",
+            company: @company.as_json(methods: [ :formatted_acn, :formatted_abn ])
           }
         else
           render json: {
@@ -108,7 +108,7 @@ module Api
         @company.destroy
         render json: {
           success: true,
-          message: 'Company deleted successfully'
+          message: "Company deleted successfully"
         }
       end
 
@@ -121,11 +121,11 @@ module Api
           directors: directors.as_json(
             include: {
               contact: {
-                only: [:id, :full_name, :email, :mobile_phone, :director_id, :date_of_birth],
-                methods: [:display_name]
+                only: [ :id, :full_name, :email, :mobile_phone, :director_id, :date_of_birth ],
+                methods: [ :display_name ]
               }
             },
-            methods: [:formatted_position, :active_duration]
+            methods: [ :formatted_position, :active_duration ]
           )
         }
       end
@@ -144,10 +144,10 @@ module Api
         if director.save
           render json: {
             success: true,
-            message: 'Director added successfully',
+            message: "Director added successfully",
             director: director.as_json(
-              include: { contact: { only: [:id, :full_name, :email] } },
-              methods: [:formatted_position]
+              include: { contact: { only: [ :id, :full_name, :email ] } },
+              methods: [ :formatted_position ]
             )
           }, status: :created
         else
@@ -165,10 +165,10 @@ module Api
         if director.update(director_params)
           render json: {
             success: true,
-            message: 'Director updated successfully',
+            message: "Director updated successfully",
             director: director.as_json(
-              include: { contact: { only: [:id, :full_name, :email] } },
-              methods: [:formatted_position]
+              include: { contact: { only: [ :id, :full_name, :email ] } },
+              methods: [ :formatted_position ]
             )
           }
         else
@@ -186,7 +186,7 @@ module Api
         if director.update(resignation_date: params[:resignation_date] || Date.today, is_current: false)
           render json: {
             success: true,
-            message: 'Director removed successfully'
+            message: "Director removed successfully"
           }
         else
           render json: {
@@ -205,7 +205,7 @@ module Api
 
         render json: {
           success: true,
-          compliance_items: items.as_json(methods: [:days_until_due, :formatted_compliance_type])
+          compliance_items: items.as_json(methods: [ :days_until_due, :formatted_compliance_type ])
         }
       end
 
@@ -219,7 +219,7 @@ module Api
         render json: {
           success: true,
           activities: activities.as_json(
-            methods: [:formatted_activity_type, :performed_by_name, :time_ago]
+            methods: [ :formatted_activity_type, :performed_by_name, :time_ago ]
           )
         }
       end
@@ -233,7 +233,7 @@ module Api
 
         render json: {
           success: true,
-          documents: documents.as_json(methods: [:formatted_document_type, :file_size_mb])
+          documents: documents.as_json(methods: [ :formatted_document_type, :file_size_mb ])
         }
       end
 
@@ -249,9 +249,9 @@ module Api
           success: true,
           assets: assets.as_json(
             include: {
-              asset_insurance: { only: [:id, :renewal_date, :status], methods: [:days_until_renewal] }
+              asset_insurance: { only: [ :id, :renewal_date, :status ], methods: [ :days_until_renewal ] }
             },
-            methods: [:display_name, :needs_attention?]
+            methods: [ :display_name, :needs_attention? ]
           )
         }
       end
@@ -340,13 +340,13 @@ module Api
       # Works for both Trust entities AND Corporate Trustee entities
       def trust_roles
         # Determine if this is a Trust/Superfund or a Corporate Trustee
-        is_trust = @company.entity_type.in?(['Trust', 'Superfund'])
+        is_trust = @company.entity_type.in?([ "Trust", "Superfund" ])
         is_trustee_company = @company.is_trustee && @company.trust_name.present?
 
         if !is_trust && !is_trustee_company
           return render json: {
             success: false,
-            error: 'This company is not a trust or corporate trustee'
+            error: "This company is not a trust or corporate trustee"
           }, status: :unprocessable_entity
         end
 
@@ -363,11 +363,11 @@ module Api
         # Get trust roles from ContactCompanyGroupMemberships
         trust_group_id = trust&.company_group_id || @company.company_group_id
         memberships = ContactCompanyGroupMembership
-          .where(company_group_id: trust_group_id, membership_type: ['beneficiary', 'appointor', 'trustee'])
+          .where(company_group_id: trust_group_id, membership_type: [ "beneficiary", "appointor", "trustee" ])
           .includes(:contact)
 
-        beneficiaries = memberships.select { |m| m.membership_type == 'beneficiary' }
-        appointors = memberships.select { |m| m.membership_type == 'appointor' }
+        beneficiaries = memberships.select { |m| m.membership_type == "beneficiary" }
+        appointors = memberships.select { |m| m.membership_type == "appointor" }
 
         # Also check ContactRelationships for trust roles
         contact_relationships = ContactRelationship
@@ -390,22 +390,22 @@ module Api
       def import
         # Handle Excel import (to be implemented with CompanyImportService)
         if params[:file].blank?
-          return render json: { success: false, error: 'No file provided' }, status: :unprocessable_entity
+          return render json: { success: false, error: "No file provided" }, status: :unprocessable_entity
         end
 
         # This will be implemented later with the CompanyImportService
         render json: {
           success: true,
-          message: 'Import functionality coming soon'
+          message: "Import functionality coming soon"
         }
       end
 
       # POST /api/v1/companies/reload
       def reload
-        file_path = ENV['CORPORATE_FILE_PATH'] || '/Users/robertharder/Library/CloudStorage/OneDrive-Tekna/Accounts - Internal/Corporate File/Corporate File.xlsx'
+        file_path = ENV["CORPORATE_FILE_PATH"] || "/Users/robertharder/Library/CloudStorage/OneDrive-Tekna/Accounts - Internal/Corporate File/Corporate File.xlsx"
 
         unless File.exist?(file_path)
-          return render json: { success: false, error: 'Corporate File not found' }, status: :unprocessable_entity
+          return render json: { success: false, error: "Corporate File not found" }, status: :unprocessable_entity
         end
 
         service = CompanyImportService.new(file_path)
@@ -413,7 +413,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Company data reloaded from spreadsheet',
+          message: "Company data reloaded from spreadsheet",
           result: result
         }
       rescue StandardError => e
@@ -426,10 +426,10 @@ module Api
 
         summary = {
           total: report.count,
-          excellent: report.count { |r| r[:health_status] == 'excellent' },
-          good: report.count { |r| r[:health_status] == 'good' },
-          needs_attention: report.count { |r| r[:health_status] == 'needs_attention' },
-          critical: report.count { |r| r[:health_status] == 'critical' },
+          excellent: report.count { |r| r[:health_status] == "excellent" },
+          good: report.count { |r| r[:health_status] == "good" },
+          needs_attention: report.count { |r| r[:health_status] == "needs_attention" },
+          critical: report.count { |r| r[:health_status] == "critical" },
           average_score: report.any? ? (report.sum { |r| r[:health_score] } / report.count.to_f).round(1) : 0
         }
 
@@ -451,8 +451,8 @@ module Api
           by_folder: documents.group(:folder).count,
           by_document_type: documents.group(:document_type).count,
           by_ai_status: documents.group(:ai_verification_status).count,
-          with_files: documents.where.not(cloudinary_public_id: [nil, '']).count,
-          verified: documents.where(ai_verification_status: 'verified').count,
+          with_files: documents.where.not(cloudinary_public_id: [ nil, "" ]).count,
+          verified: documents.where(ai_verification_status: "verified").count,
           needs_review: documents.where(ai_verification_status: %w[mismatch needs_review pending]).count,
           latest_upload: documents.maximum(:created_at),
           oldest_document: documents.minimum(:document_date),
@@ -469,7 +469,7 @@ module Api
           .map { |d| { type: d.document_type, abbreviation: d.abbreviation, count: d.count } }
 
         # OneDrive sync status
-        onedrive_docs = documents.where(source: 'onedrive')
+        onedrive_docs = documents.where(source: "onedrive")
         onedrive_stats = {
           total: onedrive_docs.count,
           last_synced: onedrive_docs.maximum(:synced_at),
@@ -480,7 +480,7 @@ module Api
         xero_connection = @company.company_xero_connection
         xero_stats = if xero_connection
           {
-            connected: xero_connection.connection_status == 'connected',
+            connected: xero_connection.connection_status == "connected",
             tenant_name: xero_connection.xero_tenant_name,
             last_sync: xero_connection.last_sync_at,
             status: xero_connection.connection_status
@@ -530,7 +530,7 @@ module Api
       # Returns all companies' ASIC login credentials for table view
       # Only shows entity_type = Company (excludes Person, Trust, Superfund)
       def asic_logins
-        @companies = Company.where(entity_type: ['Company', 'company']).order(:name)
+        @companies = Company.where(entity_type: [ "Company", "company" ]).order(:name)
 
         # Filter by company group
         if params[:company_group_id].present?
@@ -538,8 +538,8 @@ module Api
         end
 
         # Only include companies with ASIC credentials
-        if params[:with_credentials] == 'true'
-          @companies = @companies.where.not(asic_username: [nil, ''])
+        if params[:with_credentials] == "true"
+          @companies = @companies.where.not(asic_username: [ nil, "" ])
         end
 
         render json: {
@@ -569,7 +569,7 @@ module Api
       def set_company
         @company = Company.find_by_slug_or_id(params[:id])
         unless @company
-          render json: { success: false, error: 'Company not found' }, status: :not_found
+          render json: { success: false, error: "Company not found" }, status: :not_found
         end
       end
 

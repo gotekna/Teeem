@@ -14,7 +14,7 @@ csv_file = File.join(Rails.root, 'db', 'easybuildapp_constructions.csv')
 if File.exist?(csv_file)
   csv_text = File.read(csv_file)
   csv_data = CSV.parse(csv_text, headers: true)
-  
+
   csv_data.each do |row|
     Construction.create!(
       title: row['title'],
@@ -28,12 +28,12 @@ if File.exist?(csv_file)
       start_date: row['start_date'].present? ? Date.parse(row['start_date']) : nil
     )
   end
-  
+
   puts "Successfully loaded #{Construction.count} construction records!"
 else
   puts "CSV file not found at #{csv_file}"
   puts "Creating sample construction data instead..."
-  
+
   Construction.create!([
     {
       title: "Lot 2 (36) Bowen Road, GLASSHOUSE MOUNTAINS, QLD",
@@ -65,7 +65,7 @@ else
       certifier_job_no: nil
     }
   ])
-  
+
   puts "Created #{Construction.count} sample construction records!"
 end
 
@@ -114,7 +114,7 @@ electrical_items = [
   { item_code: "ODPP", item_name: "Waterproof Double Power Point", category: "Electrical", current_price: 69.00, supplier: tl_supplier, unit_of_measure: "Each" },
   { item_code: "WEF", item_name: "Wiring Exhaust Fan", category: "Electrical", current_price: nil, supplier: nil, unit_of_measure: "Each", needs_pricing_review: true },
   { item_code: "WLP", item_name: "Wiring Light Point", category: "Electrical", current_price: 45.00, supplier: tl_supplier, unit_of_measure: "Each" },
-  { item_code: "LED-DOWN", item_name: "LED Downlight 90mm", category: "Electrical", current_price: 12.50, supplier: bunnings, unit_of_measure: "Each", brand: "Brilliant" },
+  { item_code: "LED-DOWN", item_name: "LED Downlight 90mm", category: "Electrical", current_price: 12.50, supplier: bunnings, unit_of_measure: "Each", brand: "Brilliant" }
 ]
 
 electrical_items.each do |item_data|
@@ -127,7 +127,7 @@ end
 plumbing_items = [
   { item_code: "TAP-KIT", item_name: "Kitchen Mixer Tap", category: "Plumbing", current_price: 285.00, supplier: reece, unit_of_measure: "Each", brand: "Phoenix" },
   { item_code: "TOILET-STD", item_name: "Standard Toilet Suite", category: "Plumbing", current_price: 395.00, supplier: reece, unit_of_measure: "Each", brand: "Caroma" },
-  { item_code: "SHOWER-HEAD", item_name: "Rain Shower Head 250mm", category: "Plumbing", current_price: 165.00, supplier: reece, unit_of_measure: "Each", brand: "Methven" },
+  { item_code: "SHOWER-HEAD", item_name: "Rain Shower Head 250mm", category: "Plumbing", current_price: 165.00, supplier: reece, unit_of_measure: "Each", brand: "Methven" }
 ]
 
 plumbing_items.each do |item_data|
@@ -140,7 +140,7 @@ end
 carpentry_items = [
   { item_code: "TIMBER-90x45", item_name: "Pine Framing Timber 90x45mm", category: "Carpentry", current_price: 8.50, supplier: bunnings, unit_of_measure: "Linear Metre", brand: "Treated Pine" },
   { item_code: "PLYWOOD-17", item_name: "Structural Plywood 17mm", category: "Carpentry", current_price: 65.00, supplier: bunnings, unit_of_measure: "Sheet" },
-  { item_code: "DOOR-STD", item_name: "Standard Internal Door 2040x820mm", category: "Carpentry", current_price: 125.00, supplier: bunnings, unit_of_measure: "Each", brand: "Corinthian" },
+  { item_code: "DOOR-STD", item_name: "Standard Internal Door 2040x820mm", category: "Carpentry", current_price: 125.00, supplier: bunnings, unit_of_measure: "Each", brand: "Corinthian" }
 ]
 
 carpentry_items.each do |item_data|

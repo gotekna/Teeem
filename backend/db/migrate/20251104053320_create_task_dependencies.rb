@@ -10,7 +10,7 @@ class CreateTaskDependencies < ActiveRecord::Migration[8.0]
     end
 
     # Add unique index on the pair (t.references already creates individual indexes)
-    add_index :task_dependencies, [:successor_task_id, :predecessor_task_id],
+    add_index :task_dependencies, [ :successor_task_id, :predecessor_task_id ],
               name: 'index_unique_task_dependency', unique: true
 
     # Constraint: can't depend on yourself

@@ -26,7 +26,7 @@ class CreateSmDependencies < ActiveRecord::Migration[8.0]
     add_index :sm_dependencies, :predecessor_task_id, where: "active = true", name: 'idx_sm_deps_predecessor_active'
     add_index :sm_dependencies, :successor_task_id, where: "active = true", name: 'idx_sm_deps_successor_active'
     add_index :sm_dependencies, :active
-    add_index :sm_dependencies, [:predecessor_task_id, :successor_task_id], unique: true, where: "active = true", name: 'idx_sm_deps_unique_active'
+    add_index :sm_dependencies, [ :predecessor_task_id, :successor_task_id ], unique: true, where: "active = true", name: 'idx_sm_deps_unique_active'
 
     # Check constraint to prevent self-dependency
     add_check_constraint :sm_dependencies, "predecessor_task_id != successor_task_id", name: 'no_self_dependency'

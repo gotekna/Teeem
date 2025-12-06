@@ -1,6 +1,6 @@
 class MicrosoftGraphClient
-  GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0'
-  TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
+  GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
+  TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 
   class AuthenticationError < StandardError; end
   class APIError < StandardError; end
@@ -33,10 +33,10 @@ class MicrosoftGraphClient
   def self.authorization_url(client_id:, redirect_uri:, scope:, state: nil)
     params = {
       client_id: client_id,
-      response_type: 'code',
+      response_type: "code",
       redirect_uri: redirect_uri,
       scope: scope,
-      response_mode: 'query'
+      response_mode: "query"
     }
     params[:state] = state if state.present?
 
@@ -52,14 +52,14 @@ class MicrosoftGraphClient
       client_secret: client_secret,
       code: code,
       redirect_uri: redirect_uri,
-      grant_type: 'authorization_code'
+      grant_type: "authorization_code"
     }
 
     encoded_body = URI.encode_www_form(params)
 
     response = HTTParty.post(TOKEN_URL,
       body: encoded_body,
-      headers: { 'Content-Type' => 'application/x-www-form-urlencoded' }
+      headers: { "Content-Type" => "application/x-www-form-urlencoded" }
     )
 
     handle_token_response(response)
@@ -69,8 +69,8 @@ class MicrosoftGraphClient
   def self.exchange_code_for_token(code, redirect_uri)
     exchange_code_for_tokens(
       code: code,
-      client_id: ENV['ONEDRIVE_CLIENT_ID'],
-      client_secret: ENV['ONEDRIVE_CLIENT_SECRET'],
+      client_id: ENV["ONEDRIVE_CLIENT_ID"],
+      client_secret: ENV["ONEDRIVE_CLIENT_SECRET"],
       redirect_uri: redirect_uri
     )
   end
@@ -78,17 +78,17 @@ class MicrosoftGraphClient
   # Client Credentials Flow (for organization-wide auth)
   def self.authenticate_as_application
     params = {
-      client_id: ENV['ONEDRIVE_CLIENT_ID'],
-      client_secret: ENV['ONEDRIVE_CLIENT_SECRET'],
-      scope: 'https://graph.microsoft.com/.default',
-      grant_type: 'client_credentials'
+      client_id: ENV["ONEDRIVE_CLIENT_ID"],
+      client_secret: ENV["ONEDRIVE_CLIENT_SECRET"],
+      scope: "https://graph.microsoft.com/.default",
+      grant_type: "client_credentials"
     }
 
     encoded_body = URI.encode_www_form(params)
 
     response = HTTParty.post(TOKEN_URL,
       body: encoded_body,
-      headers: { 'Content-Type' => 'application/x-www-form-urlencoded' }
+      headers: { "Content-Type" => "application/x-www-form-urlencoded" }
     )
 
     handle_token_response(response)
@@ -102,17 +102,17 @@ class MicrosoftGraphClient
     end
 
     params = {
-      client_id: ENV['ONEDRIVE_CLIENT_ID'],
-      client_secret: ENV['ONEDRIVE_CLIENT_SECRET'],
+      client_id: ENV["ONEDRIVE_CLIENT_ID"],
+      client_secret: ENV["ONEDRIVE_CLIENT_SECRET"],
       refresh_token: @credential.refresh_token,
-      grant_type: 'refresh_token'
+      grant_type: "refresh_token"
     }
 
     encoded_body = URI.encode_www_form(params)
 
     response = HTTParty.post(TOKEN_URL,
       body: encoded_body,
-      headers: { 'Content-Type' => 'application/x-www-form-urlencoded' }
+      headers: { "Content-Type" => "application/x-www-form-urlencoded" }
     )
 
     token_data = self.class.handle_token_response(response)
@@ -134,7 +134,7 @@ class MicrosoftGraphClient
     # This only requires Files.ReadWrite.All permission
     begin
       Rails.logger.info "Attempting to get drive using /me/drive (delegated permissions)"
-      return get('/me/drive')
+      return get("/me/drive")
     rescue APIError => e
       Rails.logger.warn "Failed to get /me/drive: #{e.message}"
     end
@@ -142,9 +142,9 @@ class MicrosoftGraphClient
     # Fallback for app permissions with client credentials
     # Option 1: Try to get the first user's drive (requires User.Read.All)
     begin
-      users_response = get('/users?$top=1&$filter=accountEnabled eq true')
-      if users_response['value']&.any?
-        user_id = users_response['value'].first['id']
+      users_response = get("/users?$top=1&$filter=accountEnabled eq true")
+      if users_response["value"]&.any?
+        user_id = users_response["value"].first["id"]
         Rails.logger.info "Using drive for user: #{users_response['value'].first['userPrincipalName']}"
         return get("/users/#{user_id}/drive")
       end
@@ -153,9 +153,9 @@ class MicrosoftGraphClient
     end
 
     # Option 2: Last resort - try to list all drives (requires Sites.Read.All)
-    drives_response = get('/drives')
-    if drives_response['value']&.any?
-      return drives_response['value'].first
+    drives_response = get("/drives")
+    if drives_response["value"]&.any?
+      return drives_response["value"].first
     end
 
     raise APIError.new("Could not find any accessible drives")
@@ -171,15 +171,15 @@ class MicrosoftGraphClient
   # List SharePoint sites the user has access to
   def list_sharepoint_sites
     # Search for all sites the user can access
-    response = get('/sites?search=*')
-    sites = response['value'] || []
+    response = get("/sites?search=*")
+    sites = response["value"] || []
 
     sites.map do |site|
       {
-        id: site['id'],
-        name: site['displayName'] || site['name'],
-        web_url: site['webUrl'],
-        description: site['description']
+        id: site["id"],
+        name: site["displayName"] || site["name"],
+        web_url: site["webUrl"],
+        description: site["description"]
       }
     end
   end
@@ -187,12 +187,12 @@ class MicrosoftGraphClient
   # Get a specific SharePoint site by name or ID
   def get_sharepoint_site(site_identifier)
     # If it's a full site ID (contains domain), use directly
-    if site_identifier.include?(',')
+    if site_identifier.include?(",")
       get("/sites/#{site_identifier}")
     else
       # Search for the site by name
       response = get("/sites?search=#{URI.encode_www_form_component(site_identifier)}")
-      sites = response['value'] || []
+      sites = response["value"] || []
       sites.first || raise(APIError.new("SharePoint site '#{site_identifier}' not found"))
     end
   end
@@ -205,14 +205,14 @@ class MicrosoftGraphClient
   # List all drives (document libraries) for a SharePoint site
   def list_sharepoint_site_drives(site_id)
     response = get("/sites/#{site_id}/drives")
-    drives = response['value'] || []
+    drives = response["value"] || []
 
     drives.map do |drive|
       {
-        id: drive['id'],
-        name: drive['name'],
-        web_url: drive['webUrl'],
-        drive_type: drive['driveType']
+        id: drive["id"],
+        name: drive["name"],
+        web_url: drive["webUrl"],
+        drive_type: drive["driveType"]
       }
     end
   end
@@ -220,16 +220,16 @@ class MicrosoftGraphClient
   # Set a SharePoint site as the target for job folders
   def use_sharepoint_site(site_identifier)
     site = get_sharepoint_site(site_identifier)
-    drive = get_sharepoint_site_drive(site['id'])
+    drive = get_sharepoint_site_drive(site["id"])
 
     @credential.update!(
-      drive_id: drive['id'],
-      drive_name: drive['name'],
+      drive_id: drive["id"],
+      drive_name: drive["name"],
       metadata: @credential.metadata.merge({
-        site_id: site['id'],
-        site_name: site['displayName'] || site['name'],
-        site_web_url: site['webUrl'],
-        drive_type: 'sharepoint'
+        site_id: site["id"],
+        site_name: site["displayName"] || site["name"],
+        site_web_url: site["webUrl"],
+        drive_type: "sharepoint"
       })
     )
 
@@ -242,8 +242,8 @@ class MicrosoftGraphClient
     unless @credential.drive_id
       drive = get_default_drive
       @credential.update!(
-        drive_id: drive['id'],
-        drive_name: drive['name']
+        drive_id: drive["id"],
+        drive_name: drive["name"]
       )
     end
 
@@ -261,11 +261,11 @@ class MicrosoftGraphClient
 
     # Update credential with root folder info
     @credential.update!(
-      root_folder_id: root_folder['id'],
+      root_folder_id: root_folder["id"],
       root_folder_path: folder_name,
       metadata: @credential.metadata.merge({
         root_folder_name: folder_name,
-        root_folder_web_url: root_folder['webUrl'],
+        root_folder_web_url: root_folder["webUrl"],
         created_at: Time.current
       })
     )
@@ -276,7 +276,7 @@ class MicrosoftGraphClient
   # Find a folder by exact name in the drive root
   def find_folder_in_drive_root(folder_name)
     results = get("#{drive_path}/root/children")
-    results['value']&.find { |item| item['name'] == folder_name && item['folder'] }
+    results["value"]&.find { |item| item["name"] == folder_name && item["folder"] }
   rescue APIError => e
     Rails.logger.warn "[SharePoint] Error searching for folder '#{folder_name}' in drive root: #{e.message}"
     nil
@@ -308,7 +308,7 @@ class MicrosoftGraphClient
 
     # Prepare job data for variable resolution
     job_data = {
-      job_code: construction.id.to_s.rjust(3, '0'),
+      job_code: construction.id.to_s.rjust(3, "0"),
       project_name: construction.title,
       site_supervisor: construction.site_supervisor_name
     }
@@ -318,7 +318,7 @@ class MicrosoftGraphClient
     job_folder = create_folder(job_folder_name, parent_id: @credential.root_folder_id)
 
     # Create subfolders based on template
-    create_subfolders_from_template(template, job_folder['id'], job_data)
+    create_subfolders_from_template(template, job_folder["id"], job_data)
 
     job_folder
   end
@@ -326,7 +326,7 @@ class MicrosoftGraphClient
   # Create folder structure based on template (legacy per-construction method)
   def create_folder_structure(template, job_data = {})
     drive = get_default_drive
-    drive_id = drive['id']
+    drive_id = drive["id"]
 
     # Create root folder (e.g., "PROJ-001 - Malbon Street")
     root_folder_name = template.name.gsub(/\{(\w+)\}/) do |match|
@@ -340,18 +340,18 @@ class MicrosoftGraphClient
     if @credential.is_a?(OneDriveCredential)
       @credential.update!(
         drive_id: drive_id,
-        root_folder_id: root_folder['id'],
+        root_folder_id: root_folder["id"],
         folder_path: root_folder_name,
         metadata: @credential.metadata.merge({
           root_folder_name: root_folder_name,
-          root_folder_web_url: root_folder['webUrl'],
+          root_folder_web_url: root_folder["webUrl"],
           created_at: Time.current
         })
       )
     end
 
     # Create subfolders based on template
-    create_subfolders_from_template(template, root_folder['id'], job_data)
+    create_subfolders_from_template(template, root_folder["id"], job_data)
 
     root_folder
   end
@@ -389,10 +389,10 @@ class MicrosoftGraphClient
 
   # Get folder by path
   def get_folder_by_path(path)
-    encoded_path = path.split('/').map { |segment| CGI.escape(segment) }.join('/')
+    encoded_path = path.split("/").map { |segment| CGI.escape(segment) }.join("/")
     get("#{drive_path}/root:/#{encoded_path}")
   rescue APIError => e
-    return nil if e.message.include?('itemNotFound')
+    return nil if e.message.include?("itemNotFound")
     raise
   end
 
@@ -402,8 +402,8 @@ class MicrosoftGraphClient
     unless @credential.root_folder_id.present?
       return {
         valid: false,
-        error: 'No root folder configured',
-        error_type: 'not_configured'
+        error: "No root folder configured",
+        error_type: "not_configured"
       }
     end
 
@@ -411,43 +411,43 @@ class MicrosoftGraphClient
       folder = get("#{drive_path}/items/#{@credential.root_folder_id}")
 
       # Build the current path from parentReference
-      parent_path = folder.dig('parentReference', 'path') || ''
-      if parent_path.include?(':')
-        path_after_root = parent_path.split(':').last.to_s
-        path_parts = path_after_root.split('/').reject(&:blank?)
-        current_path = (path_parts + [folder['name']]).join('/')
+      parent_path = folder.dig("parentReference", "path") || ""
+      if parent_path.include?(":")
+        path_after_root = parent_path.split(":").last.to_s
+        path_parts = path_after_root.split("/").reject(&:blank?)
+        current_path = (path_parts + [ folder["name"] ]).join("/")
       else
-        current_path = folder['name']
+        current_path = folder["name"]
       end
 
-      stored_name = @credential.metadata&.dig('root_folder_name')
+      stored_name = @credential.metadata&.dig("root_folder_name")
       stored_path = @credential.root_folder_path
 
       {
         valid: true,
-        folder_id: folder['id'],
-        name: folder['name'],
-        web_url: folder['webUrl'],
+        folder_id: folder["id"],
+        name: folder["name"],
+        web_url: folder["webUrl"],
         current_path: current_path,
         stored_path: stored_path,
         stored_name: stored_name,
-        name_changed: stored_name.present? && folder['name'] != stored_name,
+        name_changed: stored_name.present? && folder["name"] != stored_name,
         path_changed: stored_path.present? && current_path != stored_path
       }
     rescue APIError => e
-      if e.message.include?('itemNotFound')
+      if e.message.include?("itemNotFound")
         {
           valid: false,
-          error: 'Folder not found - it may have been deleted or moved to a different drive',
-          error_type: 'not_found',
+          error: "Folder not found - it may have been deleted or moved to a different drive",
+          error_type: "not_found",
           stored_path: @credential.root_folder_path,
-          stored_name: @credential.metadata&.dig('root_folder_name')
+          stored_name: @credential.metadata&.dig("root_folder_name")
         }
       else
         {
           valid: false,
           error: e.message,
-          error_type: 'api_error'
+          error_type: "api_error"
         }
       end
     end
@@ -456,11 +456,11 @@ class MicrosoftGraphClient
   # Search for job folder by construction
   # Supports both exact match and fuzzy matching for legacy folder naming schemes
   def find_job_folder(construction)
-    job_code = construction.id.to_s.rjust(3, '0')
+    job_code = construction.id.to_s.rjust(3, "0")
     expected_name = "#{job_code} - #{construction.title}"
 
     # Normalize title for fuzzy matching (remove common prefixes like "Lot", lowercase, etc.)
-    normalized_title = construction.title.to_s.downcase.gsub(/^lot\s+/i, '').strip
+    normalized_title = construction.title.to_s.downcase.gsub(/^lot\s+/i, "").strip
 
     # Determine where to search - use root_folder_id if set, otherwise find "TEEEM Jobs" folder
     search_folder_id = @credential.root_folder_id
@@ -469,8 +469,8 @@ class MicrosoftGraphClient
     if search_folder_id.blank?
       begin
         root_results = get("#{drive_path}/root/children")
-        teeem_jobs_folder = root_results['value']&.find { |item| item['folder'] && item['name'] == 'TEEEM Jobs' }
-        search_folder_id = teeem_jobs_folder['id'] if teeem_jobs_folder
+        teeem_jobs_folder = root_results["value"]&.find { |item| item["folder"] && item["name"] == "TEEEM Jobs" }
+        search_folder_id = teeem_jobs_folder["id"] if teeem_jobs_folder
         Rails.logger.info "[find_job_folder] Found TEEEM Jobs folder: #{search_folder_id}" if teeem_jobs_folder
       rescue APIError => e
         Rails.logger.warn "[find_job_folder] Could not find TEEEM Jobs folder: #{e.message}"
@@ -482,20 +482,20 @@ class MicrosoftGraphClient
     if search_folder_id.present?
       begin
         results = get("#{drive_path}/items/#{search_folder_id}/children")
-        folders = results['value']&.select { |item| item['folder'] } || []
+        folders = results["value"]&.select { |item| item["folder"] } || []
         Rails.logger.info "[find_job_folder] Found #{folders.length} folders in search location"
 
         # Try exact match first
-        folder = folders.find { |item| item['name'] == expected_name }
+        folder = folders.find { |item| item["name"] == expected_name }
         return folder if folder
 
         # Try fuzzy match: folder contains the job title (with or without "Lot" prefix)
         folder = folders.find do |item|
-          name = item['name'].to_s.downcase
+          name = item["name"].to_s.downcase
           # Match if folder name contains the normalized title
           name.include?(normalized_title) ||
             # Or match if folder contains address-like portions of the title
-            (normalized_title.length > 10 && name.include?(normalized_title.split(' ').first(3).join(' ')))
+            (normalized_title.length > 10 && name.include?(normalized_title.split(" ").first(3).join(" ")))
         end
         if folder
           Rails.logger.info "[find_job_folder] Fuzzy matched folder: #{folder['name']}"
@@ -507,12 +507,12 @@ class MicrosoftGraphClient
     end
 
     # Fallback to search with broader terms
-    search_terms = [expected_name, construction.title, normalized_title].uniq
+    search_terms = [ expected_name, construction.title, normalized_title ].uniq
     search_terms.each do |term|
       next if term.blank?
       begin
         results = search(term, search_folder_id)
-        folder = results['value']&.find { |item| item['folder'] && item['name'].to_s.downcase.include?(normalized_title) }
+        folder = results["value"]&.find { |item| item["folder"] && item["name"].to_s.downcase.include?(normalized_title) }
         return folder if folder
       rescue StandardError => e
         Rails.logger.warn "[find_job_folder] Search for '#{term}' failed: #{e.message}"
@@ -528,7 +528,7 @@ class MicrosoftGraphClient
     results = get("#{drive_path}/root/children")
 
     # Find exact match
-    results['value']&.find { |item| item['name'] == folder_name && item['folder'] }
+    results["value"]&.find { |item| item["name"] == folder_name && item["folder"] }
   end
 
   # File Operations
@@ -540,7 +540,7 @@ class MicrosoftGraphClient
     post(
       "#{drive_path}/items/#{parent_folder_id}:/#{filename}:/content",
       File.read(file),
-      { 'Content-Type' => 'application/octet-stream' }
+      { "Content-Type" => "application/octet-stream" }
     )
   end
 
@@ -584,7 +584,7 @@ class MicrosoftGraphClient
     put(
       "#{drive_path}/items/#{file_id}/content",
       content,
-      { 'Content-Type' => 'application/octet-stream' }
+      { "Content-Type" => "application/octet-stream" }
     )
   end
 
@@ -603,13 +603,13 @@ class MicrosoftGraphClient
     response = HTTParty.put(
       "#{GRAPH_API_BASE}#{drive_path}/items/#{parent_folder_id}:/#{encoded_filename}:/content",
       body: content,
-      headers: auth_headers.merge({ 'Content-Type' => 'application/octet-stream' })
+      headers: auth_headers.merge({ "Content-Type" => "application/octet-stream" })
     )
 
     raise APIError, "Upload failed: #{response.code} - #{response.body}" unless response.success?
 
     result = JSON.parse(response.body) rescue {}
-    { id: result['id'], name: result['name'], web_url: result['webUrl'] }
+    { id: result["id"], name: result["name"], web_url: result["webUrl"] }
   end
 
   # Get embeddable preview URL for a file (works for OneDrive and SharePoint)
@@ -618,7 +618,7 @@ class MicrosoftGraphClient
     # Try the preview endpoint first (works for most file types)
     begin
       response = post("#{drive_path}/items/#{file_id}/preview", {})
-      return response['getUrl'] if response['getUrl'].present?
+      return response["getUrl"] if response["getUrl"].present?
     rescue APIError => e
       Rails.logger.warn "Preview endpoint failed for file #{file_id}: #{e.message}"
     end
@@ -631,7 +631,7 @@ class MicrosoftGraphClient
         scope: "anonymous"
       })
       # The webUrl from the sharing link can be embedded
-      return response.dig('link', 'webUrl')
+      return response.dig("link", "webUrl")
     rescue APIError => e
       Rails.logger.warn "CreateLink fallback failed for file #{file_id}: #{e.message}"
     end
@@ -665,14 +665,14 @@ class MicrosoftGraphClient
     response = HTTParty.post(
       "#{GRAPH_API_BASE}#{drive_path}/items/#{item_id}/copy",
       body: body.to_json,
-      headers: auth_headers.merge({ 'Content-Type' => 'application/json' }),
+      headers: auth_headers.merge({ "Content-Type" => "application/json" }),
       timeout: 30
     )
 
     case response.code
     when 202
       # Async operation started
-      { status: 'in_progress', monitor_url: response.headers['Location'] }
+      { status: "in_progress", monitor_url: response.headers["Location"] }
     when 200, 201
       response.parsed_response
     else
@@ -698,23 +698,23 @@ class MicrosoftGraphClient
 
     # Get files with extra metadata
     response = get(path)
-    items = response['value'] || []
+    items = response["value"] || []
 
     # Process items
     items.map do |item|
       {
-        id: item['id'],
-        name: item['name'],
-        size: item['size'],
-        is_folder: item['folder'].present?,
-        child_count: item.dig('folder', 'childCount') || 0,
-        created_at: item['createdDateTime'],
-        modified_at: item['lastModifiedDateTime'],
-        web_url: item['webUrl'],
-        download_url: item['@microsoft.graph.downloadUrl'],
-        mime_type: item.dig('file', 'mimeType'),
-        parent_id: item.dig('parentReference', 'id'),
-        parent_path: item.dig('parentReference', 'path')
+        id: item["id"],
+        name: item["name"],
+        size: item["size"],
+        is_folder: item["folder"].present?,
+        child_count: item.dig("folder", "childCount") || 0,
+        created_at: item["createdDateTime"],
+        modified_at: item["lastModifiedDateTime"],
+        web_url: item["webUrl"],
+        download_url: item["@microsoft.graph.downloadUrl"],
+        mime_type: item.dig("file", "mimeType"),
+        parent_id: item.dig("parentReference", "id"),
+        parent_path: item.dig("parentReference", "path")
       }
     end
   end
@@ -749,10 +749,10 @@ class MicrosoftGraphClient
     # Create if doesn't exist
     result = create_folder(folder_name, parent_id: parent_folder_id)
     {
-      id: result['id'],
-      name: result['name'],
+      id: result["id"],
+      name: result["name"],
       is_folder: true,
-      web_url: result['webUrl']
+      web_url: result["webUrl"]
     }
   end
 
@@ -767,19 +767,19 @@ class MicrosoftGraphClient
     item = get_file(item_id)
 
     # OneDrive uses quickXorHash for files
-    quick_xor_hash = item.dig('file', 'hashes', 'quickXorHash')
-    sha256_hash = item.dig('file', 'hashes', 'sha256Hash')
+    quick_xor_hash = item.dig("file", "hashes", "quickXorHash")
+    sha256_hash = item.dig("file", "hashes", "sha256Hash")
 
     {
-      id: item['id'],
-      name: item['name'],
-      size: item['size'],
-      mime_type: item.dig('file', 'mimeType'),
+      id: item["id"],
+      name: item["name"],
+      size: item["size"],
+      mime_type: item.dig("file", "mimeType"),
       quick_xor_hash: quick_xor_hash,
       sha256_hash: sha256_hash,
-      created_at: item['createdDateTime'],
-      modified_at: item['lastModifiedDateTime'],
-      web_url: item['webUrl']
+      created_at: item["createdDateTime"],
+      modified_at: item["lastModifiedDateTime"],
+      web_url: item["webUrl"]
     }
   end
 
@@ -811,7 +811,7 @@ class MicrosoftGraphClient
 
     # Set content type if body is a hash (JSON)
     if body.is_a?(Hash)
-      headers['Content-Type'] = 'application/json'
+      headers["Content-Type"] = "application/json"
       body = body.to_json
     end
 
@@ -830,7 +830,7 @@ class MicrosoftGraphClient
 
     # Set content type if body is a hash (JSON)
     if body.is_a?(Hash)
-      headers['Content-Type'] = 'application/json'
+      headers["Content-Type"] = "application/json"
       body = body.to_json
     end
 
@@ -848,7 +848,7 @@ class MicrosoftGraphClient
     response = HTTParty.patch(
       "#{GRAPH_API_BASE}#{path}",
       body: body.to_json,
-      headers: auth_headers.merge({ 'Content-Type' => 'application/json' }),
+      headers: auth_headers.merge({ "Content-Type" => "application/json" }),
       timeout: 30
     )
 
@@ -921,7 +921,7 @@ class MicrosoftGraphClient
       created_folder = create_folder(folder_name, parent_id: parent_id)
 
       # Store mapping for children
-      folder_id_map[item.id] = created_folder['id']
+      folder_id_map[item.id] = created_folder["id"]
 
       Rails.logger.info "Created folder: #{folder_name} (#{created_folder['id']})"
     end
@@ -931,18 +931,18 @@ class MicrosoftGraphClient
 
   def self.handle_token_response(response)
     unless response.success?
-      error_message = response.parsed_response&.dig('error_description') ||
-                     response.parsed_response&.dig('error') ||
+      error_message = response.parsed_response&.dig("error_description") ||
+                     response.parsed_response&.dig("error") ||
                      "Token request failed with status #{response.code}"
       raise AuthenticationError, error_message
     end
 
     data = response.parsed_response
     {
-      access_token: data['access_token'],
-      refresh_token: data['refresh_token'],
-      expires_in: data['expires_in'],
-      expires_at: Time.current + data['expires_in'].to_i.seconds
+      access_token: data["access_token"],
+      refresh_token: data["refresh_token"],
+      expires_in: data["expires_in"],
+      expires_at: Time.current + data["expires_in"].to_i.seconds
     }
   end
 
@@ -968,13 +968,13 @@ class MicrosoftGraphClient
       Rails.logger.error "OneDrive API 404 Error: #{error_details.inspect}"
       raise APIError, "Resource not found (404). Details: #{error_details}"
     when 429
-      retry_after = response.headers['Retry-After']&.to_i || 60
+      retry_after = response.headers["Retry-After"]&.to_i || 60
       raise APIError, "Rate limited. Retry after #{retry_after} seconds"
     else
       error_details = response.parsed_response || {}
-      error_code = error_details.dig('error', 'code')
-      error_message = error_details.dig('error', 'message') ||
-                     error_details.dig('error_description') ||
+      error_code = error_details.dig("error", "code")
+      error_message = error_details.dig("error", "message") ||
+                     error_details.dig("error_description") ||
                      "API request failed with status #{response.code}"
 
       Rails.logger.error "OneDrive API Error (#{response.code}): #{error_details.inspect}"
@@ -992,8 +992,8 @@ class MicrosoftGraphClient
 
   def auth_headers
     {
-      'Authorization' => "Bearer #{@credential.access_token}",
-      'Accept' => 'application/json'
+      "Authorization" => "Bearer #{@credential.access_token}",
+      "Accept" => "application/json"
     }
   end
 end

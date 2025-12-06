@@ -73,12 +73,12 @@ puts "   Started: #{workflow_instance.started_at}"
 puts "\n5. Workflow Steps:"
 workflow_instance.workflow_steps.each do |step|
   status_icon = case step.status
-                when 'completed' then '✓'
-                when 'pending' then '○'
-                when 'in_progress' then '⟳'
-                when 'rejected' then '✗'
-                else '?'
-                end
+  when 'completed' then '✓'
+  when 'pending' then '○'
+  when 'in_progress' then '⟳'
+  when 'rejected' then '✗'
+  else '?'
+  end
 
   puts "   #{status_icon} #{step.step_name} - #{step.status}"
   if step.data && step.data['description']
@@ -88,7 +88,7 @@ end
 
 # 6. Show pending approvals
 puts "\n6. Finding users who can approve..."
-current_step = workflow_instance.workflow_steps.find_by(status: ['pending', 'in_progress'])
+current_step = workflow_instance.workflow_steps.find_by(status: [ 'pending', 'in_progress' ])
 
 if current_step
   puts "   Current step: #{current_step.step_name}"

@@ -1,15 +1,15 @@
 namespace :pricebook do
   desc "One-time task: Import categories from hardcoded CSV data"
   task import_categories_production: :environment do
-    require 'csv'
-    require 'open-uri'
+    require "csv"
+    require "open-uri"
 
     puts "\n" + "="*60
     puts "IMPORTING CATEGORIES TO PRODUCTION"
     puts "="*60
 
     # Check if we can access a URL or need to use hardcoded data
-    csv_url = ENV['CSV_URL']
+    csv_url = ENV["CSV_URL"]
 
     if csv_url.present?
       puts "\n📥 Downloading CSV from: #{csv_url}"
@@ -42,8 +42,8 @@ namespace :pricebook do
 
     CSV.parse(csv_content, headers: true) do |row|
       begin
-        item_code = row['code']&.strip
-        category = row['category']&.strip
+        item_code = row["code"]&.strip
+        category = row["category"]&.strip
 
         # Skip if no item code
         next if item_code.blank?

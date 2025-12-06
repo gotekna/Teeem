@@ -1,10 +1,10 @@
 class DividendPayment < ApplicationRecord
   # Associations
   belongs_to :dividend
-  belongs_to :shareholder, class_name: 'Contact'
+  belongs_to :shareholder, class_name: "Contact"
 
   # Validations
-  validates :shareholder_id, uniqueness: { scope: :dividend_id, message: 'already has a payment for this dividend' }
+  validates :shareholder_id, uniqueness: { scope: :dividend_id, message: "already has a payment for this dividend" }
 
   # Scopes
   scope :paid, -> { where.not(paid_date: nil) }

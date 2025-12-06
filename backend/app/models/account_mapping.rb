@@ -1,13 +1,13 @@
 class AccountMapping < ApplicationRecord
   # Associations
   belongs_to :accounting_integration
-  belongs_to :keepr_account, class_name: 'Keepr::Account'
+  belongs_to :keepr_account, class_name: "Keepr::Account"
 
   # Validations
   validates :external_account_id, presence: true
   validates :keepr_account_id, uniqueness: {
     scope: :accounting_integration_id,
-    message: 'already has a mapping for this integration'
+    message: "already has a mapping for this integration"
   }
 
   # Scopes

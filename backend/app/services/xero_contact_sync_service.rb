@@ -1,4 +1,4 @@
-require 'fuzzy_match'
+require "fuzzy_match"
 
 class XeroContactSyncService
   attr_reader :stats
@@ -84,7 +84,7 @@ class XeroContactSyncService
         tenant_name: @sync_config.xero_tenant_name,
         stats: @stats,
         synced_at: @sync_timestamp,
-        message: 'Sync disabled for this tenant'
+        message: "Sync disabled for this tenant"
       }
     end
 
@@ -156,7 +156,7 @@ class XeroContactSyncService
 
   # Sync from TEEEM to Xero - push contact changes to Xero
   def sync_to_xero(contact, link)
-    return { success: false, error: 'No Xero link provided' } unless link&.external_contact_id.present?
+    return { success: false, error: "No Xero link provided" } unless link&.external_contact_id.present?
 
     result = update_xero_contact(contact, link)
 
@@ -178,10 +178,10 @@ class XeroContactSyncService
     options = {}
     options[:tenant_id] = tenant_id if tenant_id
 
-    result = @xero_client.get('Contacts', options)
+    result = @xero_client.get("Contacts", options)
 
     if result[:success]
-      contacts = result[:data]['Contacts'] || []
+      contacts = result[:data]["Contacts"] || []
       Rails.logger.info("Successfully fetched #{contacts.length} contacts from Xero")
       contacts
     else
@@ -196,7 +196,7 @@ class XeroContactSyncService
     result = @xero_client.get("Contacts/#{contact_id}", options)
 
     if result[:success]
-      result[:data]['Contacts']&.first
+      result[:data]["Contacts"]&.first
     else
       nil
     end
@@ -210,7 +210,7 @@ class XeroContactSyncService
     # Get sync direction from config
     import_enabled = @sync_config&.import_enabled? != false
     export_enabled = @sync_config&.export_enabled? == true
-    sync_direction = @sync_config&.effective_sync_direction || 'import_only'
+    sync_direction = @sync_config&.effective_sync_direction || "import_only"
 
     Rails.logger.info("Processing contacts with sync direction: #{sync_direction} (import: #{import_enabled}, export: #{export_enabled})")
 
@@ -228,7 +228,7 @@ class XeroContactSyncService
     if import_enabled
       xero_contacts.each do |xero_contact|
         begin
-          xero_id = xero_contact['ContactID']
+          xero_id = xero_contact["ContactID"]
 
           # Check if we already have a link for this Xero contact
           if existing_links[xero_id]
@@ -314,10 +314,10 @@ class XeroContactSyncService
   end
 
   def find_matching_teeem_contact(xero_contact, by_xero_id, by_tax_number, by_email, remaining_contacts)
-    xero_id = xero_contact['ContactID']
-    xero_tax = xero_contact['TaxNumber']
+    xero_id = xero_contact["ContactID"]
+    xero_tax = xero_contact["TaxNumber"]
     xero_email = extract_xero_email(xero_contact)
-    xero_name = xero_contact['Name']
+    xero_name = xero_contact["Name"]
 
     # Priority 1: Match by xero_id (legacy field)
     if by_xero_id[xero_id]
@@ -361,7 +361,7 @@ class XeroContactSyncService
     return nil if contacts.empty?
 
     # Create fuzzy matcher with contact names
-    contact_names = contacts.map { |c| [c.display_name, c] }.to_h
+    contact_names = contacts.map { |c| [ c.display_name, c ] }.to_h
     matcher = FuzzyMatch.new(contact_names.keys)
 
     # Find best match
@@ -371,7 +371,7 @@ class XeroContactSyncService
   end
 
   def create_or_update_xero_link(teeem_contact, xero_contact, tenant_id)
-    xero_id = xero_contact['ContactID']
+    xero_id = xero_contact["ContactID"]
 
     link = teeem_contact.xero_links.find_or_initialize_by(
       tenant_id: tenant_id,
@@ -379,12 +379,12 @@ class XeroContactSyncService
     )
 
     link.assign_attributes(
-      source: 'xero',
-      tenant_name: @sync_config&.xero_tenant_name || 'Unknown',
+      source: "xero",
+      tenant_name: @sync_config&.xero_tenant_name || "Unknown",
       sync_enabled: true,
-      sync_direction: 'bidirectional',
+      sync_direction: "bidirectional",
       last_synced_at: @sync_timestamp,
-      external_last_modified_at: parse_xero_date(xero_contact['UpdatedDateUTC']),
+      external_last_modified_at: parse_xero_date(xero_contact["UpdatedDateUTC"]),
       sync_error: nil
     )
 
@@ -417,143 +417,143 @@ class XeroContactSyncService
     }
 
     # Also update legacy xero_id field for backwards compatibility
-    updates[:xero_id] = xero_contact['ContactID'] if teeem_contact.xero_id.blank?
+    updates[:xero_id] = xero_contact["ContactID"] if teeem_contact.xero_id.blank?
 
     # Get field mappings from sync config
     field_mappings = @sync_config&.field_mappings || SyncConfiguration::DEFAULT_FIELD_MAPPINGS
 
     # Only import fields where direction is 'import' or 'bidirectional'
-    importable_fields = field_mappings.select { |_, dir| ['import', 'bidirectional'].include?(dir) }.keys
+    importable_fields = field_mappings.select { |_, dir| [ "import", "bidirectional" ].include?(dir) }.keys
 
     # Extract roles from Xero IsCustomer/IsSupplier flags
     roles = []
-    roles << 'customer' if xero_contact['IsCustomer'] == true
-    roles << 'supplier' if xero_contact['IsSupplier'] == true
+    roles << "customer" if xero_contact["IsCustomer"] == true
+    roles << "supplier" if xero_contact["IsSupplier"] == true
     updates[:roles] = roles if roles.any?
 
     # Determine if this is a company contact
     is_company = xero_contact_is_company?(xero_contact)
 
     # Apply field mappings
-    if importable_fields.include?('name')
-      updates[:full_name] = xero_contact['Name'] if xero_contact['Name'].present?
-      updates[:entity_type] = is_company ? 'company' : 'person'
+    if importable_fields.include?("name")
+      updates[:full_name] = xero_contact["Name"] if xero_contact["Name"].present?
+      updates[:entity_type] = is_company ? "company" : "person"
 
       if is_company
         updates[:first_name] = nil
         updates[:last_name] = nil
-        updates[:company_name_or_trust] = xero_contact['Name']
+        updates[:company_name_or_trust] = xero_contact["Name"]
       else
-        updates[:first_name] = xero_contact['FirstName'] if xero_contact['FirstName'].present?
-        updates[:last_name] = xero_contact['LastName'] if xero_contact['LastName'].present?
+        updates[:first_name] = xero_contact["FirstName"] if xero_contact["FirstName"].present?
+        updates[:last_name] = xero_contact["LastName"] if xero_contact["LastName"].present?
       end
     end
 
-    if importable_fields.include?('email')
+    if importable_fields.include?("email")
       xero_email = extract_xero_email(xero_contact)
       updates[:email] = xero_email if xero_email.present?
     end
 
-    if importable_fields.include?('tax_number')
-      updates[:tax_number] = normalize_tax_number(xero_contact['TaxNumber']) if xero_contact['TaxNumber'].present?
+    if importable_fields.include?("tax_number")
+      updates[:tax_number] = normalize_tax_number(xero_contact["TaxNumber"]) if xero_contact["TaxNumber"].present?
     end
 
-    if importable_fields.include?('mobile_phone') || importable_fields.include?('office_phone')
-      if xero_contact['Phones'].present?
-        xero_contact['Phones'].each do |phone|
-          case phone['PhoneType']
-          when 'MOBILE'
-            updates[:mobile_phone] = phone['PhoneNumber'] if phone['PhoneNumber'].present? && importable_fields.include?('mobile_phone')
-          when 'DEFAULT', 'DDI'
-            updates[:office_phone] = phone['PhoneNumber'] if phone['PhoneNumber'].present? && importable_fields.include?('office_phone')
-          when 'FAX'
-            updates[:fax_phone] = phone['PhoneNumber'] if phone['PhoneNumber'].present?
+    if importable_fields.include?("mobile_phone") || importable_fields.include?("office_phone")
+      if xero_contact["Phones"].present?
+        xero_contact["Phones"].each do |phone|
+          case phone["PhoneType"]
+          when "MOBILE"
+            updates[:mobile_phone] = phone["PhoneNumber"] if phone["PhoneNumber"].present? && importable_fields.include?("mobile_phone")
+          when "DEFAULT", "DDI"
+            updates[:office_phone] = phone["PhoneNumber"] if phone["PhoneNumber"].present? && importable_fields.include?("office_phone")
+          when "FAX"
+            updates[:fax_phone] = phone["PhoneNumber"] if phone["PhoneNumber"].present?
           end
         end
       end
     end
 
     # Bank details
-    if importable_fields.include?('bank_bsb') || importable_fields.include?('bank_account_number')
-      if xero_contact['BankAccountDetails'].present?
-        bank_details = xero_contact['BankAccountDetails']
-        if bank_details.match(/BSB[:\s]+(\d{6})/) && importable_fields.include?('bank_bsb')
+    if importable_fields.include?("bank_bsb") || importable_fields.include?("bank_account_number")
+      if xero_contact["BankAccountDetails"].present?
+        bank_details = xero_contact["BankAccountDetails"]
+        if bank_details.match(/BSB[:\s]+(\d{6})/) && importable_fields.include?("bank_bsb")
           updates[:bank_bsb] = $1
         end
-        if bank_details.match(/Account Number[:\s]+([\d\s]+)/) && importable_fields.include?('bank_account_number')
-          updates[:bank_account_number] = $1.gsub(/\s/, '')
+        if bank_details.match(/Account Number[:\s]+([\d\s]+)/) && importable_fields.include?("bank_account_number")
+          updates[:bank_account_number] = $1.gsub(/\s/, "")
         end
-        if bank_details.match(/Account Name[:\s]+([^,\n]+)/) && importable_fields.include?('bank_account_name')
+        if bank_details.match(/Account Name[:\s]+([^,\n]+)/) && importable_fields.include?("bank_account_name")
           updates[:bank_account_name] = $1.strip
         end
       end
     end
 
     # Payment terms
-    if xero_contact['PaymentTerms'].present?
-      if xero_contact['PaymentTerms']['Bills'].present? && importable_fields.include?('bill_due_day')
-        bills = xero_contact['PaymentTerms']['Bills']
-        updates[:bill_due_day] = bills['Day'] if bills['Day'].present?
-        updates[:bill_due_type] = bills['Type'] if bills['Type'].present?
+    if xero_contact["PaymentTerms"].present?
+      if xero_contact["PaymentTerms"]["Bills"].present? && importable_fields.include?("bill_due_day")
+        bills = xero_contact["PaymentTerms"]["Bills"]
+        updates[:bill_due_day] = bills["Day"] if bills["Day"].present?
+        updates[:bill_due_type] = bills["Type"] if bills["Type"].present?
       end
-      if xero_contact['PaymentTerms']['Sales'].present? && importable_fields.include?('sales_due_day')
-        sales = xero_contact['PaymentTerms']['Sales']
-        updates[:sales_due_day] = sales['Day'] if sales['Day'].present?
-        updates[:sales_due_type] = sales['Type'] if sales['Type'].present?
+      if xero_contact["PaymentTerms"]["Sales"].present? && importable_fields.include?("sales_due_day")
+        sales = xero_contact["PaymentTerms"]["Sales"]
+        updates[:sales_due_day] = sales["Day"] if sales["Day"].present?
+        updates[:sales_due_type] = sales["Type"] if sales["Type"].present?
       end
     end
 
     # Xero-specific fields (always import)
-    updates[:xero_contact_status] = xero_contact['ContactStatus'] if xero_contact['ContactStatus'].present?
-    updates[:xero_contact_number] = xero_contact['ContactNumber'] if xero_contact['ContactNumber'].present?
-    updates[:xero_account_number] = xero_contact['AccountNumber'] if xero_contact['AccountNumber'].present?
-    updates[:website] = xero_contact['Website'] if xero_contact['Website'].present?
-    updates[:default_discount] = xero_contact['Discount'] if xero_contact['Discount'].present?
-    updates[:default_purchase_account] = xero_contact['PurchasesDefaultAccountCode'] if xero_contact['PurchasesDefaultAccountCode'].present?
-    updates[:default_sales_account] = xero_contact['SalesDefaultAccountCode'] if xero_contact['SalesDefaultAccountCode'].present?
+    updates[:xero_contact_status] = xero_contact["ContactStatus"] if xero_contact["ContactStatus"].present?
+    updates[:xero_contact_number] = xero_contact["ContactNumber"] if xero_contact["ContactNumber"].present?
+    updates[:xero_account_number] = xero_contact["AccountNumber"] if xero_contact["AccountNumber"].present?
+    updates[:website] = xero_contact["Website"] if xero_contact["Website"].present?
+    updates[:default_discount] = xero_contact["Discount"] if xero_contact["Discount"].present?
+    updates[:default_purchase_account] = xero_contact["PurchasesDefaultAccountCode"] if xero_contact["PurchasesDefaultAccountCode"].present?
+    updates[:default_sales_account] = xero_contact["SalesDefaultAccountCode"] if xero_contact["SalesDefaultAccountCode"].present?
 
     # Outstanding balances
-    if xero_contact['Balances'].present?
-      balances = xero_contact['Balances']
-      if balances['AccountsReceivable'].present?
-        updates[:accounts_receivable_outstanding] = balances['AccountsReceivable']['Outstanding']
-        updates[:accounts_receivable_overdue] = balances['AccountsReceivable']['Overdue']
+    if xero_contact["Balances"].present?
+      balances = xero_contact["Balances"]
+      if balances["AccountsReceivable"].present?
+        updates[:accounts_receivable_outstanding] = balances["AccountsReceivable"]["Outstanding"]
+        updates[:accounts_receivable_overdue] = balances["AccountsReceivable"]["Overdue"]
       end
-      if balances['AccountsPayable'].present?
-        updates[:accounts_payable_outstanding] = balances['AccountsPayable']['Outstanding']
-        updates[:accounts_payable_overdue] = balances['AccountsPayable']['Overdue']
+      if balances["AccountsPayable"].present?
+        updates[:accounts_payable_outstanding] = balances["AccountsPayable"]["Outstanding"]
+        updates[:accounts_payable_overdue] = balances["AccountsPayable"]["Overdue"]
       end
     end
 
     # Address - sync to both legacy field and contact_addresses table
-    if xero_contact['Addresses'].present?
-      street_address = xero_contact['Addresses'].find { |a| a['AddressType'] == 'STREET' }
-      address_to_use = street_address || xero_contact['Addresses'].first
+    if xero_contact["Addresses"].present?
+      street_address = xero_contact["Addresses"].find { |a| a["AddressType"] == "STREET" }
+      address_to_use = street_address || xero_contact["Addresses"].first
 
       if address_to_use
         address_parts = [
-          address_to_use['AddressLine1'],
-          address_to_use['AddressLine2'],
-          address_to_use['AddressLine3'],
-          address_to_use['AddressLine4'],
-          [address_to_use['City'], address_to_use['Region'], address_to_use['PostalCode']].compact.join(' '),
-          address_to_use['Country']
+          address_to_use["AddressLine1"],
+          address_to_use["AddressLine2"],
+          address_to_use["AddressLine3"],
+          address_to_use["AddressLine4"],
+          [ address_to_use["City"], address_to_use["Region"], address_to_use["PostalCode"] ].compact.join(" "),
+          address_to_use["Country"]
         ].compact.reject(&:blank?)
 
-        updates[:address] = address_parts.join(', ') if address_parts.any?
+        updates[:address] = address_parts.join(", ") if address_parts.any?
 
         # Sync structured address fields
-        updates[:city] = address_to_use['City'] if address_to_use['City'].present?
-        updates[:state] = address_to_use['Region'] if address_to_use['Region'].present?
-        updates[:postcode] = address_to_use['PostalCode'] if address_to_use['PostalCode'].present?
+        updates[:city] = address_to_use["City"] if address_to_use["City"].present?
+        updates[:state] = address_to_use["Region"] if address_to_use["Region"].present?
+        updates[:postcode] = address_to_use["PostalCode"] if address_to_use["PostalCode"].present?
       end
 
       # Sync to contact_addresses table (two-way sync - TEEEM is source of truth)
-      sync_addresses_from_xero(teeem_contact, xero_contact['Addresses'])
+      sync_addresses_from_xero(teeem_contact, xero_contact["Addresses"])
     end
 
     # Track changes for activity logging
-    changed_fields = updates.keys - [:xero_id, :last_synced_at, :xero_sync_error]
+    changed_fields = updates.keys - [ :xero_id, :last_synced_at, :xero_sync_error ]
     changes_made = changed_fields.each_with_object({}) do |field, hash|
       old_value = teeem_contact.send(field) rescue nil
       new_value = updates[field]
@@ -571,7 +571,7 @@ class XeroContactSyncService
     if changes_made.any?
       ContactActivity.log_xero_sync(
         contact: teeem_contact,
-        action: 'updated',
+        action: "updated",
         changes: changes_made,
         xero_data: xero_contact
       )
@@ -588,94 +588,94 @@ class XeroContactSyncService
 
     # Extract roles from Xero IsCustomer/IsSupplier flags
     roles = []
-    roles << 'customer' if xero_contact['IsCustomer'] == true
-    roles << 'supplier' if xero_contact['IsSupplier'] == true
+    roles << "customer" if xero_contact["IsCustomer"] == true
+    roles << "supplier" if xero_contact["IsSupplier"] == true
 
     is_company = xero_contact_is_company?(xero_contact)
 
     contact_data = {
-      xero_id: xero_contact['ContactID'],  # Legacy field
-      full_name: xero_contact['Name'],
-      first_name: is_company ? nil : xero_contact['FirstName'],
-      last_name: is_company ? nil : xero_contact['LastName'],
-      company_name_or_trust: is_company ? xero_contact['Name'] : nil,
-      entity_type: is_company ? 'company' : 'person',
-      tax_number: normalize_tax_number(xero_contact['TaxNumber']),
+      xero_id: xero_contact["ContactID"],  # Legacy field
+      full_name: xero_contact["Name"],
+      first_name: is_company ? nil : xero_contact["FirstName"],
+      last_name: is_company ? nil : xero_contact["LastName"],
+      company_name_or_trust: is_company ? xero_contact["Name"] : nil,
+      entity_type: is_company ? "company" : "person",
+      tax_number: normalize_tax_number(xero_contact["TaxNumber"]),
       email: extract_xero_email(xero_contact),
       roles: roles.any? ? roles : nil,
       sync_with_xero: true,
       last_synced_at: @sync_timestamp,
-      xero_contact_status: xero_contact['ContactStatus'],
-      xero_contact_number: xero_contact['ContactNumber'],
-      xero_account_number: xero_contact['AccountNumber'],
-      website: xero_contact['Website'],
-      default_discount: xero_contact['Discount'],
-      default_purchase_account: xero_contact['PurchasesDefaultAccountCode'],
-      default_sales_account: xero_contact['SalesDefaultAccountCode']
+      xero_contact_status: xero_contact["ContactStatus"],
+      xero_contact_number: xero_contact["ContactNumber"],
+      xero_account_number: xero_contact["AccountNumber"],
+      website: xero_contact["Website"],
+      default_discount: xero_contact["Discount"],
+      default_purchase_account: xero_contact["PurchasesDefaultAccountCode"],
+      default_sales_account: xero_contact["SalesDefaultAccountCode"]
     }
 
     # Extract phone numbers
-    if xero_contact['Phones'].present?
-      xero_contact['Phones'].each do |phone|
-        case phone['PhoneType']
-        when 'MOBILE'
-          contact_data[:mobile_phone] = phone['PhoneNumber']
-        when 'DEFAULT', 'DDI'
-          contact_data[:office_phone] = phone['PhoneNumber']
-        when 'FAX'
-          contact_data[:fax_phone] = phone['PhoneNumber']
+    if xero_contact["Phones"].present?
+      xero_contact["Phones"].each do |phone|
+        case phone["PhoneType"]
+        when "MOBILE"
+          contact_data[:mobile_phone] = phone["PhoneNumber"]
+        when "DEFAULT", "DDI"
+          contact_data[:office_phone] = phone["PhoneNumber"]
+        when "FAX"
+          contact_data[:fax_phone] = phone["PhoneNumber"]
         end
       end
     end
 
     # Extract address
-    if xero_contact['Addresses'].present?
-      street_address = xero_contact['Addresses'].find { |a| a['AddressType'] == 'STREET' }
-      address_to_use = street_address || xero_contact['Addresses'].first
+    if xero_contact["Addresses"].present?
+      street_address = xero_contact["Addresses"].find { |a| a["AddressType"] == "STREET" }
+      address_to_use = street_address || xero_contact["Addresses"].first
 
       if address_to_use
         address_parts = [
-          address_to_use['AddressLine1'],
-          address_to_use['AddressLine2'],
-          address_to_use['AddressLine3'],
-          address_to_use['AddressLine4'],
-          [address_to_use['City'], address_to_use['Region'], address_to_use['PostalCode']].compact.join(' '),
-          address_to_use['Country']
+          address_to_use["AddressLine1"],
+          address_to_use["AddressLine2"],
+          address_to_use["AddressLine3"],
+          address_to_use["AddressLine4"],
+          [ address_to_use["City"], address_to_use["Region"], address_to_use["PostalCode"] ].compact.join(" "),
+          address_to_use["Country"]
         ].compact.reject(&:blank?)
 
-        contact_data[:address] = address_parts.join(', ') if address_parts.any?
+        contact_data[:address] = address_parts.join(", ") if address_parts.any?
 
         # Extract structured address fields
-        contact_data[:city] = address_to_use['City'] if address_to_use['City'].present?
-        contact_data[:state] = address_to_use['Region'] if address_to_use['Region'].present?
-        contact_data[:postcode] = address_to_use['PostalCode'] if address_to_use['PostalCode'].present?
+        contact_data[:city] = address_to_use["City"] if address_to_use["City"].present?
+        contact_data[:state] = address_to_use["Region"] if address_to_use["Region"].present?
+        contact_data[:postcode] = address_to_use["PostalCode"] if address_to_use["PostalCode"].present?
       end
     end
 
     # Extract payment terms
-    if xero_contact['PaymentTerms'].present?
-      if xero_contact['PaymentTerms']['Bills'].present?
-        bills = xero_contact['PaymentTerms']['Bills']
-        contact_data[:bill_due_day] = bills['Day'] if bills['Day'].present?
-        contact_data[:bill_due_type] = bills['Type'] if bills['Type'].present?
+    if xero_contact["PaymentTerms"].present?
+      if xero_contact["PaymentTerms"]["Bills"].present?
+        bills = xero_contact["PaymentTerms"]["Bills"]
+        contact_data[:bill_due_day] = bills["Day"] if bills["Day"].present?
+        contact_data[:bill_due_type] = bills["Type"] if bills["Type"].present?
       end
-      if xero_contact['PaymentTerms']['Sales'].present?
-        sales = xero_contact['PaymentTerms']['Sales']
-        contact_data[:sales_due_day] = sales['Day'] if sales['Day'].present?
-        contact_data[:sales_due_type] = sales['Type'] if sales['Type'].present?
+      if xero_contact["PaymentTerms"]["Sales"].present?
+        sales = xero_contact["PaymentTerms"]["Sales"]
+        contact_data[:sales_due_day] = sales["Day"] if sales["Day"].present?
+        contact_data[:sales_due_type] = sales["Type"] if sales["Type"].present?
       end
     end
 
     # Extract balances
-    if xero_contact['Balances'].present?
-      balances = xero_contact['Balances']
-      if balances['AccountsReceivable'].present?
-        contact_data[:accounts_receivable_outstanding] = balances['AccountsReceivable']['Outstanding']
-        contact_data[:accounts_receivable_overdue] = balances['AccountsReceivable']['Overdue']
+    if xero_contact["Balances"].present?
+      balances = xero_contact["Balances"]
+      if balances["AccountsReceivable"].present?
+        contact_data[:accounts_receivable_outstanding] = balances["AccountsReceivable"]["Outstanding"]
+        contact_data[:accounts_receivable_overdue] = balances["AccountsReceivable"]["Overdue"]
       end
-      if balances['AccountsPayable'].present?
-        contact_data[:accounts_payable_outstanding] = balances['AccountsPayable']['Outstanding']
-        contact_data[:accounts_payable_overdue] = balances['AccountsPayable']['Overdue']
+      if balances["AccountsPayable"].present?
+        contact_data[:accounts_payable_outstanding] = balances["AccountsPayable"]["Outstanding"]
+        contact_data[:accounts_payable_overdue] = balances["AccountsPayable"]["Overdue"]
       end
     end
 
@@ -691,7 +691,7 @@ class XeroContactSyncService
     # Log activity for new contact creation
     ContactActivity.log_xero_sync(
       contact: new_contact,
-      action: 'created',
+      action: "created",
       changes: {},
       xero_data: xero_contact
     )
@@ -712,26 +712,26 @@ class XeroContactSyncService
       ]
     }
 
-    result = @xero_client.post('Contacts', xero_payload, tenant_id: tenant_id)
+    result = @xero_client.post("Contacts", xero_payload, tenant_id: tenant_id)
 
     if result[:success]
-      created_contact = result[:data]['Contacts']&.first
+      created_contact = result[:data]["Contacts"]&.first
       if created_contact
         # Create the link
         link = teeem_contact.xero_links.create!(
-          source: 'xero',
+          source: "xero",
           tenant_id: tenant_id,
-          tenant_name: @sync_config&.xero_tenant_name || 'Unknown',
-          external_contact_id: created_contact['ContactID'],
+          tenant_name: @sync_config&.xero_tenant_name || "Unknown",
+          external_contact_id: created_contact["ContactID"],
           sync_enabled: true,
-          sync_direction: 'bidirectional',
+          sync_direction: "bidirectional",
           last_synced_at: @sync_timestamp
         )
 
         # Update legacy field for first link
         if teeem_contact.xero_id.blank?
           teeem_contact.update!(
-            xero_id: created_contact['ContactID'],
+            xero_id: created_contact["ContactID"],
             last_synced_at: @sync_timestamp,
             xero_sync_error: nil
           )
@@ -763,7 +763,7 @@ class XeroContactSyncService
 
     Rails.logger.info("Xero payload: #{xero_payload.to_json}")
 
-    result = @xero_client.post('Contacts', xero_payload, tenant_id: link.tenant_id)
+    result = @xero_client.post("Contacts", xero_payload, tenant_id: link.tenant_id)
 
     Rails.logger.info("Xero result: #{result.inspect}")
 
@@ -797,10 +797,10 @@ class XeroContactSyncService
     # Add phone numbers
     phones = []
     if teeem_contact.mobile_phone.present?
-      phones << { PhoneType: 'MOBILE', PhoneNumber: teeem_contact.mobile_phone }
+      phones << { PhoneType: "MOBILE", PhoneNumber: teeem_contact.mobile_phone }
     end
     if teeem_contact.office_phone.present?
-      phones << { PhoneType: 'DEFAULT', PhoneNumber: teeem_contact.office_phone }
+      phones << { PhoneType: "DEFAULT", PhoneNumber: teeem_contact.office_phone }
     end
     payload[:Phones] = phones if phones.any?
 
@@ -810,18 +810,18 @@ class XeroContactSyncService
       bank_parts << "BSB: #{teeem_contact.bank_bsb}" if teeem_contact.bank_bsb.present?
       bank_parts << "Account Number: #{teeem_contact.bank_account_number}" if teeem_contact.bank_account_number.present?
       bank_parts << "Account Name: #{teeem_contact.bank_account_name}" if teeem_contact.bank_account_name.present?
-      payload[:BankAccountDetails] = bank_parts.join(', ')
+      payload[:BankAccountDetails] = bank_parts.join(", ")
     end
 
     payload
   end
 
   def extract_xero_email(xero_contact)
-    return xero_contact['EmailAddress'] if xero_contact['EmailAddress'].present?
+    return xero_contact["EmailAddress"] if xero_contact["EmailAddress"].present?
 
-    if xero_contact['Addresses'].present?
-      xero_contact['Addresses'].each do |address|
-        return address['EmailAddress'] if address['EmailAddress'].present?
+    if xero_contact["Addresses"].present?
+      xero_contact["Addresses"].each do |address|
+        return address["EmailAddress"] if address["EmailAddress"].present?
       end
     end
 
@@ -830,7 +830,7 @@ class XeroContactSyncService
 
   def normalize_tax_number(tax_number)
     return nil if tax_number.blank?
-    tax_number.to_s.gsub(/[\s\-]/, '').upcase
+    tax_number.to_s.gsub(/[\s\-]/, "").upcase
   end
 
   def parse_xero_date(date_string)
@@ -872,8 +872,8 @@ class XeroContactSyncService
   ].freeze
 
   def xero_contact_is_company?(xero_contact)
-    name = xero_contact['Name'].to_s
-    first_name = xero_contact['FirstName'].to_s.strip
+    name = xero_contact["Name"].to_s
+    first_name = xero_contact["FirstName"].to_s.strip
 
     return true if name.present? && first_name.blank?
     COMPANY_INDICATORS.any? { |pattern| name.match?(pattern) }
@@ -881,19 +881,19 @@ class XeroContactSyncService
 
   def sync_contact_persons(teeem_contact, xero_contact)
     is_company = xero_contact_is_company?(xero_contact)
-    main_first_name = xero_contact['FirstName'].to_s.strip
-    main_last_name = xero_contact['LastName'].to_s.strip
-    main_email = xero_contact['EmailAddress'].to_s.strip
+    main_first_name = xero_contact["FirstName"].to_s.strip
+    main_last_name = xero_contact["LastName"].to_s.strip
+    main_email = xero_contact["EmailAddress"].to_s.strip
 
-    xero_persons = xero_contact['ContactPersons'] || []
+    xero_persons = xero_contact["ContactPersons"] || []
 
     primary_person_contact = nil
     if is_company && main_first_name.present?
       main_person = {
-        'FirstName' => main_first_name,
-        'LastName' => main_last_name,
-        'EmailAddress' => main_email,
-        'IncludeInEmails' => true
+        "FirstName" => main_first_name,
+        "LastName" => main_last_name,
+        "EmailAddress" => main_email,
+        "IncludeInEmails" => true
       }
       Rails.logger.info("Creating primary person contact #{main_first_name} #{main_last_name} for company #{teeem_contact.display_name}")
       primary_person_contact = create_or_update_contact_person_as_contact(teeem_contact, main_person, true)
@@ -910,10 +910,10 @@ class XeroContactSyncService
     existing_persons = teeem_contact.contact_persons.to_a
 
     xero_persons.each_with_index do |xero_person, index|
-      first_name = xero_person['FirstName']
-      last_name = xero_person['LastName']
-      email = xero_person['EmailAddress']
-      include_in_emails = xero_person['IncludeInEmails'] != false
+      first_name = xero_person["FirstName"]
+      last_name = xero_person["LastName"]
+      email = xero_person["EmailAddress"]
+      include_in_emails = xero_person["IncludeInEmails"] != false
 
       if first_name.present?
         array_person_is_primary = (index == 0) && primary_person_contact.nil?
@@ -952,9 +952,9 @@ class XeroContactSyncService
   end
 
   def create_or_update_contact_person_as_contact(company_contact, xero_person, is_primary = false)
-    first_name = xero_person['FirstName'].to_s.strip
-    last_name = xero_person['LastName'].to_s.strip
-    email = xero_person['EmailAddress'].to_s.strip.downcase
+    first_name = xero_person["FirstName"].to_s.strip
+    last_name = xero_person["LastName"].to_s.strip
+    email = xero_person["EmailAddress"].to_s.strip.downcase
     full_name = "#{first_name} #{last_name}".strip
 
     return if full_name.blank?
@@ -962,7 +962,7 @@ class XeroContactSyncService
     person_contact = nil
 
     if email.present?
-      person_contact = Contact.find_by('LOWER(email) = ?', email)
+      person_contact = Contact.find_by("LOWER(email) = ?", email)
     end
 
     if person_contact.nil?
@@ -980,7 +980,7 @@ class XeroContactSyncService
         full_name: full_name,
         email: email.presence,
         primary_company_id: company_contact.id,
-        entity_type: 'person',
+        entity_type: "person",
         last_synced_at: @sync_timestamp
       )
       Rails.logger.info("Updated person contact: #{full_name} (linked to #{company_contact.display_name})")
@@ -991,7 +991,7 @@ class XeroContactSyncService
         full_name: full_name,
         email: email.presence,
         primary_company_id: company_contact.id,
-        entity_type: 'person',
+        entity_type: "person",
         sync_with_xero: false,
         last_synced_at: @sync_timestamp
       )
@@ -1029,13 +1029,13 @@ class XeroContactSyncService
     orphaned_links.find_each do |link|
       begin
         contact = link.contact
-        if cleanup_options['unlink_deleted_xero_contacts']
+        if cleanup_options["unlink_deleted_xero_contacts"]
           Rails.logger.info("Unlinking orphaned contact: #{contact&.display_name} (xero_id: #{link.external_contact_id})")
           link.destroy!
           @stats[:deleted_from_teeem] += 1
         else
           # Mark as having an error instead of deleting
-          link.update!(sync_error: 'Contact no longer exists in Xero')
+          link.update!(sync_error: "Contact no longer exists in Xero")
         end
       rescue StandardError => e
         error_msg = "Failed to handle orphaned link #{link.id}: #{e.message}"
@@ -1056,7 +1056,7 @@ class XeroContactSyncService
     return unless xero_addresses.is_a?(Array)
 
     xero_addresses.each do |xero_addr|
-      address_type = xero_addr['AddressType']
+      address_type = xero_addr["AddressType"]
       next unless address_type.present? && ContactAddress::ADDRESS_TYPES.include?(address_type)
 
       # Check if TEEEM already has this address type
@@ -1066,31 +1066,31 @@ class XeroContactSyncService
         # TEEEM has this address - only update if TEEEM address is empty
         if existing.line1.blank? && existing.city.blank?
           existing.update!(
-            line1: xero_addr['AddressLine1'],
-            line2: xero_addr['AddressLine2'],
-            line3: xero_addr['AddressLine3'],
-            line4: xero_addr['AddressLine4'],
-            city: xero_addr['City'],
-            region: xero_addr['Region'],
-            postal_code: xero_addr['PostalCode'],
-            country: xero_addr['Country']
+            line1: xero_addr["AddressLine1"],
+            line2: xero_addr["AddressLine2"],
+            line3: xero_addr["AddressLine3"],
+            line4: xero_addr["AddressLine4"],
+            city: xero_addr["City"],
+            region: xero_addr["Region"],
+            postal_code: xero_addr["PostalCode"],
+            country: xero_addr["Country"]
           )
           Rails.logger.info("Updated empty #{address_type} address for contact #{teeem_contact.id} from Xero")
         end
       else
         # TEEEM doesn't have this address type - create it from Xero
         # Only create if Xero has actual address data
-        if xero_addr['AddressLine1'].present? || xero_addr['City'].present?
+        if xero_addr["AddressLine1"].present? || xero_addr["City"].present?
           teeem_contact.contact_addresses.create!(
             address_type: address_type,
-            line1: xero_addr['AddressLine1'],
-            line2: xero_addr['AddressLine2'],
-            line3: xero_addr['AddressLine3'],
-            line4: xero_addr['AddressLine4'],
-            city: xero_addr['City'],
-            region: xero_addr['Region'],
-            postal_code: xero_addr['PostalCode'],
-            country: xero_addr['Country']
+            line1: xero_addr["AddressLine1"],
+            line2: xero_addr["AddressLine2"],
+            line3: xero_addr["AddressLine3"],
+            line4: xero_addr["AddressLine4"],
+            city: xero_addr["City"],
+            region: xero_addr["Region"],
+            postal_code: xero_addr["PostalCode"],
+            country: xero_addr["Country"]
           )
           Rails.logger.info("Created #{address_type} address for contact #{teeem_contact.id} from Xero")
         end

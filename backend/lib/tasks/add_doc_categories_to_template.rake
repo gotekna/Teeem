@@ -1,6 +1,6 @@
 namespace :teeem do
   desc "Add documentation categories as folders to a folder template"
-  task :add_doc_categories_to_template, [:template_id] => :environment do |t, args|
+  task :add_doc_categories_to_template, [ :template_id ] => :environment do |t, args|
     template_id = args[:template_id] || 34  # Default to Sam Test template
 
     template = FolderTemplate.find(template_id)

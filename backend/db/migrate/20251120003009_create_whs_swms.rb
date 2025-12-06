@@ -50,7 +50,7 @@ class CreateWHSSWMS < ActiveRecord::Migration[8.0]
     end
 
     add_index :whs_swms, :swms_number, unique: true
-    add_index :whs_swms, [:construction_id, :status]
+    add_index :whs_swms, [ :construction_id, :status ]
     add_index :whs_swms, :status
     add_index :whs_swms, :company_wide
     add_index :whs_swms, :high_risk_type

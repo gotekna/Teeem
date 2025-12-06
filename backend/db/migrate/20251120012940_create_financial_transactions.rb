@@ -28,9 +28,9 @@ class CreateFinancialTransactions < ActiveRecord::Migration[8.0]
     add_index :financial_transactions, :transaction_date
     add_index :financial_transactions, :status
     add_index :financial_transactions, :category
-    add_index :financial_transactions, [:company_id, :transaction_date]
-    add_index :financial_transactions, [:company_id, :status]
-    add_index :financial_transactions, [:construction_id, :transaction_date]
-    add_index :financial_transactions, [:external_system_type, :external_system_id], name: 'index_fin_trans_on_external_system'
+    add_index :financial_transactions, [ :company_id, :transaction_date ]
+    add_index :financial_transactions, [ :company_id, :status ]
+    add_index :financial_transactions, [ :construction_id, :transaction_date ]
+    add_index :financial_transactions, [ :external_system_type, :external_system_id ], name: 'index_fin_trans_on_external_system'
   end
 end

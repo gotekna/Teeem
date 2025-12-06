@@ -20,26 +20,26 @@ class Email < ApplicationRecord
     return nil unless received_at
 
     if received_at.today?
-      received_at.strftime('%I:%M %p')
+      received_at.strftime("%I:%M %p")
     elsif received_at.year == Time.current.year
-      received_at.strftime('%b %d at %I:%M %p')
+      received_at.strftime("%b %d at %I:%M %p")
     else
-      received_at.strftime('%b %d, %Y at %I:%M %p')
+      received_at.strftime("%b %d, %Y at %I:%M %p")
     end
   end
 
   def short_subject
-    return 'No Subject' if subject.blank?
+    return "No Subject" if subject.blank?
     subject.length > 100 ? "#{subject[0..97]}..." : subject
   end
 
   def as_json(options = {})
     super(options.merge(
       include: {
-        job: { only: [:id, :title] },
-        user: { only: [:id, :email, :name] }
+        job: { only: [ :id, :title ] },
+        user: { only: [ :id, :email, :name ] }
       },
-      methods: [:formatted_received_at, :short_subject]
+      methods: [ :formatted_received_at, :short_subject ]
     ))
   end
 end

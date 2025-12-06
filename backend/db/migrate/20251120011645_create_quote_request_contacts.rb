@@ -10,7 +10,7 @@ class CreateQuoteRequestContacts < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :quote_request_contacts, [:quote_request_id, :contact_id], unique: true, name: 'index_quote_request_contacts_unique'
+    add_index :quote_request_contacts, [ :quote_request_id, :contact_id ], unique: true, name: 'index_quote_request_contacts_unique'
     add_index :quote_request_contacts, :notified_at
   end
 end

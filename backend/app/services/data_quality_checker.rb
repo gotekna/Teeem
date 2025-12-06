@@ -3,24 +3,24 @@
 class DataQualityChecker
   # Configuration for each view's checks
   VIEW_CHECKS = {
-    'mv_job_summary' => [
+    "mv_job_summary" => [
       :row_count_reasonable,
       :no_null_primary_keys,
       :no_negative_financials
     ],
-    'mv_financial_summary' => [
+    "mv_financial_summary" => [
       :row_count_reasonable,
       :no_null_required_fields,
       :amounts_are_numeric
     ],
-    'mv_document_summary' => [
+    "mv_document_summary" => [
       :row_count_reasonable,
       :document_counts_positive
     ],
-    'mv_invoice_po_reconciliation' => [
+    "mv_invoice_po_reconciliation" => [
       :row_count_reasonable
     ],
-    'fact_job_daily_snapshots' => [
+    "fact_job_daily_snapshots" => [
       :row_count_reasonable,
       :no_future_snapshots,
       :snapshot_completeness
@@ -128,8 +128,8 @@ class DataQualityChecker
 
       report_issue(
         view_name: view_name,
-        check_name: 'row_count_reasonable',
-        severity: drop_pct > 80 ? 'critical' : 'warning',
+        check_name: "row_count_reasonable",
+        severity: drop_pct > 80 ? "critical" : "warning",
         description: "Row count dropped by #{drop_pct}% (#{previous_count} -> #{current_count})",
         details: { previous_count: previous_count, current_count: current_count, drop_percentage: drop_pct }
       )
@@ -148,8 +148,8 @@ class DataQualityChecker
     if null_count > 0
       report_issue(
         view_name: view_name,
-        check_name: 'no_null_primary_keys',
-        severity: 'error',
+        check_name: "no_null_primary_keys",
+        severity: "error",
         description: "Found #{null_count} rows with NULL job_id",
         details: { null_count: null_count },
         affected_row_count: null_count
@@ -171,8 +171,8 @@ class DataQualityChecker
     if negative_count > 0
       report_issue(
         view_name: view_name,
-        check_name: 'no_negative_financials',
-        severity: 'warning',
+        check_name: "no_negative_financials",
+        severity: "warning",
         description: "Found #{negative_count} rows with negative financial values",
         details: { negative_count: negative_count },
         affected_row_count: negative_count
@@ -194,8 +194,8 @@ class DataQualityChecker
     if null_count > 0
       report_issue(
         view_name: view_name,
-        check_name: 'no_null_required_fields',
-        severity: 'error',
+        check_name: "no_null_required_fields",
+        severity: "error",
         description: "Found #{null_count} rows with NULL required fields",
         details: { null_count: null_count },
         affected_row_count: null_count
@@ -211,7 +211,7 @@ class DataQualityChecker
   def check_amounts_are_numeric(view_name)
     # This is more of a schema check - amounts should always be numeric
     # but we can check for NaN or infinity values
-    { passed: true, details: { message: 'Amount fields are numeric by schema' } }
+    { passed: true, details: { message: "Amount fields are numeric by schema" } }
   end
 
   # Check document counts are positive
@@ -224,8 +224,8 @@ class DataQualityChecker
     if negative_count > 0
       report_issue(
         view_name: view_name,
-        check_name: 'document_counts_positive',
-        severity: 'error',
+        check_name: "document_counts_positive",
+        severity: "error",
         description: "Found #{negative_count} rows with negative counts",
         details: { negative_count: negative_count },
         affected_row_count: negative_count
@@ -247,8 +247,8 @@ class DataQualityChecker
     if future_count > 0
       report_issue(
         view_name: view_name,
-        check_name: 'no_future_snapshots',
-        severity: 'error',
+        check_name: "no_future_snapshots",
+        severity: "error",
         description: "Found #{future_count} snapshots with future dates",
         details: { future_count: future_count },
         affected_row_count: future_count
@@ -281,13 +281,13 @@ class DataQualityChecker
       WHERE ad.snapshot_date IS NULL
     SQL
 
-    missing_dates = result.first['missing_dates'].to_i
+    missing_dates = result.first["missing_dates"].to_i
 
     if missing_dates > 3  # Allow a few gaps for new deployments
       report_issue(
         view_name: view_name,
-        check_name: 'snapshot_completeness',
-        severity: 'warning',
+        check_name: "snapshot_completeness",
+        severity: "warning",
         description: "Missing #{missing_dates} daily snapshots in last 30 days",
         details: { missing_dates: missing_dates }
       )
@@ -305,7 +305,7 @@ class DataQualityChecker
   end
 
   def execute_count(sql)
-    ActiveRecord::Base.connection.execute(sql).first['count'].to_i
+    ActiveRecord::Base.connection.execute(sql).first["count"].to_i
   end
 
   def quote_table(name)

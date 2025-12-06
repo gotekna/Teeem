@@ -1,12 +1,12 @@
 class EmailWarehouse < ApplicationRecord
-  self.table_name = 'email_warehouse'
+  self.table_name = "email_warehouse"
 
   # ActiveStorage attachments
   has_many_attached :files
 
   # Associations
   belongs_to :job, optional: true
-  belongs_to :synced_by_user, class_name: 'User', optional: true
+  belongs_to :synced_by_user, class_name: "User", optional: true
 
   # Validations
   validates :internet_message_id, presence: true, uniqueness: true
@@ -18,8 +18,8 @@ class EmailWarehouse < ApplicationRecord
   scope :by_conversation, ->(conv_id) { where(conversation_id: conv_id).order(received_at: :asc) }
   scope :recent_first, -> { order(received_at: :desc) }
   scope :for_job, ->(job_id) { where(job_id: job_id) }
-  scope :received_after, ->(date) { where('received_at >= ?', date) }
-  scope :received_before, ->(date) { where('received_at <= ?', date) }
+  scope :received_after, ->(date) { where("received_at >= ?", date) }
+  scope :received_before, ->(date) { where("received_at <= ?", date) }
 
   # Full-text search scope
   scope :search_text, ->(query) {
@@ -36,11 +36,11 @@ class EmailWarehouse < ApplicationRecord
     conditions = emails.map do |email|
       email_lower = email.downcase
       sanitize_sql_array([
-        'LOWER(from_email) = ? OR ? = ANY(SELECT LOWER(unnest(to_emails))) OR ? = ANY(SELECT LOWER(unnest(cc_emails)))',
+        "LOWER(from_email) = ? OR ? = ANY(SELECT LOWER(unnest(to_emails))) OR ? = ANY(SELECT LOWER(unnest(cc_emails)))",
         email_lower, email_lower, email_lower
       ])
     end
-    where(conditions.join(' OR '))
+    where(conditions.join(" OR "))
   }
 
   # Callbacks
@@ -106,7 +106,7 @@ class EmailWarehouse < ApplicationRecord
 
   # Get all emails in this conversation thread
   def conversation_thread
-    return [self] if conversation_id.blank?
+    return [ self ] if conversation_id.blank?
     self.class.by_conversation(conversation_id)
   end
 
@@ -121,8 +121,8 @@ class EmailWarehouse < ApplicationRecord
   # Check if email should be excluded from case/job matching (marketing, spam, transactional)
   def classified_as_irrelevant?
     classification = email_classification || {}
-    %w[marketing spam transactional].include?(classification['email_type']) &&
-      classification['confidence'].to_f >= 0.5  # Aggressive threshold per user preference
+    %w[marketing spam transactional].include?(classification["email_type"]) &&
+      classification["confidence"].to_f >= 0.5  # Aggressive threshold per user preference
   end
 
   # Check if email type is business-related (can match jobs/cases)
@@ -133,8 +133,8 @@ class EmailWarehouse < ApplicationRecord
   # Get human-readable classification label
   def classification_label
     classification = email_classification || {}
-    type = classification['email_type'] || 'unclassified'
-    confidence = classification['confidence'] || 0
+    type = classification["email_type"] || "unclassified"
+    confidence = classification["confidence"] || 0
     "#{type.titleize} (#{(confidence * 100).to_i}%)"
   end
 
@@ -160,7 +160,7 @@ class EmailWarehouse < ApplicationRecord
         if job
           matches << {
             job: job,
-            match_type: 'explicit_job_id',
+            match_type: "explicit_job_id",
             confidence: 1.0,
             reason: "Explicit job ID #{job_id} found in subject"
           }
@@ -169,7 +169,7 @@ class EmailWarehouse < ApplicationRecord
     end
 
     # Match by email addresses (contacts linked to jobs)
-    all_emails = [from_email, *to_emails, *cc_emails].compact.uniq
+    all_emails = [ from_email, *to_emails, *cc_emails ].compact.uniq
 
     all_emails.each do |email_addr|
       # Find contacts with this email
@@ -181,7 +181,7 @@ class EmailWarehouse < ApplicationRecord
 
           matches << {
             job: job,
-            match_type: 'contact_email_with_context',
+            match_type: "contact_email_with_context",
             confidence: 0.75,  # Lowered from 0.9 to reduce false positives
             reason: "Email #{email_addr} is linked to job contact and mentions job context"
           }
@@ -197,7 +197,7 @@ class EmailWarehouse < ApplicationRecord
       if subject&.downcase&.include?(job.title.downcase)
         matches << {
           job: job,
-          match_type: 'address_in_subject',
+          match_type: "address_in_subject",
           confidence: 0.85,
           reason: "Job address '#{job.title}' found in subject"
         }
@@ -210,7 +210,7 @@ class EmailWarehouse < ApplicationRecord
         if subject&.downcase&.include?(street_name)
           matches << {
             job: job,
-            match_type: 'street_in_subject',
+            match_type: "street_in_subject",
             confidence: 0.7,
             reason: "Street name '#{street_name}' found in subject"
           }
@@ -258,7 +258,7 @@ class EmailWarehouse < ApplicationRecord
 
     update!(
       job: best_match[:job],
-      match_type: 'auto',
+      match_type: "auto",
       match_confidence: best_match[:confidence],
       matched_at: Time.current
     )
@@ -270,7 +270,7 @@ class EmailWarehouse < ApplicationRecord
   def assign_to_job!(job, by_user: nil)
     update!(
       job: job,
-      match_type: 'manual',
+      match_type: "manual",
       match_confidence: 1.0,
       matched_at: Time.current
     )
@@ -278,7 +278,7 @@ class EmailWarehouse < ApplicationRecord
 
   # Formatted display helpers
   def preview_body(length: 200)
-    (body_text || '').truncate(length)
+    (body_text || "").truncate(length)
   end
 
   def all_recipients
@@ -296,7 +296,7 @@ class EmailWarehouse < ApplicationRecord
     pdf_texts = []
 
     files.each do |file|
-      next unless file.content_type == 'application/pdf'
+      next unless file.content_type == "application/pdf"
 
       begin
         file.open do |temp_file|
@@ -328,9 +328,9 @@ class EmailWarehouse < ApplicationRecord
 
       attachments.each do |attachment|
         # Only download PDF files
-        next unless attachment['contentType'] == 'application/pdf'
+        next unless attachment["contentType"] == "application/pdf"
 
-        file_data = outlook_service.download_attachment(outlook_id, attachment['id'])
+        file_data = outlook_service.download_attachment(outlook_id, attachment["id"])
         next unless file_data
 
         # Attach to EmailWarehouse using ActiveStorage
@@ -355,10 +355,10 @@ class EmailWarehouse < ApplicationRecord
       subject,
       from_email,
       from_name,
-      to_emails&.join(' '),
-      cc_emails&.join(' '),
+      to_emails&.join(" "),
+      cc_emails&.join(" "),
       body_text
-    ].compact.join(' ')
+    ].compact.join(" ")
 
     # Use PostgreSQL to_tsvector
     self.searchable = self.class.connection.execute(
@@ -366,7 +366,7 @@ class EmailWarehouse < ApplicationRecord
         "SELECT to_tsvector('english', ?)",
         searchable_text
       ])
-    ).first['to_tsvector']
+    ).first["to_tsvector"]
   rescue StandardError => e
     Rails.logger.error "Failed to update searchable vector: #{e.message}"
   end

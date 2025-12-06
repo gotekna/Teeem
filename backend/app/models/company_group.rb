@@ -5,7 +5,7 @@ class CompanyGroup < ApplicationRecord
   has_many :reconciliation_reports, dependent: :destroy
 
   # Contact memberships (SSoT - all contacts linked to this group)
-  has_many :contact_memberships, class_name: 'ContactCompanyGroupMembership', dependent: :destroy
+  has_many :contact_memberships, class_name: "ContactCompanyGroupMembership", dependent: :destroy
   has_many :contacts, through: :contact_memberships
 
   # Validations
@@ -26,21 +26,21 @@ class CompanyGroup < ApplicationRecord
   def people_in_group
     contacts.joins(:company_group_memberships)
             .where(contact_company_group_memberships: { company_group_id: id })
-            .where(entity_type: 'person')
+            .where(entity_type: "person")
             .distinct
   end
 
   def companies_in_group
     contacts.joins(:company_group_memberships)
             .where(contact_company_group_memberships: { company_group_id: id })
-            .where(entity_type: 'company')
+            .where(entity_type: "company")
             .distinct
   end
 
   def trusts_in_group
     contacts.joins(:company_group_memberships)
             .where(contact_company_group_memberships: { company_group_id: id })
-            .where(entity_type: 'trust')
+            .where(entity_type: "trust")
             .distinct
   end
 

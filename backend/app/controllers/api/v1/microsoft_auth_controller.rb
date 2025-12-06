@@ -1,29 +1,29 @@
 class Api::V1::MicrosoftAuthController < ApplicationController
   # Skip authentication for OAuth callback - Microsoft redirects here without auth token
-  skip_before_action :authorize_request, only: [:callback, :admin_consent_callback]
+  skip_before_action :authorize_request, only: [ :callback, :admin_consent_callback ]
 
   # All Microsoft Graph scopes needed for the app
   # These must match what's been granted via admin consent in Azure AD
   REQUIRED_SCOPES = [
-    'openid',
-    'profile',
-    'email',
-    'offline_access',
-    'https://graph.microsoft.com/Mail.Read',
-    'https://graph.microsoft.com/Mail.Send',
-    'https://graph.microsoft.com/Files.ReadWrite.All',
-    'https://graph.microsoft.com/Sites.ReadWrite.All',
-    'https://graph.microsoft.com/User.Read'
+    "openid",
+    "profile",
+    "email",
+    "offline_access",
+    "https://graph.microsoft.com/Mail.Read",
+    "https://graph.microsoft.com/Mail.Send",
+    "https://graph.microsoft.com/Files.ReadWrite.All",
+    "https://graph.microsoft.com/Sites.ReadWrite.All",
+    "https://graph.microsoft.com/User.Read"
   ].freeze
 
   # GET /api/v1/microsoft/auth_url
   # Get the OAuth authorization URL for connecting all Microsoft services
   def auth_url
-    client_id = ENV['OUTLOOK_CLIENT_ID']
-    tenant = ENV['OUTLOOK_TENANT_ID'] || 'common'
+    client_id = ENV["OUTLOOK_CLIENT_ID"]
+    tenant = ENV["OUTLOOK_TENANT_ID"] || "common"
 
     if client_id.blank?
-      render json: { error: 'Microsoft OAuth not configured. Please set OUTLOOK_CLIENT_ID environment variable.' }, status: :unprocessable_entity
+      render json: { error: "Microsoft OAuth not configured. Please set OUTLOOK_CLIENT_ID environment variable." }, status: :unprocessable_entity
       return
     end
 
@@ -32,25 +32,25 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
     # Encode user_id and frontend_url in state parameter so we know who to associate on callback
     # and where to redirect back to
-    frontend_url = request.referer.present? ? URI.parse(request.referer).tap { |u| u.path = ''; u.query = nil }.to_s : ENV['FRONTEND_URL']
+    frontend_url = request.referer.present? ? URI.parse(request.referer).tap { |u| u.path = ""; u.query = nil }.to_s : ENV["FRONTEND_URL"]
     state_data = { user_id: current_user.id, nonce: SecureRandom.hex(8), frontend_url: frontend_url }
     state = Base64.urlsafe_encode64(state_data.to_json)
 
     # Build auth URL params
     auth_params = {
       client_id: client_id,
-      response_type: 'code',
+      response_type: "code",
       redirect_uri: redirect_uri,
-      response_mode: 'query',
-      scope: REQUIRED_SCOPES.join(' '),
+      response_mode: "query",
+      scope: REQUIRED_SCOPES.join(" "),
       state: state
     }
 
     # Only force account picker if not using tenant-specific auth
     # When OUTLOOK_TENANT_ID is set, users from that org are pre-consented
     # and can sign in seamlessly without being asked for consent again
-    if tenant == 'common'
-      auth_params[:prompt] = 'select_account'
+    if tenant == "common"
+      auth_params[:prompt] = "select_account"
     end
     # For tenant-specific apps with admin consent, let Microsoft decide the flow
 
@@ -73,7 +73,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     end
 
     if code.blank?
-      return render_popup_close_page(success: false, error: 'No authorization code received')
+      return render_popup_close_page(success: false, error: "No authorization code received")
     end
 
     # Decode state to get user_id and frontend_url
@@ -82,31 +82,31 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     if state.present?
       begin
         state_data = JSON.parse(Base64.urlsafe_decode64(state))
-        user_id = state_data['user_id']
-        frontend_url = state_data['frontend_url']
+        user_id = state_data["user_id"]
+        frontend_url = state_data["frontend_url"]
       rescue => e
         Rails.logger.error "Failed to decode OAuth state: #{e.message}"
       end
     end
 
     unless user_id
-      return render_popup_close_page(success: false, error: 'Invalid OAuth state - please try again', frontend_url: frontend_url)
+      return render_popup_close_page(success: false, error: "Invalid OAuth state - please try again", frontend_url: frontend_url)
     end
 
     user = User.find_by(id: user_id)
     unless user
-      return render_popup_close_page(success: false, error: 'User not found - please try again', frontend_url: frontend_url)
+      return render_popup_close_page(success: false, error: "User not found - please try again", frontend_url: frontend_url)
     end
 
     # Exchange code for tokens
     tokens = exchange_code_for_tokens(code)
     unless tokens
-      return render_popup_close_page(success: false, error: 'Failed to exchange code for tokens', frontend_url: frontend_url)
+      return render_popup_close_page(success: false, error: "Failed to exchange code for tokens", frontend_url: frontend_url)
     end
 
     # Get user info from Microsoft Graph
     user_info = get_microsoft_user_info(tokens[:access_token])
-    microsoft_email = user_info&.dig('mail') || user_info&.dig('userPrincipalName')
+    microsoft_email = user_info&.dig("mail") || user_info&.dig("userPrincipalName")
 
     # Create or update the user's Microsoft token
     microsoft_token = user.microsoft_token || user.build_microsoft_token
@@ -158,10 +158,10 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       end
 
       # If token is in error state, it needs reconnect
-      needs_reconnect = true if microsoft_token.status == 'error'
+      needs_reconnect = true if microsoft_token.status == "error"
 
       render json: {
-        connected: microsoft_token.status == 'connected',
+        connected: microsoft_token.status == "connected",
         email: microsoft_token.email,
         status: microsoft_token.status,
         expires_at: microsoft_token.token_expires_at,
@@ -170,9 +170,9 @@ class Api::V1::MicrosoftAuthController < ApplicationController
         last_sync_at: microsoft_token.last_sync_at,
         sync_error: microsoft_token.sync_error,
         services: {
-          outlook: microsoft_token.status == 'connected',
-          onedrive: microsoft_token.status == 'connected',
-          sharepoint: microsoft_token.status == 'connected'
+          outlook: microsoft_token.status == "connected",
+          onedrive: microsoft_token.status == "connected",
+          sharepoint: microsoft_token.status == "connected"
         }
       }
     elsif outlook_credential.present?
@@ -180,7 +180,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       render json: {
         connected: true,
         email: outlook_credential.email,
-        status: outlook_credential.expired? ? 'needs_refresh' : 'connected',
+        status: outlook_credential.expired? ? "needs_refresh" : "connected",
         expires_at: outlook_credential.expires_at,
         needs_refresh: outlook_credential.expired?,
         services: {
@@ -189,13 +189,13 @@ class Api::V1::MicrosoftAuthController < ApplicationController
           sharepoint: false
         },
         legacy: true,
-        message: 'Please reconnect to enable OneDrive and SharePoint access'
+        message: "Please reconnect to enable OneDrive and SharePoint access"
       }
     else
       render json: {
         connected: false,
         email: nil,
-        status: 'disconnected',
+        status: "disconnected",
         services: {
           outlook: false,
           onedrive: false,
@@ -211,20 +211,20 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     microsoft_token = current_user.microsoft_token
 
     unless microsoft_token&.refresh_token.present?
-      render json: { error: 'No Microsoft connection to refresh' }, status: :not_found
+      render json: { error: "No Microsoft connection to refresh" }, status: :not_found
       return
     end
 
     if microsoft_token.refresh_access_token!
       render json: {
         success: true,
-        message: 'Token refreshed successfully',
+        message: "Token refreshed successfully",
         expires_at: microsoft_token.token_expires_at
       }
     else
       render json: {
         success: false,
-        error: microsoft_token.sync_error || 'Failed to refresh token'
+        error: microsoft_token.sync_error || "Failed to refresh token"
       }, status: :unprocessable_entity
     end
   end
@@ -238,7 +238,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     microsoft_token&.disconnect!
     outlook_credential&.destroy
 
-    render json: { success: true, message: 'Microsoft account disconnected successfully' }
+    render json: { success: true, message: "Microsoft account disconnected successfully" }
   end
 
   # GET /api/v1/microsoft/my_data_stats
@@ -257,7 +257,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     email_stats = {
       total_synced: email_sync_status&.total_emails_synced || 0,
       last_sync: email_sync_status&.last_sync_at,
-      sync_status: email_sync_status&.status || 'not_started',
+      sync_status: email_sync_status&.status || "not_started",
       emails_in_warehouse: emails_synced_by_user
     }
 
@@ -275,7 +275,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
     render json: {
       user_email: user_email,
-      connected: microsoft_token&.status == 'connected',
+      connected: microsoft_token&.status == "connected",
       connected_at: microsoft_token&.created_at,
       email: email_stats,
       calendar: calendar_stats,
@@ -313,16 +313,16 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   # GET /api/v1/microsoft/admin_consent_url
   # Get the admin consent URL - allows Azure AD admin to grant permissions for all users
   def admin_consent_url
-    unless current_user.role == 'admin'
-      render json: { error: 'Only admins can request organization-wide consent' }, status: :forbidden
+    unless current_user.role == "admin"
+      render json: { error: "Only admins can request organization-wide consent" }, status: :forbidden
       return
     end
 
-    client_id = ENV['OUTLOOK_CLIENT_ID']
-    tenant = ENV['OUTLOOK_TENANT_ID']
+    client_id = ENV["OUTLOOK_CLIENT_ID"]
+    tenant = ENV["OUTLOOK_TENANT_ID"]
 
     if client_id.blank? || tenant.blank?
-      render json: { error: 'Microsoft OAuth not fully configured. OUTLOOK_TENANT_ID is required for admin consent.' }, status: :unprocessable_entity
+      render json: { error: "Microsoft OAuth not fully configured. OUTLOOK_TENANT_ID is required for admin consent." }, status: :unprocessable_entity
       return
     end
 
@@ -337,7 +337,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
     render json: {
       admin_consent_url: consent_url,
-      message: 'Click this URL to grant organization-wide consent. You must be an Azure AD admin.'
+      message: "Click this URL to grant organization-wide consent. You must be an Azure AD admin."
     }
   end
 
@@ -354,7 +354,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       return render_admin_consent_page(success: false, error: error_description || error)
     end
 
-    if admin_consent == 'True'
+    if admin_consent == "True"
       Rails.logger.info "Admin consent granted for tenant #{tenant}"
 
       # Store that admin consent was granted in environment variable via Heroku config
@@ -363,7 +363,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
       render_admin_consent_page(success: true, tenant: tenant)
     else
-      render_admin_consent_page(success: false, error: 'Admin consent was not granted')
+      render_admin_consent_page(success: false, error: "Admin consent was not granted")
     end
   end
 
@@ -375,9 +375,9 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   end
 
   def exchange_code_for_tokens(code)
-    client_id = ENV['OUTLOOK_CLIENT_ID']
-    client_secret = ENV['OUTLOOK_CLIENT_SECRET']
-    tenant = ENV['OUTLOOK_TENANT_ID'] || 'common'
+    client_id = ENV["OUTLOOK_CLIENT_ID"]
+    client_secret = ENV["OUTLOOK_CLIENT_SECRET"]
+    tenant = ENV["OUTLOOK_TENANT_ID"] || "common"
     redirect_uri = microsoft_redirect_uri
 
     response = HTTP.post("https://login.microsoftonline.com/#{tenant}/oauth2/v2.0/token",
@@ -386,18 +386,18 @@ class Api::V1::MicrosoftAuthController < ApplicationController
         client_secret: client_secret,
         code: code,
         redirect_uri: redirect_uri,
-        grant_type: 'authorization_code',
-        scope: REQUIRED_SCOPES.join(' ')
+        grant_type: "authorization_code",
+        scope: REQUIRED_SCOPES.join(" ")
       }
     )
 
     if response.status.success?
       data = response.parse
       {
-        access_token: data['access_token'],
-        refresh_token: data['refresh_token'],
-        expires_in: data['expires_in'],
-        scope: data['scope']
+        access_token: data["access_token"],
+        refresh_token: data["refresh_token"],
+        expires_in: data["expires_in"],
+        scope: data["scope"]
       }
     else
       error_data = response.parse
@@ -407,7 +407,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   end
 
   def get_microsoft_user_info(access_token)
-    response = HTTP.auth("Bearer #{access_token}").get('https://graph.microsoft.com/v1.0/me')
+    response = HTTP.auth("Bearer #{access_token}").get("https://graph.microsoft.com/v1.0/me")
     response.status.success? ? response.parse : nil
   end
 
@@ -419,7 +419,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       refresh_token: tokens[:refresh_token],
       expires_at: Time.current + tokens[:expires_in].to_i.seconds,
       email: email,
-      tenant_id: ENV['OUTLOOK_TENANT_ID'] || 'common'
+      tenant_id: ENV["OUTLOOK_TENANT_ID"] || "common"
     )
   end
 
@@ -459,7 +459,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
         # Try searching for it
         begin
           sites = client.list_sharepoint_sites
-          teeem_site = sites.find { |s| s[:name]&.downcase&.include?('teeem') }
+          teeem_site = sites.find { |s| s[:name]&.downcase&.include?("teeem") }
 
           if teeem_site
             result = client.use_sharepoint_site(teeem_site[:id])
@@ -467,24 +467,24 @@ class Api::V1::MicrosoftAuthController < ApplicationController
           else
             # Fall back to personal OneDrive
             Rails.logger.warn "[Microsoft Auth] No TEEEM SharePoint found, using personal OneDrive"
-            drive_info = client.get('/me/drive')
+            drive_info = client.get("/me/drive")
             credential.update!(
-              drive_id: drive_info['id'],
-              drive_name: drive_info['name'] || 'My OneDrive',
+              drive_id: drive_info["id"],
+              drive_name: drive_info["name"] || "My OneDrive",
               metadata: {
-                drive_type: 'personal',
-                owner_name: drive_info.dig('owner', 'user', 'displayName')
+                drive_type: "personal",
+                owner_name: drive_info.dig("owner", "user", "displayName")
               }
             )
           end
         rescue StandardError => search_error
           Rails.logger.warn "[Microsoft Auth] SharePoint search failed: #{search_error.message}"
           # Still use personal OneDrive as fallback
-          drive_info = client.get('/me/drive')
+          drive_info = client.get("/me/drive")
           credential.update!(
-            drive_id: drive_info['id'],
-            drive_name: drive_info['name'] || 'My OneDrive',
-            metadata: { drive_type: 'personal' }
+            drive_id: drive_info["id"],
+            drive_name: drive_info["name"] || "My OneDrive",
+            metadata: { drive_type: "personal" }
           )
         end
       end
@@ -574,14 +574,14 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     if referer.present?
       begin
         uri = URI.parse(referer)
-        return "#{uri.scheme}://#{uri.host}#{uri.port && ![80, 443].include?(uri.port) ? ":#{uri.port}" : ''}"
+        return "#{uri.scheme}://#{uri.host}#{uri.port && ![ 80, 443 ].include?(uri.port) ? ":#{uri.port}" : ''}"
       rescue URI::InvalidURIError
         # Fall through to defaults
       end
     end
 
     # Fall back to environment variable
-    ENV['FRONTEND_URL'] || 'https://teeemrob.vercel.app'
+    ENV["FRONTEND_URL"] || "https://teeemrob.vercel.app"
   end
 
   def services_html
@@ -595,7 +595,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   end
 
   def render_admin_consent_page(success:, tenant: nil, error: nil)
-    frontend_url = ENV['FRONTEND_URL'] || 'https://teeemrob.vercel.app'
+    frontend_url = ENV["FRONTEND_URL"] || "https://teeemrob.vercel.app"
 
     html = <<~HTML
       <!DOCTYPE html>
@@ -656,35 +656,35 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   end
 
   def build_sharepoint_connection_info(org_credential)
-    return { connected: false, name: 'TEEEM SharePoint', auth_type: 'organization' } unless org_credential
+    return { connected: false, name: "TEEEM SharePoint", auth_type: "organization" } unless org_credential
 
     # Get the actual authenticated user from Graph API
     authenticated_as = nil
     begin
       client = MicrosoftGraphClient.new(org_credential)
-      me = client.get('/me')
-      authenticated_as = me['mail'] || me['userPrincipalName']
+      me = client.get("/me")
+      authenticated_as = me["mail"] || me["userPrincipalName"]
     rescue StandardError => e
       Rails.logger.warn "[Connections] Failed to get SharePoint auth user: #{e.message}"
     end
 
     # Use the document library URL (Shared Documents), not the site home page
-    documents_url = 'https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents'
+    documents_url = "https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents"
 
     {
       connected: true,
-      name: 'TEEEM SharePoint',
+      name: "TEEEM SharePoint",
       url: documents_url,
-      document_library: 'Shared Documents',
+      document_library: "Shared Documents",
       root_folder: org_credential.root_folder_path,
       authenticated_as: authenticated_as,
-      auth_type: 'organization',
+      auth_type: "organization",
       drive_id: org_credential.drive_id
     }
   end
 
   def build_onedrive_connection_info(microsoft_token, user_email)
-    connected = microsoft_token&.status == 'connected'
+    connected = microsoft_token&.status == "connected"
 
     # Build personal OneDrive URL from email
     # Format: gotekna-my.sharepoint.com/personal/robert_tekna_com_au
@@ -692,40 +692,40 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
     if user_email.present?
       # Convert email to OneDrive path format: robert@tekna.com.au -> robert_tekna_com_au
-      email_path = user_email.gsub('@', '_').gsub('.', '_')
+      email_path = user_email.gsub("@", "_").gsub(".", "_")
       onedrive_url = "https://gotekna-my.sharepoint.com/personal/#{email_path}/Documents"
     end
 
     {
       connected: connected,
-      name: 'Personal OneDrive',
+      name: "Personal OneDrive",
       url: onedrive_url,
       authenticated_as: connected ? user_email : nil,
-      auth_type: 'personal'
+      auth_type: "personal"
     }
   end
 
   def build_email_connection_info(microsoft_token, user_email)
-    connected = microsoft_token&.status == 'connected'
+    connected = microsoft_token&.status == "connected"
 
     {
       connected: connected,
-      name: 'Outlook Email',
-      url: 'https://outlook.office.com/mail/',
+      name: "Outlook Email",
+      url: "https://outlook.office.com/mail/",
       authenticated_as: connected ? user_email : nil,
-      auth_type: 'personal'
+      auth_type: "personal"
     }
   end
 
   def build_calendar_connection_info(microsoft_token, user_email)
-    connected = microsoft_token&.status == 'connected'
+    connected = microsoft_token&.status == "connected"
 
     {
       connected: connected,
-      name: 'Outlook Calendar',
-      url: 'https://outlook.office.com/calendar/',
+      name: "Outlook Calendar",
+      url: "https://outlook.office.com/calendar/",
       authenticated_as: connected ? user_email : nil,
-      auth_type: 'personal'
+      auth_type: "personal"
     }
   end
 end

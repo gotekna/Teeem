@@ -33,7 +33,7 @@ class CompanyDirector < ApplicationRecord
   end
 
   def formatted_position
-    position.to_s.titleize.gsub('_', ' / ')
+    position.to_s.titleize.gsub("_", " / ")
   end
 
   private
@@ -55,7 +55,7 @@ class CompanyDirector < ApplicationRecord
     user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
     user ||= User.first
     company.company_activities.create!(
-      activity_type: 'director_appointed',
+      activity_type: "director_appointed",
       description: "#{contact.display_name} was appointed as #{formatted_position}",
       user: user
     )
@@ -65,7 +65,7 @@ class CompanyDirector < ApplicationRecord
     user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
     user ||= User.first
     company.company_activities.create!(
-      activity_type: 'director_resigned',
+      activity_type: "director_resigned",
       description: "#{contact.display_name} resigned as #{formatted_position}",
       user: user
     )
@@ -79,7 +79,7 @@ class CompanyDirector < ApplicationRecord
     ContactCompanyGroupMembership.find_or_create_by!(
       contact_id: contact_id,
       company_group_id: company.company_group_id,
-      membership_type: 'director'
+      membership_type: "director"
     ) do |m|
       m.is_active = is_current
     end
@@ -96,7 +96,7 @@ class CompanyDirector < ApplicationRecord
     membership = ContactCompanyGroupMembership.find_by(
       contact_id: contact_id,
       company_group_id: company.company_group_id,
-      membership_type: 'director'
+      membership_type: "director"
     )
     membership&.update!(is_active: is_current)
   rescue StandardError => e

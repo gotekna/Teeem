@@ -39,7 +39,7 @@ task2 = ScheduleTemplateRow.create!(
   sequence_order: 1,
   start_date: 10,  # Placeholder
   duration: 3,
-  predecessor_ids: [{ id: 1, type: "FS", lag: 2 }],  # +2 lag would land on Sunday
+  predecessor_ids: [ { id: 1, type: "FS", lag: 2 } ],  # +2 lag would land on Sunday
   manually_positioned: false
 )
 
@@ -62,7 +62,7 @@ task4 = ScheduleTemplateRow.create!(
   sequence_order: 3,
   start_date: 7,  # Sunday
   duration: 1,
-  predecessor_ids: [{ id: 1, type: "FS", lag: 0 }],
+  predecessor_ids: [ { id: 1, type: "FS", lag: 0 } ],
   manually_positioned: true  # Should be skipped
 )
 
@@ -73,7 +73,7 @@ task5 = ScheduleTemplateRow.create!(
   sequence_order: 4,
   start_date: 10,
   duration: 2,
-  predecessor_ids: [{ id: 2, type: "FS", lag: 0 }],
+  predecessor_ids: [ { id: 2, type: "FS", lag: 0 } ],
   manually_positioned: false
 )
 
@@ -90,7 +90,7 @@ puts "Now triggering cascade from Task 1..."
 
 # Trigger cascade by updating task1
 task1.update_column(:start_date, 3)  # Change to day 3
-affected = ScheduleCascadeService.cascade_changes(task1, [:start_date])
+affected = ScheduleCascadeService.cascade_changes(task1, [ :start_date ])
 
 puts ""
 puts "CASCADE RESULTS (AFTER):"

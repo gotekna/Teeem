@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'nokogiri'
+require "nokogiri"
 
 # SmMsProjectService - Import/Export MS Project XML files
 #
@@ -22,30 +22,30 @@ class SmMsProjectService
     task_uid_map = {} # Map MS Project UID to SmTask ID
 
     # Parse tasks
-    doc.xpath('//Task').each do |task_node|
-      uid = task_node.at_xpath('UID')&.text
-      name = task_node.at_xpath('Name')&.text
+    doc.xpath("//Task").each do |task_node|
+      uid = task_node.at_xpath("UID")&.text
+      name = task_node.at_xpath("Name")&.text
       next if name.blank? || name == construction.name # Skip project summary
 
       # Parse dates
-      start_date = parse_date(task_node.at_xpath('Start')&.text)
-      finish_date = parse_date(task_node.at_xpath('Finish')&.text)
-      duration = parse_duration(task_node.at_xpath('Duration')&.text)
+      start_date = parse_date(task_node.at_xpath("Start")&.text)
+      finish_date = parse_date(task_node.at_xpath("Finish")&.text)
+      duration = parse_duration(task_node.at_xpath("Duration")&.text)
 
       # Parse other fields
-      notes = task_node.at_xpath('Notes')&.text
-      percent_complete = task_node.at_xpath('PercentComplete')&.text&.to_i || 0
-      outline_level = task_node.at_xpath('OutlineLevel')&.text&.to_i || 1
-      wbs = task_node.at_xpath('WBS')&.text
+      notes = task_node.at_xpath("Notes")&.text
+      percent_complete = task_node.at_xpath("PercentComplete")&.text&.to_i || 0
+      outline_level = task_node.at_xpath("OutlineLevel")&.text&.to_i || 1
+      wbs = task_node.at_xpath("WBS")&.text
 
       # Determine status
       status = if percent_complete >= 100
-                 'completed'
-               elsif percent_complete > 0
-                 'started'
-               else
-                 'not_started'
-               end
+                 "completed"
+      elsif percent_complete > 0
+                 "started"
+      else
+                 "not_started"
+      end
 
       # Create task
       sm_task = construction.sm_tasks.create!(
@@ -67,18 +67,18 @@ class SmMsProjectService
     end
 
     # Parse dependencies (predecessor links)
-    doc.xpath('//Task').each do |task_node|
-      uid = task_node.at_xpath('UID')&.text
+    doc.xpath("//Task").each do |task_node|
+      uid = task_node.at_xpath("UID")&.text
       sm_task_id = task_uid_map[uid]
       next unless sm_task_id
 
-      task_node.xpath('PredecessorLink').each do |pred_link|
-        pred_uid = pred_link.at_xpath('PredecessorUID')&.text
+      task_node.xpath("PredecessorLink").each do |pred_link|
+        pred_uid = pred_link.at_xpath("PredecessorUID")&.text
         pred_task_id = task_uid_map[pred_uid]
         next unless pred_task_id
 
-        link_type = pred_link.at_xpath('Type')&.text&.to_i || 1
-        lag = parse_duration(pred_link.at_xpath('LinkLag')&.text) || 0
+        link_type = pred_link.at_xpath("Type")&.text&.to_i || 1
+        lag = parse_duration(pred_link.at_xpath("LinkLag")&.text) || 0
 
         SmDependency.create!(
           predecessor_task_id: pred_task_id,
@@ -100,8 +100,8 @@ class SmMsProjectService
 
   # Export tasks to MS Project XML
   def export
-    builder = Nokogiri::XML::Builder.new(encoding: 'UTF-8') do |xml|
-      xml.Project(xmlns: 'http://schemas.microsoft.com/project') do
+    builder = Nokogiri::XML::Builder.new(encoding: "UTF-8") do |xml|
+      xml.Project(xmlns: "http://schemas.microsoft.com/project") do
         xml.Name construction.name
         xml.StartDate construction.sm_tasks.minimum(:start_date)&.iso8601
         xml.FinishDate construction.sm_tasks.maximum(:end_date)&.iso8601
@@ -111,7 +111,7 @@ class SmMsProjectService
         xml.Calendars do
           xml.Calendar do
             xml.UID 1
-            xml.Name 'Standard'
+            xml.Name "Standard"
             xml.IsBaseCalendar 1
             xml.WeekDays do
               (1..7).each do |day|
@@ -176,7 +176,7 @@ class SmMsProjectService
               xml.UID resource.id
               xml.ID index + 1
               xml.Name resource.name
-              xml.Type resource.resource_type == 'labor' ? 1 : 0
+              xml.Type resource.resource_type == "labor" ? 1 : 0
               xml.MaxUnits 1
               xml.StandardRate resource.hourly_rate || 0
               xml.StandardRateFormat 2 # Per hour
@@ -219,11 +219,11 @@ class SmMsProjectService
     return nil if duration_str.blank?
 
     # MS Project duration format: PT8H0M0S (8 hours) or P5D (5 days)
-    if duration_str.start_with?('PT')
+    if duration_str.start_with?("PT")
       # Hours format
       hours = duration_str.scan(/(\d+)H/).flatten.first&.to_i || 0
       (hours / 8.0).ceil
-    elsif duration_str.start_with?('P')
+    elsif duration_str.start_with?("P")
       # Days format
       duration_str.scan(/(\d+)D/).flatten.first&.to_i || 1
     else
@@ -238,28 +238,28 @@ class SmMsProjectService
   def map_link_type(ms_type)
     # MS Project: 0=FF, 1=FS, 2=SF, 3=SS
     case ms_type
-    when 0 then 'finish_to_finish'
-    when 1 then 'finish_to_start'
-    when 2 then 'start_to_finish'
-    when 3 then 'start_to_start'
-    else 'finish_to_start'
+    when 0 then "finish_to_finish"
+    when 1 then "finish_to_start"
+    when 2 then "start_to_finish"
+    when 3 then "start_to_start"
+    else "finish_to_start"
     end
   end
 
   def reverse_map_link_type(dep_type)
     case dep_type
-    when 'finish_to_finish' then 0
-    when 'finish_to_start' then 1
-    when 'start_to_finish' then 2
-    when 'start_to_start' then 3
+    when "finish_to_finish" then 0
+    when "finish_to_start" then 1
+    when "start_to_finish" then 2
+    when "start_to_start" then 3
     else 1
     end
   end
 
   def status_to_percent(status)
     case status
-    when 'completed' then 100
-    when 'started' then 50
+    when "completed" then 100
+    when "started" then 50
     else 0
     end
   end

@@ -19,8 +19,8 @@ class ContactRole < ApplicationRecord
   end
 
   def type_label
-    return 'All Types (Shared)' if shared?
-    contact_types.map(&:titleize).join(', ')
+    return "All Types (Shared)" if shared?
+    contact_types.map(&:titleize).join(", ")
   end
 
   private

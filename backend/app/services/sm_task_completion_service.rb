@@ -56,23 +56,23 @@ class SmTaskCompletionService
     spawns = []
 
     if task.pass_fail_enabled?
-      spawns << { type: 'inspection_retry', condition: 'if inspection fails' }
+      spawns << { type: "inspection_retry", condition: "if inspection fails" }
     end
 
     if task.spawn_photo_task?
-      spawns << { type: 'photo', name: "#{task.name} - Photos", condition: 'on completion' }
+      spawns << { type: "photo", name: "#{task.name} - Photos", condition: "on completion" }
     end
 
     if task.spawn_scan_task?
-      spawns << { type: 'scan', name: "#{task.name} - Document Scan", condition: 'on completion' }
+      spawns << { type: "scan", name: "#{task.name} - Document Scan", condition: "on completion" }
     end
 
     if task.spawn_office_tasks.present?
       task.spawn_office_tasks.each do |office_task|
         spawns << {
-          type: 'office',
-          name: office_task['name'] || 'Office Task',
-          condition: 'on completion'
+          type: "office",
+          name: office_task["name"] || "Office Task",
+          condition: "on completion"
         }
       end
     end
@@ -84,12 +84,12 @@ class SmTaskCompletionService
 
   def can_complete?
     if task.status_completed?
-      @errors << 'Task is already completed'
+      @errors << "Task is already completed"
       return false
     end
 
     if task.is_hold_task? && task.hold_active?
-      @errors << 'Cannot complete a hold task while hold is active'
+      @errors << "Cannot complete a hold task while hold is active"
       return false
     end
 
@@ -98,7 +98,7 @@ class SmTaskCompletionService
 
   def complete_task!(passed)
     attrs = {
-      status: 'completed',
+      status: "completed",
       completed_at: Time.current,
       updated_by: user
     }
@@ -121,44 +121,44 @@ class SmTaskCompletionService
     spawned = create_spawned_task(
       name: "#{task.name} - Photos",
       description: "Take completion photos for: #{task.name}",
-      spawn_type: 'photo',
+      spawn_type: "photo",
       duration_days: 1,
       require_photo: true
     )
-    log_spawn(spawned, 'photo', 'parent_complete') if spawned
+    log_spawn(spawned, "photo", "parent_complete") if spawned
   end
 
   def spawn_scan_task
     spawned = create_spawned_task(
       name: "#{task.name} - Document Scan",
       description: "Scan documents for: #{task.name}",
-      spawn_type: 'scan',
+      spawn_type: "scan",
       duration_days: 1
     )
-    log_spawn(spawned, 'scan', 'parent_complete') if spawned
+    log_spawn(spawned, "scan", "parent_complete") if spawned
   end
 
   def spawn_office_tasks
     task.spawn_office_tasks.each do |office_config|
       spawned = create_spawned_task(
-        name: office_config['name'] || "#{task.name} - Office Task",
-        description: office_config['description'] || "Office follow-up for: #{task.name}",
-        spawn_type: 'office',
-        duration_days: office_config['duration_days'] || 1,
-        assigned_user_id: office_config['assigned_user_id'],
-        trade: 'Office'
+        name: office_config["name"] || "#{task.name} - Office Task",
+        description: office_config["description"] || "Office follow-up for: #{task.name}",
+        spawn_type: "office",
+        duration_days: office_config["duration_days"] || 1,
+        assigned_user_id: office_config["assigned_user_id"],
+        trade: "Office"
       )
-      log_spawn(spawned, 'office', 'parent_complete') if spawned
+      log_spawn(spawned, "office", "parent_complete") if spawned
     end
   end
 
   def spawn_inspection_retry
-    retry_count = task.parent_spawn_logs.where(spawn_type: 'inspection_retry').count
+    retry_count = task.parent_spawn_logs.where(spawn_type: "inspection_retry").count
 
     spawned = create_spawned_task(
       name: "#{task.name} - Retry ##{retry_count + 1}",
       description: "Inspection retry for failed task: #{task.name}",
-      spawn_type: 'inspection_retry',
+      spawn_type: "inspection_retry",
       duration_days: task.duration_days,
       pass_fail_enabled: true,
       # Inherit key settings from parent
@@ -169,7 +169,7 @@ class SmTaskCompletionService
       supplier_id: task.supplier_id,
       checklist_id: task.checklist_id
     )
-    log_spawn(spawned, 'inspection_retry', 'inspection_fail') if spawned
+    log_spawn(spawned, "inspection_retry", "inspection_fail") if spawned
   end
 
   def create_spawned_task(attrs)
@@ -187,7 +187,7 @@ class SmTaskCompletionService
       start_date: Date.current,
       end_date: Date.current + (attrs[:duration_days] || 1) - 1,
       duration_days: attrs[:duration_days] || 1,
-      status: 'not_started',
+      status: "not_started",
       created_by: user,
       **attrs.except(:spawn_type)
     )

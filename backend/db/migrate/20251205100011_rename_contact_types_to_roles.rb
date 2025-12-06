@@ -19,9 +19,9 @@ class RenameContactTypesToRoles < ActiveRecord::Migration[8.0]
       # Parse current roles (handle both JSON and array formats)
       current_roles = if contact.roles.is_a?(String)
                         JSON.parse(contact.roles) rescue []
-                      else
+      else
                         contact.roles
-                      end
+      end
 
       # Map old → new
       new_roles = current_roles.map do |role|

@@ -1,8 +1,8 @@
 # Read-only model for mv_job_summary materialized view
 # This view pre-computes job metrics for fast dashboard queries
 class MvJobSummary < ApplicationRecord
-  self.table_name = 'mv_job_summary'
-  self.primary_key = 'job_id'
+  self.table_name = "mv_job_summary"
+  self.primary_key = "job_id"
 
   # Read-only - prevent accidental writes
   def readonly?
@@ -10,13 +10,13 @@ class MvJobSummary < ApplicationRecord
   end
 
   # Associations for convenience
-  belongs_to :job, foreign_key: 'job_id'
+  belongs_to :job, foreign_key: "job_id"
   belongs_to :company, optional: true
 
   # Scopes
   scope :for_company, ->(company_id) { where(company_id: company_id) }
-  scope :active_jobs, -> { where(job_status: ['active', 'in_progress']) }
-  scope :with_activity, -> { where('task_count > 0 OR transaction_count > 0') }
+  scope :active_jobs, -> { where(job_status: [ "active", "in_progress" ]) }
+  scope :with_activity, -> { where("task_count > 0 OR transaction_count > 0") }
 
   # Computed fields
   def profit

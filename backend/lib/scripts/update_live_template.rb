@@ -15,19 +15,19 @@ structure = [
     { name: "Estimation", order: 3 },
     { name: "Contracts", order: 4 },
     { name: "Colour Selection", order: 5 }
-  ]},
+  ] },
   { name: "03 Certification", order: 3, children: [
     { name: "Council", order: 1 },
     { name: "NDIS", order: 2 },
     { name: "Plumbing", order: 3 },
     { name: "Energy Efficiency", order: 4 },
     { name: "Final Approval", order: 5 }
-  ]},
+  ] },
   { name: "04 Plans", order: 4, children: [
     { name: "Sales Plans", order: 1 },
     { name: "Certified Plans", order: 2 },
     { name: "Working Drawings", order: 3 }
-  ]},
+  ] },
   { name: "05 Site", order: 5, children: [] },
   { name: "06 Photo", order: 6, children: [
     { name: "01 SITE", order: 1 },
@@ -37,13 +37,13 @@ structure = [
     { name: "05 FIXING", order: 5 },
     { name: "06 Practical Completion", order: 6 },
     { name: "07 Supervisor Photos", order: 7 }
-  ]},
+  ] },
   { name: "07 Final Approval", order: 7, children: [
     { name: "Final Docs Required", order: 1 },
     { name: "Form 21", order: 2 },
     { name: "NDIS", order: 3 },
     { name: "Plumbing", order: 4 }
-  ]}
+  ] }
 ]
 
 # Create items

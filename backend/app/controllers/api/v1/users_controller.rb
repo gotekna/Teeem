@@ -3,10 +3,10 @@ class Api::V1::UsersController < ApplicationController
   # Returns list of all users for chat/contact purposes
   def index
     @users = User.select(
-      'users.id, users.name, users.email, users.mobile_phone, users.role, users.assigned_roles, users.last_login_at, users.last_seen_at, email_sync_statuses.last_sync_at as last_email_sync_at'
+      "users.id, users.name, users.email, users.mobile_phone, users.role, users.assigned_roles, users.last_login_at, users.last_seen_at, email_sync_statuses.last_sync_at as last_email_sync_at"
     )
     .left_joins(:email_sync_status)
-    .order('users.name')
+    .order("users.name")
 
     render json: @users.map { |user| user_with_presence(user) }
   end
@@ -16,7 +16,7 @@ class Api::V1::UsersController < ApplicationController
     @user = User.find(params[:id])
     render json: user_with_presence(@user)
   rescue ActiveRecord::RecordNotFound
-    render json: { error: 'User not found' }, status: :not_found
+    render json: { error: "User not found" }, status: :not_found
   end
 
   # PATCH /api/v1/users/:id
@@ -31,14 +31,14 @@ class Api::V1::UsersController < ApplicationController
       # Non-admin trying to change role - reject request
       return render json: {
         success: false,
-        error: 'Thanks for helping, can you contact an administrator for assistance'
+        error: "Thanks for helping, can you contact an administrator for assistance"
       }, status: :forbidden
     end
 
     if @user.update(update_params)
       render json: {
         success: true,
-        user: @user.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at])
+        user: @user.as_json(only: [ :id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at ])
       }
     else
       render json: {
@@ -47,7 +47,7 @@ class Api::V1::UsersController < ApplicationController
       }, status: :unprocessable_entity
     end
   rescue ActiveRecord::RecordNotFound
-    render json: { error: 'User not found' }, status: :not_found
+    render json: { error: "User not found" }, status: :not_found
   end
 
   # POST /api/v1/users/:id/reset_password
@@ -69,7 +69,7 @@ class Api::V1::UsersController < ApplicationController
       message: "Password reset email sent to #{@user.email}"
     }
   rescue ActiveRecord::RecordNotFound
-    render json: { error: 'User not found' }, status: :not_found
+    render json: { error: "User not found" }, status: :not_found
   end
 
   # DELETE /api/v1/users/:id
@@ -77,18 +77,18 @@ class Api::V1::UsersController < ApplicationController
     @user = User.find(params[:id])
 
     if @user.destroy
-      render json: { success: true, message: 'User removed successfully' }
+      render json: { success: true, message: "User removed successfully" }
     else
-      render json: { success: false, error: 'Failed to remove user' }, status: :unprocessable_entity
+      render json: { success: false, error: "Failed to remove user" }, status: :unprocessable_entity
     end
   rescue ActiveRecord::RecordNotFound
-    render json: { error: 'User not found' }, status: :not_found
+    render json: { error: "User not found" }, status: :not_found
   end
 
   # POST /api/v1/users/bulk_delete
   def bulk_delete
     ids = params[:ids]
-    return render json: { success: false, error: 'No IDs provided' }, status: :bad_request if ids.blank?
+    return render json: { success: false, error: "No IDs provided" }, status: :bad_request if ids.blank?
 
     ids = ids.first(1000) if ids.is_a?(Array)
     deleted_count = User.where(id: ids).destroy_all.count
@@ -122,28 +122,28 @@ class Api::V1::UsersController < ApplicationController
   def user_with_presence(user)
     last_seen = user.last_seen_at
     presence_status = if last_seen.nil?
-                        'offline'
-                      elsif last_seen > 5.minutes.ago
-                        'online'
-                      elsif last_seen > 30.minutes.ago
-                        'away'
-                      else
-                        'offline'
-                      end
+                        "offline"
+    elsif last_seen > 5.minutes.ago
+                        "online"
+    elsif last_seen > 30.minutes.ago
+                        "away"
+    else
+                        "offline"
+    end
 
     # Count Microsoft integrations
     microsoft_token = UserMicrosoftToken.find_by(user_id: user.id)
     outlook_credential = UserOutlookCredential.find_by(user_id: user.id)
 
     integrations = []
-    integrations << 'microsoft' if microsoft_token.present?
-    integrations << 'outlook' if outlook_credential.present?
+    integrations << "microsoft" if microsoft_token.present?
+    integrations << "outlook" if outlook_credential.present?
 
-    user.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at, :last_seen_at]).merge(
+    user.as_json(only: [ :id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at, :last_seen_at ]).merge(
       presence_status: presence_status,
       integrations: integrations,
       integrations_count: integrations.count,
-      status: presence_status == 'online' ? 'active' : (user.last_login_at.present? ? 'active' : 'pending'),
+      status: presence_status == "online" ? "active" : (user.last_login_at.present? ? "active" : "pending"),
       last_email_sync_at: user.respond_to?(:last_email_sync_at) ? user.last_email_sync_at : nil
     )
   end

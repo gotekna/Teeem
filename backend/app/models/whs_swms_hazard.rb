@@ -20,16 +20,16 @@ class WHSSWMSHazard < ApplicationRecord
 
   # Scopes
   scope :by_risk_level, ->(level) { where(risk_level: level) }
-  scope :high_risk, -> { where(risk_level: ['high', 'extreme']) }
+  scope :high_risk, -> { where(risk_level: [ "high", "extreme" ]) }
   scope :ordered, -> { order(:position) }
 
   # Helper methods
   def high_risk?
-    risk_level.in?(['high', 'extreme'])
+    risk_level.in?([ "high", "extreme" ])
   end
 
   def extreme_risk?
-    risk_level == 'extreme'
+    risk_level == "extreme"
   end
 
   def residual_risk_after_controls
@@ -48,16 +48,16 @@ class WHSSWMSHazard < ApplicationRecord
     return unless risk_score.present?
 
     self.risk_level = case risk_score
-                      when 1..6
-                        'low'
-                      when 7..12
-                        'medium'
-                      when 13..20
-                        'high'
-                      when 21..25
-                        'extreme'
-                      else
-                        'low'
-                      end
+    when 1..6
+                        "low"
+    when 7..12
+                        "medium"
+    when 13..20
+                        "high"
+    when 21..25
+                        "extreme"
+    else
+                        "low"
+    end
   end
 end

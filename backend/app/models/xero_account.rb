@@ -3,7 +3,7 @@ class XeroAccount < ApplicationRecord
   validates :name, presence: true
 
   scope :active, -> { where(active: true) }
-  scope :expense, -> { where(account_class: 'EXPENSE') }
+  scope :expense, -> { where(account_class: "EXPENSE") }
   scope :for_purchase, -> { active.expense.order(:code) }
 
   def display_name

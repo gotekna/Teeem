@@ -65,18 +65,18 @@ class BatchDocumentVerificationJob < ApplicationJob
     case scope.to_sym
     when :pending
       # Never verified or explicitly pending
-      query.where(ai_verification_status: [nil, 'pending'])
+      query.where(ai_verification_status: [ nil, "pending" ])
     when :all_unverified
       # Anything not verified
-      query.where.not(ai_verification_status: 'verified')
+      query.where.not(ai_verification_status: "verified")
     when :failed
       # Previously failed verification
-      query.where(ai_verification_status: 'error')
+      query.where(ai_verification_status: "error")
     when :needs_review
       # Needs human review
-      query.where(ai_verification_status: 'needs_review')
+      query.where(ai_verification_status: "needs_review")
     else
-      query.where(ai_verification_status: [nil, 'pending'])
+      query.where(ai_verification_status: [ nil, "pending" ])
     end
   end
 end
