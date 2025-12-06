@@ -128,8 +128,13 @@ export default function XeroPage() {
 
   const handleConnect = async () => {
     try {
-      const { url } = await api.get<{ url: string }>("/api/v1/xero/auth_url");
-      window.location.href = url;
+      const response = await api.get<{ success: boolean; auth_url: string; url?: string }>("/api/v1/xero/auth_url");
+      const authUrl = response.auth_url || response.url;
+      if (authUrl) {
+        window.location.href = authUrl;
+      } else {
+        throw new Error("No authorization URL received from server");
+      }
     } catch (_error) {
       console.error("Failed to get auth URL:", _error);
     }

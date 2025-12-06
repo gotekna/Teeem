@@ -156,8 +156,8 @@ function SettingsPageContent() {
 
       // Fetch Xero status - silently default to not connected on any error
       try {
-        const xeroData = await api.xero.getStatus();
-        setXeroStatus(xeroData || { connected: false });
+        const response = await api.xero.getStatus();
+        setXeroStatus(response.data || { connected: false });
       } catch {
         // Silently default to not connected - don't log errors for expected failures
         setXeroStatus({ connected: false });

@@ -35,8 +35,8 @@ export default function XeroIntegrationPage() {
   React.useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const data = await api.xero.getStatus();
-        setStatus(data);
+        const response = await api.xero.getStatus();
+        setStatus(response.data || { connected: false });
       } catch (error) {
         console.error("Failed to fetch Xero status:", error);
         setStatus({ connected: false });
@@ -51,8 +51,13 @@ export default function XeroIntegrationPage() {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      const { url } = await api.xero.getAuthUrl();
-      window.location.href = url;
+      const response = await api.xero.getAuthUrl();
+      const authUrl = response.auth_url || response.url; // Handle both response formats
+      if (authUrl) {
+        window.location.href = authUrl;
+      } else {
+        throw new Error("No authorization URL received from server");
+      }
     } catch (error) {
       console.error("Failed to get Xero auth URL:", error);
       setConnecting(false);
