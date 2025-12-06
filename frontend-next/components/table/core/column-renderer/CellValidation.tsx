@@ -431,3 +431,119 @@ export function validateSearchableText(): string | null {
 export function validateDefault(): string | null {
   return null;
 }
+
+/**
+ * Main validation function - matches old API for backward compatibility
+ *
+ * This is the main entry point used by EditableCell and other components.
+ * Returns a ValidationResult object with isValid and error fields.
+ *
+ * @param value - Value to validate
+ * @param columnType - Type of column
+ * @param column - Optional full column object for advanced validation
+ * @returns Validation result with isValid boolean and error message
+ */
+export function validateCell(
+  value: unknown,
+  columnType: string,
+  column?: TableColumn
+): { isValid: boolean; error: string | null } {
+  let error: string | null = null;
+
+  // Route to appropriate validator based on column type
+  switch (columnType) {
+    case 'single_line_text':
+      error = validateSingleLineText(value);
+      break;
+    case 'multiple_lines_text':
+      error = validateMultipleLinesText(value);
+      break;
+    case 'email':
+      error = validateEmail(value);
+      break;
+    case 'phone':
+      error = validatePhone(value);
+      break;
+    case 'mobile':
+      error = validateMobile(value);
+      break;
+    case 'url':
+      error = validateUrl(value);
+      break;
+    case 'number':
+      error = validateNumber(value);
+      break;
+    case 'whole_number':
+      error = validateWholeNumber(value);
+      break;
+    case 'currency':
+      error = validateCurrency(value);
+      break;
+    case 'percentage':
+      error = validatePercentage(value);
+      break;
+    case 'date':
+      error = validateDate(value);
+      break;
+    case 'date_and_time':
+      error = validateDateTime(value);
+      break;
+    case 'boolean':
+      error = validateBoolean(value);
+      break;
+    case 'choice':
+      error = column ? validateChoice(value, column) : null;
+      break;
+    case 'gps_coordinates':
+      error = validateGpsCoordinates(value);
+      break;
+    case 'color_picker':
+      error = validateColorPicker(value);
+      break;
+    case 'abn':
+      error = validateAbn(value);
+      break;
+    case 'acn':
+      error = validateAcn(value);
+      break;
+    case 'bsb':
+      error = validateBsb(value);
+      break;
+    case 'bank_account':
+      error = validateBankAccount(value);
+      break;
+    case 'postcode':
+      error = validatePostcode(value);
+      break;
+    case 'tfn':
+      error = validateTfn(value);
+      break;
+    case 'lookup':
+    case 'relation':
+    case 'user':
+      error = validateLookup(value);
+      break;
+    case 'multiple_lookups':
+      error = validateMultipleLookups(value);
+      break;
+    case 'structured_data':
+      error = validateStructuredData(value);
+      break;
+    case 'array_of_items':
+      error = validateArrayOfItems(value);
+      break;
+    case 'computed':
+      error = validateComputed();
+      break;
+    case 'searchable_text':
+      error = validateSearchableText();
+      break;
+    default:
+      error = validateDefault();
+  }
+
+  return {
+    isValid: error === null,
+    error,
+  };
+}

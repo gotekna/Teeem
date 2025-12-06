@@ -36,16 +36,23 @@ module Api
       # Creates multiple contacts and companies in bulk
       #
       # Parameters:
-      #   - selections: Array of { email:, display_name:, entity_type:, company_action:, company_id:, company_name: }
+      #   - selections: Array of { email:, display_name:, entity_type:, company_action:, company_id:, company_name:, relationship_type:, reason: }
+      #   - case_id: Optional case ID to link contacts to (Integer)
+      #   - default_relationship_type: Default relationship type if not specified per selection (String)
+      #   - default_reason: Default reason if not specified per selection (String)
       #
       # Returns:
       #   - success: Boolean
       #   - created_contacts: Array of created contact objects
       #   - created_companies: Array of created company objects
       #   - linked_to_companies: Array of contact-company links
+      #   - linked_to_cases: Array of contact-case links
       #   - errors: Array of error objects
       def bulk_create
         selections = params[:selections] || []
+        case_id = params[:case_id]
+        default_relationship_type = params[:default_relationship_type]
+        default_reason = params[:default_reason]
 
         if selections.empty?
           return render json: {
@@ -55,7 +62,12 @@ module Api
         end
 
         service = EmailToContactExtractionService.new(user: current_user)
-        result = service.bulk_create(selections)
+        result = service.bulk_create(
+          selections,
+          case_id: case_id,
+          default_relationship_type: default_relationship_type,
+          default_reason: default_reason
+        )
 
         if result[:success]
           render json: result, status: :created

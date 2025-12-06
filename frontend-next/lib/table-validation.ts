@@ -1,6 +1,18 @@
 /**
  * Table Cell Validation System
  *
+ * ⚠️ DEPRECATED: This file is no longer used.
+ *
+ * Use the new validation system instead:
+ * @see components/table/core/column-renderer/CellValidation.tsx
+ *
+ * Migration:
+ * - Old: import { validateCell } from '@/lib/table-validation'
+ * - New: import { validateCell } from '@/components/table/core/column-renderer/CellValidation'
+ *
+ * The new system provides the same validateCell() function with identical API,
+ * but is organized with the column renderer registry for better SSoT compliance.
+ *
  * Provides validation rules for each column type with:
  * - Debounced validation while typing (500ms)
  * - Immediate validation on blur

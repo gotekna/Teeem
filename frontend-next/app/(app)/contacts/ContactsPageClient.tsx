@@ -29,6 +29,7 @@ import {
   User,
   Truck,
   CheckCircle,
+  Globe,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
@@ -228,14 +229,52 @@ export default function ContactsPageClient({
     );
   }
 
-  // Left actions - Add Contact button
+  // Enrich contact from web
+  const [enrichingContact, setEnrichingContact] = useState<number | null>(null);
+
+  const handleEnrichFromWeb = async (contactId: number) => {
+    setEnrichingContact(contactId);
+    try {
+      const response = await api.post(`/api/v1/contacts/${contactId}/enrich_from_web`);
+
+      if (response.data.success) {
+        const { is_sole_trader, company_created, company_linked, company } = response.data;
+
+        let message = "Contact enriched from website";
+        if (company_created) {
+          message += ` and linked to new company: ${company.name}`;
+        } else if (company_linked) {
+          message += ` and linked to existing company: ${company.name}`;
+        } else if (is_sole_trader) {
+          message += " (identified as sole trader)";
+        }
+
+        // Refresh the table
+        await refresh();
+
+        // Show success message (you can use a toast here)
+        alert(message);
+      } else {
+        alert(`Failed: ${response.data.error}`);
+      }
+    } catch (error: any) {
+      console.error("Error enriching contact:", error);
+      alert(error.response?.data?.error || "Failed to enrich contact from web");
+    } finally {
+      setEnrichingContact(null);
+    }
+  };
+
+  // Left actions - Add Contact button and Get Info from Web
   const leftActions = (
-    <Button asChild>
-      <Link href="/contacts/new">
-        <Plus className="h-4 w-4 mr-2" />
-        Add Contact
-      </Link>
-    </Button>
+    <div className="flex gap-2">
+      <Button asChild>
+        <Link href="/contacts/new">
+          <Plus className="h-4 w-4 mr-2" />
+          Add Contact
+        </Link>
+      </Button>
+    </div>
   );
 
   return (

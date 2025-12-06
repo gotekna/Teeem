@@ -5,8 +5,6 @@
  * Each editor receives the same base props and can add type-specific props.
  */
 
-import type { ValidationRule } from '@/lib/table-validation';
-
 // ============================================================================
 // COLUMN DEFINITION
 // ============================================================================
@@ -105,9 +103,6 @@ export interface CellEditorProps<T = unknown> {
 
   /** Called to cancel editing (Escape) */
   onCancel: () => void;
-
-  /** Optional additional validation rules */
-  validationRules?: ValidationRule[];
 
   /** Whether the cell is disabled */
   disabled?: boolean;

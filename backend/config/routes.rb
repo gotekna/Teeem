@@ -332,6 +332,7 @@ Rails.application.routes.draw do
           get :shareholdings
           get :trust_roles
           get :ownership_chain
+          get :case_relationships
           post :copy_price_history
           delete :remove_from_categories
           post :bulk_update_prices
@@ -343,6 +344,7 @@ Rails.application.routes.draw do
           post :portal_user, to: 'contacts#create_portal_user'
           patch :portal_user, to: 'contacts#update_portal_user'
           delete :portal_user, to: 'contacts#delete_portal_user'
+          post :enrich_from_web
         end
 
         # Contact relationships (nested under contacts)

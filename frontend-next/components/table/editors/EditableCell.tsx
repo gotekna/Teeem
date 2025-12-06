@@ -30,7 +30,7 @@ import {
   validationErrorsAtom,
   savingCellsAtom,
 } from '@/lib/table-edit-atoms';
-import { validateCell } from '@/lib/table-validation';
+import { validateCell } from '@/components/table/core/column-renderer/CellValidation';
 import { getEditor, getEditorProps, isEditableColumnType } from './index';
 import type { EditorColumn, CellPosition } from './types';
 

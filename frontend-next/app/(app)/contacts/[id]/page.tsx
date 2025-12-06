@@ -349,7 +349,7 @@ interface OwnershipNode {
 }
 
 // Email from EmailWarehouse
-interface ContactEmail {
+interface EmailMessage {
   id: number;
   subject: string | null;
   from_email: string;
@@ -381,6 +381,7 @@ export default function ContactDetailPage() {
   const [memberships, setMemberships] = useState<CompanyGroupMembership[]>([]);
   const [loadingMemberships, setLoadingMemberships] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [enrichingFromWeb, setEnrichingFromWeb] = useState(false);
 
 
   // SSoT: Dedicated state for rich data tabs
@@ -392,11 +393,13 @@ export default function ContactDetailPage() {
   const [loadingTrustRoles, setLoadingTrustRoles] = useState(false);
   const [ownershipChain, setOwnershipChain] = useState<OwnershipNode[]>([]);
   const [loadingOwnershipChain, setLoadingOwnershipChain] = useState(false);
+  const [caseRelationships, setCaseRelationships] = useState<any[]>([]);
+  const [loadingCaseRelationships, setLoadingCaseRelationships] = useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [showInvoiceDetail, setShowInvoiceDetail] = useState(false);
 
   // Email warehouse state
-  const [emails, setEmails] = useState<ContactEmail[]>([]);
+  const [emails, setEmails] = useState<EmailMessage[]>([]);
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [emailsPage, setEmailsPage] = useState(1);
   const [emailsPagination, setEmailsPagination] = useState<EmailsPagination | null>(null);
@@ -515,6 +518,51 @@ export default function ContactDetailPage() {
     }
   };
 
+  const handleEnrichFromWeb = async () => {
+    if (!contact) return;
+
+    setEnrichingFromWeb(true);
+    try {
+      const response = await api.post<{ success: boolean; is_sole_trader?: boolean; company_created?: boolean; company_linked?: boolean; company_found_from_domain?: boolean; found_from_contact?: { name: string; email: string }; company?: { name: string }; website_details?: { phone?: string; abn?: string; acn?: string; address?: string } }>(`/api/v1/contacts/${contact.id}/enrich_from_web`);
+
+      if (response?.success) {
+        const { is_sole_trader, company_created, company_linked, company_found_from_domain, found_from_contact, company, website_details } = response;
+
+        let message = "";
+
+        if (company_found_from_domain && found_from_contact && company) {
+          message = `Found existing company from ${found_from_contact.name} (${found_from_contact.email})\n\nLinked to: ${company.name}`;
+        } else if (company_created && company) {
+          message = "Contact enriched from website!\n\nCreated and linked to company: " + company.name;
+        } else if (company_linked && company) {
+          message = "Contact enriched from website!\n\nLinked to existing company: " + company.name;
+        } else if (is_sole_trader) {
+          message = "Contact enriched from website!\n\n(Identified as sole trader)";
+        } else {
+          message = "Contact enriched from website!";
+        }
+
+        if (website_details) {
+          message += "\n\nUpdated details:";
+          if (website_details.phone) message += `\n• Phone: ${website_details.phone}`;
+          if (website_details.abn) message += `\n• ABN: ${website_details.abn}`;
+          if (website_details.acn) message += `\n• ACN: ${website_details.acn}`;
+          if (website_details.address) message += `\n• Address: ${website_details.address}`;
+        }
+
+        alert(message);
+        await loadContact(); // Reload contact to show updated details
+      } else {
+        alert(`Failed: ${response.data.error}`);
+      }
+    } catch (error: any) {
+      console.error("Error enriching contact:", error);
+      alert(error.response?.data?.error || "Failed to enrich contact from web");
+    } finally {
+      setEnrichingFromWeb(false);
+    }
+  };
+
   const loadMemberships = async () => {
     try {
       setLoadingMemberships(true);
@@ -598,12 +646,29 @@ export default function ContactDetailPage() {
     }
   };
 
+  // Load case relationships for this contact
+  const loadCaseRelationships = async () => {
+    if (!contact?.id) return;
+    try {
+      setLoadingCaseRelationships(true);
+      const response = await api.get<{ success: boolean; data: any[]; total_count: number }>(
+        `/api/v1/contacts/${contact.id}/case_relationships`
+      );
+      setCaseRelationships(response.data || []);
+    } catch (err) {
+      console.error("Failed to load case relationships:", err);
+      setCaseRelationships([]);
+    } finally {
+      setLoadingCaseRelationships(false);
+    }
+  };
+
   // Load emails from EmailWarehouse for this contact
   const loadEmails = async (page = 1) => {
     if (!contact?.email) return;
     try {
       setLoadingEmails(true);
-      const response = await api.get<{ emails: ContactEmail[]; pagination: EmailsPagination }>(
+      const response = await api.get<{ emails: EmailMessage[]; pagination: EmailsPagination }>(
         "/api/v1/email_warehouse",
         {
           params: {
@@ -723,6 +788,10 @@ export default function ContactDetailPage() {
       if (ownershipChain.length === 0 && !loadingOwnershipChain) loadOwnershipChain();
     }
 
+    if (activeTab === "cases" && caseRelationships.length === 0 && !loadingCaseRelationships) {
+      loadCaseRelationships();
+    }
+
     if (activeTab === "emails" && contact?.email && emails.length === 0 && !loadingEmails) {
       // Reset filters when entering emails tab (handles direct navigation to ?tab=emails)
       resetFiltersForEmailsTab();
@@ -836,6 +905,23 @@ export default function ContactDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleEnrichFromWeb}
+            disabled={enrichingFromWeb || !contact?.email}
+          >
+            {enrichingFromWeb ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Enriching...
+              </>
+            ) : (
+              <>
+                <Globe className="h-4 w-4 mr-2" />
+                Get Info from Web
+              </>
+            )}
+          </Button>
           <Button variant="destructive">
             <Trash2 className="h-4 w-4 mr-2" />
             Delete
@@ -865,6 +951,15 @@ export default function ContactDetailPage() {
             {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
           </TabsTrigger>
           <TabsTrigger value="coms">Communications</TabsTrigger>
+          <TabsTrigger value="cases">
+            <Briefcase className="h-3.5 w-3.5 mr-1" />
+            Cases
+            {caseRelationships.length > 0 && (
+              <Badge variant="secondary" className="ml-1.5">
+                {caseRelationships.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           {contact.email && (
             <TabsTrigger value="emails">
               <Mail className="h-3.5 w-3.5 mr-1" />
@@ -2127,6 +2222,92 @@ export default function ContactDetailPage() {
               <p className="text-muted-foreground text-center py-8">
                 Communication history will be shown here.
               </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Cases Tab */}
+        <TabsContent value="cases" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Briefcase className="h-5 w-5" />
+                Case Involvement History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingCaseRelationships ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : caseRelationships && caseRelationships.length > 0 ? (
+                <div className="space-y-4">
+                  {caseRelationships.map((rel: any) => (
+                    <div key={rel.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <Link
+                            href={`/cases/${rel.case_id}`}
+                            className="font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                          >
+                            {rel.case_number}: {rel.case_title}
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
+                          <div className="mt-2 space-y-1 text-sm">
+                            {rel.relationship_type && (
+                              <div>
+                                <strong>Relationship:</strong> {rel.formatted_relationship_type || rel.relationship_type}
+                              </div>
+                            )}
+                            {rel.alignment && (
+                              <div className="flex items-center gap-2">
+                                <strong>Alignment:</strong>
+                                <Badge
+                                  variant={
+                                    rel.alignment === 'friendly' ? 'default' :
+                                    rel.alignment === 'opposing' ? 'destructive' :
+                                    'secondary'
+                                  }
+                                >
+                                  {rel.alignment}
+                                </Badge>
+                              </div>
+                            )}
+                            {rel.role && (
+                              <div><strong>Role:</strong> {rel.role}</div>
+                            )}
+                            {rel.reason && (
+                              <div>
+                                <strong>Reason:</strong> {rel.reason}
+                              </div>
+                            )}
+                            {rel.notes && (
+                              <div className="text-muted-foreground">
+                                <strong>Notes:</strong> {rel.notes}
+                              </div>
+                            )}
+                            {rel.is_primary && (
+                              <Badge variant="outline" className="mt-1">Primary Contact</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground text-right">
+                          {rel.added_at && (
+                            <>
+                              Added {new Date(rel.added_at).toLocaleDateString()}<br/>
+                              {rel.added_by && `by ${rel.added_by}`}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-8">
+                  This contact has not been linked to any cases yet.
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
