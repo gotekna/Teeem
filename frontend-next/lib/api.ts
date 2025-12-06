@@ -66,7 +66,13 @@ const handleErrorResponse = async (response: Response): Promise<never> => {
 
   let errorMessage: string;
   if (errorData.errors && Array.isArray(errorData.errors)) {
-    errorMessage = errorData.errors.join(', ');
+    // Properly format error objects
+    errorMessage = errorData.errors.map((err: any) => {
+      if (typeof err === 'string') return err;
+      if (err.email && err.error) return `${err.email}: ${err.error}`;
+      if (err.error) return err.error;
+      return JSON.stringify(err);
+    }).join('; ');
   } else {
     errorMessage = errorData.error || `API request failed with status ${response.status}`;
   }
