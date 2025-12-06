@@ -48,9 +48,14 @@ namespace :contacts do
       old_type = contact.entity_type
 
       begin
-        contact.update_column(:entity_type, 'default_supplier')
+        # Update entity_type and clear first_name/last_name
+        contact.update_columns(
+          entity_type: 'default_supplier',
+          first_name: nil,
+          last_name: nil
+        )
         puts "✓ [#{contact.id}] #{contact.full_name}"
-        puts "  #{old_type} → default_supplier"
+        puts "  #{old_type} → default_supplier (cleared first_name/last_name)"
         puts
         stats[:converted] += 1
       rescue => e
