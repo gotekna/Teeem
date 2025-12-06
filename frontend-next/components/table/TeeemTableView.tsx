@@ -764,9 +764,12 @@ export default function TeeemTableView({
 
     // Update scroll width
     const updateScrollWidth = () => {
-      setTableScrollWidth(tableContainer.scrollWidth);
+      const width = tableContainer.scrollWidth;
+      setTableScrollWidth(width);
     };
-    updateScrollWidth();
+
+    // Initial update with a small delay to ensure DOM is ready
+    setTimeout(updateScrollWidth, 100);
 
     // Sync main container scroll to sticky scrollbar
     const handleTableScroll = () => {
@@ -788,11 +791,23 @@ export default function TeeemTableView({
     });
     resizeObserver.observe(tableContainer);
 
+    // Also observe mutations (when groups expand/collapse)
+    const mutationObserver = new MutationObserver(() => {
+      updateScrollWidth();
+    });
+    mutationObserver.observe(tableContainer, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class']
+    });
+
     tableContainer.addEventListener('scroll', handleTableScroll);
     stickyScrollbar.addEventListener('scroll', handleStickyScroll);
 
     return () => {
       resizeObserver.disconnect();
+      mutationObserver.disconnect();
       tableContainer.removeEventListener('scroll', handleTableScroll);
       stickyScrollbar.removeEventListener('scroll', handleStickyScroll);
     };
@@ -3775,8 +3790,8 @@ export default function TeeemTableView({
       </div>
 
       {/* Sticky horizontal scrollbar - stays visible at bottom of viewport */}
-      <div className="sticky bottom-0 left-0 right-0 w-full overflow-x-auto overflow-y-hidden bg-background/95 backdrop-blur-sm border-t shadow-lg z-50 py-1" ref={stickyScrollbarRef}>
-        <div style={{ width: `${tableScrollWidth}px`, height: '12px' }} />
+      <div className="fixed bottom-0 left-0 right-0 overflow-x-auto overflow-y-hidden bg-background/95 backdrop-blur-sm border-t shadow-lg z-50 py-2" ref={stickyScrollbarRef}>
+        <div className="mx-auto" style={{ width: tableScrollWidth > 0 ? `${tableScrollWidth}px` : '100%', height: '12px' }} />
       </div>
 
       {/* Footer - compact */}

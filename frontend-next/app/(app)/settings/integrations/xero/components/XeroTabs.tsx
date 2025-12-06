@@ -400,11 +400,13 @@ export function XeroContactSync() {
     setSyncing(true);
     try {
       const response = await api.post<{ success: boolean; data: typeof lastSync }>("/api/v1/xero/sync_contacts");
-      setLastSync(response.data);
-      toast({
-        title: "Success",
-        description: `Synced ${response.data.contacts_created + response.data.contacts_updated} contacts`,
-      });
+      if (response?.data) {
+        setLastSync(response.data);
+        toast({
+          title: "Success",
+          description: `Synced ${response.data.contacts_created + response.data.contacts_updated} contacts`,
+        });
+      }
     } catch (error) {
       console.error("Sync failed:", error);
       toast({
