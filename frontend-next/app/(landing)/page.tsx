@@ -402,11 +402,11 @@ export default function LandingPage() {
   }, [workflowRef.isInView, workflowSteps.length]);
 
   // Animation refs
-  const heroRef = useInView();
-  const ganttRef = useInView();
-  const aiRef = useInView();
-  const invoiceRef = useInView();
-  const featuresRef = useInView();
+  const { ref: heroRef, isInView: heroIsInView } = useInView();
+  const { ref: ganttRef, isInView: ganttIsInView } = useInView();
+  const { ref: aiRef, isInView: aiIsInView } = useInView();
+  const { ref: invoiceRef, isInView: invoiceIsInView } = useInView();
+  const { ref: featuresRef, isInView: featuresIsInView } = useInView();
 
   return (
     <div className="min-h-screen bg-background">
@@ -458,9 +458,9 @@ export default function LandingPage() {
 
         <div className="max-w-7xl mx-auto relative">
           <div
-            ref={heroRef.ref}
+            ref={heroRef}
             className={`text-center max-w-4xl mx-auto transition-all duration-1000 ${
-              heroRef.isInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              heroIsInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-sm mb-8">
@@ -647,9 +647,9 @@ export default function LandingPage() {
       <section id="gantt" className="py-20 px-4 sm:px-6 lg:px-8 bg-secondary/10">
         <div className="max-w-7xl mx-auto">
           <div
-            ref={ganttRef.ref}
+            ref={ganttRef}
             className={`transition-all duration-1000 ${
-              ganttRef.isInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              ganttIsInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
             <div className="text-center mb-12">
@@ -741,9 +741,9 @@ export default function LandingPage() {
       <section id="ai" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div
-            ref={aiRef.ref}
+            ref={aiRef}
             className={`transition-all duration-1000 ${
-              aiRef.isInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              aiIsInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
             <div className="text-center mb-16">
@@ -771,8 +771,8 @@ export default function LandingPage() {
                   }`}
                   style={{
                     transitionDelay: `${index * 100}ms`,
-                    transform: aiRef.isInView ? "translateY(0)" : "translateY(20px)",
-                    opacity: aiRef.isInView ? 1 : 0
+                    transform: aiIsInView ? "translateY(0)" : "translateY(20px)",
+                    opacity: aiIsInView ? 1 : 0
                   }}
                 >
                   <CardHeader>
@@ -939,9 +939,9 @@ export default function LandingPage() {
       <section id="documents" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div
-            ref={invoiceRef.ref}
+            ref={invoiceRef}
             className={`transition-all duration-1000 ${
-              invoiceRef.isInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              invoiceIsInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
             <div className="grid lg:grid-cols-2 gap-16 items-center">
@@ -1040,9 +1040,9 @@ export default function LandingPage() {
       <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-secondary/10">
         <div className="max-w-7xl mx-auto">
           <div
-            ref={featuresRef.ref}
+            ref={featuresRef}
             className={`transition-all duration-1000 ${
-              featuresRef.isInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              featuresIsInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
             <div className="text-center mb-16">
@@ -1059,9 +1059,9 @@ export default function LandingPage() {
                   key={index}
                   className="bg-card hover:bg-card/80 hover:border-primary/30 transition-all duration-500 hover:-translate-y-1"
                   style={{
-                    transitionDelay: featuresRef.isInView ? `${index * 75}ms` : "0ms",
-                    transform: featuresRef.isInView ? "translateY(0)" : "translateY(20px)",
-                    opacity: featuresRef.isInView ? 1 : 0
+                    transitionDelay: featuresIsInView ? `${index * 75}ms` : "0ms",
+                    transform: featuresIsInView ? "translateY(0)" : "translateY(20px)",
+                    opacity: featuresIsInView ? 1 : 0
                   }}
                 >
                   <CardHeader>
