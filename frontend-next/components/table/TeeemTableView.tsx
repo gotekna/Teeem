@@ -1250,13 +1250,13 @@ export default function TeeemTableView({
         console.log('[Bulk Update] API response:', response);
 
         // Check if the update was actually successful
-        if (!response.success || response.updated_count === 0) {
+        if (!response || !response.success || response.updated_count === 0) {
           console.error('[Bulk Update] Update FAILED - no records were updated');
-          console.error('[Bulk Update] Updated count:', response.updated_count);
-          console.error('[Bulk Update] Errors:', response.errors);
+          console.error('[Bulk Update] Updated count:', response?.updated_count);
+          console.error('[Bulk Update] Errors:', response?.errors);
 
           // Check if this is an entity_type validation error
-          const hasEntityTypeErrors = response.errors && response.errors.some((err: any) =>
+          const hasEntityTypeErrors = response?.errors && response.errors.some((err: any) =>
             err.errors && err.errors.some((msg: string) =>
               msg.toLowerCase().includes('first name') ||
               msg.toLowerCase().includes('full name') ||
@@ -1267,9 +1267,9 @@ export default function TeeemTableView({
           console.log('[Bulk Update] foundationIdNumeric:', foundationIdNumeric);
 
           // Show error message to user
-          let errorMessage = `Bulk update failed. ${response.updated_count || 0} of ${response.total_requested || ids.length} records updated.`;
+          let errorMessage = `Bulk update failed. ${response?.updated_count || 0} of ${response?.total_requested || ids.length} records updated.`;
 
-          if (response.errors && response.errors.length > 0) {
+          if (response?.errors && response.errors.length > 0) {
             errorMessage += '\n\nValidation errors:\n';
             response.errors.slice(0, 3).forEach((err: any) => {
               errorMessage += `\n• Record ${err.id}: ${err.errors.join(', ')}`;
@@ -1301,7 +1301,7 @@ export default function TeeemTableView({
           return; // Don't close modal or clear selection on failure
         }
 
-        console.log('[Bulk Update] Success! Updated', response.updated_count, 'records');
+        console.log('[Bulk Update] Success! Updated', response?.updated_count, 'records');
       } else if (onRowUpdate) {
         console.log('[Bulk Update] Using fallback individual updates (no foundationIdNumeric)');
         // Fallback to individual updates
