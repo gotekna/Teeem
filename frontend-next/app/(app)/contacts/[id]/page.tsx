@@ -369,6 +369,17 @@ interface EmailsPagination {
   total_pages: number;
 }
 
+// Relationship types available for company relationships
+const COMPANY_RELATIONSHIP_TYPES = [
+  { value: "employee_of", label: "Employee" },
+  { value: "contractor_for", label: "Contractor" },
+  { value: "director_of", label: "Director" },
+  { value: "shareholder_of", label: "Shareholder" },
+  { value: "authorized_signatory_of", label: "Authorized Signatory" },
+  { value: "beneficial_owner_of", label: "Beneficial Owner" },
+  { value: "partner_in", label: "Partner" },
+] as const;
+
 export default function ContactDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -409,6 +420,7 @@ export default function ContactDetailPage() {
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
+    full_name: "",
     email: "",
     mobile_phone: "",
     office_phone: "",
@@ -428,6 +440,9 @@ export default function ContactDetailPage() {
   const [availableCompanies, setAvailableCompanies] = useState<Option[]>([]);
   const [selectedCompanies, setSelectedCompanies] = useState<Option[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
+
+  // Track roles for each company (companyId -> roleTypes[])
+  const [companyRoles, setCompanyRoles] = useState<Record<string, string[]>>({});
 
   // Employee multi-select state (for company contacts)
   const [availablePeople, setAvailablePeople] = useState<Option[]>([]);
@@ -528,16 +543,36 @@ export default function ContactDetailPage() {
     fetchCompanies();
   }, []);
 
-  // Populate selected companies from contact.additional_companies
+  // Populate selected companies and roles from contact.additional_companies
   useEffect(() => {
     if (contact?.additional_companies) {
-      const selected: Option[] = contact.additional_companies
-        .filter((ac: any) => ac.relationship_type === 'employee_of' && ac.is_active)
-        .map((ac: any) => ({
-          value: ac.id.toString(),
-          label: ac.name || "Unknown Company",
-        }));
+      // Group by company ID to get unique companies and their roles
+      const companyMap = new Map<string, { name: string; roles: string[] }>();
+
+      contact.additional_companies
+        .filter((ac: any) => ac.is_active)
+        .forEach((ac: any) => {
+          const companyId = ac.id.toString();
+          if (!companyMap.has(companyId)) {
+            companyMap.set(companyId, { name: ac.name || "Unknown Company", roles: [] });
+          }
+          companyMap.get(companyId)!.roles.push(ac.relationship_type);
+        });
+
+      // Convert to selectedCompanies array
+      const selected: Option[] = Array.from(companyMap.entries()).map(([id, data]) => ({
+        value: id,
+        label: data.name,
+      }));
+
+      // Build companyRoles object
+      const roles: Record<string, string[]> = {};
+      companyMap.forEach((data, id) => {
+        roles[id] = data.roles;
+      });
+
       setSelectedCompanies(selected);
+      setCompanyRoles(roles);
     }
   }, [contact?.additional_companies]);
 
@@ -788,6 +823,7 @@ export default function ContactDetailPage() {
       setFormData({
         first_name: contact.first_name || "",
         last_name: contact.last_name || "",
+        full_name: contact.full_name || "",
         email: contact.email || "",
         mobile_phone: contact.mobile_phone || "",
         office_phone: contact.office_phone || "",
@@ -824,7 +860,30 @@ export default function ContactDetailPage() {
     const removedIds = previousIds.filter((id) => !newIds.includes(id));
 
     try {
-      // Create new relationships for added companies
+      // For added companies, initialize roles as empty (user will select them)
+      const newCompanyRoles = { ...companyRoles };
+      for (const companyId of addedIds) {
+        newCompanyRoles[companyId] = ['employee_of']; // Default to employee
+      }
+
+      // Delete ALL relationships for removed companies
+      for (const companyId of removedIds) {
+        const relationshipsResponse = await api.get(`/api/v1/contacts/${contact.id}/relationships`) as any;
+        const relsToDelete = relationshipsResponse.relationships.outgoing.filter(
+          (r: any) => r.related_contact_id.toString() === companyId
+        );
+        for (const rel of relsToDelete) {
+          await api.delete(`/api/v1/contacts/${contact.id}/relationships/${rel.id}`);
+        }
+        // Remove from companyRoles state
+        delete newCompanyRoles[companyId];
+      }
+
+      // Update local state
+      setSelectedCompanies(newSelectedCompanies);
+      setCompanyRoles(newCompanyRoles);
+
+      // Create initial relationship for newly added companies
       for (const companyId of addedIds) {
         await api.post(`/api/v1/contacts/${contact.id}/relationships`, {
           contact_relationship: {
@@ -835,34 +894,63 @@ export default function ContactDetailPage() {
         });
       }
 
-      // Delete relationships for removed companies
-      for (const companyId of removedIds) {
-        // Find the relationship ID
-        const relationship = contact.additional_companies?.find(
-          (ac: any) => ac.id.toString() === companyId && ac.relationship_type === 'employee_of'
-        );
-        if (relationship) {
-          // Need to find the actual relationship ID, not the company ID
-          // Let's fetch all relationships and find the one matching this company
-          const relationshipsResponse = await api.get(`/api/v1/contacts/${contact.id}/relationships`) as any;
-          const rel = relationshipsResponse.relationships.outgoing.find(
-            (r: any) => r.related_contact_id.toString() === companyId && r.relationship_type === 'employee_of'
-          );
-          if (rel) {
-            await api.delete(`/api/v1/contacts/${contact.id}/relationships/${rel.id}`);
-          }
-        }
-      }
-
-      // Update local state
-      setSelectedCompanies(newSelectedCompanies);
-
       // Reload contact data to get updated relationships
       await loadContact();
     } catch (err) {
       console.error("Failed to update company relationships:", err);
       // Revert on error
       setSelectedCompanies(selectedCompanies);
+    }
+  };
+
+  // Handle role changes for a specific company
+  const handleCompanyRolesChange = async (companyId: string, newRoles: string[]) => {
+    if (!contact) return;
+
+    try {
+      // Fetch existing relationships for this company
+      const relationshipsResponse = await api.get(`/api/v1/contacts/${contact.id}/relationships`) as any;
+      const existingRels = relationshipsResponse.relationships.outgoing.filter(
+        (r: any) => r.related_contact_id.toString() === companyId
+      );
+
+      const existingRoleTypes = existingRels.map((r: any) => r.relationship_type);
+
+      // Find roles to add (in newRoles but not in existingRoleTypes)
+      const rolesToAdd = newRoles.filter(role => !existingRoleTypes.includes(role));
+
+      // Find roles to remove (in existingRoleTypes but not in newRoles)
+      const rolesToRemove = existingRoleTypes.filter((role: string) => !newRoles.includes(role));
+
+      // Create new relationships for added roles
+      for (const roleType of rolesToAdd) {
+        await api.post(`/api/v1/contacts/${contact.id}/relationships`, {
+          contact_relationship: {
+            related_contact_id: parseInt(companyId),
+            relationship_type: roleType,
+            is_active: true,
+          },
+        });
+      }
+
+      // Delete relationships for removed roles
+      for (const roleType of rolesToRemove) {
+        const relToDelete = existingRels.find((r: any) => r.relationship_type === roleType);
+        if (relToDelete) {
+          await api.delete(`/api/v1/contacts/${contact.id}/relationships/${relToDelete.id}`);
+        }
+      }
+
+      // Update local state
+      setCompanyRoles({
+        ...companyRoles,
+        [companyId]: newRoles
+      });
+
+      // Reload contact data
+      await loadContact();
+    } catch (err) {
+      console.error("Failed to update company roles:", err);
     }
   };
 
@@ -1189,14 +1277,21 @@ export default function ContactDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="first_name">{formData.entity_type === "person" ? "First Name" : "Name"}</Label>
-                        <Input id="first_name" value={formData.first_name} onChange={(e) => handleInputChange("first_name", e.target.value)} />
-                      </div>
-                      {formData.entity_type === "person" && (
+                      {formData.entity_type === "person" ? (
+                        <>
+                          <div className="space-y-2">
+                            <Label htmlFor="first_name">First Name</Label>
+                            <Input id="first_name" value={formData.first_name} onChange={(e) => handleInputChange("first_name", e.target.value)} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="last_name">Last Name</Label>
+                            <Input id="last_name" value={formData.last_name} onChange={(e) => handleInputChange("last_name", e.target.value)} />
+                          </div>
+                        </>
+                      ) : (
                         <div className="space-y-2">
-                          <Label htmlFor="last_name">Last Name</Label>
-                          <Input id="last_name" value={formData.last_name} onChange={(e) => handleInputChange("last_name", e.target.value)} />
+                          <Label htmlFor="full_name">Name</Label>
+                          <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange("full_name", e.target.value)} />
                         </div>
                       )}
                     </div>
@@ -1210,29 +1305,68 @@ export default function ContactDetailPage() {
                     </div>
                     {/* Company multi-select - show for person entity type */}
                     {formData.entity_type === 'person' && (
-                      <div className="space-y-2">
-                        <Label>Company</Label>
-                        <MultipleSelector
-                          value={selectedCompanies}
-                          onChange={handleCompanyChange}
-                          options={availableCompanies}
-                          placeholder="Search companies..."
-                          emptyIndicator={
-                            <p className="text-center text-sm text-muted-foreground">
-                              {loadingCompanies ? "Loading companies..." : "No companies found"}
-                            </p>
-                          }
-                          disabled={loadingCompanies}
-                          className="w-full"
-                          hidePlaceholderWhenSelected
-                          onSearchSync={(value) => {
-                            if (!value) return availableCompanies;
-                            return availableCompanies.filter(option =>
-                              option.label.toLowerCase().includes(value.toLowerCase())
-                            );
-                          }}
-                        />
-                        <p className="text-xs text-muted-foreground">Select one or more companies this person is associated with</p>
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Label>Companies</Label>
+                          <MultipleSelector
+                            value={selectedCompanies}
+                            onChange={handleCompanyChange}
+                            placeholder="Click to search companies..."
+                            emptyIndicator={
+                              <p className="text-center text-sm text-muted-foreground">
+                                {loadingCompanies ? "Loading companies..." : "No companies found"}
+                              </p>
+                            }
+                            disabled={loadingCompanies}
+                            className="w-full"
+                            hidePlaceholderWhenSelected
+                            triggerSearchOnFocus
+                            onSearchSync={(value) => {
+                              console.log('[Search] Filtering companies with:', value);
+                              if (!value) return availableCompanies;
+                              return availableCompanies.filter(option =>
+                                option.label.toLowerCase().includes(value.toLowerCase())
+                              );
+                            }}
+                          />
+                          <p className="text-xs text-muted-foreground">Add companies this person is associated with</p>
+                        </div>
+
+                        {/* Show role selectors for each selected company */}
+                        {selectedCompanies.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t">
+                            <Label className="text-xs text-muted-foreground">Roles at each company:</Label>
+                            <div className="space-y-2">
+                              {selectedCompanies.map((company) => (
+                                <div key={company.value} className="flex items-start gap-2 p-2 rounded-md border bg-muted/30">
+                                  <div className="flex-1">
+                                    <div className="font-medium text-sm mb-1">{company.label}</div>
+                                    <MultipleSelector
+                                      value={(companyRoles[company.value] || []).map(role => ({
+                                        value: role,
+                                        label: COMPANY_RELATIONSHIP_TYPES.find(t => t.value === role)?.label || role
+                                      }))}
+                                      onChange={(newRoles) => {
+                                        handleCompanyRolesChange(company.value, newRoles.map(r => r.value));
+                                      }}
+                                      placeholder="Select roles..."
+                                      className="w-full"
+                                      hidePlaceholderWhenSelected
+                                      triggerSearchOnFocus
+                                      onSearchSync={(value) => {
+                                        const roleOptions = COMPANY_RELATIONSHIP_TYPES.map(t => ({ value: t.value, label: t.label }));
+                                        if (!value) return roleOptions;
+                                        return roleOptions.filter(option =>
+                                          option.label.toLowerCase().includes(value.toLowerCase())
+                                        );
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                     {/* Linked Company - show for company/trust entity types */}
@@ -1266,8 +1400,7 @@ export default function ContactDetailPage() {
                         <MultipleSelector
                           value={selectedEmployees}
                           onChange={handleEmployeeChange}
-                          options={availablePeople}
-                          placeholder="Search employees..."
+                          placeholder="Click to search employees..."
                           emptyIndicator={
                             <p className="text-center text-sm text-muted-foreground">
                               {loadingPeople ? "Loading people..." : "No people found"}
@@ -1276,7 +1409,9 @@ export default function ContactDetailPage() {
                           disabled={loadingPeople}
                           className="w-full"
                           hidePlaceholderWhenSelected
+                          triggerSearchOnFocus
                           onSearchSync={(value) => {
+                            console.log('[Search] Filtering employees with:', value);
                             if (!value) return availablePeople;
                             return availablePeople.filter(option =>
                               option.label.toLowerCase().includes(value.toLowerCase())

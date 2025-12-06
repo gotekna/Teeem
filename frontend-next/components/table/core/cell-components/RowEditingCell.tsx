@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { ComboboxDropdown, type ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { Textarea } from '@/components/ui/textarea';
+import MultipleSelector, { type Option } from '@/components/ui/multiple-selector';
 import { CalendarIcon, Paperclip } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -66,11 +67,16 @@ export function RowEditingCell({
   const columnType = column.column_type || 'single_line_text';
   const hasError = validationError;
 
+  // Prevent click propagation to avoid row navigation when editing
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
   // Boolean - Switch toggle
   if (columnType === 'boolean') {
     const boolValue = rowEditingData[column.key] === true || rowEditingData[column.key] === 'true' || rowEditingData[column.key] === 1;
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-center" onClick={handleClick}>
         <Switch
           checked={boolValue}
           onCheckedChange={(checked) =>
@@ -95,18 +101,20 @@ export function RowEditingCell({
     const selectedChoice = choiceItems.find((item) => item.id === currentValue);
 
     return (
-      <ComboboxDropdown
-        items={choiceItems}
-        selectedItem={selectedChoice}
-        onSelect={(item) =>
-          setEditingData((prev) => ({
-            ...prev,
-            [entry.id]: { ...prev[entry.id], [column.key]: item.id },
-          }))
-        }
-        placeholder="Select..."
-        searchPlaceholder="Search choices..."
-      />
+      <div onClick={handleClick}>
+        <ComboboxDropdown
+          items={choiceItems}
+          selectedItem={selectedChoice}
+          onSelect={(item) =>
+            setEditingData((prev) => ({
+              ...prev,
+              [entry.id]: { ...prev[entry.id], [column.key]: item.id },
+            }))
+          }
+          placeholder="Select..."
+          searchPlaceholder="Search choices..."
+        />
+      </div>
     );
   }
 
@@ -240,23 +248,25 @@ export function RowEditingCell({
     const selectedItem = lookupItems.find((item) => item.id === String(currentValue));
 
     return (
-      <ComboboxDropdown
-        items={lookupItems}
-        selectedItem={selectedItem}
-        onSelect={(item) =>
-          setEditingData((prev) => ({
-            ...prev,
-            [entry.id]: { ...prev[entry.id], [column.key]: item.id },
-          }))
-        }
-        placeholder={isLoading ? "Loading..." : "Select..."}
-        searchPlaceholder="Search..."
-        disabled={isLoading}
-      />
+      <div onClick={handleClick}>
+        <ComboboxDropdown
+          items={lookupItems}
+          selectedItem={selectedItem}
+          onSelect={(item) =>
+            setEditingData((prev) => ({
+              ...prev,
+              [entry.id]: { ...prev[entry.id], [column.key]: item.id },
+            }))
+          }
+          placeholder={isLoading ? "Loading..." : "Select..."}
+          searchPlaceholder="Search..."
+          disabled={isLoading}
+        />
+      </div>
     );
   }
 
-  // Multiple Lookups - Multi-select from related table
+  // Multiple Lookups - Multi-select from related table (compact badge display)
   if (columnType === 'multiple_lookups') {
     const options = lookupOptions[column.key] || [];
     const isLoading = lookupLoading[column.key];
@@ -268,33 +278,36 @@ export function RowEditingCell({
       ? String(currentValue).split(',').filter(Boolean)
       : [];
 
+    // Convert to Option format for MultipleSelector
+    const selectorOptions: Option[] = options.map((opt) => ({
+      value: String(opt.id),
+      label: opt.display,
+    }));
+
+    const selectedOptions: Option[] = selectorOptions.filter((opt) =>
+      selectedIds.includes(opt.value)
+    );
+
     return (
-      <div className="text-sm max-h-[120px] overflow-y-auto space-y-1 border rounded p-2">
-        {isLoading ? (
-          <span className="text-muted-foreground">Loading...</span>
-        ) : options.length === 0 ? (
-          <span className="text-muted-foreground">No options</span>
-        ) : (
-          options.map((opt) => (
-            <label key={opt.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={selectedIds.includes(String(opt.id))}
-                onChange={(e) => {
-                  const newIds = e.target.checked
-                    ? [...selectedIds, String(opt.id)]
-                    : selectedIds.filter(id => id !== String(opt.id));
-                  setEditingData((prev) => ({
-                    ...prev,
-                    [entry.id]: { ...prev[entry.id], [column.key]: newIds.join(',') },
-                  }));
-                }}
-              />
-              <span>{opt.display}</span>
-            </label>
-          ))
-        )}
+      <div onClick={handleClick} className="min-h-[32px]">
+        <MultipleSelector
+          value={selectedOptions}
+          onChange={(selected) => {
+            const newIds = selected.map((opt) => opt.value);
+            setEditingData((prev) => ({
+              ...prev,
+              [entry.id]: { ...prev[entry.id], [column.key]: newIds.join(',') },
+            }));
+          }}
+          options={selectorOptions}
+          placeholder={isLoading ? "Loading..." : "Select..."}
+          emptyIndicator={
+            <p className="text-center text-sm text-muted-foreground">No options</p>
+          }
+          disabled={isLoading}
+          hidePlaceholderWhenSelected
+          maxCount={3}
+        />
       </div>
     );
   }
@@ -384,7 +397,7 @@ export function RowEditingCell({
 
   // Default - Text input for all other types (single_line_text, email, phone, url, number, etc.)
   return (
-    <div className="relative">
+    <div className="relative" onClick={handleClick}>
       <Input
         className={cn(
           "h-7 text-sm",
