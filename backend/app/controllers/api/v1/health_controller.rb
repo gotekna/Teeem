@@ -8,6 +8,64 @@ module Api
     # This controller remains for backwards compatibility with the old frontend.
     # TODO: Remove after frontend migration is complete
     class HealthController < ApplicationController
+      # GET /api/v1/health/system
+      # System-wide health data formatted for the frontend system-health page
+      def system
+        health_data = HealthChecks::Registry.system_health
+
+        # Group checks by check_type (table/module)
+        checks_by_type = health_data[:checks].group_by { |c| c[:check_type] }
+
+        # Map each type to the expected frontend format
+        tables = checks_by_type.map do |type, checks|
+          total_issues = checks.sum { |c| c[:count] || 0 }
+          critical_count = checks.select { |c| c[:severity] == "critical" }.sum { |c| c[:count] || 0 }
+          warning_count = checks.select { |c| c[:severity] == "warning" }.sum { |c| c[:count] || 0 }
+          info_count = checks.select { |c| c[:severity] == "info" }.sum { |c| c[:count] || 0 }
+
+          # Calculate health score for this table
+          health_score = HealthChecks::BaseCheck.calculate_health_score(checks)
+
+          # Format issues for frontend
+          formatted_issues = checks.flat_map do |check|
+            (check[:items] || []).map do |item|
+              {
+                id: item[:id] || SecureRandom.uuid,
+                record_id: item[:id],
+                record_name: item[:display] || item[:full_name] || "Unknown",
+                issue_type: check[:name].parameterize.underscore,
+                issue_description: check[:description] || check[:name],
+                severity: check[:severity],
+                fix_url: check[:action_path]&.gsub(":id", item[:id].to_s),
+                created_at: Time.current.iso8601
+              }
+            end
+          end.first(10) # Limit to first 10 issues per table
+
+          {
+            table_name: type.to_s,
+            display_name: type.to_s.titleize,
+            icon: get_icon_for_type(type),
+            total_records: get_record_count_for_type(type),
+            issues_count: total_issues,
+            critical_count: critical_count,
+            warning_count: warning_count,
+            info_count: info_count,
+            health_score: health_score,
+            issues: formatted_issues
+          }
+        end
+
+        render json: {
+          overall_score: health_data[:overall_health],
+          total_issues: health_data[:summary][:total],
+          critical_issues: health_data[:summary][:critical],
+          warning_issues: health_data[:summary][:warnings],
+          tables: tables,
+          last_checked: Time.current.iso8601
+        }
+      end
+
       # DEPRECATED: Use GET /api/v1/foundations/205/health instead
       def pricebook
         Rails.logger.warn "[DEPRECATED] GET /api/v1/health/pricebook - use /api/v1/foundations/205/health instead"
@@ -191,6 +249,42 @@ module Api
 
         # Sort by item_code
         items_with_issues.sort_by { |item| item[:item_code] }
+      end
+
+      def get_icon_for_type(type)
+        case type.to_s
+        when "jobs"
+          "briefcase"
+        when "contacts"
+          "users"
+        when "pricebook"
+          "file-text"
+        when "companies"
+          "building"
+        when "documents"
+          "file"
+        else
+          "file-text"
+        end
+      end
+
+      def get_record_count_for_type(type)
+        case type.to_s
+        when "jobs"
+          Job.count
+        when "contacts"
+          Contact.where(deleted: [ false, nil ]).count
+        when "pricebook"
+          PricebookItem.active.count
+        when "companies"
+          Company.count
+        when "documents"
+          CompanyDocument.count
+        else
+          0
+        end
+      rescue
+        0
       end
     end
   end

@@ -75,6 +75,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { sortHiddenColumnsAlphabetically } from "../column-utils";
 import type { SavedView, CascadeFilter, FilterGroup, SortColumn } from "../types";
+import { useSetAtom } from "jotai";
+import { foundationViewsAtom } from "@/lib/view-state-atoms";
 
 import { SortableViewItem } from "./SortableViewItem";
 import { SortableColumnItem } from "./SortableColumnItem";
@@ -127,6 +129,9 @@ export function ViewManagerSheet({
   rows,
 }: ViewManagerSheetProps) {
   const { toast } = useToast();
+
+  // Global views atom - update this to sync view order with main table
+  const setGlobalViews = useSetAtom(foundationViewsAtom);
 
   // State
   const [views, setViews] = React.useState<SavedView[]>([]);
@@ -446,6 +451,8 @@ export function ViewManagerSheet({
 
     const reorderedViews = arrayMove(views, oldIndex, newIndex);
     setViews(reorderedViews);
+    // Also update global atom so view chips on main page reflect new order immediately
+    setGlobalViews(reorderedViews);
 
     const orders = reorderedViews.map((v, idx) => ({
       id: v.id,
@@ -464,8 +471,9 @@ export function ViewManagerSheet({
           description: "Failed to save view order",
           variant: "destructive",
         });
-        // Revert the local change
+        // Revert both local and global state
         setViews(views);
+        setGlobalViews(views);
       }
     } catch (error) {
       console.error("Failed to save view order:", error);
@@ -474,8 +482,9 @@ export function ViewManagerSheet({
         description: "Failed to save view order",
         variant: "destructive",
       });
-      // Revert the local change
+      // Revert both local and global state
       setViews(views);
+      setGlobalViews(views);
     }
   };
 

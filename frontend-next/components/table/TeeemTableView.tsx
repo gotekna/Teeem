@@ -1230,51 +1230,7 @@ export default function TeeemTableView({
         console.log('[Bulk Update] Converted multiple_lookups value:', bulkUpdateValue, '→', valueToSend);
       }
 
-      // Auto-mapping: When changing entity_type, auto-populate required fields from existing data
-      const needsFieldMapping = bulkUpdateColumn === 'entity_type' && (valueToSend === 'person' || valueToSend === 'company');
-
-      if (needsFieldMapping && onRowUpdate) {
-        console.log('[Bulk Update] Entity type change detected - using individual updates with field mapping');
-        console.log('[Bulk Update] Changing to:', valueToSend);
-
-        // Use individual updates to map fields per record
-        for (const id of ids) {
-          const record = entries.find(e => e.id === id);
-          if (!record) {
-            console.warn(`[Bulk Update] Record ${id} not found in entries, skipping`);
-            continue;
-          }
-
-          console.log(`[Bulk Update] Processing record ${id}:`, record);
-
-          // Prepare updates for this specific record
-          const updates: Record<string, any> = { entity_type: valueToSend };
-
-          if (valueToSend === 'person') {
-            // Converting to person: copy full_name → first_name (if first_name is empty)
-            if (!record.first_name && record.full_name) {
-              updates.first_name = record.full_name;
-              console.log(`[Bulk Update] Auto-mapping: full_name "${record.full_name}" → first_name`);
-            }
-          } else if (valueToSend === 'company') {
-            // Converting to company: copy first_name (+ last_name) → full_name (if full_name is empty)
-            if (!record.full_name && record.first_name) {
-              updates.full_name = record.last_name
-                ? `${record.first_name} ${record.last_name}`.trim()
-                : record.first_name;
-              console.log(`[Bulk Update] Auto-mapping: first_name "${record.first_name}" + last_name "${record.last_name || ''}" → full_name "${updates.full_name}"`);
-            }
-          }
-
-          // Update each field individually for this record
-          console.log(`[Bulk Update] Updating record ${id} with:`, updates);
-          for (const [field, value] of Object.entries(updates)) {
-            await onRowUpdate(id, field, value);
-          }
-        }
-
-        console.log('[Bulk Update] Individual updates with field mapping completed');
-      } else if (foundationIdNumeric && !needsFieldMapping) {
+      if (foundationIdNumeric) {
         // Use bulk_update API endpoint if foundationIdNumeric is available (much faster)
         // Skip if we need field mapping (handled above)
         const payload = {
@@ -1294,6 +1250,15 @@ export default function TeeemTableView({
           console.error('[Bulk Update] Updated count:', response.updated_count);
           console.error('[Bulk Update] Errors:', response.errors);
 
+          // Check if this is an entity_type validation error
+          const hasEntityTypeErrors = response.errors && response.errors.some((err: any) =>
+            err.errors && err.errors.some((msg: string) =>
+              msg.toLowerCase().includes('first name') ||
+              msg.toLowerCase().includes('full name') ||
+              msg.toLowerCase().includes('entity')
+            )
+          );
+
           // Show error message to user
           let errorMessage = `Bulk update failed. ${response.updated_count || 0} of ${response.total_requested || ids.length} records updated.`;
 
@@ -1307,7 +1272,21 @@ export default function TeeemTableView({
             }
           }
 
-          alert(errorMessage);
+          // If entity_type validation errors, suggest health report
+          if (hasEntityTypeErrors) {
+            errorMessage += '\n\n⚠️ Some records have data quality issues that must be fixed first.';
+            errorMessage += '\n\nView the Health Report to identify and fix these issues?';
+
+            const viewHealthReport = confirm(errorMessage);
+            if (viewHealthReport && foundationIdNumeric) {
+              // Redirect to health page with foundation context
+              window.location.href = `/system-health?foundation=${foundationIdNumeric}`;
+              return;
+            }
+          } else {
+            alert(errorMessage);
+          }
+
           return; // Don't close modal or clear selection on failure
         }
 

@@ -62,6 +62,56 @@ module HealthChecks
       )
     end
 
+    # Person contacts missing required first_name
+    def check_person_missing_first_name
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where(entity_type: "person")
+                       .where("first_name IS NULL OR first_name = ''")
+                       .select(:id, :full_name, :first_name, :entity_type)
+
+      build_result(
+        name: "Person Contacts Missing First Name",
+        description: "Person contacts must have a first name. Fix by adding a first name or changing entity type to 'company'.",
+        severity: :critical,
+        items: contacts,
+        icon: "user-x",
+        action_path: "/contacts/:id"
+      )
+    end
+
+    # Company contacts missing full_name
+    def check_company_missing_full_name
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where(entity_type: "company")
+                       .where("full_name IS NULL OR full_name = ''")
+                       .select(:id, :full_name, :first_name, :last_name, :entity_type)
+
+      build_result(
+        name: "Company Contacts Missing Full Name",
+        description: "Company contacts must have a full name. Fix by adding a name or changing entity type to 'person'.",
+        severity: :critical,
+        items: contacts,
+        icon: "building-x",
+        action_path: "/contacts/:id"
+      )
+    end
+
+    # Contacts with invalid entity_type
+    def check_invalid_entity_type
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where.not(entity_type: [ "person", "company", nil ])
+                       .select(:id, :full_name, :entity_type)
+
+      build_result(
+        name: "Contacts with Invalid Entity Type",
+        description: "Contacts with entity_type that is not 'person' or 'company'.",
+        severity: :warning,
+        items: contacts,
+        icon: "alert-triangle",
+        action_path: "/contacts/:id"
+      )
+    end
+
     protected
 
     def format_items(items)
@@ -69,10 +119,17 @@ module HealthChecks
         if item.is_a?(Hash)
           item
         elsif item.respond_to?(:full_name)
+          display_parts = []
+          display_parts << (item.full_name.presence || "Contact ##{item.id}")
+          display_parts << "(#{item.entity_type})" if item.try(:entity_type).present?
+
           {
             id: item.id,
-            display: item.full_name.presence || "Contact ##{item.id}",
+            display: display_parts.join(" "),
             full_name: item.full_name,
+            first_name: item.try(:first_name),
+            last_name: item.try(:last_name),
+            entity_type: item.try(:entity_type),
             email: item.try(:email)
           }
         else
