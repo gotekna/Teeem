@@ -92,7 +92,7 @@ class Contact < ApplicationRecord
 
   # Constants
   ROLES = %w[Employee sales land_agent Director Company_Secretary Public_Officer CEO GM Owner].freeze
-  ENTITY_TYPES = %w[person company trust default_supplier].freeze
+  ENTITY_TYPES = %w[person company trust sole_trader default_supplier].freeze
   EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
 
   # Xero-synced accounting fields - READ ONLY in TEEEM (synced from Xero)
@@ -160,6 +160,12 @@ class Contact < ApplicationRecord
       "#{first_name} #{last_name}".strip.presence ||
         full_name.presence ||
         email ||
+        "Contact ##{id}"
+    when "sole_trader"
+      # Sole Trader: prefer business name, fall back to person name
+      company_name_or_trust.presence ||
+        "#{first_name} #{last_name}".strip.presence ||
+        full_name.presence ||
         "Contact ##{id}"
     when "company", "trust"
       # Company/Trust: prefer company_name_or_trust, fall back to full_name
@@ -229,6 +235,10 @@ class Contact < ApplicationRecord
 
   def is_trust?
     entity_type == "trust"
+  end
+
+  def is_sole_trader?
+    entity_type == "sole_trader"
   end
 
   # Family/Director helpers
@@ -563,6 +573,11 @@ class Contact < ApplicationRecord
         errors.add(:first_name, "is required for person contacts")
       end
       # last_name is optional (only 30% have it currently)
+    when "sole_trader"
+      if first_name.blank?
+        errors.add(:first_name, "is required for sole trader contacts")
+      end
+      # company_name_or_trust is optional (their trading/business name)
     when "company", "trust"
       if company_name_or_trust.blank?
         errors.add(:company_name_or_trust, "is required for #{entity_type} contacts")
