@@ -158,6 +158,35 @@ class EmailToContactExtractionService
               contact.update!(email: new_email)
             end
 
+            # Add phone numbers if provided
+            phones = selection[:phones] || {}
+            if phones[:mobile].present? && !phone_exists_for_contact?(contact, phones[:mobile])
+              contact.contact_phones.create!(
+                phone_number: phones[:mobile],
+                phone_type: 'mobile',
+                is_primary: false,
+                position: contact.contact_phones.count
+              )
+            end
+
+            if phones[:office].present? && !phone_exists_for_contact?(contact, phones[:office])
+              contact.contact_phones.create!(
+                phone_number: phones[:office],
+                phone_type: 'office',
+                is_primary: false,
+                position: contact.contact_phones.count
+              )
+            end
+
+            if phones[:direct].present? && !phone_exists_for_contact?(contact, phones[:direct])
+              contact.contact_phones.create!(
+                phone_number: phones[:direct],
+                phone_type: 'office',
+                is_primary: false,
+                position: contact.contact_phones.count
+              )
+            end
+
             added_emails << {
               contact_id: contact.id,
               contact_name: contact.full_name,
@@ -900,5 +929,12 @@ class EmailToContactExtractionService
         { first_name: name_parts[0], last_name: name_parts[1..-1].join(' ') }
       end
     end
+  end
+
+  # Check if a phone number already exists for a contact
+  def phone_exists_for_contact?(contact, phone_number)
+    return false if phone_number.blank?
+    normalized_phone = normalize_phone(phone_number)
+    contact.contact_phones.exists?(phone_number: normalized_phone)
   end
 end
