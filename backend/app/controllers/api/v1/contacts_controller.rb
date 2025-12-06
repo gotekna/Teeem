@@ -448,6 +448,62 @@ module Api
           }, status: :unprocessable_entity
         end
 
+        # Check for data that requires archiving instead of deletion
+        archive_reasons = []
+
+        # Check for external invoices/bills (Xero, MYOB, QuickBooks)
+        if @contact.external_invoices.any?
+          invoice_count = @contact.external_invoices.active.count
+          invoice_types = @contact.external_invoices.active.pluck(:invoice_type).uniq
+
+          if invoice_count > 0
+            type_labels = invoice_types.map { |t| t == "sales_invoice" ? "invoice" : t }.join(", ")
+            archive_reasons << "#{invoice_count} #{type_labels}#{'s' if invoice_count != 1}"
+          end
+        end
+
+        # Check for contact activities (emails, calls, notes)
+        if @contact.contact_activities.any?
+          activities_count = @contact.contact_activities.count
+          archive_reasons << "#{activities_count} activity record#{'s' if activities_count != 1}"
+        end
+
+        # Check for SMS messages
+        if @contact.sms_messages.any?
+          sms_count = @contact.sms_messages.count
+          archive_reasons << "#{sms_count} SMS message#{'s' if sms_count != 1}"
+        end
+
+        # Check for jobs
+        if @contact.jobs.any?
+          jobs_count = @contact.jobs.count
+          archive_reasons << "#{jobs_count} linked job#{'s' if jobs_count != 1}"
+        end
+
+        # Check for quote responses
+        if @contact.quote_responses.any?
+          quotes_count = @contact.quote_responses.count
+          archive_reasons << "#{quotes_count} quote response#{'s' if quotes_count != 1}"
+        end
+
+        # Check for subcontractor invoices
+        if @contact.subcontractor_invoices.any?
+          sub_invoices_count = @contact.subcontractor_invoices.count
+          archive_reasons << "#{sub_invoices_count} subcontractor invoice#{'s' if sub_invoices_count != 1}"
+        end
+
+        # If there are reasons to archive, do soft delete instead
+        if archive_reasons.any?
+          @contact.update!(is_active: false, deleted: true)
+
+          return render json: {
+            success: true,
+            archived: true,
+            message: "Contact archived (not deleted) to preserve #{archive_reasons.join(', ')}.",
+            archive_reasons: archive_reasons
+          }
+        end
+
         # Check for linked suppliers
         if @contact.suppliers.any?
           suppliers_with_pos = @contact.suppliers.joins(:purchase_orders).distinct

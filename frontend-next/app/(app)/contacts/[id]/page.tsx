@@ -1097,11 +1097,24 @@ export default function ContactDetailPage() {
     }
 
     try {
-      await api.delete(`/api/v1/foundations/contacts/records/${contact.id}`);
+      const response = await api.delete<{
+        success: boolean;
+        archived?: boolean;
+        message?: string;
+        archive_reasons?: string[];
+      }>(`/api/v1/foundations/contacts/records/${contact.id}`);
+
+      // Check if contact was archived instead of deleted
+      if (response.archived) {
+        alert(`✓ ${response.message}\n\nThe contact was archived (not permanently deleted) to preserve important records.`);
+      }
+
       router.push('/contacts');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to delete contact:", error);
-      alert("Failed to delete contact. Please try again.");
+      // Show specific error message from backend if available
+      const errorMessage = error?.message || error?.error || "Failed to delete contact. Please try again.";
+      alert(errorMessage);
     }
   };
 
@@ -1356,10 +1369,12 @@ export default function ContactDetailPage() {
 
       // Delete ALL relationships for removed companies
       for (const companyId of removedIds) {
+        console.log('[Company Change] Fetching relationships to delete for company:', companyId);
         const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${contact.id}/relationships`);
         const relsToDelete = relationshipsResponse.relationships.outgoing.filter(
           (r) => r.target_contact_id.toString() === companyId
         );
+        console.log('[Company Change] Found', relsToDelete.length, 'relationships to delete for company:', companyId);
         for (const rel of relsToDelete) {
           await api.delete(`/api/v1/contacts/${contact.id}/relationships/${rel.id}`);
         }
@@ -1396,6 +1411,7 @@ export default function ContactDetailPage() {
     if (!contact) return;
 
     try {
+      console.log('[Company Roles] Fetching relationships for company:', companyId);
       // Fetch existing relationships for this company
       const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${contact.id}/relationships`);
       const existingRels = relationshipsResponse.relationships.outgoing.filter(
@@ -1403,12 +1419,15 @@ export default function ContactDetailPage() {
       );
 
       const existingRoleTypes = existingRels.map((r) => r.relationship_type);
+      console.log('[Company Roles] Current roles:', existingRoleTypes, 'New roles:', newRoles);
 
       // Find roles to add (in newRoles but not in existingRoleTypes)
       const rolesToAdd = newRoles.filter(role => !existingRoleTypes.includes(role));
 
       // Find roles to remove (in existingRoleTypes but not in newRoles)
       const rolesToRemove = existingRoleTypes.filter((role: string) => !newRoles.includes(role));
+
+      console.log('[Company Roles] Roles to add:', rolesToAdd, 'Roles to remove:', rolesToRemove);
 
       // Create new relationships for added roles
       for (const roleType of rolesToAdd) {
@@ -1429,6 +1448,7 @@ export default function ContactDetailPage() {
         }
       }
 
+      console.log('[Company Roles] Successfully updated roles for company:', companyId);
       // Update local state
       setCompanyRoles({
         ...companyRoles,
@@ -1438,7 +1458,7 @@ export default function ContactDetailPage() {
       // Reload contact data
       await loadContact();
     } catch (err) {
-      console.error("Failed to update company roles:", err);
+      console.error("[Company Roles] Failed to update roles for company:", companyId, "Error:", err);
     }
   };
 
@@ -1526,13 +1546,20 @@ export default function ContactDetailPage() {
       // Delete relationships for removed employees
       for (const personId of removedIds) {
         console.log('[Employee Change] Deleting relationship for person:', personId);
-        const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${personId}/relationships`);
-        const rel = relationshipsResponse.relationships.outgoing.find(
-          (r) => (r.related_contact_id || r.target_contact_id) === contact.id && r.relationship_type === 'employee_of'
-        );
-        if (rel) {
-          await api.delete(`/api/v1/contacts/${personId}/relationships/${rel.id}`);
-          console.log('[Employee Change] Relationship deleted successfully for:', personId);
+        try {
+          const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${personId}/relationships`);
+          const rel = relationshipsResponse.relationships.outgoing.find(
+            (r) => (r.related_contact_id || r.target_contact_id) === contact.id && r.relationship_type === 'employee_of'
+          );
+          if (rel) {
+            await api.delete(`/api/v1/contacts/${personId}/relationships/${rel.id}`);
+            console.log('[Employee Change] Relationship deleted successfully for:', personId);
+          } else {
+            console.log('[Employee Change] No employee_of relationship found for person:', personId);
+          }
+        } catch (err) {
+          console.error('[Employee Change] Failed to fetch/delete relationship for person:', personId, 'Error:', err);
+          // Continue with other deletions even if one fails
         }
       }
 
@@ -1554,6 +1581,7 @@ export default function ContactDetailPage() {
     if (!confirm("Remove this person from the company?")) return;
 
     try {
+      console.log('[Remove Employee] Fetching relationships for employee:', employeeId);
       // Find and delete the employee_of relationship
       const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${employeeId}/relationships`);
       const rel = relationshipsResponse.relationships.outgoing.find(
@@ -1561,11 +1589,15 @@ export default function ContactDetailPage() {
       );
 
       if (rel) {
+        console.log('[Remove Employee] Deleting relationship:', rel.id);
         await api.delete(`/api/v1/contacts/${employeeId}/relationships/${rel.id}`);
         await loadContact();
+        console.log('[Remove Employee] Successfully removed employee:', employeeId);
+      } else {
+        console.log('[Remove Employee] No relationship found for employee:', employeeId);
       }
     } catch (err) {
-      console.error("Failed to remove employee:", err);
+      console.error("[Remove Employee] Failed to remove employee:", employeeId, "Error:", err);
       alert("Failed to remove employee");
     }
   };
@@ -1575,6 +1607,7 @@ export default function ContactDetailPage() {
     if (!contact) return;
 
     try {
+      console.log('[Employee Roles] Fetching relationships for employee:', employeeId);
       // Get current relationships for this employee to this company
       const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${employeeId}/relationships`);
       const currentRels = relationshipsResponse.relationships.outgoing.filter(
@@ -1582,12 +1615,15 @@ export default function ContactDetailPage() {
       );
 
       const currentRoleTypes = currentRels.map((r) => r.relationship_type);
+      console.log('[Employee Roles] Current roles:', currentRoleTypes, 'New roles:', newRoleTypes);
 
       // Find roles to add
       const rolesToAdd = newRoleTypes.filter((rt: string) => !currentRoleTypes.includes(rt));
 
       // Find roles to remove
       const rolesToRemove = currentRoleTypes.filter((rt: string) => !newRoleTypes.includes(rt));
+
+      console.log('[Employee Roles] Roles to add:', rolesToAdd, 'Roles to remove:', rolesToRemove);
 
       // Add new roles
       for (const roleType of rolesToAdd) {
@@ -1608,12 +1644,13 @@ export default function ContactDetailPage() {
         }
       }
 
+      console.log('[Employee Roles] Successfully updated roles for employee:', employeeId);
       // Update local state
       const newEmployeeRoles = { ...employeeRoles };
       newEmployeeRoles[employeeId.toString()] = newRoleTypes;
       setEmployeeRoles(newEmployeeRoles);
     } catch (err) {
-      console.error("Failed to update employee roles:", err);
+      console.error("[Employee Roles] Failed to update roles for employee:", employeeId, "Error:", err);
       alert("Failed to update employee roles");
     }
   };

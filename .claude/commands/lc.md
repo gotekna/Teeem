@@ -1,6 +1,6 @@
 # Deploy This Chat's Changes to Production
 
-**Shortcut:** `/l` (Live - This Chat Only)
+**Shortcut:** `/lc` (Live - this Chat only)
 
 Commits ONLY the changes made in THIS chat session and deploys to production. Stashes any other pending changes from other chats.
 
