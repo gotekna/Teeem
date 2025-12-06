@@ -222,6 +222,8 @@ export function XeroInvoicesList({
               <TableHead>Number</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Due Date</TableHead>
+              <TableHead>Job</TableHead>
+              <TableHead>PO</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead className="text-right">{isInvoice ? "Amount Due" : "Amount Owing"}</TableHead>
@@ -236,6 +238,20 @@ export function XeroInvoicesList({
                 </TableCell>
                 <TableCell>{formatDate(invoice.invoice_date)}</TableCell>
                 <TableCell>{invoice.due_date ? formatDate(invoice.due_date) : '-'}</TableCell>
+                <TableCell className="text-sm">
+                  {invoice.job_title ? (
+                    <span className="text-blue-600">{invoice.job_title}</span>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm">
+                  {(invoice as any).po_number ? (
+                    <span className="font-mono">{(invoice as any).po_number}</span>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
                 <TableCell>{getStatusBadge(invoice.status)}</TableCell>
                 <TableCell className="text-right font-medium">
                   {formatCurrency(invoice.total, invoice.currency_code)}

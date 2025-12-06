@@ -3181,7 +3181,7 @@ export default function ContactDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* Financial Tab with nested sub-tabs (Bank Details, Xero, Bills) */}
+        {/* Financial Tab with nested sub-tabs (Bank Details, Xero, Bills, Jobs, Purchase Orders) */}
         <TabsContent value="financial" className="mt-6">
           <Tabs value={activeFinancialSubTab} onValueChange={handleFinancialSubTabChange}>
             <TabsList className="mb-4">
@@ -3197,6 +3197,16 @@ export default function ContactDetailPage() {
                 <TabsTrigger value="bills">
                   <FileText className="h-3.5 w-3.5 mr-1" />
                   Bills
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="jobs">
+                <Briefcase className="h-3.5 w-3.5 mr-1" />
+                Jobs
+              </TabsTrigger>
+              {contact["is_supplier?"] && (
+                <TabsTrigger value="purchase-orders">
+                  <FileText className="h-3.5 w-3.5 mr-1" />
+                  Purchase Orders
                 </TabsTrigger>
               )}
             </TabsList>
@@ -3317,6 +3327,102 @@ export default function ContactDetailPage() {
                 />
               </div>
             </TabsContent>
+
+            {/* Bills Sub-Tab */}
+            {contact["is_supplier?"] && (
+              <TabsContent value="bills" className="mt-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Bills</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <XeroInvoicesList
+                      contactId={contact.id}
+                      type="ACCPAY"
+                      onViewInvoiceDetail={handleViewInvoiceDetail}
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
+
+            {/* Jobs Sub-Tab */}
+            <TabsContent value="jobs" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Jobs</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(contact as any).related_jobs && (contact as any).related_jobs.length > 0 ? (
+                    <div className="space-y-3">
+                      {(contact as any).related_jobs.map((job: any) => (
+                        <div key={job.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                          <Link
+                            href={`/jobs/${job.id}`}
+                            className="font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                          >
+                            {job.title || `Job #${job.id}`}
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
+                          {job.status && (
+                            <Badge variant="secondary" className="mt-2">
+                              {job.status}
+                            </Badge>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">
+                      No jobs associated with this contact.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Purchase Orders Sub-Tab */}
+            {contact["is_supplier?"] && (
+              <TabsContent value="purchase-orders" className="mt-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Purchase Orders</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {(contact as any).purchase_orders && (contact as any).purchase_orders.length > 0 ? (
+                      <div className="space-y-3">
+                        {(contact as any).purchase_orders.map((po: any) => (
+                          <div key={po.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="font-semibold">PO #{po.po_number || po.id}</div>
+                                {po.job_title && (
+                                  <div className="text-sm text-muted-foreground mt-1">
+                                    Job: {po.job_title}
+                                  </div>
+                                )}
+                                {po.total && (
+                                  <div className="text-sm font-medium mt-2">
+                                    Total: ${po.total.toLocaleString()}
+                                  </div>
+                                )}
+                              </div>
+                              {po.status && (
+                                <Badge variant="secondary">{po.status}</Badge>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-center py-8">
+                        No purchase orders for this supplier.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
           </Tabs>
         </TabsContent>
 

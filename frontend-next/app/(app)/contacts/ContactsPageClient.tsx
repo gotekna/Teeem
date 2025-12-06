@@ -28,7 +28,6 @@ import {
   Merge,
   Building2,
   User,
-  Truck,
   CheckCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -118,7 +117,6 @@ export default function ContactsPageClient({
     if (tabParam === "person" || tabParam === "persons") return "persons";
     if (tabParam === "company" || tabParam === "companies") return "companies";
     if (tabParam === "trust" || tabParam === "trusts") return "trusts";
-    if (tabParam === "supplier" || tabParam === "suppliers") return "suppliers";
     return "all";
   };
 
@@ -259,7 +257,6 @@ export default function ContactsPageClient({
     persons: records.filter((c) => c.entity_type === "person").length,
     companies: records.filter((c) => c.entity_type === "company").length,
     trusts: records.filter((c) => c.entity_type === "trust").length,
-    suppliers: records.filter((c) => c.entity_type === "default_supplier").length,
     withXero: records.filter((c) => c.xero_id || c.xero_synced).length,
   }), [records]);
 
@@ -272,8 +269,6 @@ export default function ContactsPageClient({
         return records.filter((c) => c.entity_type === "company");
       case "trusts":
         return records.filter((c) => c.entity_type === "trust");
-      case "suppliers":
-        return records.filter((c) => c.entity_type === "default_supplier");
       default:
         return records;
     }
@@ -343,7 +338,7 @@ export default function ContactsPageClient({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
@@ -382,15 +377,6 @@ export default function ContactsPageClient({
             <div className="text-2xl font-bold font-mono mt-2">{stats.companies}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Truck className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Suppliers</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.suppliers}</div>
-          </CardContent>
-        </Card>
         <Card className={duplicateGroups.length > 0 ? "border-yellow-300 bg-yellow-50 dark:bg-yellow-900/10" : ""}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
@@ -411,7 +397,6 @@ export default function ContactsPageClient({
           <TabsTrigger value="persons">Persons</TabsTrigger>
           <TabsTrigger value="companies">Companies</TabsTrigger>
           <TabsTrigger value="trusts">Trusts</TabsTrigger>
-          <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
           <TabsTrigger value="duplicates" className="relative">
             Duplicates
             {duplicateGroups.length > 0 && (
