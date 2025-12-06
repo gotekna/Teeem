@@ -2940,11 +2940,11 @@ export default function CaseDetailPage() {
                                 </p>
                               )}
                             </div>
-                            {event.metadata && Object.keys(event.metadata).length > 0 && (
+                            {event.metadata && Object.keys(event.metadata).length > 0 ? (
                               <Button variant="ghost" size="sm">
                                 <ExternalLink className="h-4 w-4" />
                               </Button>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                       </div>
