@@ -1241,7 +1241,12 @@ export default function TeeemTableView({
         console.log('[Bulk Update] Foundation ID:', foundationIdNumeric);
         console.log('[Bulk Update] Payload:', JSON.stringify(payload, null, 2));
 
-        const response = await api.post(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_update`, payload);
+        const response = await api.post<{
+          success: boolean;
+          updated_count: number;
+          total_requested: number;
+          errors?: Array<{ id: number; errors: string[] }>;
+        }>(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_update`, payload);
         console.log('[Bulk Update] API response:', response);
 
         // Check if the update was actually successful
