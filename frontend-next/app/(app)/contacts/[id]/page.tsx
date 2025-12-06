@@ -502,7 +502,7 @@ export default function ContactDetailPage() {
     const fetchCompanies = async () => {
       setLoadingCompanies(true);
       try {
-        const response = await api.get("/contacts", {
+        const response: any = await api.get("/contacts", {
           params: { entity_type: "company" },
         });
         const companies = response.data.contacts || [];

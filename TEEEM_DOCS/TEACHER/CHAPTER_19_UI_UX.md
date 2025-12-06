@@ -313,7 +313,9 @@ import TEEEMTableView from '../components/documentation/TEEEMTableView'
 
 **Backend Service:** `backend/app/services/column_type_validator.rb`
 **Backend Concern:** `backend/app/models/concerns/auto_column_validation.rb`
-**Frontend Validation:** `frontend-next/components/table/TeeemTableView.tsx` → `validateCell()`
+**Frontend Validation:** `frontend-next/components/table/core/column-renderer/CellValidation.tsx` → `validateCell()`
+
+**Note:** Validation logic was extracted from TeeemTableView during modular refactoring (commit 917c571f).
 
 The column validation system ensures ALL tables enforce the same validation rules automatically. Define a column type once → validation applies everywhere.
 

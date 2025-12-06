@@ -147,12 +147,14 @@ leftActions  always    saved views    customActions    auto when   dropdown
 **DO NOT duplicate this in page components.** The Filters button and GlobalViewsManager are built into TeeemTableView:
 
 1. **Filters Button**: Rendered automatically in toolbar when `foundationIdNumeric` is set
-   - Location: `TeeemTableView.tsx` line ~4247
+   - Location: `TeeemTableView.tsx` → Toolbar section with GlobalViewsManager integration
    - Opens `showGlobalViewsManager` state
+   - Note: TeeemTableView refactored into modular structure (see core/ subdirectories)
 
 2. **GlobalViewsManager**: Rendered at end of component when `foundationIdNumeric` is set
-   - Location: `TeeemTableView.tsx` line ~5448
+   - Location: `TeeemTableView.tsx` → End of component JSX (GlobalViewsManager component)
    - Receives columns transformed from COLUMNS array
+   - Note: View management logic moved to core/hooks/ during modular refactoring
    - Calls `onRefresh` when views change
    - Calls `loadViewState` when a view is applied
 
@@ -227,6 +229,19 @@ Some tables display data where users cannot add, edit, or delete records. Use th
 | Categories | `column_types_controller.rb` → `categorize_column_type()` | Section headers above |
 | Frontend Cache | `frontend-next/lib/column-types.ts` | Generated from API |
 | System Columns | `TeeemTableView.tsx` → `SYSTEM_GENERATED_TYPES` | Section: System-Generated |
+
+**Architecture Note (2025-12-06):**
+
+TeeemTableView was refactored from a monolithic file (~6,000 lines) into a modular structure. Components are now organized in `/core` subdirectories:
+- **Main component:** `frontend-next/components/table/TeeemTableView.tsx` (3,520 lines)
+- **Cell rendering:** `core/column-renderer/` - Cell display, validation, formatting (CellValidation.tsx: 549 lines)
+- **State management:** `core/state/` - useState hooks extracted
+- **Custom hooks:** `core/hooks/` - useTableSchema, useExport, table handlers
+- **Filtering logic:** `core/filtering/` - FilterEvaluator
+- **Table sections:** `core/table-sections/` - Header, Footer, Body components
+- **Cell components:** `core/cell-components/` - Individual cell type components
+
+See commits 917c571f (Phase 1 & 2) and 0f07ddab (Phase 3) for refactoring details.
 
 ---
 
