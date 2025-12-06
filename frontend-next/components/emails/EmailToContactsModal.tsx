@@ -324,9 +324,32 @@ export function EmailToContactsModal({
       }
     } catch (error: any) {
       console.error("Error creating contacts:", error);
+      console.error("Error details:", {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+
+      // Handle errors array from backend
+      const errors = error.response?.data?.errors || [];
+      const errorMessage = error.response?.data?.error;
+
+      let description = errorMessage || "Failed to create contacts";
+
+      if (errors.length > 0) {
+        // Format errors array into readable message
+        const errorMessages = errors.map((err: any) => {
+          if (typeof err === 'string') return err;
+          if (err.email && err.error) return `${err.email}: ${err.error}`;
+          if (err.error) return err.error;
+          return JSON.stringify(err);
+        });
+        description = errorMessages.join('\n');
+      }
+
       toast({
-        title: "Error",
-        description: error.response?.data?.error || "Failed to create contacts",
+        title: "Error Creating Contacts",
+        description: description,
         variant: "destructive",
       });
     } finally {
