@@ -30,7 +30,7 @@ export interface ActionsButtonsProps<T = unknown> {
   onEdit?: (entry: T) => void;
 
   /** Callback to update the row (inline editing) */
-  onRowUpdate?: (row: T, updates: Record<string, unknown>) => Promise<boolean>;
+  onRowUpdate?: (rowId: number | string, field: string, value: unknown) => void;
 
   /** Callback to delete the row */
   onDelete?: (entry: T) => void;

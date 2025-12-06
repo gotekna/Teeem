@@ -81,8 +81,8 @@ function XeroConnection() {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      const data = await api.get<{ auth_url: string }>("/api/v1/xero/auth_url");
-      window.location.href = data.auth_url;
+      const data = await api.get<{ url: string }>("/api/v1/xero/auth_url");
+      window.location.href = data.url;
     } catch (error) {
       console.error("Failed to get auth URL:", error);
       toast({ title: "Error", description: "Failed to initiate Xero connection", variant: "destructive" });

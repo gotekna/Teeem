@@ -206,10 +206,23 @@ import { SelectCheckbox, ActionsButtons, EditingActionsButtons } from "./core/ce
 // Column renderer registry (Phase 4 refactoring)
 import { renderCell as renderCellWithRegistry } from "./core/column-renderer/ColumnRenderer";
 
+// Table sections (Phase 6 refactoring)
+import { TableHeaderSection, TableFooterSection } from "./core/table-sections";
+
+// Modals (Phase 7 refactoring)
+import { ExportModal } from "./modals/ExportModal";
+import { BulkUpdateModal } from "./modals/BulkUpdateModal";
+import { SaveViewModal } from "./modals/SaveViewModal";
+import { SchemaModals } from "./modals/SchemaModals";
+import { EditColumnsModal } from "./modals/EditColumnsModal";
+
+// Handler hooks (Phase 5 refactoring)
+import { useExportHandlers } from "./core/hooks/useExportHandlers";
+import { useSchemaHandlers } from "./core/hooks/useSchemaHandlers";
+
 // Extracted utilities (Phase 1 refactoring)
 import { extractSelectedIds, formatCellValue, truncateText } from "./utils/table-utils";
 import { getLookupOptions, fetchLookupOptionsForTable, invalidateLookupCache, lookupCache, lookupFetchPromises } from "./utils/lookup-cache";
-import { exportToCSV, exportToExcel, exportToPDF, getSuggestedFilename } from "./utils/export-utils";
 
 // Jotai atoms for centralized state management (SSoT)
 import { useAtom, useSetAtom, useAtomValue } from 'jotai';
@@ -1432,135 +1445,6 @@ export default function TeeemTableView({
   }, [editingRowIds, isDropdownColumn, onRowUpdate, startCellEdit]);
 
   // ============================================================================
-  // SCHEMA HANDLERS
-  // ============================================================================
-
-  // Create new column
-  const handleCreateColumn = useCallback(async () => {
-    if (!newColumnName.trim()) {
-      toast({ title: "Error", description: "Column name is required", variant: "destructive" });
-      return;
-    }
-
-    setSchemaLoading(true);
-    try {
-      if (onCreateColumn) {
-        onCreateColumn();
-      } else if (foundationIdNumeric) {
-        // Default implementation: call API
-        await api.post(`/api/v1/foundations/${foundationIdNumeric}/columns`, {
-          column: {
-            name: newColumnName,
-            column_name: newColumnName.toLowerCase().replace(/\s+/g, "_"),
-            column_type: newColumnType,
-          },
-        });
-        toast({ title: "Success", description: `Column "${newColumnName}" created` });
-        onRefresh?.();
-      }
-      setShowCreateColumnModal(false);
-      setNewColumnName("");
-      setNewColumnType("text");
-    } catch (error) {
-      console.error("Failed to create column:", error);
-      toast({ title: "Error", description: "Failed to create column", variant: "destructive" });
-    } finally {
-      setSchemaLoading(false);
-    }
-  }, [newColumnName, newColumnType, foundationIdNumeric, onCreateColumn, onRefresh, toast]);
-
-  // Delete column
-  const handleDeleteColumn = useCallback(async () => {
-    if (!selectedColumnToDelete) {
-      toast({ title: "Error", description: "Please select a column to delete", variant: "destructive" });
-      return;
-    }
-
-    setSchemaLoading(true);
-    try {
-      if (onDeleteColumn) {
-        onDeleteColumn();
-      } else if (foundationIdNumeric) {
-        // Find column ID
-        const col = COLUMNS.find((c) => c.key === selectedColumnToDelete);
-        if (col && "id" in col) {
-          await api.delete(`/api/v1/foundations/${foundationIdNumeric}/columns/${(col as { id: number }).id}`);
-          toast({ title: "Success", description: `Column deleted` });
-          onRefresh?.();
-        }
-      }
-      setShowDeleteColumnModal(false);
-      setSelectedColumnToDelete("");
-    } catch (error) {
-      console.error("Failed to delete column:", error);
-      toast({ title: "Error", description: "Failed to delete column", variant: "destructive" });
-    } finally {
-      setSchemaLoading(false);
-    }
-  }, [selectedColumnToDelete, foundationIdNumeric, COLUMNS, onDeleteColumn, onRefresh, toast]);
-
-  // Copy table ID to clipboard
-  const handleCopyTableId = useCallback(() => {
-    if (foundationIdNumeric) {
-      navigator.clipboard.writeText(String(foundationIdNumeric));
-      toast({ title: "Copied", description: `Table ID ${foundationIdNumeric} copied to clipboard` });
-    }
-  }, [foundationIdNumeric, toast]);
-
-  // Open column edit modal
-  const handleOpenColumnEdit = useCallback((columnKey: string) => {
-    const col = COLUMNS.find((c) => c.key === columnKey);
-    if (col) {
-      setEditingColumnKey(columnKey);
-      setEditColumnName(col.label);
-      setEditColumnType(col.column_type || "text");
-      setShowEditColumnModal(true);
-    }
-  }, [COLUMNS]);
-
-  // Save column changes
-  const handleSaveColumnChanges = useCallback(async () => {
-    if (!editingColumnKey) return;
-
-    setSchemaLoading(true);
-    try {
-      if (foundationIdNumeric) {
-        // Call API to update column
-        const col = COLUMNS.find((c) => c.key === editingColumnKey);
-        if (col && "id" in col) {
-          await api.patch(`/api/v1/foundations/${foundationIdNumeric}/columns/${(col as { id: number }).id}`, {
-            column: {
-              name: editColumnName,
-              column_type: editColumnType,
-            },
-          });
-          toast({ title: "Success", description: "Column updated successfully" });
-          // Trigger refresh callback to reload data
-          onColumnUpdate?.();
-          onRefresh?.();
-        }
-      }
-      setShowEditColumnModal(false);
-      setEditingColumnKey(null);
-    } catch (error) {
-      console.error("Failed to update column:", error);
-      toast({ title: "Error", description: "Failed to update column", variant: "destructive" });
-    } finally {
-      setSchemaLoading(false);
-    }
-  }, [editingColumnKey, editColumnName, editColumnType, foundationIdNumeric, COLUMNS, onColumnUpdate, onRefresh, toast]);
-
-  // Toggle column edit mode
-  const toggleColumnEditMode = useCallback(() => {
-    setColumnEditMode((prev) => !prev);
-    if (columnEditMode) {
-      toast({ title: "Edit Mode Off", description: "Column editing disabled" });
-    } else {
-      toast({ title: "Edit Mode On", description: "Click the cog icon on any column to edit it" });
-    }
-  }, [columnEditMode, toast]);
-
-  // ============================================================================
   // SAVED VIEWS
   // ============================================================================
 
@@ -2205,219 +2089,67 @@ export default function TeeemTableView({
     }
   };
 
-  // Export handler - exports to CSV
-  const handleExportCSV = useCallback(() => {
-    const columnsToExport = exportScope === "visible" ? visibleDataColumns : allDataColumns;
+  // ============================================================================
+  // EXPORT HANDLERS (Phase 5 refactoring - extracted to useExportHandlers hook)
+  // ============================================================================
 
-    // Helper to escape CSV values
-    const escapeCSV = (value: unknown): string => {
-      if (value === null || value === undefined) return "";
-      const str = String(value);
-      // If contains comma, quote, or newline, wrap in quotes and escape existing quotes
-      if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
+  const exportHandlers = useExportHandlers({
+    exportScope,
+    visibleDataColumns,
+    allDataColumns,
+    filteredAndSortedEntries,
+    tableName,
+    toast,
+    onExportComplete: () => setShowExportModal(false),
+  });
 
-    // Build header row
-    const headers = columnsToExport.map((col) => escapeCSV(col.label || col.key));
-
-    // Build data rows from filtered/sorted entries
-    const rows = filteredAndSortedEntries.map((entry) => {
-      return columnsToExport.map((col) => {
-        const value = entry[col.key];
-        // Handle objects (like nested relations)
-        if (typeof value === "object" && value !== null) {
-          if ("name" in value) return escapeCSV((value as { name: string }).name);
-          if ("label" in value) return escapeCSV((value as { label: string }).label);
-          return escapeCSV(JSON.stringify(value));
-        }
-        return escapeCSV(value);
-      });
-    });
-
-    // Combine into CSV string
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-
-    // Create and download blob
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const timestamp = new Date().toISOString().split("T")[0];
-    const scopeLabel = exportScope === "visible" ? "visible" : "all";
-    a.download = `${tableName.toLowerCase().replace(/\s+/g, "-")}-${scopeLabel}-${timestamp}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    // Close modal and show toast
-    setShowExportModal(false);
-    toast({
-      title: "Export Complete",
-      description: `Exported ${filteredAndSortedEntries.length} rows with ${columnsToExport.length} columns`,
-    });
-  }, [exportScope, visibleDataColumns, allDataColumns, filteredAndSortedEntries, tableName, toast]);
-
-  // Export handler - exports to Excel
-  const handleExportExcel = useCallback(async () => {
-    const columnsToExport = exportScope === "visible" ? visibleDataColumns : allDataColumns;
-
-    // Dynamic import exceljs to avoid SSR issues
-    const ExcelJS = await import('exceljs');
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet(tableName.slice(0, 31)); // Sheet name max 31 chars
-
-    // Build headers
-    const headers = columnsToExport.map((col) => col.label || col.key);
-
-    // Add header row with styling
-    const headerRow = worksheet.addRow(headers);
-    headerRow.font = { bold: true };
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' }
-    };
-
-    // Add data rows
-    filteredAndSortedEntries.forEach((entry) => {
-      const rowData = columnsToExport.map((col) => {
-        const value = entry[col.key];
-        // Handle objects (like nested relations)
-        if (typeof value === "object" && value !== null) {
-          if ("name" in value) return (value as { name: string }).name;
-          if ("label" in value) return (value as { label: string }).label;
-          return JSON.stringify(value);
-        }
-        return value;
-      });
-      worksheet.addRow(rowData);
-    });
-
-    // Auto-size columns
-    worksheet.columns.forEach((column, i) => {
-      let maxLen = String(headers[i] || '').length;
-      column.eachCell?.({ includeEmpty: true }, (cell) => {
-        const cellLen = String(cell.value || '').length;
-        if (cellLen > maxLen) maxLen = cellLen;
-      });
-      column.width = Math.min(maxLen + 2, 50);
-    });
-
-    // Generate and download
-    const timestamp = new Date().toISOString().split("T")[0];
-    const scopeLabel = exportScope === "visible" ? "visible" : "all";
-    const fileName = `${tableName.toLowerCase().replace(/\s+/g, "-")}-${scopeLabel}-${timestamp}.xlsx`;
-
-    // Write to buffer and trigger download
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    // Close modal and show toast
-    setShowExportModal(false);
-    toast({
-      title: "Export Complete",
-      description: `Exported ${filteredAndSortedEntries.length} rows to Excel`,
-    });
-  }, [exportScope, visibleDataColumns, allDataColumns, filteredAndSortedEntries, tableName, toast]);
-
-  // Export handler - exports to PDF
-  const handleExportPDF = useCallback(async () => {
-    const columnsToExport = exportScope === "visible" ? visibleDataColumns : allDataColumns;
-
-    // Dynamic imports to avoid SSR issues
-    const { default: jsPDF } = await import('jspdf');
-    const { default: autoTable } = await import('jspdf-autotable');
-
-    // Create PDF document
-    const doc = new jsPDF({
-      orientation: columnsToExport.length > 6 ? 'landscape' : 'portrait',
-      unit: 'mm',
-      format: 'a4',
-    });
-
-    // Add title
-    doc.setFontSize(16);
-    doc.text(tableName, 14, 15);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Exported: ${new Date().toLocaleString()}`, 14, 22);
-    doc.text(`Rows: ${filteredAndSortedEntries.length} | Columns: ${columnsToExport.length}`, 14, 27);
-
-    // Build table data
-    const headers = columnsToExport.map((col) => col.label || col.key);
-    const data = filteredAndSortedEntries.map((entry) => {
-      return columnsToExport.map((col) => {
-        const value = entry[col.key];
-        // Handle objects (like nested relations)
-        if (typeof value === "object" && value !== null) {
-          if ("name" in value) return (value as { name: string }).name;
-          if ("label" in value) return (value as { label: string }).label;
-          return JSON.stringify(value);
-        }
-        // Truncate long values for PDF readability
-        const strVal = String(value ?? '');
-        return strVal.length > 50 ? strVal.slice(0, 47) + '...' : strVal;
-      });
-    });
-
-    // Add table using autoTable
-    autoTable(doc, {
-      head: [headers],
-      body: data,
-      startY: 32,
-      styles: {
-        fontSize: 8,
-        cellPadding: 2,
-      },
-      headStyles: {
-        fillColor: [59, 130, 246], // Blue header
-        textColor: 255,
-        fontStyle: 'bold',
-      },
-      alternateRowStyles: {
-        fillColor: [245, 247, 250],
-      },
-      margin: { top: 32 },
-    });
-
-    // Generate and download
-    const timestamp = new Date().toISOString().split("T")[0];
-    const scopeLabel = exportScope === "visible" ? "visible" : "all";
-    doc.save(`${tableName.toLowerCase().replace(/\s+/g, "-")}-${scopeLabel}-${timestamp}.pdf`);
-
-    // Close modal and show toast
-    setShowExportModal(false);
-    toast({
-      title: "Export Complete",
-      description: `Exported ${filteredAndSortedEntries.length} rows to PDF`,
-    });
-  }, [exportScope, visibleDataColumns, allDataColumns, filteredAndSortedEntries, tableName, toast]);
+  const { handleExportCSV, handleExportExcel, handleExportPDF } = exportHandlers;
 
   // Master export handler that routes to the correct format
   const handleExport = useCallback(() => {
-    switch (exportFormat) {
-      case 'excel':
-        handleExportExcel();
-        break;
-      case 'pdf':
-        handleExportPDF();
-        break;
-      default:
-        handleExportCSV();
-    }
-  }, [exportFormat, handleExportCSV, handleExportExcel, handleExportPDF]);
+    exportHandlers.handleExport(exportFormat);
+  }, [exportFormat, exportHandlers]);
+
+  // ============================================================================
+  // SCHEMA HANDLERS (Phase 5 refactoring - extracted to useSchemaHandlers hook)
+  // ============================================================================
+
+  const schemaHandlers = useSchemaHandlers({
+    foundationIdNumeric,
+    COLUMNS,
+    toast,
+    onRefresh,
+    onCreateColumn,
+    onDeleteColumn,
+    onColumnUpdate,
+    setSchemaLoading,
+    setShowCreateColumnModal,
+    setNewColumnName,
+    setNewColumnType,
+    setShowDeleteColumnModal,
+    setSelectedColumnToDelete,
+    setShowEditColumnModal,
+    setEditingColumnKey,
+    setEditColumnName,
+    setEditColumnType,
+    setColumnEditMode,
+    newColumnName,
+    newColumnType,
+    selectedColumnToDelete,
+    editingColumnKey,
+    editColumnName,
+    editColumnType,
+    columnEditMode,
+  });
+
+  const {
+    handleCreateColumn,
+    handleDeleteColumn,
+    handleOpenColumnEdit,
+    handleSaveColumnChanges,
+    handleCopyTableId,
+    toggleColumnEditMode,
+  } = schemaHandlers;
 
   // ============================================================================
   // CELL RENDERING
@@ -3854,134 +3586,37 @@ export default function TeeemTableView({
   }, [STICKY_COLUMNS, visibleColumnsInOrder, columnWidths]);
 
   // Render table header
-  const renderTableHeader = () => {
-    const isStickyColumn = (key: string) => STICKY_COLUMNS.includes(key) || key === 'actions';
+  // Table header render (Phase 6 refactoring - extracted to TableHeaderSection component)
+  const renderTableHeader = () => (
+    <TableHeaderSection
+      visibleColumnsInOrder={visibleColumnsInOrder}
+      columnWidths={columnWidths}
+      selectedRows={selectedRows}
+      filteredAndSortedEntries={filteredAndSortedEntries}
+      sortColumns={sortColumns}
+      groupByColumn={groupByColumn}
+      columnEditMode={columnEditMode}
+      toggleSelectAll={toggleSelectAll}
+      handleColumnResize={handleColumnResize}
+      handleSort={handleSort}
+      hideColumn={hideColumn}
+      handleGroupByColumn={handleGroupByColumn}
+      addFilterForColumn={addFilterForColumn}
+      handleOpenColumnEdit={handleOpenColumnEdit}
+      getStickyColumnStyles={getStickyColumnStyles}
+      isSystemGeneratedColumn={isSystemGeneratedColumn}
+    />
+  );
 
-    return (
-      <TableHeader>
-        <TableRow>
-          {visibleColumnsInOrder.map((column, colIndex) => {
-            const stickyStyles = getStickyColumnStyles(column.key, true);
-            const isSticky = isStickyColumn(column.key);
-            const isSystemGen = isSystemGeneratedColumn(column);
-
-            return (
-              <TableHead
-                key={`${column.key}-${colIndex}`}
-                style={{
-                  width: columnWidths[column.key] || column.width,
-                  minWidth: columnWidths[column.key] || column.width || 50,
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: isSticky ? 30 : 20,
-                  ...stickyStyles,
-                  ...(column.key === "select" && {
-                    textAlign: 'center',
-                    verticalAlign: 'middle',
-                  }),
-                  ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
-                    backgroundColor: SYSTEM_COLUMN_BG,
-                  }),
-                }}
-                className={cn(
-                  "relative",
-                  column.key === "select" && "!border-r-0 !p-0 !h-full",
-                  column.key === "actions" && "!border-l-0"
-                )}
-                title={isSystemGen ? "System-generated column (read-only)" : undefined}
-              >
-                {column.key === "select" ? (
-                  <Checkbox
-                    checked={
-                      selectedRows.size === filteredAndSortedEntries.length &&
-                      filteredAndSortedEntries.length > 0
-                    }
-                    onCheckedChange={toggleSelectAll}
-                  />
-                ) : column.key === "actions" ? (
-                  <span className="truncate">{column.label}</span>
-                ) : (
-                  <ResizableColumnHeader
-                    column={column}
-                    width={columnWidths[column.key]}
-                    onResize={handleColumnResize}
-                    onSort={handleSort}
-                    onHide={hideColumn}
-                    onGroupBy={handleGroupByColumn}
-                    onAddFilter={addFilterForColumn}
-                    onEdit={handleOpenColumnEdit}
-                    sortInfo={sortColumns.find((s) => s.column === column.key)}
-                    isGroupedBy={groupByColumn === column.key}
-                    isEditMode={columnEditMode}
-                  >
-                    <span className="truncate">{column.label}</span>
-                  </ResizableColumnHeader>
-                )}
-              </TableHead>
-            );
-          })}
-        </TableRow>
-      </TableHeader>
-    );
-  };
-
-  // Render table footer with calculated totals for numeric columns
-  const renderTableFooter = (rows: TableRowType[] = filteredAndSortedEntries) => {
-    // Check if any visible columns are numeric
-    const numericTypes = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
-    const hasNumericColumns = visibleColumnsInOrder.some(
-      col => col.column_type && numericTypes.includes(col.column_type)
-    );
-
-    if (!hasNumericColumns || rows.length === 0) return null;
-
-    return (
-      <tfoot className="bg-muted/50 border-t-2 font-medium">
-        <tr>
-          {visibleColumnsInOrder.map((column, colIndex) => {
-            // Skip id column and other non-summable columns
-            const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'design_id', 'user_id'];
-            const isNumeric = column.column_type && numericTypes.includes(column.column_type) && !skipColumns.includes(column.key);
-            let total: number | null = null;
-
-            if (isNumeric) {
-              total = rows.reduce((sum, row) => {
-                const val = row[column.key];
-                const num = typeof val === 'number' ? val : parseFloat(String(val || 0));
-                return sum + (isNaN(num) ? 0 : num);
-              }, 0);
-            }
-
-            const stickyStyles = getStickyColumnStyles(column.key, true);
-
-            return (
-              <td
-                key={`footer-${column.key}-${colIndex}`}
-                className="px-3 py-2 text-sm"
-                style={{
-                  width: columnWidths[column.key] || column.width,
-                  ...stickyStyles,
-                }}
-              >
-                {column.key === "select" ? (
-                  <span className="text-xs text-muted-foreground">Total</span>
-                ) : isNumeric && total !== null ? (
-                  <span>
-                    {column.column_type === 'currency'
-                      ? `$${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      : column.column_type === 'percentage'
-                      ? `${total.toFixed(1)}%`
-                      : total.toLocaleString(undefined, { maximumFractionDigits: 2 })
-                    }
-                  </span>
-                ) : null}
-              </td>
-            );
-          })}
-        </tr>
-      </tfoot>
-    );
-  };
+  // Table footer render (Phase 6 refactoring - extracted to TableFooterSection component)
+  const renderTableFooter = (rows: TableRowType[] = filteredAndSortedEntries) => (
+    <TableFooterSection
+      visibleColumnsInOrder={visibleColumnsInOrder}
+      columnWidths={columnWidths}
+      rows={rows}
+      getStickyColumnStyles={getStickyColumnStyles}
+    />
+  );
 
   // Render group navigation with nested data tables (Panel mode)
   const renderGroupNavigation = (
@@ -5053,512 +4688,57 @@ export default function TeeemTableView({
       </div>
 
       {/* Bulk Update Modal */}
-      <Dialog open={showBulkUpdateModal} onOpenChange={setShowBulkUpdateModal}>
-        <DialogContent className="sm:max-w-md p-6">
-          <DialogHeader>
-            <DialogTitle>Bulk Update</DialogTitle>
-            <DialogDescription>
-              Update {selectedRows.size} selected row{selectedRows.size !== 1 ? "s" : ""}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6 py-4">
-            <div className="space-y-2">
-              <Label>Column to update</Label>
-              <ComboboxDropdown
-                items={COLUMNS.filter(
-                  (c) =>
-                    c.key !== "select" &&
-                    c.key !== "actions" &&
-                    c.key !== "id" &&
-                    c.editable !== false
-                )
-                  .sort((a, b) => a.label.localeCompare(b.label))
-                  .map((col) => ({
-                    id: col.key,
-                    label: col.label,
-                  }))}
-                selectedItem={bulkUpdateColumn ? { id: bulkUpdateColumn, label: COLUMNS.find(c => c.key === bulkUpdateColumn)?.label || bulkUpdateColumn } : undefined}
-                onSelect={(item) => {
-                  setBulkUpdateColumn(item.id);
-                  setBulkUpdateValue(""); // Reset value when column changes
-                }}
-                placeholder="Select column..."
-                searchPlaceholder="Search columns..."
-              />
-            </div>
-
-            {bulkUpdateColumn && (
-              <div className="space-y-2">
-                <Label>New value</Label>
-                {(() => {
-                  const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
-                  const hasChoices = selectedCol?.choices && selectedCol.choices.length > 0;
-                  const isLookup = selectedCol?.column_type === 'lookup' || selectedCol?.lookup_config;
-                  const isMultipleLookups = selectedCol?.column_type === 'multiple_lookups';
-                  const isChoice = selectedCol?.column_type === 'choice' || selectedCol?.column_type === 'single_select';
-
-                  // Debug logging removed to prevent console flooding
-
-                  // For multiple_lookups columns, show checkboxes for multi-select
-                  if (isMultipleLookups) {
-                    const options = lookupOptions[bulkUpdateColumn] || [];
-                    const isLoading = lookupLoading[bulkUpdateColumn];
-                    // bulkUpdateValue stores comma-separated IDs for multiple lookups
-                    const selectedIds = bulkUpdateValue ? bulkUpdateValue.split(',').filter(Boolean) : [];
-
-                    return (
-                      <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto space-y-2">
-                        {isLoading ? (
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Loading options...
-                          </div>
-                        ) : options.length === 0 ? (
-                          <p className="text-muted-foreground text-sm">No options available</p>
-                        ) : (
-                          options.map((option) => (
-                            <label key={option.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
-                              <Checkbox
-                                checked={selectedIds.includes(String(option.id))}
-                                onCheckedChange={(checked) => {
-                                  const newIds = checked
-                                    ? [...selectedIds, String(option.id)]
-                                    : selectedIds.filter(id => id !== String(option.id));
-                                  setBulkUpdateValue(newIds.join(','));
-                                }}
-                              />
-                              <span className="text-sm">{option.display}</span>
-                            </label>
-                          ))
-                        )}
-                      </div>
-                    );
-                  }
-
-                  // For single lookup columns, use the lookupOptions if available
-                  if (isLookup) {
-                    const options = lookupOptions[bulkUpdateColumn] || [];
-                    const isLoading = lookupLoading[bulkUpdateColumn];
-
-                    return (
-                      <Select
-                        value={bulkUpdateValue}
-                        onValueChange={setBulkUpdateValue}
-                      >
-                        <SelectTrigger className="w-full">
-                          {isLoading ? (
-                            <span className="text-muted-foreground">Loading...</span>
-                          ) : (
-                            <SelectValue placeholder="Select value..." />
-                          )}
-                        </SelectTrigger>
-                        <SelectContent>
-                          {options.length === 0 && !isLoading && (
-                            <SelectItem value="__no_options__" disabled>
-                              No options available
-                            </SelectItem>
-                          )}
-                          {options.map((option) => (
-                            <SelectItem key={option.id} value={String(option.id)}>
-                              {option.display}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    );
-                  }
-
-                  if (hasChoices || isChoice) {
-                    // Dropdown for choice columns with predefined options
-                    const options = selectedCol?.choices || [];
-                    // Debug logging removed to prevent console flooding
-                    return (
-                      <Select
-                        value={bulkUpdateValue}
-                        onValueChange={setBulkUpdateValue}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select value..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {options.length === 0 && (
-                            <SelectItem value="__no_options__" disabled>
-                              No options available
-                            </SelectItem>
-                          )}
-                          {options.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    );
-                  } else if (selectedCol?.column_type === 'boolean') {
-                    // Dropdown for boolean
-                    return (
-                      <Select
-                        value={bulkUpdateValue}
-                        onValueChange={setBulkUpdateValue}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select value..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    );
-                  } else {
-                    // Text input for other columns
-                    return (
-                      <Input
-                        value={bulkUpdateValue}
-                        onChange={(e) => setBulkUpdateValue(e.target.value)}
-                        placeholder="Enter new value..."
-                        className="w-full"
-                      />
-                    );
-                  }
-                })()}
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowBulkUpdateModal(false);
-                setBulkUpdateColumn("");
-                setBulkUpdateValue("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleBulkUpdate}
-              disabled={!bulkUpdateColumn || !bulkUpdateValue || bulkUpdateSaving}
-            >
-              {bulkUpdateSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
-              ) : null}
-              Update {selectedRows.size} row{selectedRows.size !== 1 ? "s" : ""}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <BulkUpdateModal
+        open={showBulkUpdateModal}
+        onOpenChange={setShowBulkUpdateModal}
+        selectedRowsCount={selectedRows.size}
+        COLUMNS={COLUMNS}
+        bulkUpdateColumn={bulkUpdateColumn}
+        setBulkUpdateColumn={setBulkUpdateColumn}
+        bulkUpdateValue={bulkUpdateValue}
+        setBulkUpdateValue={setBulkUpdateValue}
+        bulkUpdateSaving={bulkUpdateSaving}
+        lookupOptions={lookupOptions}
+        lookupLoading={lookupLoading}
+        handleBulkUpdate={handleBulkUpdate}
+      />
 
       {/* Save View Modal */}
-      <Dialog open={showSaveViewModal} onOpenChange={(open) => {
-        setShowSaveViewModal(open);
-        if (!open) {
-          setSaveAsGlobal(false);
-          setNewViewName("");
-        }
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Save View</DialogTitle>
-            <DialogDescription>
-              Save the current filters and settings as a named view
-            </DialogDescription>
-          </DialogHeader>
+      <SaveViewModal
+        open={showSaveViewModal}
+        onOpenChange={setShowSaveViewModal}
+        newViewName={newViewName}
+        setNewViewName={setNewViewName}
+        saveAsGlobal={saveAsGlobal}
+        setSaveAsGlobal={setSaveAsGlobal}
+        savingView={savingView}
+        saveNewView={saveNewView}
+      />
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>View name</Label>
-              <Input
-                value={newViewName}
-                onChange={(e) => setNewViewName(e.target.value)}
-                placeholder="e.g., Active Jobs, Pending Orders..."
-              />
-            </div>
-
-            {/* Global vs Personal toggle */}
-            <div className="space-y-2">
-              <Label>View type</Label>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={!saveAsGlobal ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => setSaveAsGlobal(false)}
-                >
-                  <User className="h-4 w-4 mr-2" />
-                  Personal
-                </Button>
-                <Button
-                  type="button"
-                  variant={saveAsGlobal ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => setSaveAsGlobal(true)}
-                >
-                  <Globe className="h-4 w-4 mr-2" />
-                  Global (All Users)
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {saveAsGlobal
-                  ? "Global views are visible to all users and appear first in the view list."
-                  : "Personal views are only visible to you."}
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowSaveViewModal(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={saveNewView}
-              disabled={!newViewName.trim() || savingView}
-            >
-              {savingView ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
-              ) : saveAsGlobal ? (
-                <Globe className="h-4 w-4 mr-1" />
-              ) : (
-                <Save className="h-4 w-4 mr-1" />
-              )}
-              {saveAsGlobal ? "Save Global View" : "Save View"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Create Column Modal - Table-based type selection */}
-      <Dialog open={showCreateColumnModal} onOpenChange={setShowCreateColumnModal}>
-        <DialogContent className="max-w-4xl max-h-[85vh]">
-          <DialogHeader>
-            <DialogTitle>Create New Column</DialogTitle>
-            <DialogDescription>
-              Add a new column to this table. Select a column type from the list below.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Column Name</Label>
-              <Input
-                value={newColumnName}
-                onChange={(e) => setNewColumnName(e.target.value)}
-                placeholder="e.g., Status, Due Date, Priority..."
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Column Type</Label>
-              <ScrollArea className="h-[400px] border rounded-md">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12"></TableHead>
-                      <TableHead className="w-48">Type</TableHead>
-                      <TableHead className="w-32">SQL Type</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="w-48">Example</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {COLUMN_TYPES.map((colType) => {
-                      const isSelected = newColumnType === colType.value;
-                      return (
-                        <TableRow
-                          key={colType.value}
-                          className={cn(
-                            "cursor-pointer hover:bg-muted/50",
-                            isSelected && "bg-primary/10 border-l-2 border-l-primary"
-                          )}
-                          onClick={() => setNewColumnType(colType.value)}
-                        >
-                          <TableCell>
-                            <div className="flex items-center justify-center">
-                              {isSelected ? (
-                                <Check className="h-4 w-4 text-primary" />
-                              ) : (
-                                <div className="h-4 w-4 rounded-full border border-muted-foreground/30" />
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span>{getColumnTypeEmoji(colType.value)}</span>
-                              <span className="font-medium">{colType.label}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                              {colType.sqlType}
-                            </code>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-muted-foreground">
-                              {colType.description}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <code className="text-xs text-muted-foreground">
-                              {colType.example.length > 30
-                                ? colType.example.substring(0, 30) + "..."
-                                : colType.example}
-                            </code>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-              {newColumnType && (
-                <div className="p-3 bg-muted/50 rounded-md border">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span>{getColumnTypeEmoji(newColumnType)}</span>
-                    <span className="font-medium">{getColumnTypeLabel(newColumnType)}</span>
-                    <Badge variant="secondary" className="text-xs font-mono">
-                      {getColumnTypeSqlType(newColumnType)}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {COLUMN_TYPES.find(t => t.value === newColumnType)?.usedFor || ""}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateColumnModal(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateColumn} disabled={schemaLoading || !newColumnName || !newColumnType}>
-              {schemaLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
-              ) : (
-                <PlusCircle className="h-4 w-4 mr-1" />
-              )}
-              Create Column
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Column Modal */}
-      <Dialog open={showDeleteColumnModal} onOpenChange={setShowDeleteColumnModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Column</DialogTitle>
-            <DialogDescription>
-              Select a column to delete. This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Select Column</Label>
-              <Select value={selectedColumnToDelete} onValueChange={setSelectedColumnToDelete}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select column to delete" />
-                </SelectTrigger>
-                <SelectContent>
-                  {COLUMNS.filter(
-                    (c) =>
-                      c.key !== "select" &&
-                      c.key !== "actions" &&
-                      c.key !== "id" &&
-                      c.key !== "created_at" &&
-                      c.key !== "updated_at"
-                  ).map((col) => (
-                    <SelectItem key={col.key} value={col.key}>
-                      {col.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedColumnToDelete && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
-                <p className="text-sm text-destructive">
-                  Warning: Deleting this column will remove all data stored in it. This cannot be undone.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteColumnModal(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteColumn}
-              disabled={!selectedColumnToDelete || schemaLoading}
-            >
-              {schemaLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
-              ) : (
-                <MinusCircle className="h-4 w-4 mr-1" />
-              )}
-              Delete Column
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* View Schema Modal */}
-      <Dialog open={showViewSchemaModal} onOpenChange={setShowViewSchemaModal}>
-        <DialogContent className="max-w-2xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Table Schema</DialogTitle>
-            <DialogDescription>
-              {tableName} - {COLUMNS.filter(c => c.key !== "select" && c.key !== "actions").length} columns
-            </DialogDescription>
-          </DialogHeader>
-
-          <ScrollArea className="h-[400px] pr-4">
-            <div className="space-y-2">
-              {COLUMNS.filter(c => c.key !== "select" && c.key !== "actions").map((col, index) => (
-                <div
-                  key={col.key}
-                  className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground w-6">{index + 1}</span>
-                    <div>
-                      <p className="font-medium">{col.label}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{col.key}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-xs">
-                      {col.column_type || "text"}
-                    </Badge>
-                    {col.key === "id" || col.key === "created_at" || col.key === "updated_at" ? (
-                      <Badge variant="outline" className="text-xs text-muted-foreground">
-                        System
-                      </Badge>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowViewSchemaModal(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Schema Modals (Create, Delete, View Schema) */}
+      <SchemaModals
+        COLUMNS={COLUMNS}
+        tableName={tableName}
+        COLUMN_TYPES={COLUMN_TYPES}
+        schemaLoading={schemaLoading}
+        showCreateColumnModal={showCreateColumnModal}
+        setShowCreateColumnModal={setShowCreateColumnModal}
+        newColumnName={newColumnName}
+        setNewColumnName={setNewColumnName}
+        newColumnType={newColumnType}
+        setNewColumnType={setNewColumnType}
+        handleCreateColumn={handleCreateColumn}
+        showDeleteColumnModal={showDeleteColumnModal}
+        setShowDeleteColumnModal={setShowDeleteColumnModal}
+        selectedColumnToDelete={selectedColumnToDelete}
+        setSelectedColumnToDelete={setSelectedColumnToDelete}
+        handleDeleteColumn={handleDeleteColumn}
+        showViewSchemaModal={showViewSchemaModal}
+        setShowViewSchemaModal={setShowViewSchemaModal}
+        getColumnTypeEmoji={getColumnTypeEmoji}
+        getColumnTypeLabel={getColumnTypeLabel}
+        getColumnTypeSqlType={getColumnTypeSqlType}
+      />
 
       {/* Edit Single Column Modal - Full featured editor */}
       <ColumnEditorModal
@@ -5577,293 +4757,38 @@ export default function TeeemTableView({
       />
 
       {/* Edit Columns Modal - Gold Standard style table with drag-and-drop */}
-      <Dialog open={showEditColumnsModal} onOpenChange={setShowEditColumnsModal}>
-        <DialogContent className="max-w-6xl max-h-[90vh] p-8">
-          <DialogHeader className="pb-4">
-            <DialogTitle>SHOW/HIDE & REORDER COLUMNS</DialogTitle>
-            <DialogDescription>
-              Drag rows to reorder, or click the position number to type a new position
-            </DialogDescription>
-          </DialogHeader>
-
-          <ScrollArea className="h-[600px] border rounded-md">
-            <DndContext
-              sensors={dndSensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleColumnDragEnd}
-            >
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">Order</TableHead>
-                    <TableHead className="w-12">Show</TableHead>
-                    <TableHead className="w-44">Column Name</TableHead>
-                    <TableHead className="w-32">SQL Type</TableHead>
-                    <TableHead className="w-32">Display Type</TableHead>
-                    <TableHead className="min-w-[200px]">Validation Rules</TableHead>
-                    <TableHead className="w-20">Width</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <SortableContext
-                    items={getSortedColumnsForModal().map(c => c.key)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {(() => {
-                      const sortedColumns = getSortedColumnsForModal();
-                      const visibleColumnKeys = sortedColumns.filter(c => visibleColumns[c.key] === true).map(c => c.key);
-                      const totalVisible = visibleColumnKeys.length;
-
-                      return sortedColumns.map((col) => {
-                        const isVisible = visibleColumns[col.key] === true;
-                        const visibleIndex = isVisible ? visibleColumnKeys.indexOf(col.key) + 1 : 0;
-
-                        return (
-                          <SortableColumnRow
-                            key={col.key}
-                            id={col.key}
-                            column={col}
-                            isVisible={isVisible}
-                            index={visibleIndex}
-                            totalVisible={totalVisible}
-                            onToggleVisibility={() =>
-                              setVisibleColumns((prev) => ({
-                                ...prev,
-                                [col.key]: !prev[col.key],
-                              }))
-                            }
-                            onReorder={(newPos) => reorderColumnToPosition(col.key, newPos)}
-                            columnWidth={columnWidths[col.key] || col.width || 50}
-                            onWidthChange={(width) =>
-                              setColumnWidths((prev) => ({
-                                ...prev,
-                                [col.key]: width,
-                              }))
-                            }
-                            getColumnTypeEmoji={getColumnTypeEmoji}
-                            getColumnTypeSqlType={getColumnTypeSqlType}
-                            getColumnTypeLabel={getColumnTypeLabel}
-                            getColumnTypeValidationRules={getColumnTypeValidationRules}
-                          />
-                        );
-                      });
-                    })()}
-                  </SortableContext>
-                </TableBody>
-              </Table>
-            </DndContext>
-          </ScrollArea>
-
-          <DialogFooter className="flex justify-between pt-4">
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  // Show all columns
-                  const allVisible: VisibleColumnsState = {};
-                  COLUMNS.forEach(c => { allVisible[c.key] = true; });
-                  setVisibleColumns(allVisible);
-                }}
-              >
-                Show All
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  // Hide all except essential columns
-                  const hidden: VisibleColumnsState = {};
-                  COLUMNS.forEach(c => { hidden[c.key] = c.key === "id"; });
-                  setVisibleColumns(hidden);
-                }}
-              >
-                Hide All
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setVisibleColumns(getDefaultVisibleColumns())}
-              >
-                <RotateCcw className="h-4 w-4 mr-1" />
-                Reset
-              </Button>
-            </div>
-            <Button onClick={() => setShowEditColumnsModal(false)}>
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EditColumnsModal
+        open={showEditColumnsModal}
+        onOpenChange={setShowEditColumnsModal}
+        COLUMNS={COLUMNS}
+        visibleColumns={visibleColumns}
+        setVisibleColumns={setVisibleColumns}
+        columnWidths={columnWidths}
+        setColumnWidths={setColumnWidths}
+        getSortedColumnsForModal={getSortedColumnsForModal}
+        reorderColumnToPosition={reorderColumnToPosition}
+        getDefaultVisibleColumns={getDefaultVisibleColumns}
+        getColumnTypeEmoji={getColumnTypeEmoji}
+        getColumnTypeSqlType={getColumnTypeSqlType}
+        getColumnTypeLabel={getColumnTypeLabel}
+        getColumnTypeValidationRules={getColumnTypeValidationRules}
+        dndSensors={dndSensors}
+        handleColumnDragEnd={handleColumnDragEnd}
+      />
 
       {/* Export Modal */}
-      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
-        <DialogContent className="max-w-md p-8">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Download className="h-5 w-5" />
-              Export Data
-            </DialogTitle>
-            <DialogDescription>
-              Export {filteredAndSortedEntries.length} rows to a file
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Format Selection */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Export Format</Label>
-              <div className="grid grid-cols-3 gap-2">
-                <label
-                  className={cn(
-                    "flex flex-col items-center gap-1 p-3 rounded-lg border cursor-pointer transition-colors",
-                    exportFormat === "csv"
-                      ? "border-primary bg-primary/5"
-                      : "border-muted hover:border-muted-foreground/50"
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="exportFormat"
-                    value="csv"
-                    checked={exportFormat === "csv"}
-                    onChange={() => setExportFormat("csv")}
-                    className="sr-only"
-                  />
-                  <FileSpreadsheet className="h-6 w-6 text-green-600" />
-                  <span className="text-sm font-medium">CSV</span>
-                </label>
-
-                <label
-                  className={cn(
-                    "flex flex-col items-center gap-1 p-3 rounded-lg border cursor-pointer transition-colors",
-                    exportFormat === "excel"
-                      ? "border-primary bg-primary/5"
-                      : "border-muted hover:border-muted-foreground/50"
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="exportFormat"
-                    value="excel"
-                    checked={exportFormat === "excel"}
-                    onChange={() => setExportFormat("excel")}
-                    className="sr-only"
-                  />
-                  <Table2 className="h-6 w-6 text-emerald-600" />
-                  <span className="text-sm font-medium">Excel</span>
-                </label>
-
-                <label
-                  className={cn(
-                    "flex flex-col items-center gap-1 p-3 rounded-lg border cursor-pointer transition-colors",
-                    exportFormat === "pdf"
-                      ? "border-primary bg-primary/5"
-                      : "border-muted hover:border-muted-foreground/50"
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="exportFormat"
-                    value="pdf"
-                    checked={exportFormat === "pdf"}
-                    onChange={() => setExportFormat("pdf")}
-                    className="sr-only"
-                  />
-                  <FileSpreadsheet className="h-6 w-6 text-red-600" />
-                  <span className="text-sm font-medium">PDF</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Column Selection */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Columns to Export</Label>
-              <div className="grid gap-2">
-                <label
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
-                    exportScope === "visible"
-                      ? "border-primary bg-primary/5"
-                      : "border-muted hover:border-muted-foreground/50"
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="exportScope"
-                    value="visible"
-                    checked={exportScope === "visible"}
-                    onChange={() => setExportScope("visible")}
-                    className="h-4 w-4 text-primary"
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium">Visible Columns Only</div>
-                    <div className="text-sm text-muted-foreground">
-                      Export {visibleDataColumns.length} columns currently shown
-                    </div>
-                  </div>
-                  <Badge variant="secondary">{visibleDataColumns.length}</Badge>
-                </label>
-
-                <label
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
-                    exportScope === "all"
-                      ? "border-primary bg-primary/5"
-                      : "border-muted hover:border-muted-foreground/50"
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="exportScope"
-                    value="all"
-                    checked={exportScope === "all"}
-                    onChange={() => setExportScope("all")}
-                    className="h-4 w-4 text-primary"
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium">All Columns</div>
-                    <div className="text-sm text-muted-foreground">
-                      Export all {allDataColumns.length} columns in the table
-                    </div>
-                  </div>
-                  <Badge variant="secondary">{allDataColumns.length}</Badge>
-                </label>
-              </div>
-            </div>
-
-            <div className="p-3 bg-muted/50 rounded-lg border">
-              <div className="text-sm font-medium mb-1">Export Summary</div>
-              <div className="text-sm text-muted-foreground space-y-1">
-                <div className="flex justify-between">
-                  <span>Rows:</span>
-                  <span className="font-mono">{filteredAndSortedEntries.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Columns:</span>
-                  <span className="font-mono">
-                    {exportScope === "visible" ? visibleDataColumns.length : allDataColumns.length}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Format:</span>
-                  <span className="font-mono uppercase">{exportFormat}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowExportModal(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleExport}>
-              <Download className="h-4 w-4 mr-2" />
-              Export {exportFormat.toUpperCase()}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ExportModal
+        open={showExportModal}
+        onOpenChange={setShowExportModal}
+        exportFormat={exportFormat}
+        setExportFormat={setExportFormat}
+        exportScope={exportScope}
+        setExportScope={setExportScope}
+        visibleDataColumns={visibleDataColumns}
+        allDataColumns={allDataColumns}
+        filteredAndSortedEntries={filteredAndSortedEntries}
+        handleExport={handleExport}
+      />
 
       {/* Shared Merge Modal - used by all tables when enableMerge is true */}
       {foundationIdNumeric && enableMerge !== false && (
