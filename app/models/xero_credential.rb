@@ -5,9 +5,24 @@ class XeroCredential < ApplicationRecord
 
   validates :access_token, :refresh_token, :expires_at, :tenant_id, presence: true
 
-  # Get the current (latest) active credential
+  # Scopes
+  scope :primary, -> { where(is_primary: true) }
+
+  # Callbacks
+  after_create :set_as_primary_if_none_exists
+
+  # Get the current (primary or latest) active credential
+  # Priority: 1) Primary credential, 2) Most recent credential
   def self.current
-    order(created_at: :desc).first
+    primary.first || order(created_at: :desc).first
+  end
+
+  # Set this credential as the primary one (and unset others)
+  def set_as_primary!
+    transaction do
+      XeroCredential.update_all(is_primary: false)
+      update!(is_primary: true)
+    end
   end
 
   # Check if the access token is expired or about to expire (within 5 minutes)
@@ -18,5 +33,14 @@ class XeroCredential < ApplicationRecord
   # Check if Xero is currently connected
   def self.connected?
     current.present?
+  end
+
+  private
+
+  # Automatically set as primary if no other primary exists
+  def set_as_primary_if_none_exists
+    if XeroCredential.where.not(id: id).primary.none?
+      update_column(:is_primary, true)
+    end
   end
 end
