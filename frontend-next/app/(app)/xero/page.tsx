@@ -252,9 +252,10 @@ export default function XeroPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <TooltipProvider>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Xero Integration</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -490,16 +491,16 @@ export default function XeroPage() {
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">{invoice.contact_name}</TableCell>
-                    <TableCell>{new Date(invoice.date).toLocaleDateString()}</TableCell>
+                    <TableCell>{new Date(invoice.invoice_date).toLocaleDateString("en-AU")}</TableCell>
                     <TableCell>
                       <span
                         className={
-                          new Date(invoice.due_date) < new Date() && invoice.status !== "PAID"
+                          new Date(invoice.due_date) < new Date() && invoice.status !== "paid"
                             ? "text-red-600 font-medium"
                             : ""
                         }
                       >
-                        {new Date(invoice.due_date).toLocaleDateString()}
+                        {new Date(invoice.due_date).toLocaleDateString("en-AU")}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -508,12 +509,12 @@ export default function XeroPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {invoice.job_name ? (
+                      {invoice.job_title ? (
                         <Link
                           href={`/jobs/${invoice.job_id}`}
                           className="text-blue-600 hover:underline"
                         >
-                          {invoice.job_name}
+                          {invoice.job_title}
                         </Link>
                       ) : (
                         <span className="text-muted-foreground">-</span>
@@ -607,132 +608,7 @@ export default function XeroPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </TooltipProvider>
   );
-}
-
-function getMockStatus(): XeroStatus {
-  return {
-    connected: true,
-    tenant_name: "Harrison Builders Pty Ltd",
-    last_sync: new Date(Date.now() - 3600000).toISOString(),
-    sync_in_progress: false,
-  };
-}
-
-function getMockInvoices(): XeroInvoice[] {
-  return [
-    {
-      id: "inv-1",
-      invoice_number: "INV-0045",
-      contact_name: "Boral Timber",
-      date: "2024-11-15",
-      due_date: "2024-12-15",
-      status: "AUTHORISED",
-      total: 12500,
-      amount_due: 12500,
-      amount_paid: 0,
-      type: "ACCPAY",
-      job_id: 1,
-      job_name: "Harrison Residence",
-    },
-    {
-      id: "inv-2",
-      invoice_number: "INV-0046",
-      contact_name: "John & Sarah Harrison",
-      date: "2024-11-20",
-      due_date: "2024-12-20",
-      status: "AUTHORISED",
-      total: 85000,
-      amount_due: 85000,
-      amount_paid: 0,
-      type: "ACCREC",
-      job_id: 1,
-      job_name: "Harrison Residence",
-    },
-    {
-      id: "inv-3",
-      invoice_number: "INV-0044",
-      contact_name: "BlueScope Steel",
-      date: "2024-11-01",
-      due_date: "2024-11-30",
-      status: "PAID",
-      total: 34500,
-      amount_due: 0,
-      amount_paid: 34500,
-      type: "ACCPAY",
-      job_id: 2,
-      job_name: "Coastal Views Duplex",
-    },
-    {
-      id: "inv-4",
-      invoice_number: "INV-0043",
-      contact_name: "Hanson Concrete",
-      date: "2024-10-25",
-      due_date: "2024-11-24",
-      status: "AUTHORISED",
-      total: 8900,
-      amount_due: 8900,
-      amount_paid: 0,
-      type: "ACCPAY",
-      job_id: 1,
-      job_name: "Harrison Residence",
-    },
-    {
-      id: "inv-5",
-      invoice_number: "INV-0042",
-      contact_name: "Michael & Emma Thompson",
-      date: "2024-10-15",
-      due_date: "2024-11-15",
-      status: "PAID",
-      total: 125000,
-      amount_due: 0,
-      amount_paid: 125000,
-      type: "ACCREC",
-      job_id: 3,
-      job_name: "Thompson Family Home",
-    },
-  ];
-}
-
-function getMockPayments(): XeroPayment[] {
-  return [
-    {
-      id: "pay-1",
-      date: "2024-11-25",
-      amount: 34500,
-      reference: "EFT-4521",
-      invoice_number: "INV-0044",
-      contact_name: "BlueScope Steel",
-      account_name: "Business Account",
-    },
-    {
-      id: "pay-2",
-      date: "2024-11-15",
-      amount: 125000,
-      reference: "Progress Claim 3",
-      invoice_number: "INV-0042",
-      contact_name: "Michael & Emma Thompson",
-      account_name: "Business Account",
-    },
-    {
-      id: "pay-3",
-      date: "2024-11-10",
-      amount: 15000,
-      reference: "EFT-4518",
-      invoice_number: "INV-0041",
-      contact_name: "Reece Plumbing",
-      account_name: "Business Account",
-    },
-  ];
-}
-
-function getMockStats(): XeroStats {
-  return {
-    invoices_receivable: 12,
-    invoices_payable: 28,
-    total_outstanding: 156400,
-    overdue_count: 3,
-    last_sync: new Date(Date.now() - 3600000).toISOString(),
-  };
 }
