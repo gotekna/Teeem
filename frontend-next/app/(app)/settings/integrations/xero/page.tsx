@@ -21,31 +21,48 @@ import { api } from "@/lib/api";
 interface XeroStatus {
   connected: boolean;
   organization_name?: string;
+  tenant_name?: string;
+  tenant_id?: string;
   connected_at?: string;
   expires_at?: string;
+  expired?: boolean;
+}
+
+interface XeroTenant {
+  tenant_id: string;
+  tenant_name: string;
+  connected_at: string;
 }
 
 export default function XeroIntegrationPage() {
   const router = useRouter();
   const [status, setStatus] = React.useState<XeroStatus | null>(null);
+  const [tenants, setTenants] = React.useState<XeroTenant[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [connecting, setConnecting] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
 
   React.useEffect(() => {
-    const fetchStatus = async () => {
+    const fetchData = async () => {
       try {
-        const response = await api.xero.getStatus();
-        setStatus(response.data || { connected: false });
+        // Fetch status
+        const statusResponse = await api.xero.getStatus();
+        setStatus(statusResponse.data || { connected: false });
+
+        // Fetch all tenants
+        if (statusResponse.data?.connected) {
+          const tenantsResponse = await api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants");
+          setTenants(tenantsResponse.tenants || []);
+        }
       } catch (error) {
-        console.error("Failed to fetch Xero status:", error);
+        console.error("Failed to fetch Xero data:", error);
         setStatus({ connected: false });
       } finally {
         setLoading(false);
       }
     };
 
-    fetchStatus();
+    fetchData();
   }, []);
 
   const handleConnect = async () => {
@@ -131,18 +148,34 @@ export default function XeroIntegrationPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">Organization</p>
-                  <p className="font-medium">{status.organization_name || "Unknown"}</p>
+                  <p className="font-medium">{status.tenant_name || status.organization_name || "Unknown"}</p>
                 </div>
                 <div className="p-4 bg-muted rounded-lg">
-                  <p className="text-sm text-muted-foreground">Connected Since</p>
+                  <p className="text-sm text-muted-foreground">Tenant ID</p>
+                  <p className="font-medium text-xs">{status.tenant_id || "Unknown"}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground">Token Expires</p>
                   <p className="font-medium">
-                    {status.connected_at
-                      ? new Date(status.connected_at).toLocaleDateString("en-AU", {
+                    {status.expires_at
+                      ? new Date(status.expires_at).toLocaleDateString("en-AU", {
                           day: "numeric",
                           month: "long",
                           year: "numeric",
                         })
                       : "Unknown"}
+                  </p>
+                </div>
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  <p className="font-medium">
+                    {status.expired ? (
+                      <span className="text-red-600">Expired - Reconnect Required</span>
+                    ) : (
+                      <span className="text-green-600">Active</span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -188,6 +221,43 @@ export default function XeroIntegrationPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Connected Organizations */}
+      {tenants.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Connected Organizations ({tenants.length})</CardTitle>
+            <CardDescription>Xero organizations connected to TEEEM</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {tenants.map((tenant) => (
+                <div
+                  key={tenant.tenant_id}
+                  className="flex items-center justify-between p-4 border rounded-lg"
+                >
+                  <div className="flex-1">
+                    <p className="font-medium">{tenant.tenant_name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Tenant ID: {tenant.tenant_id}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">Connected</p>
+                    <p className="text-sm font-medium">
+                      {new Date(tenant.connected_at).toLocaleDateString("en-AU", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Features */}
       <Card>
