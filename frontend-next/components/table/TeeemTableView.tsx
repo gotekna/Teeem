@@ -672,10 +672,8 @@ export default function TeeemTableView({
   } | null>(null);
   const DRAG_THRESHOLD = 5;
 
-  // Refs for sticky scrollbar sync
+  // Ref for table container
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  const stickyScrollbarRef = useRef<HTMLDivElement>(null);
-  const [tableScrollWidth, setTableScrollWidth] = useState(0);
 
   // Global Views Manager state managed by atom (SSoT)
   const [showGlobalViewsManager, setShowGlobalViewsManager] = useAtom(showGlobalViewsManagerAtom);
@@ -755,63 +753,6 @@ export default function TeeemTableView({
       }
     }
   }, [foundationIdNumeric, enableSchemaEditor, preloadedViews, viewOnly, tableName, foundationId]);
-
-  // Sync sticky scrollbar with main table container
-  useEffect(() => {
-    const tableContainer = tableContainerRef.current;
-    const stickyScrollbar = stickyScrollbarRef.current;
-    if (!tableContainer || !stickyScrollbar) return;
-
-    // Update scroll width
-    const updateScrollWidth = () => {
-      const width = tableContainer.scrollWidth;
-      setTableScrollWidth(width);
-    };
-
-    // Initial update with a small delay to ensure DOM is ready
-    setTimeout(updateScrollWidth, 100);
-
-    // Sync main container scroll to sticky scrollbar
-    const handleTableScroll = () => {
-      if (stickyScrollbar) {
-        stickyScrollbar.scrollLeft = tableContainer.scrollLeft;
-      }
-    };
-
-    // Sync sticky scrollbar scroll to main container
-    const handleStickyScroll = () => {
-      if (tableContainer) {
-        tableContainer.scrollLeft = stickyScrollbar.scrollLeft;
-      }
-    };
-
-    // Observe resize to update scroll width
-    const resizeObserver = new ResizeObserver(() => {
-      updateScrollWidth();
-    });
-    resizeObserver.observe(tableContainer);
-
-    // Also observe mutations (when groups expand/collapse)
-    const mutationObserver = new MutationObserver(() => {
-      updateScrollWidth();
-    });
-    mutationObserver.observe(tableContainer, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['style', 'class']
-    });
-
-    tableContainer.addEventListener('scroll', handleTableScroll);
-    stickyScrollbar.addEventListener('scroll', handleStickyScroll);
-
-    return () => {
-      resizeObserver.disconnect();
-      mutationObserver.disconnect();
-      tableContainer.removeEventListener('scroll', handleTableScroll);
-      stickyScrollbar.removeEventListener('scroll', handleStickyScroll);
-    };
-  }, []);
 
   // ============================================================================
   // HANDLERS
@@ -3781,17 +3722,12 @@ export default function TeeemTableView({
         </div>
       )}
 
-      {/* Table - scrollable container with minimum height for ~10 rows */}
+      {/* Table - scrollable container with max height so scrollbar stays visible */}
       <div
         ref={tableContainerRef}
-        className="flex-1 min-h-[360px] w-full overflow-auto relative [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        className="flex-1 min-h-[360px] max-h-[calc(100vh-300px)] w-full overflow-auto relative border rounded-md"
       >
         {groupedEntries ? renderGroupedTable() : renderFlatTable()}
-      </div>
-
-      {/* Sticky horizontal scrollbar - stays visible at bottom of viewport */}
-      <div className="fixed bottom-0 left-0 right-0 overflow-x-auto overflow-y-hidden bg-background/95 backdrop-blur-sm border-t shadow-lg z-50 py-2" ref={stickyScrollbarRef}>
-        <div className="mx-auto" style={{ width: tableScrollWidth > 0 ? `${tableScrollWidth}px` : '100%', height: '12px' }} />
       </div>
 
       {/* Footer - compact */}
