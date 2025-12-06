@@ -316,26 +316,43 @@ export function ViewManagerSheet({
 
     setSaving(true);
     try {
+      // Capture current edit state BEFORE any async operations
+      // This prevents race conditions where loadViews resets edit state
+      const currentEditState = {
+        name: editName,
+        isGlobal: editIsGlobal,
+        visibleColumns: editVisibleColumns,
+        columnOrder: editColumnOrder,
+        columnWidths: editColumnWidths,
+        autoFitColumns: editAutoFitColumns,
+        showTotals: editShowTotals,
+        filters: editFilters,
+        filterGroups: editFilterGroups,
+        interGroupLogic: editInterGroupLogic,
+        sortColumns: editSortColumns,
+        groupByColumns: editGroupByColumns,
+      };
+
       const viewData = {
         foundation_id: foundationId,
-        name: editName,
+        name: currentEditState.name,
         view_type: "custom",
-        is_global: editIsGlobal,
+        is_global: currentEditState.isGlobal,
         filters: {
-          cascadeFilters: editFilters,
-          filterGroups: editFilterGroups,
-          interGroupLogic: editInterGroupLogic,
+          cascadeFilters: currentEditState.filters,
+          filterGroups: currentEditState.filterGroups,
+          interGroupLogic: currentEditState.interGroupLogic,
         },
         columns: {
-          visible: editVisibleColumns,
-          order: editColumnOrder,
-          widths: editColumnWidths,
-          autoFitColumns: editAutoFitColumns,
-          showTotals: editShowTotals,
+          visible: currentEditState.visibleColumns,
+          order: currentEditState.columnOrder,
+          widths: currentEditState.columnWidths,
+          autoFitColumns: currentEditState.autoFitColumns,
+          showTotals: currentEditState.showTotals,
         },
-        sort_order: editSortColumns,
-        group_by_columns: editGroupByColumns,
-        group_by_column: editGroupByColumns[0] || null,
+        sort_order: currentEditState.sortColumns,
+        group_by_columns: currentEditState.groupByColumns,
+        group_by_column: currentEditState.groupByColumns[0] || null,
       };
 
       let response: { success: boolean; error?: string; view?: { id: number } } | null;
@@ -343,7 +360,7 @@ export function ViewManagerSheet({
       const isNewView = typeof editingView.id === "string" && editingView.id.startsWith("new_");
 
       if (isNewView) {
-        const endpoint = editIsGlobal ? "/api/v1/foundation_views/save_global" : "/api/v1/foundation_views";
+        const endpoint = currentEditState.isGlobal ? "/api/v1/foundation_views/save_global" : "/api/v1/foundation_views";
         response = await api.post<{ success: boolean; error?: string; view?: { id: number } }>(endpoint, wrappedData);
       } else {
         const endpoint = `/api/v1/foundation_views/${editingView.id}`;
@@ -353,27 +370,32 @@ export function ViewManagerSheet({
       if (response?.success) {
         toast({
           title: "Success",
-          description: editIsGlobal ? "Global view saved for all users" : "View saved successfully",
+          description: currentEditState.isGlobal ? "Global view saved for all users" : "View saved successfully",
         });
 
-        await loadViews(isNewView ? editName : undefined);
-
+        // Construct savedView BEFORE calling loadViews to avoid state reset race condition
         const savedView: SavedView = {
           id: isNewView && response.view?.id ? response.view.id : editingView.id,
-          name: editName,
-          is_global: editIsGlobal,
-          visibleColumns: editVisibleColumns,
-          columnOrder: editColumnOrder,
-          columnWidths: editColumnWidths,
-          autoFitColumns: editAutoFitColumns,
-          showTotals: editShowTotals,
-          filters: editFilters,
-          filterGroups: editFilterGroups,
-          interGroupLogic: editInterGroupLogic,
-          sortColumns: editSortColumns,
-          groupByColumns: editGroupByColumns,
+          name: currentEditState.name,
+          is_global: currentEditState.isGlobal,
+          visibleColumns: currentEditState.visibleColumns,
+          columnOrder: currentEditState.columnOrder,
+          columnWidths: currentEditState.columnWidths,
+          autoFitColumns: currentEditState.autoFitColumns,
+          showTotals: currentEditState.showTotals,
+          filters: currentEditState.filters,
+          filterGroups: currentEditState.filterGroups,
+          interGroupLogic: currentEditState.interGroupLogic,
+          sortColumns: currentEditState.sortColumns,
+          groupByColumns: currentEditState.groupByColumns,
         };
+
+        // Apply the view state immediately using captured state
         onApplyView?.(savedView);
+
+        // Then refresh the views list (this may reset edit state, but that's OK now)
+        await loadViews(isNewView ? currentEditState.name : undefined);
+
         onViewsChange?.();
       } else {
         throw new Error(response?.error || "Failed to save view");
@@ -431,9 +453,29 @@ export function ViewManagerSheet({
     }));
 
     try {
-      await api.post("/api/v1/foundation_views/reorder", { orders });
+      const response = await api.post<{ success: boolean; error?: string }>("/api/v1/foundation_views/reorder", { orders });
+      if (response?.success) {
+        // Notify parent that views changed (for cache invalidation)
+        onViewsChange?.();
+      } else {
+        console.error("Failed to save view order:", response?.error);
+        toast({
+          title: "Error",
+          description: "Failed to save view order",
+          variant: "destructive",
+        });
+        // Revert the local change
+        setViews(views);
+      }
     } catch (error) {
       console.error("Failed to save view order:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save view order",
+        variant: "destructive",
+      });
+      // Revert the local change
+      setViews(views);
     }
   };
 

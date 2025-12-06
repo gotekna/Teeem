@@ -137,17 +137,38 @@ export default function ContactsPageClient({
 
   // Refresh function to reload data
   const refresh = useCallback(async () => {
-    if (!foundation) return;
+    console.log('[ContactsPageClient] Refresh called');
+    if (!foundation) {
+      console.warn('[ContactsPageClient] Refresh aborted - no foundation');
+      return;
+    }
+
     try {
+      console.log('[ContactsPageClient] Fetching records from API...');
+      console.log('[ContactsPageClient] Foundation ID:', foundation.id);
+      console.log('[ContactsPageClient] Current records count:', records.length);
+
+      // Small delay to ensure backend transaction commits
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const response = await api.get<{ records: TTableRow[] }>(
         `/api/v1/foundations/${foundation.id}/records`,
-        { params: { per_page: 500 } }
+        {
+          params: {
+            per_page: 10000,  // Fetch all records (increased from 500)
+            _t: Date.now()     // Cache buster to ensure fresh data
+          }
+        }
       );
+      console.log('[ContactsPageClient] API response received');
+      console.log('[ContactsPageClient] New records count:', response.records?.length || 0);
+      console.log('[ContactsPageClient] Setting records...');
       setRecords(response.records || []);
+      console.log('[ContactsPageClient] Refresh complete!');
     } catch (error) {
-      console.error("Failed to refresh:", error);
+      console.error("[ContactsPageClient] Failed to refresh:", error);
     }
-  }, [foundation]);
+  }, [foundation, records.length]);
 
   // Load duplicates
   const loadDuplicates = async () => {
@@ -187,13 +208,30 @@ export default function ContactsPageClient({
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
+    console.log('[ContactsPageClient] handleRowUpdate called');
+    console.log('[ContactsPageClient] Row ID:', rowId);
+    console.log('[ContactsPageClient] Field:', field);
+    console.log('[ContactsPageClient] Value:', value);
+    console.log('[ContactsPageClient] Value type:', typeof value);
+
     try {
-      await api.patch(`/api/v1/foundations/contacts/records/${rowId}`, {
+      const payload = {
         record: { [field]: value }
-      });
+      };
+      console.log('[ContactsPageClient] API PATCH payload:', JSON.stringify(payload, null, 2));
+      console.log('[ContactsPageClient] API URL:', `/api/v1/foundations/contacts/records/${rowId}`);
+
+      const response = await api.patch(`/api/v1/foundations/contacts/records/${rowId}`, payload);
+      console.log('[ContactsPageClient] API response:', response);
+      console.log('[ContactsPageClient] Calling refresh...');
       refresh();
+      console.log('[ContactsPageClient] Update complete!');
     } catch (error) {
-      console.error("Failed to update contact:", error);
+      console.error("[ContactsPageClient] Failed to update contact:", error);
+      console.error("[ContactsPageClient] Error details:", {
+        message: error instanceof Error ? error.message : String(error),
+        error: error
+      });
       throw error;
     }
   }, [refresh]);

@@ -1230,8 +1230,53 @@ export default function TeeemTableView({
         console.log('[Bulk Update] Converted multiple_lookups value:', bulkUpdateValue, '→', valueToSend);
       }
 
-      // Use bulk_update API endpoint if foundationIdNumeric is available (much faster)
-      if (foundationIdNumeric) {
+      // Auto-mapping: When changing entity_type, auto-populate required fields from existing data
+      const needsFieldMapping = bulkUpdateColumn === 'entity_type' && (valueToSend === 'person' || valueToSend === 'company');
+
+      if (needsFieldMapping && onRowUpdate) {
+        console.log('[Bulk Update] Entity type change detected - using individual updates with field mapping');
+        console.log('[Bulk Update] Changing to:', valueToSend);
+
+        // Use individual updates to map fields per record
+        for (const id of ids) {
+          const record = entries.find(e => e.id === id);
+          if (!record) {
+            console.warn(`[Bulk Update] Record ${id} not found in entries, skipping`);
+            continue;
+          }
+
+          console.log(`[Bulk Update] Processing record ${id}:`, record);
+
+          // Prepare updates for this specific record
+          const updates: Record<string, any> = { entity_type: valueToSend };
+
+          if (valueToSend === 'person') {
+            // Converting to person: copy full_name → first_name (if first_name is empty)
+            if (!record.first_name && record.full_name) {
+              updates.first_name = record.full_name;
+              console.log(`[Bulk Update] Auto-mapping: full_name "${record.full_name}" → first_name`);
+            }
+          } else if (valueToSend === 'company') {
+            // Converting to company: copy first_name (+ last_name) → full_name (if full_name is empty)
+            if (!record.full_name && record.first_name) {
+              updates.full_name = record.last_name
+                ? `${record.first_name} ${record.last_name}`.trim()
+                : record.first_name;
+              console.log(`[Bulk Update] Auto-mapping: first_name "${record.first_name}" + last_name "${record.last_name || ''}" → full_name "${updates.full_name}"`);
+            }
+          }
+
+          // Update each field individually for this record
+          console.log(`[Bulk Update] Updating record ${id} with:`, updates);
+          for (const [field, value] of Object.entries(updates)) {
+            await onRowUpdate(id, field, value);
+          }
+        }
+
+        console.log('[Bulk Update] Individual updates with field mapping completed');
+      } else if (foundationIdNumeric && !needsFieldMapping) {
+        // Use bulk_update API endpoint if foundationIdNumeric is available (much faster)
+        // Skip if we need field mapping (handled above)
         const payload = {
           record_ids: ids,
           updates: { [bulkUpdateColumn]: valueToSend }
@@ -1242,6 +1287,31 @@ export default function TeeemTableView({
 
         const response = await api.post(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_update`, payload);
         console.log('[Bulk Update] API response:', response);
+
+        // Check if the update was actually successful
+        if (!response.success || response.updated_count === 0) {
+          console.error('[Bulk Update] Update FAILED - no records were updated');
+          console.error('[Bulk Update] Updated count:', response.updated_count);
+          console.error('[Bulk Update] Errors:', response.errors);
+
+          // Show error message to user
+          let errorMessage = `Bulk update failed. ${response.updated_count || 0} of ${response.total_requested || ids.length} records updated.`;
+
+          if (response.errors && response.errors.length > 0) {
+            errorMessage += '\n\nValidation errors:\n';
+            response.errors.slice(0, 3).forEach((err: any) => {
+              errorMessage += `\n• Record ${err.id}: ${err.errors.join(', ')}`;
+            });
+            if (response.errors.length > 3) {
+              errorMessage += `\n... and ${response.errors.length - 3} more errors`;
+            }
+          }
+
+          alert(errorMessage);
+          return; // Don't close modal or clear selection on failure
+        }
+
+        console.log('[Bulk Update] Success! Updated', response.updated_count, 'records');
       } else if (onRowUpdate) {
         console.log('[Bulk Update] Using fallback individual updates (no foundationIdNumeric)');
         // Fallback to individual updates
@@ -1254,7 +1324,7 @@ export default function TeeemTableView({
         console.error('[Bulk Update] No update mechanism available (no foundationIdNumeric and no onRowUpdate)');
       }
 
-      console.log('[Bulk Update] Success! Cleaning up...');
+      console.log('[Bulk Update] Cleaning up...');
       setShowBulkUpdateModal(false);
       setBulkUpdateColumn("");
       setBulkUpdateValue("");
