@@ -507,7 +507,7 @@ export default function ContactDetailPage() {
     const fetchCompanies = async () => {
       setLoadingCompanies(true);
       try {
-        const response: any = await api.get("/contacts", {
+        const response: any = await api.get("/api/v1/contacts", {
           params: { entity_type: "company" },
         });
         const companies = response.data.contacts || [];
@@ -543,7 +543,7 @@ export default function ContactDetailPage() {
     const fetchPeople = async () => {
       setLoadingPeople(true);
       try {
-        const response: any = await api.get("/contacts", {
+        const response: any = await api.get("/api/v1/contacts", {
           params: { entity_type: "person" },
         });
         const people = response.data.contacts || [];
