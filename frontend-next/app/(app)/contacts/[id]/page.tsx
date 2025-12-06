@@ -730,7 +730,7 @@ export default function ContactDetailPage() {
   const handleDelete = async () => {
     if (!contact) return;
 
-    if (!confirm(`Delete contact "${contact.full_name || contact.name}"?`)) {
+    if (!confirm(`Delete contact "${contact.full_name}"?`)) {
       return;
     }
 

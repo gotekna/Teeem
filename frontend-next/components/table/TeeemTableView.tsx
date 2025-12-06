@@ -1646,36 +1646,37 @@ export default function TeeemTableView({
 
   // Drag-to-select handlers
   const handleMouseDown = useCallback((rowId: number | string, rowIndex: number, e: React.MouseEvent) => {
-    // Only enable drag-to-select when holding Shift key
-    if (!e.shiftKey) return;
-
     // Only start drag selection on the select column
     const target = e.target as HTMLElement;
     const isSelectColumn = target.closest('[data-column="select"]');
+    console.log('🖱️ MouseDown:', { rowId, rowIndex, isSelectColumn: !!isSelectColumn });
     if (!isSelectColumn) return;
-
-    e.preventDefault(); // Prevent text selection while dragging
 
     // Store initial position and row info, but don't start dragging yet
     dragStartPosRef.current = { x: e.clientX, y: e.clientY };
     setDragStartId(rowId);
     dragStartIndexRef.current = rowIndex;
+    console.log('✅ Drag initialized:', { rowId, rowIndex, pos: dragStartPosRef.current });
   }, []);
 
-  const handleMouseMove = useCallback((rowId: number | string, rowIndex: number, e: React.MouseEvent) => {
-    // Only track movement if we started with Shift held
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    // Only track movement if we have a drag start position
     if (!dragStartPosRef.current || isDragging) return;
 
     const deltaX = Math.abs(e.clientX - dragStartPosRef.current.x);
     const deltaY = Math.abs(e.clientY - dragStartPosRef.current.y);
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
+    console.log('👆 MouseMove:', { distance, threshold: DRAG_THRESHOLD, willStartDrag: distance > DRAG_THRESHOLD });
+
     if (distance > DRAG_THRESHOLD) {
+      console.log('🚀 Drag STARTED');
       setIsDragging(true);
     }
   }, [isDragging, DRAG_THRESHOLD]);
 
   const handleMouseEnter = useCallback((rowId: number | string, rowIndex: number) => {
+    console.log('🎯 MouseEnter:', { rowId, rowIndex, isDragging, dragStartIndex: dragStartIndexRef.current });
     if (!isDragging || dragStartIndexRef.current === null) return;
 
     const startIndex = dragStartIndexRef.current;
@@ -1691,35 +1692,37 @@ export default function TeeemTableView({
       newSelection.add(row.id);
     });
 
+    console.log('📝 Selecting rows:', { range: [minIndex, maxIndex], count: rowsToSelect.length });
     setSelectedRows(newSelection);
   }, [isDragging, filteredAndSortedEntries, selectedRows, setSelectedRows]);
 
   const handleMouseUp = useCallback(() => {
-    // If we never started dragging (just a Shift+click), toggle the row
-    if (!isDragging && dragStartIndexRef.current !== null && dragStartId !== null) {
-      const newSelection = new Set(selectedRows);
-      if (newSelection.has(dragStartId)) {
-        newSelection.delete(dragStartId);
-      } else {
-        newSelection.add(dragStartId);
-      }
-      setSelectedRows(newSelection);
-    }
+    console.log('⬆️ MouseUp:', { isDragging, dragStartId, dragStartIndex: dragStartIndexRef.current });
+
+    // Don't toggle for single clicks - let the checkbox handle it
+    // We only handle multi-select via dragging
 
     // Reset drag state
+    console.log('🧹 Resetting drag state');
     setIsDragging(false);
     setDragStartId(null);
     dragStartIndexRef.current = null;
     dragStartPosRef.current = null;
-  }, [isDragging, dragStartId, selectedRows, setSelectedRows]);
+  }, [isDragging, dragStartId]);
 
-  // Add global mouseup listener to end drag selection
+  // Add global mouse listeners for drag selection
   useEffect(() => {
-    if (dragStartPosRef.current) {
+    if (dragStartId !== null) {
+      console.log('📡 Attaching document listeners');
+      document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
-      return () => document.removeEventListener('mouseup', handleMouseUp);
+      return () => {
+        console.log('🔌 Removing document listeners');
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
     }
-  }, [dragStartPosRef.current, handleMouseUp]);
+  }, [dragStartId, handleMouseMove, handleMouseUp]);
 
   // Helper to extract display value from a cell (handles objects with display/name properties)
   const getDisplayValue = useCallback((value: unknown): string => {
@@ -2482,7 +2485,6 @@ export default function TeeemTableView({
                       onClick={() => onRowClick?.(row)}
                       onDoubleClick={() => onRowDoubleClick?.(row)}
                       onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
-                      onMouseMove={(e) => handleMouseMove(row.id, globalIndex, e)}
                       onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
                     >
                       {visibleColumnsInOrder.map((column, colIndex) => {
@@ -2584,7 +2586,6 @@ export default function TeeemTableView({
         onClick={() => onRowClick?.(row)}
         onDoubleClick={() => onRowDoubleClick?.(row)}
         onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
-        onMouseMove={(e) => handleMouseMove(row.id, globalIndex, e)}
         onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
       >
         {visibleColumnsInOrder.map((column, colIndex) => {
@@ -2688,7 +2689,6 @@ export default function TeeemTableView({
                 onClick={() => onRowClick?.(row)}
                 onDoubleClick={() => onRowDoubleClick?.(row)}
                 onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
-                onMouseMove={(e) => handleMouseMove(row.id, globalIndex, e)}
                 onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -2917,7 +2917,6 @@ export default function TeeemTableView({
                     !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
                   }
                   onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
-                  onMouseMove={(e) => handleMouseMove(row.id, globalIndex, e)}
                   onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
                 >
                   {visibleColumnsInOrder.map((column, colIndex) => {
