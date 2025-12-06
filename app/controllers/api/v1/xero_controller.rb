@@ -217,6 +217,11 @@ module Api
             where_clauses << "Status == \"#{params[:status]}\""
           end
 
+          # Filter by type (ACCREC for invoices/receivables, ACCPAY for bills/payables)
+          if params[:type].present?
+            where_clauses << "Type == \"#{params[:type]}\""
+          end
+
           # Combine where clauses
           if where_clauses.any?
             query_params[:where] = where_clauses.join(" AND ")
