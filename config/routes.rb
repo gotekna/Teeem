@@ -329,6 +329,7 @@ Rails.application.routes.draw do
           get :price_only_with_xero
           get :company_with_first_name
           get :person_without_name
+          get :missing_contact_info
         end
         member do
           post :reorder_employees
