@@ -1,38 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useSetAtom } from "jotai";
+import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import {
-  Plus,
-  Users,
-  AlertTriangle,
-  Merge,
-  Building2,
-  User,
-  CheckCircle,
-} from "lucide-react";
+import { Plus, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
-import { clearSelectionAtom } from "@/lib/table-atoms";
 
 interface Contact {
   id: number;
@@ -62,11 +39,6 @@ interface Contact {
   completeness_score?: number;
 }
 
-interface DuplicateGroup {
-  key: string;
-  contacts: Contact[];
-}
-
 interface Foundation {
   id: number;
   name: string;
@@ -81,62 +53,21 @@ interface ContactsPageClientProps {
   initialError: string | null;
 }
 
-// SSoT: Valid entity_type values are: person, company, trust, sole_trader, price_only
-// Note: "Supplier" is NOT an entity_type - it's a virtual attribute (is_supplier?)
-// determined by whether a contact has purchase_orders, pricebook_items, or bills
-const entityTypeColors: Record<string, string> = {
-  person: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
-  company: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
-  trust: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
-  sole_trader: "bg-orange-100 text-orange-700 dark:bg-orange-400/10 dark:text-orange-400",
-  price_only: "bg-purple-100 text-purple-700 dark:bg-purple-400/10 dark:text-purple-400",
-};
-
-const entityTypeLabels: Record<string, string> = {
-  person: "Person",
-  company: "Company",
-  trust: "Trust",
-  sole_trader: "Sole Trader",
-  price_only: "Price Only",
-};
-
 export default function ContactsPageClient({
   initialFoundation,
   initialColumns,
   initialRecords,
   initialError,
 }: ContactsPageClientProps) {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const showDuplicates = searchParams.get("duplicates") === "true";
-  const tabParam = searchParams.get("tab") || searchParams.get("view");
 
   // Use initial data from server - no loading state needed on first render!
   const [foundation] = useState(initialFoundation);
   const [columns] = useState(initialColumns);
   const [records, setRecords] = useState(initialRecords);
 
-  // Determine initial tab from URL
-  const getInitialTab = () => {
-    if (showDuplicates) return "duplicates";
-    if (tabParam === "person" || tabParam === "persons") return "persons";
-    if (tabParam === "company" || tabParam === "companies") return "companies";
-    if (tabParam === "trust" || tabParam === "trusts") return "trusts";
-    return "all";
-  };
-
-  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
-  const [duplicatesLoading, setDuplicatesLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(getInitialTab);
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
-
-  // Clear table selection when tab changes
-  const clearSelection = useSetAtom(clearSelectionAtom);
-  const handleTabChange = useCallback((newTab: string) => {
-    clearSelection(); // Clear selection when switching tabs
-    setActiveTab(newTab);
-  }, [clearSelection]);
 
   // Refresh function to reload data
   const refresh = useCallback(async () => {
@@ -173,28 +104,9 @@ export default function ContactsPageClient({
     }
   }, [foundation, records.length]);
 
-  // Load duplicates
-  const loadDuplicates = async () => {
-    try {
-      setDuplicatesLoading(true);
-      const response = await api.get<{ duplicate_groups: DuplicateGroup[] }>("/api/v1/contacts/duplicates");
-      setDuplicateGroups(response.duplicate_groups || []);
-    } catch (error) {
-      console.error("Failed to load duplicates:", error);
-      setDuplicateGroups([]);
-    } finally {
-      setDuplicatesLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDuplicates();
-  }, []);
-
   const handleMergeComplete = () => {
     setSelectedForMerge([]);
     refresh();
-    loadDuplicates();
   };
 
   // Handle row click - navigate to contact detail
@@ -255,30 +167,6 @@ export default function ContactsPageClient({
     }
   }, [refresh]);
 
-  // Calculate stats from records
-  const stats = useMemo(() => ({
-    total: records.length,
-    active: records.filter((c) => c.is_active).length,
-    persons: records.filter((c) => c.entity_type === "person").length,
-    companies: records.filter((c) => c.entity_type === "company").length,
-    trusts: records.filter((c) => c.entity_type === "trust").length,
-    withXero: records.filter((c) => c.xero_id || c.xero_synced).length,
-  }), [records]);
-
-  // Filter records based on active tab
-  const filteredRecords = useMemo(() => {
-    switch (activeTab) {
-      case "persons":
-        return records.filter((c) => c.entity_type === "person");
-      case "companies":
-        return records.filter((c) => c.entity_type === "company");
-      case "trusts":
-        return records.filter((c) => c.entity_type === "trust");
-      default:
-        return records;
-    }
-  }, [records, activeTab]);
-
   // Handle data health issue click (e.g., fix duplicate emails)
   const handleDataHealthIssueClick = useCallback((item: unknown, check: unknown) => {
     // Type guard for the item and check
@@ -323,16 +211,10 @@ export default function ContactsPageClient({
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {stats.total.toLocaleString()} contacts - {stats.active.toLocaleString()} active
+            {records.length.toLocaleString()} contacts
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {selectedForMerge.length >= 2 && (
-            <Button variant="outline" onClick={() => setMergeModalOpen(true)}>
-              <Merge className="h-4 w-4 mr-2" />
-              Merge ({selectedForMerge.length})
-            </Button>
-          )}
           <Button asChild>
             <Link href="/contacts/new">
               <Plus className="h-4 w-4 mr-2" />
@@ -342,200 +224,24 @@ export default function ContactsPageClient({
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-blue-600" />
-              <span className="text-xs text-muted-foreground">Total</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.total.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Active</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-green-600">
-              {stats.active.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-blue-600" />
-              <span className="text-xs text-muted-foreground">Persons</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.persons}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-purple-600" />
-              <span className="text-xs text-muted-foreground">Companies</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.companies}</div>
-          </CardContent>
-        </Card>
-        <Card className={duplicateGroups.length > 0 ? "border-yellow-300 bg-yellow-50 dark:bg-yellow-900/10" : ""}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              <span className="text-xs text-muted-foreground">Duplicates</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-yellow-600">
-              {duplicateGroups.length}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="persons">Persons</TabsTrigger>
-          <TabsTrigger value="companies">Companies</TabsTrigger>
-          <TabsTrigger value="trusts">Trusts</TabsTrigger>
-          <TabsTrigger value="duplicates" className="relative">
-            Duplicates
-            {duplicateGroups.length > 0 && (
-              <Badge variant="destructive" className="ml-2 h-5 px-1.5">
-                {duplicateGroups.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Duplicates Tab Content */}
-        <TabsContent value="duplicates" className="mt-4">
-          {duplicatesLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader />
-            </div>
-          ) : duplicateGroups.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Users className="h-12 w-12 mx-auto text-green-600 mb-4" />
-                <p className="font-medium">No duplicate contacts found</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Your contact list is clean
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  Found {duplicateGroups.length} groups of possible duplicate contacts.
-                  Review and merge to keep your CRM clean.
-                </AlertDescription>
-              </Alert>
-
-              {duplicateGroups.map((group) => (
-                <Card key={group.key}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                        <span className="font-medium">
-                          {group.contacts.length} similar contacts
-                        </span>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setSelectedForMerge(group.contacts);
-                          setMergeModalOpen(true);
-                        }}
-                      >
-                        <Merge className="h-4 w-4 mr-2" />
-                        Merge These
-                      </Button>
-                    </div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {group.contacts.map((contact) => (
-                          <TableRow key={contact.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Avatar className="h-6 w-6">
-                                  <AvatarFallback className="text-xs">
-                                    {(contact.full_name || contact.name || "?")
-                                      .split(" ")
-                                      .map((n) => n[0])
-                                      .join("")}
-                                  </AvatarFallback>
-                                </Avatar>
-                                {contact.full_name || contact.name}
-                                {contact.xero_id && (
-                                  <Badge variant="outline" className="text-xs">Xero</Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>{contact.email || "-"}</TableCell>
-                            <TableCell>
-                              {contact.entity_type && (
-                                <Badge className={entityTypeColors[contact.entity_type] || ""}>
-                                  {entityTypeLabels[contact.entity_type] || contact.entity_type}
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {contact.is_active ? (
-                                <Badge className="bg-green-100 text-green-700">Active</Badge>
-                              ) : (
-                                <Badge variant="secondary">Inactive</Badge>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* All/Persons/Companies/Suppliers Tab Content */}
-        {activeTab !== "duplicates" && (
-          <TabsContent value={activeTab} className="mt-4" forceMount>
-            <TeeemTableView
-              entries={filteredRecords}
-              columns={columns}
-              foundationId="contacts"
-              foundationIdNumeric={foundation?.id}
-              tableName={foundation?.name || "Contacts"}
-              enableExport={true}
-              enableImport={true}
-              showDataHealth={false}
-              onDataHealthIssueClick={handleDataHealthIssueClick}
-              onRefresh={refresh}
-              onRowClick={handleRowClick}
-              onRowDoubleClick={handleRowDoubleClick}
-              onRowUpdate={handleRowUpdate}
-              onDelete={handleDelete}
-              leftActions={leftActions}
-            />
-          </TabsContent>
-        )}
-      </Tabs>
+      {/* Contacts Table */}
+      <TeeemTableView
+        entries={records}
+        columns={columns}
+        foundationId="contacts"
+        foundationIdNumeric={foundation?.id}
+        tableName={foundation?.name || "Contacts"}
+        enableExport={true}
+        enableImport={true}
+        showDataHealth={false}
+        onDataHealthIssueClick={handleDataHealthIssueClick}
+        onRefresh={refresh}
+        onRowClick={handleRowClick}
+        onRowDoubleClick={handleRowDoubleClick}
+        onRowUpdate={handleRowUpdate}
+        onDelete={handleDelete}
+        leftActions={leftActions}
+      />
 
       {/* Merge Modal */}
       <MergeContactsModal

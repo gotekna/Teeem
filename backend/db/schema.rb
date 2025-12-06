@@ -4629,6 +4629,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_214627) do
   add_foreign_key "job_type_statuses", "job_status"
   add_foreign_key "job_type_statuses", "job_types"
   add_foreign_key "jobs", "designs"
+  add_foreign_key "jobs", "designs"
   add_foreign_key "jobs", "job_stages"
   add_foreign_key "jobs", "job_status", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify

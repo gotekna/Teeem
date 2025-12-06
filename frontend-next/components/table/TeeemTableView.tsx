@@ -672,6 +672,11 @@ export default function TeeemTableView({
   } | null>(null);
   const DRAG_THRESHOLD = 5;
 
+  // Refs for sticky scrollbar sync
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const stickyScrollbarRef = useRef<HTMLDivElement>(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(0);
+
   // Global Views Manager state managed by atom (SSoT)
   const [showGlobalViewsManager, setShowGlobalViewsManager] = useAtom(showGlobalViewsManagerAtom);
 
@@ -750,6 +755,48 @@ export default function TeeemTableView({
       }
     }
   }, [foundationIdNumeric, enableSchemaEditor, preloadedViews, viewOnly, tableName, foundationId]);
+
+  // Sync sticky scrollbar with main table container
+  useEffect(() => {
+    const tableContainer = tableContainerRef.current;
+    const stickyScrollbar = stickyScrollbarRef.current;
+    if (!tableContainer || !stickyScrollbar) return;
+
+    // Update scroll width
+    const updateScrollWidth = () => {
+      setTableScrollWidth(tableContainer.scrollWidth);
+    };
+    updateScrollWidth();
+
+    // Sync main container scroll to sticky scrollbar
+    const handleTableScroll = () => {
+      if (stickyScrollbar) {
+        stickyScrollbar.scrollLeft = tableContainer.scrollLeft;
+      }
+    };
+
+    // Sync sticky scrollbar scroll to main container
+    const handleStickyScroll = () => {
+      if (tableContainer) {
+        tableContainer.scrollLeft = stickyScrollbar.scrollLeft;
+      }
+    };
+
+    // Observe resize to update scroll width
+    const resizeObserver = new ResizeObserver(() => {
+      updateScrollWidth();
+    });
+    resizeObserver.observe(tableContainer);
+
+    tableContainer.addEventListener('scroll', handleTableScroll);
+    stickyScrollbar.addEventListener('scroll', handleStickyScroll);
+
+    return () => {
+      resizeObserver.disconnect();
+      tableContainer.removeEventListener('scroll', handleTableScroll);
+      stickyScrollbar.removeEventListener('scroll', handleStickyScroll);
+    };
+  }, []);
 
   // ============================================================================
   // HANDLERS
@@ -3720,8 +3767,16 @@ export default function TeeemTableView({
       )}
 
       {/* Table - scrollable container with minimum height for ~10 rows */}
-      <div className="flex-1 min-h-[360px] w-full overflow-auto relative">
+      <div
+        ref={tableContainerRef}
+        className="flex-1 min-h-[360px] w-full overflow-auto relative [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+      >
         {groupedEntries ? renderGroupedTable() : renderFlatTable()}
+      </div>
+
+      {/* Sticky horizontal scrollbar - stays visible at bottom of viewport */}
+      <div className="sticky bottom-0 left-0 right-0 w-full overflow-x-auto overflow-y-hidden bg-background/95 backdrop-blur-sm border-t shadow-lg z-50 py-1" ref={stickyScrollbarRef}>
+        <div style={{ width: `${tableScrollWidth}px`, height: '12px' }} />
       </div>
 
       {/* Footer - compact */}
