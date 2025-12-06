@@ -2188,6 +2188,7 @@ module Api
         permitted = params.require(:contact).permit(
           :full_name,
           :first_name,
+          :middle_name,
           :last_name,
           :email,
           :mobile_phone,
