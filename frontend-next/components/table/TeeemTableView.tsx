@@ -1895,7 +1895,6 @@ export default function TeeemTableView({
     selectedRows,
     entries,
     setShowMergeModal,
-    setRowsToMerge,
   });
 
   // Destructure table handlers
