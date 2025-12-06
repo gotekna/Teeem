@@ -973,6 +973,7 @@ Rails.application.routes.draw do
           post :import_all_bills
           post :import_all_claims
           post :full_import
+          post :set_primary
         end
         member do
           get :sync_contacts_status

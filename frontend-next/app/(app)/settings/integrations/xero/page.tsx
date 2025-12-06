@@ -29,9 +29,13 @@ interface XeroStatus {
 }
 
 interface XeroTenant {
+  id: number;
   tenant_id: string;
   tenant_name: string;
   connected_at: string;
+  is_primary: boolean;
+  expires_at?: string;
+  expired?: boolean;
 }
 
 export default function XeroIntegrationPage() {
@@ -227,34 +231,77 @@ export default function XeroIntegrationPage() {
         <Card>
           <CardHeader>
             <CardTitle>Connected Organizations ({tenants.length})</CardTitle>
-            <CardDescription>Xero organizations connected to TEEEM</CardDescription>
+            <CardDescription>
+              Xero organizations connected to TEEEM. Primary org is used for contact sync.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {tenants.map((tenant) => (
                 <div
                   key={tenant.tenant_id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
+                  className={`flex items-center justify-between p-4 border rounded-lg ${
+                    tenant.is_primary ? "border-green-500 bg-green-50/50" : ""
+                  }`}
                 >
                   <div className="flex-1">
-                    <p className="font-medium">{tenant.tenant_name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{tenant.tenant_name}</p>
+                      {tenant.is_primary && (
+                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                          Primary
+                        </Badge>
+                      )}
+                      {tenant.expired && (
+                        <Badge variant="destructive">Expired</Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">
                       Tenant ID: {tenant.tenant_id}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Connected</p>
-                    <p className="text-sm font-medium">
-                      {new Date(tenant.connected_at).toLocaleDateString("en-AU", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground">Connected</p>
+                      <p className="text-sm font-medium">
+                        {new Date(tenant.connected_at).toLocaleDateString("en-AU", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    {!tenant.is_primary && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await api.post("/api/v1/xero/set_primary", {
+                              tenant_id: tenant.tenant_id,
+                            });
+                            // Refresh the data
+                            window.location.reload();
+                          } catch (error) {
+                            console.error("Failed to set primary:", error);
+                          }
+                        }}
+                      >
+                        Set as Primary
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
+            <Alert className="mt-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>What is "Primary"?</AlertTitle>
+              <AlertDescription>
+                The primary Xero organization is used for contact sync and general operations.
+                Company-specific accounting can use different Xero orgs via Corporate → Companies.
+              </AlertDescription>
+            </Alert>
           </CardContent>
         </Card>
       )}

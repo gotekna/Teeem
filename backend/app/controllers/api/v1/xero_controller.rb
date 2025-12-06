@@ -107,9 +107,13 @@ module Api
       def tenants
         tenants = XeroCredential.all.map do |cred|
           {
+            id: cred.id,
             tenant_id: cred.tenant_id,
             tenant_name: cred.tenant_name,
-            connected_at: cred.created_at
+            connected_at: cred.created_at,
+            is_primary: cred.is_primary,
+            expires_at: cred.expires_at,
+            expired: cred.expired?
           }
         end
 
@@ -117,6 +121,48 @@ module Api
           success: true,
           tenants: tenants
         }
+      end
+
+      # POST /api/v1/xero/set_primary
+      # Set a specific Xero organization as the primary one for contact sync
+      def set_primary
+        tenant_id = params[:tenant_id]
+
+        unless tenant_id.present?
+          return render json: {
+            success: false,
+            error: 'Tenant ID is required'
+          }, status: :bad_request
+        end
+
+        credential = XeroCredential.find_by(tenant_id: tenant_id)
+
+        unless credential
+          return render json: {
+            success: false,
+            error: 'Xero organization not found'
+          }, status: :not_found
+        end
+
+        begin
+          credential.set_as_primary!
+
+          render json: {
+            success: true,
+            message: "#{credential.tenant_name} set as primary Xero organization",
+            primary_tenant: {
+              tenant_id: credential.tenant_id,
+              tenant_name: credential.tenant_name,
+              is_primary: true
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Failed to set primary Xero: #{e.message}")
+          render json: {
+            success: false,
+            error: 'Failed to set primary organization'
+          }, status: :internal_server_error
+        end
       end
 
       # DELETE /api/v1/xero/disconnect

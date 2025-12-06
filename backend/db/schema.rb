@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_05_234407) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_06_030525) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4415,6 +4415,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_05_234407) do
     t.string "tenant_type"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "is_primary", default: false, null: false
+    t.index ["is_primary"], name: "index_xero_credentials_on_is_primary"
     t.index ["tenant_id"], name: "index_xero_credentials_on_tenant_id"
   end
 
