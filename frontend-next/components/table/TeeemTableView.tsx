@@ -876,13 +876,52 @@ export default function TeeemTableView({
   }, []);
 
   const toggleSelectAll = useCallback(() => {
-    if (selectedRows.size === filteredAndSortedEntries.length) {
-      setSelectedRows(new Set<string | number>());
+    // In grouped view, select only visible/expanded rows
+    if (groupedEntries) {
+      const visibleRows: TableRowType[] = [];
+      const collectRows = (
+        groups: Record<string, { rows: TableRowType[]; subgroups?: Record<string, { rows: TableRowType[]; subgroups?: Record<string, unknown> }> }>,
+        parentKey: string = ""
+      ) => {
+        Object.entries(groups).forEach(([groupKey, group]) => {
+          const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
+          const isCollapsed = collapsedGroups.has(fullKey);
+          if (!isCollapsed) {
+            if (group.subgroups && Object.keys(group.subgroups).length > 0) {
+              collectRows(group.subgroups as typeof groups, fullKey);
+            } else {
+              visibleRows.push(...group.rows);
+            }
+          }
+        });
+      };
+      collectRows(groupedEntries);
+
+      // Check if all visible rows are selected
+      const visibleIds = visibleRows.map(r => r.id);
+      const allVisibleSelected = visibleIds.every(id => selectedRows.has(id));
+
+      if (allVisibleSelected && visibleIds.length > 0) {
+        // Deselect all visible rows
+        const newSelection = new Set(selectedRows);
+        visibleIds.forEach(id => newSelection.delete(id));
+        setSelectedRows(newSelection);
+      } else {
+        // Select all visible rows
+        const newSelection = new Set(selectedRows);
+        visibleIds.forEach(id => newSelection.add(id));
+        setSelectedRows(newSelection);
+      }
     } else {
-      setSelectedRows(new Set(filteredAndSortedEntries.map((e) => e.id)));
+      // Flat view: select all filtered entries
+      if (selectedRows.size === filteredAndSortedEntries.length) {
+        setSelectedRows(new Set<string | number>());
+      } else {
+        setSelectedRows(new Set(filteredAndSortedEntries.map((e) => e.id)));
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally watching selectedRows.size only, filteredAndSortedEntries accessed directly
-  }, [selectedRows.size]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally watching selectedRows.size only, other deps accessed directly
+  }, [selectedRows.size, groupedEntries, collapsedGroups]);
 
   // Merge handler - opens the shared merge modal
   const handleMergeClick = useCallback((ids: (number | string)[]) => {
@@ -2613,8 +2652,8 @@ export default function TeeemTableView({
               <div className="flex items-center">
                 <Checkbox
                   checked={
-                    selectedRows.size === filteredAndSortedEntries.length &&
-                    filteredAndSortedEntries.length > 0
+                    visibleRows.length > 0 &&
+                    visibleRows.every(row => selectedRows.has(row.id))
                   }
                   onCheckedChange={toggleSelectAll}
                 />
@@ -2877,6 +2916,7 @@ export default function TeeemTableView({
             />
           )}
           <SearchInput
+          value={search}
           onSearch={handleSearchFromInput}
           onSearchAllChange={handleSearchAllChange}
           searchAllColumns={searchAllColumns}

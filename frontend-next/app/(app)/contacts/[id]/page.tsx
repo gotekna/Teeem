@@ -601,12 +601,16 @@ export default function ContactDetailPage() {
 
   // Populate selected employees from contact.employees (for company contacts)
   useEffect(() => {
+    console.log('[Employee useEffect] Triggered. contact.employees:', contact?.employees);
     if (contact?.employees) {
       const selected: Option[] = contact.employees.map((emp: any) => ({
         value: emp.id.toString(),
         label: emp.name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || "Unknown Person",
       }));
+      console.log('[Employee useEffect] Setting selectedEmployees to:', selected);
       setSelectedEmployees(selected);
+    } else {
+      console.log('[Employee useEffect] No employees found on contact');
     }
   }, [contact?.employees]);
 
@@ -965,10 +969,12 @@ export default function ContactDetailPage() {
 
     const addedIds = newIds.filter((id) => !previousIds.includes(id));
     const removedIds = previousIds.filter((id) => !newIds.includes(id));
+    console.log('[Employee Change] Added:', addedIds, 'Removed:', removedIds);
 
     try {
       // Create relationships FROM person TO company for added employees
       for (const personId of addedIds) {
+        console.log('[Employee Change] Creating relationship for person:', personId);
         try {
           await api.post(`/api/v1/contacts/${personId}/relationships`, {
             contact_relationship: {
@@ -977,10 +983,11 @@ export default function ContactDetailPage() {
               is_active: true,
             },
           });
+          console.log('[Employee Change] Relationship created successfully for:', personId);
         } catch (err: any) {
           // Skip if relationship already exists
           if (err?.response?.data?.error?.includes('already exists')) {
-            console.log(`Skipping duplicate relationship for person ${personId}`);
+            console.log(`[Employee Change] Skipping duplicate relationship for person ${personId}`);
             continue;
           }
           throw err; // Re-throw if it's a different error
@@ -989,17 +996,22 @@ export default function ContactDetailPage() {
 
       // Delete relationships for removed employees
       for (const personId of removedIds) {
+        console.log('[Employee Change] Deleting relationship for person:', personId);
         const relationshipsResponse = await api.get(`/api/v1/contacts/${personId}/relationships`) as any;
         const rel = relationshipsResponse.relationships.outgoing.find(
           (r: any) => r.related_contact_id === contact.id && r.relationship_type === 'employee_of'
         );
         if (rel) {
           await api.delete(`/api/v1/contacts/${personId}/relationships/${rel.id}`);
+          console.log('[Employee Change] Relationship deleted successfully for:', personId);
         }
       }
 
+      console.log('[Employee Change] Setting selectedEmployees to:', newSelectedEmployees);
       setSelectedEmployees(newSelectedEmployees);
+      console.log('[Employee Change] Calling loadContact()...');
       await loadContact();
+      console.log('[Employee Change] loadContact() completed');
     } catch (err) {
       console.error("Failed to update employee relationships:", err);
       setSelectedEmployees(selectedEmployees);
@@ -1435,14 +1447,14 @@ export default function ContactDetailPage() {
                     {/* Primary Company - show for person entity type */}
                     {formData.entity_type === 'person' && contact.primary_company && (
                       <div className="space-y-2">
-                        <Label>Works For</Label>
+                        <Label>Primary Company (Auto-synced)</Label>
                         <div className="flex items-center gap-2 p-3 rounded-md border bg-muted/30">
                           <Building2 className="h-4 w-4 text-muted-foreground" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{contact.primary_company.name}</p>
-                            {contact.position && (
-                              <p className="text-xs text-muted-foreground truncate">{contact.position}</p>
-                            )}
+                            <p className="text-xs text-muted-foreground truncate">
+                              Synced from employee relationships
+                            </p>
                           </div>
                           <Link href={`/contacts/${contact.primary_company.id}`}>
                             <Button variant="ghost" size="sm">

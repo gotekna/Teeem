@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface SearchInputProps {
+  value: string;
   onSearch: (value: string) => void;
   onSearchAllChange: (checked: boolean) => void;
   searchAllColumns: boolean;
@@ -14,6 +15,7 @@ interface SearchInputProps {
 }
 
 export const SearchInput = memo(function SearchInput({
+  value,
   onSearch,
   onSearchAllChange,
   searchAllColumns,
@@ -22,30 +24,32 @@ export const SearchInput = memo(function SearchInput({
 }: SearchInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  // Track if we have a value for showing clear button (use ref to avoid re-renders)
-  const [hasValue, setHasValue] = useState(false);
+  // Track local input value for controlled input
+  const [localValue, setLocalValue] = useState(value);
+
+  // Sync local value with prop value when it changes externally
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value;
-      setHasValue(value.length > 0);
+      const newValue = e.target.value;
+      setLocalValue(newValue);
 
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
 
       debounceRef.current = setTimeout(() => {
-        onSearch(value);
+        onSearch(newValue);
       }, 300);
     },
     [onSearch]
   );
 
   const handleClear = useCallback(() => {
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
-    setHasValue(false);
+    setLocalValue("");
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
@@ -71,14 +75,14 @@ export const SearchInput = memo(function SearchInput({
         <Input
           ref={inputRef}
           type="text"
-          defaultValue=""
+          value={localValue}
           onChange={handleChange}
           placeholder={
             hasServerSearch ? "Search all records..." : "Search across all fields..."
           }
           className="pl-9 pr-9"
         />
-        {hasValue && (
+        {localValue && (
           <button
             onClick={handleClear}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
