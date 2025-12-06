@@ -7,9 +7,9 @@ class QuoteRequestNotificationJob < ApplicationJob
     # Determine which contacts to notify
     contacts = if contact_ids.present?
                 Contact.where(id: contact_ids)
-              else
+    else
                 quote_request.contacts
-              end
+    end
 
     contacts.each do |contact|
       send_notification(quote_request, contact)
@@ -25,7 +25,7 @@ class QuoteRequestNotificationJob < ApplicationJob
     # Send email if contact has email
     if contact.email.present?
       # TODO: SubcontractorMailer.quote_request_notification(quote_request, contact).deliver_now
-      qrc&.update(notified_at: Time.current, notification_method: 'email')
+      qrc&.update(notified_at: Time.current, notification_method: "email")
       Rails.logger.info("Email notification sent to #{contact.email} for quote request ##{quote_request.id}")
     end
 
@@ -34,7 +34,7 @@ class QuoteRequestNotificationJob < ApplicationJob
       send_sms_notification(quote_request, contact)
       qrc&.update(
         notified_at: Time.current,
-        notification_method: qrc&.notification_method == 'email' ? 'email_and_sms' : 'sms'
+        notification_method: qrc&.notification_method == "email" ? "email_and_sms" : "sms"
       )
     end
   rescue => e
@@ -58,10 +58,10 @@ class QuoteRequestNotificationJob < ApplicationJob
   end
 
   def twilio_configured?
-    ENV['TWILIO_ACCOUNT_SID'].present? && ENV['TWILIO_AUTH_TOKEN'].present?
+    ENV["TWILIO_ACCOUNT_SID"].present? && ENV["TWILIO_AUTH_TOKEN"].present?
   end
 
   def portal_url
-    ENV['PORTAL_URL'] || 'https://portal.teeem.com'
+    ENV["PORTAL_URL"] || "https://portal.teeem.com"
   end
 end

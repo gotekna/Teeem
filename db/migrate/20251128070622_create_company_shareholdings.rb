@@ -12,7 +12,7 @@ class CreateCompanyShareholdings < ActiveRecord::Migration[8.0]
 
       t.timestamps
     end
-    add_index :company_shareholdings, [:company_id, :shareholder_id, :share_class],
+    add_index :company_shareholdings, [ :company_id, :shareholder_id, :share_class ],
               unique: true, name: 'idx_shareholdings_unique'
     add_index :company_shareholdings, :share_class
     add_index :company_shareholdings, :beneficially_held

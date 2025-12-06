@@ -68,7 +68,7 @@ module Api
         category = params[:category]
 
         if supplier_id.blank? || category.blank?
-          render json: { error: 'supplier_id and category are required' }, status: :bad_request
+          render json: { error: "supplier_id and category are required" }, status: :bad_request
           return
         end
 
@@ -119,7 +119,7 @@ module Api
             .where(supplier_id: supplier_id)
             .where(pricebook: { is_active: true })
             .distinct
-            .pluck('pricebook.category')
+            .pluck("pricebook.category")
             .compact
 
           categories.each do |category|
@@ -132,7 +132,7 @@ module Api
               .where(supplier_id: supplier_id)
               .where(pricebook: { category: category, is_active: true })
               .distinct
-              .count('pricebook.id')
+              .count("pricebook.id")
 
             # If supplier has some but not all items, flag it
             if supplier_items > 0 && supplier_items < total_items
@@ -153,7 +153,7 @@ module Api
         end
 
         # Sort by missing items count (descending) then by category
-        sorted_results = results.sort_by { |r| [-r[:missing_items_count], r[:category], r[:supplier][:name]] }
+        sorted_results = results.sort_by { |r| [ -r[:missing_items_count], r[:category], r[:supplier][:name] ] }
 
         # Return the results, count of suppliers with issues, and total suppliers
         {

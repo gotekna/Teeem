@@ -10,34 +10,34 @@ namespace :teeem do
       accounts = []
 
       # ASSETS (1000-1999)
-      accounts << Keepr::Account.create!(number: 1000, name: 'Cash - Bank Account', kind: :asset)
-      accounts << Keepr::Account.create!(number: 1100, name: 'Accounts Receivable', kind: :asset)
-      accounts << Keepr::Account.create!(number: 1200, name: 'Inventory', kind: :asset)
-      accounts << Keepr::Account.create!(number: 1400, name: 'Tools & Equipment', kind: :asset)
+      accounts << Keepr::Account.create!(number: 1000, name: "Cash - Bank Account", kind: :asset)
+      accounts << Keepr::Account.create!(number: 1100, name: "Accounts Receivable", kind: :asset)
+      accounts << Keepr::Account.create!(number: 1200, name: "Inventory", kind: :asset)
+      accounts << Keepr::Account.create!(number: 1400, name: "Tools & Equipment", kind: :asset)
 
       # LIABILITIES (2000-2999)
-      accounts << Keepr::Account.create!(number: 2000, name: 'Accounts Payable', kind: :liability)
-      accounts << Keepr::Account.create!(number: 2100, name: 'Credit Cards', kind: :liability)
-      accounts << Keepr::Account.create!(number: 2200, name: 'Loans', kind: :liability)
+      accounts << Keepr::Account.create!(number: 2000, name: "Accounts Payable", kind: :liability)
+      accounts << Keepr::Account.create!(number: 2100, name: "Credit Cards", kind: :liability)
+      accounts << Keepr::Account.create!(number: 2200, name: "Loans", kind: :liability)
 
       # EQUITY (3000-3999)
       accounts << Keepr::Account.create!(number: 3000, name: "Owner's Equity", kind: :liability)
-      accounts << Keepr::Account.create!(number: 3100, name: 'Retained Earnings', kind: :liability)
+      accounts << Keepr::Account.create!(number: 3100, name: "Retained Earnings", kind: :liability)
 
       # REVENUE (4000-4999)
-      accounts << Keepr::Account.create!(number: 4000, name: 'Job Revenue', kind: :revenue)
-      accounts << Keepr::Account.create!(number: 4100, name: 'Material Sales', kind: :revenue)
-      accounts << Keepr::Account.create!(number: 4200, name: 'Other Income', kind: :revenue)
+      accounts << Keepr::Account.create!(number: 4000, name: "Job Revenue", kind: :revenue)
+      accounts << Keepr::Account.create!(number: 4100, name: "Material Sales", kind: :revenue)
+      accounts << Keepr::Account.create!(number: 4200, name: "Other Income", kind: :revenue)
 
       # EXPENSES (5000-5999)
-      accounts << Keepr::Account.create!(number: 5000, name: 'Materials', kind: :expense)
-      accounts << Keepr::Account.create!(number: 5100, name: 'Labour', kind: :expense)
-      accounts << Keepr::Account.create!(number: 5200, name: 'Subcontractors', kind: :expense)
-      accounts << Keepr::Account.create!(number: 5300, name: 'Tools & Equipment Expense', kind: :expense)
-      accounts << Keepr::Account.create!(number: 5400, name: 'Fuel & Transport', kind: :expense)
-      accounts << Keepr::Account.create!(number: 5500, name: 'Insurance', kind: :expense)
-      accounts << Keepr::Account.create!(number: 5600, name: 'Professional Fees', kind: :expense)
-      accounts << Keepr::Account.create!(number: 5700, name: 'Other Expenses', kind: :expense)
+      accounts << Keepr::Account.create!(number: 5000, name: "Materials", kind: :expense)
+      accounts << Keepr::Account.create!(number: 5100, name: "Labour", kind: :expense)
+      accounts << Keepr::Account.create!(number: 5200, name: "Subcontractors", kind: :expense)
+      accounts << Keepr::Account.create!(number: 5300, name: "Tools & Equipment Expense", kind: :expense)
+      accounts << Keepr::Account.create!(number: 5400, name: "Fuel & Transport", kind: :expense)
+      accounts << Keepr::Account.create!(number: 5500, name: "Insurance", kind: :expense)
+      accounts << Keepr::Account.create!(number: 5600, name: "Professional Fees", kind: :expense)
+      accounts << Keepr::Account.create!(number: 5700, name: "Other Expenses", kind: :expense)
 
       puts "✓ Created #{accounts.count} accounts"
       puts "Financial chart of accounts setup complete!"
@@ -54,7 +54,7 @@ namespace :teeem do
       Keepr::Account.delete_all
       puts "✓ Cleared"
 
-      Rake::Task['teeem:financial:setup_simple'].invoke
+      Rake::Task["teeem:financial:setup_simple"].invoke
     end
   end
 end

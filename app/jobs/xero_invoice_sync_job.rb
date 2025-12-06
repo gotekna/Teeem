@@ -16,21 +16,21 @@ class XeroInvoiceSyncJob < ApplicationJob
 
     begin
       service = ExternalInvoiceSyncService.new(
-        source: 'xero',
+        source: "xero",
         tenant_id: tenant_id
       )
 
       result = if incremental
                  service.sync_incremental
-               else
+      else
                  service.sync
-               end
+      end
 
       Rails.logger.info("XeroInvoiceSyncJob completed: #{result[:stats].inspect}")
 
       # Store last sync result for health monitoring
       Rails.cache.write(
-        'xero_invoice_sync_last_result',
+        "xero_invoice_sync_last_result",
         {
           success: result[:success],
           synced_at: Time.current.iso8601,
@@ -47,7 +47,7 @@ class XeroInvoiceSyncJob < ApplicationJob
 
       # Store error for health monitoring
       Rails.cache.write(
-        'xero_invoice_sync_last_result',
+        "xero_invoice_sync_last_result",
         {
           success: false,
           synced_at: Time.current.iso8601,

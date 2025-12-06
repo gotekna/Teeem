@@ -25,20 +25,20 @@ class OrganizationOutlookCredential < ApplicationRecord
 
     response = HTTP.post("https://login.microsoftonline.com/#{tenant_id_or_common}/oauth2/v2.0/token",
       form: {
-        client_id: ENV['OUTLOOK_CLIENT_ID'],
-        client_secret: ENV['OUTLOOK_CLIENT_SECRET'],
+        client_id: ENV["OUTLOOK_CLIENT_ID"],
+        client_secret: ENV["OUTLOOK_CLIENT_SECRET"],
         refresh_token: refresh_token,
-        grant_type: 'refresh_token',
-        scope: 'https://graph.microsoft.com/Mail.Read offline_access'
+        grant_type: "refresh_token",
+        scope: "https://graph.microsoft.com/Mail.Read offline_access"
       }
     )
 
     if response.status.success?
       data = response.parse
       update!(
-        access_token: data['access_token'],
-        refresh_token: data['refresh_token'] || refresh_token, # Some responses don't include new refresh token
-        expires_at: Time.current + data['expires_in'].to_i.seconds
+        access_token: data["access_token"],
+        refresh_token: data["refresh_token"] || refresh_token, # Some responses don't include new refresh token
+        expires_at: Time.current + data["expires_in"].to_i.seconds
       )
       Rails.logger.info "Outlook token refreshed successfully"
       true
@@ -60,6 +60,6 @@ class OrganizationOutlookCredential < ApplicationRecord
   private
 
   def tenant_id_or_common
-    tenant_id.present? ? tenant_id : 'common'
+    tenant_id.present? ? tenant_id : "common"
   end
 end

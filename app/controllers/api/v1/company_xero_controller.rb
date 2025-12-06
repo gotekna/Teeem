@@ -12,7 +12,7 @@ module Api
           render json: {
             success: true,
             connected: false,
-            message: 'Not connected to Xero'
+            message: "Not connected to Xero"
           }
         else
           # Check if tokens need refresh
@@ -67,7 +67,7 @@ module Api
         if code.blank?
           return render json: {
             success: false,
-            error: 'Authorization code not provided'
+            error: "Authorization code not provided"
           }, status: :bad_request
         end
 
@@ -76,7 +76,7 @@ module Api
         if state != expected_state
           return render json: {
             success: false,
-            error: 'Invalid state parameter'
+            error: "Invalid state parameter"
           }, status: :bad_request
         end
 
@@ -94,7 +94,7 @@ module Api
           else
             render json: {
               success: false,
-              error: result[:error] || 'Failed to connect to Xero'
+              error: result[:error] || "Failed to connect to Xero"
             }, status: :unprocessable_entity
           end
         rescue XeroApiClient::AuthenticationError => e
@@ -106,7 +106,7 @@ module Api
           Rails.logger.error("Xero OAuth callback error for company #{@company.id}: #{e.message}")
           render json: {
             success: false,
-            error: 'Failed to complete Xero authorization'
+            error: "Failed to complete Xero authorization"
           }, status: :internal_server_error
         end
       end
@@ -119,7 +119,7 @@ module Api
         if connection.nil?
           return render json: {
             success: false,
-            error: 'Company is not connected to Xero'
+            error: "Company is not connected to Xero"
           }, status: :not_found
         end
 
@@ -136,7 +136,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Successfully disconnected from Xero'
+          message: "Successfully disconnected from Xero"
         }
       end
 
@@ -148,7 +148,7 @@ module Api
         if connection.nil? || !connection.connected?
           return render json: {
             success: false,
-            error: 'Company is not connected to Xero'
+            error: "Company is not connected to Xero"
           }, status: :bad_request
         end
 
@@ -157,7 +157,7 @@ module Api
           unless connection.refresh_tokens!
             return render json: {
               success: false,
-              error: 'Failed to refresh Xero tokens. Please reconnect.'
+              error: "Failed to refresh Xero tokens. Please reconnect."
             }, status: :unauthorized
           end
         end
@@ -168,7 +168,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Sync completed successfully',
+          message: "Sync completed successfully",
           last_sync_at: connection.last_sync_at
         }
       end
@@ -181,7 +181,7 @@ module Api
         if connection.nil? || !connection.connected?
           return render json: {
             success: false,
-            error: 'Company is not connected to Xero'
+            error: "Company is not connected to Xero"
           }, status: :bad_request
         end
 
@@ -210,7 +210,7 @@ module Api
         if connection.nil? || !connection.connected?
           return render json: {
             success: false,
-            error: 'Company is not connected to Xero'
+            error: "Company is not connected to Xero"
           }, status: :bad_request
         end
 
@@ -253,7 +253,7 @@ module Api
         if connection.nil? || !connection.connected?
           return render json: {
             success: false,
-            error: 'Company is not connected to Xero'
+            error: "Company is not connected to Xero"
           }, status: :bad_request
         end
 
@@ -263,7 +263,7 @@ module Api
         if bank_account_id.blank? || xero_account_id.blank?
           return render json: {
             success: false,
-            error: 'bank_account_id and xero_account_id are required'
+            error: "bank_account_id and xero_account_id are required"
           }, status: :bad_request
         end
 
@@ -277,7 +277,7 @@ module Api
           if result[:success]
             render json: {
               success: true,
-              message: 'Bank account linked successfully',
+              message: "Bank account linked successfully",
               bank_account: {
                 id: result[:bank_account].id,
                 xero_account_id: result[:bank_account].xero_account_id
@@ -302,7 +302,7 @@ module Api
         if connection.nil? || !connection.connected?
           return render json: {
             success: false,
-            error: 'Company is not connected to Xero'
+            error: "Company is not connected to Xero"
           }, status: :bad_request
         end
 
@@ -345,7 +345,7 @@ module Api
         if connection.nil? || !connection.connected?
           return render json: {
             success: false,
-            error: 'Company is not connected to Xero'
+            error: "Company is not connected to Xero"
           }, status: :bad_request
         end
 
@@ -395,7 +395,7 @@ module Api
       def set_company
         @company = Company.find_by_slug_or_id(params[:company_id])
         unless @company
-          render json: { success: false, error: 'Company not found' }, status: :not_found
+          render json: { success: false, error: "Company not found" }, status: :not_found
         end
       end
     end

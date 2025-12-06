@@ -51,7 +51,7 @@ namespace :jobs do
 
   desc "Geocode addresses for all jobs and update titles"
   task geocode_all: :environment do
-    unless ENV['MAPBOX_ACCESS_TOKEN'].present?
+    unless ENV["MAPBOX_ACCESS_TOKEN"].present?
       puts "ERROR: MAPBOX_ACCESS_TOKEN environment variable is not set"
       puts "Please set it with: heroku config:set MAPBOX_ACCESS_TOKEN=your_token"
       exit 1
@@ -82,7 +82,7 @@ namespace :jobs do
   end
 
   desc "Geocode a single job by ID"
-  task :geocode, [:job_id] => :environment do |_, args|
+  task :geocode, [ :job_id ] => :environment do |_, args|
     unless args[:job_id].present?
       puts "Usage: rails jobs:geocode[JOB_ID]"
       exit 1
@@ -107,7 +107,7 @@ namespace :jobs do
       puts "Parsed data: #{result[:parsed].inspect}"
 
       print "Apply changes? (y/n): "
-      if STDIN.gets.chomp.downcase == 'y'
+      if STDIN.gets.chomp.downcase == "y"
         service = JobAddressService.new
         service.process_job(job, preview: false)
         puts "Updated!"
@@ -125,7 +125,7 @@ namespace :jobs do
   end
 
   desc "Test parsing a job title without geocoding"
-  task :parse_title, [:title] => :environment do |_, args|
+  task :parse_title, [ :title ] => :environment do |_, args|
     unless args[:title].present?
       puts "Usage: rails jobs:parse_title['Your Job Title Here']"
       exit 1

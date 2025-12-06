@@ -13,7 +13,7 @@ class CreateDocumentationTabs < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :documentation_tabs, [:construction_id, :sequence_order]
-    add_index :documentation_tabs, [:construction_id, :name], unique: true
+    add_index :documentation_tabs, [ :construction_id, :sequence_order ]
+    add_index :documentation_tabs, [ :construction_id, :name ], unique: true
   end
 end

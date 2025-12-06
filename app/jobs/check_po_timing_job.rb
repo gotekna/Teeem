@@ -12,13 +12,13 @@ class CheckPoTimingJob < ApplicationJob
       return {
         construction_id: construction.id,
         construction_title: construction.title,
-        status: 'no_project',
-        message: 'Construction does not have an associated project'
+        status: "no_project",
+        message: "Construction does not have an associated project"
       }
     end
 
     # Find tasks with late materials
-    late_tasks = project.project_tasks.select { |task| task.materials_status == 'delayed' }
+    late_tasks = project.project_tasks.select { |task| task.materials_status == "delayed" }
 
     # Log warnings if any found
     if late_tasks.any?

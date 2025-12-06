@@ -26,9 +26,9 @@ class QuoteRequestService
     contact_ids = Array(contact_ids).map(&:to_i)
 
     # Validate all contacts exist and are suppliers
-    contacts = Contact.where(id: contact_ids, contact_type: 'supplier')
+    contacts = Contact.where(id: contact_ids, contact_type: "supplier")
     if contacts.count != contact_ids.count
-      return { success: false, error: 'Some contacts are invalid or not suppliers' }
+      return { success: false, error: "Some contacts are invalid or not suppliers" }
     end
 
     # Filter out already invited suppliers
@@ -36,7 +36,7 @@ class QuoteRequestService
     new_contacts = contacts.where.not(id: existing_contact_ids)
 
     if new_contacts.empty?
-      return { success: false, error: 'All selected suppliers already invited' }
+      return { success: false, error: "All selected suppliers already invited" }
     end
 
     # Create quote_request_contacts records
@@ -44,7 +44,7 @@ class QuoteRequestService
       quote_request.quote_request_contacts.create!(
         contact: contact,
         notified_at: Time.current,
-        notification_method: 'email' # Will be updated when notification is sent
+        notification_method: "email" # Will be updated when notification is sent
       )
     end
 
@@ -57,7 +57,7 @@ class QuoteRequestService
   # Accept a quote and reject others
   def self.accept_quote(quote_request, quote_response)
     unless quote_response.submitted?
-      return { success: false, error: 'Can only accept submitted quotes' }
+      return { success: false, error: "Can only accept submitted quotes" }
     end
 
     ActiveRecord::Base.transaction do
@@ -67,7 +67,7 @@ class QuoteRequestService
       # Update quote request
       quote_request.update!(
         selected_quote_response: quote_response,
-        status: 'closed'
+        status: "closed"
       )
 
       # Reject all other responses
@@ -87,7 +87,7 @@ class QuoteRequestService
   # Close quote request without accepting any quote
   def self.close_without_acceptance(quote_request, reason: nil)
     ActiveRecord::Base.transaction do
-      quote_request.update!(status: 'closed')
+      quote_request.update!(status: "closed")
 
       # Reject all pending/submitted responses
       quote_request.quote_responses.where(status: %w[pending submitted]).each(&:reject!)
@@ -95,8 +95,8 @@ class QuoteRequestService
       # Log closure reason if provided
       if reason.present?
         metadata = quote_request.metadata || {}
-        metadata['closure_reason'] = reason
-        metadata['closed_at'] = Time.current
+        metadata["closure_reason"] = reason
+        metadata["closed_at"] = Time.current
         quote_request.update!(metadata: metadata)
       end
 
@@ -111,13 +111,13 @@ class QuoteRequestService
   # Convert accepted quote to purchase order
   def self.convert_to_purchase_order(quote_request, po_params = {})
     unless quote_request.selected_quote_response
-      return { success: false, error: 'No quote has been accepted yet' }
+      return { success: false, error: "No quote has been accepted yet" }
     end
 
     # Check if PO already exists
     existing_po = PurchaseOrder.find_by(quote_response: quote_request.selected_quote_response)
     if existing_po
-      return { success: false, error: 'Purchase order already exists', purchase_order: existing_po }
+      return { success: false, error: "Purchase order already exists", purchase_order: existing_po }
     end
 
     quote_response = quote_request.selected_quote_response
@@ -129,7 +129,7 @@ class QuoteRequestService
       po_number: po_params[:po_number] || generate_po_number,
       total: quote_response.price,
       notes: build_po_notes(quote_request, quote_response, po_params[:notes]),
-      status: po_params[:status] || 'pending',
+      status: po_params[:status] || "pending",
       quote_response: quote_response
     )
 
@@ -151,20 +151,20 @@ class QuoteRequestService
     end
 
     if filters[:date_from]
-      quote_requests = quote_requests.where('created_at >= ?', filters[:date_from])
+      quote_requests = quote_requests.where("created_at >= ?", filters[:date_from])
     end
 
     if filters[:date_to]
-      quote_requests = quote_requests.where('created_at <= ?', filters[:date_to])
+      quote_requests = quote_requests.where("created_at <= ?", filters[:date_to])
     end
 
     {
       total_requests: quote_requests.count,
-      pending_requests: quote_requests.where(status: 'pending_response').count,
-      closed_requests: quote_requests.where(status: 'closed').count,
+      pending_requests: quote_requests.where(status: "pending_response").count,
+      closed_requests: quote_requests.where(status: "closed").count,
       requests_with_responses: quote_requests.joins(:quote_responses).distinct.count,
       total_responses: QuoteResponse.where(quote_request: quote_requests).count,
-      accepted_quotes: QuoteResponse.where(quote_request: quote_requests, status: 'accepted').count,
+      accepted_quotes: QuoteResponse.where(quote_request: quote_requests, status: "accepted").count,
       average_responses_per_request: calculate_average_responses(quote_requests),
       average_response_time_hours: calculate_average_response_time(quote_requests),
       average_quote_value: calculate_average_quote_value(quote_requests),
@@ -224,7 +224,7 @@ class QuoteRequestService
   end
 
   def self.calculate_average_quote_value(quote_requests)
-    responses = QuoteResponse.where(quote_request: quote_requests, status: 'submitted')
+    responses = QuoteResponse.where(quote_request: quote_requests, status: "submitted")
     return 0 if responses.empty?
     responses.average(:price)&.round(2) || 0
   end

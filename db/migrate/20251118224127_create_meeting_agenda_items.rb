@@ -14,7 +14,7 @@ class CreateMeetingAgendaItems < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :meeting_agenda_items, [:meeting_id, :sequence_order]
+    add_index :meeting_agenda_items, [ :meeting_id, :sequence_order ]
     add_index :meeting_agenda_items, :completed
   end
 end

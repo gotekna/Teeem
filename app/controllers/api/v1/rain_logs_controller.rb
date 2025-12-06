@@ -2,7 +2,7 @@ module Api
   module V1
     class RainLogsController < ApplicationController
       before_action :set_job
-      before_action :set_rain_log, only: [:show, :update, :destroy]
+      before_action :set_rain_log, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/constructions/:job_id/rain_logs
       def index
@@ -21,7 +21,7 @@ module Api
         render json: {
           rain_logs: @rain_logs.as_json(
             include: {
-              created_by_user: { only: [:id, :name, :email] }
+              created_by_user: { only: [ :id, :name, :email ] }
             }
           )
         }
@@ -32,7 +32,7 @@ module Api
         render json: {
           rain_log: @rain_log.as_json(
             include: {
-              created_by_user: { only: [:id, :name, :email] }
+              created_by_user: { only: [ :id, :name, :email ] }
             }
           )
         }
@@ -42,7 +42,7 @@ module Api
       def create
         @rain_log = @job.rain_logs.build(rain_log_params)
         @rain_log.created_by_user = current_user
-        @rain_log.source = 'manual'
+        @rain_log.source = "manual"
 
         # Auto-calculate severity if rainfall_mm is provided
         if @rain_log.rainfall_mm.present?
@@ -53,7 +53,7 @@ module Api
           render json: {
             rain_log: @rain_log.as_json(
               include: {
-                created_by_user: { only: [:id, :name, :email] }
+                created_by_user: { only: [ :id, :name, :email ] }
               }
             )
           }, status: :created
@@ -73,7 +73,7 @@ module Api
           render json: {
             rain_log: @rain_log.reload.as_json(
               include: {
-                created_by_user: { only: [:id, :name, :email] }
+                created_by_user: { only: [ :id, :name, :email ] }
               }
             )
           }
@@ -92,7 +92,7 @@ module Api
       # Returns current weather config status and job location
       def weather_status
         location = extract_job_location(@job)
-        api_configured = ENV['WEATHER_API_KEY'].present?
+        api_configured = ENV["WEATHER_API_KEY"].present?
 
         render json: {
           api_configured: api_configured,
@@ -109,14 +109,14 @@ module Api
       def fetch_weather
         date = params[:date].present? ? Date.parse(params[:date]) : Date.yesterday
 
-        unless ENV['WEATHER_API_KEY'].present?
-          render json: { error: 'Weather API not configured. Please set WEATHER_API_KEY.' }, status: :service_unavailable
+        unless ENV["WEATHER_API_KEY"].present?
+          render json: { error: "Weather API not configured. Please set WEATHER_API_KEY." }, status: :service_unavailable
           return
         end
 
         location = extract_job_location(@job)
         unless location
-          render json: { error: 'Job has no location set. Please add a location to the job.' }, status: :unprocessable_entity
+          render json: { error: "Job has no location set. Please add a location to the job." }, status: :unprocessable_entity
           return
         end
 
@@ -147,14 +147,14 @@ module Api
       def auto_log
         date = params[:date].present? ? Date.parse(params[:date]) : Date.yesterday
 
-        unless ENV['WEATHER_API_KEY'].present?
-          render json: { error: 'Weather API not configured' }, status: :service_unavailable
+        unless ENV["WEATHER_API_KEY"].present?
+          render json: { error: "Weather API not configured" }, status: :service_unavailable
           return
         end
 
         location = extract_job_location(@job)
         unless location
-          render json: { error: 'Job has no location set' }, status: :unprocessable_entity
+          render json: { error: "Job has no location set" }, status: :unprocessable_entity
           return
         end
 
@@ -186,7 +186,7 @@ module Api
             date: date,
             rainfall_mm: rainfall_mm,
             severity: RainLog.calculate_severity(rainfall_mm),
-            source: 'automatic',
+            source: "automatic",
             weather_api_response: weather_data[:raw_response],
             notes: "Auto-detected: #{weather_data[:condition]} at #{weather_data[:location]}",
             created_by_user: current_user
@@ -196,7 +196,7 @@ module Api
             success: true,
             message: "Rain log created for #{date}",
             rain_log_created: true,
-            rain_log: rain_log.as_json(include: { created_by_user: { only: [:id, :name] } })
+            rain_log: rain_log.as_json(include: { created_by_user: { only: [ :id, :name ] } })
           }, status: :created
 
         rescue WeatherApiClient::Error => e

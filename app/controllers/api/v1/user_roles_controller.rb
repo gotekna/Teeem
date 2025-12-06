@@ -15,12 +15,12 @@ class Api::V1::UserRolesController < ApplicationController
     role_name = params[:name]&.downcase&.strip
 
     if role_name.blank?
-      render json: { error: 'Role name is required' }, status: :unprocessable_entity
+      render json: { error: "Role name is required" }, status: :unprocessable_entity
       return
     end
 
     if User::ROLES.include?(role_name)
-      render json: { error: 'Role already exists' }, status: :unprocessable_entity
+      render json: { error: "Role already exists" }, status: :unprocessable_entity
       return
     end
 
@@ -28,7 +28,7 @@ class Api::V1::UserRolesController < ApplicationController
     # For now, we'll store it in a database table
     # TODO: Implement dynamic role storage
 
-    render json: { error: 'Dynamic role creation not yet implemented. Please add roles directly to the User model.' }, status: :not_implemented
+    render json: { error: "Dynamic role creation not yet implemented. Please add roles directly to the User model." }, status: :not_implemented
   end
 
   # DELETE /api/v1/user_roles/:id
@@ -38,11 +38,11 @@ class Api::V1::UserRolesController < ApplicationController
     # Prevent deletion of core roles
     core_roles = %w[user admin]
     if core_roles.include?(role_name)
-      render json: { error: 'Cannot delete core system roles' }, status: :forbidden
+      render json: { error: "Cannot delete core system roles" }, status: :forbidden
       return
     end
 
     # TODO: Implement dynamic role deletion
-    render json: { error: 'Dynamic role deletion not yet implemented. Please remove roles directly from the User model.' }, status: :not_implemented
+    render json: { error: "Dynamic role deletion not yet implemented. Please remove roles directly from the User model." }, status: :not_implemented
   end
 end

@@ -1,6 +1,6 @@
 namespace :teeem do
   desc "Copy Gold Standard column types to another table"
-  task :copy_gold_standard_columns, [:target_table_id] => :environment do |t, args|
+  task :copy_gold_standard_columns, [ :target_table_id ] => :environment do |t, args|
     target_id = args[:target_table_id]&.to_i
 
     unless target_id
@@ -10,7 +10,7 @@ namespace :teeem do
       puts "Useful for testing TEEEMTableView features on any table."
       puts ""
       puts "Tables without column definitions:"
-      Table.where.not(database_table_name: [nil, '']).each do |table|
+      Table.where.not(database_table_name: [ nil, "" ]).each do |table|
         col_count = Column.where(table_id: table.id).count
         if col_count == 0
           puts "  #{table.id}: #{table.name}"
@@ -33,7 +33,7 @@ namespace :teeem do
     if existing_count > 0
       print "Delete #{existing_count} existing column definitions? (y/n): "
       response = STDIN.gets.chomp.downcase
-      if response == 'y'
+      if response == "y"
         Column.where(table_id: target_id).destroy_all
         puts "Deleted existing columns"
       else
@@ -49,9 +49,9 @@ namespace :teeem do
     # First, add action_buttons at position 0
     Column.create!(
       table_id: target_id,
-      name: 'Actions',
-      column_name: 'actions',
-      column_type: 'action_buttons',
+      name: "Actions",
+      column_name: "actions",
+      column_type: "action_buttons",
       position: 0,
       searchable: false
     )
@@ -61,7 +61,7 @@ namespace :teeem do
     # Copy each Gold Standard column
     gold_columns.each do |source|
       # Skip action_buttons since we already added it
-      next if source.column_type == 'action_buttons'
+      next if source.column_type == "action_buttons"
 
       Column.create!(
         table_id: target_id,
@@ -86,7 +86,7 @@ namespace :teeem do
   end
 
   desc "Setup basic columns for a virtual table (action_buttons + common fields)"
-  task :setup_basic_columns, [:table_id] => :environment do |t, args|
+  task :setup_basic_columns, [ :table_id ] => :environment do |t, args|
     table_id = args[:table_id]&.to_i
 
     unless table_id
@@ -109,7 +109,7 @@ namespace :teeem do
     if existing_count > 0
       print "Delete #{existing_count} existing column definitions? (y/n): "
       response = STDIN.gets.chomp.downcase
-      if response == 'y'
+      if response == "y"
         Column.where(table_id: table_id).destroy_all
         puts "Deleted existing columns"
       else
@@ -119,12 +119,12 @@ namespace :teeem do
     end
 
     columns = [
-      { name: 'Actions', column_name: 'actions', column_type: 'action_buttons', position: 0 },
-      { name: 'Name', column_name: 'name', column_type: 'single_line_text', position: 1, is_title: true, searchable: true },
-      { name: 'Description', column_name: 'description', column_type: 'multiple_lines_text', position: 2, searchable: true },
-      { name: 'Status', column_name: 'status', column_type: 'choice', position: 3 },
-      { name: 'Created', column_name: 'created_at', column_type: 'date_and_time', position: 4 },
-      { name: 'Updated', column_name: 'updated_at', column_type: 'date_and_time', position: 5 },
+      { name: "Actions", column_name: "actions", column_type: "action_buttons", position: 0 },
+      { name: "Name", column_name: "name", column_type: "single_line_text", position: 1, is_title: true, searchable: true },
+      { name: "Description", column_name: "description", column_type: "multiple_lines_text", position: 2, searchable: true },
+      { name: "Status", column_name: "status", column_type: "choice", position: 3 },
+      { name: "Created", column_name: "created_at", column_type: "date_and_time", position: 4 },
+      { name: "Updated", column_name: "updated_at", column_type: "date_and_time", position: 5 }
     ]
 
     columns.each do |col|

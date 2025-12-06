@@ -2,7 +2,7 @@ module Api
   module V1
     class ContactXeroLinksController < ApplicationController
       before_action :set_contact
-      before_action :set_xero_link, only: [:show, :update, :destroy, :sync]
+      before_action :set_xero_link, only: [ :show, :update, :destroy, :sync ]
 
       # GET /api/v1/contacts/:contact_id/xero_links
       def index
@@ -25,7 +25,7 @@ module Api
       # POST /api/v1/contacts/:contact_id/xero_links
       def create
         @xero_link = @contact.xero_links.build(xero_link_params)
-        @xero_link.source = 'xero'
+        @xero_link.source = "xero"
 
         if @xero_link.save
           render json: {
@@ -97,7 +97,7 @@ module Api
         unless field_name.present? && keep_source.present?
           render json: {
             success: false,
-            errors: ["field_name and keep_source are required"]
+            errors: [ "field_name and keep_source are required" ]
           }, status: :unprocessable_entity
           return
         end
@@ -155,7 +155,7 @@ module Api
           sync_error: link.sync_error,
           has_conflicts: link.has_conflicts?,
           conflict_count: link.conflict_fields.keys.count,
-          badge_color: config&.badge_color || 'blue',
+          badge_color: config&.badge_color || "blue",
           accounting_system: config&.accounting_system || link.source,
           created_at: link.created_at,
           updated_at: link.updated_at

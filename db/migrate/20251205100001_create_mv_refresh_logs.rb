@@ -19,7 +19,7 @@ class CreateMvRefreshLogs < ActiveRecord::Migration[8.0]
     add_index :mv_refresh_logs, :view_name
     add_index :mv_refresh_logs, :status
     add_index :mv_refresh_logs, :started_at
-    add_index :mv_refresh_logs, [:view_name, :status]
-    add_index :mv_refresh_logs, [:view_name, :started_at]
+    add_index :mv_refresh_logs, [ :view_name, :status ]
+    add_index :mv_refresh_logs, [ :view_name, :started_at ]
   end
 end

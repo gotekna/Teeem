@@ -4,15 +4,15 @@ class Company < ApplicationRecord
   belongs_to :contact, optional: true  # SSoT - links Company to Contact identity store
 
   # Hierarchy - parent/subsidiary relationships
-  belongs_to :parent_company, class_name: 'Company', optional: true
-  has_many :subsidiaries, class_name: 'Company', foreign_key: 'parent_company_id', dependent: :nullify
+  belongs_to :parent_company, class_name: "Company", optional: true
+  has_many :subsidiaries, class_name: "Company", foreign_key: "parent_company_id", dependent: :nullify
 
   # Consolidation - financial consolidation parent/children
-  belongs_to :consolidation_parent, class_name: 'Company', optional: true
-  has_many :consolidated_children, class_name: 'Company', foreign_key: 'consolidation_parent_id', dependent: :nullify
+  belongs_to :consolidation_parent, class_name: "Company", optional: true
+  has_many :consolidated_children, class_name: "Company", foreign_key: "consolidation_parent_id", dependent: :nullify
 
   # Investments - what this company owns (as shareholder)
-  has_many :investments, class_name: 'CompanyShareholding', as: :shareholder, dependent: :destroy
+  has_many :investments, class_name: "CompanyShareholding", as: :shareholder, dependent: :destroy
 
   has_many :company_directors, dependent: :destroy
   has_many :directors, through: :company_directors, source: :contact
@@ -20,14 +20,14 @@ class Company < ApplicationRecord
            through: :company_directors, source: :contact
 
   has_many :bank_accounts, dependent: :destroy
-  has_many :active_bank_accounts, -> { where(status: 'active') }, class_name: 'BankAccount'
+  has_many :active_bank_accounts, -> { where(status: "active") }, class_name: "BankAccount"
   has_many :bank_transactions, dependent: :destroy
 
   has_many :assets, dependent: :destroy
-  has_many :active_assets, -> { where(status: 'active') }, class_name: 'Asset'
+  has_many :active_assets, -> { where(status: "active") }, class_name: "Asset"
 
   has_many :company_compliance_items, dependent: :destroy
-  has_many :pending_compliance_items, -> { where(completed: false) }, class_name: 'CompanyComplianceItem'
+  has_many :pending_compliance_items, -> { where(completed: false) }, class_name: "CompanyComplianceItem"
 
   has_many :company_documents, dependent: :destroy
   has_many :company_activities, dependent: :destroy
@@ -39,12 +39,12 @@ class Company < ApplicationRecord
   has_many :share_transfers, dependent: :destroy
   has_many :dividends, dependent: :destroy
   has_many :company_minutes, dependent: :destroy
-  has_many :loans_as_lender, class_name: 'CompanyLoan', foreign_key: 'lender_company_id', dependent: :destroy
-  has_many :loans_as_borrower, class_name: 'CompanyLoan', foreign_key: 'borrower_company_id', dependent: :destroy
+  has_many :loans_as_lender, class_name: "CompanyLoan", foreign_key: "lender_company_id", dependent: :destroy
+  has_many :loans_as_borrower, class_name: "CompanyLoan", foreign_key: "borrower_company_id", dependent: :destroy
 
   # Intercompany balances for consolidated financials
   has_many :intercompany_balances, dependent: :destroy
-  has_many :intercompany_balances_as_related, class_name: 'IntercompanyBalance', foreign_key: 'related_company_id', dependent: :destroy
+  has_many :intercompany_balances_as_related, class_name: "IntercompanyBalance", foreign_key: "related_company_id", dependent: :destroy
 
   # Encrypted attributes
   encrypts :tfn, deterministic: true
@@ -87,16 +87,16 @@ class Company < ApplicationRecord
   validates :slug, uniqueness: true, allow_blank: true
 
   # Scopes
-  scope :active, -> { where(status: 'active') }
+  scope :active, -> { where(status: "active") }
   scope :by_group, ->(group) { where(company_group: group) }
-  scope :with_xero, -> { joins(:company_xero_connection).where(company_xero_connections: { connection_status: 'connected' }) }
+  scope :with_xero, -> { joins(:company_xero_connection).where(company_xero_connections: { connection_status: "connected" }) }
   scope :top_level, -> { where(parent_company_id: nil) }
   scope :with_parent, -> { where.not(parent_company_id: nil) }
   scope :trustees, -> { where(is_trustee: true) }
-  scope :trusts, -> { where.not(trust_name: [nil, '']) }
+  scope :trusts, -> { where.not(trust_name: [ nil, "" ]) }
   scope :compliance_due_soon, -> {
     joins(:company_compliance_items)
-      .where('company_compliance_items.due_date BETWEEN ? AND ?', Date.today, 90.days.from_now)
+      .where("company_compliance_items.due_date BETWEEN ? AND ?", Date.today, 90.days.from_now)
       .where(company_compliance_items: { completed: false })
       .distinct
   }
@@ -119,7 +119,7 @@ class Company < ApplicationRecord
   def formatted_acn
     return nil unless acn.present?
     # Format as XXX XXX XXX
-    acn.scan(/.{1,3}/).join(' ')
+    acn.scan(/.{1,3}/).join(" ")
   end
 
   def formatted_abn
@@ -129,11 +129,11 @@ class Company < ApplicationRecord
   end
 
   def active?
-    status == 'active'
+    status == "active"
   end
 
   def has_xero_connection?
-    company_xero_connection.present? && company_xero_connection.connection_status == 'connected'
+    company_xero_connection.present? && company_xero_connection.connection_status == "connected"
   end
 
   # SharePoint folder URL for this company's root folder in 00 TEEEM PRIVATE
@@ -142,18 +142,18 @@ class Company < ApplicationRecord
     return nil unless company_group.present?
 
     credential = OrganizationOneDriveCredential.active_credential
-    return nil unless credential&.metadata&.dig('site_web_url')
+    return nil unless credential&.metadata&.dig("site_web_url")
 
-    base_url = credential.metadata['site_web_url']
+    base_url = credential.metadata["site_web_url"]
     group_name = company_group.name
     company_folder_name = "#{code.presence || name[0..2].upcase} - #{name}"
 
     # URL encode the path components
     encoded_path = [
-      '00 TEEEM PRIVATE',
+      "00 TEEEM PRIVATE",
       group_name,
       company_folder_name
-    ].map { |p| ERB::Util.url_encode(p) }.join('/')
+    ].map { |p| ERB::Util.url_encode(p) }.join("/")
 
     "#{base_url}/Shared%20Documents/#{encoded_path}"
   end
@@ -168,12 +168,12 @@ class Company < ApplicationRecord
   end
 
   def overdue_compliance_items
-    company_compliance_items.where('due_date < ? AND completed = ?', Date.today, false)
+    company_compliance_items.where("due_date < ? AND completed = ?", Date.today, false)
   end
 
   def upcoming_compliance_items(days = 30)
     company_compliance_items.where(
-      'due_date BETWEEN ? AND ? AND completed = ?',
+      "due_date BETWEEN ? AND ? AND completed = ?",
       Date.today,
       days.days.from_now,
       false
@@ -181,12 +181,12 @@ class Company < ApplicationRecord
   end
 
   def total_asset_value
-    assets.where(status: 'active').sum(:current_book_value) || 0
+    assets.where(status: "active").sum(:current_book_value) || 0
   end
 
   # All loans (as lender or borrower)
   def all_loans
-    CompanyLoan.where('lender_company_id = ? OR borrower_company_id = ?', id, id)
+    CompanyLoan.where("lender_company_id = ? OR borrower_company_id = ?", id, id)
   end
 
   # Calculate and update health score
@@ -195,45 +195,45 @@ class Company < ApplicationRecord
     warnings = []
 
     # Critical issues (major impact)
-    issues << 'Missing ACN' if acn.blank?
-    issues << 'Missing ABN' if abn.blank?
-    issues << 'No current directors' if company_directors.where(is_current: true).empty?
-    issues << 'Missing registered office address' if registered_office_address.blank?
+    issues << "Missing ACN" if acn.blank?
+    issues << "Missing ABN" if abn.blank?
+    issues << "No current directors" if company_directors.where(is_current: true).empty?
+    issues << "Missing registered office address" if registered_office_address.blank?
 
     # Warnings (minor impact)
-    warnings << 'Missing TFN' if tfn.blank?
-    warnings << 'No bank accounts' if bank_accounts.empty?
-    warnings << 'No shareholders recorded' if company_shareholdings.empty?
-    warnings << 'Missing incorporation date' if date_incorporated.blank?
-    warnings << 'No secretary appointed' if company_directors.where(is_current: true, position: 'secretary').empty?
-    warnings << 'No public officer' unless company_directors.where(is_current: true).any? { |d| d.notes&.downcase&.include?('public officer') }
+    warnings << "Missing TFN" if tfn.blank?
+    warnings << "No bank accounts" if bank_accounts.empty?
+    warnings << "No shareholders recorded" if company_shareholdings.empty?
+    warnings << "Missing incorporation date" if date_incorporated.blank?
+    warnings << "No secretary appointed" if company_directors.where(is_current: true, position: "secretary").empty?
+    warnings << "No public officer" unless company_directors.where(is_current: true).any? { |d| d.notes&.downcase&.include?("public officer") }
 
     # Only check for corporate credentials if this is an actual company (has ACN)
     # Individuals and trusts don't need ASIC logins
     if acn.present?
-      warnings << 'Missing corporate key' if corporate_key.blank?
-      warnings << 'Missing ASIC credentials' if asic_username.blank?
+      warnings << "Missing corporate key" if corporate_key.blank?
+      warnings << "Missing ASIC credentials" if asic_username.blank?
     end
 
-    warnings << 'No review date set' if review_date.blank?
-    warnings << 'Missing principal place of business' if principal_place_of_business.blank?
-    warnings << 'No compliance items tracked' if company_compliance_items.empty?
+    warnings << "No review date set" if review_date.blank?
+    warnings << "Missing principal place of business" if principal_place_of_business.blank?
+    warnings << "No compliance items tracked" if company_compliance_items.empty?
 
     # Calculate score
     total_checks = 15
     passed = total_checks - issues.count - (warnings.count * 0.5)
-    score = [(passed / total_checks * 100).round, 0].max
+    score = [ (passed / total_checks * 100).round, 0 ].max
 
     # Determine status
     status_value = if issues.any?
-                     'critical'
-                   elsif score >= 80
-                     'excellent'
-                   elsif score >= 60
-                     'good'
-                   else
-                     'needs_attention'
-                   end
+                     "critical"
+    elsif score >= 80
+                     "excellent"
+    elsif score >= 60
+                     "good"
+    else
+                     "needs_attention"
+    end
 
     update_columns(health_score: score, health_status: status_value)
     { score: score, status: status_value, issues: issues, warnings: warnings }
@@ -298,7 +298,7 @@ class Company < ApplicationRecord
 
   # Get all descendant companies (children, grandchildren, etc.)
   def descendants
-    subsidiaries.flat_map { |s| [s] + s.descendants }
+    subsidiaries.flat_map { |s| [ s ] + s.descendants }
   end
 
   # Get the top-level parent (root of hierarchy)
@@ -335,7 +335,7 @@ class Company < ApplicationRecord
     return nil unless parent_company_id.present?
 
     shareholding = company_shareholdings.find_by(
-      shareholder_type: 'Company',
+      shareholder_type: "Company",
       shareholder_id: parent_company_id
     )
     shareholding&.percentage_of_total
@@ -347,7 +347,7 @@ class Company < ApplicationRecord
     total_shares = shares_on_issue.to_i
     return if total_shares.zero?
 
-    company_shareholdings.where(shareholder_type: 'Company').each do |sh|
+    company_shareholdings.where(shareholder_type: "Company").each do |sh|
       percentage = (sh.number_of_shares.to_f / total_shares * 100).round(2)
       if percentage >= 100
         update!(parent_company_id: sh.shareholder_id, hierarchy_level: calculate_hierarchy_level(sh.shareholder_id))
@@ -366,8 +366,8 @@ class Company < ApplicationRecord
 
   # Normalize ACN and ABN by removing all non-numeric characters
   def normalize_acn_abn
-    self.acn = acn.gsub(/[^0-9]/, '') if acn.present?
-    self.abn = abn.gsub(/[^0-9]/, '') if abn.present?
+    self.acn = acn.gsub(/[^0-9]/, "") if acn.present?
+    self.abn = abn.gsub(/[^0-9]/, "") if abn.present?
   end
 
   # Normalize status to lowercase
@@ -377,7 +377,7 @@ class Company < ApplicationRecord
 
   # Normalize code to uppercase and remove invalid characters
   def normalize_code
-    self.code = code.upcase.gsub(/[^A-Z0-9\-]/, '') if code.present?
+    self.code = code.upcase.gsub(/[^A-Z0-9\-]/, "") if code.present?
   end
 
   # Generate a URL-friendly slug from the company name
@@ -387,13 +387,13 @@ class Company < ApplicationRecord
 
     base_slug = name
       .downcase
-      .gsub(/pty\.?\s*ltd\.?/i, '')      # Remove "Pty Ltd" variations
-      .gsub(/\s+trust\s*$/i, '-trust')   # Keep "Trust" but clean format
-      .gsub(/[^a-z0-9\s-]/, '')          # Remove special characters
-      .gsub(/\s+/, '-')                  # Replace spaces with hyphens
-      .gsub(/-+/, '-')                   # Remove consecutive hyphens
-      .gsub(/^-|-$/, '')                 # Remove leading/trailing hyphens
-      .truncate(50, omission: '')        # Limit length
+      .gsub(/pty\.?\s*ltd\.?/i, "")      # Remove "Pty Ltd" variations
+      .gsub(/\s+trust\s*$/i, "-trust")   # Keep "Trust" but clean format
+      .gsub(/[^a-z0-9\s-]/, "")          # Remove special characters
+      .gsub(/\s+/, "-")                  # Replace spaces with hyphens
+      .gsub(/-+/, "-")                   # Remove consecutive hyphens
+      .gsub(/^-|-$/, "")                 # Remove leading/trailing hyphens
+      .truncate(50, omission: "")        # Limit length
 
     # Ensure uniqueness by adding a number suffix if needed
     candidate = base_slug
@@ -411,7 +411,7 @@ class Company < ApplicationRecord
     user ||= User.first
 
     company_activities.create!(
-      activity_type: 'company_created',
+      activity_type: "company_created",
       description: "Company #{name} was created",
       user: user
     )
@@ -424,21 +424,21 @@ class Company < ApplicationRecord
     user ||= User.first
 
     company_activities.create!(
-      activity_type: 'company_updated',
+      activity_type: "company_updated",
       description: "Company information was updated",
       user: user,
-      change_details: saved_changes.except('updated_at')
+      change_details: saved_changes.except("updated_at")
     )
   end
 
   # SSoT: Automatically create Contact and ContactCompanyGroupMembership for new companies
   def ensure_ssot_contact_and_membership
     # 1. Create Contact for this company (SSoT identity)
-    entity_type = trust_name.present? ? 'trust' : 'company'
+    entity_type = trust_name.present? ? "trust" : "company"
     ssot_contact = Contact.find_or_create_by!(entity_type: entity_type, full_name: name) do |c|
       c.tax_number = abn
       c.company_group_id = company_group_id
-      c.is_active = status == 'active'
+      c.is_active = status == "active"
     end
 
     # 2. Link Company to Contact (bidirectional)
@@ -461,14 +461,14 @@ class Company < ApplicationRecord
   end
 
   def create_ssot_membership(contact_record)
-    membership_type = trust_name.present? ? 'trust_entity' : 'company_entity'
+    membership_type = trust_name.present? ? "trust_entity" : "company_entity"
     ContactCompanyGroupMembership.find_or_create_by!(
       contact_id: contact_record.id,
       company_group_id: company_group_id,
       membership_type: membership_type
     ) do |m|
       m.company_id = id
-      m.is_active = status == 'active'
+      m.is_active = status == "active"
     end
   end
 end

@@ -7,7 +7,7 @@ class FixContactCompanyGroupMembershipIndex < ActiveRecord::Migration[8.0]
     # Add new unique index that includes membership_type
     # This allows same contact to have multiple roles in same group
     add_index :contact_company_group_memberships,
-              [:contact_id, :company_group_id, :membership_type],
+              [ :contact_id, :company_group_id, :membership_type ],
               unique: true,
               name: 'idx_contact_group_membership_unique'
   end

@@ -1,8 +1,8 @@
 class WHSActionItem < ApplicationRecord
   # Polymorphic association - can belong to inspection, incident, or hazard
   belongs_to :actionable, polymorphic: true
-  belongs_to :assigned_to_user, class_name: 'User', optional: true
-  belongs_to :created_by, class_name: 'User'
+  belongs_to :assigned_to_user, class_name: "User", optional: true
+  belongs_to :created_by, class_name: "User"
   belongs_to :project_task, optional: true
 
   # Constants
@@ -22,43 +22,43 @@ class WHSActionItem < ApplicationRecord
   before_save :set_completion_timestamp
 
   # Scopes
-  scope :open, -> { where(status: 'open') }
-  scope :in_progress, -> { where(status: 'in_progress') }
-  scope :completed, -> { where(status: 'completed') }
-  scope :pending, -> { where(status: ['open', 'in_progress']) }
+  scope :open, -> { where(status: "open") }
+  scope :in_progress, -> { where(status: "in_progress") }
+  scope :completed, -> { where(status: "completed") }
+  scope :pending, -> { where(status: [ "open", "in_progress" ]) }
   scope :by_priority, ->(priority) { where(priority: priority) }
-  scope :critical, -> { where(priority: 'critical') }
-  scope :high_priority, -> { where(priority: ['critical', 'high']) }
+  scope :critical, -> { where(priority: "critical") }
+  scope :high_priority, -> { where(priority: [ "critical", "high" ]) }
   scope :assigned_to, ->(user) { where(assigned_to_user: user) }
-  scope :overdue, -> { where('due_date < ? AND status NOT IN (?)', CompanySetting.today, ['completed', 'cancelled']) }
-  scope :due_soon, ->(days = 7) { where('due_date <= ? AND due_date >= ? AND status NOT IN (?)', CompanySetting.today + days.days, CompanySetting.today, ['completed', 'cancelled']) }
+  scope :overdue, -> { where("due_date < ? AND status NOT IN (?)", CompanySetting.today, [ "completed", "cancelled" ]) }
+  scope :due_soon, ->(days = 7) { where("due_date <= ? AND due_date >= ? AND status NOT IN (?)", CompanySetting.today + days.days, CompanySetting.today, [ "completed", "cancelled" ]) }
 
   # State machine methods
   def can_start?
-    status == 'open'
+    status == "open"
   end
 
   def can_complete?
-    status.in?(['open', 'in_progress'])
+    status.in?([ "open", "in_progress" ])
   end
 
   def start!
     return false unless can_start?
-    update!(status: 'in_progress')
+    update!(status: "in_progress")
   end
 
   def complete!(notes = nil)
     return false unless can_complete?
 
     update!(
-      status: 'completed',
+      status: "completed",
       completed_at: Time.current,
       completion_notes: notes
     )
   end
 
   def cancel!
-    update!(status: 'cancelled')
+    update!(status: "cancelled")
   end
 
   # Helper methods
@@ -84,11 +84,11 @@ class WHSActionItem < ApplicationRecord
   end
 
   def completed?
-    status == 'completed'
+    status == "completed"
   end
 
   def cancelled?
-    status == 'cancelled'
+    status == "cancelled"
   end
 
   def assigned?
@@ -101,11 +101,11 @@ class WHSActionItem < ApplicationRecord
 
   def source_description
     case actionable_type
-    when 'WhsInspection'
+    when "WhsInspection"
       "Inspection: #{actionable.inspection_number}"
-    when 'WhsIncident'
+    when "WhsIncident"
       "Incident: #{actionable.incident_number}"
-    when 'WhsSwmsHazard'
+    when "WhsSwmsHazard"
       "SWMS Hazard: #{actionable.hazard_description.truncate(50)}"
     else
       actionable_type
@@ -124,8 +124,8 @@ class WHSActionItem < ApplicationRecord
       task = project.project_tasks.create!(
         name: title,
         description: description,
-        task_type: 'whs_action',
-        category: 'safety',
+        task_type: "whs_action",
+        category: "safety",
         status: status_for_project_task,
         assigned_to: assigned_to_user,
         planned_end_date: due_date,
@@ -153,11 +153,11 @@ class WHSActionItem < ApplicationRecord
   def find_related_project
     # Find the project (construction) related to this action item
     case actionable_type
-    when 'WhsInspection'
+    when "WhsInspection"
       actionable.construction
-    when 'WhsIncident'
+    when "WhsIncident"
       actionable.construction
-    when 'WhsSwmsHazard'
+    when "WhsSwmsHazard"
       actionable.whs_swms.construction
     else
       nil
@@ -165,23 +165,23 @@ class WHSActionItem < ApplicationRecord
   end
 
   def set_completion_timestamp
-    if status_changed? && status == 'completed'
+    if status_changed? && status == "completed"
       self.completed_at = Time.current
     end
   end
 
   def status_for_project_task
     case status
-    when 'open'
-      'not_started'
-    when 'in_progress'
-      'in_progress'
-    when 'completed'
-      'completed'
-    when 'cancelled'
-      'cancelled'
+    when "open"
+      "not_started"
+    when "in_progress"
+      "in_progress"
+    when "completed"
+      "completed"
+    when "cancelled"
+      "cancelled"
     else
-      'not_started'
+      "not_started"
     end
   end
 end

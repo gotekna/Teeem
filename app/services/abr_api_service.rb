@@ -17,7 +17,7 @@ class AbrApiService
   class ApiError < AbrError; end
 
   def initialize
-    @guid = ENV['ABR_GUID']
+    @guid = ENV["ABR_GUID"]
   end
 
   # Validate and lookup an ABN
@@ -35,7 +35,7 @@ class AbrApiService
   # Validate ABN format only (no API call)
   # Returns true/false
   def self.valid_format?(abn)
-    clean = abn.to_s.gsub(/\D/, '')
+    clean = abn.to_s.gsub(/\D/, "")
     return false unless clean.length == 11
     return false unless valid_checksum?(clean)
     true
@@ -43,7 +43,7 @@ class AbrApiService
 
   # Format ABN as XX XXX XXX XXX
   def self.format(abn)
-    digits = abn.to_s.gsub(/\D/, '')
+    digits = abn.to_s.gsub(/\D/, "")
     return abn if digits.length != 11
     "#{digits[0..1]} #{digits[2..4]} #{digits[5..7]} #{digits[8..10]}"
   end
@@ -51,11 +51,11 @@ class AbrApiService
   # Validate ABN checksum using the official algorithm
   # https://abr.business.gov.au/Help/AbnFormat
   def self.valid_checksum?(abn)
-    digits = abn.to_s.gsub(/\D/, '')
+    digits = abn.to_s.gsub(/\D/, "")
     return false unless digits.length == 11
 
     # Weights for each position
-    weights = [10, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
+    weights = [ 10, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19 ]
 
     # Subtract 1 from the first digit
     digits_array = digits.chars.map(&:to_i)
@@ -89,7 +89,7 @@ class AbrApiService
   private
 
   def clean_abn(abn)
-    abn.to_s.gsub(/\D/, '')
+    abn.to_s.gsub(/\D/, "")
   end
 
   def validate_format!(abn)
@@ -110,7 +110,7 @@ class AbrApiService
     uri = URI("#{ABR_BASE_URL}/SearchByABNv202001")
     params = {
       searchString: abn,
-      includeHistoricalDetails: 'N',
+      includeHistoricalDetails: "N",
       authenticationGuid: @guid
     }
     uri.query = URI.encode_www_form(params)
@@ -133,33 +133,33 @@ class AbrApiService
     doc.remove_namespaces!
 
     # Check for exception
-    exception = doc.at_xpath('//response/exception/exceptionDescription')
+    exception = doc.at_xpath("//response/exception/exceptionDescription")
     if exception
       raise ApiError, "ABR API error: #{exception.text}"
     end
 
     # Check if ABN was found
-    business_entity = doc.at_xpath('//response/businessEntity202001')
+    business_entity = doc.at_xpath("//response/businessEntity202001")
     unless business_entity
       raise AbnNotFound, "ABN #{self.class.format(abn)} not found in ABR"
     end
 
     # Extract entity details
-    abn_node = business_entity.at_xpath('ABN')
-    entity_status = business_entity.at_xpath('entityStatus')
-    entity_type = business_entity.at_xpath('entityType/entityTypeCode')
-    entity_type_desc = business_entity.at_xpath('entityType/entityDescription')
-    gst = business_entity.at_xpath('goodsAndServicesTax')
+    abn_node = business_entity.at_xpath("ABN")
+    entity_status = business_entity.at_xpath("entityStatus")
+    entity_type = business_entity.at_xpath("entityType/entityTypeCode")
+    entity_type_desc = business_entity.at_xpath("entityType/entityDescription")
+    gst = business_entity.at_xpath("goodsAndServicesTax")
 
     # Get the main name (could be mainName, mainTradingName, or legalName)
-    main_name = business_entity.at_xpath('mainName/organisationName') ||
-                business_entity.at_xpath('mainTradingName/organisationName') ||
-                business_entity.at_xpath('legalName/fullName')
+    main_name = business_entity.at_xpath("mainName/organisationName") ||
+                business_entity.at_xpath("mainTradingName/organisationName") ||
+                business_entity.at_xpath("legalName/fullName")
 
     # Get individual name if no organisation name
     if main_name.nil?
-      given_name = business_entity.at_xpath('legalName/givenName')&.text || ''
-      family_name = business_entity.at_xpath('legalName/familyName')&.text || ''
+      given_name = business_entity.at_xpath("legalName/givenName")&.text || ""
+      family_name = business_entity.at_xpath("legalName/familyName")&.text || ""
       main_name_text = "#{given_name} #{family_name}".strip
     else
       main_name_text = main_name.text
@@ -169,13 +169,13 @@ class AbrApiService
     gst_registered = false
     gst_from = nil
     if gst
-      gst_status = gst.at_xpath('effectiveTo')&.text
-      gst_registered = gst_status.blank? || gst_status == '0001-01-01' # No end date means currently registered
-      gst_from = gst.at_xpath('effectiveFrom')&.text
+      gst_status = gst.at_xpath("effectiveTo")&.text
+      gst_registered = gst_status.blank? || gst_status == "0001-01-01" # No end date means currently registered
+      gst_from = gst.at_xpath("effectiveFrom")&.text
     end
 
     # Parse entity status
-    active = entity_status.at_xpath('effectiveTo')&.text.blank? rescue true
+    active = entity_status.at_xpath("effectiveTo")&.text.blank? rescue true
 
     {
       abn: abn,
@@ -187,7 +187,7 @@ class AbrApiService
       entity_type_description: entity_type_desc&.text,
       gst_registered: gst_registered,
       gst_effective_from: gst_from,
-      status_effective_from: entity_status.at_xpath('effectiveFrom')&.text,
+      status_effective_from: entity_status.at_xpath("effectiveFrom")&.text,
       verified_at: Time.current
     }
   rescue Nokogiri::XML::SyntaxError => e

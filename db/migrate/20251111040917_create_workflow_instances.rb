@@ -13,6 +13,6 @@ class CreateWorkflowInstances < ActiveRecord::Migration[8.0]
     end
 
     add_index :workflow_instances, :status
-    add_index :workflow_instances, [:subject_type, :subject_id]
+    add_index :workflow_instances, [ :subject_type, :subject_id ]
   end
 end

@@ -8,9 +8,9 @@ class WorkflowStep < ApplicationRecord
   validates :status, presence: true, inclusion: { in: %w[pending in_progress completed rejected skipped] }
 
   # Scopes
-  scope :pending, -> { where(status: 'pending') }
-  scope :in_progress, -> { where(status: 'in_progress') }
-  scope :completed, -> { where(status: 'completed') }
+  scope :pending, -> { where(status: "pending") }
+  scope :in_progress, -> { where(status: "in_progress") }
+  scope :completed, -> { where(status: "completed") }
 
   # Callbacks
   after_create :assign_to_user_or_role
@@ -19,7 +19,7 @@ class WorkflowStep < ApplicationRecord
   def approve!(user:, comment: nil)
     transaction do
       update!(
-        status: 'completed',
+        status: "completed",
         completed_at: Time.current,
         comment: comment
       )
@@ -32,7 +32,7 @@ class WorkflowStep < ApplicationRecord
   def reject!(user:, comment: nil)
     transaction do
       update!(
-        status: 'rejected',
+        status: "rejected",
         completed_at: Time.current,
         comment: comment
       )
@@ -43,7 +43,7 @@ class WorkflowStep < ApplicationRecord
 
   def request_changes!(user:, comment: nil)
     update!(
-      status: 'in_progress',
+      status: "in_progress",
       comment: comment
     )
   end
@@ -52,10 +52,10 @@ class WorkflowStep < ApplicationRecord
     return false unless status.in?(%w[pending in_progress])
 
     # Check if user has the right role or is assigned
-    if assigned_to_type == 'User'
+    if assigned_to_type == "User"
       assigned_to_id == user.id
-    elsif data.present? && data['assignee_type'] == 'role'
-      user.role == data['assignee_value']
+    elsif data.present? && data["assignee_type"] == "role"
+      user.role == data["assignee_value"]
     else
       true # Allow any user if not specifically assigned
     end
@@ -67,15 +67,15 @@ class WorkflowStep < ApplicationRecord
     return if data.blank? || assigned_to.present?
 
     # If assignee_type is user, find and assign
-    if data['assignee_type'] == 'user' && data['assignee_value'].present?
-      user = User.find_by(id: data['assignee_value'])
+    if data["assignee_type"] == "user" && data["assignee_value"].present?
+      user = User.find_by(id: data["assignee_value"])
       update_column(:assigned_to_id, user.id) if user
-      update_column(:assigned_to_type, 'User') if user
+      update_column(:assigned_to_type, "User") if user
     end
   end
 
   def check_workflow_advancement
-    return unless status == 'completed'
+    return unless status == "completed"
 
     # If this was the last step, complete the workflow
     if workflow_instance.next_step_config.nil?

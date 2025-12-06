@@ -2,14 +2,14 @@ class ProcessNewCaseEmailsJob < ApplicationJob
   queue_as :default
 
   # Email address to monitor for new case emails
-  NEW_CASE_EMAIL_ADDRESS = 'newcase@tekna.com.au'
+  NEW_CASE_EMAIL_ADDRESS = "newcase@tekna.com.au"
 
   def perform
     # Find emails sent to newcase@tekna.com.au that don't have proposals yet
     new_case_emails = EmailWarehouse
       .where("? = ANY(to_emails)", NEW_CASE_EMAIL_ADDRESS)
       .where.not(id: EmailCaseProposal.select(:email_warehouse_id))
-      .where('created_at > ?', 1.hour.ago) # Only process recent emails
+      .where("created_at > ?", 1.hour.ago) # Only process recent emails
       .order(received_at: :desc)
 
     return if new_case_emails.empty?

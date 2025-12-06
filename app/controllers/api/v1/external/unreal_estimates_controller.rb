@@ -8,7 +8,7 @@ module Api
           ActiveRecord::Base.transaction do
             # Create estimate record
             estimate = Estimate.new(
-              source: 'unreal_engine',
+              source: "unreal_engine",
               estimator_name: params[:estimator],
               job_name_from_source: params[:job_name],
               total_items: params[:materials]&.length || 0
@@ -21,7 +21,7 @@ module Api
                   category: material[:category],
                   item_description: material[:item],
                   quantity: material[:quantity] || 1.0,
-                  unit: material[:unit] || 'ea',
+                  unit: material[:unit] || "ea",
                   notes: material[:notes]
                 )
               end
@@ -50,7 +50,7 @@ module Api
                     title: construction.title,
                     confidence_score: matched_job[:confidence_score]
                   },
-                  status: 'matched',
+                  status: "matched",
                   total_items: estimate.total_items,
                   message: "Estimate matched to job ##{construction.id} with #{matched_job[:confidence_score].round(1)}% confidence"
                 }, status: :created
@@ -61,7 +61,7 @@ module Api
                 render json: {
                   success: true,
                   estimate_id: estimate.id,
-                  status: 'pending',
+                  status: "pending",
                   candidate_jobs: matcher_result[:candidate_jobs].map do |candidate|
                     {
                       id: candidate[:id],
@@ -70,7 +70,7 @@ module Api
                     }
                   end,
                   total_items: estimate.total_items,
-                  message: 'Multiple job matches found. Please select the correct job manually.'
+                  message: "Multiple job matches found. Please select the correct job manually."
                 }, status: :created
 
               when :no_match
@@ -79,8 +79,8 @@ module Api
                 render json: {
                   success: true,
                   estimate_id: estimate.id,
-                  status: 'pending',
-                  message: 'No matching job found. Please create the job or match manually.',
+                  status: "pending",
+                  message: "No matching job found. Please create the job or match manually.",
                   job_name_searched: params[:job_name],
                   total_items: estimate.total_items
                 }, status: :created
@@ -88,7 +88,7 @@ module Api
             else
               render json: {
                 success: false,
-                error: matcher_result[:error] || 'Failed to match job'
+                error: matcher_result[:error] || "Failed to match job"
               }, status: :unprocessable_entity
             end
           end
@@ -106,7 +106,7 @@ module Api
 
           render json: {
             success: false,
-            error: 'An error occurred while importing the estimate',
+            error: "An error occurred while importing the estimate",
             details: e.message
           }, status: :internal_server_error
         end
@@ -114,12 +114,12 @@ module Api
         private
 
         def authenticate_api_key!
-          api_key = request.headers['X-API-Key']
+          api_key = request.headers["X-API-Key"]
 
           if api_key.blank?
             render json: {
               success: false,
-              error: 'API key required. Please include X-API-Key header.'
+              error: "API key required. Please include X-API-Key header."
             }, status: :unauthorized
             return
           end
@@ -129,7 +129,7 @@ module Api
           if integration.nil?
             render json: {
               success: false,
-              error: 'Invalid API key'
+              error: "Invalid API key"
             }, status: :unauthorized
             return
           end

@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmIntegrationsController < ApplicationController
-      before_action :set_job, only: [:export_ms_project, :sync_calendar, :calendar_events]
+      before_action :set_job, only: [ :export_ms_project, :sync_calendar, :calendar_events ]
 
       # ==========================================
       # MS PROJECT INTEGRATION
@@ -14,7 +14,7 @@ module Api
         construction = Job.find(params[:job_id])
 
         unless params[:file].present?
-          return render json: { success: false, error: 'No file provided' }, status: :bad_request
+          return render json: { success: false, error: "No file provided" }, status: :bad_request
         end
 
         xml_content = params[:file].read
@@ -37,8 +37,8 @@ module Api
 
         send_data xml_content,
                   filename: "#{@job.name.parameterize}-schedule.xml",
-                  type: 'application/xml',
-                  disposition: 'attachment'
+                  type: "application/xml",
+                  disposition: "attachment"
       end
 
       # ==========================================
@@ -48,7 +48,7 @@ module Api
       # POST /api/v1/sm_integrations/sync_calendar
       def sync_calendar
         provider = params[:provider] # 'google' or 'outlook'
-        tasks = @job.sm_tasks.where.not(status: 'completed')
+        tasks = @job.sm_tasks.where.not(status: "completed")
 
         events_synced = 0
 
@@ -62,9 +62,9 @@ module Api
           }
 
           case provider
-          when 'google'
+          when "google"
             sync_to_google_calendar(event_data, task)
-          when 'outlook'
+          when "outlook"
             sync_to_outlook_calendar(event_data, task)
           end
 
@@ -116,16 +116,16 @@ module Api
         task = SmTask.find_by(id: task_id)
 
         case notification_type
-        when 'task_reminder'
+        when "task_reminder"
           send_task_reminder(task, recipients)
-        when 'schedule_update'
+        when "schedule_update"
           send_schedule_update(task, recipients)
-        when 'delay_alert'
+        when "delay_alert"
           send_delay_alert(task, recipients)
-        when 'completion_notice'
+        when "completion_notice"
           send_completion_notice(task, recipients)
         else
-          return render json: { success: false, error: 'Invalid notification type' }, status: :bad_request
+          return render json: { success: false, error: "Invalid notification type" }, status: :bad_request
         end
 
         render json: {
@@ -182,9 +182,9 @@ module Api
 
       def status_color(status)
         case status
-        when 'completed' then '#10b981' # green
-        when 'started' then '#3b82f6'   # blue
-        else '#9ca3af' # gray
+        when "completed" then "#10b981" # green
+        when "started" then "#3b82f6"   # blue
+        else "#9ca3af" # gray
         end
       end
 
@@ -215,7 +215,7 @@ module Api
           # Push notification if enabled
           send_push_notification(
             recipient,
-            title: 'Task Reminder',
+            title: "Task Reminder",
             body: "#{task.name} starts on #{task.start_date&.strftime('%b %d')}"
           )
         end
@@ -243,9 +243,9 @@ module Api
 
           send_push_notification(
             recipient,
-            title: 'Delay Alert',
+            title: "Delay Alert",
             body: "#{task.name} may be delayed",
-            priority: 'high'
+            priority: "high"
           )
         end
       end
@@ -261,7 +261,7 @@ module Api
         end
       end
 
-      def send_push_notification(recipient, title:, body:, priority: 'normal')
+      def send_push_notification(recipient, title:, body:, priority: "normal")
         settings = SmNotificationSetting.find_by(user_id: recipient)
         return unless settings&.push_enabled && settings&.push_token.present?
 

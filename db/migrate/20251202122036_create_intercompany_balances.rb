@@ -27,11 +27,11 @@ class CreateIntercompanyBalances < ActiveRecord::Migration[8.0]
       t.timestamps
 
       # Indexes
-      t.index [:company_id, :related_company_id, :balance_type, :as_of_date],
+      t.index [ :company_id, :related_company_id, :balance_type, :as_of_date ],
               name: 'idx_intercompany_balances_unique',
               unique: true
-      t.index [:company_id, :as_of_date]
-      t.index [:related_company_id, :as_of_date]
+      t.index [ :company_id, :as_of_date ]
+      t.index [ :related_company_id, :as_of_date ]
       t.index :balance_type
       t.index :source
     end
@@ -52,7 +52,7 @@ class CreateIntercompanyBalances < ActiveRecord::Migration[8.0]
       t.datetime :completed_at
       t.timestamps
 
-      t.index [:company_group_id, :as_of_date]
+      t.index [ :company_group_id, :as_of_date ]
       t.index :status
     end
   end

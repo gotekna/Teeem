@@ -1,8 +1,8 @@
 module Api
   module V1
     class CompanyLoansController < ApplicationController
-      before_action :set_company, only: [:index, :show, :create, :update, :destroy]
-      before_action :set_loan, only: [:show, :update, :destroy]
+      before_action :set_company, only: [ :index, :show, :create, :update, :destroy ]
+      before_action :set_loan, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/companies/:company_id/loans
       # Shows loans where company is either lender or borrower
@@ -12,9 +12,9 @@ module Api
                          .order(loan_date: :desc)
 
         # Filter by role
-        if params[:role] == 'lender'
+        if params[:role] == "lender"
           @loans = @company.loans_as_lender
-        elsif params[:role] == 'borrower'
+        elsif params[:role] == "borrower"
           @loans = @company.loans_as_borrower
         end
 
@@ -59,10 +59,10 @@ module Api
         @loan = CompanyLoan.new(loan_params)
 
         # Ensure the company is involved in the loan
-        unless [@loan.lender_company_id, @loan.borrower_company_id].include?(@company.id)
+        unless [ @loan.lender_company_id, @loan.borrower_company_id ].include?(@company.id)
           return render json: {
             success: false,
-            errors: ['Company must be either lender or borrower']
+            errors: [ "Company must be either lender or borrower" ]
           }, status: :unprocessable_entity
         end
 
@@ -109,15 +109,15 @@ module Api
         if payment_amount <= 0
           return render json: {
             success: false,
-            errors: ['Payment amount must be positive']
+            errors: [ "Payment amount must be positive" ]
           }, status: :unprocessable_entity
         end
 
         new_balance = (@loan.current_balance || @loan.principal_amount) - payment_amount
 
         @loan.update!(
-          current_balance: [new_balance, 0].max,
-          status: new_balance <= 0 ? 'repaid' : 'active',
+          current_balance: [ new_balance, 0 ].max,
+          status: new_balance <= 0 ? "repaid" : "active",
           notes: "#{@loan.notes}\n[#{payment_date}] Payment of $#{payment_amount.round(2)} received"
         )
 
@@ -182,7 +182,7 @@ module Api
 
         # Add perspective info (is this company lending or borrowing?)
         if perspective
-          data[:role] = loan.lender_company_id == perspective.id ? 'lender' : 'borrower'
+          data[:role] = loan.lender_company_id == perspective.id ? "lender" : "borrower"
           data[:counterparty] = loan.lender_company_id == perspective.id ?
             loan.borrower_company.name :
             loan.lender_company.name
@@ -208,8 +208,8 @@ module Api
         {
           total_receivable: @company.total_loans_receivable,
           total_payable: @company.total_loans_payable,
-          active_loans_as_lender: @company.loans_as_lender.where(status: 'active').count,
-          active_loans_as_borrower: @company.loans_as_borrower.where(status: 'active').count
+          active_loans_as_lender: @company.loans_as_lender.where(status: "active").count,
+          active_loans_as_borrower: @company.loans_as_borrower.where(status: "active").count
         }
       end
     end

@@ -1,8 +1,8 @@
 class ScheduleTemplateRow < ApplicationRecord
   belongs_to :schedule_template
-  belongs_to :supplier, class_name: 'Contact', foreign_key: 'supplier_id', optional: true  # Supplier contact, only required if po_required is true
-  belongs_to :linked_template, class_name: 'ScheduleTemplate', optional: true
-  has_many :audits, class_name: 'ScheduleTemplateRowAudit', dependent: :destroy
+  belongs_to :supplier, class_name: "Contact", foreign_key: "supplier_id", optional: true  # Supplier contact, only required if po_required is true
+  belongs_to :linked_template, class_name: "ScheduleTemplate", optional: true
+  has_many :audits, class_name: "ScheduleTemplateRowAudit", dependent: :destroy
 
   # Serialize JSON fields
   serialize :linked_task_ids, coder: JSON
@@ -100,9 +100,9 @@ class ScheduleTemplateRow < ApplicationRecord
     # pred_data format: { id: 2, type: "FS", lag: 3 } or { "id" => 2, "type" => "FS", "lag" => 3 }
     # Output: "2FS+3" or "2FS-2" or "2FS" if no lag
     if pred_data.is_a?(Hash)
-      task_id = pred_data['id'] || pred_data[:id]
-      dep_type = pred_data['type'] || pred_data[:type] || 'FS'
-      lag = (pred_data['lag'] || pred_data[:lag] || 0).to_i
+      task_id = pred_data["id"] || pred_data[:id]
+      dep_type = pred_data["type"] || pred_data[:type] || "FS"
+      lag = (pred_data["lag"] || pred_data[:lag] || 0).to_i
 
       return nil unless task_id # Skip invalid entries
 
@@ -119,9 +119,9 @@ class ScheduleTemplateRow < ApplicationRecord
     # pred_data format: { id: 2, type: "FS", lag: 3 }
     # Output: "Excavation (FS+3)" or "Foundation (SS-2)" or "Framing (FS)"
     if pred_data.is_a?(Hash)
-      task_id = pred_data['id'] || pred_data[:id]
-      dep_type = pred_data['type'] || pred_data[:type] || 'FS'
-      lag = (pred_data['lag'] || pred_data[:lag] || 0).to_i
+      task_id = pred_data["id"] || pred_data[:id]
+      dep_type = pred_data["type"] || pred_data[:type] || "FS"
+      lag = (pred_data["lag"] || pred_data[:lag] || 0).to_i
 
       return nil unless task_id # Skip invalid entries
 
@@ -146,9 +146,9 @@ class ScheduleTemplateRow < ApplicationRecord
     return unless require_photo_changed?
 
     # Find or create the "Photos" documentation category
-    photos_category = DocumentationCategory.find_or_create_by(name: 'Photos') do |category|
-      category.color = '#10b981' # emerald green
-      category.description = 'Photo documentation required'
+    photos_category = DocumentationCategory.find_or_create_by(name: "Photos") do |category|
+      category.color = "#10b981" # emerald green
+      category.description = "Photo documentation required"
       category.sequence_order = DocumentationCategory.maximum(:sequence_order).to_i + 1
     end
 
@@ -157,10 +157,10 @@ class ScheduleTemplateRow < ApplicationRecord
 
     if require_photo?
       # Add Photos category if not already present
-      self.documentation_category_ids |= [photos_category.id]
+      self.documentation_category_ids |= [ photos_category.id ]
     else
       # Remove Photos category if present
-      self.documentation_category_ids -= [photos_category.id]
+      self.documentation_category_ids -= [ photos_category.id ]
     end
   end
 

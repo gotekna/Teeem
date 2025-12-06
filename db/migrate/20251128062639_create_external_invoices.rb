@@ -56,7 +56,7 @@ class CreateExternalInvoices < ActiveRecord::Migration[8.0]
     end
 
     # Unique constraint: one record per source + tenant + external_id
-    add_index :external_invoices, [:source, :tenant_id, :external_id], unique: true, name: 'idx_external_invoices_unique'
+    add_index :external_invoices, [ :source, :tenant_id, :external_id ], unique: true, name: 'idx_external_invoices_unique'
     add_index :external_invoices, :source
     add_index :external_invoices, :external_id
     add_index :external_invoices, :tenant_id

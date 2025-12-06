@@ -13,7 +13,7 @@ module HealthChecks
     FOUNDATION_ID = 357
 
     def self.check_type
-      'company_documents'
+      "company_documents"
     end
 
     def self.foundation_id
@@ -22,17 +22,17 @@ module HealthChecks
 
     # Documents pending AI verification
     def check_needs_ai_verification
-      docs = CompanyDocument.where(ai_verification_status: [nil, 'pending'])
+      docs = CompanyDocument.where(ai_verification_status: [ nil, "pending" ])
                            .includes(:company)
                            .limit(100)
 
       build_result(
-        name: 'Documents Awaiting AI Verification',
-        description: 'Documents that have not been processed by AI for automatic categorization.',
+        name: "Documents Awaiting AI Verification",
+        description: "Documents that have not been processed by AI for automatic categorization.",
         severity: :info,
         items: docs,
-        icon: 'cpu-chip',
-        action_path: '/corporate/:company_id/documents'
+        icon: "cpu-chip",
+        action_path: "/corporate/:company_id/documents"
       )
     end
 
@@ -43,30 +43,30 @@ module HealthChecks
                            .limit(100)
 
       build_result(
-        name: 'Documents Needing User Validation',
-        description: 'Documents flagged for manual review and validation.',
+        name: "Documents Needing User Validation",
+        description: "Documents flagged for manual review and validation.",
         severity: :warning,
         items: docs,
-        icon: 'clipboard-document-check',
-        action_path: '/corporate/:company_id/documents'
+        icon: "clipboard-document-check",
+        action_path: "/corporate/:company_id/documents"
       )
     end
 
     # ATO: Missing quarterly BAS
     def check_ato_missing_bas
       missing = find_companies_missing_document(
-        folder: 'ATO',
-        pattern: '%bas%',
+        folder: "ATO",
+        pattern: "%bas%",
         period: :quarterly
       )
 
       build_result(
-        name: 'Companies Missing BAS',
-        description: 'Companies without recent Business Activity Statement documents.',
+        name: "Companies Missing BAS",
+        description: "Companies without recent Business Activity Statement documents.",
         severity: :warning,
         items: missing,
-        icon: 'document-text',
-        action_path: '/corporate/:id/documents?folder=ATO'
+        icon: "document-text",
+        action_path: "/corporate/:id/documents?folder=ATO"
       )
     end
 
@@ -75,8 +75,8 @@ module HealthChecks
       fy = current_financial_year - 1 # Last completed FY
 
       missing = find_companies_missing_document(
-        folder: 'ATO',
-        pattern: '%tax%return%',
+        folder: "ATO",
+        pattern: "%tax%return%",
         financial_year: fy
       )
 
@@ -85,26 +85,26 @@ module HealthChecks
         description: "Companies without a tax return for the #{fy}/#{fy + 1} financial year.",
         severity: :warning,
         items: missing,
-        icon: 'document-text',
-        action_path: '/corporate/:id/documents?folder=ATO'
+        icon: "document-text",
+        action_path: "/corporate/:id/documents?folder=ATO"
       )
     end
 
     # BANK: Missing recent statements
     def check_bank_missing_statements
       missing = find_companies_missing_document(
-        folder: 'BANK',
-        pattern: '%statement%',
+        folder: "BANK",
+        pattern: "%statement%",
         months_ago: 3
       )
 
       build_result(
-        name: 'Companies Missing Bank Statements',
-        description: 'Companies without bank statements in the last 3 months.',
+        name: "Companies Missing Bank Statements",
+        description: "Companies without bank statements in the last 3 months.",
         severity: :info,
         items: missing,
-        icon: 'banknotes',
-        action_path: '/corporate/:id/documents?folder=BANK'
+        icon: "banknotes",
+        action_path: "/corporate/:id/documents?folder=BANK"
       )
     end
 
@@ -113,8 +113,8 @@ module HealthChecks
       current_year = Date.current.year
 
       missing = find_companies_missing_document(
-        folder: 'ASIC',
-        pattern: '%annual%',
+        folder: "ASIC",
+        pattern: "%annual%",
         calendar_year: current_year
       )
 
@@ -123,8 +123,8 @@ module HealthChecks
         description: "Companies without an ASIC annual statement for #{current_year}.",
         severity: :info,
         items: missing,
-        icon: 'building-library',
-        action_path: '/corporate/:id/documents?folder=ASIC'
+        icon: "building-library",
+        action_path: "/corporate/:id/documents?folder=ASIC"
       )
     end
 
@@ -133,8 +133,8 @@ module HealthChecks
       fy = current_financial_year - 1 # Last completed FY
 
       missing = find_companies_missing_document(
-        folder: 'FINANCIALS',
-        pattern: '%financial%',
+        folder: "FINANCIALS",
+        pattern: "%financial%",
         financial_year: fy
       )
 
@@ -143,8 +143,8 @@ module HealthChecks
         description: "Companies without financial statements for the #{fy}/#{fy + 1} financial year.",
         severity: :info,
         items: missing,
-        icon: 'chart-bar',
-        action_path: '/corporate/:id/documents?folder=FINANCIALS'
+        icon: "chart-bar",
+        action_path: "/corporate/:id/documents?folder=FINANCIALS"
       )
     end
 
@@ -155,12 +155,12 @@ module HealthChecks
                            .limit(100)
 
       build_result(
-        name: 'Documents Missing Date',
-        description: 'Documents without a document date set.',
+        name: "Documents Missing Date",
+        description: "Documents without a document date set.",
         severity: :info,
         items: docs,
-        icon: 'calendar',
-        action_path: '/corporate/:company_id/documents'
+        icon: "calendar",
+        action_path: "/corporate/:company_id/documents"
       )
     end
 
@@ -202,7 +202,7 @@ module HealthChecks
 
     # Find companies missing specific document types
     def find_companies_missing_document(folder:, pattern:, financial_year: nil, calendar_year: nil, months_ago: nil, period: nil)
-      companies = Company.where(active: [true, nil])
+      companies = Company.where(active: [ true, nil ])
 
       query = CompanyDocument.where(folder: folder)
                             .where("LOWER(document_type) LIKE ? OR LOWER(title) LIKE ?", pattern, pattern)

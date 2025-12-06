@@ -11,15 +11,15 @@ class ContactExternalLink < ApplicationRecord
   validates :tenant_id, presence: true
   validates :external_contact_id, presence: true
   validates :sync_direction, inclusion: { in: SYNC_DIRECTIONS }
-  validates :contact_id, uniqueness: { scope: [:source, :tenant_id], message: "already linked to this organization" }
-  validates :external_contact_id, uniqueness: { scope: [:source, :tenant_id], message: "already linked to another contact" }
+  validates :contact_id, uniqueness: { scope: [ :source, :tenant_id ], message: "already linked to this organization" }
+  validates :external_contact_id, uniqueness: { scope: [ :source, :tenant_id ], message: "already linked to another contact" }
 
   scope :enabled, -> { where(sync_enabled: true) }
   scope :for_source, ->(source) { where(source: source) }
   scope :for_tenant, ->(tenant_id) { where(tenant_id: tenant_id) }
-  scope :xero, -> { for_source('xero') }
-  scope :myob, -> { for_source('myob') }
-  scope :quickbooks, -> { for_source('quickbooks') }
+  scope :xero, -> { for_source("xero") }
+  scope :myob, -> { for_source("myob") }
+  scope :quickbooks, -> { for_source("quickbooks") }
   scope :with_errors, -> { where.not(sync_error: nil) }
   scope :with_conflicts, -> { where("conflict_fields != '{}'") }
 
@@ -51,9 +51,9 @@ class ContactExternalLink < ApplicationRecord
   def add_conflict(field_name, teeem_value, external_value)
     conflicts = conflict_fields || {}
     conflicts[field_name] = {
-      'teeem_value' => teeem_value,
-      'external_value' => external_value,
-      'detected_at' => Time.current.iso8601
+      "teeem_value" => teeem_value,
+      "external_value" => external_value,
+      "detected_at" => Time.current.iso8601
     }
     update!(conflict_fields: conflicts)
   end
@@ -67,17 +67,17 @@ class ContactExternalLink < ApplicationRecord
 
   # Import only?
   def import_only?
-    sync_direction == 'import_only'
+    sync_direction == "import_only"
   end
 
   # Export only?
   def export_only?
-    sync_direction == 'export_only'
+    sync_direction == "export_only"
   end
 
   # Bidirectional sync?
   def bidirectional?
-    sync_direction == 'bidirectional'
+    sync_direction == "bidirectional"
   end
 
   # Can import from external system?
@@ -92,16 +92,16 @@ class ContactExternalLink < ApplicationRecord
 
   # Convenience: is this a Xero link?
   def xero?
-    source == 'xero'
+    source == "xero"
   end
 
   # Convenience: is this a MYOB link?
   def myob?
-    source == 'myob'
+    source == "myob"
   end
 
   # Convenience: is this a QuickBooks link?
   def quickbooks?
-    source == 'quickbooks'
+    source == "quickbooks"
   end
 end

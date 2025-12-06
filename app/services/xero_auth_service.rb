@@ -1,20 +1,20 @@
-require 'oauth2'
+require "oauth2"
 
 class XeroAuthService
-  AUTH_URL = 'https://login.xero.com/identity/connect/authorize'
-  TOKEN_URL = 'https://identity.xero.com/connect/token'
-  CONNECTIONS_URL = 'https://api.xero.com/connections'
+  AUTH_URL = "https://login.xero.com/identity/connect/authorize"
+  TOKEN_URL = "https://identity.xero.com/connect/token"
+  CONNECTIONS_URL = "https://api.xero.com/connections"
 
   class AuthenticationError < StandardError; end
   class ApiError < StandardError; end
 
   def initialize(company = nil)
     @company = company
-    @client_id = ENV['XERO_CLIENT_ID']
-    @client_secret = ENV['XERO_CLIENT_SECRET']
-    @redirect_uri = ENV['XERO_REDIRECT_URI'] || "#{ENV['FRONTEND_URL']}/corporate/xero/callback"
+    @client_id = ENV["XERO_CLIENT_ID"]
+    @client_secret = ENV["XERO_CLIENT_SECRET"]
+    @redirect_uri = ENV["XERO_REDIRECT_URI"] || "#{ENV['FRONTEND_URL']}/corporate/xero/callback"
 
-    raise AuthenticationError, 'Missing Xero credentials in environment' unless credentials_present?
+    raise AuthenticationError, "Missing Xero credentials in environment" unless credentials_present?
   end
 
   # Generate OAuth authorization URL for a specific company
@@ -22,7 +22,7 @@ class XeroAuthService
     client = oauth_client
     client.auth_code.authorize_url(
       redirect_uri: @redirect_uri,
-      scope: 'offline_access accounting.transactions accounting.contacts accounting.settings accounting.reports.read',
+      scope: "offline_access accounting.transactions accounting.contacts accounting.settings accounting.reports.read",
       state: state # Pass company_id as state to retrieve after callback
     )
   end
@@ -39,7 +39,7 @@ class XeroAuthService
       tenant_info = get_tenant_info(token.token)
 
       if tenant_info.empty?
-        raise ApiError, 'No Xero organization connected'
+        raise ApiError, "No Xero organization connected"
       end
 
       # Use the first organization (or let user select if multiple)
@@ -49,13 +49,13 @@ class XeroAuthService
       connection = company.company_xero_connection || company.build_company_xero_connection
 
       connection.assign_attributes(
-        xero_tenant_id: tenant['tenantId'],
-        xero_tenant_name: tenant['tenantName'],
-        xero_tenant_type: tenant['tenantType'],
+        xero_tenant_id: tenant["tenantId"],
+        xero_tenant_name: tenant["tenantName"],
+        xero_tenant_type: tenant["tenantType"],
         access_token: token.token,
         refresh_token: token.refresh_token,
         token_expires_at: Time.current + token.expires_in.seconds,
-        connection_status: 'connected'
+        connection_status: "connected"
       )
 
       connection.save!
@@ -65,8 +65,8 @@ class XeroAuthService
       {
         success: true,
         company_id: company.id,
-        tenant_name: tenant['tenantName'],
-        tenant_id: tenant['tenantId'],
+        tenant_name: tenant["tenantName"],
+        tenant_id: tenant["tenantId"],
         expires_at: connection.token_expires_at
       }
     rescue OAuth2::Error => e
@@ -86,8 +86,8 @@ class XeroAuthService
       refresh_token = connection.refresh_token
     rescue ActiveRecord::Encryption::Errors::Decryption => e
       Rails.logger.error("Xero credential decryption failed - marking as disconnected: #{e.message}")
-      connection.mark_error!('Credentials corrupted. Please reconnect.')
-      raise AuthenticationError, 'Xero credentials are corrupted. Please reconnect to Xero.'
+      connection.mark_error!("Credentials corrupted. Please reconnect.")
+      raise AuthenticationError, "Xero credentials are corrupted. Please reconnect to Xero."
     end
 
     begin
@@ -104,7 +104,7 @@ class XeroAuthService
         access_token: new_token.token,
         refresh_token: new_token.refresh_token,
         token_expires_at: Time.current + new_token.expires_in.seconds,
-        connection_status: 'connected',
+        connection_status: "connected",
         last_sync_error: nil
       )
 
@@ -140,7 +140,7 @@ class XeroAuthService
     OAuth2::Client.new(
       @client_id,
       @client_secret,
-      site: 'https://api.xero.com',
+      site: "https://api.xero.com",
       authorize_url: AUTH_URL,
       token_url: TOKEN_URL
     )
@@ -150,8 +150,8 @@ class XeroAuthService
     response = HTTParty.get(
       CONNECTIONS_URL,
       headers: {
-        'Authorization' => "Bearer #{access_token}",
-        'Content-Type' => 'application/json'
+        "Authorization" => "Bearer #{access_token}",
+        "Content-Type" => "application/json"
       }
     )
 

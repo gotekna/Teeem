@@ -27,7 +27,7 @@ module HealthChecks
       info: { penalty_per_issue: 0, max_penalty: 0 }
     }.freeze
 
-    SEVERITY_ORDER = { 'critical' => 0, 'warning' => 1, 'info' => 2 }.freeze
+    SEVERITY_ORDER = { "critical" => 0, "warning" => 1, "info" => 2 }.freeze
 
     class << self
       # Override in subclass to define check type
@@ -37,7 +37,7 @@ module HealthChecks
 
       # Get all available check methods for this service
       def available_checks
-        public_instance_methods(false).select { |m| m.to_s.start_with?('check_') }
+        public_instance_methods(false).select { |m| m.to_s.start_with?("check_") }
       end
 
       # Run all checks and return combined results
@@ -58,7 +58,7 @@ module HealthChecks
 
     # Run a specific check by name
     def run(check_name)
-      method_name = check_name.to_s.start_with?('check_') ? check_name : "check_#{check_name}"
+      method_name = check_name.to_s.start_with?("check_") ? check_name : "check_#{check_name}"
       return nil unless respond_to?(method_name)
 
       send(method_name)
@@ -78,15 +78,15 @@ module HealthChecks
       # Get count efficiently - use count(:all) for relations to avoid issues with custom select
       count = if items.is_a?(Array)
                 items.size
-              elsif items.respond_to?(:count)
+      elsif items.respond_to?(:count)
                 begin
                   items.count(:all)
                 rescue
                   items.to_a.size
                 end
-              else
+      else
                 items.to_a.size
-              end
+      end
 
       items_array = items.respond_to?(:limit) ? items.limit(limit).to_a : Array(items).first(limit)
 
@@ -144,11 +144,11 @@ module HealthChecks
         weight = SEVERITY_WEIGHTS[severity] || SEVERITY_WEIGHTS[:info]
         count = result[:count] || 0
 
-        penalty = [count * weight[:penalty_per_issue], weight[:max_penalty]].min
+        penalty = [ count * weight[:penalty_per_issue], weight[:max_penalty] ].min
         score -= penalty
       end
 
-      [score, 0].max
+      [ score, 0 ].max
     end
 
     # Sort results by severity (critical first)

@@ -19,6 +19,6 @@ class CreateContactCompanyGroupMemberships < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :contact_company_group_memberships, [:contact_id, :company_group_id], unique: true, name: 'idx_contact_company_group_unique'
+    add_index :contact_company_group_memberships, [ :contact_id, :company_group_id ], unique: true, name: 'idx_contact_company_group_unique'
   end
 end

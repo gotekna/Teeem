@@ -8,7 +8,7 @@
 class SmSupplierAccess < ApplicationRecord
   belongs_to :contact # The supplier contact
   belongs_to :job
-  belongs_to :created_by, class_name: 'User', optional: true
+  belongs_to :created_by, class_name: "User", optional: true
 
   # Generate secure token
   has_secure_token :access_token
@@ -18,8 +18,8 @@ class SmSupplierAccess < ApplicationRecord
   validates :expires_at, presence: true
 
   # Scopes
-  scope :active, -> { where('expires_at > ?', Time.current).where(revoked_at: nil) }
-  scope :expired, -> { where('expires_at <= ?', Time.current) }
+  scope :active, -> { where("expires_at > ?", Time.current).where(revoked_at: nil) }
+  scope :expired, -> { where("expires_at <= ?", Time.current) }
   scope :revoked, -> { where.not(revoked_at: nil) }
   scope :for_construction, ->(id) { where(construction_id: id) }
 
@@ -44,7 +44,7 @@ class SmSupplierAccess < ApplicationRecord
   end
 
   def extend!(days: 30)
-    update!(expires_at: [expires_at, Time.current].max + days.days)
+    update!(expires_at: [ expires_at, Time.current ].max + days.days)
   end
 
   def record_access!

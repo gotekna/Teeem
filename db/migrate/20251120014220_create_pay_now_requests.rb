@@ -44,12 +44,12 @@ class CreatePayNowRequests < ActiveRecord::Migration[8.0]
       t.timestamps
 
       # Indexes for performance and queries
-      t.index [:purchase_order_id, :status], name: 'index_pay_now_requests_on_po_and_status'
-      t.index [:contact_id, :status], name: 'index_pay_now_requests_on_contact_and_status'
+      t.index [ :purchase_order_id, :status ], name: 'index_pay_now_requests_on_po_and_status'
+      t.index [ :contact_id, :status ], name: 'index_pay_now_requests_on_contact_and_status'
       t.index :status
       t.index :requested_payment_date
       t.index :created_at
-      t.index [:status, :created_at], name: 'index_pay_now_requests_on_status_and_created_at'
+      t.index [ :status, :created_at ], name: 'index_pay_now_requests_on_status_and_created_at'
     end
   end
 end

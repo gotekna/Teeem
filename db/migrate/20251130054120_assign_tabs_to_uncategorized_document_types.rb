@@ -7,7 +7,7 @@ class AssignTabsToUncategorizedDocumentTypes < ActiveRecord::Migration[8.0]
        Service\ Agreement\ -\ Draft Service\ Agreement\ -\ Signed].each do |name|
       dt = DocumentType.find_by(name: name)
       if dt
-        dt.update!(primary_tab: 'ASSETS', tabs: ['ASSETS'], folder: 'ASSETS')
+        dt.update!(primary_tab: 'ASSETS', tabs: [ 'ASSETS' ], folder: 'ASSETS')
         puts "Updated: #{name} -> ASSETS"
       end
     end
@@ -17,7 +17,7 @@ class AssignTabsToUncategorizedDocumentTypes < ActiveRecord::Migration[8.0]
        Security\ Deed\ -\ Draft Security\ Deed\ -\ Signed].each do |name|
       dt = DocumentType.find_by(name: name)
       if dt
-        dt.update!(primary_tab: 'LOANS', tabs: ['LOANS'], folder: 'LOANS')
+        dt.update!(primary_tab: 'LOANS', tabs: [ 'LOANS' ], folder: 'LOANS')
         puts "Updated: #{name} -> LOANS"
       end
     end
@@ -26,7 +26,7 @@ class AssignTabsToUncategorizedDocumentTypes < ActiveRecord::Migration[8.0]
     %w[Minutes\ -\ Draft Minutes\ -\ Signed].each do |name|
       dt = DocumentType.find_by(name: name)
       if dt
-        dt.update!(primary_tab: 'MINUTES', tabs: ['MINUTES'], folder: 'MINUTES')
+        dt.update!(primary_tab: 'MINUTES', tabs: [ 'MINUTES' ], folder: 'MINUTES')
         puts "Updated: #{name} -> MINUTES"
       end
     end
@@ -35,7 +35,7 @@ class AssignTabsToUncategorizedDocumentTypes < ActiveRecord::Migration[8.0]
     %w[Distribution\ -\ Draft Distribution\ -\ Signed].each do |name|
       dt = DocumentType.find_by(name: name)
       if dt
-        dt.update!(primary_tab: 'DIVIDENDS', tabs: ['DIVIDENDS'], folder: 'DIVIDENDS')
+        dt.update!(primary_tab: 'DIVIDENDS', tabs: [ 'DIVIDENDS' ], folder: 'DIVIDENDS')
         puts "Updated: #{name} -> DIVIDENDS"
       end
     end

@@ -1,7 +1,7 @@
 module Api
   module V1
     class OneDriveController < ApplicationController
-      before_action :set_job, only: [:authorize, :callback, :status, :disconnect]
+      before_action :set_job, only: [ :authorize, :callback, :status, :disconnect ]
 
       # GET /api/v1/onedrive/authorize?construction_id=123
       # Redirects user to Microsoft OAuth consent page
@@ -14,7 +14,7 @@ module Api
         session[:onedrive_construction_id] = @job.id
 
         # Get redirect URI from env
-        redirect_uri = ENV['ONEDRIVE_REDIRECT_URI']
+        redirect_uri = ENV["ONEDRIVE_REDIRECT_URI"]
 
         # Generate authorization URL
         auth_url = MicrosoftGraphClient.authorization_url(redirect_uri, state)
@@ -28,7 +28,7 @@ module Api
       def callback
         # Verify state to prevent CSRF
         unless params[:state] == session[:onedrive_state]
-          return render json: { error: 'Invalid state parameter. Possible CSRF attack.' }, status: :forbidden
+          return render json: { error: "Invalid state parameter. Possible CSRF attack." }, status: :forbidden
         end
 
         # Check for errors from Microsoft
@@ -42,12 +42,12 @@ module Api
         @job = Job.find_by(id: construction_id)
 
         unless @job
-          return render json: { error: 'Construction not found' }, status: :not_found
+          return render json: { error: "Construction not found" }, status: :not_found
         end
 
         # Exchange code for tokens
         code = params[:code]
-        redirect_uri = ENV['ONEDRIVE_REDIRECT_URI']
+        redirect_uri = ENV["ONEDRIVE_REDIRECT_URI"]
 
         begin
           token_data = MicrosoftGraphClient.exchange_code_for_token(code, redirect_uri)
@@ -95,7 +95,7 @@ module Api
         else
           render json: {
             connected: false,
-            message: credential ? 'Credential expired or invalid' : 'Not connected'
+            message: credential ? "Credential expired or invalid" : "Not connected"
           }
         end
       end
@@ -107,9 +107,9 @@ module Api
 
         if credential
           credential.destroy
-          render json: { message: 'OneDrive disconnected successfully' }
+          render json: { message: "OneDrive disconnected successfully" }
         else
-          render json: { message: 'OneDrive was not connected' }, status: :not_found
+          render json: { message: "OneDrive was not connected" }, status: :not_found
         end
       end
 
@@ -122,7 +122,7 @@ module Api
         credential = @job.one_drive_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected or token expired' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected or token expired" }, status: :unauthorized
         end
 
         # Get folder template (use default or specified)
@@ -134,12 +134,12 @@ module Api
         end
 
         unless template
-          return render json: { error: 'No folder template found' }, status: :not_found
+          return render json: { error: "No folder template found" }, status: :not_found
         end
 
         # Prepare job data for variable resolution
         job_data = {
-          job_code: @job.id.to_s.rjust(3, '0'),
+          job_code: @job.id.to_s.rjust(3, "0"),
           project_name: @job.title,
           site_supervisor: @job.site_supervisor_name
         }
@@ -149,10 +149,10 @@ module Api
           root_folder = client.create_folder_structure(template, job_data)
 
           render json: {
-            message: 'Folder structure created successfully',
+            message: "Folder structure created successfully",
             root_folder: root_folder,
             folder_path: credential.folder_path,
-            web_url: root_folder['webUrl']
+            web_url: root_folder["webUrl"]
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
@@ -175,7 +175,7 @@ module Api
         credential = @job.one_drive_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected or token expired' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected or token expired" }, status: :unauthorized
         end
 
         begin
@@ -185,8 +185,8 @@ module Api
           items = client.list_folder_items(folder_id)
 
           render json: {
-            items: items['value'],
-            count: items['value']&.length || 0
+            items: items["value"],
+            count: items["value"]&.length || 0
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
@@ -208,14 +208,14 @@ module Api
         credential = @job.one_drive_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected or token expired' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected or token expired" }, status: :unauthorized
         end
 
         uploaded_file = params[:file]
         folder_id = params[:folder_id] || credential.root_folder_id
 
         unless uploaded_file
-          return render json: { error: 'No file provided' }, status: :bad_request
+          return render json: { error: "No file provided" }, status: :bad_request
         end
 
         begin
@@ -234,12 +234,12 @@ module Api
             # Return upload session URL for client to handle chunked upload
             return render json: {
               upload_session: session_data,
-              message: 'Upload session created. Use upload URL for chunked upload.'
+              message: "Upload session created. Use upload URL for chunked upload."
             }
           end
 
           render json: {
-            message: 'File uploaded successfully',
+            message: "File uploaded successfully",
             file: result
           }
 
@@ -262,13 +262,13 @@ module Api
         credential = @job.one_drive_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected or token expired' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected or token expired" }, status: :unauthorized
         end
 
         file_id = params[:file_id]
 
         unless file_id
-          return render json: { error: 'No file_id provided' }, status: :bad_request
+          return render json: { error: "No file_id provided" }, status: :bad_request
         end
 
         begin
@@ -282,9 +282,9 @@ module Api
 
           # Send file to user
           send_data file_content,
-            filename: file_metadata['name'],
-            type: file_metadata['file']&.dig('mimeType') || 'application/octet-stream',
-            disposition: 'attachment'
+            filename: file_metadata["name"],
+            type: file_metadata["file"]&.dig("mimeType") || "application/octet-stream",
+            disposition: "attachment"
 
         rescue MicrosoftGraphClient::AuthenticationError => e
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
@@ -302,13 +302,13 @@ module Api
         construction_id = params[:job_id]
 
         unless construction_id
-          return render json: { error: 'construction_id parameter is required' }, status: :bad_request
+          return render json: { error: "construction_id parameter is required" }, status: :bad_request
         end
 
         @job = Job.find_by(id: construction_id)
 
         unless @job
-          render json: { error: 'Construction not found' }, status: :not_found
+          render json: { error: "Construction not found" }, status: :not_found
         end
       end
     end

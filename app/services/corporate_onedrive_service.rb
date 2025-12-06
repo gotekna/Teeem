@@ -74,21 +74,21 @@ class CorporateOnedriveService
     Rails.logger.info "Found corporate folder: #{corporate_folder['name']} (#{corporate_folder['id']}) at '#{found_path}'"
 
     # Get all items in corporate folder
-    top_level_folders = list_folder_children(client, corporate_folder['id'])
+    top_level_folders = list_folder_children(client, corporate_folder["id"])
     Rails.logger.info "Found #{top_level_folders.count} top-level folders"
 
     # Process folders - check if they are group folders or company folders
     top_level_folders.each do |folder|
-      next unless folder['folder'] # Skip files
+      next unless folder["folder"] # Skip files
 
-      if is_group_folder?(folder['name'])
+      if is_group_folder?(folder["name"])
         # This is a group folder - scan its children for company folders
         Rails.logger.info "Processing group folder: #{folder['name']}"
-        group_children = list_folder_children(client, folder['id'])
+        group_children = list_folder_children(client, folder["id"])
 
         group_children.each do |company_folder|
-          next unless company_folder['folder']
-          process_company_folder(client, company_folder, nil, folder['name'])
+          next unless company_folder["folder"]
+          process_company_folder(client, company_folder, nil, folder["name"])
         end
       else
         # This is a company folder directly
@@ -137,26 +137,26 @@ class CorporateOnedriveService
     company_folder = nil
     group_name = nil
 
-    top_level_folders = list_folder_children(client, corporate_folder['id'])
+    top_level_folders = list_folder_children(client, corporate_folder["id"])
 
     # First, check if company folder is directly under corporate root
     company_folder = top_level_folders.find do |f|
-      f['folder'] && folder_matches_company?(f['name'], company)
+      f["folder"] && folder_matches_company?(f["name"], company)
     end
 
     # If not found, search within group folders
     unless company_folder
       top_level_folders.each do |folder|
-        next unless folder['folder'] && is_group_folder?(folder['name'])
+        next unless folder["folder"] && is_group_folder?(folder["name"])
 
-        group_children = list_folder_children(client, folder['id'])
+        group_children = list_folder_children(client, folder["id"])
         matched_folder = group_children.find do |f|
-          f['folder'] && folder_matches_company?(f['name'], company)
+          f["folder"] && folder_matches_company?(f["name"], company)
         end
 
         if matched_folder
           company_folder = matched_folder
-          group_name = folder['name']
+          group_name = folder["name"]
           break
         end
       end
@@ -199,22 +199,22 @@ class CorporateOnedriveService
     end
 
     preview_results = []
-    company_folders = list_folder_children(client, corporate_folder['id'])
+    company_folders = list_folder_children(client, corporate_folder["id"])
 
     company_folders.each do |folder|
-      next unless folder['folder']
+      next unless folder["folder"]
 
-      company = find_matching_company(folder['name'])
-      documents = scan_folder_for_documents(client, folder['id'])
+      company = find_matching_company(folder["name"])
+      documents = scan_folder_for_documents(client, folder["id"])
 
       preview_results << {
-        folder_name: folder['name'],
-        folder_id: folder['id'],
+        folder_name: folder["name"],
+        folder_id: folder["id"],
         company_id: company&.id,
         company_name: company&.name,
         matched: company.present?,
         document_count: documents.count,
-        documents: documents.map { |d| { name: d['name'], type: categorize_document(d['name']) } }
+        documents: documents.map { |d| { name: d["name"], type: categorize_document(d["name"]) } }
       }
     end
 
@@ -238,26 +238,26 @@ class CorporateOnedriveService
   # Extract clean folder path from SharePoint document metadata
   def extract_folder_path(doc, group_name = nil)
     # Try to get path from parentReference
-    parent_path = doc.dig('parentReference', 'path')
+    parent_path = doc.dig("parentReference", "path")
 
     if parent_path.present?
       # Path formats:
       # New: "/drive/root:/00 TEEEM PRIVATE/Tekna Group/TEK - Tekna Pty Ltd/ASIC"
       # Legacy: "/drive/root:/Corporate File/Team Harder Group/Tekna Drafting/Minutes"
       clean_path = parent_path
-        .sub(%r{^/drive/root:/?}, '')  # Remove drive prefix
-        .sub(%r{^00 TEEEM PRIVATE/}, '')  # Remove new structure prefix
-        .sub(%r{^Corporate File/}, '')  # Remove legacy Corporate File prefix
-        .sub(%r{^Accounts - Internal/Corporate File/}, '')  # Remove longer legacy prefix
+        .sub(%r{^/drive/root:/?}, "")  # Remove drive prefix
+        .sub(%r{^00 TEEEM PRIVATE/}, "")  # Remove new structure prefix
+        .sub(%r{^Corporate File/}, "")  # Remove legacy Corporate File prefix
+        .sub(%r{^Accounts - Internal/Corporate File/}, "")  # Remove longer legacy prefix
 
       # If path is now empty or just "/", use group_name/company fallback
-      return group_name if clean_path.blank? || clean_path == '/'
+      return group_name if clean_path.blank? || clean_path == "/"
 
       return clean_path
     end
 
     # Fallback to parent folder name
-    parent_name = doc.dig('parentReference', 'name')
+    parent_name = doc.dig("parentReference", "name")
     return group_name if parent_name.blank?
 
     # Combine group and folder name if we have both
@@ -270,7 +270,7 @@ class CorporateOnedriveService
   end
 
   def find_folder_by_path(client, path)
-    path_parts = path.split('/')
+    path_parts = path.split("/")
     current_folder = nil
     # Use SharePoint drive if available, otherwise fall back to personal OneDrive
     drive_path = @credential&.drive_id ? "/drives/#{@credential.drive_id}" : "/me/drive"
@@ -278,8 +278,8 @@ class CorporateOnedriveService
 
     path_parts.each do |folder_name|
       response = client.get("#{current_parent_path}/children")
-      folders = response['value'] || []
-      current_folder = folders.find { |f| f['name'] == folder_name && f['folder'] }
+      folders = response["value"] || []
+      current_folder = folders.find { |f| f["name"] == folder_name && f["folder"] }
 
       return nil unless current_folder
       current_parent_path = "#{drive_path}/items/#{current_folder['id']}"
@@ -299,12 +299,12 @@ class CorporateOnedriveService
 
     while next_link
       response = client.get(next_link)
-      items = response['value'] || []
+      items = response["value"] || []
       all_items.concat(items)
 
-      next_link = response['@odata.nextLink']
-      if next_link&.start_with?('https://')
-        next_link = URI.parse(next_link).request_uri.sub(%r{^/v1\.0}, '')
+      next_link = response["@odata.nextLink"]
+      if next_link&.start_with?("https://")
+        next_link = URI.parse(next_link).request_uri.sub(%r{^/v1\.0}, "")
       end
     end
 
@@ -315,24 +315,24 @@ class CorporateOnedriveService
     @results[:companies_scanned] += 1
 
     # Try to match folder to a company if not provided
-    company ||= find_matching_company(folder['name'])
+    company ||= find_matching_company(folder["name"])
 
     unless company
-      folder_display = group_name ? "#{group_name}/#{folder['name']}" : folder['name']
+      folder_display = group_name ? "#{group_name}/#{folder['name']}" : folder["name"]
       @results[:errors] << "No matching company found for folder '#{folder_display}'"
       return
     end
 
-    folder_display = group_name ? "#{group_name}/#{folder['name']}" : folder['name']
+    folder_display = group_name ? "#{group_name}/#{folder['name']}" : folder["name"]
     Rails.logger.info "Processing folder '#{folder_display}' for company '#{company.name}'"
 
     # Store SharePoint folder URL for direct access
-    if folder['webUrl'].present? && company.sharepoint_folder_url != folder['webUrl']
-      company.update_column(:sharepoint_folder_url, folder['webUrl'])
+    if folder["webUrl"].present? && company.sharepoint_folder_url != folder["webUrl"]
+      company.update_column(:sharepoint_folder_url, folder["webUrl"])
     end
 
     # Scan all documents in this folder (recursively)
-    documents = scan_folder_for_documents(client, folder['id'], recursive: true)
+    documents = scan_folder_for_documents(client, folder["id"], recursive: true)
     @results[:documents_found] += documents.count
 
     # Link documents to company
@@ -346,14 +346,14 @@ class CorporateOnedriveService
     items = list_folder_children(client, folder_id)
 
     items.each do |item|
-      if item['file']
+      if item["file"]
         # It's a file - check if it's a document type we care about
-        if is_corporate_document?(item['name'])
+        if is_corporate_document?(item["name"])
           documents << item
         end
-      elsif item['folder'] && recursive
+      elsif item["folder"] && recursive
         # Recurse into subfolders
-        documents.concat(scan_folder_for_documents(client, item['id'], recursive: true))
+        documents.concat(scan_folder_for_documents(client, item["id"], recursive: true))
       end
     end
 
@@ -424,20 +424,20 @@ class CorporateOnedriveService
   def normalize_name(name)
     name.to_s
       .downcase
-      .gsub(/\s*\([^)]*\)\s*/, '')  # Remove parenthetical notes like "(formerly...)"
-      .gsub(/pty\s*ltd/i, '')
-      .gsub(/\s+atf\s+.*/i, '')  # Remove trust suffix
-      .gsub(/[^a-z0-9\s]/, ' ')
-      .gsub(/\s+/, ' ')
+      .gsub(/\s*\([^)]*\)\s*/, "")  # Remove parenthetical notes like "(formerly...)"
+      .gsub(/pty\s*ltd/i, "")
+      .gsub(/\s+atf\s+.*/i, "")  # Remove trust suffix
+      .gsub(/[^a-z0-9\s]/, " ")
+      .gsub(/\s+/, " ")
       .strip
   end
 
   def link_document_to_company(client, company, doc, group_name = nil)
     # Find appropriate DocumentType based on filename
-    document_type = find_document_type(doc['name'], company)
+    document_type = find_document_type(doc["name"], company)
 
     # Get or create a download URL
-    download_url = doc['@microsoft.graph.downloadUrl']
+    download_url = doc["@microsoft.graph.downloadUrl"]
     if download_url.blank?
       download_url = "https://graph.microsoft.com/v1.0/me/drive/items/#{doc['id']}/content"
     end
@@ -446,13 +446,13 @@ class CorporateOnedriveService
     sharepoint_folder_path = extract_folder_path(doc, group_name)
 
     # Extract the immediate parent folder name (tab name like LOANS, ASIC, etc.)
-    parent_folder_name = doc.dig('parentReference', 'name') || 'GENERAL'
+    parent_folder_name = doc.dig("parentReference", "name") || "GENERAL"
     document_type_string = parent_folder_name.upcase
 
     # Create or update company document record
     # Find by onedrive_file_id only (unique constraint), then update company if needed
     company_doc = CompanyDocument.find_or_initialize_by(
-      onedrive_file_id: doc['id']
+      onedrive_file_id: doc["id"]
     )
     # Update company_id to the correct company (may have been synced to wrong company before)
     company_doc.company = company
@@ -462,16 +462,16 @@ class CorporateOnedriveService
     document_type_enum = map_folder_to_document_type_enum(document_type_string)
 
     company_doc.assign_attributes(
-      title: doc['name'],
+      title: doc["name"],
       document_type: document_type_enum,
       document_type_id: document_type&.id,
-      file_url: doc['webUrl'],
-      file_name: doc['name'],
+      file_url: doc["webUrl"],
+      file_name: doc["name"],
       onedrive_download_url: download_url,
-      file_size: doc.dig('size'),
-      last_modified_at: doc.dig('lastModifiedDateTime')&.to_datetime,
-      storage_type: 'electronic',
-      source: 'sharepoint',
+      file_size: doc.dig("size"),
+      last_modified_at: doc.dig("lastModifiedDateTime")&.to_datetime,
+      storage_type: "electronic",
+      source: "sharepoint",
       register_folder: group_name,
       folder: parent_folder_name,  # Use simple folder name (e.g., "ATO") for tab filtering
       description: sharepoint_folder_path  # Keep full path in description for reference
@@ -492,39 +492,39 @@ class CorporateOnedriveService
   #                 tax_return financial_statement insurance_policy asic share_registry trust_deed
   #                 financial tax insurance contract certificate other
   def map_folder_to_document_type_enum(folder_name)
-    return 'other' if folder_name.blank?
+    return "other" if folder_name.blank?
 
     case folder_name.upcase
-    when 'ASIC'
-      'asic'
-    when 'ATO'
-      'tax'
-    when 'BANK'
-      'financial'
-    when 'COMPANY'
-      'certificate'
-    when 'DIVIDENDS'
-      'financial'
-    when 'FINANCIALS'
-      'financial_statement'
-    when 'INSURANCE'
-      'insurance'
-    when 'LOANS'
-      'loan_agreement'
-    when 'MINUTES'
-      'minutes'
-    when 'REGISTRY'
-      'share_registry'
-    when 'TRUST'
-      'trust_deed'
-    when 'ADVICE'
-      'other'
-    when 'ASSETS'
-      'contract'
-    when 'GENERAL'
-      'other'
+    when "ASIC"
+      "asic"
+    when "ATO"
+      "tax"
+    when "BANK"
+      "financial"
+    when "COMPANY"
+      "certificate"
+    when "DIVIDENDS"
+      "financial"
+    when "FINANCIALS"
+      "financial_statement"
+    when "INSURANCE"
+      "insurance"
+    when "LOANS"
+      "loan_agreement"
+    when "MINUTES"
+      "minutes"
+    when "REGISTRY"
+      "share_registry"
+    when "TRUST"
+      "trust_deed"
+    when "ADVICE"
+      "other"
+    when "ASSETS"
+      "contract"
+    when "GENERAL"
+      "other"
     else
-      'other'
+      "other"
     end
   end
 
@@ -533,175 +533,175 @@ class CorporateOnedriveService
     filename_lower = filename.downcase
 
     # BAS - Business Activity Statement
-    if filename_lower.include?('bas')
+    if filename_lower.include?("bas")
       return DocumentType.find_by("name ILIKE '%BAS%'")
     end
 
     # Form 484 - Director Changes or Registered Office
-    if filename_lower.include?('484')
-      if filename_lower.include?('director')
-        return DocumentType.find_by(name: 'ASIC Form 484 - Director Changes')
-      elsif filename_lower.include?('office') || filename_lower.include?('address')
-        return DocumentType.find_by(name: 'ASIC Form 484 - Registered Office')
+    if filename_lower.include?("484")
+      if filename_lower.include?("director")
+        return DocumentType.find_by(name: "ASIC Form 484 - Director Changes")
+      elsif filename_lower.include?("office") || filename_lower.include?("address")
+        return DocumentType.find_by(name: "ASIC Form 484 - Registered Office")
       end
       # Default 484 to Director Changes
-      return DocumentType.find_by(name: 'ASIC Form 484 - Director Changes')
+      return DocumentType.find_by(name: "ASIC Form 484 - Director Changes")
     end
 
     # Form 485 - Solvency Declaration
-    if filename_lower.include?('485') || filename_lower.include?('solvency')
-      return DocumentType.find_by(name: 'ASIC Form 485 - Solvency Declaration')
+    if filename_lower.include?("485") || filename_lower.include?("solvency")
+      return DocumentType.find_by(name: "ASIC Form 485 - Solvency Declaration")
     end
 
     # ASIC Documents (generic)
-    if filename_lower.include?('asic')
-      return DocumentType.find_by(name: 'ASIC Documents')
+    if filename_lower.include?("asic")
+      return DocumentType.find_by(name: "ASIC Documents")
     end
 
     # ASIC Annual Review
-    if filename_lower.include?('annual')
-      return DocumentType.find_by(name: 'ASIC Annual Review')
+    if filename_lower.include?("annual")
+      return DocumentType.find_by(name: "ASIC Annual Review")
     end
 
     # Constitution
-    if filename_lower.include?('constitution') || filename_lower.include?('rules')
-      return DocumentType.find_by(name: 'Constitution')
+    if filename_lower.include?("constitution") || filename_lower.include?("rules")
+      return DocumentType.find_by(name: "Constitution")
     end
 
     # Trust Deed
-    if filename_lower.include?('trust') && filename_lower.include?('deed')
-      return DocumentType.find_by(name: 'Trust Deed')
+    if filename_lower.include?("trust") && filename_lower.include?("deed")
+      return DocumentType.find_by(name: "Trust Deed")
     end
 
     # Minutes (detect draft vs signed)
-    if filename_lower.include?('minute') || filename_lower.include?('agm')
-      if filename_lower.include?('draft')
-        return DocumentType.find_by(name: 'Minutes - Draft')
+    if filename_lower.include?("minute") || filename_lower.include?("agm")
+      if filename_lower.include?("draft")
+        return DocumentType.find_by(name: "Minutes - Draft")
       else
         return DocumentType.find_by(name: "Directors' Minutes")
       end
     end
 
     # Directors' Resolution - Distribution
-    if filename_lower.include?('resolution') && filename_lower.include?('distribution')
+    if filename_lower.include?("resolution") && filename_lower.include?("distribution")
       return DocumentType.find_by(name: "Directors' Resolution - Distribution")
     end
 
     # Share Registry/Certificate/Transfer
-    if filename_lower.include?('share')
-      if filename_lower.include?('certificate')
-        return DocumentType.find_by(name: 'Share Certificate')
-      elsif filename_lower.include?('transfer')
-        return DocumentType.find_by(name: 'Share Transfer')
-      elsif filename_lower.include?('registry') || filename_lower.include?('register')
-        return DocumentType.find_by(name: 'Share Registry')
+    if filename_lower.include?("share")
+      if filename_lower.include?("certificate")
+        return DocumentType.find_by(name: "Share Certificate")
+      elsif filename_lower.include?("transfer")
+        return DocumentType.find_by(name: "Share Transfer")
+      elsif filename_lower.include?("registry") || filename_lower.include?("register")
+        return DocumentType.find_by(name: "Share Registry")
       end
     end
 
     # Financial Statements
-    if filename_lower.include?('financial') || filename_lower.include?('statement')
-      if filename_lower.include?('draft')
-        return DocumentType.find_by(name: 'Draft Financials')
+    if filename_lower.include?("financial") || filename_lower.include?("statement")
+      if filename_lower.include?("draft")
+        return DocumentType.find_by(name: "Draft Financials")
       else
-        return DocumentType.find_by(name: 'Final Financials')
+        return DocumentType.find_by(name: "Final Financials")
       end
     end
 
     # Tax Returns - detect company vs trust
-    if filename_lower.include?('tax return') || filename_lower.match?(/\d{4}.*tax/)
+    if filename_lower.include?("tax return") || filename_lower.match?(/\d{4}.*tax/)
       # Check if company is a trust
-      if company.name.downcase.include?('trust') || company.name.downcase.include?('atf')
-        return DocumentType.find_by(name: 'TTR - Trust Tax Return')
+      if company.name.downcase.include?("trust") || company.name.downcase.include?("atf")
+        return DocumentType.find_by(name: "TTR - Trust Tax Return")
       else
-        return DocumentType.find_by(name: 'CTR - Company Tax Return')
+        return DocumentType.find_by(name: "CTR - Company Tax Return")
       end
     end
 
     # Bank Statement
-    if filename_lower.include?('bank') && filename_lower.include?('statement')
-      return DocumentType.find_by(name: 'Bank Statement')
+    if filename_lower.include?("bank") && filename_lower.include?("statement")
+      return DocumentType.find_by(name: "Bank Statement")
     end
 
     # Distribution/Dividend
-    if filename_lower.include?('distribution') || filename_lower.include?('dividend')
-      if filename_lower.include?('draft')
-        return DocumentType.find_by(name: 'Distribution - Draft')
+    if filename_lower.include?("distribution") || filename_lower.include?("dividend")
+      if filename_lower.include?("draft")
+        return DocumentType.find_by(name: "Distribution - Draft")
       else
-        return DocumentType.find_by(name: 'Distribution')
+        return DocumentType.find_by(name: "Distribution")
       end
     end
 
     # Gift Deed Return
-    if filename_lower.include?('gift') && filename_lower.include?('deed')
-      return DocumentType.find_by(name: 'Gift Deed Return')
+    if filename_lower.include?("gift") && filename_lower.include?("deed")
+      return DocumentType.find_by(name: "Gift Deed Return")
     end
 
     # Loan Agreement
-    if filename_lower.include?('loan') && filename_lower.include?('agreement')
-      if filename_lower.include?('draft')
-        return DocumentType.find_by(name: 'Loan Agreement - Draft')
+    if filename_lower.include?("loan") && filename_lower.include?("agreement")
+      if filename_lower.include?("draft")
+        return DocumentType.find_by(name: "Loan Agreement - Draft")
       else
-        return DocumentType.find_by(name: 'Loan Agreement')
+        return DocumentType.find_by(name: "Loan Agreement")
       end
     end
 
     # Security Deed
-    if filename_lower.include?('security') && filename_lower.include?('deed')
-      if filename_lower.include?('draft')
-        return DocumentType.find_by(name: 'Security Deed - Draft')
+    if filename_lower.include?("security") && filename_lower.include?("deed")
+      if filename_lower.include?("draft")
+        return DocumentType.find_by(name: "Security Deed - Draft")
       else
-        return DocumentType.find_by(name: 'Security Deed')
+        return DocumentType.find_by(name: "Security Deed")
       end
     end
 
     # PPSR Registration
-    if filename_lower.include?('ppsr')
-      return DocumentType.find_by(name: 'PPSR Registration')
+    if filename_lower.include?("ppsr")
+      return DocumentType.find_by(name: "PPSR Registration")
     end
 
     # Asset Insurance
-    if filename_lower.include?('insurance') || filename_lower.include?('policy')
-      if filename_lower.include?('draft')
-        return DocumentType.find_by(name: 'Asset Insurance - Draft')
+    if filename_lower.include?("insurance") || filename_lower.include?("policy")
+      if filename_lower.include?("draft")
+        return DocumentType.find_by(name: "Asset Insurance - Draft")
       else
-        return DocumentType.find_by(name: 'Asset Insurance - Signed')
+        return DocumentType.find_by(name: "Asset Insurance - Signed")
       end
     end
 
     # Purchase Contract (for assets)
-    if filename_lower.include?('purchase') && filename_lower.include?('contract')
-      if filename_lower.include?('draft')
-        return DocumentType.find_by(name: 'Purchase Contract - Draft')
+    if filename_lower.include?("purchase") && filename_lower.include?("contract")
+      if filename_lower.include?("draft")
+        return DocumentType.find_by(name: "Purchase Contract - Draft")
       else
-        return DocumentType.find_by(name: 'Purchase Contract - Signed')
+        return DocumentType.find_by(name: "Purchase Contract - Signed")
       end
     end
 
     # Service Agreement (for assets)
-    if filename_lower.include?('service') && filename_lower.include?('agreement')
-      if filename_lower.include?('draft')
-        return DocumentType.find_by(name: 'Service Agreement - Draft')
+    if filename_lower.include?("service") && filename_lower.include?("agreement")
+      if filename_lower.include?("draft")
+        return DocumentType.find_by(name: "Service Agreement - Draft")
       else
-        return DocumentType.find_by(name: 'Service Agreement - Signed')
+        return DocumentType.find_by(name: "Service Agreement - Signed")
       end
     end
 
     # Register of Members
-    if filename_lower.include?('register') && filename_lower.include?('member')
-      return DocumentType.find_by(name: 'Register of Members')
+    if filename_lower.include?("register") && filename_lower.include?("member")
+      return DocumentType.find_by(name: "Register of Members")
     end
 
     # Company Setup
-    if filename_lower.include?('setup') || filename_lower.include?('corporate key')
-      return DocumentType.find_by(name: 'Company Setup')
+    if filename_lower.include?("setup") || filename_lower.include?("corporate key")
+      return DocumentType.find_by(name: "Company Setup")
     end
 
     # Structure
-    if filename_lower.include?('structure') || filename_lower.include?('org chart')
-      return DocumentType.find_by(name: 'Structure')
+    if filename_lower.include?("structure") || filename_lower.include?("org chart")
+      return DocumentType.find_by(name: "Structure")
     end
 
     # Default to General if no specific match
-    DocumentType.find_by(name: 'General')
+    DocumentType.find_by(name: "General")
   end
 end

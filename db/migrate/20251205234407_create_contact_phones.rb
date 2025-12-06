@@ -11,7 +11,7 @@ class CreateContactPhones < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :contact_phones, [:contact_id, :is_primary], where: "is_primary = true", name: "index_contact_phones_on_primary"
-    add_index :contact_phones, [:contact_id, :position]
+    add_index :contact_phones, [ :contact_id, :is_primary ], where: "is_primary = true", name: "index_contact_phones_on_primary"
+    add_index :contact_phones, [ :contact_id, :position ]
   end
 end

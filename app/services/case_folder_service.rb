@@ -22,13 +22,13 @@ class CaseFolderService
       return nil unless parent_folder
 
       # Create the case-specific folder
-      result = graph_client.create_folder(folder_name, parent_id: parent_folder['id'])
+      result = graph_client.create_folder(folder_name, parent_id: parent_folder["id"])
 
-      if result && result['id']
+      if result && result["id"]
         # Save the folder ID and path to the case
         full_path = "#{CASE_INFO_PATH}/#{folder_name}"
         @case.update!(
-          onedrive_folder_id: result['id'],
+          onedrive_folder_id: result["id"],
           onedrive_folder_path: full_path
         )
 
@@ -68,7 +68,7 @@ class CaseFolderService
     folder = ensure_folder_exists
     return nil unless folder
 
-    graph_client.create_folder(name, parent_id: folder['id'])
+    graph_client.create_folder(name, parent_id: folder["id"])
   end
 
   private
@@ -89,7 +89,7 @@ class CaseFolderService
 
   def build_folder_name
     # Format: CASE-20251205-001 - Robert Harder Bankrupt Estate
-    sanitized_title = @case.title.to_s.gsub(/[<>:"\/\\|?*]/, '-').strip.truncate(50, omission: '')
+    sanitized_title = @case.title.to_s.gsub(/[<>:"\/\\|?*]/, "-").strip.truncate(50, omission: "")
     "#{@case.case_number} - #{sanitized_title}"
   end
 
@@ -109,6 +109,6 @@ class CaseFolderService
     return nil unless corporate_folder
 
     # Create Case Info under Corporate
-    graph_client.create_folder("Case Info", parent_id: corporate_folder['id'])
+    graph_client.create_folder("Case Info", parent_id: corporate_folder["id"])
   end
 end

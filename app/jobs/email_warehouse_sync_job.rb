@@ -2,7 +2,7 @@ class EmailWarehouseSyncJob < ApplicationJob
   queue_as :default
 
   # Full sync for a specific user (initial sync or manual trigger)
-  def perform(user_id, sync_type = 'incremental')
+  def perform(user_id, sync_type = "incremental")
     user = User.find_by(id: user_id)
     return unless user
     return unless user.outlook_credential&.valid_credential?
@@ -10,9 +10,9 @@ class EmailWarehouseSyncJob < ApplicationJob
     service = EmailWarehouseSyncService.new(user)
 
     case sync_type
-    when 'full'
+    when "full"
       service.full_sync!
-    when 'incremental'
+    when "incremental"
       service.incremental_sync!
     end
   rescue EmailWarehouseSyncService::SyncError => e

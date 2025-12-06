@@ -53,7 +53,7 @@ class WorkflowDefinition < ApplicationRecord
   # }
 
   def steps
-    config['steps'] || []
+    config["steps"] || []
   end
 
   def step_at(index)
@@ -61,6 +61,6 @@ class WorkflowDefinition < ApplicationRecord
   end
 
   def step_by_name(name)
-    steps.find { |step| step['name'] == name }
+    steps.find { |step| step["name"] == name }
   end
 end

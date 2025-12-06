@@ -11,8 +11,8 @@ missing_types = [
     naming_format: "{CompanyCode} {JobCode} Sales Plan {Date}",
     scope: "job",
     category: "general",
-    aliases: ["sales plan", "lot plan", "presentation plan"],
-    file_extensions: [".pdf"],
+    aliases: [ "sales plan", "lot plan", "presentation plan" ],
+    file_extensions: [ ".pdf" ],
     active: true
   },
   {
@@ -23,9 +23,9 @@ missing_types = [
     naming_format: "{CompanyCode} {JobCode} Council Approval {Date}",
     scope: "job",
     category: "compliance",
-    aliases: ["council approval", "council permit", "referral agency", "minor change", "existing approval",
-              "development approval", "concurrence", "car24", "decision notice", "driveway", "crossover"],
-    file_extensions: [".pdf"],
+    aliases: [ "council approval", "council permit", "referral agency", "minor change", "existing approval",
+              "development approval", "concurrence", "car24", "decision notice", "driveway", "crossover" ],
+    file_extensions: [ ".pdf" ],
     active: true
   },
   {
@@ -36,9 +36,9 @@ missing_types = [
     naming_format: "{CompanyCode} {JobCode} Estimation {Date}",
     scope: "job",
     category: "general",
-    aliases: ["estimation", "estimate", "quote", "quotation", "price", "pricing",
-              "purchase order", "invoice"],
-    file_extensions: [".pdf", ".xlsx"],
+    aliases: [ "estimation", "estimate", "quote", "quotation", "price", "pricing",
+              "purchase order", "invoice" ],
+    file_extensions: [ ".pdf", ".xlsx" ],
     active: true
   },
   {
@@ -49,8 +49,8 @@ missing_types = [
     naming_format: "{CompanyCode} {JobCode} Form 21 {Date}",
     scope: "job",
     category: "compliance",
-    aliases: ["form 21", "form21", "final inspection certificate"],
-    file_extensions: [".pdf"],
+    aliases: [ "form 21", "form21", "final inspection certificate" ],
+    file_extensions: [ ".pdf" ],
     active: true
   },
   {
@@ -61,8 +61,8 @@ missing_types = [
     naming_format: "{CompanyCode} {JobCode} Final Approval {Date}",
     scope: "job",
     category: "compliance",
-    aliases: ["final approval", "final certificate", "final inspection", "form 16", "form16"],
-    file_extensions: [".pdf"],
+    aliases: [ "final approval", "final certificate", "final inspection", "form 16", "form16" ],
+    file_extensions: [ ".pdf" ],
     active: true
   },
   {
@@ -73,9 +73,9 @@ missing_types = [
     naming_format: "{CompanyCode} {JobCode} Plumbing Cert {Date}",
     scope: "job",
     category: "compliance",
-    aliases: ["plumbing certificate", "plumbing permit", "plumbing approval", "drainage",
-              "drains", "plumber"],
-    file_extensions: [".pdf"],
+    aliases: [ "plumbing certificate", "plumbing permit", "plumbing approval", "drainage",
+              "drains", "plumber" ],
+    file_extensions: [ ".pdf" ],
     active: true
   },
   {
@@ -86,8 +86,8 @@ missing_types = [
     naming_format: "{CompanyCode} {JobCode} NDIS Cert {Date}",
     scope: "job",
     category: "compliance",
-    aliases: ["ndis certification", "ndis approval", "sda", "specialist disability"],
-    file_extensions: [".pdf"],
+    aliases: [ "ndis certification", "ndis approval", "sda", "specialist disability" ],
+    file_extensions: [ ".pdf" ],
     active: true
   },
   {
@@ -98,8 +98,8 @@ missing_types = [
     naming_format: "{CompanyCode} {JobCode} Certified Plan {Date}",
     scope: "job",
     category: "compliance",
-    aliases: ["certified plan", "certification plan", "approved plan"],
-    file_extensions: [".pdf"],
+    aliases: [ "certified plan", "certification plan", "approved plan" ],
+    file_extensions: [ ".pdf" ],
     active: true
   },
   {
@@ -110,8 +110,8 @@ missing_types = [
     naming_format: "{CompanyCode} {JobCode} Working Drawing {Description}",
     scope: "job",
     category: "general",
-    aliases: ["working drawing", "wd plan", "construction drawing"],
-    file_extensions: [".pdf", ".dwg"],
+    aliases: [ "working drawing", "wd plan", "construction drawing" ],
+    file_extensions: [ ".pdf", ".dwg" ],
     active: true
   }
 ]
@@ -130,7 +130,7 @@ end
 
 puts ""
 puts "=== ALL JOB DOCUMENT TYPES ==="
-DocumentType.where(scope: ['job', 'both']).order(:target_folder, :abbreviation).each do |dt|
+DocumentType.where(scope: [ "job", "both" ]).order(:target_folder, :abbreviation).each do |dt|
   aliases_preview = dt.aliases.present? ? " (#{dt.aliases.length} aliases)" : ""
   puts "#{dt.abbreviation.ljust(8)} #{dt.name.ljust(25)} -> #{dt.target_folder}#{aliases_preview}"
 end

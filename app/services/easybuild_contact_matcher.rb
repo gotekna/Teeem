@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'csv'
-require 'fuzzy_match'
+require "csv"
+require "fuzzy_match"
 
 # Service to import EasyBuild contacts and match them to existing TEEEM contacts
 # Matching priority:
@@ -16,7 +16,7 @@ class EasybuildContactMatcher
   attr_reader :stats, :results
 
   def initialize(csv_path = nil)
-    @csv_path = csv_path || Rails.root.join('easybuildapp development Contacts.csv')
+    @csv_path = csv_path || Rails.root.join("easybuildapp development Contacts.csv")
     @stats = {
       total: 0,
       matched_by_xero_id: 0,
@@ -73,17 +73,17 @@ class EasybuildContactMatcher
   end
 
   def process_row(row, dry_run:)
-    easybuild_id = row['id']
-    xero_id = row['xero_id'].presence
-    email = row['email'].presence
-    tax_number = row['tax_number'].presence
-    mobile_phone = row['mobile_phone'].presence
-    full_name = row['full_name'].presence
-    first_name = row['first_name'].presence
-    last_name = row['last_name'].presence
+    easybuild_id = row["id"]
+    xero_id = row["xero_id"].presence
+    email = row["email"].presence
+    tax_number = row["tax_number"].presence
+    mobile_phone = row["mobile_phone"].presence
+    full_name = row["full_name"].presence
+    first_name = row["first_name"].presence
+    last_name = row["last_name"].presence
 
     # Skip if deleted
-    if row['deleted'].to_s.downcase == 'true'
+    if row["deleted"].to_s.downcase == "true"
       @stats[:skipped] += 1
       return
     end
@@ -105,7 +105,7 @@ class EasybuildContactMatcher
         match_type: match_result[:match_type],
         teeem_id: match_result[:contact].id,
         teeem_name: match_result[:contact].display_name,
-        action: 'matched'
+        action: "matched"
       }
 
       unless dry_run
@@ -120,10 +120,10 @@ class EasybuildContactMatcher
         easybuild_name: full_name,
         easybuild_email: email,
         easybuild_phone: mobile_phone,
-        match_type: 'none',
+        match_type: "none",
         teeem_id: nil,
         teeem_name: nil,
-        action: dry_run ? 'would_create' : 'created'
+        action: dry_run ? "would_create" : "created"
       }
 
       unless dry_run
@@ -135,7 +135,7 @@ class EasybuildContactMatcher
           mobile_phone: mobile_phone,
           tax_number: tax_number,
           xero_id: xero_id,
-          contact_types: ['supplier']
+          contact_types: [ "supplier" ]
         )
         result[:teeem_id] = new_contact.id
         result[:teeem_name] = new_contact.display_name
@@ -150,14 +150,14 @@ class EasybuildContactMatcher
   def find_match(xero_id:, email:, tax_number:, mobile_phone:, full_name:)
     # Priority 1: Match by xero_id
     if xero_id.present? && @by_xero_id[xero_id]
-      return { contact: @by_xero_id[xero_id], match_type: 'xero_id' }
+      return { contact: @by_xero_id[xero_id], match_type: "xero_id" }
     end
 
     # Priority 2: Match by email
     if email.present?
       normalized_email = email.downcase.strip
       if @by_email[normalized_email]
-        return { contact: @by_email[normalized_email], match_type: 'email' }
+        return { contact: @by_email[normalized_email], match_type: "email" }
       end
     end
 
@@ -166,7 +166,7 @@ class EasybuildContactMatcher
       normalized_tax = normalize_tax_number(tax_number)
       matches = @by_tax_number[normalized_tax]
       if matches&.any?
-        return { contact: matches.first, match_type: 'tax_number' }
+        return { contact: matches.first, match_type: "tax_number" }
       end
     end
 
@@ -174,7 +174,7 @@ class EasybuildContactMatcher
     if mobile_phone.present?
       normalized_phone = normalize_phone(mobile_phone)
       if @by_phone[normalized_phone]
-        return { contact: @by_phone[normalized_phone], match_type: 'phone' }
+        return { contact: @by_phone[normalized_phone], match_type: "phone" }
       end
     end
 
@@ -182,7 +182,7 @@ class EasybuildContactMatcher
     if full_name.present?
       match = fuzzy_match_by_name(full_name)
       if match
-        return { contact: match, match_type: 'name' }
+        return { contact: match, match_type: "name" }
       end
     end
 
@@ -192,7 +192,7 @@ class EasybuildContactMatcher
   def fuzzy_match_by_name(name)
     return nil if @teeem_contacts.empty?
 
-    contact_names = @teeem_contacts.map { |c| [c.display_name, c] }.to_h
+    contact_names = @teeem_contacts.map { |c| [ c.display_name, c ] }.to_h
     matcher = FuzzyMatch.new(contact_names.keys)
 
     matched_name = matcher.find(name, threshold: SIMILARITY_THRESHOLD)
@@ -201,13 +201,13 @@ class EasybuildContactMatcher
 
   def normalize_tax_number(tax_number)
     return nil if tax_number.blank?
-    tax_number.to_s.gsub(/[\s\-]/, '').upcase
+    tax_number.to_s.gsub(/[\s\-]/, "").upcase
   end
 
   def normalize_phone(phone)
     return nil if phone.blank?
     # Remove all non-digits, then take last 9 digits (Australian mobile)
-    digits = phone.to_s.gsub(/\D/, '')
+    digits = phone.to_s.gsub(/\D/, "")
     digits.length >= 9 ? digits[-9..] : digits
   end
 end

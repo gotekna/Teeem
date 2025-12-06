@@ -17,7 +17,7 @@
 
 # WHS module inflections
 ActiveSupport::Inflector.inflections(:en) do |inflect|
-  inflect.acronym 'WHS'
-  inflect.acronym 'SWMS'
-  inflect.irregular 'whs_swms', 'whs_swms'  # SWMS is already plural (Safe Work Method Statements)
+  inflect.acronym "WHS"
+  inflect.acronym "SWMS"
+  inflect.irregular "whs_swms", "whs_swms"  # SWMS is already plural (Safe Work Method Statements)
 end

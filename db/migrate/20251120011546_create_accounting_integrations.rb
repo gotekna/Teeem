@@ -16,7 +16,7 @@ class CreateAccountingIntegrations < ActiveRecord::Migration[8.0]
     end
 
     add_index :accounting_integrations, :system_type
-    add_index :accounting_integrations, [:contact_id, :system_type], unique: true
+    add_index :accounting_integrations, [ :contact_id, :system_type ], unique: true
     add_index :accounting_integrations, :last_sync_at
   end
 end

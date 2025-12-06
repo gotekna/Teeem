@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmTasksController < ApplicationController
-      before_action :set_job, only: [:job_index, :create, :gantt_data, :copy_from_template]
+      before_action :set_job, only: [ :job_index, :create, :gantt_data, :copy_from_template ]
       before_action :set_sm_task, only: [
         :show, :update, :destroy, :start, :complete, :spawn_preview,
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
@@ -23,8 +23,8 @@ module Api
         @tasks = @tasks.where(assigned_user_id: params[:assigned_user_id]) if params[:assigned_user_id].present?
         @tasks = @tasks.where(status: params[:statuses]) if params[:statuses].present?
         @tasks = @tasks.by_trade(params[:trade]) if params[:trade].present?
-        @tasks = @tasks.active if params[:active_only] == 'true'
-        @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == 'true'
+        @tasks = @tasks.active if params[:active_only] == "true"
+        @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == "true"
 
         render json: {
           success: true,
@@ -32,7 +32,7 @@ module Api
           meta: {
             total_count: @tasks.count,
             active_count: SmTask.active.count,
-            hold_count: SmTask.hold_tasks.where(status: 'not_started').count,
+            hold_count: SmTask.hold_tasks.where(status: "not_started").count,
             completed_count: SmTask.status_completed.count
           }
         }
@@ -47,8 +47,8 @@ module Api
 
         # Apply filters
         @tasks = @tasks.by_trade(params[:trade]) if params[:trade].present?
-        @tasks = @tasks.active if params[:active_only] == 'true'
-        @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == 'true'
+        @tasks = @tasks.active if params[:active_only] == "true"
+        @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == "true"
 
         render json: {
           success: true,
@@ -56,7 +56,7 @@ module Api
           meta: {
             total_count: @job.sm_tasks.count,
             active_count: @job.sm_tasks.active.count,
-            hold_count: @job.sm_tasks.hold_tasks.where(status: 'not_started').count,
+            hold_count: @job.sm_tasks.hold_tasks.where(status: "not_started").count,
             completed_count: @job.sm_tasks.status_completed.count
           }
         }
@@ -82,7 +82,7 @@ module Api
         if @task.save
           render json: {
             success: true,
-            message: 'Task created successfully',
+            message: "Task created successfully",
             sm_task: task_to_json(@task)
           }, status: :created
         else
@@ -98,7 +98,7 @@ module Api
         unless params[:template_row_id].present?
           return render json: {
             success: false,
-            error: 'Template row ID is required'
+            error: "Template row ID is required"
           }, status: :unprocessable_entity
         end
 
@@ -107,7 +107,7 @@ module Api
         unless template_row
           return render json: {
             success: false,
-            error: 'Template row not found'
+            error: "Template row not found"
           }, status: :not_found
         end
 
@@ -117,7 +117,7 @@ module Api
         # Create task from template row
         @task = @job.sm_tasks.new(
           name: template_row.title,
-          status: 'not_started',
+          status: "not_started",
           duration_days: template_row.duration,
           start_date: Date.current,
           template_row_id: template_row.id,
@@ -129,7 +129,7 @@ module Api
         if @task.save
           render json: {
             success: true,
-            message: 'Task created from template successfully',
+            message: "Task created from template successfully",
             sm_task: task_to_json(@task)
           }, status: :created
         else
@@ -186,7 +186,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Task deleted successfully'
+          message: "Task deleted successfully"
         }
       end
 
@@ -198,7 +198,7 @@ module Api
         unless raw_task_ids.present? && updates.present?
           return render json: {
             success: false,
-            error: 'task_ids and updates are required'
+            error: "task_ids and updates are required"
           }, status: :unprocessable_entity
         end
 
@@ -209,7 +209,7 @@ module Api
         if safe_task_ids.empty?
           return render json: {
             success: false,
-            error: 'No valid task IDs provided'
+            error: "No valid task IDs provided"
           }, status: :unprocessable_entity
         end
 
@@ -228,13 +228,13 @@ module Api
         if @task.start!
           render json: {
             success: true,
-            message: 'Task started',
+            message: "Task started",
             sm_task: task_to_json(@task)
           }
         else
           render json: {
             success: false,
-            error: 'Task cannot be started'
+            error: "Task cannot be started"
           }, status: :unprocessable_entity
         end
       end
@@ -249,7 +249,7 @@ module Api
         if result[:success]
           render json: {
             success: true,
-            message: 'Task completed',
+            message: "Task completed",
             sm_task: task_to_json(result[:task]),
             spawned_tasks: result[:spawned_tasks].map { |t| task_to_json(t) }
           }
@@ -278,7 +278,7 @@ module Api
         unless params[:hold_reason_id].present?
           return render json: {
             success: false,
-            error: 'Hold reason is required'
+            error: "Hold reason is required"
           }, status: :unprocessable_entity
         end
 
@@ -286,7 +286,7 @@ module Api
         unless hold_reason
           return render json: {
             success: false,
-            error: 'Hold reason not found'
+            error: "Hold reason not found"
           }, status: :not_found
         end
 
@@ -301,7 +301,7 @@ module Api
         # Create hold log
         SmHoldLog.create!(
           task: @task,
-          action: 'hold',
+          action: "hold",
           hold_reason: hold_reason,
           notes: params[:hold_notes],
           performed_by: current_user
@@ -309,7 +309,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Task placed on hold',
+          message: "Task placed on hold",
           sm_task: task_to_json(@task)
         }
       end
@@ -319,7 +319,7 @@ module Api
         unless @task.is_hold_task?
           return render json: {
             success: false,
-            error: 'Task is not on hold'
+            error: "Task is not on hold"
           }, status: :unprocessable_entity
         end
 
@@ -336,7 +336,7 @@ module Api
         # Create hold log
         SmHoldLog.create!(
           task: @task,
-          action: 'release',
+          action: "release",
           hold_reason: old_reason,
           notes: params[:release_notes],
           performed_by: current_user
@@ -344,7 +344,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Hold released',
+          message: "Hold released",
           sm_task: task_to_json(@task)
         }
       end
@@ -355,7 +355,7 @@ module Api
         unless params[:new_start_date].present?
           return render json: {
             success: false,
-            error: 'new_start_date is required'
+            error: "new_start_date is required"
           }, status: :unprocessable_entity
         end
 
@@ -407,7 +407,7 @@ module Api
         unless params[:new_start_date].present?
           return render json: {
             success: false,
-            error: 'new_start_date is required'
+            error: "new_start_date is required"
           }, status: :unprocessable_entity
         end
 
@@ -420,7 +420,7 @@ module Api
             success: false,
             needs_confirmation: true,
             preview: preview,
-            message: 'Cascade blocked by locked tasks. Please resolve conflicts.'
+            message: "Cascade blocked by locked tasks. Please resolve conflicts."
           }, status: :conflict
           return
         end
@@ -464,7 +464,7 @@ module Api
         unless params[:file].present? || params[:url].present?
           return render json: {
             success: false,
-            error: 'Either file or url parameter is required'
+            error: "Either file or url parameter is required"
           }, status: :unprocessable_entity
         end
 
@@ -494,14 +494,14 @@ module Api
         unless page
           return render json: {
             success: false,
-            error: 'Page not found'
+            error: "Page not found"
           }, status: :not_found
         end
 
         unless params[:category].present?
           return render json: {
             success: false,
-            error: 'category parameter is required'
+            error: "category parameter is required"
           }, status: :unprocessable_entity
         end
 
@@ -516,7 +516,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Category overridden',
+          message: "Category overridden",
           page: {
             id: page.id,
             page_number: page.page_number,
@@ -535,7 +535,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Construction job not found'
+          error: "Construction job not found"
         }, status: :not_found
       end
 
@@ -544,7 +544,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Task not found'
+          error: "Task not found"
         }, status: :not_found
       end
 
@@ -580,11 +580,11 @@ module Api
         # Don't notify if the user assigned it to themselves
         return if task.assigned_user_id == current_user&.id
 
-        job_name = task.job&.name || 'Unknown Job'
+        job_name = task.job&.name || "Unknown Job"
 
         Notification.create!(
           user_id: task.assigned_user_id,
-          notification_type: 'task_assigned',
+          notification_type: "task_assigned",
           notifiable: task,
           title: "New task assigned: #{task.name}",
           message: "You've been assigned the task \"#{task.name}\" on job \"#{job_name}\"#{current_user ? " by #{current_user.name}" : ''}."
@@ -599,13 +599,13 @@ module Api
         json[:job_id] = task.construction_id
         json[:job_name] = task.job&.name || "Unknown Job"
         json[:is_critical_path] = false # Placeholder - would need critical path calculation
-        json[:blockers] = task.is_hold_task ? [task.hold_notes].compact : []
+        json[:blockers] = task.is_hold_task ? [ task.hold_notes ].compact : []
 
         # Additional fields for Task Hub
         json[:assigned_user_name] = task.assigned_user&.name
         json[:supplier_name] = task.supplier&.name
         json[:stage] = task.stage
-        json[:is_overdue] = task.status != 'completed' && task.end_date.present? && task.end_date < Date.current
+        json[:is_overdue] = task.status != "completed" && task.end_date.present? && task.end_date < Date.current
         json[:days_until_due] = task.end_date.present? ? (task.end_date - Date.current).to_i : nil
         json[:predecessor_count] = task.predecessor_dependencies.count
         json[:successor_count] = task.successor_dependencies.count

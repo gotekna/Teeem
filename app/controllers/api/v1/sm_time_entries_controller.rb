@@ -3,8 +3,8 @@
 module Api
   module V1
     class SmTimeEntriesController < ApplicationController
-      before_action :set_task, only: [:index, :create]
-      before_action :set_time_entry, only: [:show, :update, :destroy, :approve]
+      before_action :set_task, only: [ :index, :create ]
+      before_action :set_time_entry, only: [ :show, :update, :destroy, :approve ]
 
       # GET /api/v1/sm_tasks/:sm_task_id/time_entries
       def index
@@ -18,8 +18,8 @@ module Api
         end
 
         # Filter by approval status
-        @entries = @entries.approved if params[:approved] == 'true'
-        @entries = @entries.pending_approval if params[:pending] == 'true'
+        @entries = @entries.approved if params[:approved] == "true"
+        @entries = @entries.pending_approval if params[:pending] == "true"
 
         render json: {
           success: true,
@@ -57,7 +57,7 @@ module Api
         if @time_entry.save
           render json: {
             success: true,
-            message: 'Time entry created successfully',
+            message: "Time entry created successfully",
             time_entry: time_entry_to_json(@time_entry)
           }, status: :created
         else
@@ -74,7 +74,7 @@ module Api
         if @time_entry.approved? && !current_user&.admin?
           return render json: {
             success: false,
-            error: 'Cannot edit approved time entries'
+            error: "Cannot edit approved time entries"
           }, status: :forbidden
         end
 
@@ -97,7 +97,7 @@ module Api
         if @time_entry.approved? && !current_user&.admin?
           return render json: {
             success: false,
-            error: 'Cannot delete approved time entries'
+            error: "Cannot delete approved time entries"
           }, status: :forbidden
         end
 
@@ -105,7 +105,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Time entry deleted successfully'
+          message: "Time entry deleted successfully"
         }
       end
 
@@ -115,7 +115,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Time entry approved',
+          message: "Time entry approved",
           time_entry: time_entry_to_json(@time_entry)
         }
       end
@@ -127,7 +127,7 @@ module Api
         unless entry_ids.is_a?(Array) && entry_ids.present?
           return render json: {
             success: false,
-            error: 'entry_ids must be a non-empty array'
+            error: "entry_ids must be a non-empty array"
           }, status: :unprocessable_entity
         end
 
@@ -172,7 +172,7 @@ module Api
           }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Resource not found' }, status: :not_found
+        render json: { success: false, error: "Resource not found" }, status: :not_found
       end
 
       # GET /api/v1/sm_time_entries/timesheet
@@ -198,7 +198,7 @@ module Api
         (start_date..end_date).each do |date|
           by_date[date.to_s] = {
             date: date,
-            day_name: date.strftime('%A'),
+            day_name: date.strftime("%A"),
             entries: [],
             total_hours: 0
           }
@@ -224,7 +224,7 @@ module Api
           }
         }
       rescue ArgumentError
-        render json: { success: false, error: 'Invalid date format' }, status: :unprocessable_entity
+        render json: { success: false, error: "Invalid date format" }, status: :unprocessable_entity
       end
 
       # GET /api/v1/sm_time_entries/resource_timesheet/:resource_id
@@ -242,7 +242,7 @@ module Api
 
         render json: { success: true }.merge(timesheet)
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Resource not found' }, status: :not_found
+        render json: { success: false, error: "Resource not found" }, status: :not_found
       end
 
       # GET /api/v1/sm_time_entries/task_timesheet/:task_id
@@ -252,7 +252,7 @@ module Api
 
         render json: { success: true }.merge(timesheet)
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Task not found' }, status: :not_found
+        render json: { success: false, error: "Task not found" }, status: :not_found
       end
 
       # GET /api/v1/sm_time_entries/pending_approvals
@@ -284,7 +284,7 @@ module Api
           days: summary
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Resource not found' }, status: :not_found
+        render json: { success: false, error: "Resource not found" }, status: :not_found
       end
 
       # POST /api/v1/sm_time_entries/log_time
@@ -299,7 +299,7 @@ module Api
           resource: resource,
           date: parse_date(params[:entry_date]) || Date.current,
           hours: params[:hours].to_f,
-          entry_type: params[:entry_type] || 'regular',
+          entry_type: params[:entry_type] || "regular",
           description: params[:description],
           start_time: params[:start_time],
           end_time: params[:end_time],
@@ -327,7 +327,7 @@ module Api
         unless start_date && end_date
           return render json: {
             success: false,
-            error: 'start_date and end_date are required'
+            error: "start_date and end_date are required"
           }, status: :unprocessable_entity
         end
 
@@ -362,7 +362,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Task not found'
+          error: "Task not found"
         }, status: :not_found
       end
 
@@ -371,7 +371,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Time entry not found'
+          error: "Time entry not found"
         }, status: :not_found
       end
 
@@ -397,8 +397,8 @@ module Api
           resource_id: entry.resource_id,
           resource_name: entry.resource.name,
           entry_date: entry.entry_date,
-          start_time: entry.start_time&.strftime('%H:%M'),
-          end_time: entry.end_time&.strftime('%H:%M'),
+          start_time: entry.start_time&.strftime("%H:%M"),
+          end_time: entry.end_time&.strftime("%H:%M"),
           break_minutes: entry.break_minutes,
           total_hours: entry.total_hours,
           entry_type: entry.entry_type,

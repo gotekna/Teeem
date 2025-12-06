@@ -1,4 +1,4 @@
-require 'anthropic'
+require "anthropic"
 
 class DocumentVerificationService
   MAX_FILE_SIZE = 20.megabytes
@@ -17,7 +17,7 @@ class DocumentVerificationService
 
   def verify!
     # Mark as processing
-    @document.update!(ai_verification_status: 'processing')
+    @document.update!(ai_verification_status: "processing")
 
     # 1. Validate we have a file to download
     validate_file_available!
@@ -33,10 +33,10 @@ class DocumentVerificationService
 
     # Check if this is a date-range document (statements, summaries)
     # These use date ranges instead of financial years
-    suggested_type_lower = (analysis[:suggested_type] || '').downcase
-    is_date_range_doc = suggested_type_lower.include?('statement') ||
-                        suggested_type_lower.include?('summary') ||
-                        (analysis[:suggested_name] || '').include?(' to ')
+    suggested_type_lower = (analysis[:suggested_type] || "").downcase
+    is_date_range_doc = suggested_type_lower.include?("statement") ||
+                        suggested_type_lower.include?("summary") ||
+                        (analysis[:suggested_name] || "").include?(" to ")
 
     # Don't store suggested_fy for date-range documents
     suggested_fy = is_date_range_doc ? nil : analysis[:suggested_fy]
@@ -76,7 +76,7 @@ class DocumentVerificationService
   rescue VerificationError => e
     @document.update!(
       ai_verified_at: Time.current,
-      ai_verification_status: 'error',
+      ai_verification_status: "error",
       ai_analysis_notes: e.message
     )
     { success: false, error: e.message }
@@ -86,7 +86,7 @@ class DocumentVerificationService
     Rails.logger.error(e.backtrace.first(10).join("\n"))
     @document.update!(
       ai_verified_at: Time.current,
-      ai_verification_status: 'error',
+      ai_verification_status: "error",
       ai_analysis_notes: "Unexpected error: #{e.message}"
     )
     { success: false, error: e.message }
@@ -118,10 +118,10 @@ class DocumentVerificationService
 
     # Check if this is a date-range document (statements, summaries)
     # These use date ranges instead of financial years
-    suggested_type_lower = (analysis[:suggested_type] || '').downcase
-    is_date_range_doc = suggested_type_lower.include?('statement') ||
-                        suggested_type_lower.include?('summary') ||
-                        (analysis[:suggested_name] || '').include?(' to ')
+    suggested_type_lower = (analysis[:suggested_type] || "").downcase
+    is_date_range_doc = suggested_type_lower.include?("statement") ||
+                        suggested_type_lower.include?("summary") ||
+                        (analysis[:suggested_name] || "").include?(" to ")
 
     # Update document record with AI suggestions
     update_attrs = {
@@ -129,7 +129,7 @@ class DocumentVerificationService
       folder: analysis[:suggested_folder] || @document.folder,
       document_type: analysis[:suggested_type] || @document.document_type,
       ref_date: analysis[:extracted_date].presence || @document.ref_date,
-      ai_verification_status: 'verified',
+      ai_verification_status: "verified",
       user_validated_at: Time.current
     }
 
@@ -173,10 +173,10 @@ class DocumentVerificationService
   end
 
   def extract_text(content)
-    file_extension = File.extname(@document.title || @document.file_name || '').downcase
+    file_extension = File.extname(@document.title || @document.file_name || "").downcase
 
     case file_extension
-    when '.pdf'
+    when ".pdf"
       extract_pdf_text(content)
     else
       # For non-PDF files, we can't extract text - just use the filename
@@ -186,7 +186,7 @@ class DocumentVerificationService
   end
 
   def extract_pdf_text(content)
-    Tempfile.create(['doc', '.pdf']) do |file|
+    Tempfile.create([ "doc", ".pdf" ]) do |file|
       file.binmode
       file.write(content)
       file.rewind
@@ -222,7 +222,7 @@ class DocumentVerificationService
   INITIAL_RETRY_DELAY = 2 # seconds
 
   def analyze_with_claude(text, pdf_content = nil)
-    api_key = ENV['ANTHROPIC_API_KEY']
+    api_key = ENV["ANTHROPIC_API_KEY"]
     raise VerificationError, "ANTHROPIC_API_KEY not configured" unless api_key
 
     client = Anthropic::Client.new(access_token: api_key)
@@ -238,7 +238,7 @@ class DocumentVerificationService
           parameters: {
             model: MODEL,
             max_tokens: 1024,
-            messages: [{ role: "user", content: prompt }]
+            messages: [ { role: "user", content: prompt } ]
           }
         )
       end
@@ -246,7 +246,7 @@ class DocumentVerificationService
       parse_response(response)
     rescue Anthropic::Error => e
       # Check for rate limit (429) errors
-      if e.message.include?('429') || e.message.downcase.include?('rate limit')
+      if e.message.include?("429") || e.message.downcase.include?("rate limit")
         retries += 1
         if retries <= MAX_RETRIES
           delay = INITIAL_RETRY_DELAY * (2 ** (retries - 1)) # Exponential backoff: 2, 4, 8 seconds
@@ -274,7 +274,7 @@ class DocumentVerificationService
         parameters: {
           model: MODEL,
           max_tokens: 1024,
-          messages: [{ role: "user", content: prompt }]
+          messages: [ { role: "user", content: prompt } ]
         }
       )
     end
@@ -304,7 +304,7 @@ class DocumentVerificationService
       parameters: {
         model: MODEL,
         max_tokens: 1024,
-        messages: [{ role: "user", content: content }]
+        messages: [ { role: "user", content: content } ]
       }
     )
   end
@@ -312,7 +312,7 @@ class DocumentVerificationService
   def convert_pdf_to_images(pdf_content)
     images = []
 
-    Tempfile.create(['doc', '.pdf']) do |pdf_file|
+    Tempfile.create([ "doc", ".pdf" ]) do |pdf_file|
       pdf_file.binmode
       pdf_file.write(pdf_content)
       pdf_file.rewind
@@ -322,8 +322,8 @@ class DocumentVerificationService
         page_count = get_pdf_page_count(pdf_file.path)
 
         # Convert each page (limit to first 5)
-        [page_count, 5].min.times do |page_num|
-          Tempfile.create(['page', '.png']) do |img_file|
+        [ page_count, 5 ].min.times do |page_num|
+          Tempfile.create([ "page", ".png" ]) do |img_file|
             MiniMagick::Tool::Convert.new do |convert|
               convert.density(150)
               convert << "#{pdf_file.path}[#{page_num}]"
@@ -556,7 +556,7 @@ class DocumentVerificationService
           abbrev = dt.abbreviation.present? ? " (#{dt.abbreviation})" : ""
           format = dt.naming_format.present? ? " - Format: #{dt.naming_format}" : ""
           # Include all aliases (database + defaults) so AI knows alternative names
-          all_aliases = dt.all_terms - [dt.name]
+          all_aliases = dt.all_terms - [ dt.name ]
           aliases_info = all_aliases.any? ? " [Also known as: #{all_aliases.first(5).join(', ')}]" : ""
           lines << "- #{dt.name}#{abbrev}#{format}#{aliases_info}"
         end
@@ -633,7 +633,7 @@ class DocumentVerificationService
       else
         # Extract from filename: "FY24" -> [2024]
         fy_match = suggested_name.match(/FY(\d{2})/i)
-        fy_match ? [2000 + fy_match[1].to_i] : []
+        fy_match ? [ 2000 + fy_match[1].to_i ] : []
       end
     else
       [] # No FY in filename = no FY in column
@@ -676,7 +676,7 @@ class DocumentVerificationService
 
     # Parse the extracted date (format: DD-MM-YYYY)
     begin
-      date = Date.strptime(extracted_date, '%d-%m-%Y')
+      date = Date.strptime(extracted_date, "%d-%m-%Y")
     rescue ArgumentError
       # Try other common formats
       begin

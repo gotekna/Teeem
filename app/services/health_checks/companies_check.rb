@@ -14,7 +14,7 @@ module HealthChecks
     FOUNDATION_ID = 353
 
     def self.check_type
-      'companies'
+      "companies"
     end
 
     def self.foundation_id
@@ -23,88 +23,88 @@ module HealthChecks
 
     # Companies missing ABN
     def check_companies_without_abn
-      companies = Company.where(active: [true, nil])
-                        .where(abn: [nil, ''])
+      companies = Company.where(active: [ true, nil ])
+                        .where(abn: [ nil, "" ])
                         .select(:id, :name, :code, :company_type)
 
       build_result(
-        name: 'Companies Without ABN',
-        description: 'Active companies missing an Australian Business Number. Required for tax and invoicing.',
+        name: "Companies Without ABN",
+        description: "Active companies missing an Australian Business Number. Required for tax and invoicing.",
         severity: :warning,
         items: companies,
-        icon: 'identification',
-        action_path: '/corporate/:id'
+        icon: "identification",
+        action_path: "/corporate/:id"
       )
     end
 
     # Companies missing ACN (for Pty Ltd companies)
     def check_companies_without_acn
-      companies = Company.where(active: [true, nil])
-                        .where(acn: [nil, ''])
+      companies = Company.where(active: [ true, nil ])
+                        .where(acn: [ nil, "" ])
                         .where("company_type ILIKE '%pty%' OR company_type ILIKE '%proprietary%' OR company_type ILIKE '%limited%'")
                         .select(:id, :name, :code, :company_type)
 
       build_result(
-        name: 'Companies Without ACN',
-        description: 'Proprietary/Limited companies missing an Australian Company Number.',
+        name: "Companies Without ACN",
+        description: "Proprietary/Limited companies missing an Australian Company Number.",
         severity: :info,
         items: companies,
-        icon: 'building-office',
-        action_path: '/corporate/:id'
+        icon: "building-office",
+        action_path: "/corporate/:id"
       )
     end
 
     # Companies without review date set
     def check_companies_without_review_date
-      companies = Company.where(active: [true, nil])
+      companies = Company.where(active: [ true, nil ])
                         .where(review_date: nil)
                         .select(:id, :name, :code)
 
       build_result(
-        name: 'Companies Without Review Date',
-        description: 'Companies without a scheduled review date for compliance checks.',
+        name: "Companies Without Review Date",
+        description: "Companies without a scheduled review date for compliance checks.",
         severity: :info,
         items: companies,
-        icon: 'calendar-days',
-        action_path: '/corporate/:id'
+        icon: "calendar-days",
+        action_path: "/corporate/:id"
       )
     end
 
     # Companies without any directors
     def check_companies_without_directors
       # Get companies that have no director relationships
-      companies_with_directors = CompanyRelationship.where(relationship_type: 'director')
+      companies_with_directors = CompanyRelationship.where(relationship_type: "director")
                                                     .distinct
                                                     .pluck(:company_id)
 
-      companies = Company.where(active: [true, nil])
+      companies = Company.where(active: [ true, nil ])
                         .where.not(id: companies_with_directors)
                         .where("company_type ILIKE '%pty%' OR company_type ILIKE '%proprietary%' OR company_type ILIKE '%limited%'")
                         .select(:id, :name, :code, :company_type)
 
       build_result(
-        name: 'Companies Without Directors',
-        description: 'Companies without any director records. All companies must have at least one director.',
+        name: "Companies Without Directors",
+        description: "Companies without any director records. All companies must have at least one director.",
         severity: :critical,
         items: companies,
-        icon: 'user-group',
-        action_path: '/corporate/:id'
+        icon: "user-group",
+        action_path: "/corporate/:id"
       )
     end
 
     # Companies with overdue review
     def check_companies_overdue_review
-      companies = Company.where(active: [true, nil])
-                        .where('review_date < ?', Date.current)
+      companies = Company.where(active: [ true, nil ])
+                        .where("review_date < ?", Date.current)
                         .select(:id, :name, :code, :review_date)
 
       build_result(
-        name: 'Companies Overdue for Review',
-        description: 'Companies that have passed their scheduled review date.',
+        name: "Companies Overdue for Review",
+        description: "Companies that have passed their scheduled review date.",
         severity: :warning,
         items: companies,
-        icon: 'exclamation-triangle',
-        action_path: '/corporate/:id'
+        icon: "exclamation-triangle",
+        action_path: "/corporate/:id"
       )
     end
 

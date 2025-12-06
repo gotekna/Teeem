@@ -92,9 +92,9 @@ class CaseEmailAttachmentService
       case_id: case_record.id,
       company_document_id: company_doc.id
     ) do |cd|
-      cd.source_type = 'email_attachment'
+      cd.source_type = "email_attachment"
       cd.original_location = "Email: #{case_email.email_warehouse.subject}"
-      cd.action_taken = 'linked'
+      cd.action_taken = "linked"
     end
 
     @results[:linked_existing] += 1
@@ -109,7 +109,7 @@ class CaseEmailAttachmentService
 
     # Get date-based subfolder
     email_date = case_email.email_warehouse.received_at&.to_date || Date.current
-    date_folder_name = email_date.strftime('%Y-%m')
+    date_folder_name = email_date.strftime("%Y-%m")
     date_folder = @graph_client.get_or_create_subfolder(folder_id, date_folder_name)
 
     # Upload file to OneDrive
@@ -127,9 +127,9 @@ class CaseEmailAttachmentService
       CaseDocument.create!(
         case_id: case_record.id,
         company_document_id: company_doc.id,
-        source_type: 'email_attachment',
+        source_type: "email_attachment",
         original_location: "Email: #{case_email.email_warehouse.subject}",
-        action_taken: 'downloaded'
+        action_taken: "downloaded"
       )
 
       @results[:downloaded_new] += 1
@@ -146,10 +146,10 @@ class CaseEmailAttachmentService
 
     # Resolve folder path to ID
     if folder_path.is_a?(Hash)
-      folder_path[:id] || folder_path['id']
-    elsif folder_path.start_with?('/')
-      result = @graph_client.get_folder_by_path(folder_path.sub(/^\//, ''))
-      result&.dig('id')
+      folder_path[:id] || folder_path["id"]
+    elsif folder_path.start_with?("/")
+      result = @graph_client.get_folder_by_path(folder_path.sub(/^\//, ""))
+      result&.dig("id")
     else
       folder_path # Assume it's already an ID
     end
@@ -175,7 +175,7 @@ class CaseEmailAttachmentService
       content_hash: content_hash,
       onedrive_file_id: graph_result[:id],
       onedrive_download_url: graph_result[:web_url],
-      source: 'email_attachment',
+      source: "email_attachment",
       last_modified_at: email.received_at
     )
   end
@@ -185,14 +185,14 @@ class CaseEmailAttachmentService
     content_type = file.content_type
 
     case content_type
-    when 'application/pdf'
-      'other' # Could be anything - would need AI to classify
+    when "application/pdf"
+      "other" # Could be anything - would need AI to classify
     when /spreadsheet|excel/
-      'financial'
+      "financial"
     when /word|document/
-      'other'
+      "other"
     else
-      'other'
+      "other"
     end
   end
 end

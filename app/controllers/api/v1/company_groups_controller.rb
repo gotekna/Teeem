@@ -1,7 +1,7 @@
 module Api
   module V1
     class CompanyGroupsController < ApplicationController
-      before_action :set_company_group, only: [:show, :update, :destroy, :companies, :structure, :contacts]
+      before_action :set_company_group, only: [ :show, :update, :destroy, :companies, :structure, :contacts ]
 
       # GET /api/v1/company_groups
       def index
@@ -9,12 +9,12 @@ module Api
 
         # Filter by active status
         if params[:active].present?
-          @company_groups = @company_groups.where(active: params[:active] == 'true')
+          @company_groups = @company_groups.where(active: params[:active] == "true")
         end
 
         # Search by name
         if params[:search].present?
-          @company_groups = @company_groups.where('name ILIKE ?', "%#{params[:search]}%")
+          @company_groups = @company_groups.where("name ILIKE ?", "%#{params[:search]}%")
         end
 
         @company_groups = @company_groups.order(:name)
@@ -70,7 +70,7 @@ module Api
         if @company_group.companies.any?
           render json: {
             success: false,
-            errors: ["Cannot delete group with #{@company_group.companies.count} companies. Reassign companies first."]
+            errors: [ "Cannot delete group with #{@company_group.companies.count} companies. Reassign companies first." ]
           }, status: :unprocessable_entity
         else
           @company_group.destroy
@@ -98,7 +98,7 @@ module Api
         # Find trusts/superfunds that have a trustee company in this group
         # Match by Trust/Superfund's name (not trust_name field) since trustee's trust_name = Trust's name
         trusts_with_trustees = @company_group.companies
-          .where(entity_type: ['Trust', 'Superfund'])
+          .where(entity_type: [ "Trust", "Superfund" ])
           .select { |trust| @company_group.companies.exists?(is_trustee: true, trust_name: trust.name) }
           .map(&:id)
 
@@ -125,7 +125,7 @@ module Api
               total_companies: @company_group.companies.count,
               top_level_count: top_level.count,
               trustees_count: @company_group.companies.where(is_trustee: true).count,
-              trusts_count: @company_group.companies.where(entity_type: 'Trust').count,
+              trusts_count: @company_group.companies.where(entity_type: "Trust").count,
               people_count: people.count
             }
           }
@@ -142,7 +142,7 @@ module Api
         end
 
         if params[:active].present?
-          memberships = params[:active] == 'true' ? memberships.active : memberships.where(is_active: false)
+          memberships = params[:active] == "true" ? memberships.active : memberships.where(is_active: false)
         end
 
         render json: {
@@ -253,9 +253,9 @@ module Api
           position = dir.position.to_s
 
           # Add director role if position includes director or is chairman
-          if position.include?('director') || position == 'chairman'
+          if position.include?("director") || position == "chairman"
             roles << {
-              type: 'director',
+              type: "director",
               company_id: dir.company_id,
               company_name: dir.company.name,
               position: dir.position,
@@ -264,9 +264,9 @@ module Api
           end
 
           # Add secretary role if position includes secretary
-          if position.include?('secretary')
+          if position.include?("secretary")
             roles << {
-              type: 'secretary',
+              type: "secretary",
               company_id: dir.company_id,
               company_name: dir.company.name,
               position: dir.position,
@@ -275,9 +275,9 @@ module Api
           end
 
           # Add corporate_officer role if position includes corporate_officer
-          if position.include?('corporate_officer')
+          if position.include?("corporate_officer")
             roles << {
-              type: 'corporate_officer',
+              type: "corporate_officer",
               company_id: dir.company_id,
               company_name: dir.company.name,
               position: dir.position,
@@ -286,9 +286,9 @@ module Api
           end
 
           # Add public_officer role if position includes public_officer
-          if position.include?('public_officer')
+          if position.include?("public_officer")
             roles << {
-              type: 'public_officer',
+              type: "public_officer",
               company_id: dir.company_id,
               company_name: dir.company.name,
               position: dir.position,
@@ -301,7 +301,7 @@ module Api
         contact.company_shareholdings.includes(:company).each do |sh|
           next unless sh.company&.company_group_id == company_group_id
           roles << {
-            type: 'shareholder',
+            type: "shareholder",
             company_id: sh.company_id,
             company_name: sh.company.name,
             shares: sh.number_of_shares,
@@ -348,7 +348,7 @@ module Api
         # If this company is a trustee, add the Trust/Superfund entity as a child
         # Match by Trust/Superfund's name (the trustee's trust_name = Trust entity's name)
         if company.is_trustee && company.trust_name.present? && company_group
-          trust_entity = company_group.companies.where(entity_type: ['Trust', 'Superfund']).find_by(name: company.trust_name)
+          trust_entity = company_group.companies.where(entity_type: [ "Trust", "Superfund" ]).find_by(name: company.trust_name)
           if trust_entity
             # Add the trust at the beginning of children
             trust_node = {

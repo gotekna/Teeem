@@ -24,6 +24,6 @@ class CreateEmailCaseProposals < ActiveRecord::Migration[8.0]
     end
 
     add_index :email_case_proposals, :status
-    add_index :email_case_proposals, [:email_warehouse_id, :status]
+    add_index :email_case_proposals, [ :email_warehouse_id, :status ]
   end
 end

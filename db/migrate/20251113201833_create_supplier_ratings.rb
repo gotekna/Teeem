@@ -24,6 +24,6 @@ class CreateSupplierRatings < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :supplier_ratings, [:contact_id, :created_at]
+    add_index :supplier_ratings, [ :contact_id, :created_at ]
   end
 end

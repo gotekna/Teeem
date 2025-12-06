@@ -53,7 +53,7 @@ class EstimateToPurchaseOrderService
       estimate_id: @estimate.id,
       supplier_id: supplier_id,
       description: "Auto-generated from #{@estimate.source} estimate",
-      status: 'draft',
+      status: "draft",
       required_date: 14.days.from_now.to_date,
       delivery_address: @construction.title,
       special_instructions: build_po_notes(category, supplier_id, needs_review)
@@ -102,7 +102,7 @@ class EstimateToPurchaseOrderService
   end
 
   def build_po_notes(category, supplier_id, needs_review)
-    notes = ["Category: #{category}"]
+    notes = [ "Category: #{category}" ]
 
     if needs_review
       notes << "NEEDS REVIEW: No supplier found for this category"

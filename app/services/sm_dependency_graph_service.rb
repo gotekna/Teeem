@@ -27,7 +27,7 @@ class SmDependencyGraphService
     return true if from_task_id == to_task_id
 
     visited = Set.new
-    queue = [from_task_id]
+    queue = [ from_task_id ]
 
     while queue.any?
       current_id = queue.shift
@@ -52,7 +52,7 @@ class SmDependencyGraphService
   def affected_tasks(task_id, direction: :downstream)
     visited = Set.new
     result = []
-    queue = [task_id]
+    queue = [ task_id ]
 
     while queue.any?
       current_id = queue.shift
@@ -125,7 +125,7 @@ class SmDependencyGraphService
   # Validate entire dependency graph has no cycles
   def validate_graph
     topological_sort
-    { valid: true, message: 'No cycles detected' }
+    { valid: true, message: "No cycles detected" }
   rescue CyclicDependencyError => e
     { valid: false, message: e.message }
   end
@@ -133,7 +133,7 @@ class SmDependencyGraphService
   # Find all dependency paths between two tasks
   def find_paths(from_task_id, to_task_id, max_paths: 10)
     paths = []
-    current_path = [from_task_id]
+    current_path = [ from_task_id ]
 
     dfs_paths(from_task_id, to_task_id, current_path, paths, max_paths)
     paths

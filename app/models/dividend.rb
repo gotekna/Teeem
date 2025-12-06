@@ -11,8 +11,8 @@ class Dividend < ApplicationRecord
   validates :franking_percentage, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   # Scopes
-  scope :declared, -> { where(status: 'declared') }
-  scope :paid, -> { where(status: 'paid') }
+  scope :declared, -> { where(status: "declared") }
+  scope :paid, -> { where(status: "paid") }
   scope :by_date, -> { order(declaration_date: :desc) }
   scope :for_financial_year, ->(year) {
     start_date = Date.new(year - 1, 7, 1)

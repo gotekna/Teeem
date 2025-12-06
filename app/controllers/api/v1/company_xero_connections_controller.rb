@@ -1,7 +1,7 @@
 module Api
   module V1
     class CompanyXeroConnectionsController < ApplicationController
-      before_action :set_connection, only: [:show, :disconnect, :sync_accounts]
+      before_action :set_connection, only: [ :show, :disconnect, :sync_accounts ]
 
       # GET /api/v1/company_xero_connections
       def index
@@ -10,10 +10,10 @@ module Api
         render json: {
           success: true,
           connections: @connections.as_json(
-            include: { company: { only: [:id, :name] } },
-            only: [:id, :company_id, :xero_tenant_id, :xero_tenant_name, :connection_status,
-                   :last_sync_at, :accounting_method, :financial_year_end],
-            methods: [:connected?, :days_since_last_sync]
+            include: { company: { only: [ :id, :name ] } },
+            only: [ :id, :company_id, :xero_tenant_id, :xero_tenant_name, :connection_status,
+                   :last_sync_at, :accounting_method, :financial_year_end ],
+            methods: [ :connected?, :days_since_last_sync ]
           )
         }
       end
@@ -24,13 +24,13 @@ module Api
           success: true,
           connection: @connection.as_json(
             include: {
-              company: { only: [:id, :name] },
+              company: { only: [ :id, :name ] },
               company_xero_accounts: {
-                only: [:id, :account_code, :account_name, :account_type, :status],
-                methods: [:display_name, :mapped?]
+                only: [ :id, :account_code, :account_name, :account_type, :status ],
+                methods: [ :display_name, :mapped? ]
               }
             },
-            methods: [:connected?, :days_since_last_sync]
+            methods: [ :connected?, :days_since_last_sync ]
           )
         }
       end
@@ -55,7 +55,7 @@ module Api
         # For now, return success
         render json: {
           success: true,
-          message: 'Xero connection established (callback implementation pending)'
+          message: "Xero connection established (callback implementation pending)"
         }
       end
 
@@ -70,13 +70,13 @@ module Api
 
           render json: {
             success: true,
-            message: 'Accounts synced successfully',
+            message: "Accounts synced successfully",
             last_sync_at: @connection.last_sync_at
           }
         else
           render json: {
             success: false,
-            error: 'Connection is not active'
+            error: "Connection is not active"
           }, status: :unprocessable_entity
         end
       end
@@ -87,7 +87,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Xero connection disconnected successfully'
+          message: "Xero connection disconnected successfully"
         }
       end
 
@@ -112,7 +112,7 @@ module Api
       def set_connection
         @connection = CompanyXeroConnection.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Xero connection not found' }, status: :not_found
+        render json: { success: false, error: "Xero connection not found" }, status: :not_found
       end
 
       def connection_params

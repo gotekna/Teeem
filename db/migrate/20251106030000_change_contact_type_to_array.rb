@@ -7,7 +7,7 @@ class ChangeContactTypeToArray < ActiveRecord::Migration[7.0]
     Contact.reset_column_information
     Contact.find_each do |contact|
       if contact.contact_type.present?
-        contact.update_column(:contact_types, [contact.contact_type])
+        contact.update_column(:contact_types, [ contact.contact_type ])
       end
     end
 

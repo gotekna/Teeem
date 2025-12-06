@@ -22,7 +22,7 @@ module Api
         if @settings.update(settings_params)
           render json: {
             success: true,
-            message: 'Settings updated successfully',
+            message: "Settings updated successfully",
             settings: settings_to_json(@settings)
           }
         else
@@ -50,7 +50,7 @@ module Api
       def settings_to_json(settings)
         {
           id: settings.id,
-          rollover_time: settings.rollover_time&.strftime('%H:%M'),
+          rollover_time: settings.rollover_time&.strftime("%H:%M"),
           rollover_timezone: settings.rollover_timezone,
           rollover_enabled: settings.rollover_enabled,
           notify_on_hold: settings.notify_on_hold,

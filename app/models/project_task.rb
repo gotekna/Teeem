@@ -2,19 +2,19 @@ class ProjectTask < ApplicationRecord
   belongs_to :project
   belongs_to :task_template, optional: true
   belongs_to :purchase_order, optional: true
-  belongs_to :assigned_to, class_name: 'User', optional: true
+  belongs_to :assigned_to, class_name: "User", optional: true
 
   # Schedule template relationships
   belongs_to :schedule_template_row, optional: true
-  belongs_to :parent_task, class_name: 'ProjectTask', optional: true
-  has_many :spawned_tasks, class_name: 'ProjectTask', foreign_key: 'parent_task_id', dependent: :destroy
-  belongs_to :supervisor_checked_by, class_name: 'User', optional: true
+  belongs_to :parent_task, class_name: "ProjectTask", optional: true
+  has_many :spawned_tasks, class_name: "ProjectTask", foreign_key: "parent_task_id", dependent: :destroy
+  belongs_to :supervisor_checked_by, class_name: "User", optional: true
 
   # Dependency relationships
-  has_many :successor_dependencies, class_name: 'TaskDependency',
-           foreign_key: 'predecessor_task_id', dependent: :destroy
-  has_many :predecessor_dependencies, class_name: 'TaskDependency',
-           foreign_key: 'successor_task_id', dependent: :destroy
+  has_many :successor_dependencies, class_name: "TaskDependency",
+           foreign_key: "predecessor_task_id", dependent: :destroy
+  has_many :predecessor_dependencies, class_name: "TaskDependency",
+           foreign_key: "successor_task_id", dependent: :destroy
 
   has_many :successor_tasks, through: :successor_dependencies, source: :successor_task
   has_many :predecessor_tasks, through: :predecessor_dependencies, source: :predecessor_task
@@ -33,24 +33,24 @@ class ProjectTask < ApplicationRecord
   validates :duration_days, presence: true, numericality: { greater_than: 0 }
 
   scope :by_status, ->(status) { where(status: status) }
-  scope :not_started, -> { where(status: 'not_started') }
-  scope :in_progress, -> { where(status: 'in_progress') }
-  scope :completed, -> { where(status: 'complete') }
-  scope :on_hold, -> { where(status: 'on_hold') }
+  scope :not_started, -> { where(status: "not_started") }
+  scope :in_progress, -> { where(status: "in_progress") }
+  scope :completed, -> { where(status: "complete") }
+  scope :on_hold, -> { where(status: "on_hold") }
   scope :critical_path, -> { where(is_critical_path: true) }
   scope :milestones, -> { where(is_milestone: true) }
-  scope :overdue, -> { where('planned_end_date < ? AND status != ?', Date.current, 'complete') }
-  scope :upcoming, -> { where('planned_start_date <= ? AND status = ?', 1.week.from_now, 'not_started') }
+  scope :overdue, -> { where("planned_end_date < ? AND status != ?", Date.current, "complete") }
+  scope :upcoming, -> { where("planned_start_date <= ? AND status = ?", 1.week.from_now, "not_started") }
   scope :by_category, ->(category) { where(category: category) }
 
   # New scopes for schedule template features
   scope :normal_tasks, -> { where(spawned_type: nil) }
-  scope :photo_tasks, -> { where(spawned_type: 'photo') }
-  scope :certificate_tasks, -> { where(spawned_type: 'certificate') }
-  scope :subtasks, -> { where(spawned_type: 'subtask') }
+  scope :photo_tasks, -> { where(spawned_type: "photo") }
+  scope :certificate_tasks, -> { where(spawned_type: "certificate") }
+  scope :subtasks, -> { where(spawned_type: "subtask") }
   scope :requiring_supervisor, -> { where(requires_supervisor_check: true) }
   scope :supervisor_pending, -> { requiring_supervisor.where(supervisor_checked_at: nil) }
-  scope :with_tag, ->(tag) { where("tags @> ?", [tag].to_json) }
+  scope :with_tag, ->(tag) { where("tags @> ?", [ tag ].to_json) }
   scope :critical_po_tasks, -> { where(critical_po: true) }
   scope :by_sequence, -> { order(sequence_order: :asc) }
 
@@ -61,7 +61,7 @@ class ProjectTask < ApplicationRecord
 
   def complete!
     update!(
-      status: 'complete',
+      status: "complete",
       progress_percentage: 100,
       actual_end_date: Date.current
     )
@@ -69,17 +69,17 @@ class ProjectTask < ApplicationRecord
 
   def start!
     update!(
-      status: 'in_progress',
+      status: "in_progress",
       actual_start_date: actual_start_date || Date.current
     )
   end
 
   def can_start?
-    predecessor_tasks.all? { |pred| pred.status == 'complete' }
+    predecessor_tasks.all? { |pred| pred.status == "complete" }
   end
 
   def blocked_by
-    predecessor_tasks.where.not(status: 'complete')
+    predecessor_tasks.where.not(status: "complete")
   end
 
   def total_float
@@ -106,9 +106,9 @@ class ProjectTask < ApplicationRecord
   # Get materials status for this task
   # Returns: 'no_po', 'on_time', or 'delayed'
   def materials_status
-    return 'no_po' unless has_purchase_order?
-    return 'on_time' if materials_on_time?
-    'delayed'
+    return "no_po" unless has_purchase_order?
+    return "on_time" if materials_on_time?
+    "delayed"
   end
 
   # Schedule template helper methods
@@ -117,15 +117,15 @@ class ProjectTask < ApplicationRecord
   end
 
   def photo_task?
-    spawned_type == 'photo'
+    spawned_type == "photo"
   end
 
   def certificate_task?
-    spawned_type == 'certificate'
+    spawned_type == "certificate"
   end
 
   def subtask?
-    spawned_type == 'subtask'
+    spawned_type == "subtask"
   end
 
   def has_photo?
@@ -174,9 +174,9 @@ class ProjectTask < ApplicationRecord
 
   def update_actual_dates
     case status
-    when 'in_progress'
+    when "in_progress"
       self.actual_start_date ||= Date.current
-    when 'complete'
+    when "complete"
       self.actual_start_date ||= Date.current
       self.actual_end_date = Date.current
       self.progress_percentage = 100
@@ -196,10 +196,10 @@ class ProjectTask < ApplicationRecord
     spawner = Schedule::TaskSpawner.new(self)
 
     case status
-    when 'in_progress'
+    when "in_progress"
       # Spawn subtasks when task starts
       spawner.spawn_subtasks if schedule_template_row.has_subtasks
-    when 'complete'
+    when "complete"
       # Spawn photo and certificate tasks when task completes
       spawner.spawn_photo_task if schedule_template_row.require_photo
       spawner.spawn_certificate_task if schedule_template_row.require_certificate
@@ -212,10 +212,10 @@ class ProjectTask < ApplicationRecord
   def auto_complete_predecessors_if_enabled
     # If this task is complete and has auto_complete_predecessors enabled,
     # mark all predecessor tasks as complete
-    return unless status == 'complete'
+    return unless status == "complete"
     return unless auto_complete_predecessors
 
-    predecessor_tasks.where.not(status: 'complete').find_each do |pred|
+    predecessor_tasks.where.not(status: "complete").find_each do |pred|
       pred.complete!
       Rails.logger.info("Auto-completed predecessor task #{pred.id} (#{pred.name})")
     end
@@ -230,9 +230,9 @@ class ProjectTask < ApplicationRecord
     return 0 unless spawned_tasks.subtasks.any?
 
     completed_count = 0
-    spawned_tasks.subtasks.where.not(status: 'complete').find_each do |subtask|
+    spawned_tasks.subtasks.where.not(status: "complete").find_each do |subtask|
       subtask.update!(
-        status: 'complete',
+        status: "complete",
         progress_percentage: 100,
         actual_end_date: Date.current,
         completed_by: user_name

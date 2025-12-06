@@ -1,6 +1,6 @@
 # Import Chapter 19 Teacher sections from TEEEM_TEACHER.md into database
 
-teacher_file = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_TEACHER.md')
+teacher_file = Rails.root.join("..", "TEEEM_DOCS", "TEEEM_TEACHER.md")
 content = File.read(teacher_file)
 
 # Find Chapter 19
@@ -23,46 +23,46 @@ puts "📝 Found #{sections.length} sections"
 
 sections.each do |section_number, title, body|
   puts "\n  Processing §#{section_number}: #{title}"
-  
+
   # Extract components from body
   entry_type_match = body.match(/🧩 (Component|Feature|Util|Hook|Integration|Optimization)/i)
   entry_type = case entry_type_match&.[](1)&.downcase
-               when 'component' then 'component'
-               when 'feature' then 'feature'
-               when 'util' then 'util'
-               when 'hook' then 'hook'
-               when 'integration' then 'integration'
-               when 'optimization' then 'optimization'
-               else 'component' # default
-               end
-  
+  when "component" then "component"
+  when "feature" then "feature"
+  when "util" then "util"
+  when "hook" then "hook"
+  when "integration" then "integration"
+  when "optimization" then "optimization"
+  else "component" # default
+  end
+
   difficulty_match = body.match(/⭐ (Easy|Medium|Hard)/i)
   difficulty = difficulty_match&.[](1)&.downcase
-  
+
   summary_match = body.match(/### Quick Summary\n(.+?)(?=\n###|\z)/m)
   summary = summary_match&.[](1)&.strip
-  
+
   explanation_match = body.match(/### Step-by-Step Guide\n(.+?)(?=\n###|\z)/m)
   explanation = explanation_match&.[](1)&.strip
-  
+
   code_match = body.match(/### Code Example\n```(?:jsx|ruby|javascript)?\n(.+?)```/m)
   code_example = code_match&.[](1)&.strip
-  
+
   mistakes_match = body.match(/### ⚠️ Common Mistakes\n(.+?)(?=\n###|\z)/m)
   common_mistakes = mistakes_match&.[](1)&.strip
-  
+
   testing_match = body.match(/### 🧪 Testing Strategy\n(.+?)(?=\n###|\z)/m)
   testing_strategy = testing_match&.[](1)&.strip
-  
+
   rules_match = body.match(/\*\*📖 Related Bible Rules:\*\* (.+)/m)
   related_rules = rules_match&.[](1)&.strip
-  
+
   # Create or update entry
   entry = Trinity.find_or_initialize_by(
     chapter_number: 19,
     section_number: section_number
   )
-  
+
   entry.assign_attributes(
     chapter_name: chapter_name,
     title: title.strip,
@@ -76,7 +76,7 @@ sections.each do |section_number, title, body|
     testing_strategy: testing_strategy,
     related_rules: related_rules
   )
-  
+
   if entry.save
     puts "    ✅ Saved: §#{section_number}"
   else

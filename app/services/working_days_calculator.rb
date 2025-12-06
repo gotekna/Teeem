@@ -111,13 +111,13 @@ class WorkingDaysCalculator
 
   def default_working_days
     {
-      'monday' => true,
-      'tuesday' => true,
-      'wednesday' => true,
-      'thursday' => true,
-      'friday' => true,
-      'saturday' => false,
-      'sunday' => false
+      "monday" => true,
+      "tuesday" => true,
+      "wednesday" => true,
+      "thursday" => true,
+      "friday" => true,
+      "saturday" => false,
+      "sunday" => false
     }
   end
 end

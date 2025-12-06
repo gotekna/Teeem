@@ -4,8 +4,8 @@ module Api
   module V1
     class SmSupplierPortalController < ApplicationController
       # Note: authenticate_request was removed - using authenticate_supplier! instead
-      before_action :authenticate_supplier!, except: [:authenticate, :generate_access, :list_access, :revoke_access]
-      before_action :set_access, only: [:show, :tasks, :task_detail, :activities, :update_task, :add_comment]
+      before_action :authenticate_supplier!, except: [ :authenticate, :generate_access, :list_access, :revoke_access ]
+      before_action :set_access, only: [ :show, :tasks, :task_detail, :activities, :update_task, :add_comment ]
 
       # ==========================================
       # SUPPLIER AUTHENTICATION
@@ -14,17 +14,17 @@ module Api
       # POST /api/v1/sm_supplier_portal/authenticate
       # Authenticate with access token
       def authenticate
-        token = params[:access_token] || request.headers['X-Supplier-Token']
+        token = params[:access_token] || request.headers["X-Supplier-Token"]
         access = SmSupplierAccess.find_by_token(token)
 
         if access.nil?
-          return render json: { success: false, error: 'Invalid access token' }, status: :unauthorized
+          return render json: { success: false, error: "Invalid access token" }, status: :unauthorized
         end
 
         unless access.active?
           return render json: {
             success: false,
-            error: access.revoked? ? 'Access has been revoked' : 'Access token has expired'
+            error: access.revoked? ? "Access has been revoked" : "Access token has expired"
           }, status: :unauthorized
         end
 
@@ -63,9 +63,9 @@ module Api
           construction: construction_json(@access.construction),
           summary: {
             total_tasks: tasks.count,
-            not_started: tasks.where(status: 'not_started').count,
-            in_progress: tasks.where(status: 'started').count,
-            completed: tasks.where(status: 'completed').count
+            not_started: tasks.where(status: "not_started").count,
+            in_progress: tasks.where(status: "started").count,
+            completed: tasks.where(status: "completed").count
           },
           upcoming_tasks: tasks.where(status: %w[not_started started])
                               .limit(5)
@@ -102,7 +102,7 @@ module Api
           task: task_detail_json(task)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Task not found or not assigned to you' }, status: :not_found
+        render json: { success: false, error: "Task not found or not assigned to you" }, status: :not_found
       end
 
       # GET /api/v1/sm_supplier_portal/activities
@@ -145,7 +145,7 @@ module Api
           render json: { success: false, errors: task.errors.full_messages }, status: :unprocessable_entity
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Task not found' }, status: :not_found
+        render json: { success: false, error: "Task not found" }, status: :not_found
       end
 
       # POST /api/v1/sm_supplier_portal/tasks/:task_id/comments
@@ -163,7 +163,7 @@ module Api
         if comment.save
           # Track activity
           SmActivity.track(
-            'comment_added',
+            "comment_added",
             construction: task.construction,
             task: task,
             trackable: comment,
@@ -179,7 +179,7 @@ module Api
           render json: { success: false, errors: comment.errors.full_messages }, status: :unprocessable_entity
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Task not found' }, status: :not_found
+        render json: { success: false, error: "Task not found" }, status: :not_found
       end
 
       # ==========================================
@@ -200,7 +200,7 @@ module Api
           return render json: {
             success: true,
             access: access_json(existing),
-            message: 'Existing active access found'
+            message: "Existing active access found"
           }
         end
 
@@ -228,7 +228,7 @@ module Api
         accesses = SmSupplierAccess.includes(:contact, :construction)
 
         accesses = accesses.for_construction(params[:job_id]) if params[:job_id]
-        accesses = accesses.active if params[:active_only] == 'true'
+        accesses = accesses.active if params[:active_only] == "true"
 
         render json: {
           success: true,
@@ -248,12 +248,12 @@ module Api
       private
 
       def authenticate_supplier!
-        token = params[:access_token] || request.headers['X-Supplier-Token']
+        token = params[:access_token] || request.headers["X-Supplier-Token"]
         @current_supplier_access = SmSupplierAccess.find_by_token(token)
 
         return if @current_supplier_access&.active?
 
-        render json: { success: false, error: 'Unauthorized' }, status: :unauthorized
+        render json: { success: false, error: "Unauthorized" }, status: :unauthorized
       end
 
       def set_access
@@ -324,7 +324,7 @@ module Api
         {
           id: comment.id,
           body: comment.body,
-          author_name: comment.author&.full_name || 'Supplier',
+          author_name: comment.author&.full_name || "Supplier",
           created_at: comment.created_at
         }
       end

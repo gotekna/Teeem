@@ -15,14 +15,14 @@ class CaseWarehouseService
   def job_metrics_for_entities
     return [] if case_record.related_job_ids.empty?
 
-    query_mv('mv_job_summary', 'job_id IN (?)', [case_record.related_job_ids])
+    query_mv("mv_job_summary", "job_id IN (?)", [ case_record.related_job_ids ])
   end
 
   # Get task metrics for related jobs
   def task_metrics
     return [] if case_record.related_job_ids.empty?
 
-    query_mv('mv_task_metrics', 'job_id IN (?)', [case_record.related_job_ids])
+    query_mv("mv_task_metrics", "job_id IN (?)", [ case_record.related_job_ids ])
   end
 
   # ============================================
@@ -36,7 +36,7 @@ class CaseWarehouseService
 
     # Filter by related companies
     if case_record.related_company_ids.any?
-      conditions << 'company_id IN (?)'
+      conditions << "company_id IN (?)"
       params << case_record.related_company_ids
     end
 
@@ -49,7 +49,7 @@ class CaseWarehouseService
 
     # Document type filter
     if document_type.present?
-      conditions << 'document_type = ?'
+      conditions << "document_type = ?"
       params << document_type
     end
 
@@ -58,7 +58,7 @@ class CaseWarehouseService
       start_year = date_range[:start]&.to_date&.year
       end_year = date_range[:end]&.to_date&.year
       if start_year && end_year
-        conditions << 'document_year BETWEEN ? AND ?'
+        conditions << "document_year BETWEEN ? AND ?"
         params << start_year
         params << end_year
       end
@@ -66,18 +66,18 @@ class CaseWarehouseService
 
     # Verification status
     if verification_status.present?
-      conditions << 'ai_verification_status = ?'
+      conditions << "ai_verification_status = ?"
       params << verification_status
     end
 
-    query_mv('mv_document_summary', conditions.join(' AND '), params)
+    query_mv("mv_document_summary", conditions.join(" AND "), params)
   end
 
   # Get document completeness for related jobs
   def document_completeness
     return [] if case_record.related_job_ids.empty?
 
-    query_mv('mv_job_document_status', 'job_id IN (?)', [case_record.related_job_ids])
+    query_mv("mv_job_document_status", "job_id IN (?)", [ case_record.related_job_ids ])
   end
 
   # ============================================
@@ -142,7 +142,7 @@ class CaseWarehouseService
         email_count: thread_emails.count,
         first_email: thread_emails.first,
         last_email: thread_emails.last,
-        participants: (thread_emails.flat_map { |e| [e.from_email] + e.to_emails.to_a }.compact.uniq)
+        participants: (thread_emails.flat_map { |e| [ e.from_email ] + e.to_emails.to_a }.compact.uniq)
       }
     end
   end
@@ -155,15 +155,15 @@ class CaseWarehouseService
   def financial_summary(period: nil)
     return [] if case_record.related_company_ids.empty?
 
-    conditions = ['company_id IN (?)']
-    params = [case_record.related_company_ids]
+    conditions = [ "company_id IN (?)" ]
+    params = [ case_record.related_company_ids ]
 
     if period.present?
-      conditions << 'period = ?'
+      conditions << "period = ?"
       params << period
     end
 
-    query_mv('mv_financial_summary', conditions.join(' AND '), params)
+    query_mv("mv_financial_summary", conditions.join(" AND "), params)
   end
 
   # Find financial anomalies - invoices that don't match POs
@@ -171,9 +171,9 @@ class CaseWarehouseService
     return [] if case_record.related_job_ids.empty?
 
     query_mv(
-      'mv_invoice_po_reconciliation',
+      "mv_invoice_po_reconciliation",
       "job_id IN (?) AND reconciliation_status != 'matched'",
-      [case_record.related_job_ids]
+      [ case_record.related_job_ids ]
     )
   end
 
@@ -181,7 +181,7 @@ class CaseWarehouseService
   def invoice_reconciliation
     return [] if case_record.related_job_ids.empty?
 
-    query_mv('mv_invoice_po_reconciliation', 'job_id IN (?)', [case_record.related_job_ids])
+    query_mv("mv_invoice_po_reconciliation", "job_id IN (?)", [ case_record.related_job_ids ])
   end
 
   # ============================================
@@ -192,15 +192,15 @@ class CaseWarehouseService
   def resource_utilization(week_start: nil)
     return [] if case_record.related_job_ids.empty?
 
-    conditions = ['job_id IN (?)']
-    params = [case_record.related_job_ids]
+    conditions = [ "job_id IN (?)" ]
+    params = [ case_record.related_job_ids ]
 
     if week_start.present?
-      conditions << 'week_start >= ?'
+      conditions << "week_start >= ?"
       params << week_start
     end
 
-    query_mv('mv_resource_utilization', conditions.join(' AND '), params)
+    query_mv("mv_resource_utilization", conditions.join(" AND "), params)
   end
 
   # ============================================
@@ -221,7 +221,7 @@ class CaseWarehouseService
     # Add document events
     docs = CompanyDocument
       .where(company_id: case_record.related_company_ids)
-      .where('document_date BETWEEN ? AND ? OR created_at BETWEEN ? AND ?',
+      .where("document_date BETWEEN ? AND ? OR created_at BETWEEN ? AND ?",
              start_date, end_date, start_date, end_date)
       .order(:document_date)
     events += docs.map { |d| timeline_event_from_document(d) }
@@ -236,7 +236,7 @@ class CaseWarehouseService
     end
 
     # Sort by date
-    events.sort_by { |e| [e[:date], e[:time] || Time.parse('00:00')] }
+    events.sort_by { |e| [ e[:date], e[:time] || Time.parse("00:00") ] }
   end
 
   # ============================================
@@ -250,7 +250,7 @@ class CaseWarehouseService
     {
       contact: contact,
       directorships: contact.company_directors.includes(:company),
-      shareholdings: CompanyShareholding.where(shareholder_type: 'Contact', shareholder_id: contact_id)
+      shareholdings: CompanyShareholding.where(shareholder_type: "Contact", shareholder_id: contact_id)
                                         .includes(:company),
       relationships: contact.contact_relationships.includes(:related_contact),
       documents: CompanyDocument.where(contact_id: contact_id),
@@ -270,10 +270,10 @@ class CaseWarehouseService
       company: company,
       directors: company.company_directors.includes(:contact),
       shareholders: company.company_shareholdings.includes(:contact),
-      job_summary: query_mv('mv_job_summary', 'job_id IN (?)', [job_ids]),
-      financial_summary: query_mv('mv_financial_summary', 'company_id = ?', [company_id]),
-      document_summary: query_mv('mv_document_summary', 'company_id = ?', [company_id]),
-      invoice_reconciliation: query_mv('mv_invoice_po_reconciliation', 'job_id IN (?)', [job_ids])
+      job_summary: query_mv("mv_job_summary", "job_id IN (?)", [ job_ids ]),
+      financial_summary: query_mv("mv_financial_summary", "company_id = ?", [ company_id ]),
+      document_summary: query_mv("mv_document_summary", "company_id = ?", [ company_id ]),
+      invoice_reconciliation: query_mv("mv_invoice_po_reconciliation", "job_id IN (?)", [ job_ids ])
     }
   end
 
@@ -288,38 +288,38 @@ class CaseWarehouseService
     # Check for invoice/PO mismatches
     financial_anomalies.each do |anomaly|
       inconsistencies << {
-        type: 'financial_mismatch',
-        severity: anomaly['variance'].to_f.abs > 1000 ? 'high' : 'medium',
+        type: "financial_mismatch",
+        severity: anomaly["variance"].to_f.abs > 1000 ? "high" : "medium",
         title: "Invoice/PO Mismatch: #{anomaly['purchase_order_number']}",
         description: "#{anomaly['reconciliation_status']}: Variance of $#{anomaly['variance']}",
-        source: 'mv_invoice_po_reconciliation',
+        source: "mv_invoice_po_reconciliation",
         data: anomaly
       }
     end
 
     # Check for missing documents
     document_completeness.each do |job_status|
-      if job_status['documentation_status'] == 'missing'
+      if job_status["documentation_status"] == "missing"
         inconsistencies << {
-          type: 'missing_documents',
-          severity: 'medium',
+          type: "missing_documents",
+          severity: "medium",
           title: "Missing Documents: #{job_status['job_title']}",
           description: "Job has no associated documents",
-          source: 'mv_job_document_status',
+          source: "mv_job_document_status",
           data: job_status
         }
       end
     end
 
     # Check for unverified documents
-    unverified = search_documents(verification_status: 'pending')
+    unverified = search_documents(verification_status: "pending")
     if unverified.any?
       inconsistencies << {
-        type: 'unverified_documents',
-        severity: 'low',
+        type: "unverified_documents",
+        severity: "low",
         title: "#{unverified.sum { |d| d['document_count'].to_i }} Unverified Documents",
         description: "Documents pending AI verification",
-        source: 'mv_document_summary',
+        source: "mv_document_summary",
         data: unverified
       }
     end
@@ -353,9 +353,9 @@ class CaseWarehouseService
       actions_with_findings: case_record.case_actions.with_results.count,
 
       # Warehouse metrics
-      total_job_income: job_metrics_for_entities.sum { |j| j['total_income'].to_f },
-      total_job_expenses: job_metrics_for_entities.sum { |j| j['total_expenses'].to_f },
-      total_hours_logged: job_metrics_for_entities.sum { |j| j['total_hours_logged'].to_f },
+      total_job_income: job_metrics_for_entities.sum { |j| j["total_income"].to_f },
+      total_job_expenses: job_metrics_for_entities.sum { |j| j["total_expenses"].to_f },
+      total_hours_logged: job_metrics_for_entities.sum { |j| j["total_hours_logged"].to_f },
 
       # Issues found
       inconsistencies: find_inconsistencies,
@@ -379,7 +379,7 @@ class CaseWarehouseService
     sql += " WHERE #{conditions}" if conditions.present?
 
     if params.any?
-      sanitized = ActiveRecord::Base.sanitize_sql_array([sql, *params])
+      sanitized = ActiveRecord::Base.sanitize_sql_array([ sql, *params ])
       ActiveRecord::Base.connection.execute(sanitized).to_a
     else
       ActiveRecord::Base.connection.execute(sql).to_a
@@ -394,13 +394,13 @@ class CaseWarehouseService
     {
       date: email.received_at&.to_date || email.created_at.to_date,
       time: email.received_at,
-      type: 'email',
-      title: email.subject || '(No Subject)',
+      type: "email",
+      title: email.subject || "(No Subject)",
       description: "From: #{email.from_email}",
-      source_type: 'EmailWarehouse',
+      source_type: "EmailWarehouse",
       source_id: email.id,
-      icon: 'mail',
-      color: 'purple',
+      icon: "mail",
+      color: "purple",
       metadata: {
         from: email.from_email,
         to: email.to_emails,
@@ -414,13 +414,13 @@ class CaseWarehouseService
     {
       date: doc.document_date || doc.created_at.to_date,
       time: doc.created_at,
-      type: 'document',
+      type: "document",
       title: doc.title || doc.filename,
       description: "Type: #{doc.document_type}",
-      source_type: 'CompanyDocument',
+      source_type: "CompanyDocument",
       source_id: doc.id,
-      icon: 'file-text',
-      color: 'blue',
+      icon: "file-text",
+      color: "blue",
       metadata: {
         document_type: doc.document_type,
         file_size: doc.file_size,
@@ -434,13 +434,13 @@ class CaseWarehouseService
     {
       date: txn.transaction_date,
       time: nil,
-      type: 'transaction',
+      type: "transaction",
       title: "#{txn.transaction_type.titleize}: $#{txn.amount}",
       description: txn.description,
-      source_type: 'FinancialTransaction',
+      source_type: "FinancialTransaction",
       source_id: txn.id,
-      icon: 'dollar-sign',
-      color: txn.transaction_type == 'income' ? 'green' : 'red',
+      icon: "dollar-sign",
+      color: txn.transaction_type == "income" ? "green" : "red",
       metadata: {
         amount: txn.amount,
         category: txn.category,

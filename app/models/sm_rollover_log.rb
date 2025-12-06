@@ -5,7 +5,7 @@
 # See GANTT_ARCHITECTURE_PLAN.md Section 2.3
 #
 class SmRolloverLog < ApplicationRecord
-  belongs_to :task, class_name: 'SmTask'
+  belongs_to :task, class_name: "SmTask"
   belongs_to :job
 
   validates :rollover_batch_id, presence: true

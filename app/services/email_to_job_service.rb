@@ -1,7 +1,7 @@
-require 'anthropic'
+require "anthropic"
 
 class EmailToJobService
-  CLAUDE_MODEL = 'claude-sonnet-4-5-20250929'
+  CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
   MAX_TOKENS = 2000
   RATE_LIMIT_PER_HOUR = 20
 
@@ -29,7 +29,7 @@ class EmailToJobService
 
     # Get AI prompt and response for logging
     prompt = build_extraction_prompt
-    ai_response = extracted_data.delete('_raw_response') # Remove from data, store separately
+    ai_response = extracted_data.delete("_raw_response") # Remove from data, store separately
 
     # Create proposal record
     proposal = EmailJobProposal.create!(
@@ -40,7 +40,7 @@ class EmailToJobService
       ai_response_raw: ai_response,
       processing_time_ms: processing_time,
       ai_model_used: CLAUDE_MODEL,
-      status: 'pending'
+      status: "pending"
     )
 
     Rails.logger.info "Created job proposal #{proposal.id} from email #{@email.id} with confidence #{extracted_data['confidence_score']}"
@@ -58,7 +58,7 @@ class EmailToJobService
       email_warehouse: @email,
       created_by_user: @user,
       extracted_data: { error: e.message },
-      status: 'error',
+      status: "error",
       error_message: e.message
     )
   end
@@ -72,9 +72,9 @@ class EmailToJobService
   # Approve proposal and create actual job
   def approve_proposal(proposal, user_edits: {})
     # If job was already created (e.g., via Price Up), just link and approve
-    if user_edits['skip_job_creation'] && user_edits['linked_job_id'].present?
-      job = Job.find(user_edits['linked_job_id'])
-      proposal.update!(status: 'approved', job_id: job.id)
+    if user_edits["skip_job_creation"] && user_edits["linked_job_id"].present?
+      job = Job.find(user_edits["linked_job_id"])
+      proposal.update!(status: "approved", job_id: job.id)
       return job
     end
 
@@ -84,33 +84,33 @@ class EmailToJobService
     # Determine customer contact
     # Priority: user-selected client > AI-detected customer
     customer = nil
-    if user_edits['client_contact_id'].present?
-      customer = Contact.find_by(id: user_edits['client_contact_id'])
+    if user_edits["client_contact_id"].present?
+      customer = Contact.find_by(id: user_edits["client_contact_id"])
     else
       # Fallback to AI-detected customer
-      customer = find_or_create_customer(job_data['customer'])
+      customer = find_or_create_customer(job_data["customer"])
     end
 
     # Check if extracted "customer" is actually a sales agent
     is_sales_agent = customer&.is_sales? || customer&.is_land_agent?
 
     # Map AI job type to system job_type_id
-    job_type_id = map_job_type(job_data['job_type']) || user_edits['job_type_id']
+    job_type_id = map_job_type(job_data["job_type"]) || user_edits["job_type_id"]
 
     # Default to "Enquiry" status for new jobs from email
-    enquiry_status = JobStatus.find_by(name: 'Enquiry')
-    job_status_id = user_edits['job_status_id'] || enquiry_status&.id
+    enquiry_status = JobStatus.find_by(name: "Enquiry")
+    job_status_id = user_edits["job_status_id"] || enquiry_status&.id
 
     # Set the stage based on user edit or default to "Proposal" for email proposals
-    job_stage_id = user_edits['job_stage_id']
+    job_stage_id = user_edits["job_stage_id"]
     if job_stage_id.nil? && job_status_id == enquiry_status&.id
       # Default to "Proposal" stage for email-created jobs
-      proposal_stage = JobStage.find_by(job_status_id: enquiry_status&.id, name: 'Proposal')
+      proposal_stage = JobStage.find_by(job_status_id: enquiry_status&.id, name: "Proposal")
       job_stage_id = proposal_stage&.id
     end
 
     # Get property address and geocode it
-    property_address = user_edits['property_address'] || job_data['property_address']
+    property_address = user_edits["property_address"] || job_data["property_address"]
     location_data = {}
 
     if property_address.present?
@@ -139,14 +139,14 @@ class EmailToJobService
 
     # Create job
     job = Job.create!(
-      title: user_edits['job_title'] || job_data['job_title'] || "Job from #{@email.from_email}",
+      title: user_edits["job_title"] || job_data["job_title"] || "Job from #{@email.from_email}",
       job_type_id: job_type_id,
       job_status_id: job_status_id,
       job_stage_id: job_stage_id,
       site_supervisor_name: @user.name,
       site_supervisor_email: @user.email,
       site_supervisor_phone: @user.mobile_phone,
-      contract_value: user_edits['contract_value'] || job_data['contract_value']&.to_f,
+      contract_value: user_edits["contract_value"] || job_data["contract_value"]&.to_f,
       **location_data
     )
 
@@ -157,7 +157,7 @@ class EmailToJobService
         # This is a sales agent sending on behalf of their client
         job.job_contacts.create!(
           contact: customer,
-          role: 'external_sales',
+          role: "external_sales",
           primary: false
         )
         Rails.logger.info "Linked #{customer.full_name} as external_sales (detected as sales agent)"
@@ -165,7 +165,7 @@ class EmailToJobService
         # Normal customer - link as client
         job.job_contacts.create!(
           contact: customer,
-          role: 'client',
+          role: "client",
           primary: true
         )
       end
@@ -184,16 +184,16 @@ class EmailToJobService
     link_external_sales_reps(job, @email)
 
     # Link external sales from user manual selection
-    if user_edits['external_sales_contact_ids'].present?
-      user_edits['external_sales_contact_ids'].each do |contact_id|
+    if user_edits["external_sales_contact_ids"].present?
+      user_edits["external_sales_contact_ids"].each do |contact_id|
         link_external_sales_contact(job, contact_id)
       end
     end
 
     # Link referral contact if detected or manually selected
-    if user_edits['referral_contact_id'].present?
-      link_referral_contact_by_id(job, user_edits['referral_contact_id'])
-    elsif job_data['referral_contact'].present?
+    if user_edits["referral_contact_id"].present?
+      link_referral_contact_by_id(job, user_edits["referral_contact_id"])
+    elsif job_data["referral_contact"].present?
       link_referral_contact(job, job_data)
     end
 
@@ -220,7 +220,7 @@ class EmailToJobService
   def check_rate_limit!
     recent_count = EmailJobProposal
       .where(created_by_user: @user)
-      .where('created_at > ?', 1.hour.ago)
+      .where("created_at > ?", 1.hour.ago)
       .count
 
     if recent_count >= RATE_LIMIT_PER_HOUR
@@ -239,7 +239,7 @@ class EmailToJobService
       extracted = parse_json_response(response)
 
       # Add raw response for logging (will be removed before storing)
-      extracted['_raw_response'] = raw_response
+      extracted["_raw_response"] = raw_response
 
       # Add internal and external sales person detection
       add_sales_people_info(extracted)
@@ -249,15 +249,15 @@ class EmailToJobService
       # AI returned invalid JSON - create low confidence response
       Rails.logger.error "Claude returned invalid JSON: #{e.message}"
       data = {
-        'job_title' => @email.subject,
-        'customer' => {
-          'name' => @email.from_name || extract_name_from_email(@email.from_email),
-          'email' => @email.from_email
+        "job_title" => @email.subject,
+        "customer" => {
+          "name" => @email.from_name || extract_name_from_email(@email.from_email),
+          "email" => @email.from_email
         },
-        'confidence_score' => 0.1,
-        'error' => 'AI returned invalid response',
-        'missing_info' => ['all fields - AI extraction failed'],
-        '_raw_response' => response
+        "confidence_score" => 0.1,
+        "error" => "AI returned invalid response",
+        "missing_info" => [ "all fields - AI extraction failed" ],
+        "_raw_response" => response
       }
       add_sales_people_info(data)
       data
@@ -349,7 +349,7 @@ class EmailToJobService
   end
 
   def call_claude_api(prompt)
-    api_key = ENV['ANTHROPIC_API_KEY']
+    api_key = ENV["ANTHROPIC_API_KEY"]
     raise AIExtractionError, "ANTHROPIC_API_KEY not configured" unless api_key
 
     client = Anthropic::Client.new(
@@ -394,7 +394,7 @@ class EmailToJobService
   def find_or_create_customer(customer_data)
     return nil unless customer_data.is_a?(Hash)
 
-    email = customer_data['email']
+    email = customer_data["email"]
     return nil unless email.present?
 
     # Try to find existing contact by email
@@ -404,11 +404,11 @@ class EmailToJobService
     # Create new contact
     Contact.create!(
       email: email,
-      full_name: customer_data['name'],
-      mobile_phone: normalize_phone(customer_data['phone']),
-      company_name_or_trust: customer_data['company'],
-      entity_type: customer_data['entity_type'] || 'person',
-      roles: ['customer']
+      full_name: customer_data["name"],
+      mobile_phone: normalize_phone(customer_data["phone"]),
+      company_name_or_trust: customer_data["company"],
+      entity_type: customer_data["entity_type"] || "person",
+      roles: [ "customer" ]
     )
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.error "Failed to create customer: #{e.message}"
@@ -420,24 +420,24 @@ class EmailToJobService
     return nil if phone.blank?
 
     # Remove common formatting characters
-    phone.gsub(/[\s\-\(\)]/, '')
+    phone.gsub(/[\s\-\(\)]/, "")
   end
 
   def strip_html(html)
     return nil if html.blank?
 
     # Basic HTML stripping for AI prompt
-    html.gsub(/<[^>]*>/, ' ')
-        .gsub(/&nbsp;/, ' ')
-        .gsub(/&[a-z]+;/, ' ')
-        .gsub(/\s+/, ' ')
+    html.gsub(/<[^>]*>/, " ")
+        .gsub(/&nbsp;/, " ")
+        .gsub(/&[a-z]+;/, " ")
+        .gsub(/\s+/, " ")
         .strip
   end
 
   def extract_name_from_email(email)
     # Extract name from email address like john.smith@example.com -> John Smith
-    local_part = email.split('@').first
-    local_part.split(/[._]/).map(&:capitalize).join(' ')
+    local_part = email.split("@").first
+    local_part.split(/[._]/).map(&:capitalize).join(" ")
   end
 
   # Map AI-extracted job type text to system JobType ID
@@ -446,18 +446,18 @@ class EmailToJobService
 
     # Mapping of AI job type keywords to your system's JobType names
     type_mappings = {
-      'renovation' => 'House Renovation',
-      'extension' => 'House Renovation',
-      'new_build' => 'House',
-      'new build' => 'House',
-      'house' => 'House',
-      'duplex' => 'Duplex',
-      'townhouse' => 'Townhouse',
-      'apartment' => 'Micro Apartment',
-      'unit' => 'Townhouse',
-      'kitchen' => 'Kitchen',
-      'repair' => 'House Renovation',
-      'ndis' => 'NDIS House'
+      "renovation" => "House Renovation",
+      "extension" => "House Renovation",
+      "new_build" => "House",
+      "new build" => "House",
+      "house" => "House",
+      "duplex" => "Duplex",
+      "townhouse" => "Townhouse",
+      "apartment" => "Micro Apartment",
+      "unit" => "Townhouse",
+      "kitchen" => "Kitchen",
+      "repair" => "House Renovation",
+      "ndis" => "NDIS House"
     }
 
     # Try exact match first
@@ -468,7 +468,7 @@ class EmailToJobService
       JobType.find_by(name: matched_name)&.id
     else
       # Default to House Renovation for general construction work
-      JobType.find_by(name: 'House Renovation')&.id
+      JobType.find_by(name: "House Renovation")&.id
     end
   end
 
@@ -479,10 +479,10 @@ class EmailToJobService
     return unless contact
 
     # Link as internal sales rep (avoid duplicates)
-    unless job.job_contacts.exists?(contact: contact, role: 'internal_sales')
+    unless job.job_contacts.exists?(contact: contact, role: "internal_sales")
       job.job_contacts.create!(
         contact: contact,
-        role: 'internal_sales',
+        role: "internal_sales",
         primary: false
       )
       Rails.logger.info "Linked internal sales rep #{sales_user.name} to job #{job.id}"
@@ -512,10 +512,10 @@ class EmailToJobService
 
       if is_sales
         # Link as external sales (avoid duplicates)
-        unless job.job_contacts.exists?(contact: contact, role: 'external_sales')
+        unless job.job_contacts.exists?(contact: contact, role: "external_sales")
           job.job_contacts.create!(
             contact: contact,
-            role: 'external_sales',
+            role: "external_sales",
             primary: false
           )
           Rails.logger.info "Linked external sales rep #{contact.full_name} to job #{job.id}"
@@ -532,10 +532,10 @@ class EmailToJobService
     return unless contact
 
     # Link as external sales (avoid duplicates)
-    unless job.job_contacts.exists?(contact: contact, role: 'external_sales')
+    unless job.job_contacts.exists?(contact: contact, role: "external_sales")
       job.job_contacts.create!(
         contact: contact,
-        role: 'external_sales',
+        role: "external_sales",
         primary: false
       )
       Rails.logger.info "Linked external sales #{contact.full_name} to job #{job.id} (user selected)"
@@ -546,17 +546,17 @@ class EmailToJobService
 
   # Link referral contact to job (from AI detection)
   def link_referral_contact(job, job_data)
-    referral_data = job_data['referral_contact']
-    return unless referral_data.is_a?(Hash) && referral_data['contact_id'].present?
+    referral_data = job_data["referral_contact"]
+    return unless referral_data.is_a?(Hash) && referral_data["contact_id"].present?
 
-    contact = Contact.find_by(id: referral_data['contact_id'])
+    contact = Contact.find_by(id: referral_data["contact_id"])
     return unless contact
 
     # Link as referral (avoid duplicates)
-    unless job.job_contacts.exists?(contact: contact, role: 'referral')
+    unless job.job_contacts.exists?(contact: contact, role: "referral")
       job.job_contacts.create!(
         contact: contact,
-        role: 'referral',
+        role: "referral",
         primary: false
       )
       Rails.logger.info "Linked referral #{contact.full_name} to job #{job.id}"
@@ -571,10 +571,10 @@ class EmailToJobService
     return unless contact
 
     # Link as referral (avoid duplicates)
-    unless job.job_contacts.exists?(contact: contact, role: 'referral')
+    unless job.job_contacts.exists?(contact: contact, role: "referral")
       job.job_contacts.create!(
         contact: contact,
-        role: 'referral',
+        role: "referral",
         primary: false
       )
       Rails.logger.info "Linked referral #{contact.full_name} to job #{job.id} (user selected)"
@@ -589,12 +589,12 @@ class EmailToJobService
     internal_sales_user = @user
     internal_sales_contact = Contact.find_by(email: internal_sales_user.email)
 
-    extracted_data['internal_sales'] = {
-      'user_name' => internal_sales_user.name,
-      'user_email' => internal_sales_user.email,
-      'contact_exists' => internal_sales_contact.present?,
-      'contact_id' => internal_sales_contact&.id,
-      'needs_contact_creation' => internal_sales_contact.nil?
+    extracted_data["internal_sales"] = {
+      "user_name" => internal_sales_user.name,
+      "user_email" => internal_sales_user.email,
+      "contact_exists" => internal_sales_contact.present?,
+      "contact_id" => internal_sales_contact&.id,
+      "needs_contact_creation" => internal_sales_contact.nil?
     }
 
     # External sales: Search email participants for sales agents
@@ -609,7 +609,7 @@ class EmailToJobService
       # Skip if this is the internal sales person
       next if participant_email == internal_sales_user.email
       # Skip if this is the customer
-      next if participant_email == extracted_data.dig('customer', 'email')
+      next if participant_email == extracted_data.dig("customer", "email")
 
       contact = Contact.find_by(email: participant_email)
 
@@ -624,22 +624,22 @@ class EmailToJobService
 
       if is_sales_agent || is_likely_sales
         external_sales << {
-          'email' => participant_email,
-          'name' => contact&.full_name || extract_name_from_email(participant_email),
-          'contact_exists' => contact.present?,
-          'contact_id' => contact&.id,
-          'needs_contact_creation' => contact.nil?,
-          'detected_reason' => is_sales_agent ? 'existing_contact_marked_as_sales' : 'email_domain_pattern'
+          "email" => participant_email,
+          "name" => contact&.full_name || extract_name_from_email(participant_email),
+          "contact_exists" => contact.present?,
+          "contact_id" => contact&.id,
+          "needs_contact_creation" => contact.nil?,
+          "detected_reason" => is_sales_agent ? "existing_contact_marked_as_sales" : "email_domain_pattern"
         }
       end
     end
 
-    extracted_data['external_sales'] = external_sales
+    extracted_data["external_sales"] = external_sales
 
     # Referral: Check if AI extracted a referral person
-    referral_data = extracted_data['referral']
-    if referral_data.is_a?(Hash) && referral_data['name'].present?
-      referral_email = referral_data['email']
+    referral_data = extracted_data["referral"]
+    if referral_data.is_a?(Hash) && referral_data["name"].present?
+      referral_email = referral_data["email"]
       referral_contact = nil
 
       # Try to find existing contact by email
@@ -648,21 +648,21 @@ class EmailToJobService
       end
 
       # If no email or no contact found, try searching by name
-      if referral_contact.nil? && referral_data['name'].present?
+      if referral_contact.nil? && referral_data["name"].present?
         referral_contact = Contact.where("LOWER(full_name) LIKE ?", "%#{referral_data['name'].downcase}%").first
       end
 
-      extracted_data['referral_contact'] = {
-        'name' => referral_data['name'],
-        'email' => referral_email,
-        'phone' => referral_data['phone'],
-        'company' => referral_data['company'],
-        'contact_exists' => referral_contact.present?,
-        'contact_id' => referral_contact&.id,
-        'needs_contact_creation' => referral_contact.nil?
+      extracted_data["referral_contact"] = {
+        "name" => referral_data["name"],
+        "email" => referral_email,
+        "phone" => referral_data["phone"],
+        "company" => referral_data["company"],
+        "contact_exists" => referral_contact.present?,
+        "contact_id" => referral_contact&.id,
+        "needs_contact_creation" => referral_contact.nil?
       }
     else
-      extracted_data['referral_contact'] = nil
+      extracted_data["referral_contact"] = nil
     end
 
     extracted_data

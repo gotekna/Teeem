@@ -37,8 +37,8 @@ class CreateProjectTasks < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :project_tasks, [:project_id, :status]
-    add_index :project_tasks, [:planned_start_date, :planned_end_date]
+    add_index :project_tasks, [ :project_id, :status ]
+    add_index :project_tasks, [ :planned_start_date, :planned_end_date ]
     add_index :project_tasks, :is_critical_path
   end
 end

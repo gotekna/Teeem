@@ -1,9 +1,9 @@
 module Api
   module V1
     class CorporateOnedriveController < ApplicationController
-      skip_before_action :authorize_request, only: [:import_documents]
-      before_action :verify_import_token, only: [:import_documents]
-      before_action :set_credential, except: [:import_documents]
+      skip_before_action :authorize_request, only: [ :import_documents ]
+      before_action :verify_import_token, only: [ :import_documents ]
+      before_action :set_credential, except: [ :import_documents ]
 
       # GET /api/v1/corporate_onedrive/status
       # Check if OneDrive is connected and corporate folder exists
@@ -129,16 +129,16 @@ module Api
         if path.blank?
           response = client.get("/me/drive/root/children")
         else
-          encoded_path = path.split('/').map { |p| CGI.escape(p) }.join('/')
+          encoded_path = path.split("/").map { |p| CGI.escape(p) }.join("/")
           response = client.get("/me/drive/root:/#{encoded_path}:/children")
         end
 
-        folders = (response['value'] || []).select { |item| item['folder'] }
+        folders = (response["value"] || []).select { |item| item["folder"] }
 
         render json: {
           success: true,
           path: path,
-          folders: folders.map { |f| { name: f['name'], id: f['id'] } }
+          folders: folders.map { |f| { name: f["name"], id: f["id"] } }
         }
       rescue MicrosoftGraphClient::APIError => e
         render json: { success: false, error: e.message }
@@ -151,11 +151,11 @@ module Api
       end
 
       def verify_import_token
-        import_token = ENV['CORPORATE_IMPORT_TOKEN'] || 'teeem-import-2024'
-        provided_token = params[:token] || request.headers['X-Import-Token']
+        import_token = ENV["CORPORATE_IMPORT_TOKEN"] || "teeem-import-2024"
+        provided_token = params[:token] || request.headers["X-Import-Token"]
 
         unless provided_token == import_token
-          render json: { success: false, error: 'Invalid import token' }, status: :unauthorized
+          render json: { success: false, error: "Invalid import token" }, status: :unauthorized
         end
       end
     end

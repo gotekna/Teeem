@@ -1,5 +1,5 @@
 class FolderTemplate < ApplicationRecord
-  belongs_to :created_by, class_name: 'User', optional: true
+  belongs_to :created_by, class_name: "User", optional: true
   has_many :folder_template_items, dependent: :destroy
 
   validates :name, presence: true
@@ -81,10 +81,10 @@ class FolderTemplate < ApplicationRecord
     )
 
     # Load from JSON file
-    json_path = Rails.root.join('..', 'docs', 'folder-templates', 'tekna-residential-template.json')
+    json_path = Rails.root.join("..", "docs", "folder-templates", "tekna-residential-template.json")
     if File.exist?(json_path)
       template_data = JSON.parse(File.read(json_path))
-      create_folders_from_json(template, template_data['folders'], nil, 0)
+      create_folders_from_json(template, template_data["folders"], nil, 0)
     end
 
     template
@@ -95,16 +95,16 @@ class FolderTemplate < ApplicationRecord
   def self.create_folders_from_json(template, folders, parent_id, level)
     folders.each_with_index do |folder_data, index|
       item = template.folder_template_items.create!(
-        name: folder_data['name'],
-        level: folder_data['level'] || level,
-        order: folder_data['order'] || index + 1,
+        name: folder_data["name"],
+        level: folder_data["level"] || level,
+        order: folder_data["order"] || index + 1,
         parent_id: parent_id,
-        description: folder_data['description']
+        description: folder_data["description"]
       )
 
       # Recursively create children
-      if folder_data['children']&.any?
-        create_folders_from_json(template, folder_data['children'], item.id, level + 1)
+      if folder_data["children"]&.any?
+        create_folders_from_json(template, folder_data["children"], item.id, level + 1)
       end
     end
   end

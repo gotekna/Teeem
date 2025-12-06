@@ -1,7 +1,7 @@
 module Api
   module V1
     class EmailCaseProposalsController < ApplicationController
-      before_action :set_proposal, only: [:show, :approve, :reject, :re_extract]
+      before_action :set_proposal, only: [ :show, :approve, :reject, :re_extract ]
 
       # GET /api/v1/email_case_proposals
       # List proposals with filtering
@@ -10,18 +10,18 @@ module Api
           .includes(:email_warehouse, :created_by, :approved_by, :case_record)
 
         # Filter by status (default: all for overview, or specific)
-        if params[:status].present? && params[:status] != 'all'
+        if params[:status].present? && params[:status] != "all"
           proposals = proposals.where(status: params[:status])
         end
 
         # Filter by current user's proposals
-        if params[:my_proposals] == 'true'
+        if params[:my_proposals] == "true"
           proposals = proposals.for_user(current_user)
         end
 
         # Pagination
         page = (params[:page] || 1).to_i
-        per_page = [(params[:per_page] || 20).to_i, 100].min
+        per_page = [ (params[:per_page] || 20).to_i, 100 ].min
         total = proposals.count
 
         proposals = proposals.recent.offset((page - 1) * per_page).limit(per_page)
@@ -62,23 +62,23 @@ module Api
         email = EmailWarehouse.find(params[:email_warehouse_id])
 
         # Check if email has already been actioned for a case
-        if email.match_type == 'case_rejected'
+        if email.match_type == "case_rejected"
           return render json: {
             success: false,
-            error: 'This email was previously rejected for case creation'
+            error: "This email was previously rejected for case creation"
           }, status: :unprocessable_entity
         end
 
         # Check if proposal already exists for this email
         existing_proposal = EmailCaseProposal.find_by(
           email_warehouse: email,
-          status: ['pending', 'approved']
+          status: [ "pending", "approved" ]
         )
 
         if existing_proposal
           return render json: {
             success: false,
-            error: 'Case proposal already exists for this email',
+            error: "Case proposal already exists for this email",
             proposal: serialize_proposal(existing_proposal)
           }, status: :unprocessable_entity
         end
@@ -166,13 +166,13 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        reason = params[:reason] || 'No reason provided'
+        reason = params[:reason] || "No reason provided"
         @proposal.mark_rejected!(reason: reason)
 
         render json: {
           success: true,
           proposal: serialize_proposal(@proposal),
-          message: 'Proposal rejected'
+          message: "Proposal rejected"
         }
 
       rescue StandardError => e
@@ -216,7 +216,7 @@ module Api
         @proposal.update!(
           extracted_data: extracted_data,
           processing_time_ms: processing_time,
-          confidence_score: extracted_data['confidence_score']
+          confidence_score: extracted_data["confidence_score"]
         )
 
         render json: {

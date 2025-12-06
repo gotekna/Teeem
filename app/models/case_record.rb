@@ -2,7 +2,7 @@
 # Note: Named CaseRecord to avoid conflict with Ruby's case keyword
 # Table name is still 'cases'
 class CaseRecord < ApplicationRecord
-  self.table_name = 'cases'
+  self.table_name = "cases"
 
   # ============================================
   # ASSOCIATIONS
@@ -14,12 +14,12 @@ class CaseRecord < ApplicationRecord
   belongs_to :company_group, optional: true
 
   # Case management
-  belongs_to :assigned_to, class_name: 'User', optional: true
-  belongs_to :created_by, class_name: 'User', optional: true
+  belongs_to :assigned_to, class_name: "User", optional: true
+  belongs_to :created_by, class_name: "User", optional: true
 
   # Parent/child case hierarchy (self-referential)
-  belongs_to :parent_case, class_name: 'CaseRecord', optional: true, foreign_key: :parent_case_id
-  has_many :child_cases, class_name: 'CaseRecord', foreign_key: :parent_case_id, dependent: :nullify
+  belongs_to :parent_case, class_name: "CaseRecord", optional: true, foreign_key: :parent_case_id
+  has_many :child_cases, class_name: "CaseRecord", foreign_key: :parent_case_id, dependent: :nullify
 
   # Related entities (many-to-many)
   has_many :case_contacts, foreign_key: :case_id, dependent: :destroy
@@ -69,7 +69,7 @@ class CaseRecord < ApplicationRecord
   scope :by_status, ->(status) { where(status: status) }
   scope :by_type, ->(type) { where(case_type: type) }
   scope :by_priority, ->(priority) { where(priority: priority) }
-  scope :overdue, -> { where('deadline < ?', Date.current).open_cases }
+  scope :overdue, -> { where("deadline < ?", Date.current).open_cases }
   scope :due_soon, -> { where(deadline: Date.current..7.days.from_now).open_cases }
   scope :assigned_to_user, ->(user_id) { where(assigned_to_id: user_id) }
   scope :recent_first, -> { order(created_at: :desc) }
@@ -84,30 +84,30 @@ class CaseRecord < ApplicationRecord
   # ============================================
 
   CASE_TYPES = {
-    'ato_audit' => 'ATO Audit',
-    'legal_dispute' => 'Legal Dispute',
-    'director_investigation' => 'Director Investigation',
-    'compliance_review' => 'Compliance Review',
-    'due_diligence' => 'Due Diligence',
-    'fraud_investigation' => 'Fraud Investigation',
-    'insolvency' => 'Insolvency',
-    'bankruptcy' => 'Bankruptcy',
-    'other' => 'Other'
+    "ato_audit" => "ATO Audit",
+    "legal_dispute" => "Legal Dispute",
+    "director_investigation" => "Director Investigation",
+    "compliance_review" => "Compliance Review",
+    "due_diligence" => "Due Diligence",
+    "fraud_investigation" => "Fraud Investigation",
+    "insolvency" => "Insolvency",
+    "bankruptcy" => "Bankruptcy",
+    "other" => "Other"
   }.freeze
 
   STATUSES = {
-    'open' => 'Open',
-    'in_progress' => 'In Progress',
-    'review' => 'Under Review',
-    'closed' => 'Closed',
-    'archived' => 'Archived'
+    "open" => "Open",
+    "in_progress" => "In Progress",
+    "review" => "Under Review",
+    "closed" => "Closed",
+    "archived" => "Archived"
   }.freeze
 
   PRIORITIES = {
-    'low' => 'Low',
-    'normal' => 'Normal',
-    'high' => 'High',
-    'urgent' => 'Urgent'
+    "low" => "Low",
+    "normal" => "Normal",
+    "high" => "High",
+    "urgent" => "Urgent"
   }.freeze
 
   # ============================================
@@ -200,7 +200,7 @@ class CaseRecord < ApplicationRecord
   end
 
   # Add a document to the case
-  def add_document(company_document, relevance: 'supporting', notes: nil, added_by: nil)
+  def add_document(company_document, relevance: "supporting", notes: nil, added_by: nil)
     case_documents.find_or_create_by(company_document: company_document) do |cd|
       cd.relevance = relevance
       cd.notes = notes
@@ -210,7 +210,7 @@ class CaseRecord < ApplicationRecord
   end
 
   # Add an email to the case
-  def add_email(email_warehouse, relevance: 'supporting', notes: nil, added_by: nil)
+  def add_email(email_warehouse, relevance: "supporting", notes: nil, added_by: nil)
     case_emails.find_or_create_by(email_warehouse: email_warehouse) do |ce|
       ce.relevance = relevance
       ce.notes = notes
@@ -220,7 +220,7 @@ class CaseRecord < ApplicationRecord
   end
 
   # Add a contact to the case
-  def add_contact(contact, role: 'related_party', notes: nil, is_primary: false, reason: nil, added_by: nil)
+  def add_contact(contact, role: "related_party", notes: nil, is_primary: false, reason: nil, added_by: nil)
     case_contacts.find_or_create_by(contact: contact) do |cc|
       cc.role = role
       cc.notes = notes
@@ -249,7 +249,7 @@ class CaseRecord < ApplicationRecord
   end
 
   # Add a company to the case
-  def add_company(company, role: 'related_entity', notes: nil, is_primary: false)
+  def add_company(company, role: "related_entity", notes: nil, is_primary: false)
     case_companies.find_or_create_by(company: company) do |cc|
       cc.role = role
       cc.notes = notes
@@ -258,7 +258,7 @@ class CaseRecord < ApplicationRecord
   end
 
   # Add a job to the case
-  def add_job(job, relevance: 'direct', notes: nil)
+  def add_job(job, relevance: "direct", notes: nil)
     case_jobs.find_or_create_by(job: job) do |cj|
       cj.relevance = relevance
       cj.notes = notes
@@ -272,7 +272,7 @@ class CaseRecord < ApplicationRecord
       query: query,
       parameters: parameters,
       created_by: created_by,
-      status: 'pending'
+      status: "pending"
     )
 
     # Execute the action (async in production)
@@ -306,12 +306,12 @@ class CaseRecord < ApplicationRecord
   # Get all ancestors (parent, grandparent, etc.)
   def ancestors
     return [] if root_case?
-    [parent_case] + parent_case.ancestors
+    [ parent_case ] + parent_case.ancestors
   end
 
   # Get all descendants (children, grandchildren, etc.)
   def descendants
-    child_cases.flat_map { |child| [child] + child.descendants }
+    child_cases.flat_map { |child| [ child ] + child.descendants }
   end
 
   # Get sibling cases (same parent)
@@ -323,7 +323,7 @@ class CaseRecord < ApplicationRecord
   # Get all cases in the same family tree
   def family_tree
     root = root_case
-    [root] + root.descendants
+    [ root ] + root.descendants
   end
 
   # Count of open child cases
@@ -372,11 +372,11 @@ class CaseRecord < ApplicationRecord
       self.case_number = "#{parent.case_number}.#{child_count.to_s.rjust(3, '0')}"
     else
       # Top-level case: generate sequential number (e.g., CASE-20251205-001)
-      date_part = Date.current.strftime('%Y%m%d')
+      date_part = Date.current.strftime("%Y%m%d")
 
       # Count only top-level cases (those without a parent) for the sequence
       sequence = CaseRecord.where(parent_case_id: nil)
-                          .where('case_number LIKE ?', "CASE-#{date_part}-%")
+                          .where("case_number LIKE ?", "CASE-#{date_part}-%")
                           .count + 1
       self.case_number = "CASE-#{date_part}-#{sequence.to_s.rjust(3, '0')}"
     end

@@ -6,6 +6,6 @@ class GrokPlan < ApplicationRecord
   validates :status, inclusion: { in: %w[planning in_progress completed archived] }
 
   # Scopes for easy querying
-  scope :active, -> { where(status: ['planning', 'in_progress']) }
+  scope :active, -> { where(status: [ "planning", "in_progress" ]) }
   scope :recent, -> { order(updated_at: :desc).limit(10) }
 end

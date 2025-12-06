@@ -33,8 +33,8 @@ class CreateJobDocuments < ActiveRecord::Migration[8.0]
     end
 
     add_index :job_documents, :onedrive_item_id, unique: true
-    add_index :job_documents, [:job_id, :folder_path]
-    add_index :job_documents, [:job_id, :file_type]
+    add_index :job_documents, [ :job_id, :folder_path ]
+    add_index :job_documents, [ :job_id, :file_type ]
     add_index :job_documents, :file_type
     add_index :job_documents, :sync_status
   end

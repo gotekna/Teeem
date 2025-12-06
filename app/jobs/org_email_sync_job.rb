@@ -9,25 +9,25 @@
 class OrgEmailSyncJob < ApplicationJob
   queue_as :low
 
-  def perform(sync_type = 'incremental')
+  def perform(sync_type = "incremental")
     credential = OrganizationMicrosoftAppCredential.active_credential
 
-    unless credential&.status == 'connected'
+    unless credential&.status == "connected"
       Rails.logger.info "[OrgEmailSync] Skipping - org Microsoft app not connected"
       return
     end
 
     sync_config = credential.sync_config || {}
-    sync_all = sync_config['sync_all'] || false
-    user_emails = sync_config['user_emails'] || []
-    sync_years = sync_config['sync_years'] || 3
+    sync_all = sync_config["sync_all"] || false
+    user_emails = sync_config["user_emails"] || []
+    sync_years = sync_config["sync_years"] || 3
 
     # Determine which users to sync
     if sync_all
       # Get all users from tenant
       client = MicrosoftAppGraphClient.new
-      tenant_users = client.list_users(select: 'id,mail,userPrincipalName')
-      user_emails = tenant_users.map { |u| u['mail'] || u['userPrincipalName'] }.compact
+      tenant_users = client.list_users(select: "id,mail,userPrincipalName")
+      user_emails = tenant_users.map { |u| u["mail"] || u["userPrincipalName"] }.compact
     end
 
     if user_emails.empty?
@@ -67,13 +67,13 @@ class OrgEmailSyncJob < ApplicationJob
 
     # Determine since date
     since = case sync_type
-            when 'full'
+    when "full"
               sync_years.years.ago
-            else
+    else
               # Incremental - check last sync for this user or default to 24 hours
               last_email = EmailWarehouse.where(owner_email: user_email).order(received_at: :desc).first
               last_email&.received_at || 24.hours.ago
-            end
+    end
 
     # Get all mail folders
     folders = client.get_user_mail_folders(user_email)
@@ -119,32 +119,32 @@ class OrgEmailSyncJob < ApplicationJob
 
   def upsert_email(email_data, owner_email, folder_name)
     # Transform Graph API response to our format
-    message_id = email_data['internetMessageId'] || email_data['id']
+    message_id = email_data["internetMessageId"] || email_data["id"]
 
     # Find or create
     email = EmailWarehouse.find_or_initialize_by(message_id: message_id)
 
     # Extract sender info
-    from_data = email_data['from']&.dig('emailAddress') || {}
+    from_data = email_data["from"]&.dig("emailAddress") || {}
 
     # Extract recipients
-    to_recipients = (email_data['toRecipients'] || []).map { |r| r.dig('emailAddress', 'address') }.compact
-    cc_recipients = (email_data['ccRecipients'] || []).map { |r| r.dig('emailAddress', 'address') }.compact
+    to_recipients = (email_data["toRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
+    cc_recipients = (email_data["ccRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
 
     email.assign_attributes(
-      outlook_id: email_data['id'],
-      subject: email_data['subject'],
-      sender_email: from_data['address'],
-      sender_name: from_data['name'],
+      outlook_id: email_data["id"],
+      subject: email_data["subject"],
+      sender_email: from_data["address"],
+      sender_name: from_data["name"],
       to_recipients: to_recipients,
       cc_recipients: cc_recipients,
-      received_at: email_data['receivedDateTime'],
-      has_attachments: email_data['hasAttachments'] || false,
-      body_preview: email_data['bodyPreview'],
-      conversation_id: email_data['conversationId'],
+      received_at: email_data["receivedDateTime"],
+      has_attachments: email_data["hasAttachments"] || false,
+      body_preview: email_data["bodyPreview"],
+      conversation_id: email_data["conversationId"],
       folder_name: folder_name,
       owner_email: owner_email,
-      is_read: email_data['isRead'] || false,
+      is_read: email_data["isRead"] || false,
       synced_at: Time.current
     )
 
@@ -165,7 +165,7 @@ class OrgEmailSyncJob < ApplicationJob
     # Find recently synced unassigned emails for this user
     recent_unassigned = EmailWarehouse
       .where(owner_email: user_email, construction_id: nil)
-      .where('synced_at > ?', 1.hour.ago)
+      .where("synced_at > ?", 1.hour.ago)
 
     recent_unassigned.find_each do |email|
       # Try to auto-match based on email addresses in the thread
@@ -179,7 +179,7 @@ class OrgEmailSyncJob < ApplicationJob
 
   def find_matching_job(email)
     # Collect all email addresses involved
-    addresses = [email.sender_email, email.to_recipients, email.cc_recipients].flatten.compact.uniq
+    addresses = [ email.sender_email, email.to_recipients, email.cc_recipients ].flatten.compact.uniq
 
     # Find contacts with these emails
     contacts = Contact.where(email: addresses).or(Contact.where(email_secondary: addresses))

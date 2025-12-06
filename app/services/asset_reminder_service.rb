@@ -26,12 +26,12 @@ class AssetReminderService
     sent_count = 0
 
     # Check for insurance expiring in 90, 60, 30, 7 days
-    [90, 60, 30, 7].each do |days_before|
+    [ 90, 60, 30, 7 ].each do |days_before|
       target_date = @today + days_before.days
 
       insurances = AssetInsurance
         .includes(asset: :company)
-        .where(status: 'active')
+        .where(status: "active")
         .where(renewal_date: target_date)
 
       insurances.each do |insurance|
@@ -59,7 +59,7 @@ class AssetReminderService
     # Find assets with service due soon (based on last service record)
     assets_needing_service = Asset
       .includes(:asset_service_histories, :company)
-      .where(status: 'active')
+      .where(status: "active")
 
     assets_needing_service.each do |asset|
       last_service = asset.last_service
@@ -97,7 +97,7 @@ class AssetReminderService
 
     # Log activity
     insurance.asset.company.company_activities.create!(
-      activity_type: 'insurance_reminder_sent',
+      activity_type: "insurance_reminder_sent",
       description: "Insurance renewal reminder sent for #{insurance.asset.name}",
       metadata: {
         asset_id: insurance.asset.id,
@@ -128,7 +128,7 @@ class AssetReminderService
 
     # Log activity
     insurance.asset.company.company_activities.create!(
-      activity_type: 'insurance_overdue_reminder_sent',
+      activity_type: "insurance_overdue_reminder_sent",
       description: "Insurance overdue reminder sent for #{insurance.asset.name}",
       metadata: {
         asset_id: insurance.asset.id,
@@ -156,7 +156,7 @@ class AssetReminderService
 
     # Log activity
     asset.company.company_activities.create!(
-      activity_type: 'service_reminder_sent',
+      activity_type: "service_reminder_sent",
       description: "Service reminder sent for #{asset.name}",
       metadata: {
         asset_id: asset.id,
@@ -185,7 +185,7 @@ class AssetReminderService
 
     # Log activity
     asset.company.company_activities.create!(
-      activity_type: 'service_overdue_reminder_sent',
+      activity_type: "service_overdue_reminder_sent",
       description: "Service overdue reminder sent for #{asset.name}",
       metadata: {
         asset_id: asset.id,
@@ -204,13 +204,13 @@ class AssetReminderService
   def get_company_contacts(company)
     # Get finance team emails from company metadata or use a default list
     # This can be customized based on company settings
-    finance_emails = company.metadata['finance_team_emails'] if company.metadata.present?
+    finance_emails = company.metadata["finance_team_emails"] if company.metadata.present?
 
     if finance_emails.present?
-      finance_emails.is_a?(Array) ? finance_emails : [finance_emails]
+      finance_emails.is_a?(Array) ? finance_emails : [ finance_emails ]
     else
       # Default to admin users
-      User.where(role: 'admin').pluck(:email)
+      User.where(role: "admin").pluck(:email)
     end
   end
 

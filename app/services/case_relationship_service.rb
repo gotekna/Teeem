@@ -70,15 +70,15 @@ class CaseRelationshipService
   # Update a node's position
   def update_node_position(node_type, node_id, x:, y:)
     case node_type
-    when 'contact'
+    when "contact"
       case_contact = @case.case_contacts.find_by(contact_id: node_id)
       case_contact&.update_chart_position!(x: x, y: y)
-    when 'company'
+    when "company"
       case_company = @case.case_companies.find_by(company_id: node_id)
-      case_company&.update!(display_position: { 'x' => x, 'y' => y }) if case_company
-    when 'job'
+      case_company&.update!(display_position: { "x" => x, "y" => y }) if case_company
+    when "job"
       case_job = @case.case_jobs.find_by(job_id: node_id)
-      case_job&.update!(display_position: { 'x' => x, 'y' => y }) if case_job
+      case_job&.update!(display_position: { "x" => x, "y" => y }) if case_job
     end
   end
 
@@ -87,7 +87,7 @@ class CaseRelationshipService
   def build_case_node
     {
       id: "case-#{@case.id}",
-      type: 'case',
+      type: "case",
       position: { x: 300, y: 300 }, # Center position for 4-quadrant layout
       data: {
         id: @case.id,
@@ -139,18 +139,18 @@ class CaseRelationshipService
       rel_types = company_contacts.map { |cc| cc.relationship_type }.compact
       alignments = company_contacts.map { |cc| cc.alignment }.compact
       roles = company_contacts.map { |cc| cc.role }.compact
-      group_alignment = alignments.tally.max_by { |_, count| count }&.first || 'neutral'
+      group_alignment = alignments.tally.max_by { |_, count| count }&.first || "neutral"
 
       quadrant = determine_quadrant(rel_types, alignments, roles)
       case quadrant
       when :client
-        client_groups << [company_name, company_contacts, group_alignment]
+        client_groups << [ company_name, company_contacts, group_alignment ]
       when :advisor
-        advisor_groups << [company_name, company_contacts, group_alignment]
+        advisor_groups << [ company_name, company_contacts, group_alignment ]
       when :opposing
-        opposing_groups << [company_name, company_contacts, group_alignment]
+        opposing_groups << [ company_name, company_contacts, group_alignment ]
       else
-        neutral_groups << [company_name, company_contacts, group_alignment]
+        neutral_groups << [ company_name, company_contacts, group_alignment ]
       end
     end
 
@@ -164,7 +164,7 @@ class CaseRelationshipService
       alignment = case_contact.alignment
       role = case_contact.role
 
-      quadrant = determine_quadrant([rel_type].compact, [alignment].compact, [role].compact)
+      quadrant = determine_quadrant([ rel_type ].compact, [ alignment ].compact, [ role ].compact)
       case quadrant
       when :client
         client_singles << case_contact
@@ -280,7 +280,7 @@ class CaseRelationshipService
       end
     end
 
-    [nodes, edges]
+    [ nodes, edges ]
   end
 
   # Determine which quadrant a contact belongs to based on relationship types, alignments, and roles
@@ -290,13 +290,13 @@ class CaseRelationshipService
     advisor_roles = %w[advisor accountant lawyer]
 
     # Check if it's a client
-    return :client if rel_types.include?('client')
+    return :client if rel_types.include?("client")
 
     # Check alignment first - if explicitly opposing, put in opposing quadrant
-    return :opposing if alignments.include?('opposing')
+    return :opposing if alignments.include?("opposing")
 
     # Check alignment - if friendly, put in client quadrant
-    return :client if alignments.include?('friendly')
+    return :client if alignments.include?("friendly")
 
     # Check relationship type
     return :advisor if (rel_types & advisor_types).any?
@@ -312,7 +312,7 @@ class CaseRelationshipService
   def build_company_group_node(company_name, company_contacts, position, group_alignment, quadrant = nil)
     employees = company_contacts.map do |case_contact|
       contact = case_contact.contact
-      display_name = contact.full_name.presence || [contact.first_name, contact.last_name].compact.join(' ').presence || 'Contact'
+      display_name = contact.full_name.presence || [ contact.first_name, contact.last_name ].compact.join(" ").presence || "Contact"
       {
         id: contact.id,
         name: display_name,
@@ -330,7 +330,7 @@ class CaseRelationshipService
 
     {
       id: "company-group-#{company_name.parameterize}",
-      type: 'company_group',
+      type: "company_group",
       position: position,
       data: {
         company_name: company_name,
@@ -348,20 +348,20 @@ class CaseRelationshipService
       id: "edge-case-company-group-#{company_name.parameterize}",
       source: "case-#{@case.id}",
       target: "company-group-#{company_name.parameterize}",
-      type: 'company_group',
-      label: company_contacts.map { |cc| cc.formatted_relationship_type }.uniq.join(', '),
+      type: "company_group",
+      label: company_contacts.map { |cc| cc.formatted_relationship_type }.uniq.join(", "),
       data: {
         relationship_types: company_contacts.map { |cc| cc.relationship_type }.uniq,
-        color: 'indigo'
+        color: "indigo"
       }
     }
   end
 
   def build_contact_node(contact, case_contact, position)
-    display_name = contact.full_name.presence || [contact.first_name, contact.last_name].compact.join(' ').presence || 'Contact'
+    display_name = contact.full_name.presence || [ contact.first_name, contact.last_name ].compact.join(" ").presence || "Contact"
     {
       id: "contact-#{contact.id}",
-      type: 'contact',
+      type: "contact",
       position: position,
       data: {
         id: contact.id,
@@ -391,7 +391,7 @@ class CaseRelationshipService
       id: "edge-case-contact-#{contact.id}",
       source: "case-#{@case.id}",
       target: "contact-#{contact.id}",
-      type: 'relationship',
+      type: "relationship",
       animated: case_contact.is_primary,
       label: case_contact.formatted_relationship_type,
       data: {
@@ -415,8 +415,8 @@ class CaseRelationshipService
       next unless contact
 
       # Use saved position or calculate
-      position = if case_contact.display_position.present? && case_contact.display_position['x'].present?
-        { x: case_contact.display_position['x'], y: case_contact.display_position['y'] }
+      position = if case_contact.display_position.present? && case_contact.display_position["x"].present?
+        { x: case_contact.display_position["x"], y: case_contact.display_position["y"] }
       else
         angle = angle_step * index - (Math::PI / 2) # Start from top
         {
@@ -427,7 +427,7 @@ class CaseRelationshipService
 
       nodes << {
         id: "contact-#{contact.id}",
-        type: 'contact',
+        type: "contact",
         position: position,
         data: {
           id: contact.id,
@@ -455,7 +455,7 @@ class CaseRelationshipService
         id: "edge-case-contact-#{contact.id}",
         source: "case-#{@case.id}",
         target: "contact-#{contact.id}",
-        type: 'relationship',
+        type: "relationship",
         animated: case_contact.is_primary,
         label: case_contact.formatted_relationship_type,
         data: {
@@ -465,7 +465,7 @@ class CaseRelationshipService
       }
     end
 
-    [nodes, edges]
+    [ nodes, edges ]
   end
 
   def build_company_nodes_and_edges
@@ -480,14 +480,14 @@ class CaseRelationshipService
       next unless company
 
       position = if case_company.respond_to?(:display_position) && case_company.display_position.present?
-        { x: case_company.display_position['x'], y: case_company.display_position['y'] }
+        { x: case_company.display_position["x"], y: case_company.display_position["y"] }
       else
         { x: 200 + (index * 200), y: base_y }
       end
 
       nodes << {
         id: "company-#{company.id}",
-        type: 'company',
+        type: "company",
         position: position,
         data: {
           id: company.id,
@@ -507,8 +507,8 @@ class CaseRelationshipService
         id: "edge-case-company-#{company.id}",
         source: "case-#{@case.id}",
         target: "company-#{company.id}",
-        type: 'company',
-        label: case_company.role&.titleize || 'Related',
+        type: "company",
+        label: case_company.role&.titleize || "Related",
         data: {
           role: case_company.role,
           color: company_role_color(case_company.role)
@@ -516,7 +516,7 @@ class CaseRelationshipService
       }
     end
 
-    [nodes, edges]
+    [ nodes, edges ]
   end
 
   def build_job_nodes_and_edges
@@ -531,14 +531,14 @@ class CaseRelationshipService
       next unless job
 
       position = if case_job.respond_to?(:display_position) && case_job.display_position.present?
-        { x: case_job.display_position['x'], y: case_job.display_position['y'] }
+        { x: case_job.display_position["x"], y: case_job.display_position["y"] }
       else
         { x: 200 + (index * 200), y: base_y }
       end
 
       nodes << {
         id: "job-#{job.id}",
-        type: 'job',
+        type: "job",
         position: position,
         data: {
           id: job.id,
@@ -556,7 +556,7 @@ class CaseRelationshipService
         id: "edge-case-job-#{job.id}",
         source: "case-#{@case.id}",
         target: "job-#{job.id}",
-        type: 'job',
+        type: "job",
         label: case_job.formatted_relevance,
         data: {
           relevance: case_job.relevance,
@@ -565,7 +565,7 @@ class CaseRelationshipService
       }
     end
 
-    [nodes, edges]
+    [ nodes, edges ]
   end
 
   def find_inter_relationships
@@ -589,31 +589,31 @@ class CaseRelationshipService
               id: "edge-contact-company-#{contact.id}-#{company.id}-#{role}",
               source: "contact-#{contact.id}",
               target: "company-#{company.id}",
-              type: 'inter_relationship',
+              type: "inter_relationship",
               label: role.titleize,
-              style: { strokeDasharray: '5,5' }, # Dashed line
+              style: { strokeDasharray: "5,5" }, # Dashed line
               data: {
                 role: role,
-                color: 'gray'
+                color: "gray"
               }
             }
           end
         end
 
         # Check shareholdings
-        shareholding = company.company_shareholdings.find_by(shareholder_type: 'Contact', shareholder_id: contact.id)
+        shareholding = company.company_shareholdings.find_by(shareholder_type: "Contact", shareholder_id: contact.id)
         if shareholding && shareholding.percentage_of_total.to_f > 0
           edges << {
             id: "edge-contact-company-shareholding-#{contact.id}-#{company.id}",
             source: "contact-#{contact.id}",
             target: "company-#{company.id}",
-            type: 'inter_relationship',
+            type: "inter_relationship",
             label: "#{shareholding.percentage_of_total}% Owner",
-            style: { strokeDasharray: '5,5' },
+            style: { strokeDasharray: "5,5" },
             data: {
-              type: 'shareholding',
+              type: "shareholding",
               percentage: shareholding.percentage_of_total,
-              color: 'amber'
+              color: "amber"
             }
           }
         end
@@ -630,12 +630,12 @@ class CaseRelationshipService
             id: "edge-contact-job-#{contact.id}-#{job.id}",
             source: "contact-#{contact.id}",
             target: "job-#{job.id}",
-            type: 'inter_relationship',
+            type: "inter_relationship",
             label: job_contact.role.titleize,
-            style: { strokeDasharray: '5,5' },
+            style: { strokeDasharray: "5,5" },
             data: {
               role: job_contact.role,
-              color: 'blue'
+              color: "blue"
             }
           }
         end
@@ -647,29 +647,29 @@ class CaseRelationshipService
 
   def company_role_color(role)
     case role
-    when 'subject' then 'red'
-    when 'related_entity' then 'blue'
-    when 'counterparty' then 'orange'
-    else 'gray'
+    when "subject" then "red"
+    when "related_entity" then "blue"
+    when "counterparty" then "orange"
+    else "gray"
     end
   end
 
   def job_relevance_color(relevance)
     case relevance
-    when 'direct' then 'green'
-    when 'indirect' then 'blue'
-    when 'reference' then 'gray'
-    else 'gray'
+    when "direct" then "green"
+    when "indirect" then "blue"
+    when "reference" then "gray"
+    else "gray"
     end
   end
 
   def build_parent_case_node_and_edge
     parent = @case.parent_case
-    return [nil, nil] unless parent
+    return [ nil, nil ] unless parent
 
     node = {
       id: "case-#{parent.id}",
-      type: 'parent_case',
+      type: "parent_case",
       position: { x: 300, y: -100 }, # Above the main case (centered, with space)
       data: {
         id: parent.id,
@@ -689,17 +689,17 @@ class CaseRelationshipService
       id: "edge-parent-case-#{parent.id}",
       source: "case-#{parent.id}",
       target: "case-#{@case.id}",
-      type: 'hierarchy',
-      label: 'Parent Case',
+      type: "hierarchy",
+      label: "Parent Case",
       animated: true,
       style: { strokeWidth: 3 },
       data: {
-        type: 'parent_child',
-        color: 'slate'
+        type: "parent_child",
+        color: "slate"
       }
     }
 
-    [node, edge]
+    [ node, edge ]
   end
 
   def build_child_case_nodes_and_edges
@@ -707,7 +707,7 @@ class CaseRelationshipService
     edges = []
 
     children = @case.child_cases.includes(:assigned_to)
-    return [nodes, edges] if children.empty?
+    return [ nodes, edges ] if children.empty?
 
     # Position children below the main case (case center is at x=300)
     base_y = 550
@@ -719,7 +719,7 @@ class CaseRelationshipService
 
       nodes << {
         id: "case-#{child.id}",
-        type: 'child_case',
+        type: "child_case",
         position: position,
         data: {
           id: child.id,
@@ -743,7 +743,7 @@ class CaseRelationshipService
         id: "edge-child-case-#{child.id}",
         source: "case-#{@case.id}",
         target: "case-#{child.id}",
-        type: 'hierarchy',
+        type: "hierarchy",
         label: child.formatted_status,
         labelStyle: {
           fill: status_color(child.status),
@@ -751,24 +751,24 @@ class CaseRelationshipService
           fontSize: 10
         },
         data: {
-          type: 'parent_child',
+          type: "parent_child",
           status: child.status,
           color: status_color(child.status)
         }
       }
     end
 
-    [nodes, edges]
+    [ nodes, edges ]
   end
 
   def status_color(status)
     case status
-    when 'open' then '#3b82f6' # blue
-    when 'in_progress' then '#f59e0b' # amber
-    when 'review' then '#a855f7' # purple
-    when 'closed' then '#22c55e' # green
-    when 'archived' then '#6b7280' # gray
-    else '#6b7280'
+    when "open" then "#3b82f6" # blue
+    when "in_progress" then "#f59e0b" # amber
+    when "review" then "#a855f7" # purple
+    when "closed" then "#22c55e" # green
+    when "archived" then "#6b7280" # gray
+    else "#6b7280"
     end
   end
 end

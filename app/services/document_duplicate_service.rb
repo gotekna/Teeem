@@ -1,4 +1,4 @@
-require 'anthropic'
+require "anthropic"
 
 class DocumentDuplicateService
   MODEL = "claude-sonnet-4-20250514"
@@ -86,7 +86,7 @@ class DocumentDuplicateService
     rename: 74        # rename only
   }.freeze
 
-  DESTRUCTIVE_ACTIONS = [:delete_all, :merge, :keep_newest, :keep_oldest, :keep_verified].freeze
+  DESTRUCTIVE_ACTIONS = [ :delete_all, :merge, :keep_newest, :keep_oldest, :keep_verified ].freeze
 
   # Automatically resolve all duplicates using AI
   # Options:
@@ -232,11 +232,11 @@ class DocumentDuplicateService
       content = client.download_file(doc.onedrive_file_id)
 
       # Extract text preview based on file type
-      if doc.title&.end_with?('.pdf')
+      if doc.title&.end_with?(".pdf")
         extract_pdf_preview(content)
       else
         # For other files, just get first 500 chars
-        content.to_s.force_encoding('UTF-8').scrub[0..500]
+        content.to_s.force_encoding("UTF-8").scrub[0..500]
       end
     rescue StandardError => e
       Rails.logger.warn("Could not extract content preview for doc #{doc.id}: #{e.message}")
@@ -245,7 +245,7 @@ class DocumentDuplicateService
   end
 
   def self.extract_pdf_preview(content)
-    Tempfile.create(['doc', '.pdf']) do |file|
+    Tempfile.create([ "doc", ".pdf" ]) do |file|
       file.binmode
       file.write(content)
       file.rewind
@@ -263,7 +263,7 @@ class DocumentDuplicateService
   end
 
   def self.analyze_with_ai(doc_contents)
-    api_key = ENV['ANTHROPIC_API_KEY']
+    api_key = ENV["ANTHROPIC_API_KEY"]
     raise DuplicateError, "ANTHROPIC_API_KEY not configured" unless api_key
 
     client = Anthropic::Client.new(access_token: api_key)
@@ -274,7 +274,7 @@ class DocumentDuplicateService
       parameters: {
         model: MODEL,
         max_tokens: 1024,
-        messages: [{ role: "user", content: prompt }]
+        messages: [ { role: "user", content: prompt } ]
       }
     )
 
@@ -391,7 +391,7 @@ class DocumentDuplicateService
 
   def self.keep_verified(document_ids)
     docs = CompanyDocument.where(id: document_ids)
-    verified = docs.find_by(ai_verification_status: 'verified')
+    verified = docs.find_by(ai_verification_status: "verified")
 
     unless verified
       return { error: "No verified document found among duplicates" }
@@ -448,7 +448,7 @@ class DocumentDuplicateService
     return { error: "Need at least 2 documents to merge" } if other_docs.empty?
 
     # Only merge PDFs
-    unless docs.all? { |d| d.title&.downcase&.end_with?('.pdf') }
+    unless docs.all? { |d| d.title&.downcase&.end_with?(".pdf") }
       return { error: "Can only merge PDF documents" }
     end
 
@@ -484,7 +484,7 @@ class DocumentDuplicateService
 
       # Upload merged PDF (replace the keep document)
       file_info = client.get_item(keep_doc.onedrive_file_id)
-      parent_folder_id = file_info.dig('parentReference', 'id')
+      parent_folder_id = file_info.dig("parentReference", "id")
 
       # Delete original keep file first
       client.delete_file(keep_doc.onedrive_file_id) rescue nil
@@ -496,7 +496,7 @@ class DocumentDuplicateService
       keep_doc.update!(
         onedrive_file_id: result[:id],
         file_size: merged_content.bytesize,
-        ai_verification_status: 'pending', # Re-verify merged doc
+        ai_verification_status: "pending", # Re-verify merged doc
         ai_analysis_notes: "Merged from #{docs.count} documents: #{docs.pluck(:id).join(', ')}"
       )
 
@@ -620,7 +620,7 @@ class DocumentDuplicateService
       return { error: "Document is not marked for deletion" }
     end
 
-    new_name = doc.title.sub(DELETE_PREFIX, '')
+    new_name = doc.title.sub(DELETE_PREFIX, "")
 
     # Rename in SharePoint
     if doc.onedrive_file_id.present?

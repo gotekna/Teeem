@@ -1,14 +1,14 @@
-require 'oauth2'
-require 'httparty'
-require 'base64'
+require "oauth2"
+require "httparty"
+require "base64"
 
 class XeroApiClient
   include HTTParty
 
-  BASE_URL = 'https://api.xero.com/api.xro/2.0'
-  AUTH_URL = 'https://login.xero.com/identity/connect/authorize'
-  TOKEN_URL = 'https://identity.xero.com/connect/token'
-  CONNECTIONS_URL = 'https://api.xero.com/connections'
+  BASE_URL = "https://api.xero.com/api.xro/2.0"
+  AUTH_URL = "https://login.xero.com/identity/connect/authorize"
+  TOKEN_URL = "https://identity.xero.com/connect/token"
+  CONNECTIONS_URL = "https://api.xero.com/connections"
 
   # Custom error classes
   class ApiError < StandardError; end
@@ -16,11 +16,11 @@ class XeroApiClient
   class RateLimitError < StandardError; end
 
   def initialize
-    @client_id = ENV['XERO_CLIENT_ID']
-    @client_secret = ENV['XERO_CLIENT_SECRET']
-    @redirect_uri = ENV['XERO_REDIRECT_URI']
+    @client_id = ENV["XERO_CLIENT_ID"]
+    @client_secret = ENV["XERO_CLIENT_SECRET"]
+    @redirect_uri = ENV["XERO_REDIRECT_URI"]
 
-    raise AuthenticationError, 'Missing Xero credentials in environment' unless credentials_present?
+    raise AuthenticationError, "Missing Xero credentials in environment" unless credentials_present?
   end
 
   # Generate OAuth authorization URL
@@ -28,7 +28,7 @@ class XeroApiClient
     client = oauth_client
     client.auth_code.authorize_url(
       redirect_uri: @redirect_uri,
-      scope: 'offline_access accounting.transactions accounting.contacts accounting.settings'
+      scope: "offline_access accounting.transactions accounting.contacts accounting.settings"
     )
   end
 
@@ -38,7 +38,7 @@ class XeroApiClient
     client = oauth_client
     client.auth_code.authorize_url(
       redirect_uri: @redirect_uri,
-      scope: 'offline_access accounting.transactions accounting.contacts accounting.settings',
+      scope: "offline_access accounting.transactions accounting.contacts accounting.settings",
       state: "company_#{company_id}"
     )
   end
@@ -53,7 +53,7 @@ class XeroApiClient
       tenant_info = get_tenant_info(token.token)
 
       if tenant_info.empty?
-        raise ApiError, 'No Xero organization connected'
+        raise ApiError, "No Xero organization connected"
       end
 
       # Use the first organization
@@ -64,17 +64,17 @@ class XeroApiClient
         access_token: token.token,
         refresh_token: token.refresh_token,
         expires_at: Time.current + token.expires_in.seconds,
-        tenant_id: tenant['tenantId'],
-        tenant_name: tenant['tenantName'],
-        tenant_type: tenant['tenantType']
+        tenant_id: tenant["tenantId"],
+        tenant_name: tenant["tenantName"],
+        tenant_type: tenant["tenantType"]
       )
 
       Rails.logger.info("Xero OAuth successful: #{tenant['tenantName']} (#{tenant['tenantId']})")
 
       {
         success: true,
-        tenant_name: tenant['tenantName'],
-        tenant_id: tenant['tenantId'],
+        tenant_name: tenant["tenantName"],
+        tenant_id: tenant["tenantId"],
         expires_at: credential.expires_at
       }
     rescue OAuth2::Error => e
@@ -97,7 +97,7 @@ class XeroApiClient
       tenant_info = get_tenant_info(token.token)
 
       if tenant_info.empty?
-        raise ApiError, 'No Xero organization connected'
+        raise ApiError, "No Xero organization connected"
       end
 
       # Use the first organization (or let user select later)
@@ -111,16 +111,16 @@ class XeroApiClient
         access_token: token.token,
         refresh_token: token.refresh_token,
         expires_at: Time.current + token.expires_in.seconds,
-        tenant_id: tenant['tenantId'],
-        tenant_name: tenant['tenantName']
+        tenant_id: tenant["tenantId"],
+        tenant_name: tenant["tenantName"]
       )
 
       Rails.logger.info("Xero OAuth successful for company #{company.id}: #{tenant['tenantName']} (#{tenant['tenantId']})")
 
       {
         success: true,
-        tenant_name: tenant['tenantName'],
-        tenant_id: tenant['tenantId'],
+        tenant_name: tenant["tenantName"],
+        tenant_id: tenant["tenantId"],
         expires_at: connection.token_expires_at
       }
     rescue OAuth2::Error => e
@@ -135,14 +135,14 @@ class XeroApiClient
   # Refresh the access token
   def refresh_access_token
     credential = XeroCredential.current
-    return { success: false, error: 'No credentials found' } unless credential
+    return { success: false, error: "No credentials found" } unless credential
 
     refresh_access_token_for(credential)
   end
 
   # Refresh the access token for a specific credential (multi-tenant support)
   def refresh_access_token_for(credential)
-    return { success: false, error: 'No credentials provided' } unless credential
+    return { success: false, error: "No credentials provided" } unless credential
 
     begin
       # Try to access encrypted fields to check if decryption works
@@ -152,7 +152,7 @@ class XeroApiClient
       Rails.logger.error("Xero credential decryption failed in refresh_access_token - deleting corrupted credentials: #{e.message}")
       # Delete the corrupted credential
       credential.destroy
-      raise AuthenticationError, 'Xero credentials are corrupted. Please reconnect to Xero.'
+      raise AuthenticationError, "Xero credentials are corrupted. Please reconnect to Xero."
     end
 
     begin
@@ -186,7 +186,7 @@ class XeroApiClient
 
   # Refresh the access token for a CompanyXeroConnection
   def refresh_access_token_for_connection(connection)
-    return { success: false, error: 'No connection provided' } unless connection
+    return { success: false, error: "No connection provided" } unless connection
 
     begin
       # Try to access encrypted fields to check if decryption works
@@ -194,10 +194,10 @@ class XeroApiClient
       refresh_token_value = connection.refresh_token
     rescue ActiveRecord::Encryption::Errors::Decryption => e
       Rails.logger.error("Xero connection decryption failed for company #{connection.company_id}: #{e.message}")
-      return { success: false, error: 'Credentials corrupted. Please reconnect to Xero.' }
+      return { success: false, error: "Credentials corrupted. Please reconnect to Xero." }
     end
 
-    return { success: false, error: 'No refresh token available' } if refresh_token_value.blank?
+    return { success: false, error: "No refresh token available" } if refresh_token_value.blank?
 
     begin
       client = oauth_client
@@ -240,9 +240,9 @@ class XeroApiClient
 
     tenant_info.map do |tenant|
       {
-        tenant_id: tenant['tenantId'],
-        tenant_name: tenant['tenantName'],
-        tenant_type: tenant['tenantType']
+        tenant_id: tenant["tenantId"],
+        tenant_name: tenant["tenantName"],
+        tenant_type: tenant["tenantType"]
       }
     end
   end
@@ -277,7 +277,7 @@ class XeroApiClient
     if credential.nil?
       return {
         connected: false,
-        message: 'Not connected to Xero'
+        message: "Not connected to Xero"
       }
     end
 
@@ -292,7 +292,7 @@ class XeroApiClient
       credential.destroy
       return {
         connected: false,
-        message: 'Xero credentials are corrupted. Please reconnect to Xero.'
+        message: "Xero credentials are corrupted. Please reconnect to Xero."
       }
     end
 
@@ -307,8 +307,8 @@ class XeroApiClient
         Rails.logger.error "[Xero Status] Token refresh failed: #{e.message}"
         return {
           connected: false,
-          message: 'Session expired. Please reconnect to Xero.',
-          error: 'Token refresh failed'
+          message: "Session expired. Please reconnect to Xero.",
+          error: "Token refresh failed"
         }
       end
     end
@@ -325,7 +325,7 @@ class XeroApiClient
   # Disconnect from Xero (revoke tokens)
   def disconnect
     credential = XeroCredential.current
-    return { success: false, error: 'Not connected' } unless credential
+    return { success: false, error: "Not connected" } unless credential
 
     begin
       # Revoke the refresh token with Xero
@@ -337,7 +337,7 @@ class XeroApiClient
 
       Rails.logger.info("Xero disconnected successfully - tokens revoked and credentials deleted")
 
-      { success: true, message: 'Disconnected from Xero' }
+      { success: true, message: "Disconnected from Xero" }
     rescue StandardError => e
       Rails.logger.error("Xero disconnect error: #{e.message}")
 
@@ -361,10 +361,10 @@ class XeroApiClient
       auth_header = Base64.strict_encode64("#{@client_id}:#{@client_secret}")
 
       response = HTTParty.post(
-        'https://identity.xero.com/connect/revocation',
+        "https://identity.xero.com/connect/revocation",
         headers: {
-          'Authorization' => "Basic #{auth_header}",
-          'Content-Type' => 'application/x-www-form-urlencoded'
+          "Authorization" => "Basic #{auth_header}",
+          "Content-Type" => "application/x-www-form-urlencoded"
         },
         body: "token=#{token}",
         timeout: 10
@@ -383,26 +383,26 @@ class XeroApiClient
 
   # Fetch tax rates from Xero
   def get_tax_rates
-    response = make_request(:get, 'TaxRates')
+    response = make_request(:get, "TaxRates")
 
     if response[:success]
-      tax_rates = response[:data]['TaxRates'] || []
+      tax_rates = response[:data]["TaxRates"] || []
 
       # Update local database
       tax_rates.each do |rate|
-        XeroTaxRate.find_or_initialize_by(code: rate['TaxType']).tap do |tax_rate|
-          tax_rate.name = rate['Name']
-          tax_rate.rate = rate['EffectiveRate']
-          tax_rate.active = rate['Status'] == 'ACTIVE'
-          tax_rate.display_rate = rate['DisplayTaxRate']
-          tax_rate.tax_type = rate['TaxType']
+        XeroTaxRate.find_or_initialize_by(code: rate["TaxType"]).tap do |tax_rate|
+          tax_rate.name = rate["Name"]
+          tax_rate.rate = rate["EffectiveRate"]
+          tax_rate.active = rate["Status"] == "ACTIVE"
+          tax_rate.display_rate = rate["DisplayTaxRate"]
+          tax_rate.tax_type = rate["TaxType"]
           tax_rate.save!
         end
       end
 
       { success: true, tax_rates: XeroTaxRate.where(active: true).order(:name) }
     else
-      { success: false, error: 'Failed to fetch tax rates from Xero' }
+      { success: false, error: "Failed to fetch tax rates from Xero" }
     end
   rescue StandardError => e
     Rails.logger.error("Error fetching Xero tax rates: #{e.message}")
@@ -411,33 +411,33 @@ class XeroApiClient
 
   # Fetch chart of accounts from Xero
   def get_accounts
-    response = make_request(:get, 'Accounts')
+    response = make_request(:get, "Accounts")
 
     if response[:success]
-      accounts = response[:data]['Accounts'] || []
+      accounts = response[:data]["Accounts"] || []
 
       # Update local database
       accounts.each do |account|
         # Skip accounts without a code or name
-        next if account['Code'].blank? || account['Name'].blank?
+        next if account["Code"].blank? || account["Name"].blank?
 
-        XeroAccount.find_or_initialize_by(code: account['Code']).tap do |xero_account|
-          xero_account.name = account['Name']
-          xero_account.account_type = account['Type']
-          xero_account.tax_type = account['TaxType']
-          xero_account.description = account['Description']
-          xero_account.active = account['Status'] == 'ACTIVE'
-          xero_account.account_class = account['Class']
-          xero_account.system_account = account['SystemAccount'] || false
-          xero_account.enable_payments_to_account = account['EnablePaymentsToAccount'] || false
-          xero_account.show_in_expense_claims = account['ShowInExpenseClaims'] || false
+        XeroAccount.find_or_initialize_by(code: account["Code"]).tap do |xero_account|
+          xero_account.name = account["Name"]
+          xero_account.account_type = account["Type"]
+          xero_account.tax_type = account["TaxType"]
+          xero_account.description = account["Description"]
+          xero_account.active = account["Status"] == "ACTIVE"
+          xero_account.account_class = account["Class"]
+          xero_account.system_account = account["SystemAccount"] || false
+          xero_account.enable_payments_to_account = account["EnablePaymentsToAccount"] || false
+          xero_account.show_in_expense_claims = account["ShowInExpenseClaims"] || false
           xero_account.save!
         end
       end
 
       { success: true, accounts: XeroAccount.active.order(:code) }
     else
-      { success: false, error: 'Failed to fetch accounts from Xero' }
+      { success: false, error: "Failed to fetch accounts from Xero" }
     end
   rescue StandardError => e
     Rails.logger.error("Error fetching Xero accounts: #{e.message}")
@@ -458,22 +458,22 @@ class XeroApiClient
     response = make_request(:get, endpoint, {}, options)
 
     if response[:success]
-      attachments = response[:data]['Attachments'] || []
+      attachments = response[:data]["Attachments"] || []
       {
         success: true,
         attachments: attachments.map do |att|
           {
-            attachment_id: att['AttachmentID'],
-            filename: att['FileName'],
-            url: att['Url'],
-            mime_type: att['MimeType'],
-            content_length: att['ContentLength'],
-            include_online: att['IncludeOnline']
+            attachment_id: att["AttachmentID"],
+            filename: att["FileName"],
+            url: att["Url"],
+            mime_type: att["MimeType"],
+            content_length: att["ContentLength"],
+            include_online: att["IncludeOnline"]
           }
         end
       }
     else
-      { success: false, error: 'Failed to fetch attachments' }
+      { success: false, error: "Failed to fetch attachments" }
     end
   rescue StandardError => e
     Rails.logger.error("[Xero] Error fetching attachments for #{entity_type}/#{entity_id}: #{e.message}")
@@ -504,12 +504,12 @@ class XeroApiClient
   def get_invoice_pdf(invoice_id, options = {})
     endpoint = "Invoices/#{invoice_id}"
 
-    result = make_binary_request(:get, endpoint, options.merge(accept: 'application/pdf'))
+    result = make_binary_request(:get, endpoint, options.merge(accept: "application/pdf"))
 
     if result[:success]
       # Set a sensible filename based on invoice number if we can get it
       result[:filename] ||= "Invoice-#{invoice_id[0..7]}.pdf"
-      result[:mime_type] = 'application/pdf'
+      result[:mime_type] = "application/pdf"
     end
 
     result
@@ -524,11 +524,11 @@ class XeroApiClient
   def get_quote_pdf(quote_id, options = {})
     endpoint = "Quotes/#{quote_id}"
 
-    result = make_binary_request(:get, endpoint, options.merge(accept: 'application/pdf'))
+    result = make_binary_request(:get, endpoint, options.merge(accept: "application/pdf"))
 
     if result[:success]
       result[:filename] ||= "Quote-#{quote_id[0..7]}.pdf"
-      result[:mime_type] = 'application/pdf'
+      result[:mime_type] = "application/pdf"
     end
 
     result
@@ -547,7 +547,7 @@ class XeroApiClient
     OAuth2::Client.new(
       @client_id,
       @client_secret,
-      site: 'https://login.xero.com',
+      site: "https://login.xero.com",
       authorize_url: AUTH_URL,
       token_url: TOKEN_URL
     )
@@ -557,8 +557,8 @@ class XeroApiClient
     response = HTTParty.get(
       CONNECTIONS_URL,
       headers: {
-        'Authorization' => "Bearer #{access_token}",
-        'Content-Type' => 'application/json'
+        "Authorization" => "Bearer #{access_token}",
+        "Content-Type" => "application/json"
       }
     )
 
@@ -589,7 +589,7 @@ class XeroApiClient
     credential ||= XeroCredential.current
 
     unless credential
-      raise AuthenticationError, 'Not authenticated with Xero'
+      raise AuthenticationError, "Not authenticated with Xero"
     end
 
     # Try to access encrypted fields to check if decryption works
@@ -600,7 +600,7 @@ class XeroApiClient
       Rails.logger.error("Xero credential decryption failed - deleting corrupted credentials: #{e.message}")
       # Delete the corrupted credential
       credential.destroy
-      raise AuthenticationError, 'Xero credentials are corrupted. Please reconnect to Xero.'
+      raise AuthenticationError, "Xero credentials are corrupted. Please reconnect to Xero."
     end
 
     # Refresh token if expired - handle both credential types
@@ -622,10 +622,10 @@ class XeroApiClient
 
     begin
       headers = {
-        'Authorization' => "Bearer #{credential.access_token}",
-        'Xero-tenant-id' => request_tenant_id,
-        'Content-Type' => 'application/json',
-        'Accept' => 'application/json'
+        "Authorization" => "Bearer #{credential.access_token}",
+        "Xero-tenant-id" => request_tenant_id,
+        "Content-Type" => "application/json",
+        "Accept" => "application/json"
       }
 
       response = case method
@@ -642,7 +642,7 @@ class XeroApiClient
       handle_response(response)
     rescue Net::ReadTimeout => e
       Rails.logger.error("Xero API timeout: #{e.message}")
-      raise ApiError, 'Request timeout'
+      raise ApiError, "Request timeout"
     rescue StandardError => e
       Rails.logger.error("Xero API error: #{e.message}")
       raise ApiError, e.message
@@ -652,7 +652,7 @@ class XeroApiClient
   # Make a binary request (for downloading PDFs/attachments)
   def make_binary_request(method, endpoint, options = {})
     tenant_id = options[:tenant_id]
-    accept_type = options[:accept] || 'application/octet-stream'
+    accept_type = options[:accept] || "application/octet-stream"
 
     # Find credential (same logic as make_request)
     credential = nil
@@ -663,7 +663,7 @@ class XeroApiClient
     credential ||= XeroCredential.current
 
     unless credential
-      raise AuthenticationError, 'Not authenticated with Xero'
+      raise AuthenticationError, "Not authenticated with Xero"
     end
 
     # Refresh token if needed
@@ -681,16 +681,16 @@ class XeroApiClient
     url = "#{BASE_URL}/#{endpoint}"
 
     headers = {
-      'Authorization' => "Bearer #{credential.access_token}",
-      'Xero-tenant-id' => request_tenant_id,
-      'Accept' => accept_type
+      "Authorization" => "Bearer #{credential.access_token}",
+      "Xero-tenant-id" => request_tenant_id,
+      "Accept" => accept_type
     }
 
     response = HTTParty.get(url, headers: headers, timeout: 60)
 
     case response.code
     when 200..299
-      content_disposition = response.headers['content-disposition']
+      content_disposition = response.headers["content-disposition"]
       filename = nil
       if content_disposition.present?
         match = content_disposition.match(/filename="?([^";\s]+)"?/)
@@ -701,15 +701,15 @@ class XeroApiClient
         success: true,
         content: response.body,
         filename: filename,
-        mime_type: response.headers['content-type'],
-        content_length: response.headers['content-length']&.to_i
+        mime_type: response.headers["content-type"],
+        content_length: response.headers["content-length"]&.to_i
       }
     when 401
-      raise AuthenticationError, 'Authentication failed'
+      raise AuthenticationError, "Authentication failed"
     when 404
-      { success: false, error: 'Not found' }
+      { success: false, error: "Not found" }
     when 429
-      raise RateLimitError, 'Rate limit exceeded'
+      raise RateLimitError, "Rate limit exceeded"
     else
       { success: false, error: "Request failed with status #{response.code}" }
     end
@@ -728,28 +728,28 @@ class XeroApiClient
       # Unauthorized - token may be invalid
       Rails.logger.error("Xero API unauthorized (401): #{response.body}")
       error_body = JSON.parse(response.body) rescue {}
-      error_detail = error_body['Detail'] || error_body['message'] || 'Authentication failed'
+      error_detail = error_body["Detail"] || error_body["message"] || "Authentication failed"
       raise AuthenticationError, "Authentication failed: #{error_detail}"
     when 404
       # Not Found - endpoint or resource doesn't exist
       Rails.logger.error("Xero API not found (404): #{response.body}")
       error_body = JSON.parse(response.body) rescue {}
-      error_detail = error_body['Detail'] || error_body['message'] || 'Resource not found'
+      error_detail = error_body["Detail"] || error_body["message"] || "Resource not found"
       raise ApiError, "Not found: #{error_detail}"
     when 429
       # Rate limit exceeded
-      retry_after = response.headers['Retry-After'] || 60
+      retry_after = response.headers["Retry-After"] || 60
       Rails.logger.warn("Xero API rate limit hit. Retry after: #{retry_after}s")
       raise RateLimitError, "Rate limit exceeded. Retry after #{retry_after} seconds"
     when 400..499
       # Client error
       error_body = JSON.parse(response.body) rescue {}
-      error_message = error_body['Message'] || error_body['message'] || error_body['Detail'] || 'Client error'
-      error_details = error_body['Elements'] || []
+      error_message = error_body["Message"] || error_body["message"] || error_body["Detail"] || "Client error"
+      error_details = error_body["Elements"] || []
 
       full_error = "#{error_message}"
       if error_details.any?
-        detail_messages = error_details.map { |e| e['ValidationErrors']&.map { |v| v['Message'] } }.flatten.compact
+        detail_messages = error_details.map { |e| e["ValidationErrors"]&.map { |v| v["Message"] } }.flatten.compact
         full_error += ": #{detail_messages.join(', ')}" if detail_messages.any?
       end
 

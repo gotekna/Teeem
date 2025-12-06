@@ -15,7 +15,7 @@ puts "Using root folder ID: #{credential.root_folder_id}"
 
 # List all folders in OneDrive root
 result = client.list_folder_items(credential.root_folder_id)
-folders = (result['value'] || []).select { |f| f['folder'] }
+folders = (result["value"] || []).select { |f| f["folder"] }
 puts "\nFound #{folders.count} folders in OneDrive root"
 
 # Match folders to jobs and mark them as completed
@@ -26,13 +26,13 @@ folders.each do |folder|
   puts "\nFolder: #{folder['name']}"
   # Extract job code from folder name (e.g., "069 - XC 12-83 West Ridge Street")
   # Pattern: First 3 digits at the start
-  if folder['name'] =~ /^(\d{3})\s*-/
+  if folder["name"] =~ /^(\d{3})\s*-/
     job_code = $1.to_i
     job = Job.find_by(id: job_code)
     if job
       puts "  -> Matches Job #{job_code}: #{job.title}"
-      if job.onedrive_folder_creation_status != 'completed'
-        job.update_column(:onedrive_folder_creation_status, 'completed')
+      if job.onedrive_folder_creation_status != "completed"
+        job.update_column(:onedrive_folder_creation_status, "completed")
         puts "  -> Marked as completed"
       else
         puts "  -> Already completed"
@@ -69,39 +69,39 @@ jobs_found.each do |job|
 
     process_folder = lambda do |folder_id, folder_path|
       result = client.send(:get, "#{client.send(:drive_path)}/items/#{folder_id}/children")
-      items = result['value'] || []
+      items = result["value"] || []
 
       items.each do |item|
-        if item['folder']
+        if item["folder"]
           # Recurse into subfolders
-          subfolder_path = folder_path.present? ? "#{folder_path}/#{item['name']}" : item['name']
-          process_folder.call(item['id'], subfolder_path)
+          subfolder_path = folder_path.present? ? "#{folder_path}/#{item['name']}" : item["name"]
+          process_folder.call(item["id"], subfolder_path)
         else
           # It's a file - sync it
-          extension = File.extname(item['name']).delete('.').downcase
+          extension = File.extname(item["name"]).delete(".").downcase
           file_type = case extension
-                      when 'pdf', 'doc', 'docx' then 'document'
-                      when 'xls', 'xlsx', 'csv' then 'spreadsheet'
-                      when 'jpg', 'jpeg', 'png', 'gif', 'heic' then 'image'
-                      else 'other'
-                      end
+          when "pdf", "doc", "docx" then "document"
+          when "xls", "xlsx", "csv" then "spreadsheet"
+          when "jpg", "jpeg", "png", "gif", "heic" then "image"
+          else "other"
+          end
 
           # Find or create job document
           doc = JobDocument.find_or_initialize_by(
             job_id: job.id,
-            onedrive_item_id: item['id']
+            onedrive_item_id: item["id"]
           )
 
           doc.assign_attributes(
             onedrive_drive_id: client.instance_variable_get(:@drive_id) || credential.id.to_s,
-            file_name: item['name'],
+            file_name: item["name"],
             file_extension: extension,
             file_type: file_type,
-            file_size: item['size'],
+            file_size: item["size"],
             folder_path: folder_path,
-            web_url: item['webUrl'],
-            last_modified_at: item['lastModifiedDateTime'],
-            sync_status: 'synced',
+            web_url: item["webUrl"],
+            last_modified_at: item["lastModifiedDateTime"],
+            sync_status: "synced",
             last_synced_at: Time.current
           )
 
@@ -116,7 +116,7 @@ jobs_found.each do |job|
       end
     end
 
-    process_folder.call(folder['id'], '')
+    process_folder.call(folder["id"], "")
     puts "  -> Synced: #{files_synced} new, #{files_skipped} existing"
   rescue => e
     puts "  -> ERROR: #{e.message}"
@@ -126,7 +126,7 @@ end
 puts "\n=== Final Summary ==="
 total_docs = JobDocument.count
 puts "Total documents synced: #{total_docs}"
-Job.where(onedrive_folder_creation_status: 'completed').each do |job|
+Job.where(onedrive_folder_creation_status: "completed").each do |job|
   count = job.job_documents.count
   puts "  Job #{job.id}: #{count} documents"
 end

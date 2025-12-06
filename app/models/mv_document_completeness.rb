@@ -1,7 +1,7 @@
 # Read-only model for mv_document_completeness materialized view
 # Shows document counts by company and financial year with verification status
 class MvDocumentCompleteness < ApplicationRecord
-  self.table_name = 'mv_document_completeness'
+  self.table_name = "mv_document_completeness"
 
   # Read-only - prevent accidental writes
   def readonly?
@@ -18,20 +18,20 @@ class MvDocumentCompleteness < ApplicationRecord
   scope :for_type, ->(type) { where(document_type: type) }
   scope :for_category, ->(category) { where(document_category: category) }
   scope :for_entity_type, ->(entity_type) { where(entity_type: entity_type) }
-  scope :pending_verification, -> { where(ai_verification_status: [nil, 'pending']) }
-  scope :verified, -> { where(ai_verification_status: 'verified') }
-  scope :needs_review, -> { where(ai_verification_status: ['mismatch', 'needs_review']) }
+  scope :pending_verification, -> { where(ai_verification_status: [ nil, "pending" ]) }
+  scope :verified, -> { where(ai_verification_status: "verified") }
+  scope :needs_review, -> { where(ai_verification_status: [ "mismatch", "needs_review" ]) }
 
   # Summary by company
   def self.company_summary(company_id)
     for_company(company_id)
       .group(:financial_year)
       .select(
-        'financial_year',
-        'SUM(document_count) as total_documents',
-        'SUM(verified_count) as total_verified',
-        'SUM(pending_count) as total_pending',
-        'SUM(needs_review_count) as total_needs_review'
+        "financial_year",
+        "SUM(document_count) as total_documents",
+        "SUM(verified_count) as total_verified",
+        "SUM(pending_count) as total_pending",
+        "SUM(needs_review_count) as total_needs_review"
       )
       .order(:financial_year)
   end
@@ -41,11 +41,11 @@ class MvDocumentCompleteness < ApplicationRecord
     for_financial_year(financial_year)
       .group(:company_code, :company_name)
       .select(
-        'company_code',
-        'company_name',
-        'SUM(document_count) as total_documents',
-        'SUM(verified_count) as total_verified',
-        'SUM(pending_count) as total_pending'
+        "company_code",
+        "company_name",
+        "SUM(document_count) as total_documents",
+        "SUM(verified_count) as total_verified",
+        "SUM(pending_count) as total_pending"
       )
       .order(:company_code)
   end

@@ -1,7 +1,7 @@
 namespace :suppliers do
   desc "Import contacts from CSV and run supplier matching"
   task import_and_match: :environment do
-    require 'csv'
+    require "csv"
 
     puts "=" * 80
     puts "SUPPLIER-CONTACT MATCHING SYSTEM"
@@ -10,7 +10,7 @@ namespace :suppliers do
 
     # Step 1: Import contacts
     puts "Step 1: Importing contacts from CSV..."
-    contacts_file = Rails.root.join('..', 'easybuildapp development Contacts.csv')
+    contacts_file = Rails.root.join("..", "easybuildapp development Contacts.csv")
 
     unless File.exist?(contacts_file)
       puts "ERROR: Contacts CSV file not found at #{contacts_file}"
@@ -23,12 +23,12 @@ namespace :suppliers do
 
     CSV.foreach(contacts_file, headers: true) do |row|
       # Skip if no meaningful data
-      next if row['full_name'].blank? && row['first_name'].blank? && row['email'].blank?
+      next if row["full_name"].blank? && row["first_name"].blank? && row["email"].blank?
 
       # Check if contact already exists
       existing = Contact.find_by(
-        full_name: row['full_name'],
-        email: row['email']
+        full_name: row["full_name"],
+        email: row["email"]
       )
 
       if existing
@@ -37,25 +37,25 @@ namespace :suppliers do
       end
 
       Contact.create!(
-        sys_type_id: row['sys_type_id'],
-        deleted: row['deleted'] == 'true',
-        parent_id: row['parent_id'],
-        parent: row['parent'],
-        drive_id: row['drive_id'],
-        folder_id: row['folder_id'],
-        tax_number: row['tax_number'],
-        xero_id: row['xero_id'],
-        email: row['email'],
-        office_phone: row['office_phone'],
-        mobile_phone: row['mobile_phone'],
-        website: row['website'],
-        first_name: row['first_name'],
-        last_name: row['last_name'],
-        full_name: row['full_name'],
-        sync_with_xero: row['sync_with_xero'] == 'true',
-        contact_region_id: row['contact_region_id'],
-        contact_region: row['contact_region'],
-        branch: row['branch'] == 'true'
+        sys_type_id: row["sys_type_id"],
+        deleted: row["deleted"] == "true",
+        parent_id: row["parent_id"],
+        parent: row["parent"],
+        drive_id: row["drive_id"],
+        folder_id: row["folder_id"],
+        tax_number: row["tax_number"],
+        xero_id: row["xero_id"],
+        email: row["email"],
+        office_phone: row["office_phone"],
+        mobile_phone: row["mobile_phone"],
+        website: row["website"],
+        first_name: row["first_name"],
+        last_name: row["last_name"],
+        full_name: row["full_name"],
+        sync_with_xero: row["sync_with_xero"] == "true",
+        contact_region_id: row["contact_region_id"],
+        contact_region: row["contact_region"],
+        branch: row["branch"] == "true"
       )
 
       imported_count += 1
@@ -66,13 +66,13 @@ namespace :suppliers do
 
     # Step 2: Create suppliers from price book if needed
     puts "Step 2: Ensuring all price book suppliers exist..."
-    pricebook_file = Rails.root.join('..', 'pricebook_cleaned.csv')
+    pricebook_file = Rails.root.join("..", "pricebook_cleaned.csv")
 
     if File.exist?(pricebook_file)
       created_suppliers = 0
 
       CSV.foreach(pricebook_file, headers: true) do |row|
-        supplier_name = row['supplier_name']&.strip
+        supplier_name = row["supplier_name"]&.strip
         next if supplier_name.blank?
 
         # Find or create supplier

@@ -10,13 +10,13 @@ class PayNowNotificationJob < ApplicationJob
     end
 
     case notification_type
-    when 'submitted'
+    when "submitted"
       notify_supervisors(request)
-    when 'approved'
+    when "approved"
       notify_supplier_approved(request)
-    when 'rejected'
+    when "rejected"
       notify_supplier_rejected(request)
-    when 'paid'
+    when "paid"
       notify_supplier_paid(request)
     else
       Rails.logger.warn "PayNowNotificationJob: Unknown notification type '#{notification_type}'"
@@ -31,7 +31,7 @@ class PayNowNotificationJob < ApplicationJob
 
   def notify_supervisors(request)
     # Get all supervisors and builders
-    supervisors = User.where(role: ['supervisor', 'builder', 'admin'])
+    supervisors = User.where(role: [ "supervisor", "builder", "admin" ])
 
     supervisors.each do |supervisor|
       PayNowMailer.supervisor_review_needed(request, supervisor).deliver_now

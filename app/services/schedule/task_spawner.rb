@@ -12,7 +12,7 @@ module Schedule
 
     # Spawn all required child tasks based on template configuration
     def spawn_all
-      return { success: false, errors: ['Task has no template row'] } unless parent_task.schedule_template_row
+      return { success: false, errors: [ "Task has no template row" ] } unless parent_task.schedule_template_row
 
       spawned = []
 
@@ -39,11 +39,11 @@ module Schedule
       task = ProjectTask.create!(
         project: parent_task.project,
         parent_task: parent_task,
-        spawned_type: 'photo',
+        spawned_type: "photo",
         name: "Photo - #{parent_task.name}",
-        task_type: 'documentation',
-        category: 'photo',
-        status: 'not_started',
+        task_type: "documentation",
+        category: "photo",
+        status: "not_started",
         progress_percentage: 0,
         duration_days: 0,  # Photos are instant once uploaded
         sequence_order: parent_task.sequence_order + 0.1,
@@ -70,11 +70,11 @@ module Schedule
       task = ProjectTask.create!(
         project: parent_task.project,
         parent_task: parent_task,
-        spawned_type: 'certificate',
+        spawned_type: "certificate",
         name: "Certificate - #{parent_task.name}",
-        task_type: 'documentation',
-        category: 'certificate',
-        status: 'not_started',
+        task_type: "documentation",
+        category: "certificate",
+        status: "not_started",
         progress_percentage: 0,
         duration_days: 0,
         sequence_order: parent_task.sequence_order + 0.2,
@@ -102,11 +102,11 @@ module Schedule
         task = ProjectTask.create!(
           project: parent_task.project,
           parent_task: parent_task,
-          spawned_type: 'subtask',
+          spawned_type: "subtask",
           name: name,
           task_type: parent_task.task_type,
           category: parent_task.category,
-          status: 'not_started',
+          status: "not_started",
           progress_percentage: 0,
           duration_days: 1,  # Default 1 day per subtask
           sequence_order: parent_task.sequence_order + 0.3 + (index * 0.01),
@@ -127,17 +127,17 @@ module Schedule
 
     def should_spawn_photo?
       row = parent_task.schedule_template_row
-      row && row.require_photo && parent_task.status == 'complete'
+      row && row.require_photo && parent_task.status == "complete"
     end
 
     def should_spawn_certificate?
       row = parent_task.schedule_template_row
-      row && row.require_certificate && parent_task.status == 'complete'
+      row && row.require_certificate && parent_task.status == "complete"
     end
 
     def should_spawn_subtasks?
       row = parent_task.schedule_template_row
-      row && row.has_subtasks && parent_task.status == 'in_progress'
+      row && row.has_subtasks && parent_task.status == "in_progress"
     end
 
     def photo_task_exists?

@@ -18,7 +18,7 @@ class WHSSetting < ApplicationRecord
       parse_value(setting)
     end
 
-    def set(key, value, description: nil, type: 'string')
+    def set(key, value, description: nil, type: "string")
       setting = find_or_initialize_by(setting_key: key)
       setting.setting_value = serialize_value(value, type)
       setting.setting_type = type
@@ -29,7 +29,7 @@ class WHSSetting < ApplicationRecord
 
     def boolean?(key)
       setting = find_by(setting_key: key)
-      return false unless setting && setting.setting_type == 'boolean'
+      return false unless setting && setting.setting_type == "boolean"
 
       parse_value(setting)
     end
@@ -38,7 +38,7 @@ class WHSSetting < ApplicationRecord
       get(key, default).to_i
     end
 
-    def string(key, default = '')
+    def string(key, default = "")
       get(key, default).to_s
     end
 
@@ -48,11 +48,11 @@ class WHSSetting < ApplicationRecord
       return nil if setting.setting_value.nil?
 
       case setting.setting_type
-      when 'boolean'
+      when "boolean"
         ActiveModel::Type::Boolean.new.cast(setting.setting_value)
-      when 'integer'
+      when "integer"
         setting.setting_value.to_i
-      when 'json'
+      when "json"
         JSON.parse(setting.setting_value)
       else
         setting.setting_value
@@ -63,9 +63,9 @@ class WHSSetting < ApplicationRecord
 
     def serialize_value(value, type)
       case type
-      when 'json'
+      when "json"
         value.to_json
-      when 'boolean'
+      when "boolean"
         value.to_s
       else
         value.to_s

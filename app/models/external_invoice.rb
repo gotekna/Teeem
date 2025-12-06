@@ -27,22 +27,22 @@ class ExternalInvoice < ApplicationRecord
   validates :sync_direction, inclusion: { in: SYNC_DIRECTIONS }
 
   # Scopes by source
-  scope :xero, -> { where(source: 'xero') }
-  scope :myob, -> { where(source: 'myob') }
-  scope :quickbooks, -> { where(source: 'quickbooks') }
+  scope :xero, -> { where(source: "xero") }
+  scope :myob, -> { where(source: "myob") }
+  scope :quickbooks, -> { where(source: "quickbooks") }
 
   # Scopes by type
-  scope :sales_invoices, -> { where(invoice_type: 'sales_invoice') }
-  scope :bills, -> { where(invoice_type: 'bill') }
-  scope :credit_notes, -> { where(invoice_type: 'credit_note') }
-  scope :quotes, -> { where(invoice_type: 'quote') }
+  scope :sales_invoices, -> { where(invoice_type: "sales_invoice") }
+  scope :bills, -> { where(invoice_type: "bill") }
+  scope :credit_notes, -> { where(invoice_type: "credit_note") }
+  scope :quotes, -> { where(invoice_type: "quote") }
   scope :invoices_and_bills, -> { where(invoice_type: %w[sales_invoice bill]) }
 
   # Scopes by status
-  scope :draft, -> { where(status: 'draft') }
-  scope :approved, -> { where(status: 'approved') }
-  scope :paid, -> { where(status: 'paid') }
-  scope :unpaid, -> { where.not(status: 'paid') }
+  scope :draft, -> { where(status: "draft") }
+  scope :approved, -> { where(status: "approved") }
+  scope :paid, -> { where(status: "paid") }
+  scope :unpaid, -> { where.not(status: "paid") }
   scope :active, -> { where.not(status: %w[voided deleted]) }
 
   # Sync scopes
@@ -54,32 +54,32 @@ class ExternalInvoice < ApplicationRecord
 
   # Find by tracking option name (for job linking)
   scope :with_tracking, ->(tracking_name) {
-    where("tracking_data @> ?", [{ 'Option' => tracking_name }].to_json)
+    where("tracking_data @> ?", [ { "Option" => tracking_name } ].to_json)
   }
 
   # Status mappings from Xero to normalized
   XERO_STATUS_MAP = {
-    'DRAFT' => 'draft',
-    'SUBMITTED' => 'submitted',
-    'AUTHORISED' => 'approved',
-    'PAID' => 'paid',
-    'VOIDED' => 'voided',
-    'DELETED' => 'deleted'
+    "DRAFT" => "draft",
+    "SUBMITTED" => "submitted",
+    "AUTHORISED" => "approved",
+    "PAID" => "paid",
+    "VOIDED" => "voided",
+    "DELETED" => "deleted"
   }.freeze
 
   # Type mappings from Xero to normalized
   XERO_TYPE_MAP = {
-    'ACCREC' => 'sales_invoice',       # Accounts Receivable = Sales Invoice
-    'ACCPAY' => 'bill',                # Accounts Payable = Bill/Purchase
-    'ACCRECREDIT' => 'credit_note',    # Sales Credit Note
-    'ACCPAYCREDIT' => 'credit_note',   # Supplier Credit Note
-    'QUOTE' => 'quote'                 # Quote/Estimate
+    "ACCREC" => "sales_invoice",       # Accounts Receivable = Sales Invoice
+    "ACCPAY" => "bill",                # Accounts Payable = Bill/Purchase
+    "ACCRECREDIT" => "credit_note",    # Sales Credit Note
+    "ACCPAYCREDIT" => "credit_note",   # Supplier Credit Note
+    "QUOTE" => "quote"                 # Quote/Estimate
   }.freeze
 
   # Credit note type mappings (sales vs supplier)
   XERO_CREDIT_NOTE_TYPES = {
-    'ACCRECREDIT' => 'sales_credit',    # Credit given to customer
-    'ACCPAYCREDIT' => 'supplier_credit' # Credit from supplier
+    "ACCRECREDIT" => "sales_credit",    # Credit given to customer
+    "ACCPAYCREDIT" => "supplier_credit" # Credit from supplier
   }.freeze
 
   # Reverse mappings for export
@@ -88,52 +88,52 @@ class ExternalInvoice < ApplicationRecord
 
   # Quote status mappings from Xero
   XERO_QUOTE_STATUS_MAP = {
-    'DRAFT' => 'draft',
-    'SENT' => 'sent',
-    'ACCEPTED' => 'accepted',
-    'DECLINED' => 'declined',
-    'INVOICED' => 'invoiced',
-    'DELETED' => 'deleted'
+    "DRAFT" => "draft",
+    "SENT" => "sent",
+    "ACCEPTED" => "accepted",
+    "DECLINED" => "declined",
+    "INVOICED" => "invoiced",
+    "DELETED" => "deleted"
   }.freeze
 
   # Class method to normalize Xero status
   def self.normalize_xero_status(xero_status)
-    XERO_STATUS_MAP[xero_status] || 'draft'
+    XERO_STATUS_MAP[xero_status] || "draft"
   end
 
   # Class method to normalize Xero type
   def self.normalize_xero_type(xero_type)
-    XERO_TYPE_MAP[xero_type] || 'sales_invoice'
+    XERO_TYPE_MAP[xero_type] || "sales_invoice"
   end
 
   # Convert back to Xero status for export
   def xero_status
-    NORMALIZED_TO_XERO_STATUS[status] || 'DRAFT'
+    NORMALIZED_TO_XERO_STATUS[status] || "DRAFT"
   end
 
   # Convert back to Xero type for export
   def xero_type
-    NORMALIZED_TO_XERO_TYPE[invoice_type] || 'ACCREC'
+    NORMALIZED_TO_XERO_TYPE[invoice_type] || "ACCREC"
   end
 
   # Is this a sales invoice?
   def sales_invoice?
-    invoice_type == 'sales_invoice'
+    invoice_type == "sales_invoice"
   end
 
   # Is this a bill?
   def bill?
-    invoice_type == 'bill'
+    invoice_type == "bill"
   end
 
   # Is this a credit note?
   def credit_note?
-    invoice_type == 'credit_note'
+    invoice_type == "credit_note"
   end
 
   # Is this a quote?
   def quote?
-    invoice_type == 'quote'
+    invoice_type == "quote"
   end
 
   # Is this an invoice or bill (not credit note or quote)?
@@ -185,9 +185,9 @@ class ExternalInvoice < ApplicationRecord
   def add_conflict(field_name, teeem_value, external_value)
     conflicts = conflict_fields || {}
     conflicts[field_name] = {
-      'teeem_value' => teeem_value,
-      'external_value' => external_value,
-      'detected_at' => Time.current.iso8601
+      "teeem_value" => teeem_value,
+      "external_value" => external_value,
+      "detected_at" => Time.current.iso8601
     }
     update!(conflict_fields: conflicts)
   end
@@ -201,18 +201,18 @@ class ExternalInvoice < ApplicationRecord
 
   # Can import from external system?
   def can_import?
-    sync_enabled? && (sync_direction == 'import_only' || sync_direction == 'bidirectional')
+    sync_enabled? && (sync_direction == "import_only" || sync_direction == "bidirectional")
   end
 
   # Can export to external system?
   def can_export?
-    sync_enabled? && (sync_direction == 'export_only' || sync_direction == 'bidirectional')
+    sync_enabled? && (sync_direction == "export_only" || sync_direction == "bidirectional")
   end
 
   # Extract tracking option names from tracking_data
   def tracking_option_names
     return [] unless tracking_data.present?
-    tracking_data.map { |t| t['Option'] }.compact.uniq
+    tracking_data.map { |t| t["Option"] }.compact.uniq
   end
 
   # Link to job based on tracking category

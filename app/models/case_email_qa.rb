@@ -1,8 +1,8 @@
 class CaseEmailQa < ApplicationRecord
   # Associations
-  belongs_to :case, class_name: 'CaseRecord'
+  belongs_to :case, class_name: "CaseRecord"
   belongs_to :case_email, optional: true
-  belongs_to :email_warehouse, class_name: 'EmailWarehouse', optional: true
+  belongs_to :email_warehouse, class_name: "EmailWarehouse", optional: true
 
   # Validations
   validates :question, presence: true
@@ -43,11 +43,11 @@ class CaseEmailQa < ApplicationRecord
   end
 
   def display_question_from
-    question_from.presence || email_warehouse&.from_name || email_warehouse&.from_email || 'Unknown'
+    question_from.presence || email_warehouse&.from_name || email_warehouse&.from_email || "Unknown"
   end
 
   def display_answer_from
-    answer_from.presence || 'Unknown'
+    answer_from.presence || "Unknown"
   end
 
   private

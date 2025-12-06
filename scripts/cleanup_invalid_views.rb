@@ -116,7 +116,7 @@ if stats[:invalid_views] > 0
 
     affected_combos = Set.new
     stats[:deleted_views].each do |view_info|
-      affected_combos.add([view_info[:table_id], view_info[:user_id]])
+      affected_combos.add([ view_info[:table_id], view_info[:user_id] ])
     end
 
     affected_combos.each do |(table_id, user_id)|

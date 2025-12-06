@@ -1,8 +1,8 @@
 class MeetingAgendaItem < ApplicationRecord
   # Associations
   belongs_to :meeting
-  belongs_to :presenter, class_name: 'User', optional: true
-  belongs_to :created_task, class_name: 'ProjectTask', optional: true
+  belongs_to :presenter, class_name: "User", optional: true
+  belongs_to :created_task, class_name: "ProjectTask", optional: true
 
   # Validations
   validates :title, presence: true
@@ -28,7 +28,7 @@ class MeetingAgendaItem < ApplicationRecord
     # Create a project task (action item) from this agenda item
     # Following B11.001: Task status lifecycle
     task = meeting.construction.project_tasks.build(task_attributes.merge(
-      status: 'not_started',
+      status: "not_started",
       description: "Action item from meeting: #{meeting.title}\n\nAgenda item: #{title}\n\n#{description}"
     ))
 

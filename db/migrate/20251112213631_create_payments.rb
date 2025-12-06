@@ -16,6 +16,6 @@ class CreatePayments < ActiveRecord::Migration[8.0]
     end
 
     add_index :payments, :payment_date
-    add_index :payments, [:purchase_order_id, :payment_date]
+    add_index :payments, [ :purchase_order_id, :payment_date ]
   end
 end

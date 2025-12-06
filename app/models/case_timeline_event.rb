@@ -1,6 +1,6 @@
 # CaseTimelineEvent - chronological events for case investigation
 class CaseTimelineEvent < ApplicationRecord
-  belongs_to :case_record, foreign_key: :case_id, class_name: 'CaseRecord'
+  belongs_to :case_record, foreign_key: :case_id, class_name: "CaseRecord"
   belongs_to :source, polymorphic: true, optional: true
   belongs_to :contact, optional: true
   belongs_to :company, optional: true
@@ -21,15 +21,15 @@ class CaseTimelineEvent < ApplicationRecord
   scope :in_date_range, ->(start_date, end_date) { where(event_date: start_date..end_date) }
 
   EVENT_TYPES = {
-    'document' => { name: 'Document', icon: 'file-text', color: 'blue' },
-    'email' => { name: 'Email', icon: 'mail', color: 'purple' },
-    'transaction' => { name: 'Transaction', icon: 'dollar-sign', color: 'green' },
-    'meeting' => { name: 'Meeting', icon: 'users', color: 'orange' },
-    'filing' => { name: 'Filing', icon: 'folder', color: 'indigo' },
-    'court_date' => { name: 'Court Date', icon: 'gavel', color: 'red' },
-    'deadline' => { name: 'Deadline', icon: 'clock', color: 'amber' },
-    'milestone' => { name: 'Milestone', icon: 'flag', color: 'teal' },
-    'note' => { name: 'Note', icon: 'edit', color: 'gray' }
+    "document" => { name: "Document", icon: "file-text", color: "blue" },
+    "email" => { name: "Email", icon: "mail", color: "purple" },
+    "transaction" => { name: "Transaction", icon: "dollar-sign", color: "green" },
+    "meeting" => { name: "Meeting", icon: "users", color: "orange" },
+    "filing" => { name: "Filing", icon: "folder", color: "indigo" },
+    "court_date" => { name: "Court Date", icon: "gavel", color: "red" },
+    "deadline" => { name: "Deadline", icon: "clock", color: "amber" },
+    "milestone" => { name: "Milestone", icon: "flag", color: "teal" },
+    "note" => { name: "Note", icon: "edit", color: "gray" }
   }.freeze
 
   def event_config
@@ -41,11 +41,11 @@ class CaseTimelineEvent < ApplicationRecord
   end
 
   def default_icon
-    event_config[:icon] || 'circle'
+    event_config[:icon] || "circle"
   end
 
   def default_color
-    event_config[:color] || 'gray'
+    event_config[:color] || "gray"
   end
 
   def display_icon
@@ -57,11 +57,11 @@ class CaseTimelineEvent < ApplicationRecord
   end
 
   def formatted_date
-    event_date.strftime('%d %b %Y')
+    event_date.strftime("%d %b %Y")
   end
 
   def formatted_time
-    event_time&.strftime('%H:%M')
+    event_time&.strftime("%H:%M")
   end
 
   def formatted_datetime
@@ -78,7 +78,7 @@ class CaseTimelineEvent < ApplicationRecord
       create!(
         case_record: case_record,
         event_date: document.document_date || document.created_at.to_date,
-        event_type: 'document',
+        event_type: "document",
         title: document.title || document.filename,
         description: "Document: #{document.document_type}",
         source: document,
@@ -96,8 +96,8 @@ class CaseTimelineEvent < ApplicationRecord
         case_record: case_record,
         event_date: email.received_at&.to_date || email.created_at.to_date,
         event_time: email.received_at&.to_time,
-        event_type: 'email',
-        title: email.subject || '(No Subject)',
+        event_type: "email",
+        title: email.subject || "(No Subject)",
         description: "From: #{email.from_email}\nTo: #{email.to_emails&.join(', ')}",
         source: email,
         job_id: email.job_id,
@@ -114,7 +114,7 @@ class CaseTimelineEvent < ApplicationRecord
       create!(
         case_record: case_record,
         event_date: transaction.transaction_date,
-        event_type: 'transaction',
+        event_type: "transaction",
         title: "#{transaction.transaction_type.titleize}: $#{transaction.amount}",
         description: transaction.description,
         source: transaction,

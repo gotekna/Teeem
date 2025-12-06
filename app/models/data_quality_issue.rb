@@ -10,13 +10,13 @@ class DataQualityIssue < ApplicationRecord
 
   # Scopes
   scope :for_view, ->(name) { where(view_name: name) }
-  scope :open_issues, -> { where(status: 'open') }
+  scope :open_issues, -> { where(status: "open") }
   scope :unresolved, -> { where(status: %w[open acknowledged]) }
   scope :resolved, -> { where(status: %w[resolved ignored]) }
-  scope :critical, -> { where(severity: 'critical') }
+  scope :critical, -> { where(severity: "critical") }
   scope :errors, -> { where(severity: %w[error critical]) }
   scope :warnings, -> { where(severity: %w[warning error critical]) }
-  scope :recent, ->(days = 7) { where('detected_at >= ?', days.days.ago) }
+  scope :recent, ->(days = 7) { where("detected_at >= ?", days.days.ago) }
 
   # Create a new issue
   def self.report(view_name:, check_name:, severity:, description:, details: {}, affected_row_count: nil)
@@ -51,13 +51,13 @@ class DataQualityIssue < ApplicationRecord
 
   # Acknowledge an issue (someone is looking at it)
   def acknowledge!
-    update!(status: 'acknowledged')
+    update!(status: "acknowledged")
   end
 
   # Resolve an issue
   def resolve!(resolved_by:, notes: nil)
     update!(
-      status: 'resolved',
+      status: "resolved",
       resolved_at: Time.current,
       resolved_by: resolved_by,
       resolution_notes: notes
@@ -67,7 +67,7 @@ class DataQualityIssue < ApplicationRecord
   # Ignore an issue (acceptable condition)
   def ignore!(resolved_by:, notes: nil)
     update!(
-      status: 'ignored',
+      status: "ignored",
       resolved_at: Time.current,
       resolved_by: resolved_by,
       resolution_notes: notes
@@ -79,10 +79,10 @@ class DataQualityIssue < ApplicationRecord
     unresolved
       .where(view_name: view_name, check_name: check_name)
       .update_all(
-        status: 'resolved',
+        status: "resolved",
         resolved_at: Time.current,
-        resolved_by: 'system',
-        resolution_notes: 'Auto-resolved: check now passing'
+        resolved_by: "system",
+        resolution_notes: "Auto-resolved: check now passing"
       )
   end
 
@@ -92,13 +92,13 @@ class DataQualityIssue < ApplicationRecord
       total_open: open_issues.count,
       by_severity: {
         critical: open_issues.critical.count,
-        error: open_issues.where(severity: 'error').count,
-        warning: open_issues.where(severity: 'warning').count,
-        info: open_issues.where(severity: 'info').count
+        error: open_issues.where(severity: "error").count,
+        warning: open_issues.where(severity: "warning").count,
+        info: open_issues.where(severity: "info").count
       },
       by_view: open_issues.group(:view_name).count,
       oldest_open: open_issues.order(:detected_at).first&.detected_at,
-      recent_24h: where('detected_at >= ?', 24.hours.ago).count
+      recent_24h: where("detected_at >= ?", 24.hours.ago).count
     }
   end
 end

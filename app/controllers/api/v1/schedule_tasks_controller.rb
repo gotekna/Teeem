@@ -1,8 +1,8 @@
 module Api
   module V1
     class ScheduleTasksController < ApplicationController
-      before_action :set_job, only: [:index, :import, :gantt_data, :create, :copy_from_template]
-      before_action :set_schedule_task, only: [:show, :update, :destroy, :match_po, :unmatch_po]
+      before_action :set_job, only: [ :index, :import, :gantt_data, :create, :copy_from_template ]
+      before_action :set_schedule_task, only: [ :show, :update, :destroy, :match_po, :unmatch_po ]
 
       # GET /api/v1/constructions/:job_id/schedule_tasks
       # Returns all schedule tasks for a construction job
@@ -38,7 +38,7 @@ module Api
         if @schedule_task.save
           render json: {
             success: true,
-            message: 'Schedule task created successfully',
+            message: "Schedule task created successfully",
             schedule_task: task_to_json(@schedule_task)
           }, status: :created
         else
@@ -55,7 +55,7 @@ module Api
         unless params[:template_id].present?
           return render json: {
             success: false,
-            error: 'Template ID is required'
+            error: "Template ID is required"
           }, status: :unprocessable_entity
         end
 
@@ -64,7 +64,7 @@ module Api
         unless template
           return render json: {
             success: false,
-            error: 'Template not found'
+            error: "Template not found"
           }, status: :not_found
         end
 
@@ -74,7 +74,7 @@ module Api
         # Create schedule task from template
         @schedule_task = @job.schedule_tasks.new(
           title: template.name,
-          status: 'Not Started',
+          status: "Not Started",
           duration: "#{template.default_duration_days}d",
           supplier_category: template.category,
           sequence_order: max_sequence + 1
@@ -83,7 +83,7 @@ module Api
         if @schedule_task.save
           render json: {
             success: true,
-            message: 'Task created from template successfully',
+            message: "Task created from template successfully",
             schedule_task: task_to_json(@schedule_task)
           }, status: :created
         else
@@ -100,7 +100,7 @@ module Api
         unless params[:file].present?
           return render json: {
             success: false,
-            error: 'No file provided'
+            error: "No file provided"
           }, status: :unprocessable_entity
         end
 
@@ -114,7 +114,7 @@ module Api
           unless parse_result[:success]
             return render json: {
               success: false,
-              error: parse_result[:errors].join(', ')
+              error: parse_result[:errors].join(", ")
             }, status: :unprocessable_entity
           end
 
@@ -159,7 +159,7 @@ module Api
         unless params[:purchase_order_id].present?
           return render json: {
             success: false,
-            error: 'Purchase order ID is required'
+            error: "Purchase order ID is required"
           }, status: :unprocessable_entity
         end
 
@@ -168,7 +168,7 @@ module Api
         unless purchase_order
           return render json: {
             success: false,
-            error: 'Purchase order not found'
+            error: "Purchase order not found"
           }, status: :not_found
         end
 
@@ -176,7 +176,7 @@ module Api
         unless purchase_order.construction_id == @schedule_task.construction_id
           return render json: {
             success: false,
-            error: 'Purchase order does not belong to this job'
+            error: "Purchase order does not belong to this job"
           }, status: :unprocessable_entity
         end
 
@@ -184,7 +184,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Successfully matched to purchase order',
+          message: "Successfully matched to purchase order",
           schedule_task: task_to_json(@schedule_task)
         }
       end
@@ -196,7 +196,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Successfully unmatched from purchase order',
+          message: "Successfully unmatched from purchase order",
           schedule_task: task_to_json(@schedule_task)
         }
       end
@@ -211,7 +211,7 @@ module Api
         else
           render json: {
             success: false,
-            error: @schedule_task.errors.full_messages.join(', ')
+            error: @schedule_task.errors.full_messages.join(", ")
           }, status: :unprocessable_entity
         end
       end
@@ -222,7 +222,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Schedule task deleted successfully'
+          message: "Schedule task deleted successfully"
         }
       end
 
@@ -233,7 +233,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Construction job not found'
+          error: "Construction job not found"
         }, status: :not_found
       end
 
@@ -242,7 +242,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Schedule task not found'
+          error: "Schedule task not found"
         }, status: :not_found
       end
 
@@ -268,7 +268,7 @@ module Api
       end
 
       def save_temp_file(uploaded_file)
-        temp_file = Tempfile.new(['schedule_import', File.extname(uploaded_file.original_filename)])
+        temp_file = Tempfile.new([ "schedule_import", File.extname(uploaded_file.original_filename) ])
         temp_file.binmode
         temp_file.write(uploaded_file.read)
         temp_file.rewind
@@ -280,7 +280,7 @@ module Api
 
         rows.each_with_index do |row, index|
           # Skip rows without a title
-          next unless row['title'].present? || row['Title'].present?
+          next unless row["title"].present? || row["Title"].present?
 
           task_attributes = parse_schedule_row(row, index)
           @job.schedule_tasks.create!(task_attributes)
@@ -295,26 +295,26 @@ module Api
 
       def parse_schedule_row(row, index)
         # Handle case-insensitive column names
-        title = row['title'] || row['Title']
-        status = row['Status'] || row['status'] || 'Not Started'
-        start_date = parse_date(row['Start'] || row['start'])
-        complete_date = parse_date(row['Complete'] || row['complete'])
-        duration = row['duration'] || row['Duration']
-        supplier_category = row['supplier_category'] || row['Supplier Category']
-        supplier = row['Supplier'] || row['supplier']
+        title = row["title"] || row["Title"]
+        status = row["Status"] || row["status"] || "Not Started"
+        start_date = parse_date(row["Start"] || row["start"])
+        complete_date = parse_date(row["Complete"] || row["complete"])
+        duration = row["duration"] || row["Duration"]
+        supplier_category = row["supplier_category"] || row["Supplier Category"]
+        supplier = row["Supplier"] || row["supplier"]
 
         # Parse boolean and date fields
-        paid_internal = parse_boolean(row['Paid Internal'] || row['paid_internal'])
-        approx_date = parse_date(row['Approx Date'] || row['approx_date'])
-        confirm = parse_boolean(row['confirm'] || row['Confirm'])
-        supplier_confirm = parse_boolean(row['supplier_confirm'] || row['Supplier Confirm'])
-        task_started = parse_date(row['Task Started'] || row['task_started'])
-        completed = parse_date(row['Completed'] || row['completed'])
+        paid_internal = parse_boolean(row["Paid Internal"] || row["paid_internal"])
+        approx_date = parse_date(row["Approx Date"] || row["approx_date"])
+        confirm = parse_boolean(row["confirm"] || row["Confirm"])
+        supplier_confirm = parse_boolean(row["supplier_confirm"] || row["Supplier Confirm"])
+        task_started = parse_date(row["Task Started"] || row["task_started"])
+        completed = parse_date(row["Completed"] || row["completed"])
 
         # Parse predecessors (comma-separated list of task numbers)
-        predecessors = parse_predecessors(row['Predecessors'] || row['predecessors'])
+        predecessors = parse_predecessors(row["Predecessors"] || row["predecessors"])
 
-        attachments = row['Attachments'] || row['attachments']
+        attachments = row["Attachments"] || row["attachments"]
 
         {
           title: title,
@@ -358,7 +358,7 @@ module Api
         if value.is_a?(TrueClass) || value.is_a?(FalseClass)
           value
         elsif value.is_a?(String)
-          ['yes', 'true', '1', 'y'].include?(value.downcase.strip)
+          [ "yes", "true", "1", "y" ].include?(value.downcase.strip)
         else
           !!value
         end
@@ -377,27 +377,27 @@ module Api
         predecessors = []
 
         # Split by comma first to handle multiple dependencies
-        parts = value_str.split(',').map(&:strip)
+        parts = value_str.split(",").map(&:strip)
 
         parts.each do |part|
           # Handle '&' separated dependencies (e.g., "0 & 0+7d")
-          if part.include?('&')
-            part.split('&').map(&:strip).each do |subpart|
+          if part.include?("&")
+            part.split("&").map(&:strip).each do |subpart|
               predecessors << parse_single_predecessor(subpart)
             end
           # Handle '/' separated dependencies (e.g., "93/55 +1d")
-          elsif part.include?('/')
+          elsif part.include?("/")
             # Split by / and check if there's a lag at the end
             if part =~ /(.+)\s+(\+\d+[a-z]+)$/i
               # Has a lag time (e.g., "93/55 +1d")
-              dep_ids = $1.split('/').map(&:strip)
+              dep_ids = $1.split("/").map(&:strip)
               lag = $2.strip
               dep_ids.each do |dep_id|
                 predecessors << parse_single_predecessor(dep_id, lag)
               end
             else
               # No lag time, just split by /
-              part.split('/').map(&:strip).each do |dep_id|
+              part.split("/").map(&:strip).each do |dep_id|
                 predecessors << parse_single_predecessor(dep_id)
               end
             end

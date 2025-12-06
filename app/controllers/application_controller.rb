@@ -12,8 +12,8 @@ class ApplicationController < ActionController::API
   private
 
   def authorize_request
-    header = request.headers['Authorization']
-    header = header.split(' ').last if header
+    header = request.headers["Authorization"]
+    header = header.split(" ").last if header
 
     begin
       decoded = JsonWebToken.decode(header)
@@ -25,7 +25,7 @@ class ApplicationController < ActionController::API
     # Require authentication - no default user fallback
     # Use throw :abort to properly halt the filter chain in Rails API mode
     unless @current_user
-      render json: { error: 'Unauthorized' }, status: :unauthorized
+      render json: { error: "Unauthorized" }, status: :unauthorized
       return false  # Explicitly halt the filter chain
     end
     true
@@ -37,15 +37,15 @@ class ApplicationController < ActionController::API
 
   def require_admin
     unless current_user&.admin?
-      render json: { error: 'Unauthorized. Admin access required.' }, status: :forbidden
+      render json: { error: "Unauthorized. Admin access required." }, status: :forbidden
     end
   end
 
   # Try to set current_user from token if present, but don't require it
   # Used for endpoints that work for both authenticated and unauthenticated users
   def set_current_user_if_token_present
-    header = request.headers['Authorization']
-    header = header.split(' ').last if header
+    header = request.headers["Authorization"]
+    header = header.split(" ").last if header
     return unless header
 
     begin
@@ -79,14 +79,14 @@ class ApplicationController < ActionController::API
   def handle_not_found(exception)
     render json: {
       success: false,
-      error: 'Resource not found'
+      error: "Resource not found"
     }, status: :not_found
   end
 
   def handle_validation_error(exception)
     render json: {
       success: false,
-      error: 'Validation failed',
+      error: "Validation failed",
       errors: exception.record.errors.full_messages
     }, status: :unprocessable_entity
   end

@@ -1,7 +1,7 @@
 class Payment < ApplicationRecord
   # Associations
   belongs_to :purchase_order
-  belongs_to :created_by, class_name: 'User', optional: true
+  belongs_to :created_by, class_name: "User", optional: true
 
   # Validations
   validates :amount, presence: true, numericality: { greater_than: 0 }
@@ -53,16 +53,16 @@ class Payment < ApplicationRecord
     po_total = purchase_order.total || 0
 
     if total_payments.zero?
-      purchase_order.update(payment_status: 'pending')
+      purchase_order.update(payment_status: "pending")
     elsif total_payments >= po_total
       purchase_order.update(
-        payment_status: 'complete',
+        payment_status: "complete",
         xero_amount_paid: total_payments,
         xero_complete: true
       )
     else
       purchase_order.update(
-        payment_status: 'part_payment',
+        payment_status: "part_payment",
         xero_amount_paid: total_payments,
         xero_complete: false
       )

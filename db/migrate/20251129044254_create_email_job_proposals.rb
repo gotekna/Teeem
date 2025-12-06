@@ -42,7 +42,7 @@ class CreateEmailJobProposals < ActiveRecord::Migration[8.0]
 
     # Indexes for common queries
     add_index :email_job_proposals, :status
-    add_index :email_job_proposals, [:email_warehouse_id, :status]
+    add_index :email_job_proposals, [ :email_warehouse_id, :status ]
     add_index :email_job_proposals, :created_at
   end
 end

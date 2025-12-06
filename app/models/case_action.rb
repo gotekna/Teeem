@@ -5,8 +5,8 @@ class CaseAction < ApplicationRecord
   # ASSOCIATIONS
   # ============================================
 
-  belongs_to :case_record, foreign_key: :case_id, class_name: 'CaseRecord'
-  belongs_to :created_by, class_name: 'User', optional: true
+  belongs_to :case_record, foreign_key: :case_id, class_name: "CaseRecord"
+  belongs_to :created_by, class_name: "User", optional: true
 
   # ============================================
   # VALIDATIONS
@@ -39,10 +39,10 @@ class CaseAction < ApplicationRecord
   # SCOPES
   # ============================================
 
-  scope :pending, -> { where(status: 'pending') }
-  scope :running, -> { where(status: 'running') }
-  scope :completed, -> { where(status: 'completed') }
-  scope :failed, -> { where(status: 'failed') }
+  scope :pending, -> { where(status: "pending") }
+  scope :running, -> { where(status: "running") }
+  scope :completed, -> { where(status: "completed") }
+  scope :failed, -> { where(status: "failed") }
   scope :by_type, ->(type) { where(action_type: type) }
   scope :recent_first, -> { order(created_at: :desc) }
   scope :with_results, -> { where.not(results: {}) }
@@ -52,71 +52,71 @@ class CaseAction < ApplicationRecord
   # ============================================
 
   ACTION_TYPES = {
-    'document_search' => {
-      name: 'Document Search',
-      description: 'Search documents across related entities',
-      icon: 'file-search',
-      data_sources: ['mv_document_summary', 'company_documents']
+    "document_search" => {
+      name: "Document Search",
+      description: "Search documents across related entities",
+      icon: "file-search",
+      data_sources: [ "mv_document_summary", "company_documents" ]
     },
-    'email_search' => {
-      name: 'Email Search',
-      description: 'Full-text search across email warehouse',
-      icon: 'mail-search',
-      data_sources: ['email_warehouse']
+    "email_search" => {
+      name: "Email Search",
+      description: "Full-text search across email warehouse",
+      icon: "mail-search",
+      data_sources: [ "email_warehouse" ]
     },
-    'timeline_build' => {
-      name: 'Build Timeline',
-      description: 'Auto-generate chronological timeline from all sources',
-      icon: 'calendar-clock',
-      data_sources: ['email_warehouse', 'company_documents', 'financial_transactions']
+    "timeline_build" => {
+      name: "Build Timeline",
+      description: "Auto-generate chronological timeline from all sources",
+      icon: "calendar-clock",
+      data_sources: [ "email_warehouse", "company_documents", "financial_transactions" ]
     },
-    'financial_analysis' => {
-      name: 'Financial Analysis',
-      description: 'Analyze financial patterns and anomalies',
-      icon: 'chart-line',
-      data_sources: ['mv_financial_summary', 'mv_job_summary']
+    "financial_analysis" => {
+      name: "Financial Analysis",
+      description: "Analyze financial patterns and anomalies",
+      icon: "chart-line",
+      data_sources: [ "mv_financial_summary", "mv_job_summary" ]
     },
-    'invoice_reconciliation' => {
-      name: 'Invoice Reconciliation',
-      description: 'Find unmatched POs and invoice variances',
-      icon: 'receipt',
-      data_sources: ['mv_invoice_po_reconciliation']
+    "invoice_reconciliation" => {
+      name: "Invoice Reconciliation",
+      description: "Find unmatched POs and invoice variances",
+      icon: "receipt",
+      data_sources: [ "mv_invoice_po_reconciliation" ]
     },
-    'document_completeness' => {
-      name: 'Document Completeness',
-      description: 'Identify missing required documents',
-      icon: 'clipboard-check',
-      data_sources: ['mv_document_completeness', 'mv_job_document_status']
+    "document_completeness" => {
+      name: "Document Completeness",
+      description: "Identify missing required documents",
+      icon: "clipboard-check",
+      data_sources: [ "mv_document_completeness", "mv_job_document_status" ]
     },
-    'resource_audit' => {
-      name: 'Resource Audit',
-      description: 'Analyze time entries and labor costs',
-      icon: 'users',
-      data_sources: ['mv_resource_utilization', 'mv_task_metrics']
+    "resource_audit" => {
+      name: "Resource Audit",
+      description: "Analyze time entries and labor costs",
+      icon: "users",
+      data_sources: [ "mv_resource_utilization", "mv_task_metrics" ]
     },
-    'entity_analysis' => {
-      name: 'Entity Analysis',
-      description: 'Deep dive on a person or company',
-      icon: 'user-search',
-      data_sources: ['contacts', 'companies', 'contact_relationships']
+    "entity_analysis" => {
+      name: "Entity Analysis",
+      description: "Deep dive on a person or company",
+      icon: "user-search",
+      data_sources: [ "contacts", "companies", "contact_relationships" ]
     },
-    'inconsistency_check' => {
-      name: 'Inconsistency Check',
-      description: 'AI analysis to find contradictions and issues',
-      icon: 'alert-triangle',
-      data_sources: ['all']
+    "inconsistency_check" => {
+      name: "Inconsistency Check",
+      description: "AI analysis to find contradictions and issues",
+      icon: "alert-triangle",
+      data_sources: [ "all" ]
     },
-    'summary_report' => {
-      name: 'Summary Report',
-      description: 'Generate executive summary of findings',
-      icon: 'file-text',
-      data_sources: ['case_actions', 'case_documents', 'case_emails']
+    "summary_report" => {
+      name: "Summary Report",
+      description: "Generate executive summary of findings",
+      icon: "file-text",
+      data_sources: [ "case_actions", "case_documents", "case_emails" ]
     },
-    'full_analysis' => {
-      name: 'Full Case Analysis',
-      description: 'Import emails from warehouse, extract entities, build timeline, extract Q&A, find document links',
-      icon: 'sparkles',
-      data_sources: ['email_warehouse', 'contacts', 'companies', 'case_emails', 'case_timeline_events', 'case_email_qas']
+    "full_analysis" => {
+      name: "Full Case Analysis",
+      description: "Import emails from warehouse, extract entities, build timeline, extract Q&A, find document links",
+      icon: "sparkles",
+      data_sources: [ "email_warehouse", "contacts", "companies", "case_emails", "case_timeline_events", "case_email_qas" ]
     }
   }.freeze
 
@@ -137,7 +137,7 @@ class CaseAction < ApplicationRecord
   end
 
   def action_icon
-    action_config[:icon] || 'search'
+    action_config[:icon] || "search"
   end
 
   def data_sources
@@ -146,13 +146,13 @@ class CaseAction < ApplicationRecord
 
   # Mark as running
   def start!
-    update!(status: 'running', started_at: Time.current, error_message: nil)
+    update!(status: "running", started_at: Time.current, error_message: nil)
   end
 
   # Mark as completed with results
   def complete!(results:, ai_analysis: nil, inconsistencies: [], result_count: nil)
     update!(
-      status: 'completed',
+      status: "completed",
       completed_at: Time.current,
       results: results,
       ai_analysis: ai_analysis,
@@ -164,26 +164,26 @@ class CaseAction < ApplicationRecord
   # Mark as failed
   def fail!(error_message)
     update!(
-      status: 'failed',
+      status: "failed",
       completed_at: Time.current,
       error_message: error_message
     )
   end
 
   def completed?
-    status == 'completed'
+    status == "completed"
   end
 
   def failed?
-    status == 'failed'
+    status == "failed"
   end
 
   def running?
-    status == 'running'
+    status == "running"
   end
 
   def pending?
-    status == 'pending'
+    status == "pending"
   end
 
   def has_inconsistencies?
@@ -214,8 +214,8 @@ class CaseAction < ApplicationRecord
   def calculate_result_count(results)
     return 0 if results.blank?
     return results.length if results.is_a?(Array)
-    return results['count'] if results['count']
-    return results['items']&.length if results['items']
+    return results["count"] if results["count"]
+    return results["items"]&.length if results["items"]
     0
   end
 end

@@ -8,13 +8,13 @@ class ContactAddress < ApplicationRecord
 
   scope :primary, -> { where(is_primary: true) }
   scope :secondary, -> { where(is_primary: false) }
-  scope :street, -> { where(address_type: 'STREET') }
-  scope :pobox, -> { where(address_type: 'POBOX') }
-  scope :delivery, -> { where(address_type: 'DELIVERY') }
+  scope :street, -> { where(address_type: "STREET") }
+  scope :pobox, -> { where(address_type: "POBOX") }
+  scope :delivery, -> { where(address_type: "DELIVERY") }
 
   def display_address
-    parts = [line1, line2, line3, line4, city, region, postal_code, country].compact.reject(&:empty?)
-    parts.join(', ')
+    parts = [ line1, line2, line3, line4, city, region, postal_code, country ].compact.reject(&:empty?)
+    parts.join(", ")
   end
 
   def single_line
@@ -28,7 +28,7 @@ class ContactAddress < ApplicationRecord
     lines << line3 if line3.present?
     lines << line4 if line4.present?
 
-    city_line = [city, region, postal_code].compact.reject(&:empty?).join(' ')
+    city_line = [ city, region, postal_code ].compact.reject(&:empty?).join(" ")
     lines << city_line if city_line.present?
     lines << country if country.present?
 
@@ -39,7 +39,7 @@ class ContactAddress < ApplicationRecord
 
   def only_one_primary_per_contact
     if contact && contact.contact_addresses.where(is_primary: true).where.not(id: id).exists?
-      errors.add(:is_primary, 'can only have one primary address')
+      errors.add(:is_primary, "can only have one primary address")
     end
   end
 end

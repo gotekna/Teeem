@@ -44,10 +44,10 @@ class CreateFactJobDailySnapshot < ActiveRecord::Migration[8.0]
     end
 
     # Unique constraint: one snapshot per job per day
-    add_index :fact_job_daily_snapshots, [:job_id, :snapshot_date], unique: true, name: 'idx_fact_job_snapshot_unique'
+    add_index :fact_job_daily_snapshots, [ :job_id, :snapshot_date ], unique: true, name: 'idx_fact_job_snapshot_unique'
 
     # Query indexes
     add_index :fact_job_daily_snapshots, :snapshot_date
-    add_index :fact_job_daily_snapshots, [:snapshot_date, :job_status]
+    add_index :fact_job_daily_snapshots, [ :snapshot_date, :job_status ]
   end
 end

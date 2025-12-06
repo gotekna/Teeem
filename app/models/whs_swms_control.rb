@@ -20,8 +20,8 @@ class WHSSWMSControl < ApplicationRecord
   # Scopes
   scope :by_control_type, ->(type) { where(control_type: type) }
   scope :ordered, -> { order(:position) }
-  scope :elimination_controls, -> { where(control_type: 'elimination') }
-  scope :ppe_controls, -> { where(control_type: 'ppe') }
+  scope :elimination_controls, -> { where(control_type: "elimination") }
+  scope :ppe_controls, -> { where(control_type: "ppe") }
 
   # Helper methods
   def hierarchy_order
@@ -56,16 +56,16 @@ class WHSSWMSControl < ApplicationRecord
     return unless residual_risk_score.present?
 
     self.residual_risk_level = case residual_risk_score
-                                when 1..6
-                                  'low'
-                                when 7..12
-                                  'medium'
-                                when 13..20
-                                  'high'
-                                when 21..25
-                                  'extreme'
-                                else
-                                  'low'
-                                end
+    when 1..6
+                                  "low"
+    when 7..12
+                                  "medium"
+    when 13..20
+                                  "high"
+    when 21..25
+                                  "extreme"
+    else
+                                  "low"
+    end
   end
 end

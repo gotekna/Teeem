@@ -6,60 +6,60 @@ module Api
       # GET /api/v1/foundations/:foundation_id/records
       def index
         # Sanitize and validate pagination parameters to prevent DoS
-        page = [(params[:page] || 1).to_i, 1].max
-        per_page = [(params[:per_page] || 50).to_i, 1].max
+        page = [ (params[:page] || 1).to_i, 1 ].max
+        per_page = [ (params[:per_page] || 50).to_i, 1 ].max
 
         # Support minimal fields for fast initial loading
         fields_mode = params[:fields] # 'minimal' or nil (full)
 
         # For minimal mode, allow loading all records at once (it's lightweight)
-        if fields_mode == 'minimal'
-          per_page = [per_page, 20000].min  # Allow up to 20K items in minimal mode
+        if fields_mode == "minimal"
+          per_page = [ per_page, 20000 ].min  # Allow up to 20K items in minimal mode
         else
-          per_page = [per_page, 10000].min  # Cap at 10000 to prevent DoS
+          per_page = [ per_page, 10000 ].min  # Cap at 10000 to prevent DoS
         end
 
         search = params[:search]
-        search_all = params[:search_all] == 'true' # Search all text columns instead of just searchable ones
+        search_all = params[:search_all] == "true" # Search all text columns instead of just searchable ones
         sort_by = params[:sort_by]
-        sort_direction = params[:sort_direction]&.downcase == 'desc' ? 'desc' : 'asc'
+        sort_direction = params[:sort_direction]&.downcase == "desc" ? "desc" : "asc"
 
         model = @foundation.dynamic_model
         query = model.all
 
         # Include associations for system tables to prevent N+1 queries
-        if @foundation.table_type == 'system'
+        if @foundation.table_type == "system"
           query = apply_system_table_includes(query, model)
         end
 
         # Exclude soft-deleted records if the table has a 'deleted' column
-        if model.column_names.include?('deleted')
-          query = query.where(deleted: [false, nil])
+        if model.column_names.include?("deleted")
+          query = query.where(deleted: [ false, nil ])
         end
 
         # Apply duplicates_only filter for Contacts
-        if params[:duplicates_only] == 'true' && model.table_name == 'contacts'
+        if params[:duplicates_only] == "true" && model.table_name == "contacts"
           duplicate_ids = find_duplicate_contact_ids
           query = query.where(id: duplicate_ids)
         end
 
         # Apply search filter
         if search.present?
-          searchable_columns = if @foundation.table_type == 'system'
+          searchable_columns = if @foundation.table_type == "system"
             if search_all
               # Search all text columns from the model (slower but comprehensive)
               # Exclude array columns (e.g., roles) as ILIKE doesn't work on arrays
-              model.columns.select { |c| [:string, :text].include?(c.type) && !c.array }.map(&:name)
+              model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name)
             else
               # For system tables, use a predefined list of key searchable columns (fast)
               # These are the columns users typically want to search
               system_searchable = {
-                'contacts' => %w[full_name first_name last_name email company_name_or_trust mobile_phone office_phone notes],
-                'constructions' => %w[name description address status],
-                'jobs' => %w[title location ted_number]
+                "contacts" => %w[full_name first_name last_name email company_name_or_trust mobile_phone office_phone notes],
+                "constructions" => %w[name description address status],
+                "jobs" => %w[title location ted_number]
               }
               table_name = model.table_name
-              system_searchable[table_name] || model.columns.select { |c| [:string, :text].include?(c.type) && !c.array }.map(&:name).first(5)
+              system_searchable[table_name] || model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name).first(5)
             end
           elsif search_all
             # Search all text-like columns when search_all is enabled
@@ -69,7 +69,7 @@ module Api
             @foundation.columns.where(searchable: true).pluck(:column_name)
           end
           if searchable_columns.any?
-            search_conditions = searchable_columns.map { |col| "#{col} ILIKE :search" }.join(' OR ')
+            search_conditions = searchable_columns.map { |col| "#{col} ILIKE :search" }.join(" OR ")
             query = query.where(search_conditions, search: "%#{search}%")
           end
         end
@@ -77,7 +77,7 @@ module Api
         # Apply sorting with SQL injection prevention
         if sort_by.present?
           # For system foundations, validate against model columns
-          valid_columns = if @foundation.table_type == 'system'
+          valid_columns = if @foundation.table_type == "system"
             model.column_names
           else
             @foundation.columns.pluck(:column_name)
@@ -98,7 +98,7 @@ module Api
 
         # For minimal mode, select only essential columns for faster queries
         # IMPORTANT: Apply select AFTER count to avoid PostgreSQL COUNT() errors
-        if fields_mode == 'minimal'
+        if fields_mode == "minimal"
           essential_columns = determine_essential_columns(@foundation, params[:view_id])
           query = query.select(*essential_columns) if essential_columns.any?
         end
@@ -107,11 +107,11 @@ module Api
         records = query.offset((page - 1) * per_page).limit(per_page)
 
         # Build lookup cache to prevent N+1 queries (only for user foundations with lookup columns)
-        lookup_cache = @foundation.table_type == 'system' ? {} : build_lookup_cache(records)
+        lookup_cache = @foundation.table_type == "system" ? {} : build_lookup_cache(records)
 
         # Pre-compute employees_count for contacts to avoid N+1 queries
         employees_count_cache = {}
-        if model.table_name == 'contacts'
+        if model.table_name == "contacts"
           record_ids = records.map(&:id)
           employees_count_cache = Contact.where(primary_company_id: record_ids)
                                          .group(:primary_company_id)
@@ -127,8 +127,8 @@ module Api
             total_count: total_count,
             total_pages: (total_count.to_f / per_page).ceil
           },
-          fields_mode: fields_mode || 'full', # Indicate which mode was used
-          progressive_loading: fields_mode == 'minimal' # Flag for frontend
+          fields_mode: fields_mode || "full", # Indicate which mode was used
+          progressive_loading: fields_mode == "minimal" # Flag for frontend
         }
       rescue => e
         render json: { error: e.message }, status: :internal_server_error
@@ -144,7 +144,7 @@ module Api
           record: record_to_json(record)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Record not found' }, status: :not_found
+        render json: { error: "Record not found" }, status: :not_found
       end
 
       # POST /api/v1/foundations/:foundation_id/records
@@ -190,7 +190,7 @@ module Api
           }, status: :unprocessable_entity
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Record not found' }, status: :not_found
+        render json: { error: "Record not found" }, status: :not_found
       rescue => e
         render json: { error: e.message }, status: :unprocessable_entity
       end
@@ -203,7 +203,7 @@ module Api
         record.destroy
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Record not found' }, status: :not_found
+        render json: { error: "Record not found" }, status: :not_found
       end
 
       # POST /api/v1/foundations/:foundation_id/records/bulk_update
@@ -213,15 +213,15 @@ module Api
         updates = params[:updates]&.to_unsafe_h || {}
 
         if record_ids.blank?
-          return render json: { error: 'No record IDs provided' }, status: :unprocessable_entity
+          return render json: { error: "No record IDs provided" }, status: :unprocessable_entity
         end
 
         if updates.blank?
-          return render json: { error: 'No updates provided' }, status: :unprocessable_entity
+          return render json: { error: "No updates provided" }, status: :unprocessable_entity
         end
 
         # Get valid column names for this foundation
-        valid_columns = if @foundation.table_type == 'system'
+        valid_columns = if @foundation.table_type == "system"
           model.column_names
         else
           @foundation.columns.pluck(:column_name)
@@ -231,24 +231,24 @@ module Api
         filtered_updates = updates.select { |k, _| valid_columns.include?(k.to_s) }
 
         if filtered_updates.blank?
-          return render json: { error: 'No valid columns to update' }, status: :unprocessable_entity
+          return render json: { error: "No valid columns to update" }, status: :unprocessable_entity
         end
 
         # Special handling for Contact model's roles column
         # Convert lookup IDs to string values (same as single record update)
-        if @foundation.model_class == 'Contact' && filtered_updates.key?('roles')
-          value = filtered_updates['roles']
+        if @foundation.model_class == "Contact" && filtered_updates.key?("roles")
+          value = filtered_updates["roles"]
           if value.is_a?(Array) && value.first.is_a?(Integer)
-            roles_col = @foundation.columns.find_by(column_name: 'roles')
+            roles_col = @foundation.columns.find_by(column_name: "roles")
             if roles_col&.lookup_foundation_id.present?
               lookup_foundation = Foundation.find_by(id: roles_col.lookup_foundation_id)
               if lookup_foundation
                 lookup_model = lookup_foundation.dynamic_model
-                display_col = roles_col.lookup_display_column || 'display_name'
+                display_col = roles_col.lookup_display_column || "display_name"
                 string_values = lookup_model.where(id: value).pluck(display_col).map do |display|
-                  display.to_s.downcase.gsub(' ', '_')
+                  display.to_s.downcase.gsub(" ", "_")
                 end
-                filtered_updates['roles'] = string_values
+                filtered_updates["roles"] = string_values
               end
             end
           end
@@ -263,12 +263,12 @@ module Api
             if record
               # Special handling for Contact entity_type changes
               # Auto-populate company_name_or_trust when changing to company/trust
-              if @foundation.model_class == 'Contact' && filtered_updates.key?('entity_type')
-                new_entity_type = filtered_updates['entity_type']
-                if ['company', 'trust'].include?(new_entity_type)
+              if @foundation.model_class == "Contact" && filtered_updates.key?("entity_type")
+                new_entity_type = filtered_updates["entity_type"]
+                if [ "company", "trust" ].include?(new_entity_type)
                   # If company_name_or_trust is blank, set it to full_name
                   if record.company_name_or_trust.blank? && record.full_name.present?
-                    filtered_updates['company_name_or_trust'] = record.full_name
+                    filtered_updates["company_name_or_trust"] = record.full_name
                   end
                 end
               end
@@ -279,7 +279,7 @@ module Api
                 errors << { id: id, errors: record.errors.full_messages }
               end
             else
-              errors << { id: id, errors: ['Record not found'] }
+              errors << { id: id, errors: [ "Record not found" ] }
             end
           end
         end
@@ -304,13 +304,13 @@ module Api
         secondary_ids = params[:secondary_ids]
 
         if secondary_ids.blank?
-          return render json: { error: 'No secondary record IDs provided' }, status: :unprocessable_entity
+          return render json: { error: "No secondary record IDs provided" }, status: :unprocessable_entity
         end
 
         secondaries = model.where(id: secondary_ids)
 
         if secondaries.empty?
-          return render json: { error: 'No valid secondary records found' }, status: :unprocessable_entity
+          return render json: { error: "No valid secondary records found" }, status: :unprocessable_entity
         end
 
         service = GenericMergeService.new(primary, secondaries, model)
@@ -323,7 +323,7 @@ module Api
           message: "Successfully merged #{service.merged_count} record(s) into primary record"
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Primary record not found' }, status: :not_found
+        render json: { error: "Primary record not found" }, status: :not_found
       rescue => e
         Rails.logger.error "Merge failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
         render json: { error: "Merge failed: #{e.message}" }, status: :unprocessable_entity
@@ -335,7 +335,7 @@ module Api
         ids = params[:ids]  # Changed from record_ids to ids for consistency with other bulk_delete endpoints
 
         if ids.blank?
-          return render json: { error: 'No record IDs provided' }, status: :unprocessable_entity
+          return render json: { error: "No record IDs provided" }, status: :unprocessable_entity
         end
 
         deleted_count = 0
@@ -348,7 +348,7 @@ module Api
               record.destroy
               deleted_count += 1
             else
-              errors << { id: id, errors: ['Record not found'] }
+              errors << { id: id, errors: [ "Record not found" ] }
             end
           end
         end
@@ -373,7 +373,7 @@ module Api
           Foundation.includes(:columns).find_by!(slug: params[:foundation_id])
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Foundation not found' }, status: :not_found
+        render json: { error: "Foundation not found" }, status: :not_found
       end
 
       # PHASE 2 & 3: Determine essential columns for minimal loading
@@ -395,21 +395,21 @@ module Api
             # 1. UI-only pseudo-columns (select, actions)
             # 2. Columns that don't exist in the database (e.g., renamed columns)
             db_columns = view.visible_columns.reject do |col|
-              ['select', 'actions'].include?(col) || !valid_column_names.include?(col)
+              [ "select", "actions" ].include?(col) || !valid_column_names.include?(col)
             end
 
             Rails.logger.info "[Progressive Loading] Validated columns: #{db_columns.inspect}" if db_columns.size != view.visible_columns.size
-            return [:id, :created_at, :updated_at] + db_columns.map(&:to_sym)
+            return [ :id, :created_at, :updated_at ] + db_columns.map(&:to_sym)
           end
         end
 
         # PHASE 2: Smart defaults based on column metadata
-        if foundation.table_type == 'system'
+        if foundation.table_type == "system"
           # For system foundations, use model introspection
           model = foundation.dynamic_model
           # Get first 5 non-system columns
           essential = model.column_names
-            .reject { |col| ['created_at', 'updated_at', 'id'].include?(col) }
+            .reject { |col| [ "created_at", "updated_at", "id" ].include?(col) }
             .first(5)
             .map(&:to_sym)
         else
@@ -423,7 +423,7 @@ module Api
         end
 
         # Always include id and timestamps (required for record operations)
-        [:id, :created_at, :updated_at] + essential
+        [ :id, :created_at, :updated_at ] + essential
       end
 
       def record_params
@@ -432,7 +432,7 @@ module Api
 
         # Build permit list - arrays need special handling
         permit_list = columns.map do |col|
-          if col.column_type == 'multiple_lookups'
+          if col.column_type == "multiple_lookups"
             # multiple_lookups columns accept arrays of IDs
             { col.column_name.to_sym => [] }
           else
@@ -444,11 +444,11 @@ module Api
 
         # Convert multiple_lookups arrays to JSON strings for storage in TEXT columns
         # BUT NOT for system tables - they use native PostgreSQL arrays
-        unless @foundation.table_type == 'system' && @foundation.model_class.present?
+        unless @foundation.table_type == "system" && @foundation.model_class.present?
           columns.each do |col|
             col_name = col.column_name
             # Check both string and symbol keys
-            if col.column_type == 'multiple_lookups' && (permitted.key?(col_name) || permitted.key?(col_name.to_sym))
+            if col.column_type == "multiple_lookups" && (permitted.key?(col_name) || permitted.key?(col_name.to_sym))
               value = permitted[col_name] || permitted[col_name.to_sym]
               if value.is_a?(Array)
                 permitted[col_name] = value.to_json
@@ -459,21 +459,21 @@ module Api
 
         # Special handling for Contact model's roles column
         # It stores string values like ["customer", "supplier"] but receives lookup IDs
-        if @foundation.model_class == 'Contact' && permitted.key?('roles')
-          value = permitted['roles']
+        if @foundation.model_class == "Contact" && permitted.key?("roles")
+          value = permitted["roles"]
           if value.is_a?(Array) && value.first.is_a?(Integer)
             # Map lookup IDs to their string values from the ContactRole lookup table
-            roles_col = columns.find { |c| c.column_name == 'roles' }
+            roles_col = columns.find { |c| c.column_name == "roles" }
             if roles_col&.lookup_foundation_id.present?
               lookup_foundation = Foundation.find_by(id: roles_col.lookup_foundation_id)
               if lookup_foundation
                 lookup_model = lookup_foundation.dynamic_model
-                display_col = roles_col.lookup_display_column || 'display_name'
+                display_col = roles_col.lookup_display_column || "display_name"
                 # Fetch the display values and convert to lowercase snake_case
                 string_values = lookup_model.where(id: value).pluck(display_col).map do |display|
-                  display.to_s.downcase.gsub(' ', '_')
+                  display.to_s.downcase.gsub(" ", "_")
                 end
-                permitted['roles'] = string_values
+                permitted["roles"] = string_values
               end
             end
           end
@@ -488,10 +488,10 @@ module Api
 
         # Handle Job model specifically
         if model == Job
-          attrs[:title] = 'New Job' if attrs[:title].blank?
+          attrs[:title] = "New Job" if attrs[:title].blank?
           # Note: job_status_id is a lookup field - don't set a default here
           # The user should select a status from the lookup dropdown
-          attrs[:site_supervisor_name] = 'TBA' if attrs[:site_supervisor_name].blank?
+          attrs[:site_supervisor_name] = "TBA" if attrs[:site_supervisor_name].blank?
         end
 
         attrs
@@ -505,9 +505,9 @@ module Api
         }
 
         # For system foundations, return all model attributes directly
-        if @foundation.table_type == 'system'
+        if @foundation.table_type == "system"
           record.attributes.each do |key, value|
-            next if ['id', 'created_at', 'updated_at'].include?(key)
+            next if [ "id", "created_at", "updated_at" ].include?(key)
             # Use send to go through model accessors (which may have safe decryption wrappers)
             begin
               json[key] = record.send(key)
@@ -522,8 +522,8 @@ module Api
 
           # Expand _id columns to include display value for lookup columns
           # e.g., job_type_id => { id: 1, display: "Residential" }
-          record.attributes.keys.select { |k| k.to_s.end_with?('_id') && k != 'id' }.each do |id_column|
-            association_name = id_column.to_s.sub(/_id$/, '')
+          record.attributes.keys.select { |k| k.to_s.end_with?("_id") && k != "id" }.each do |id_column|
+            association_name = id_column.to_s.sub(/_id$/, "")
             if record.respond_to?(association_name)
               begin
                 related = record.send(association_name)
@@ -539,7 +539,7 @@ module Api
           end
 
           # Expand multiple_lookups columns for system tables (e.g., roles)
-          @foundation.columns.where(column_type: 'multiple_lookups').each do |column|
+          @foundation.columns.where(column_type: "multiple_lookups").each do |column|
             value = json[column.column_name]
             next if value.blank?
 
@@ -559,7 +559,7 @@ module Api
               elsif parsed_values.any? && column.lookup_foundation.present?
                 # Values are IDs - look up display values
                 lookup_model = column.lookup_foundation.dynamic_model
-                display_col = column.lookup_display_column || 'name'
+                display_col = column.lookup_display_column || "name"
                 related_records = lookup_model.where(id: parsed_values).index_by(&:id)
 
                 json[column.column_name] = parsed_values.map do |lookup_id|
@@ -578,7 +578,7 @@ module Api
           end
 
           # Add computed columns for contacts (employees_count for companies)
-          if record.class.name == 'Contact'
+          if record.class.name == "Contact"
             json[:employees_count] = employees_count_cache[record.id] || 0
           end
 
@@ -609,8 +609,8 @@ module Api
           value = record_data[column.column_name]
 
           # Handle computed/formula columns - compute the value
-          if column.column_type == 'computed'
-            formula_expression = column.settings&.dig('formula')
+          if column.column_type == "computed"
+            formula_expression = column.settings&.dig("formula")
             if formula_expression.present?
               # Pass the record instance for cross-table references
               json[column.column_name] = formula_evaluator.evaluate(formula_expression, record_data, record)
@@ -618,7 +618,7 @@ module Api
               json[column.column_name] = nil
             end
           # Handle lookup columns - return both ID and display value
-          elsif column.column_type == 'lookup' && value.present?
+          elsif column.column_type == "lookup" && value.present?
             begin
               # Use cached lookup data if available, otherwise query
               related_record = if lookup_cache && lookup_cache[column.id]
@@ -636,7 +636,7 @@ module Api
               json[column.column_name] = { id: value, display: "[Error]" }
             end
           # Handle multiple_lookups columns - return array of objects with id and display
-          elsif column.column_type == 'multiple_lookups' && value.present?
+          elsif column.column_type == "multiple_lookups" && value.present?
             begin
               # Parse the stored value - could be JSON string or array
               parsed_values = if value.is_a?(String)
@@ -655,7 +655,7 @@ module Api
               elsif parsed_values.any? && column.lookup_foundation.present?
                 # Values are IDs - look up display values from the lookup table
                 lookup_model = column.lookup_foundation.dynamic_model
-                display_col = column.lookup_display_column || 'name'
+                display_col = column.lookup_display_column || "name"
                 related_records = lookup_model.where(id: parsed_values).index_by(&:id)
 
                 json[column.column_name] = parsed_values.map do |lookup_id|
@@ -682,7 +682,7 @@ module Api
 
       def build_lookup_cache(records)
         # Preload all lookup data to prevent N+1 queries
-        lookup_columns = @foundation.columns.where(column_type: 'lookup').includes(:lookup_foundation)
+        lookup_columns = @foundation.columns.where(column_type: "lookup").includes(:lookup_foundation)
         lookup_cache = {}
 
         lookup_columns.each do |column|
@@ -707,7 +707,7 @@ module Api
 
       # Find all contact IDs that are possible duplicates (share normalized name with another contact)
       def find_duplicate_contact_ids
-        contacts_by_name = Contact.where(deleted: [false, nil])
+        contacts_by_name = Contact.where(deleted: [ false, nil ])
           .select(:id, :full_name)
           .group_by { |c| normalize_contact_name(c.full_name) }
 
@@ -722,17 +722,17 @@ module Api
 
       def normalize_contact_name(name)
         return nil if name.blank?
-        name.to_s.downcase.gsub(/\s+/, ' ').strip
+        name.to_s.downcase.gsub(/\s+/, " ").strip
       end
 
       # Apply eager loading for system table associations to prevent N+1 queries
       def apply_system_table_includes(query, model)
         case model.name
-        when 'Job'
+        when "Job"
           query.includes(:job_type, :job_status, :job_stage)
-        when 'Contact'
+        when "Contact"
           query.includes(:company_group, :primary_company)
-        when 'Company'
+        when "Company"
           query.includes(:company_group, :parent_company)
         else
           query

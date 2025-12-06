@@ -2,7 +2,7 @@ module Api
   module V1
     class DocumentationCategoriesController < ApplicationController
       before_action :authorize_request
-      before_action :set_category, only: [:show, :update, :destroy]
+      before_action :set_category, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/documentation_categories
       def index
@@ -69,7 +69,7 @@ module Api
       def set_category
         @category = DocumentationCategory.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Documentation category not found' }, status: :not_found
+        render json: { error: "Documentation category not found" }, status: :not_found
       end
 
       def category_params

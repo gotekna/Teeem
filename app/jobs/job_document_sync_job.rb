@@ -114,7 +114,7 @@ class JobDocumentSyncJob < ApplicationJob
   # Recursively list all files from a folder (similar to JobDocumentMigrationService)
   def list_all_files(root_folder_id, max_depth: 5)
     files = []
-    folders_to_process = [[root_folder_id, 0, ""]] # [folder_id, depth, path]
+    folders_to_process = [ [ root_folder_id, 0, "" ] ] # [folder_id, depth, path]
 
     while folders_to_process.any?
       current_id, depth, current_path = folders_to_process.shift
@@ -136,7 +136,7 @@ class JobDocumentSyncJob < ApplicationJob
           elsif item["folder"] && depth < max_depth
             folder_name = item["name"]
             new_path = current_path.empty? ? folder_name : "#{current_path}/#{folder_name}"
-            folders_to_process << [item["id"], depth + 1, new_path]
+            folders_to_process << [ item["id"], depth + 1, new_path ]
           end
         end
       rescue MicrosoftGraphClient::APIError => e

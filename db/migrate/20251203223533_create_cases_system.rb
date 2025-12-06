@@ -76,7 +76,7 @@ class CreateCasesSystem < ActiveRecord::Migration[8.0]
 
     add_index :case_actions, :action_type
     add_index :case_actions, :status
-    add_index :case_actions, [:case_id, :created_at]
+    add_index :case_actions, [ :case_id, :created_at ]
 
     # ============================================
     # CASE_DOCUMENTS - Documents linked to a case
@@ -101,7 +101,7 @@ class CreateCasesSystem < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :case_documents, [:case_id, :company_document_id], unique: true
+    add_index :case_documents, [ :case_id, :company_document_id ], unique: true
     add_index :case_documents, :relevance
     add_index :case_documents, :relevance_score
 
@@ -127,7 +127,7 @@ class CreateCasesSystem < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :case_emails, [:case_id, :email_warehouse_id], unique: true
+    add_index :case_emails, [ :case_id, :email_warehouse_id ], unique: true
     add_index :case_emails, :relevance
     add_index :case_emails, :email_warehouse_id
     add_foreign_key :case_emails, :email_warehouse, column: :email_warehouse_id
@@ -164,9 +164,9 @@ class CreateCasesSystem < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :case_timeline_events, [:case_id, :event_date]
+    add_index :case_timeline_events, [ :case_id, :event_date ]
     add_index :case_timeline_events, :event_type
-    add_index :case_timeline_events, [:source_type, :source_id]
+    add_index :case_timeline_events, [ :source_type, :source_id ]
 
     # ============================================
     # CASE_CONTACTS - Contacts involved in a case
@@ -182,7 +182,7 @@ class CreateCasesSystem < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :case_contacts, [:case_id, :contact_id], unique: true
+    add_index :case_contacts, [ :case_id, :contact_id ], unique: true
     add_index :case_contacts, :role
 
     # ============================================
@@ -199,7 +199,7 @@ class CreateCasesSystem < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :case_companies, [:case_id, :company_id], unique: true
+    add_index :case_companies, [ :case_id, :company_id ], unique: true
     add_index :case_companies, :role
 
     # ============================================
@@ -215,6 +215,6 @@ class CreateCasesSystem < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :case_jobs, [:case_id, :job_id], unique: true
+    add_index :case_jobs, [ :case_id, :job_id ], unique: true
   end
 end

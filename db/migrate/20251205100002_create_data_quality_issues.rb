@@ -22,7 +22,7 @@ class CreateDataQualityIssues < ActiveRecord::Migration[8.0]
     add_index :data_quality_issues, :severity
     add_index :data_quality_issues, :status
     add_index :data_quality_issues, :detected_at
-    add_index :data_quality_issues, [:view_name, :status]
-    add_index :data_quality_issues, [:severity, :status]
+    add_index :data_quality_issues, [ :view_name, :status ]
+    add_index :data_quality_issues, [ :severity, :status ]
   end
 end

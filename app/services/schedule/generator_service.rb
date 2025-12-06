@@ -34,7 +34,7 @@ module Schedule
 
         # Step 6: Update project status
         @project.update!(
-          status: 'active',
+          status: "active",
           generated_at: Time.current
         )
       end
@@ -66,7 +66,7 @@ module Schedule
           task_type: template.task_type,
           category: template.category,
           duration_days: template.default_duration_days,
-          status: 'not_started',
+          status: "not_started",
           sequence_order: template.sequence_order
         )
       end
@@ -104,28 +104,28 @@ module Schedule
     def find_matching_tasks_for_po(po)
       # Map PO categories to task categories and types
       category_mapping = {
-        'CONCRETE' => { categories: ['CONCRETE'], types: ['DO', 'ORDER'] },
-        'CARPENTER' => { categories: ['CARPENTER'], types: ['DO', 'ORDER'] },
-        'PLUMBER' => { categories: ['PLUMBER'], types: ['DO', 'ORDER'] },
-        'ELECTRICAL' => { categories: ['ELECTRICAL'], types: ['DO', 'ORDER'] },
-        'PAINTER' => { categories: ['PAINTER'], types: ['DO', 'ORDER'] },
-        'PLASTERER' => { categories: ['PLASTERER'], types: ['DO', 'ORDER'] },
-        'TILER' => { categories: ['TILER'], types: ['DO', 'ORDER'] },
-        'ROOFING' => { categories: ['ROOFING'], types: ['DO', 'ORDER'] },
-        'KITCHEN' => { categories: ['KITCHEN'], types: ['DO', 'ORDER'] },
-        'MATERIALS' => { categories: ['MATERIALS'], types: ['ORDER'] },
-        'SURVEYOR' => { categories: ['SURVEYOR'], types: ['DO', 'ORDER'] },
-        'SITE_PREP' => { categories: ['SITE_PREP'], types: ['DO'] },
-        'TERMITE' => { categories: ['TERMITE'], types: ['DO'] },
-        'WATERPROOF' => { categories: ['WATERPROOF'], types: ['DO'] },
-        'AIRCON' => { categories: ['AIRCON'], types: ['DO'] },
-        'FENCING' => { categories: ['FENCING'], types: ['DO'] },
-        'LANDSCAPING' => { categories: ['LANDSCAPING'], types: ['DO'] },
-        'CLEANING' => { categories: ['CLEANING'], types: ['DO'] },
-        'ADMIN' => { categories: ['ADMIN'], types: ['DO', 'GET', 'CREATE', 'CHECK'] }
+        "CONCRETE" => { categories: [ "CONCRETE" ], types: [ "DO", "ORDER" ] },
+        "CARPENTER" => { categories: [ "CARPENTER" ], types: [ "DO", "ORDER" ] },
+        "PLUMBER" => { categories: [ "PLUMBER" ], types: [ "DO", "ORDER" ] },
+        "ELECTRICAL" => { categories: [ "ELECTRICAL" ], types: [ "DO", "ORDER" ] },
+        "PAINTER" => { categories: [ "PAINTER" ], types: [ "DO", "ORDER" ] },
+        "PLASTERER" => { categories: [ "PLASTERER" ], types: [ "DO", "ORDER" ] },
+        "TILER" => { categories: [ "TILER" ], types: [ "DO", "ORDER" ] },
+        "ROOFING" => { categories: [ "ROOFING" ], types: [ "DO", "ORDER" ] },
+        "KITCHEN" => { categories: [ "KITCHEN" ], types: [ "DO", "ORDER" ] },
+        "MATERIALS" => { categories: [ "MATERIALS" ], types: [ "ORDER" ] },
+        "SURVEYOR" => { categories: [ "SURVEYOR" ], types: [ "DO", "ORDER" ] },
+        "SITE_PREP" => { categories: [ "SITE_PREP" ], types: [ "DO" ] },
+        "TERMITE" => { categories: [ "TERMITE" ], types: [ "DO" ] },
+        "WATERPROOF" => { categories: [ "WATERPROOF" ], types: [ "DO" ] },
+        "AIRCON" => { categories: [ "AIRCON" ], types: [ "DO" ] },
+        "FENCING" => { categories: [ "FENCING" ], types: [ "DO" ] },
+        "LANDSCAPING" => { categories: [ "LANDSCAPING" ], types: [ "DO" ] },
+        "CLEANING" => { categories: [ "CLEANING" ], types: [ "DO" ] },
+        "ADMIN" => { categories: [ "ADMIN" ], types: [ "DO", "GET", "CREATE", "CHECK" ] }
       }
 
-      mapping = category_mapping[po.task_category] || { categories: [po.task_category], types: ['DO', 'ORDER'] }
+      mapping = category_mapping[po.task_category] || { categories: [ po.task_category ], types: [ "DO", "ORDER" ] }
 
       # Find tasks that haven't been mapped yet and match the category/type
       @project.project_tasks
@@ -157,7 +157,7 @@ module Schedule
               TaskDependency.create!(
                 successor_task: task,
                 predecessor_task: predecessor_task,
-                dependency_type: 'finish_to_start',
+                dependency_type: "finish_to_start",
                 lag_days: 0
               )
               dependency_count += 1
@@ -237,16 +237,16 @@ module Schedule
           next unless pred.planned_end_date.present? && pred.planned_start_date.present?
 
           case dep.dependency_type
-          when 'finish_to_start'
+          when "finish_to_start"
             # This task starts after predecessor finishes
             pred.planned_end_date + dep.lag_days.days
-          when 'start_to_start'
+          when "start_to_start"
             # This task starts relative to when predecessor starts
             pred.planned_start_date + dep.lag_days.days
-          when 'finish_to_finish'
+          when "finish_to_finish"
             # This task finishes when predecessor finishes
             pred.planned_end_date + dep.lag_days.days - task.duration_days.days
-          when 'start_to_finish'
+          when "start_to_finish"
             # This task finishes when predecessor starts (rare)
             pred.planned_start_date + dep.lag_days.days - task.duration_days.days
           else

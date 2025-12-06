@@ -35,7 +35,7 @@ namespace :jobs do
 
     Job.includes(:job_contacts).find_each do |job|
       # Check if already has a client
-      existing_client = job.job_contacts.find_by(role: 'client')
+      existing_client = job.job_contacts.find_by(role: "client")
 
       suggestion = service.suggest_client_for_job(job)
 

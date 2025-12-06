@@ -8,7 +8,7 @@ class ComplianceReminderService
     sent_count = 0
 
     # Check for items needing reminders at different intervals
-    [90, 60, 30, 7].each do |days_before|
+    [ 90, 60, 30, 7 ].each do |days_before|
       items = find_items_needing_reminder(days_before)
 
       items.each do |item|
@@ -40,7 +40,7 @@ class ComplianceReminderService
 
     CompanyComplianceItem
       .includes(:company)
-      .where(status: 'pending')
+      .where(status: "pending")
       .where(due_date: target_date)
       .select { |item| item.needs_reminder?(days_before) }
   end
@@ -57,7 +57,7 @@ class ComplianceReminderService
 
     # Log activity
     item.company.company_activities.create!(
-      activity_type: 'compliance_reminder_sent',
+      activity_type: "compliance_reminder_sent",
       description: "Reminder sent for: #{item.title} (#{days_before} days before due)",
       metadata: { compliance_item_id: item.id, days_before: days_before },
       performed_by: User.first, # System user
@@ -84,7 +84,7 @@ class ComplianceReminderService
 
     # Log activity
     item.company.company_activities.create!(
-      activity_type: 'compliance_overdue_reminder_sent',
+      activity_type: "compliance_overdue_reminder_sent",
       description: "Overdue reminder sent for: #{item.title} (#{days_overdue} days overdue)",
       metadata: { compliance_item_id: item.id, days_overdue: days_overdue },
       performed_by: User.first,
@@ -103,7 +103,7 @@ class ComplianceReminderService
     return [] unless item.notification_recipients.present?
 
     # Parse comma-separated email addresses
-    item.notification_recipients.split(',').map(&:strip).select { |email| valid_email?(email) }
+    item.notification_recipients.split(",").map(&:strip).select { |email| valid_email?(email) }
   end
 
   def valid_email?(email)

@@ -32,6 +32,6 @@ class CreateDocumentVerificationFeedbacks < ActiveRecord::Migration[8.0]
 
     add_index :document_verification_feedbacks, :action
     add_index :document_verification_feedbacks, :company_code
-    add_index :document_verification_feedbacks, [:company_code, :action]
+    add_index :document_verification_feedbacks, [ :company_code, :action ]
   end
 end

@@ -2,9 +2,9 @@
 
 class AgentDefinition < ApplicationRecord
   # Associations
-  belongs_to :created_by, class_name: 'User', optional: true
-  belongs_to :updated_by, class_name: 'User', optional: true
-  belongs_to :last_run_by, class_name: 'User', optional: true
+  belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :updated_by, class_name: "User", optional: true
+  belongs_to :last_run_by, class_name: "User", optional: true
 
   # Validations
   validates :agent_id, presence: true, uniqueness: true
@@ -31,7 +31,7 @@ class AgentDefinition < ApplicationRecord
       total_runs: total_runs + 1,
       successful_runs: successful_runs + 1,
       last_run_at: Time.current,
-      last_status: 'success',
+      last_status: "success",
       last_message: message,
       last_run_details: details,
       last_run_by_name: user_name
@@ -53,7 +53,7 @@ class AgentDefinition < ApplicationRecord
       total_runs: total_runs + 1,
       failed_runs: failed_runs + 1,
       last_run_at: Time.current,
-      last_status: 'failure',
+      last_status: "failure",
       last_message: message,
       last_run_details: details,
       last_run_by_name: user_name
@@ -82,10 +82,10 @@ class AgentDefinition < ApplicationRecord
   # Last run status emoji
   def status_emoji
     case last_status
-    when 'success' then '✅'
-    when 'failure' then '❌'
-    when 'error' then '⚠️'
-    else '⚡'
+    when "success" then "✅"
+    when "failure" then "❌"
+    when "error" then "⚠️"
+    else "⚡"
     end
   end
 end

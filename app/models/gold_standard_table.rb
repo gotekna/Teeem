@@ -1,6 +1,6 @@
 # Gold Standard Table model for demonstrating table features
 class GoldStandardTable < ApplicationRecord
-  self.table_name = 'gold_standard_table'
+  self.table_name = "gold_standard_table"
 
   # This model serves as a live reference implementation
   # for the TEEEMTableView component

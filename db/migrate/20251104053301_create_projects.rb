@@ -16,6 +16,6 @@ class CreateProjects < ActiveRecord::Migration[8.0]
     end
 
     add_index :projects, :status
-    add_index :projects, [:start_date, :planned_end_date]
+    add_index :projects, [ :start_date, :planned_end_date ]
   end
 end

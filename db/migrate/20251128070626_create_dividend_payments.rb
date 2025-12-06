@@ -12,7 +12,7 @@ class CreateDividendPayments < ActiveRecord::Migration[8.0]
 
       t.timestamps
     end
-    add_index :dividend_payments, [:dividend_id, :shareholder_id], unique: true
+    add_index :dividend_payments, [ :dividend_id, :shareholder_id ], unique: true
     add_index :dividend_payments, :paid_date
   end
 end

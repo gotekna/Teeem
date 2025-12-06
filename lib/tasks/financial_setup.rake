@@ -25,10 +25,10 @@ namespace :teeem do
       puts "Destroying existing chart of accounts..."
       Keepr::Account.delete_all
       # Delete groups from bottom up (children first)
-      Keepr::Group.order('ancestry DESC NULLS LAST').delete_all
+      Keepr::Group.order("ancestry DESC NULLS LAST").delete_all
       puts "✓ Cleared"
 
-      Rake::Task['teeem:financial:setup_chart_of_accounts'].invoke
+      Rake::Task["teeem:financial:setup_chart_of_accounts"].invoke
     end
 
     def setup_account_groups
@@ -36,60 +36,60 @@ namespace :teeem do
 
       # Assets
       groups[:assets] = Keepr::Group.create!(
-        name: 'Assets',
+        name: "Assets",
         is_result: false,
-        target: 'liability'
+        target: "liability"
       )
 
       groups[:current_assets] = Keepr::Group.create!(
-        name: 'Current Assets',
+        name: "Current Assets",
         parent: groups[:assets],
         is_result: false,
-        target: 'liability'
+        target: "liability"
       )
 
       groups[:fixed_assets] = Keepr::Group.create!(
-        name: 'Fixed Assets',
+        name: "Fixed Assets",
         parent: groups[:assets],
         is_result: false,
-        target: 'liability'
+        target: "liability"
       )
 
       # Liabilities
       groups[:liabilities] = Keepr::Group.create!(
-        name: 'Liabilities',
+        name: "Liabilities",
         is_result: false,
-        target: 'liability'
+        target: "liability"
       )
 
       groups[:current_liabilities] = Keepr::Group.create!(
-        name: 'Current Liabilities',
+        name: "Current Liabilities",
         parent: groups[:liabilities],
         is_result: false,
-        target: 'liability'
+        target: "liability"
       )
 
       # Equity
       groups[:equity] = Keepr::Group.create!(
-        name: 'Equity',
+        name: "Equity",
         is_result: false,
-        target: 'liability'
+        target: "liability"
       )
 
       # Revenue - result account needs liability parent
       groups[:revenue] = Keepr::Group.create!(
-        name: 'Revenue',
+        name: "Revenue",
         parent: groups[:equity],  # Result accounts need a liability parent
         is_result: true,
-        target: 'liability'
+        target: "liability"
       )
 
       # Expenses - result account needs asset parent
       groups[:expenses] = Keepr::Group.create!(
-        name: 'Expenses',
+        name: "Expenses",
         parent: groups[:equity],  # Result accounts need a liability parent
         is_result: true,
-        target: 'asset'
+        target: "asset"
       )
 
       groups
@@ -101,35 +101,35 @@ namespace :teeem do
       # ASSETS (1000-1999)
       accounts << Keepr::Account.create!(
         number: 1000,
-        name: 'Cash - Bank Account',
+        name: "Cash - Bank Account",
         kind: :asset,
         keepr_group: groups[:current_assets]
       )
 
       accounts << Keepr::Account.create!(
         number: 1100,
-        name: 'Accounts Receivable',
+        name: "Accounts Receivable",
         kind: :asset,
         keepr_group: groups[:current_assets]
       )
 
       accounts << Keepr::Account.create!(
         number: 1200,
-        name: 'Inventory',
+        name: "Inventory",
         kind: :asset,
         keepr_group: groups[:current_assets]
       )
 
       accounts << Keepr::Account.create!(
         number: 1400,
-        name: 'Tools & Equipment',
+        name: "Tools & Equipment",
         kind: :asset,
         keepr_group: groups[:fixed_assets]
       )
 
       accounts << Keepr::Account.create!(
         number: 1500,
-        name: 'Other Assets',
+        name: "Other Assets",
         kind: :asset,
         keepr_group: groups[:fixed_assets]
       )
@@ -137,21 +137,21 @@ namespace :teeem do
       # LIABILITIES (2000-2999)
       accounts << Keepr::Account.create!(
         number: 2000,
-        name: 'Accounts Payable',
+        name: "Accounts Payable",
         kind: :liability,
         keepr_group: groups[:current_liabilities]
       )
 
       accounts << Keepr::Account.create!(
         number: 2100,
-        name: 'Credit Cards',
+        name: "Credit Cards",
         kind: :liability,
         keepr_group: groups[:current_liabilities]
       )
 
       accounts << Keepr::Account.create!(
         number: 2200,
-        name: 'Loans',
+        name: "Loans",
         kind: :liability,
         keepr_group: groups[:current_liabilities]
       )
@@ -166,14 +166,14 @@ namespace :teeem do
 
       accounts << Keepr::Account.create!(
         number: 3100,
-        name: 'Retained Earnings',
+        name: "Retained Earnings",
         kind: :liability,
         keepr_group: groups[:equity]
       )
 
       accounts << Keepr::Account.create!(
         number: 3200,
-        name: 'Drawings',
+        name: "Drawings",
         kind: :liability,
         keepr_group: groups[:equity]
       )
@@ -181,21 +181,21 @@ namespace :teeem do
       # REVENUE (4000-4999)
       accounts << Keepr::Account.create!(
         number: 4000,
-        name: 'Job Revenue',
+        name: "Job Revenue",
         kind: :revenue,
         keepr_group: groups[:revenue]
       )
 
       accounts << Keepr::Account.create!(
         number: 4100,
-        name: 'Material Sales',
+        name: "Material Sales",
         kind: :revenue,
         keepr_group: groups[:revenue]
       )
 
       accounts << Keepr::Account.create!(
         number: 4200,
-        name: 'Other Income',
+        name: "Other Income",
         kind: :revenue,
         keepr_group: groups[:revenue]
       )
@@ -203,56 +203,56 @@ namespace :teeem do
       # EXPENSES (5000-5999)
       accounts << Keepr::Account.create!(
         number: 5000,
-        name: 'Materials',
+        name: "Materials",
         kind: :expense,
         keepr_group: groups[:expenses]
       )
 
       accounts << Keepr::Account.create!(
         number: 5100,
-        name: 'Labour',
+        name: "Labour",
         kind: :expense,
         keepr_group: groups[:expenses]
       )
 
       accounts << Keepr::Account.create!(
         number: 5200,
-        name: 'Subcontractors',
+        name: "Subcontractors",
         kind: :expense,
         keepr_group: groups[:expenses]
       )
 
       accounts << Keepr::Account.create!(
         number: 5300,
-        name: 'Tools & Equipment Expense',
+        name: "Tools & Equipment Expense",
         kind: :expense,
         keepr_group: groups[:expenses]
       )
 
       accounts << Keepr::Account.create!(
         number: 5400,
-        name: 'Fuel & Transport',
+        name: "Fuel & Transport",
         kind: :expense,
         keepr_group: groups[:expenses]
       )
 
       accounts << Keepr::Account.create!(
         number: 5500,
-        name: 'Insurance',
+        name: "Insurance",
         kind: :expense,
         keepr_group: groups[:expenses]
       )
 
       accounts << Keepr::Account.create!(
         number: 5600,
-        name: 'Professional Fees',
+        name: "Professional Fees",
         kind: :expense,
         keepr_group: groups[:expenses]
       )
 
       accounts << Keepr::Account.create!(
         number: 5700,
-        name: 'Other Expenses',
+        name: "Other Expenses",
         kind: :expense,
         keepr_group: groups[:expenses]
       )

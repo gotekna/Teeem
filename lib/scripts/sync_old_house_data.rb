@@ -24,12 +24,12 @@ client = MicrosoftGraphClient.new(credential)
 def normalize_address(str)
   return "" if str.blank?
   str.to_s.downcase
-    .gsub(/[^a-z0-9\s]/, '')  # Remove special chars
-    .gsub(/\s+/, ' ')          # Normalize spaces
-    .gsub(/\b(street|st|road|rd|avenue|ave|drive|dr|court|ct|place|pl|crescent|cres|close|cl|circuit|cct|parade|pde|terrace|tce)\b/, '')
-    .gsub(/\b(qld|nsw|vic|sa|wa|nt|act|tas)\b/, '')
-    .gsub(/\b\d{4}\b/, '')     # Remove postcodes
-    .gsub(/\blot\s*\d*\b/, '') # Remove "lot X"
+    .gsub(/[^a-z0-9\s]/, "")  # Remove special chars
+    .gsub(/\s+/, " ")          # Normalize spaces
+    .gsub(/\b(street|st|road|rd|avenue|ave|drive|dr|court|ct|place|pl|crescent|cres|close|cl|circuit|cct|parade|pde|terrace|tce)\b/, "")
+    .gsub(/\b(qld|nsw|vic|sa|wa|nt|act|tas)\b/, "")
+    .gsub(/\b\d{4}\b/, "")     # Remove postcodes
+    .gsub(/\blot\s*\d*\b/, "") # Remove "lot X"
     .strip
 end
 
@@ -44,9 +44,9 @@ end
 def extract_street_name(str)
   return "" if str.blank?
   # Remove leading numbers, lot references, and normalize
-  str.gsub(/^\d+\s*-?\s*/, '')
-     .gsub(/^lot\s*\d+\s*[-\(\)]*\s*/i, '')
-     .gsub(/,.*$/, '')  # Remove everything after comma
+  str.gsub(/^\d+\s*-?\s*/, "")
+     .gsub(/^lot\s*\d+\s*[-\(\)]*\s*/i, "")
+     .gsub(/,.*$/, "")  # Remove everything after comma
      .strip
 end
 
@@ -106,7 +106,7 @@ MANUAL_MAPPINGS = {
   "7 - Lot 6 Patrick King Drive, Burnside" => 86,
 
   # FY25 completed jobs - different naming pattern from active folders
-  "Lot 2 Manuka Road - Logan Village" => 101,
+  "Lot 2 Manuka Road - Logan Village" => 101
 }.freeze
 
 def find_job_for_folder(folder_name, jobs)
@@ -170,48 +170,48 @@ end
 # Recursive file sync function
 def sync_folder_files(client, credential, folder_id, folder_path, job, stats)
   result = client.send(:get, "#{client.send(:drive_path)}/items/#{folder_id}/children")
-  items = result['value'] || []
+  items = result["value"] || []
 
   items.each do |item|
-    if item['folder']
+    if item["folder"]
       # Recurse into subfolder
-      subfolder_path = folder_path.present? ? "#{folder_path}/#{item['name']}" : item['name']
-      sync_folder_files(client, credential, item['id'], subfolder_path, job, stats)
+      subfolder_path = folder_path.present? ? "#{folder_path}/#{item['name']}" : item["name"]
+      sync_folder_files(client, credential, item["id"], subfolder_path, job, stats)
     else
       # It's a file - sync it
-      extension = File.extname(item['name']).delete('.').downcase
+      extension = File.extname(item["name"]).delete(".").downcase
       file_type = case extension
-                  when 'pdf', 'doc', 'docx' then 'document'
-                  when 'xls', 'xlsx', 'csv' then 'spreadsheet'
-                  when 'jpg', 'jpeg', 'png', 'gif', 'heic', 'bmp', 'tiff' then 'image'
-                  when 'rvt', 'dwg', 'dxf' then 'cad'
-                  when 'mp4', 'mov', 'avi' then 'video'
-                  else 'other'
-                  end
+      when "pdf", "doc", "docx" then "document"
+      when "xls", "xlsx", "csv" then "spreadsheet"
+      when "jpg", "jpeg", "png", "gif", "heic", "bmp", "tiff" then "image"
+      when "rvt", "dwg", "dxf" then "cad"
+      when "mp4", "mov", "avi" then "video"
+      else "other"
+      end
 
       # Skip very large files (> 100MB) or system files
-      next if item['size'].to_i > 100_000_000
-      next if item['name'].start_with?('~$')  # Skip Office temp files
-      next if item['name'] == '.DS_Store'
+      next if item["size"].to_i > 100_000_000
+      next if item["name"].start_with?("~$")  # Skip Office temp files
+      next if item["name"] == ".DS_Store"
 
       # Find or create job document
       doc = JobDocument.find_or_initialize_by(
         job_id: job.id,
-        onedrive_item_id: item['id']
+        onedrive_item_id: item["id"]
       )
 
       was_new = doc.new_record?
 
       doc.assign_attributes(
         onedrive_drive_id: credential.drive_id || credential.id.to_s,
-        file_name: item['name'],
+        file_name: item["name"],
         file_extension: extension,
         file_type: file_type,
-        file_size: item['size'],
+        file_size: item["size"],
         folder_path: folder_path,
-        web_url: item['webUrl'],
-        last_modified_at: item['lastModifiedDateTime'],
-        sync_status: 'synced',
+        web_url: item["webUrl"],
+        last_modified_at: item["lastModifiedDateTime"],
+        sync_status: "synced",
         last_synced_at: Time.current
       )
 
@@ -236,7 +236,7 @@ end
 
 # Find Old House Data folder
 root = client.send(:get, "#{client.send(:drive_path)}/root/children")
-old_house = (root['value'] || []).find { |i| i['name'] == 'Old House Data' }
+old_house = (root["value"] || []).find { |i| i["name"] == "Old House Data" }
 
 unless old_house
   puts "ERROR: Old House Data folder not found"
@@ -252,16 +252,16 @@ unmatched_folders = []
 
 # Folders to scan within Old House Data
 FOLDERS_TO_SCAN = [
-  '00 Active - Soon to be moved out',
-  '00 Current  Kitchen Jobs',
-  '01 Drafting',
-  '01 Jobs Complete'
+  "00 Active - Soon to be moved out",
+  "00 Current  Kitchen Jobs",
+  "01 Drafting",
+  "01 Jobs Complete"
 ].freeze
 
 # Get Old House Data children
 old_house_children = client.send(:get, "#{client.send(:drive_path)}/items/#{old_house['id']}/children")
-folders_to_process = (old_house_children['value'] || []).select { |f|
-  f['folder'] && FOLDERS_TO_SCAN.any? { |name| f['name'].include?(name.split.first(2).join(' ')) }
+folders_to_process = (old_house_children["value"] || []).select { |f|
+  f["folder"] && FOLDERS_TO_SCAN.any? { |name| f["name"].include?(name.split.first(2).join(" ")) }
 }
 
 puts "\nProcessing #{folders_to_process.count} main folders..."
@@ -271,29 +271,29 @@ folders_to_process.each do |main_folder|
 
   # Get job folders within this main folder
   folder_children = client.send(:get, "#{client.send(:drive_path)}/items/#{main_folder['id']}/children")
-  job_folders = (folder_children['value'] || []).select { |f| f['folder'] }
+  job_folders = (folder_children["value"] || []).select { |f| f["folder"] }
 
   # Handle completed jobs subfolder structure (24 FY, 25 FY)
-  if main_folder['name'].include?('Jobs Complete')
+  if main_folder["name"].include?("Jobs Complete")
     # Go one level deeper for FY folders
-    fy_folders = job_folders.select { |f| f['name'] =~ /\d+\s*FY|Delete/i }
+    fy_folders = job_folders.select { |f| f["name"] =~ /\d+\s*FY|Delete/i }
 
     fy_folders.each do |fy_folder|
-      next if fy_folder['name'].downcase.include?('delete')
+      next if fy_folder["name"].downcase.include?("delete")
 
       puts "  #{fy_folder['name']}:"
       fy_children = client.send(:get, "#{client.send(:drive_path)}/items/#{fy_folder['id']}/children")
-      fy_job_folders = (fy_children['value'] || []).select { |f| f['folder'] }
+      fy_job_folders = (fy_children["value"] || []).select { |f| f["folder"] }
 
       fy_job_folders.each do |job_folder|
-        job = find_job_for_folder(job_folder['name'], jobs)
+        job = find_job_for_folder(job_folder["name"], jobs)
 
         if job
           puts "    [MATCH] #{job_folder['name']} -> Job #{job.id}: #{job.title}"
-          matched_jobs << { folder: job_folder['name'], job: job }
+          matched_jobs << { folder: job_folder["name"], job: job }
 
           stats = { created: 0, updated: 0, unchanged: 0, errors: 0, folder_errors: 0 }
-          sync_folder_files(client, credential, job_folder['id'], '', job, stats)
+          sync_folder_files(client, credential, job_folder["id"], "", job, stats)
 
           puts "      Synced: #{stats[:created]} new, #{stats[:updated]} updated, #{stats[:unchanged]} unchanged"
           total_stats.merge!(stats) { |k, old, new| old + new }
@@ -308,36 +308,36 @@ folders_to_process.each do |main_folder|
   end
 
   # Handle Kitchen completed subfolder
-  if main_folder['name'].include?('Kitchen')
-    completed_folder = job_folders.find { |f| f['name'].downcase.include?('completed') }
+  if main_folder["name"].include?("Kitchen")
+    completed_folder = job_folders.find { |f| f["name"].downcase.include?("completed") }
     if completed_folder
       completed_children = client.send(:get, "#{client.send(:drive_path)}/items/#{completed_folder['id']}/children")
-      completed_jobs = (completed_children['value'] || []).select { |f| f['folder'] }
-      job_folders = job_folders.reject { |f| f['name'].downcase.include?('completed') || f['name'].downcase.include?('old') }
+      completed_jobs = (completed_children["value"] || []).select { |f| f["folder"] }
+      job_folders = job_folders.reject { |f| f["name"].downcase.include?("completed") || f["name"].downcase.include?("old") }
       job_folders += completed_jobs
     end
   end
 
   # Skip template/system folders
   job_folders = job_folders.reject { |f|
-    f['name'].downcase.include?('template') ||
-    f['name'].downcase.include?('zz old') ||
-    f['name'].downcase.include?('zz photos') ||
-    f['name'] == 'New folder' ||
-    f['name'].downcase.include?('draft contract') ||
-    f['name'].downcase.include?('colour selection') ||
-    f['name'].downcase.include?('waiting')
+    f["name"].downcase.include?("template") ||
+    f["name"].downcase.include?("zz old") ||
+    f["name"].downcase.include?("zz photos") ||
+    f["name"] == "New folder" ||
+    f["name"].downcase.include?("draft contract") ||
+    f["name"].downcase.include?("colour selection") ||
+    f["name"].downcase.include?("waiting")
   }
 
   job_folders.each do |job_folder|
-    job = find_job_for_folder(job_folder['name'], jobs)
+    job = find_job_for_folder(job_folder["name"], jobs)
 
     if job
       puts "  [MATCH] #{job_folder['name']} -> Job #{job.id}: #{job.title}"
-      matched_jobs << { folder: job_folder['name'], job: job }
+      matched_jobs << { folder: job_folder["name"], job: job }
 
       stats = { created: 0, updated: 0, unchanged: 0, errors: 0, folder_errors: 0 }
-      sync_folder_files(client, credential, job_folder['id'], '', job, stats)
+      sync_folder_files(client, credential, job_folder["id"], "", job, stats)
 
       puts "    Synced: #{stats[:created]} new, #{stats[:updated]} updated, #{stats[:unchanged]} unchanged"
       total_stats.merge!(stats) { |k, old, new| old + new }

@@ -19,14 +19,14 @@ class FormulaEvaluator
       field_reference = match[0]
 
       # Check if this is a cross-table reference (contains a dot)
-      if field_reference.include?('.')
+      if field_reference.include?(".")
         # Cross-table reference: {lookup_column.field_name}
-        lookup_column_name, related_field_name = field_reference.split('.', 2)
+        lookup_column_name, related_field_name = field_reference.split(".", 2)
 
         # Find the lookup column
         lookup_column = @table.columns.find { |c| c.name == lookup_column_name }
 
-        if lookup_column && lookup_column.column_type.in?(['lookup', 'multiple_lookups']) && record_instance
+        if lookup_column && lookup_column.column_type.in?([ "lookup", "multiple_lookups" ]) && record_instance
           # Get the related record
           begin
             related_record_id = record_data[lookup_column.column_name]
@@ -42,7 +42,7 @@ class FormulaEvaluator
                   value = related_record.send(related_column.column_name)
 
                   # Create a safe variable name
-                  var_name = field_reference.gsub(/[^a-zA-Z0-9_]/, '_').downcase
+                  var_name = field_reference.gsub(/[^a-zA-Z0-9_]/, "_").downcase
 
                   # Convert to numeric if possible
                   numeric_value = value.to_f if value.present? && value.to_s.match?(/^-?\d*\.?\d+$/)
@@ -79,7 +79,7 @@ class FormulaEvaluator
 
         if column
           # Create a safe variable name (replace spaces with underscores, etc.)
-          var_name = field_name.gsub(/[^a-zA-Z0-9_]/, '_').downcase
+          var_name = field_name.gsub(/[^a-zA-Z0-9_]/, "_").downcase
 
           # Get the value from the record data
           value = record_data[column.column_name]
@@ -117,7 +117,7 @@ class FormulaEvaluator
     return false if formula_expression.blank?
 
     # Check if any field reference contains a dot (e.g., {category.tax_rate})
-    formula_expression.scan(/\{([^}]+)\}/).any? { |match| match[0].include?('.') }
+    formula_expression.scan(/\{([^}]+)\}/).any? { |match| match[0].include?(".") }
   end
 
   # Batch evaluate formula for multiple records

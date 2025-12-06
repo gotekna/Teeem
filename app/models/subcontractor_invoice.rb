@@ -6,11 +6,11 @@ class SubcontractorInvoice < ApplicationRecord
 
   # Enums
   enum :status, {
-    draft: 'draft',
-    sent: 'sent',
-    paid: 'paid',
-    overdue: 'overdue',
-    cancelled: 'cancelled'
+    draft: "draft",
+    sent: "sent",
+    paid: "paid",
+    overdue: "overdue",
+    cancelled: "cancelled"
   }
 
   # Validations
@@ -25,16 +25,16 @@ class SubcontractorInvoice < ApplicationRecord
   after_update :check_overdue_status
 
   # Scopes
-  scope :unsent, -> { where(status: 'draft') }
-  scope :pending_payment, -> { where(status: 'sent') }
-  scope :paid, -> { where(status: 'paid') }
-  scope :overdue, -> { where(status: 'overdue') }
+  scope :unsent, -> { where(status: "draft") }
+  scope :pending_payment, -> { where(status: "sent") }
+  scope :paid, -> { where(status: "paid") }
+  scope :overdue, -> { where(status: "overdue") }
   scope :recent, -> { order(created_at: :desc) }
 
   # Instance Methods
   def send!
     transaction do
-      update!(status: 'sent')
+      update!(status: "sent")
 
       if accounting_integration.present?
         accounting_integration.create_invoice!(self)
@@ -44,14 +44,14 @@ class SubcontractorInvoice < ApplicationRecord
 
   def mark_paid!(paid_date = Time.current)
     update!(
-      status: 'paid',
+      status: "paid",
       paid_at: paid_date
     )
   end
 
   def mark_overdue!
     return if paid? || cancelled?
-    update!(status: 'overdue')
+    update!(status: "overdue")
   end
 
   def days_outstanding

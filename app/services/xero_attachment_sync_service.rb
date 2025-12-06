@@ -12,8 +12,8 @@ class XeroAttachmentSyncService
   # Sync all attachments for this invoice
   # @return [Hash] - { pdf: CompanyDocument, attachments: [CompanyDocument...], errors: [...] }
   def sync!
-    return error_result('No external_id on invoice') unless external_invoice.external_id.present?
-    return error_result('No tenant_id on invoice') unless external_invoice.tenant_id.present?
+    return error_result("No external_id on invoice") unless external_invoice.external_id.present?
+    return error_result("No tenant_id on invoice") unless external_invoice.tenant_id.present?
 
     Rails.logger.info("[XeroAttachmentSync] Starting sync for invoice #{external_invoice.id} (#{external_invoice.invoice_number})")
 
@@ -37,13 +37,13 @@ class XeroAttachmentSyncService
 
   def sync_invoice_pdf
     # Determine endpoint based on invoice type
-    entity_type = external_invoice.quote? ? 'Quotes' : 'Invoices'
+    entity_type = external_invoice.quote? ? "Quotes" : "Invoices"
 
     pdf_result = if external_invoice.quote?
                    xero_client.get_quote_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
-                 else
+    else
                    xero_client.get_invoice_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
-                 end
+    end
 
     unless pdf_result[:success]
       results[:errors] << "Failed to fetch PDF: #{pdf_result[:error]}"
@@ -55,7 +55,7 @@ class XeroAttachmentSyncService
     external_doc_id = "xero:#{external_invoice.external_id}:pdf"
 
     document = CompanyDocument.find_or_initialize_by(
-      source: 'xero',
+      source: "xero",
       external_id: external_doc_id
     )
 
@@ -67,15 +67,15 @@ class XeroAttachmentSyncService
       job_id: external_invoice.job_id,
       file_size: pdf_result[:content_length] || pdf_result[:content].bytesize,
       file_name: filename,
-      mime_type: 'application/pdf',
-      ai_verification_status: 'verified' # Xero-sourced, no need for AI verification
+      mime_type: "application/pdf",
+      ai_verification_status: "verified" # Xero-sourced, no need for AI verification
     )
 
     # Attach the file via Active Storage
     document.file.attach(
       io: StringIO.new(pdf_result[:content]),
       filename: filename,
-      content_type: 'application/pdf'
+      content_type: "application/pdf"
     )
 
     if document.save
@@ -90,7 +90,7 @@ class XeroAttachmentSyncService
   end
 
   def sync_attachments
-    entity_type = external_invoice.quote? ? 'Quotes' : 'Invoices'
+    entity_type = external_invoice.quote? ? "Quotes" : "Invoices"
 
     attachments_result = xero_client.get_attachments(
       entity_type,
@@ -117,7 +117,7 @@ class XeroAttachmentSyncService
 
     # Skip if already synced
     external_doc_id = "xero:#{external_invoice.external_id}:#{attachment_id}"
-    existing = CompanyDocument.find_by(source: 'xero', external_id: external_doc_id)
+    existing = CompanyDocument.find_by(source: "xero", external_id: external_doc_id)
 
     if existing.present?
       Rails.logger.debug("[XeroAttachmentSync] Skipping existing attachment: #{filename}")
@@ -140,7 +140,7 @@ class XeroAttachmentSyncService
 
     # Create CompanyDocument
     document = CompanyDocument.new(
-      source: 'xero',
+      source: "xero",
       external_id: external_doc_id,
       title: filename,
       document_type: guess_document_type(filename),
@@ -149,14 +149,14 @@ class XeroAttachmentSyncService
       file_size: download_result[:content_length] || download_result[:content].bytesize,
       file_name: filename,
       mime_type: download_result[:mime_type] || attachment_info[:mime_type],
-      ai_verification_status: 'pending' # Attachments should go through AI verification
+      ai_verification_status: "pending" # Attachments should go through AI verification
     )
 
     # Attach the file
     document.file.attach(
       io: StringIO.new(download_result[:content]),
       filename: filename,
-      content_type: download_result[:mime_type] || 'application/octet-stream'
+      content_type: download_result[:mime_type] || "application/octet-stream"
     )
 
     if document.save
@@ -173,12 +173,12 @@ class XeroAttachmentSyncService
   def build_pdf_filename
     # Format: INV-001234.pdf or BILL-001234.pdf
     prefix = case external_invoice.invoice_type
-             when 'sales_invoice' then 'INV'
-             when 'bill' then 'BILL'
-             when 'credit_note' then 'CN'
-             when 'quote' then 'QUO'
-             else 'DOC'
-             end
+    when "sales_invoice" then "INV"
+    when "bill" then "BILL"
+    when "credit_note" then "CN"
+    when "quote" then "QUO"
+    else "DOC"
+    end
 
     invoice_num = external_invoice.invoice_number.presence || external_invoice.external_id[0..7]
     "#{prefix}-#{invoice_num}.pdf"
@@ -186,11 +186,11 @@ class XeroAttachmentSyncService
 
   def document_type_for_invoice
     case external_invoice.invoice_type
-    when 'sales_invoice' then 'invoice'
-    when 'bill' then 'bill'
-    when 'credit_note' then 'credit_note'
-    when 'quote' then 'quote'
-    else 'other'
+    when "sales_invoice" then "invoice"
+    when "bill" then "bill"
+    when "credit_note" then "credit_note"
+    when "quote" then "quote"
+    else "other"
     end
   end
 
@@ -199,19 +199,19 @@ class XeroAttachmentSyncService
     name = filename.downcase
 
     # Common patterns
-    return 'invoice' if name.include?('invoice') || name.include?('inv')
-    return 'bill' if name.include?('bill')
-    return 'receipt' if name.include?('receipt')
-    return 'contract' if name.include?('contract')
-    return 'quote' if name.include?('quote') || name.include?('estimate')
+    return "invoice" if name.include?("invoice") || name.include?("inv")
+    return "bill" if name.include?("bill")
+    return "receipt" if name.include?("receipt")
+    return "contract" if name.include?("contract")
+    return "quote" if name.include?("quote") || name.include?("estimate")
 
     # Default based on extension
     case ext
-    when '.pdf' then 'document'
-    when '.doc', '.docx' then 'document'
-    when '.xls', '.xlsx' then 'spreadsheet'
-    when '.jpg', '.jpeg', '.png' then 'image'
-    else 'other'
+    when ".pdf" then "document"
+    when ".doc", ".docx" then "document"
+    when ".xls", ".xlsx" then "spreadsheet"
+    when ".jpg", ".jpeg", ".png" then "image"
+    else "other"
     end
   end
 end

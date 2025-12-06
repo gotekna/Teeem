@@ -1,7 +1,7 @@
 module Api
   module V1
     class TaskTemplatesController < ApplicationController
-      before_action :set_task_template, only: [:show, :update, :destroy]
+      before_action :set_task_template, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/task_templates
       def index
@@ -28,7 +28,7 @@ module Api
         if @task_template.save
           render json: {
             success: true,
-            message: 'Task template created successfully',
+            message: "Task template created successfully",
             task_template: template_to_json(@task_template)
           }, status: :created
         else
@@ -44,7 +44,7 @@ module Api
         if @task_template.update(task_template_params)
           render json: {
             success: true,
-            message: 'Task template updated successfully',
+            message: "Task template updated successfully",
             task_template: template_to_json(@task_template)
           }
         else
@@ -61,7 +61,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Task template deleted successfully'
+          message: "Task template deleted successfully"
         }
       end
 
@@ -72,7 +72,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Task template not found'
+          error: "Task template not found"
         }, status: :not_found
       end
 

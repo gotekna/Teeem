@@ -18,7 +18,7 @@ class Foundation < ApplicationRecord
     foundation_columns = columns.includes(:lookup_foundation) # Eager load for performance
 
     # For system foundations with a model_class defined, use the existing Rails model
-    if table_type == 'system' && model_class.present?
+    if table_type == "system" && model_class.present?
       begin
         @dynamic_model = model_class.constantize
         return @dynamic_model
@@ -30,7 +30,7 @@ class Foundation < ApplicationRecord
 
     # Generate a valid class name from the foundation name
     # Classify will handle spaces and special characters
-    class_name = name.gsub(/[^a-zA-Z0-9_]/, '').classify
+    class_name = name.gsub(/[^a-zA-Z0-9_]/, "").classify
     table_name = database_table_name
 
     # Check if class already exists and is an ActiveRecord model
@@ -70,7 +70,7 @@ class Foundation < ApplicationRecord
   # Reload the dynamic model (useful after adding columns or relationships)
   def reload_dynamic_model
     # Use the same sanitization as dynamic_model
-    class_name = name.gsub(/[^a-zA-Z0-9_]/, '').classify
+    class_name = name.gsub(/[^a-zA-Z0-9_]/, "").classify
     # Only try to remove the constant if it's a valid constant name
     begin
       Object.send(:remove_const, class_name) if Object.const_defined?(class_name)
@@ -93,7 +93,7 @@ class Foundation < ApplicationRecord
   def generate_database_table_name
     # Generate a safe database table name from the name field
     # e.g., "My Contacts" => "my_contacts_abc123"
-    base_name = name.parameterize(separator: '_')
+    base_name = name.parameterize(separator: "_")
     # Add a random suffix to avoid collisions
     random_suffix = SecureRandom.hex(4)
     self.database_table_name = "user_#{base_name}_#{random_suffix}"
@@ -107,11 +107,11 @@ class Foundation < ApplicationRecord
 
   def add_lookup_associations(foundation_columns)
     # Add belongs_to associations for each lookup column
-    foundation_columns.where(column_type: 'lookup').each do |col|
+    foundation_columns.where(column_type: "lookup").each do |col|
       next unless col.lookup_foundation
 
       association_name = col.column_name.to_sym
-      target_class_name = col.lookup_foundation.name.gsub(/[^a-zA-Z0-9_]/, '').classify
+      target_class_name = col.lookup_foundation.name.gsub(/[^a-zA-Z0-9_]/, "").classify
 
       # Skip if association already defined
       next if @dynamic_model.reflect_on_association(association_name)

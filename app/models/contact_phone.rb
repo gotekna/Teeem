@@ -12,8 +12,8 @@ class ContactPhone < ApplicationRecord
 
   scope :ordered, -> { order(:position) }
   scope :primary, -> { where(is_primary: true) }
-  scope :mobile, -> { where(phone_type: 'mobile') }
-  scope :office, -> { where(phone_type: 'office') }
+  scope :mobile, -> { where(phone_type: "mobile") }
+  scope :office, -> { where(phone_type: "office") }
 
   # Auto-set position if not provided
   before_validation :set_position, on: :create

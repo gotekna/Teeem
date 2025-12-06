@@ -1,5 +1,4 @@
 class Api::V1::ChatMessagesController < ApplicationController
-
   # GET /api/v1/chat_messages/online_users
   # Returns list of users with their online status
   def online_users
@@ -10,21 +9,21 @@ class Api::V1::ChatMessagesController < ApplicationController
     render json: users.map { |user|
       last_seen = user.last_seen_at
       presence_status = if last_seen.nil?
-                          'offline'
-                        elsif last_seen > 5.minutes.ago
-                          'online'
-                        elsif last_seen > 30.minutes.ago
-                          'away'
-                        else
-                          'offline'
-                        end
+                          "offline"
+      elsif last_seen > 5.minutes.ago
+                          "online"
+      elsif last_seen > 30.minutes.ago
+                          "away"
+      else
+                          "offline"
+      end
 
       {
         id: user.id,
         name: user.name,
         email: user.email,
         presence_status: presence_status,
-        is_online: presence_status == 'online',
+        is_online: presence_status == "online",
         last_seen_at: user.last_seen_at
       }
     }
@@ -35,13 +34,13 @@ class Api::V1::ChatMessagesController < ApplicationController
   def conversations
     # Get all direct message conversations for current user
     direct_messages = ChatMessage
-      .where('user_id = ? OR recipient_user_id = ?', current_user.id, current_user.id)
+      .where("user_id = ? OR recipient_user_id = ?", current_user.id, current_user.id)
       .where.not(recipient_user_id: nil)
-      .select('DISTINCT ON (LEAST(user_id, recipient_user_id), GREATEST(user_id, recipient_user_id)) *')
-      .order(Arel.sql('LEAST(user_id, recipient_user_id), GREATEST(user_id, recipient_user_id), created_at DESC'))
+      .select("DISTINCT ON (LEAST(user_id, recipient_user_id), GREATEST(user_id, recipient_user_id)) *")
+      .order(Arel.sql("LEAST(user_id, recipient_user_id), GREATEST(user_id, recipient_user_id), created_at DESC"))
 
     # Get unique conversation partner IDs
-    partner_ids = direct_messages.flat_map { |m| [m.user_id, m.recipient_user_id] }.uniq - [current_user.id]
+    partner_ids = direct_messages.flat_map { |m| [ m.user_id, m.recipient_user_id ] }.uniq - [ current_user.id ]
     partners = User.where(id: partner_ids).index_by(&:id)
 
     conversations = direct_messages.map do |msg|
@@ -53,8 +52,8 @@ class Api::V1::ChatMessagesController < ApplicationController
       is_online = last_seen.present? && last_seen > 5.minutes.ago
 
       {
-        id: "dm-#{[current_user.id, partner_id].sort.join('-')}",
-        type: 'direct',
+        id: "dm-#{[ current_user.id, partner_id ].sort.join('-')}",
+        type: "direct",
         name: partner.name,
         participants: [
           { id: current_user.id, name: current_user.name, is_online: true },
@@ -64,12 +63,12 @@ class Api::V1::ChatMessagesController < ApplicationController
           id: msg.id,
           content: msg.content,
           sender_id: msg.user_id,
-          sender_name: msg.user_id == current_user.id ? 'You' : partner.name,
+          sender_name: msg.user_id == current_user.id ? "You" : partner.name,
           created_at: msg.created_at,
           is_own: msg.user_id == current_user.id
         },
         unread_count: ChatMessage.where(user_id: partner_id, recipient_user_id: current_user.id)
-                                 .where('created_at > ?', current_user.last_chat_read_at || Time.at(0))
+                                 .where("created_at > ?", current_user.last_chat_read_at || Time.at(0))
                                  .count,
         is_pinned: false,
         job_id: nil,
@@ -108,7 +107,7 @@ class Api::V1::ChatMessagesController < ApplicationController
       @messages = ChatMessage.general.includes(:user).recent(100)
     end
 
-    render json: @messages.as_json(include: { user: { only: [:id, :name, :email] } }, methods: :formatted_timestamp)
+    render json: @messages.as_json(include: { user: { only: [ :id, :name, :email ] } }, methods: :formatted_timestamp)
   end
 
   # POST /api/v1/chat_messages
@@ -117,7 +116,7 @@ class Api::V1::ChatMessagesController < ApplicationController
     @message.user = current_user
 
     if @message.save
-      render json: @message.as_json(include: { user: { only: [:id, :name, :email] } }, methods: :formatted_timestamp), status: :created
+      render json: @message.as_json(include: { user: { only: [ :id, :name, :email ] } }, methods: :formatted_timestamp), status: :created
     else
       render json: { errors: @message.errors.full_messages }, status: :unprocessable_entity
     end
@@ -131,14 +130,14 @@ class Api::V1::ChatMessagesController < ApplicationController
       @message.destroy
       head :no_content
     else
-      render json: { error: 'Unauthorized' }, status: :forbidden
+      render json: { error: "Unauthorized" }, status: :forbidden
     end
   end
 
   # GET /api/v1/chat_messages/unread_count
   def unread_count
     last_read = current_user.last_chat_read_at || Time.at(0)
-    count = ChatMessage.where('created_at > ?', last_read)
+    count = ChatMessage.where("created_at > ?", last_read)
                       .where.not(user_id: current_user.id)
                       .count
     render json: { count: count }
@@ -156,12 +155,12 @@ class Api::V1::ChatMessagesController < ApplicationController
     construction_id = params[:job_id]
 
     if construction_id.blank?
-      render json: { error: 'construction_id is required' }, status: :unprocessable_entity
+      render json: { error: "construction_id is required" }, status: :unprocessable_entity
       return
     end
 
     @message.update(construction_id: construction_id, saved_to_job: true)
-    render json: @message.as_json(include: { user: { only: [:id, :name, :email] } }, methods: :formatted_timestamp)
+    render json: @message.as_json(include: { user: { only: [ :id, :name, :email ] } }, methods: :formatted_timestamp)
   end
 
   # POST /api/v1/chat_messages/save_conversation_to_job
@@ -170,12 +169,12 @@ class Api::V1::ChatMessagesController < ApplicationController
     message_ids = params[:message_ids]
 
     if construction_id.blank?
-      render json: { error: 'construction_id is required' }, status: :unprocessable_entity
+      render json: { error: "construction_id is required" }, status: :unprocessable_entity
       return
     end
 
     if message_ids.blank? || !message_ids.is_a?(Array)
-      render json: { error: 'message_ids must be an array' }, status: :unprocessable_entity
+      render json: { error: "message_ids must be an array" }, status: :unprocessable_entity
       return
     end
 
@@ -187,7 +186,7 @@ class Api::V1::ChatMessagesController < ApplicationController
 
     # Return updated messages
     @messages = ChatMessage.where(id: message_ids).includes(:user).order(created_at: :asc)
-    render json: @messages.as_json(include: { user: { only: [:id, :name, :email] } }, methods: :formatted_timestamp)
+    render json: @messages.as_json(include: { user: { only: [ :id, :name, :email ] } }, methods: :formatted_timestamp)
   end
 
   private
@@ -195,5 +194,4 @@ class Api::V1::ChatMessagesController < ApplicationController
   def message_params
     params.require(:chat_message).permit(:content, :channel, :project_id, :recipient_user_id, :job_id, :contact_id, :case_id)
   end
-
 end

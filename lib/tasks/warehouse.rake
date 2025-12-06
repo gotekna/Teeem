@@ -5,13 +5,13 @@ namespace :warehouse do
     puts ""
     puts "📊 MATERIALIZED VIEWS:"
     views = {
-      'mv_job_summary' => MvJobSummary,
-      'mv_document_summary' => MvDocumentSummary,
-      'mv_document_completeness' => MvDocumentCompleteness,
-      'mv_invoice_po_reconciliation' => MvInvoicePoReconciliation,
-      'mv_resource_utilization' => MvResourceUtilization,
-      'mv_job_document_status' => MvJobDocumentStatus,
-      'mv_task_metrics' => MvTaskMetrics
+      "mv_job_summary" => MvJobSummary,
+      "mv_document_summary" => MvDocumentSummary,
+      "mv_document_completeness" => MvDocumentCompleteness,
+      "mv_invoice_po_reconciliation" => MvInvoicePoReconciliation,
+      "mv_resource_utilization" => MvResourceUtilization,
+      "mv_job_document_status" => MvJobDocumentStatus,
+      "mv_task_metrics" => MvTaskMetrics
     }
     views.each do |name, model|
       count = model.count rescue 0
@@ -66,7 +66,7 @@ namespace :warehouse do
 
   desc "Sync Xero invoice attachments (downloads PDFs)"
   task sync_xero_attachments: :environment do
-    limit = ENV['LIMIT']&.to_i || 50
+    limit = ENV["LIMIT"]&.to_i || 50
     puts "Syncing Xero attachments (limit: #{limit})..."
     result = XeroAttachmentSyncJob.new.perform(nil, limit: limit)
     puts "  Processed: #{result[:processed]}"
@@ -77,7 +77,7 @@ namespace :warehouse do
 
   desc "Run batch document verification (AI classification)"
   task verify_documents: :environment do
-    limit = ENV['LIMIT']&.to_i || 100
+    limit = ENV["LIMIT"]&.to_i || 100
     puts "Running batch document verification (limit: #{limit})..."
     result = BatchDocumentVerificationJob.new.perform(limit: limit)
     puts "  Processed: #{result[:processed]}"
@@ -94,13 +94,13 @@ namespace :warehouse do
 
     # Step 1: Link existing documents
     puts "Step 1: Linking documents..."
-    Rake::Task['warehouse:link_documents'].invoke
+    Rake::Task["warehouse:link_documents"].invoke
     puts ""
 
     # Step 2: Sync Xero attachments (if connected)
     if XeroCredential.current.present?
       puts "Step 2: Syncing Xero attachments..."
-      Rake::Task['warehouse:sync_xero_attachments'].invoke
+      Rake::Task["warehouse:sync_xero_attachments"].invoke
       puts ""
     else
       puts "Step 2: Skipped (no Xero connection)"
@@ -109,12 +109,12 @@ namespace :warehouse do
 
     # Step 3: Refresh materialized views
     puts "Step 3: Refreshing views..."
-    Rake::Task['warehouse:refresh'].invoke
+    Rake::Task["warehouse:refresh"].invoke
     puts ""
 
     # Step 4: Capture daily snapshot
     puts "Step 4: Capturing snapshot..."
-    Rake::Task['warehouse:snapshot'].invoke
+    Rake::Task["warehouse:snapshot"].invoke
     puts ""
 
     puts "✅ Warehouse setup complete!"

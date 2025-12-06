@@ -10,21 +10,21 @@ class CaseDocumentOrganizationService
   # Document type to folder mapping
   DOCUMENT_TYPE_FOLDERS = {
     # Financials go to Corporate folder
-    'tax_return' => :corporate,
-    'financial_statement' => :corporate,
-    'bas' => :corporate,
-    'audit_report' => :corporate,
+    "tax_return" => :corporate,
+    "financial_statement" => :corporate,
+    "bas" => :corporate,
+    "audit_report" => :corporate,
 
     # Legal/Register documents
-    'constitution' => :register,
-    'trust_deed' => :register,
-    'share_certificate' => :register,
-    'minutes' => :register,
+    "constitution" => :register,
+    "trust_deed" => :register,
+    "share_certificate" => :register,
+    "minutes" => :register,
 
     # Everything else goes to case folder
-    'correspondence' => :case_folder,
-    'evidence' => :case_folder,
-    'other' => :case_folder
+    "correspondence" => :case_folder,
+    "evidence" => :case_folder,
+    "other" => :case_folder
   }.freeze
 
   def initialize(case_record)
@@ -118,13 +118,13 @@ class CaseDocumentOrganizationService
         unique_files[file[:id]] = file
       elsif unique_files[hash]
         # Duplicate found - add to original_locations
-        unique_files[hash][:original_locations] ||= [unique_files[hash][:source_folder]]
+        unique_files[hash][:original_locations] ||= [ unique_files[hash][:source_folder] ]
         unique_files[hash][:original_locations] << file[:source_folder]
         unique_files[hash][:duplicate_count] = (unique_files[hash][:duplicate_count] || 0) + 1
       else
         # First occurrence
         unique_files[hash] = file
-        unique_files[hash][:original_locations] = [file[:source_folder]]
+        unique_files[hash][:original_locations] = [ file[:source_folder] ]
         unique_files[hash][:duplicate_count] = 0
       end
     end
@@ -163,9 +163,9 @@ class CaseDocumentOrganizationService
       case_id: case_record.id,
       company_document_id: company_doc.id
     ) do |cd|
-      cd.source_type = 'source_folder'
+      cd.source_type = "source_folder"
       cd.original_location = file_info[:source_folder]
-      cd.action_taken = 'linked'
+      cd.action_taken = "linked"
     end
 
     @results[:linked_existing] += 1
@@ -192,8 +192,8 @@ class CaseDocumentOrganizationService
       review.new_file_path = file_info[:source_folder]
       review.new_file_name = file_info[:name]
       review.new_file_size = file_info[:size]
-      review.source_type = 'source_folder'
-      review.status = 'pending'
+      review.source_type = "source_folder"
+      review.status = "pending"
     end
 
     @results[:duplicates_found] += 1
@@ -211,12 +211,12 @@ class CaseDocumentOrganizationService
 
     # Get date-based subfolder (YYYY-MM)
     file_date = parse_date(file_info[:created_at]) || Date.current
-    date_folder_name = file_date.strftime('%Y-%m')
+    date_folder_name = file_date.strftime("%Y-%m")
     date_folder = @graph_client.get_or_create_subfolder(destination_folder_id, date_folder_name)
 
     # Copy or move the file
-    action = case_record.file_action || 'copy'
-    if action == 'move'
+    action = case_record.file_action || "copy"
+    if action == "move"
       result = @graph_client.move_file(file_info[:id], date_folder[:id])
     else
       result = @graph_client.copy_file(file_info[:id], date_folder[:id])
@@ -229,7 +229,7 @@ class CaseDocumentOrganizationService
     CaseDocument.create!(
       case_id: case_record.id,
       company_document_id: company_doc.id,
-      source_type: 'source_folder',
+      source_type: "source_folder",
       original_location: file_info[:source_folder],
       action_taken: action
     )
@@ -243,15 +243,15 @@ class CaseDocumentOrganizationService
   def classify_document(file_info)
     name = file_info[:name].downcase
 
-    return 'tax_return' if name.include?('tax') && name.include?('return')
-    return 'tax_return' if name.match?(/\bctr\b|\bttr\b/)
-    return 'bas' if name.include?('bas') || name.include?('activity statement')
-    return 'financial_statement' if name.include?('financial') || name.include?('accounts')
-    return 'constitution' if name.include?('constitution')
-    return 'trust_deed' if name.include?('trust') && name.include?('deed')
-    return 'minutes' if name.include?('minutes')
+    return "tax_return" if name.include?("tax") && name.include?("return")
+    return "tax_return" if name.match?(/\bctr\b|\bttr\b/)
+    return "bas" if name.include?("bas") || name.include?("activity statement")
+    return "financial_statement" if name.include?("financial") || name.include?("accounts")
+    return "constitution" if name.include?("constitution")
+    return "trust_deed" if name.include?("trust") && name.include?("deed")
+    return "minutes" if name.include?("minutes")
 
-    'other'
+    "other"
   end
 
   # Get destination folder ID based on target location
@@ -263,12 +263,12 @@ class CaseDocumentOrganizationService
       return nil unless company
 
       # Find or create corporate folder for company
-      get_or_create_company_folder(company, 'Corporate')
+      get_or_create_company_folder(company, "Corporate")
     when :register
       company = case_record.company || case_record.companies.first
       return nil unless company
 
-      get_or_create_company_folder(company, 'Register')
+      get_or_create_company_folder(company, "Register")
     when :case_folder
       # Use first filing folder
       folder_path = case_record.filing_folder_paths.first
@@ -296,17 +296,17 @@ class CaseDocumentOrganizationService
   def resolve_folder_path(path)
     # Path could be a folder ID or a path string
     if path.is_a?(Hash)
-      return path
-    elsif path.start_with?('/')
+      path
+    elsif path.start_with?("/")
       # Path string - resolve via Graph API
-      @graph_client.get_folder_by_path(path.sub(/^\//, ''))
+      @graph_client.get_folder_by_path(path.sub(/^\//, ""))
     else
       # Assume it's a folder ID
       result = @graph_client.get_file(path)
       {
-        id: result['id'],
-        name: result['name'],
-        web_url: result['webUrl']
+        id: result["id"],
+        name: result["name"],
+        web_url: result["webUrl"]
       }
     end
   rescue => e
@@ -326,9 +326,9 @@ class CaseDocumentOrganizationService
       file_name: file_info[:name],
       file_size: file_info[:size],
       content_hash: file_info[:content_hash],
-      onedrive_file_id: graph_result.is_a?(Hash) ? graph_result['id'] : nil,
-      onedrive_download_url: graph_result.is_a?(Hash) ? graph_result['webUrl'] : nil,
-      source: 'case_import',
+      onedrive_file_id: graph_result.is_a?(Hash) ? graph_result["id"] : nil,
+      onedrive_download_url: graph_result.is_a?(Hash) ? graph_result["webUrl"] : nil,
+      source: "case_import",
       last_modified_at: parse_date(file_info[:modified_at])
     )
   end

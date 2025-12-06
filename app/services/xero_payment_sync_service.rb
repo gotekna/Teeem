@@ -14,7 +14,7 @@ class XeroPaymentSyncService
       unless payment.purchase_order.xero_invoice_id.present?
         return {
           success: false,
-          error: 'Purchase order is not linked to a Xero invoice'
+          error: "Purchase order is not linked to a Xero invoice"
         }
       end
 
@@ -22,20 +22,20 @@ class XeroPaymentSyncService
       payment_data = build_xero_payment_data
 
       # Create payment in Xero
-      result = @client.post('Payments', { Payments: [payment_data] })
+      result = @client.post("Payments", { Payments: [ payment_data ] })
 
-      if result[:success] && result[:data]['Payments']
-        xero_payment = result[:data]['Payments'].first
+      if result[:success] && result[:data]["Payments"]
+        xero_payment = result[:data]["Payments"].first
 
         # Mark payment as synced
-        payment.mark_synced!(xero_payment['PaymentID'])
+        payment.mark_synced!(xero_payment["PaymentID"])
 
         Rails.logger.info("Payment #{payment.id} synced to Xero: #{xero_payment['PaymentID']}")
 
         {
           success: true,
-          xero_payment_id: xero_payment['PaymentID'],
-          message: 'Payment synced to Xero successfully'
+          xero_payment_id: xero_payment["PaymentID"],
+          message: "Payment synced to Xero successfully"
         }
       else
         error_message = extract_error_message(result)
@@ -54,7 +54,7 @@ class XeroPaymentSyncService
 
       {
         success: false,
-        error: 'Not authenticated with Xero. Please reconnect.'
+        error: "Not authenticated with Xero. Please reconnect."
       }
 
     rescue StandardError => e
@@ -75,7 +75,7 @@ class XeroPaymentSyncService
     result = @client.get("Payments/#{xero_payment_id}")
 
     if result[:success]
-      result[:data]['Payments']&.first
+      result[:data]["Payments"]&.first
     else
       nil
     end
@@ -106,12 +106,12 @@ class XeroPaymentSyncService
   end
 
   def extract_error_message(result)
-    if result[:data] && result[:data]['Message']
-      result[:data]['Message']
+    if result[:data] && result[:data]["Message"]
+      result[:data]["Message"]
     elsif result[:error]
       result[:error]
     else
-      'Unknown error occurred'
+      "Unknown error occurred"
     end
   end
 end

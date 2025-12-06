@@ -1,9 +1,9 @@
 class DocumentDuplicateReview < ApplicationRecord
   # Associations
-  belongs_to :case, class_name: 'CaseRecord'
-  belongs_to :existing_document, class_name: 'CompanyDocument'
-  belongs_to :new_document, class_name: 'CompanyDocument', optional: true
-  belongs_to :resolved_by, class_name: 'User', optional: true
+  belongs_to :case, class_name: "CaseRecord"
+  belongs_to :existing_document, class_name: "CompanyDocument"
+  belongs_to :new_document, class_name: "CompanyDocument", optional: true
+  belongs_to :resolved_by, class_name: "User", optional: true
 
   # Validations
   validates :new_file_hash, presence: true
@@ -11,8 +11,8 @@ class DocumentDuplicateReview < ApplicationRecord
   validates :resolution, inclusion: { in: %w[keep_existing replace keep_both] }, allow_blank: true
 
   # Scopes
-  scope :pending, -> { where(status: 'pending') }
-  scope :resolved, -> { where(status: 'resolved') }
+  scope :pending, -> { where(status: "pending") }
+  scope :resolved, -> { where(status: "resolved") }
   scope :for_case, ->(case_id) { where(case_id: case_id) }
 
   # Instance methods
@@ -27,12 +27,12 @@ class DocumentDuplicateReview < ApplicationRecord
       ) do |cd|
         cd.source_type = source_type
         cd.original_location = new_file_path
-        cd.action_taken = 'linked'
+        cd.action_taken = "linked"
       end
 
       update!(
-        status: 'resolved',
-        resolution: 'keep_existing',
+        status: "resolved",
+        resolution: "keep_existing",
         resolved_by: user,
         resolved_at: Time.current
       )
@@ -57,12 +57,12 @@ class DocumentDuplicateReview < ApplicationRecord
       ) do |cd|
         cd.source_type = source_type
         cd.original_location = new_file_path
-        cd.action_taken = 'replaced'
+        cd.action_taken = "replaced"
       end
 
       update!(
-        status: 'resolved',
-        resolution: 'replace',
+        status: "resolved",
+        resolution: "replace",
         resolved_by: user,
         resolved_at: Time.current
       )
@@ -73,8 +73,8 @@ class DocumentDuplicateReview < ApplicationRecord
   def keep_both!(user, new_company_document)
     transaction do
       update!(
-        status: 'resolved',
-        resolution: 'keep_both',
+        status: "resolved",
+        resolution: "keep_both",
         new_document: new_company_document,
         resolved_by: user,
         resolved_at: Time.current
@@ -85,7 +85,7 @@ class DocumentDuplicateReview < ApplicationRecord
         case_id: case_id,
         company_document_id: existing_document_id
       ) do |cd|
-        cd.action_taken = 'linked'
+        cd.action_taken = "linked"
       end
 
       CaseDocument.find_or_create_by!(
@@ -94,7 +94,7 @@ class DocumentDuplicateReview < ApplicationRecord
       ) do |cd|
         cd.source_type = source_type
         cd.original_location = new_file_path
-        cd.action_taken = 'copy'
+        cd.action_taken = "copy"
       end
     end
   end

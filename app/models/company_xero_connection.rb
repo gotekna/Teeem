@@ -12,17 +12,17 @@ class CompanyXeroConnection < ApplicationRecord
   validates :connection_status, inclusion: { in: %w[connected disconnected error pending] }
 
   # Scopes
-  scope :connected, -> { where(connection_status: 'connected') }
-  scope :disconnected, -> { where(connection_status: 'disconnected') }
-  scope :with_errors, -> { where(connection_status: 'error') }
-  scope :needs_sync, -> { where('last_sync_at IS NULL OR last_sync_at < ?', 7.days.ago) }
+  scope :connected, -> { where(connection_status: "connected") }
+  scope :disconnected, -> { where(connection_status: "disconnected") }
+  scope :with_errors, -> { where(connection_status: "error") }
+  scope :needs_sync, -> { where("last_sync_at IS NULL OR last_sync_at < ?", 7.days.ago) }
 
   # Callbacks
   after_create :create_connection_activity, if: :connected?
 
   # Instance methods
   def connected?
-    connection_status == 'connected'
+    connection_status == "connected"
   end
 
   def token_expired?
@@ -62,7 +62,7 @@ class CompanyXeroConnection < ApplicationRecord
       token_expires_at: expires_at,
       xero_tenant_id: tenant_id || xero_tenant_id,
       xero_tenant_name: tenant_name || xero_tenant_name,
-      connection_status: 'connected',
+      connection_status: "connected",
       last_sync_error: nil
     )
 
@@ -71,12 +71,12 @@ class CompanyXeroConnection < ApplicationRecord
 
   def mark_disconnected!(error_message = nil)
     update!(
-      connection_status: 'disconnected',
+      connection_status: "disconnected",
       last_sync_error: error_message
     )
 
     company.company_activities.create!(
-      activity_type: 'xero_disconnected',
+      activity_type: "xero_disconnected",
       description: "Xero connection disconnected#{error_message.present? ? ": #{error_message}" : ''}",
       metadata: { xero_tenant_id: xero_tenant_id },
       performed_by: Current.user || User.first,
@@ -86,14 +86,14 @@ class CompanyXeroConnection < ApplicationRecord
 
   def mark_error!(error_message)
     update!(
-      connection_status: 'error',
+      connection_status: "error",
       last_sync_error: error_message
     )
   end
 
   def sync_successful!
     update!(
-      connection_status: 'connected',
+      connection_status: "connected",
       last_sync_at: Time.current,
       last_sync_error: nil
     )
@@ -116,7 +116,7 @@ class CompanyXeroConnection < ApplicationRecord
         encrypted_access_token: result[:access_token],
         encrypted_refresh_token: result[:refresh_token],
         token_expires_at: result[:expires_at],
-        connection_status: 'connected'
+        connection_status: "connected"
       )
       true
     else
@@ -134,7 +134,7 @@ class CompanyXeroConnection < ApplicationRecord
     return unless company.present?
 
     company.company_activities.create!(
-      activity_type: 'xero_connected',
+      activity_type: "xero_connected",
       description: "Xero organization connected: #{xero_tenant_name}",
       metadata: { xero_tenant_id: xero_tenant_id, xero_tenant_name: xero_tenant_name },
       performed_by: Current.user || User.first,

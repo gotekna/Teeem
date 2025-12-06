@@ -3,27 +3,27 @@ class SyncConfiguration < ApplicationRecord
 
   # Default field mappings - direction can be: import, export, bidirectional, none
   DEFAULT_FIELD_MAPPINGS = {
-    'name' => { 'direction' => 'bidirectional', 'xero_field' => 'Name' },
-    'first_name' => { 'direction' => 'bidirectional', 'xero_field' => 'FirstName' },
-    'last_name' => { 'direction' => 'bidirectional', 'xero_field' => 'LastName' },
-    'email' => { 'direction' => 'bidirectional', 'xero_field' => 'EmailAddress' },
-    'mobile_phone' => { 'direction' => 'bidirectional', 'xero_field' => 'Phones.MOBILE' },
-    'office_phone' => { 'direction' => 'bidirectional', 'xero_field' => 'Phones.DEFAULT' },
-    'tax_number' => { 'direction' => 'bidirectional', 'xero_field' => 'TaxNumber' },
-    'bank_bsb' => { 'direction' => 'export', 'xero_field' => 'BankAccountDetails.BSB' },
-    'bank_account_number' => { 'direction' => 'export', 'xero_field' => 'BankAccountDetails.AccountNumber' },
-    'bank_account_name' => { 'direction' => 'export', 'xero_field' => 'BankAccountDetails.AccountName' },
-    'bill_due_day' => { 'direction' => 'bidirectional', 'xero_field' => 'PaymentTerms.Bills.Day' },
-    'bill_due_type' => { 'direction' => 'bidirectional', 'xero_field' => 'PaymentTerms.Bills.Type' },
-    'sales_due_day' => { 'direction' => 'bidirectional', 'xero_field' => 'PaymentTerms.Sales.Day' },
-    'sales_due_type' => { 'direction' => 'bidirectional', 'xero_field' => 'PaymentTerms.Sales.Type' },
-    'contact_persons' => { 'direction' => 'import', 'xero_field' => 'ContactPersons' }
+    "name" => { "direction" => "bidirectional", "xero_field" => "Name" },
+    "first_name" => { "direction" => "bidirectional", "xero_field" => "FirstName" },
+    "last_name" => { "direction" => "bidirectional", "xero_field" => "LastName" },
+    "email" => { "direction" => "bidirectional", "xero_field" => "EmailAddress" },
+    "mobile_phone" => { "direction" => "bidirectional", "xero_field" => "Phones.MOBILE" },
+    "office_phone" => { "direction" => "bidirectional", "xero_field" => "Phones.DEFAULT" },
+    "tax_number" => { "direction" => "bidirectional", "xero_field" => "TaxNumber" },
+    "bank_bsb" => { "direction" => "export", "xero_field" => "BankAccountDetails.BSB" },
+    "bank_account_number" => { "direction" => "export", "xero_field" => "BankAccountDetails.AccountNumber" },
+    "bank_account_name" => { "direction" => "export", "xero_field" => "BankAccountDetails.AccountName" },
+    "bill_due_day" => { "direction" => "bidirectional", "xero_field" => "PaymentTerms.Bills.Day" },
+    "bill_due_type" => { "direction" => "bidirectional", "xero_field" => "PaymentTerms.Bills.Type" },
+    "sales_due_day" => { "direction" => "bidirectional", "xero_field" => "PaymentTerms.Sales.Day" },
+    "sales_due_type" => { "direction" => "bidirectional", "xero_field" => "PaymentTerms.Sales.Type" },
+    "contact_persons" => { "direction" => "import", "xero_field" => "ContactPersons" }
   }.freeze
 
   DEFAULT_CLEANUP_OPTIONS = {
-    'delete_primary_person_after_import' => false,
-    'archive_duplicates' => false,
-    'standardize_abn_format' => true
+    "delete_primary_person_after_import" => false,
+    "archive_duplicates" => false,
+    "standardize_abn_format" => true
   }.freeze
 
   # Valid sync directions for the overall sync configuration
@@ -32,7 +32,7 @@ class SyncConfiguration < ApplicationRecord
   # - bidirectional: Sync both ways (most recent change wins)
   # - disabled: No syncing
   SYNC_DIRECTIONS = %w[import_only export_only bidirectional disabled].freeze
-  DEFAULT_SYNC_DIRECTION = 'import_only'.freeze
+  DEFAULT_SYNC_DIRECTION = "import_only".freeze
 
   validates :xero_tenant_id, presence: true, uniqueness: true
   validates :accounting_system, inclusion: { in: ACCOUNTING_SYSTEMS }
@@ -55,7 +55,7 @@ class SyncConfiguration < ApplicationRecord
   def field_direction(field_name)
     mappings = field_mappings.presence || DEFAULT_FIELD_MAPPINGS
     mapping = mappings[field_name]
-    mapping ? mapping['direction'] : 'none'
+    mapping ? mapping["direction"] : "none"
   end
 
   # Should import this field from Xero?
@@ -78,17 +78,17 @@ class SyncConfiguration < ApplicationRecord
 
   # Should delete primary person from Xero after import?
   def delete_primary_person_after_import?
-    cleanup_option('delete_primary_person_after_import')
+    cleanup_option("delete_primary_person_after_import")
   end
 
   # Should archive duplicates in Xero?
   def archive_duplicates?
-    cleanup_option('archive_duplicates')
+    cleanup_option("archive_duplicates")
   end
 
   # Should standardize ABN format?
   def standardize_abn_format?
-    cleanup_option('standardize_abn_format')
+    cleanup_option("standardize_abn_format")
   end
 
   # Get the effective sync direction (uses default if not set)
@@ -114,7 +114,7 @@ class SyncConfiguration < ApplicationRecord
 
   # Is sync disabled entirely?
   def sync_disabled?
-    effective_sync_direction == 'disabled'
+    effective_sync_direction == "disabled"
   end
 
   # Set all field mappings to a specific direction
@@ -124,7 +124,7 @@ class SyncConfiguration < ApplicationRecord
 
     new_mappings = (field_mappings.presence || DEFAULT_FIELD_MAPPINGS).deep_dup
     new_mappings.each do |field, config|
-      config['direction'] = direction
+      config["direction"] = direction
     end
     update!(field_mappings: new_mappings)
   end
@@ -156,10 +156,10 @@ class SyncConfiguration < ApplicationRecord
   # Badge color for this accounting system
   def badge_color
     case accounting_system
-    when 'xero' then 'blue'
-    when 'quickbooks' then 'green'
-    when 'myob' then 'purple'
-    else 'gray'
+    when "xero" then "blue"
+    when "quickbooks" then "green"
+    when "myob" then "purple"
+    else "gray"
     end
   end
 end

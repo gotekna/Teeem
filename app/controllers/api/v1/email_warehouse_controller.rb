@@ -1,5 +1,5 @@
 class Api::V1::EmailWarehouseController < ApplicationController
-  before_action :set_email, only: [:show, :assign_to_job, :unassign]
+  before_action :set_email, only: [ :show, :assign_to_job, :unassign ]
 
   # GET /api/v1/email_warehouse
   # List emails from warehouse with filtering
@@ -12,12 +12,12 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
 
     # Filter by unassigned only
-    if params[:unassigned] == 'true'
+    if params[:unassigned] == "true"
       emails = emails.unassigned
     end
 
     # Filter to show only latest in thread (hide conversation history)
-    if params[:latest_only] != 'false'
+    if params[:latest_only] != "false"
       emails = emails.latest_in_thread
     end
 
@@ -41,7 +41,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     # Pagination
     page = (params[:page] || 1).to_i
-    per_page = [(params[:per_page] || 50).to_i, 200].min
+    per_page = [ (params[:per_page] || 50).to_i, 200 ].min
     total = emails.count
 
     emails = emails.recent_first.offset((page - 1) * per_page).limit(per_page)
@@ -71,7 +71,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     emails = EmailWarehouse.for_job(job.id)
 
     # Show only latest in thread by default
-    if params[:show_all_in_thread] != 'true'
+    if params[:show_all_in_thread] != "true"
       emails = emails.latest_in_thread
     end
 
@@ -79,7 +79,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     # Also get suggested matches (unassigned emails that might match)
     suggested = []
-    if params[:include_suggestions] == 'true'
+    if params[:include_suggestions] == "true"
       suggested = find_suggested_emails_for_job(job)
     end
 
@@ -103,7 +103,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     # Pagination
     page = (params[:page] || 1).to_i
-    per_page = [(params[:per_page] || 50).to_i, 200].min
+    per_page = [ (params[:per_page] || 50).to_i, 200 ].min
     total = emails.count
 
     emails = emails.offset((page - 1) * per_page).limit(per_page)
@@ -126,7 +126,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     @email.assign_to_job!(job, by_user: current_user)
 
     # Also assign all emails in the same conversation
-    if params[:assign_thread] == 'true' && @email.conversation_id.present?
+    if params[:assign_thread] == "true" && @email.conversation_id.present?
       @email.conversation_thread.each do |thread_email|
         thread_email.assign_to_job!(job, by_user: current_user) if thread_email.job_id.nil?
       end
@@ -145,7 +145,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     render json: {
       success: true,
-      message: 'Email unassigned from job',
+      message: "Email unassigned from job",
       email: email_json(@email)
     }
   end
@@ -154,10 +154,10 @@ class Api::V1::EmailWarehouseController < ApplicationController
   # Trigger manual sync for current user
   def sync
     unless current_user.outlook_credential&.valid_credential?
-      return render json: { error: 'Outlook not connected' }, status: :unprocessable_entity
+      return render json: { error: "Outlook not connected" }, status: :unprocessable_entity
     end
 
-    sync_type = params[:full] == 'true' ? 'full' : 'incremental'
+    sync_type = params[:full] == "true" ? "full" : "incremental"
 
     # Queue the sync job
     EmailWarehouseSyncJob.perform_later(current_user.id, sync_type)
@@ -176,8 +176,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     if status.nil?
       return render json: {
-        status: 'not_started',
-        message: 'No sync has been performed yet',
+        status: "not_started",
+        message: "No sync has been performed yet",
         outlook_connected: current_user.outlook_credential.present?
       }
     end
@@ -199,7 +199,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     job = Job.find(params[:job_id])
 
     unless current_user.outlook_credential&.valid_credential?
-      return render json: { error: 'Outlook not connected' }, status: :unprocessable_entity
+      return render json: { error: "Outlook not connected" }, status: :unprocessable_entity
     end
 
     service = EmailWarehouseSyncService.new(current_user)
@@ -218,7 +218,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
   # GET /api/v1/email_warehouse/search
   # Search warehouse emails
   def search
-    return render json: { error: 'Search query required' }, status: :bad_request if params[:q].blank?
+    return render json: { error: "Search query required" }, status: :bad_request if params[:q].blank?
 
     emails = EmailWarehouse.search_text(params[:q]).latest_in_thread.recent_first.limit(100)
 

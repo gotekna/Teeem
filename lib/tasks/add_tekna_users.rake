@@ -2,12 +2,12 @@ namespace :users do
   desc "Add all Tekna team members to the system and send welcome emails"
   task add_tekna_team: :environment do
     tekna_users = [
-      { name: 'Robert Harder', email: 'robert@tekna.com.au', role: 'admin' },
-      { name: 'Jared Harder', email: 'jared@tekna.com.au', role: 'product_owner' },
-      { name: 'Sophie Harder', email: 'sophie@tekna.com.au', role: 'admin' },
-      { name: 'Rachel Harder', email: 'rachel@tekna.com.au', role: 'admin' },
-      { name: 'Sam Harder', email: 'sam@tekna.com.au', role: 'product_owner' },
-      { name: 'Andrew Clement', email: 'andrew@tekna.com.au', role: 'supervisor' }
+      { name: "Robert Harder", email: "robert@tekna.com.au", role: "admin" },
+      { name: "Jared Harder", email: "jared@tekna.com.au", role: "product_owner" },
+      { name: "Sophie Harder", email: "sophie@tekna.com.au", role: "admin" },
+      { name: "Rachel Harder", email: "rachel@tekna.com.au", role: "admin" },
+      { name: "Sam Harder", email: "sam@tekna.com.au", role: "product_owner" },
+      { name: "Andrew Clement", email: "andrew@tekna.com.au", role: "supervisor" }
     ]
 
     puts "Adding Tekna team members to the system...\n\n"

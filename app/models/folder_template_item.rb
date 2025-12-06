@@ -1,7 +1,7 @@
 class FolderTemplateItem < ApplicationRecord
   belongs_to :folder_template
-  belongs_to :parent, class_name: 'FolderTemplateItem', optional: true
-  has_many :children, class_name: 'FolderTemplateItem', foreign_key: :parent_id, dependent: :destroy
+  belongs_to :parent, class_name: "FolderTemplateItem", optional: true
+  has_many :children, class_name: "FolderTemplateItem", foreign_key: :parent_id, dependent: :destroy
 
   validates :name, presence: true
   validates :level, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
@@ -12,13 +12,13 @@ class FolderTemplateItem < ApplicationRecord
 
   # Get the full path of this folder
   def full_path
-    path_parts = [name]
+    path_parts = [ name ]
     current = parent
     while current
       path_parts.unshift(current.name)
       current = current.parent
     end
-    path_parts.join('/')
+    path_parts.join("/")
   end
 
   # Return this item and its children as nested JSON

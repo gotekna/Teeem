@@ -14,7 +14,7 @@ class CreateKudosEvents < ActiveRecord::Migration[8.0]
     end
 
     add_index :kudos_events, :event_type
-    add_index :kudos_events, [:subcontractor_account_id, :event_type]
+    add_index :kudos_events, [ :subcontractor_account_id, :event_type ]
     add_index :kudos_events, :created_at
   end
 end

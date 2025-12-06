@@ -13,12 +13,12 @@ class FinancialTransactionService
     ActiveRecord::Base.transaction do
       # Create financial transaction record
       transaction = FinancialTransaction.new(
-        transaction_type: 'income',
+        transaction_type: "income",
         amount: params[:amount],
         transaction_date: params[:transaction_date],
         description: params[:description],
-        category: params[:category] || 'Job Revenue',
-        status: 'draft',
+        category: params[:category] || "Job Revenue",
+        status: "draft",
         user: @user,
         company: @company,
         construction_id: params[:construction_id]
@@ -47,12 +47,12 @@ class FinancialTransactionService
     ActiveRecord::Base.transaction do
       # Create financial transaction record
       transaction = FinancialTransaction.new(
-        transaction_type: 'expense',
+        transaction_type: "expense",
         amount: params[:amount],
         transaction_date: params[:transaction_date],
         description: params[:description],
-        category: params[:category] || 'Other Expenses',
-        status: 'draft',
+        category: params[:category] || "Other Expenses",
+        status: "draft",
         user: @user,
         company: @company,
         construction_id: params[:construction_id]
@@ -85,7 +85,7 @@ class FinancialTransactionService
       # Update transaction with journal reference and posted status
       transaction.update!(
         keepr_journal_id: journal.id,
-        status: 'posted'
+        status: "posted"
       )
 
       # Queue for sync if auto-sync is enabled
@@ -230,31 +230,31 @@ class FinancialTransactionService
     end
 
     # Clear the journal reference
-    transaction.update!(keepr_journal_id: nil, status: 'draft')
+    transaction.update!(keepr_journal_id: nil, status: "draft")
   end
 
   def get_account_for_category(category, type)
     # Map categories to account numbers
     account_map = {
-      'income' => {
-        'Job Revenue' => 4000,
-        'Material Sales' => 4100,
-        'Other Income' => 4200
+      "income" => {
+        "Job Revenue" => 4000,
+        "Material Sales" => 4100,
+        "Other Income" => 4200
       },
-      'expense' => {
-        'Materials' => 5000,
-        'Labour' => 5100,
-        'Subcontractors' => 5200,
-        'Tools & Equipment' => 5300,
-        'Fuel & Transport' => 5400,
-        'Insurance' => 5500,
-        'Professional Fees' => 5600,
-        'Other Expenses' => 5700
+      "expense" => {
+        "Materials" => 5000,
+        "Labour" => 5100,
+        "Subcontractors" => 5200,
+        "Tools & Equipment" => 5300,
+        "Fuel & Transport" => 5400,
+        "Insurance" => 5500,
+        "Professional Fees" => 5600,
+        "Other Expenses" => 5700
       }
     }
 
     account_number = account_map[type]&.[](category)
-    account_number ||= type == 'income' ? 4200 : 5700 # Default to "Other"
+    account_number ||= type == "income" ? 4200 : 5700 # Default to "Other"
 
     Keepr::Account.find_by(number: account_number)
   end

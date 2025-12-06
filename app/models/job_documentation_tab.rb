@@ -3,7 +3,7 @@ class JobDocumentationTab < ApplicationRecord
   belongs_to :parent, class_name: "JobDocumentationTab", optional: true
   has_many :children, class_name: "JobDocumentationTab", foreign_key: :parent_id, dependent: :destroy
 
-  validates :name, presence: true, uniqueness: { scope: [:job_id, :parent_id] }
+  validates :name, presence: true, uniqueness: { scope: [ :job_id, :parent_id ] }
   validates :sequence_order, presence: true
 
   scope :active, -> { where(is_active: true) }

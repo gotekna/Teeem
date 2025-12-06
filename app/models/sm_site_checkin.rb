@@ -11,9 +11,9 @@
 #
 class SmSiteCheckin < ApplicationRecord
   belongs_to :job
-  belongs_to :resource, class_name: 'SmResource'
+  belongs_to :resource, class_name: "SmResource"
   belongs_to :user, optional: true
-  belongs_to :task, class_name: 'SmTask', foreign_key: 'sm_task_id', optional: true
+  belongs_to :task, class_name: "SmTask", foreign_key: "sm_task_id", optional: true
 
   # Check-in types
   CHECKIN_TYPES = %w[arrival departure break_start break_end].freeze
@@ -23,8 +23,8 @@ class SmSiteCheckin < ApplicationRecord
   validates :longitude, presence: true, numericality: { greater_than_or_equal_to: -180, less_than_or_equal_to: 180 }
 
   # Scopes
-  scope :arrivals, -> { where(checkin_type: 'arrival') }
-  scope :departures, -> { where(checkin_type: 'departure') }
+  scope :arrivals, -> { where(checkin_type: "arrival") }
+  scope :departures, -> { where(checkin_type: "departure") }
   scope :for_date, ->(date) { where(checked_in_at: date.beginning_of_day..date.end_of_day) }
   scope :for_resource, ->(resource_id) { where(resource_id: resource_id) }
   scope :recent, -> { order(checked_in_at: :desc) }
@@ -35,7 +35,7 @@ class SmSiteCheckin < ApplicationRecord
   after_create :calculate_distance_from_site
 
   # Class methods
-  def self.check_in(resource:, construction:, latitude:, longitude:, checkin_type: 'arrival', user: nil, task: nil)
+  def self.check_in(resource:, construction:, latitude:, longitude:, checkin_type: "arrival", user: nil, task: nil)
     create!(
       resource: resource,
       construction: construction,
@@ -64,14 +64,14 @@ class SmSiteCheckin < ApplicationRecord
   end
 
   def duration_on_site
-    return nil unless checkin_type == 'arrival'
+    return nil unless checkin_type == "arrival"
 
     # Find matching departure
     departure = SmSiteCheckin.where(
       resource_id: resource_id,
       construction_id: construction_id,
-      checkin_type: 'departure'
-    ).where('checked_in_at > ?', checked_in_at).order(:checked_in_at).first
+      checkin_type: "departure"
+    ).where("checked_in_at > ?", checked_in_at).order(:checked_in_at).first
 
     return nil unless departure
 

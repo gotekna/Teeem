@@ -11,11 +11,11 @@ module HealthChecks
   #
   class ContactsCheck < BaseCheck
     def self.check_type
-      'contacts'
+      "contacts"
     end
 
     def self.table_name
-      'contacts'
+      "contacts"
     end
 
     # Find contacts that appear to be duplicates based on name
@@ -23,12 +23,12 @@ module HealthChecks
       duplicates = find_duplicate_groups(:name)
 
       build_result(
-        name: 'Possible Duplicate Contacts',
-        description: 'Contacts with identical or very similar names that may need to be merged.',
+        name: "Possible Duplicate Contacts",
+        description: "Contacts with identical or very similar names that may need to be merged.",
         severity: :warning,
         items: duplicates,
-        icon: 'users',
-        action_path: '/contacts/:id'
+        icon: "users",
+        action_path: "/contacts/:id"
       )
     end
 
@@ -37,28 +37,28 @@ module HealthChecks
       duplicates = find_duplicate_groups(:email)
 
       build_result(
-        name: 'Duplicate Email Addresses',
-        description: 'Multiple contacts sharing the same email address.',
+        name: "Duplicate Email Addresses",
+        description: "Multiple contacts sharing the same email address.",
         severity: :warning,
         items: duplicates,
-        icon: 'envelope',
-        action_path: '/contacts/:id'
+        icon: "envelope",
+        action_path: "/contacts/:id"
       )
     end
 
     # Contacts missing both email and phone
     def check_missing_contact_info
-      contacts = Contact.where(deleted: [false, nil])
+      contacts = Contact.where(deleted: [ false, nil ])
                        .where("(email IS NULL OR email = '') AND (mobile_phone IS NULL OR mobile_phone = '') AND (office_phone IS NULL OR office_phone = '')")
                        .select(:id, :full_name)
 
       build_result(
-        name: 'Contacts Missing Contact Info',
-        description: 'Contacts without email or phone number - difficult to reach.',
+        name: "Contacts Missing Contact Info",
+        description: "Contacts without email or phone number - difficult to reach.",
         severity: :info,
         items: contacts,
-        icon: 'phone-x-mark',
-        action_path: '/contacts/:id'
+        icon: "phone-x-mark",
+        action_path: "/contacts/:id"
       )
     end
 
@@ -87,7 +87,7 @@ module HealthChecks
       groups = []
       seen_ids = Set.new
 
-      contacts = Contact.where(deleted: [false, nil])
+      contacts = Contact.where(deleted: [ false, nil ])
                        .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id)
 
       case type
@@ -98,7 +98,7 @@ module HealthChecks
           next if normalized.blank? || group.size < 2
           next if group.all? { |c| seen_ids.include?(c.id) }
 
-          groups << format_duplicate_group('name', normalized, group)
+          groups << format_duplicate_group("name", normalized, group)
           group.each { |c| seen_ids << c.id }
         end
 
@@ -110,7 +110,7 @@ module HealthChecks
           next if email.blank? || group.size < 2
           next if group.all? { |c| seen_ids.include?(c.id) }
 
-          groups << format_duplicate_group('email', email, group)
+          groups << format_duplicate_group("email", email, group)
           group.each { |c| seen_ids << c.id }
         end
       end
@@ -120,7 +120,7 @@ module HealthChecks
 
     def normalize_name(name)
       return nil if name.blank?
-      name.to_s.downcase.gsub(/\s+/, ' ').strip
+      name.to_s.downcase.gsub(/\s+/, " ").strip
     end
 
     def format_duplicate_group(match_type, match_value, contacts)

@@ -42,7 +42,7 @@ module Api
       def refresh
         view_name = params[:view_name] || :all
 
-        if view_name.to_s != 'all' && !valid_view?(view_name)
+        if view_name.to_s != "all" && !valid_view?(view_name)
           render json: { success: false, error: "View '#{view_name}' not found" }, status: :bad_request
           return
         end
@@ -62,17 +62,17 @@ module Api
       def health
         health_data = MvRefreshLog.health_check
 
-        overall_status = if health_data.any? { |v| v[:status] == 'error' }
-                           'error'
-                         elsif health_data.any? { |v| v[:status] == 'stale' }
-                           'stale'
-                         elsif health_data.any? { |v| v[:status] == 'warning' }
-                           'warning'
-                         elsif health_data.any? { |v| v[:status] == 'unknown' }
-                           'unknown'
-                         else
-                           'healthy'
-                         end
+        overall_status = if health_data.any? { |v| v[:status] == "error" }
+                           "error"
+        elsif health_data.any? { |v| v[:status] == "stale" }
+                           "stale"
+        elsif health_data.any? { |v| v[:status] == "warning" }
+                           "warning"
+        elsif health_data.any? { |v| v[:status] == "unknown" }
+                           "unknown"
+        else
+                           "healthy"
+        end
 
         render json: {
           success: true,
@@ -89,11 +89,11 @@ module Api
 
         {
           total_views: health_data.count,
-          healthy: health_data.count { |v| v[:status] == 'healthy' },
-          stale: health_data.count { |v| v[:status] == 'stale' },
-          warning: health_data.count { |v| v[:status] == 'warning' },
-          error: health_data.count { |v| v[:status] == 'error' },
-          unknown: health_data.count { |v| v[:status] == 'unknown' }
+          healthy: health_data.count { |v| v[:status] == "healthy" },
+          stale: health_data.count { |v| v[:status] == "stale" },
+          warning: health_data.count { |v| v[:status] == "warning" },
+          error: health_data.count { |v| v[:status] == "error" },
+          unknown: health_data.count { |v| v[:status] == "unknown" }
         }
       end
 

@@ -34,78 +34,78 @@ def classify_file(filename)
   name = filename.downcase
 
   # Revit/CAD
-  return { folder: "02 PreCon/Revit-DWG", type: "RVT" } if name.end_with?('.rvt')
-  return { folder: "02 PreCon/Revit-DWG", type: "RFA" } if name.end_with?('.rfa')
-  return { folder: "02 PreCon/Revit-DWG", type: "DWG" } if name.end_with?('.dwg')
-  return { folder: "02 PreCon/Revit-DWG", type: "DXF" } if name.end_with?('.dxf')
+  return { folder: "02 PreCon/Revit-DWG", type: "RVT" } if name.end_with?(".rvt")
+  return { folder: "02 PreCon/Revit-DWG", type: "RFA" } if name.end_with?(".rfa")
+  return { folder: "02 PreCon/Revit-DWG", type: "DWG" } if name.end_with?(".dwg")
+  return { folder: "02 PreCon/Revit-DWG", type: "DXF" } if name.end_with?(".dxf")
 
   # Photos/Videos
   return { folder: "06 Photo/01 SITE", type: "PHOTO" } if name.match?(/\.(jpg|jpeg|png|heic)$/i)
   return { folder: "06 Photo/01 SITE", type: "VIDEO" } if name.match?(/\.(mp4|mov|lrf|srt)$/i)
 
   # Forms and Certifications
-  return { folder: "03 Certification/Final Approval", type: "FINAL" } if name.include?('form 21') || name.include?('form21')
-  return { folder: "03 Certification/Final Approval", type: "FINAL" } if name.include?('form 16') || name.include?('form16')
-  return { folder: "03 Certification", type: "CERT" } if name.include?('form 12') || name.include?('form12')
-  return { folder: "03 Certification", type: "CERT" } if name.include?('form 15') || name.include?('form15')
-  return { folder: "03 Certification", type: "CERT" } if name.include?('form 43') || name.include?('form43')
-  return { folder: "03 Certification", type: "CERT" } if name.include?('inspection')
-  return { folder: "03 Certification/Final Approval", type: "FINAL" } if name.include?('final')
+  return { folder: "03 Certification/Final Approval", type: "FINAL" } if name.include?("form 21") || name.include?("form21")
+  return { folder: "03 Certification/Final Approval", type: "FINAL" } if name.include?("form 16") || name.include?("form16")
+  return { folder: "03 Certification", type: "CERT" } if name.include?("form 12") || name.include?("form12")
+  return { folder: "03 Certification", type: "CERT" } if name.include?("form 15") || name.include?("form15")
+  return { folder: "03 Certification", type: "CERT" } if name.include?("form 43") || name.include?("form43")
+  return { folder: "03 Certification", type: "CERT" } if name.include?("inspection")
+  return { folder: "03 Certification/Final Approval", type: "FINAL" } if name.include?("final")
 
   # Energy/HEBS
-  return { folder: "03 Certification/Energy Efficiency", type: "HEBS" } if name.include?('energy') || name.include?('ee assessment')
+  return { folder: "03 Certification/Energy Efficiency", type: "HEBS" } if name.include?("energy") || name.include?("ee assessment")
 
   # Plumbing
-  return { folder: "03 Certification/Plumbing", type: "PLUMB" } if name.include?('plumb') || name.include?('drain')
+  return { folder: "03 Certification/Plumbing", type: "PLUMB" } if name.include?("plumb") || name.include?("drain")
 
   # Council
-  return { folder: "03 Certification/Council", type: "COUNCIL" } if name.include?('council') || name.include?('approval') || name.include?('concurrence')
-  return { folder: "03 Certification/Council", type: "COUNCIL" } if name.include?('decision notice')
+  return { folder: "03 Certification/Council", type: "COUNCIL" } if name.include?("council") || name.include?("approval") || name.include?("concurrence")
+  return { folder: "03 Certification/Council", type: "COUNCIL" } if name.include?("decision notice")
 
   # Contracts
-  return { folder: "02 PreCon/Contracts", type: "JCON" } if name.include?('contract') || name.include?('qbcc')
-  return { folder: "02 PreCon/Contracts", type: "JCON" } if name.include?('reiq')
+  return { folder: "02 PreCon/Contracts", type: "JCON" } if name.include?("contract") || name.include?("qbcc")
+  return { folder: "02 PreCon/Contracts", type: "JCON" } if name.include?("reiq")
 
   # Plans
-  return { folder: "04 Plans/Certified Plans", type: "CPLAN" } if name.include?('certified') || name.include?('approved plan')
-  return { folder: "04 Plans/Working Drawings", type: "WDRAW" } if name.include?('working') || name.include?('wd plan')
-  return { folder: "04 Plans", type: "PLAN" } if name.include?('plan') && name.end_with?('.pdf')
+  return { folder: "04 Plans/Certified Plans", type: "CPLAN" } if name.include?("certified") || name.include?("approved plan")
+  return { folder: "04 Plans/Working Drawings", type: "WDRAW" } if name.include?("working") || name.include?("wd plan")
+  return { folder: "04 Plans", type: "PLAN" } if name.include?("plan") && name.end_with?(".pdf")
 
   # Estimation/Quotes
-  return { folder: "02 PreCon/Estimation", type: "EST" } if name.include?('quote') || name.include?('price')
-  return { folder: "02 PreCon/Estimation", type: "EST" } if name.include?('purchase order') || name.include?('po0')
+  return { folder: "02 PreCon/Estimation", type: "EST" } if name.include?("quote") || name.include?("price")
+  return { folder: "02 PreCon/Estimation", type: "EST" } if name.include?("purchase order") || name.include?("po0")
 
   # Land/Survey
-  return { folder: "02 PreCon/Land Info", type: "LAND" } if name.include?('survey') || name.include?('soil') || name.include?('setout')
-  return { folder: "02 PreCon/Land Info", type: "LAND" } if name.include?('site class')
+  return { folder: "02 PreCon/Land Info", type: "LAND" } if name.include?("survey") || name.include?("soil") || name.include?("setout")
+  return { folder: "02 PreCon/Land Info", type: "LAND" } if name.include?("site class")
 
   # Colour Selection
-  return { folder: "02 PreCon/Colour Selection", type: "COLOR" } if name.include?('selection') || name.include?('colour') || name.include?('color')
-  return { folder: "02 PreCon/Colour Selection", type: "COLOR" } if name.include?('spec') && !name.include?('inspection')
+  return { folder: "02 PreCon/Colour Selection", type: "COLOR" } if name.include?("selection") || name.include?("colour") || name.include?("color")
+  return { folder: "02 PreCon/Colour Selection", type: "COLOR" } if name.include?("spec") && !name.include?("inspection")
 
   # Engineering
-  return { folder: "02 PreCon/Revit-DWG", type: "ENG" } if name.include?('engineering') || name.include?('truss')
+  return { folder: "02 PreCon/Revit-DWG", type: "ENG" } if name.include?("engineering") || name.include?("truss")
 
   # QBCC/Insurance
-  return { folder: "02 PreCon/Contracts", type: "JCON" } if name.include?('qbcc') || name.include?('cover')
-  return { folder: "02 PreCon/Contracts", type: "JCON" } if name.include?('qleave') || name.include?('q leave')
+  return { folder: "02 PreCon/Contracts", type: "JCON" } if name.include?("qbcc") || name.include?("cover")
+  return { folder: "02 PreCon/Contracts", type: "JCON" } if name.include?("qleave") || name.include?("q leave")
 
   # Default - unclassified goes to 01 Sales for review
   { folder: "01 Sales", type: "REVIEW", needs_review: true }
 end
 
 # Get all subfolders in job folder
-job_items = client.list_folder_items(job_folder['id'])
+job_items = client.list_folder_items(job_folder["id"])
 folder_cache = {}
-job_items['value']&.each do |item|
-  folder_cache[item['name']] = item['id'] if item['folder']
+job_items["value"]&.each do |item|
+  folder_cache[item["name"]] = item["id"] if item["folder"]
 end
 
 # Also get subfolders of subfolders
-job_items['value']&.select { |i| i['folder'] }&.each do |parent|
-  sub_items = client.list_folder_items(parent['id'])
-  sub_items['value']&.each do |item|
-    folder_cache["#{parent['name']}/#{item['name']}"] = item['id'] if item['folder']
+job_items["value"]&.select { |i| i["folder"] }&.each do |parent|
+  sub_items = client.list_folder_items(parent["id"])
+  sub_items["value"]&.each do |item|
+    folder_cache["#{parent['name']}/#{item['name']}"] = item["id"] if item["folder"]
   end
 end
 
@@ -130,7 +130,7 @@ files.each_with_index do |file, idx|
 
     unless target_folder_id
       # Try partial match
-      target_folder_id = folder_cache.find { |k, v| k.end_with?(target_folder.split('/').last) }&.last
+      target_folder_id = folder_cache.find { |k, v| k.end_with?(target_folder.split("/").last) }&.last
     end
 
     unless target_folder_id

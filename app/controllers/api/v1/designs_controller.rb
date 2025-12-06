@@ -1,7 +1,7 @@
 module Api
   module V1
     class DesignsController < ApplicationController
-      before_action :set_design, only: [:show, :update, :destroy]
+      before_action :set_design, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/designs
       def index
@@ -27,7 +27,7 @@ module Api
           success: true,
           designs: @designs.as_json(
             include: {
-              constructions: { only: [:id, :title] }
+              constructions: { only: [ :id, :title ] }
             }
           )
         }
@@ -39,7 +39,7 @@ module Api
           success: true,
           design: @design.as_json(
             include: {
-              constructions: { only: [:id, :title, :status] }
+              constructions: { only: [ :id, :title, :status ] }
             }
           )
         }

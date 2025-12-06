@@ -1,8 +1,8 @@
 module Api
   module V1
     class ChartOfAccountsController < ApplicationController
-      before_action :set_account, only: [:show, :update, :destroy]
-      before_action :require_admin, except: [:index, :show]
+      before_action :set_account, only: [ :show, :update, :destroy ]
+      before_action :require_admin, except: [ :index, :show ]
 
       # GET /api/v1/chart_of_accounts
       def index
@@ -14,7 +14,7 @@ module Api
         # Search by name or number
         if params[:search].present?
           @accounts = @accounts.where(
-            'name ILIKE ? OR CAST(number AS TEXT) LIKE ?',
+            "name ILIKE ? OR CAST(number AS TEXT) LIKE ?",
             "%#{params[:search]}%",
             "%#{params[:search]}%"
           )
@@ -96,7 +96,7 @@ module Api
       def kinds
         render json: {
           success: true,
-          kinds: ['asset', 'liability', 'revenue', 'expense', 'forward', 'debtor', 'creditor']
+          kinds: [ "asset", "liability", "revenue", "expense", "forward", "debtor", "creditor" ]
         }
       end
 

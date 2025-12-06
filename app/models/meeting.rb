@@ -1,7 +1,7 @@
 class Meeting < ApplicationRecord
   # Associations
   belongs_to :job, optional: true
-  belongs_to :created_by, class_name: 'User'
+  belongs_to :created_by, class_name: "User"
   belongs_to :meeting_type
   has_many :meeting_participants, dependent: :destroy
   has_many :meeting_agenda_items, -> { order(:sequence_order) }, dependent: :destroy
@@ -19,8 +19,8 @@ class Meeting < ApplicationRecord
   validate :must_have_at_least_one_participant, on: :update
 
   # Scopes
-  scope :upcoming, -> { where('start_time > ?', Time.current).order(:start_time) }
-  scope :past, -> { where('start_time <= ?', Time.current).order(start_time: :desc) }
+  scope :upcoming, -> { where("start_time > ?", Time.current).order(:start_time) }
+  scope :past, -> { where("start_time <= ?", Time.current).order(start_time: :desc) }
   scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
   scope :for_user, ->(user_id) {
     joins(:meeting_participants).where(meeting_participants: { user_id: user_id })
@@ -31,31 +31,31 @@ class Meeting < ApplicationRecord
 
   # Status state machine helper methods
   def can_start?
-    status == 'scheduled' && start_time <= Time.current
+    status == "scheduled" && start_time <= Time.current
   end
 
   def can_complete?
-    status == 'in_progress'
+    status == "in_progress"
   end
 
   def start!
-    update(status: 'in_progress') if can_start?
+    update(status: "in_progress") if can_start?
   end
 
   def complete!
-    update(status: 'completed') if can_complete?
+    update(status: "completed") if can_complete?
   end
 
   def cancel!
-    update(status: 'cancelled') unless completed?
+    update(status: "cancelled") unless completed?
   end
 
   def completed?
-    status == 'completed'
+    status == "completed"
   end
 
   def cancelled?
-    status == 'cancelled'
+    status == "cancelled"
   end
 
   # Helper methods
@@ -82,7 +82,7 @@ class Meeting < ApplicationRecord
     return if end_time.blank? || start_time.blank?
 
     if end_time <= start_time
-      errors.add(:end_time, 'must be after start time')
+      errors.add(:end_time, "must be after start time")
     end
   end
 
@@ -90,7 +90,7 @@ class Meeting < ApplicationRecord
     return unless persisted?  # Skip for new records
 
     if meeting_participants.empty?
-      errors.add(:base, 'Meeting must have at least one participant')
+      errors.add(:base, "Meeting must have at least one participant")
     end
   end
 

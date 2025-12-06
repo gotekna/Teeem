@@ -76,7 +76,7 @@ class WarehouseDataLinkerService
     # Skip documents already linked to something or that are company-level docs
     unlinked_docs = CompanyDocument
       .where(documentable_type: nil)
-      .where.not(document_type: ['invoice', 'bill', 'purchase_order']) # Skip invoice/PO types
+      .where.not(document_type: [ "invoice", "bill", "purchase_order" ]) # Skip invoice/PO types
 
     unlinked_docs.find_each do |doc|
       begin
@@ -107,9 +107,9 @@ class WarehouseDataLinkerService
     end
 
     # Try matching by external_id if document came from Xero
-    if doc.source == 'xero' && doc.external_id.present?
+    if doc.source == "xero" && doc.external_id.present?
       # external_id might be formatted as "xero:invoice_guid:attachment_id"
-      parts = doc.external_id.to_s.split(':')
+      parts = doc.external_id.to_s.split(":")
       if parts.length >= 2
         invoice = ExternalInvoice.find_by(external_id: parts[1])
         return invoice if invoice

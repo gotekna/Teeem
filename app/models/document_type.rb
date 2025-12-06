@@ -113,7 +113,7 @@ class DocumentType < ApplicationRecord
     normalized_term = term.to_s.strip.downcase
 
     # First try exact name match
-    doc_type = active.find_by('LOWER(name) = ?', normalized_term)
+    doc_type = active.find_by("LOWER(name) = ?", normalized_term)
     return doc_type if doc_type
 
     # Then try database alias match (aliases is a JSONB array)
@@ -129,7 +129,7 @@ class DocumentType < ApplicationRecord
     DEFAULT_ALIASES.each do |canonical_name, aliases|
       if aliases.any? { |a| a.to_s.strip.downcase == normalized_term }
         # Found in defaults, look up the canonical document type
-        doc_type = active.find_by('LOWER(name) = ?', canonical_name.downcase)
+        doc_type = active.find_by("LOWER(name) = ?", canonical_name.downcase)
         return doc_type if doc_type
       end
     end
@@ -147,7 +147,7 @@ class DocumentType < ApplicationRecord
   def all_terms
     db_aliases = aliases.is_a?(Array) ? aliases : []
     default_aliases = DEFAULT_ALIASES[name] || []
-    ([name] + db_aliases + default_aliases).uniq
+    ([ name ] + db_aliases + default_aliases).uniq
   end
 
   # Group document types by folder
@@ -161,32 +161,32 @@ class DocumentType < ApplicationRecord
     return nil if naming_format.blank?
 
     # Australian date format (DD-MM-YYYY)
-    au_date = Date.current.strftime('%d-%m-%Y')
+    au_date = Date.current.strftime("%d-%m-%Y")
 
     format = naming_format.dup
 
     # Replace all placeholders with example values
     # Corporate placeholders
-    format.gsub!('{CompanyCode}', abbreviation.presence || 'DOC')
-    format.gsub!('{LoanID}', 'L001')
-    format.gsub!('{LenderCode}', 'NAB')
-    format.gsub!('{AssetCode}', 'PROP1')
-    format.gsub!('{FY}', '2025')
-    format.gsub!('{YY}', '25')
-    format.gsub!('{Period}', 'Q1')
-    format.gsub!('{PrintDate}', au_date)
-    format.gsub!('{Signed}', '')
+    format.gsub!("{CompanyCode}", abbreviation.presence || "DOC")
+    format.gsub!("{LoanID}", "L001")
+    format.gsub!("{LenderCode}", "NAB")
+    format.gsub!("{AssetCode}", "PROP1")
+    format.gsub!("{FY}", "2025")
+    format.gsub!("{YY}", "25")
+    format.gsub!("{Period}", "Q1")
+    format.gsub!("{PrintDate}", au_date)
+    format.gsub!("{Signed}", "")
 
     # Job placeholders
-    format.gsub!('{JobCode}', 'J069')
-    format.gsub!('{JobTitle}', '83 West Ridge')
-    format.gsub!('{CertType}', 'Occupancy')
-    format.gsub!('{Consultant}', 'ABC Eng')
-    format.gsub!('{Number}', '01')
+    format.gsub!("{JobCode}", "J069")
+    format.gsub!("{JobTitle}", "83 West Ridge")
+    format.gsub!("{CertType}", "Occupancy")
+    format.gsub!("{Consultant}", "ABC Eng")
+    format.gsub!("{Number}", "01")
 
     # Common placeholders - use document type name for description
-    format.gsub!('{Description}', '{Description}')
-    format.gsub!('{Date}', au_date)
+    format.gsub!("{Description}", "{Description}")
+    format.gsub!("{Date}", au_date)
 
     format.strip
   end
@@ -197,34 +197,34 @@ class DocumentType < ApplicationRecord
     return nil if naming_format.blank?
 
     # Australian date format (DD-MM-YYYY)
-    au_date = Date.current.strftime('%d-%m-%Y')
+    au_date = Date.current.strftime("%d-%m-%Y")
 
     format = naming_format.dup
 
     # Job placeholders with actual data
     job_code = "J#{job.id.to_s.rjust(3, '0')}"
-    job_title = job.title.to_s.split(',').first.to_s.strip.gsub(/[^\w\s-]/, '').strip[0..30] # First part of address, sanitized
+    job_title = job.title.to_s.split(",").first.to_s.strip.gsub(/[^\w\s-]/, "").strip[0..30] # First part of address, sanitized
 
-    format.gsub!('{JobCode}', job_code)
-    format.gsub!('{JobTitle}', job_title)
-    format.gsub!('{CertType}', description.presence || 'Cert')
-    format.gsub!('{Consultant}', description.presence || 'Consultant')
-    format.gsub!('{Number}', number.to_s.rjust(2, '0'))
+    format.gsub!("{JobCode}", job_code)
+    format.gsub!("{JobTitle}", job_title)
+    format.gsub!("{CertType}", description.presence || "Cert")
+    format.gsub!("{Consultant}", description.presence || "Consultant")
+    format.gsub!("{Number}", number.to_s.rjust(2, "0"))
 
     # Corporate placeholders (use abbreviation or defaults)
-    format.gsub!('{CompanyCode}', abbreviation.presence || 'DOC')
-    format.gsub!('{LoanID}', 'L001')
-    format.gsub!('{LenderCode}', 'NAB')
-    format.gsub!('{AssetCode}', 'PROP1')
-    format.gsub!('{FY}', Date.current.month >= 7 ? (Date.current.year + 1).to_s : Date.current.year.to_s)
-    format.gsub!('{YY}', Date.current.month >= 7 ? (Date.current.year + 1).to_s[-2..] : Date.current.year.to_s[-2..])
-    format.gsub!('{Period}', 'Q1')
-    format.gsub!('{PrintDate}', au_date)
-    format.gsub!('{Signed}', '')
+    format.gsub!("{CompanyCode}", abbreviation.presence || "DOC")
+    format.gsub!("{LoanID}", "L001")
+    format.gsub!("{LenderCode}", "NAB")
+    format.gsub!("{AssetCode}", "PROP1")
+    format.gsub!("{FY}", Date.current.month >= 7 ? (Date.current.year + 1).to_s : Date.current.year.to_s)
+    format.gsub!("{YY}", Date.current.month >= 7 ? (Date.current.year + 1).to_s[-2..] : Date.current.year.to_s[-2..])
+    format.gsub!("{Period}", "Q1")
+    format.gsub!("{PrintDate}", au_date)
+    format.gsub!("{Signed}", "")
 
     # Common placeholders
-    format.gsub!('{Description}', description.presence || name.to_s.split(' - ').last.to_s)
-    format.gsub!('{Date}', au_date)
+    format.gsub!("{Description}", description.presence || name.to_s.split(" - ").last.to_s)
+    format.gsub!("{Date}", au_date)
 
     result = format.strip
 

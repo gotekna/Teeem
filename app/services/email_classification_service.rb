@@ -89,9 +89,9 @@ class EmailClassificationService
   # Fast heuristic classification using rules
   def classify_with_heuristics
     # Check headers first (most reliable)
-    return marketing_classification('marketing_headers') if has_marketing_headers?
-    return spam_classification('spam_indicators') if has_spam_indicators?
-    return transactional_classification('transactional_patterns') if is_transactional?
+    return marketing_classification("marketing_headers") if has_marketing_headers?
+    return spam_classification("spam_indicators") if has_spam_indicators?
+    return transactional_classification("transactional_patterns") if is_transactional?
 
     # Analyze content patterns
     subject_score = analyze_subject
@@ -115,7 +115,7 @@ class EmailClassificationService
       confidence: confidence,
       signals: collect_signals(subject_score, body_score, domain_score),
       classified_at: Time.current,
-      method: 'heuristic'
+      method: "heuristic"
     }
   end
 
@@ -123,16 +123,16 @@ class EmailClassificationService
   def has_marketing_headers?
     headers = @email.internet_headers || {}
 
-    headers.key?('List-Unsubscribe') ||
-    headers['Precedence']&.downcase == 'bulk' ||
-    headers.key?('X-Campaign-Id') ||
-    headers.key?('X-Mailgun-Campaign-Id') ||
-    headers.key?('X-SG-EID') # SendGrid email ID
+    headers.key?("List-Unsubscribe") ||
+    headers["Precedence"]&.downcase == "bulk" ||
+    headers.key?("X-Campaign-Id") ||
+    headers.key?("X-Mailgun-Campaign-Id") ||
+    headers.key?("X-SG-EID") # SendGrid email ID
   end
 
   # Check for spam indicators in subject
   def has_spam_indicators?
-    subject = @email.subject || ''
+    subject = @email.subject || ""
 
     # All caps subject with 10+ chars
     return true if subject.length > 10 && subject == subject.upcase
@@ -146,8 +146,8 @@ class EmailClassificationService
 
   # Check if email is transactional (receipt, order confirmation, etc.)
   def is_transactional?
-    subject = @email.subject || ''
-    body = @email.body_text&.first(500) || ''
+    subject = @email.subject || ""
+    body = @email.body_text&.first(500) || ""
 
     TRANSACTIONAL_KEYWORDS.any? do |pattern|
       subject.match?(pattern) || body.match?(pattern)
@@ -156,7 +156,7 @@ class EmailClassificationService
 
   # Analyze subject line for marketing/spam patterns
   def analyze_subject
-    subject = @email.subject || ''
+    subject = @email.subject || ""
 
     {
       marketing: keyword_score(subject, MARKETING_KEYWORDS),
@@ -167,8 +167,8 @@ class EmailClassificationService
 
   # Analyze email body for patterns
   def analyze_body
-    body = @email.body_text&.first(2000) || ''
-    html = @email.body_html&.first(2000) || ''
+    body = @email.body_text&.first(2000) || ""
+    html = @email.body_html&.first(2000) || ""
 
     # Check for unsubscribe links
     has_unsub_link = body.match?(/unsubscribe/i) || html.match?(/unsubscribe/i)
@@ -184,8 +184,8 @@ class EmailClassificationService
 
   # Analyze sender domain
   def analyze_domain
-    from_email = @email.from_email || ''
-    domain = from_email.split('@').last&.downcase || ''
+    from_email = @email.from_email || ""
+    domain = from_email.split("@").last&.downcase || ""
 
     # Check if from a known marketing platform
     is_marketing_domain = MARKETING_DOMAINS.any? { |md| domain.include?(md) }
@@ -203,34 +203,34 @@ class EmailClassificationService
     return 0.0 if matches.zero?
 
     # Cap at 1.0
-    [matches.to_f / patterns.length, 1.0].min
+    [ matches.to_f / patterns.length, 1.0 ].min
   end
 
   # Determine email type based on scores
   def determine_type_and_confidence(marketing_score, spam_score, transactional_score)
     # Spam takes priority if high enough
-    return ['spam', spam_score] if spam_score >= 0.5
+    return [ "spam", spam_score ] if spam_score >= 0.5
 
     # Transactional if clearly identified
-    return ['transactional', transactional_score] if transactional_score >= 0.7
+    return [ "transactional", transactional_score ] if transactional_score >= 0.7
 
     # Marketing if score is significant
-    return ['marketing', marketing_score] if marketing_score >= 0.5
+    return [ "marketing", marketing_score ] if marketing_score >= 0.5
 
     # Default to business with low confidence
-    ['business', 0.3]
+    [ "business", 0.3 ]
   end
 
   # Collect signals that triggered classification
   def collect_signals(subject_score, body_score, domain_score)
     signals = []
 
-    signals << 'marketing_subject' if subject_score[:marketing] > 0.5
-    signals << 'marketing_body' if body_score[:marketing] > 0.5
-    signals << 'marketing_domain' if domain_score[:marketing] > 0.7
-    signals << 'spam_subject' if subject_score[:spam] > 0.5
-    signals << 'spam_body' if body_score[:spam] > 0.5
-    signals << 'transactional_subject' if subject_score[:transactional] > 0.5
+    signals << "marketing_subject" if subject_score[:marketing] > 0.5
+    signals << "marketing_body" if body_score[:marketing] > 0.5
+    signals << "marketing_domain" if domain_score[:marketing] > 0.7
+    signals << "spam_subject" if subject_score[:spam] > 0.5
+    signals << "spam_body" if body_score[:spam] > 0.5
+    signals << "transactional_subject" if subject_score[:transactional] > 0.5
 
     signals
   end
@@ -238,31 +238,31 @@ class EmailClassificationService
   # Helper methods for returning classification results
   def marketing_classification(signal)
     {
-      email_type: 'marketing',
+      email_type: "marketing",
       confidence: 0.95,
-      signals: [signal],
+      signals: [ signal ],
       classified_at: Time.current,
-      method: 'heuristic'
+      method: "heuristic"
     }
   end
 
   def spam_classification(signal)
     {
-      email_type: 'spam',
+      email_type: "spam",
       confidence: 0.9,
-      signals: [signal],
+      signals: [ signal ],
       classified_at: Time.current,
-      method: 'heuristic'
+      method: "heuristic"
     }
   end
 
   def transactional_classification(signal)
     {
-      email_type: 'transactional',
+      email_type: "transactional",
       confidence: 0.85,
-      signals: [signal],
+      signals: [ signal ],
       classified_at: Time.current,
-      method: 'heuristic'
+      method: "heuristic"
     }
   end
 end

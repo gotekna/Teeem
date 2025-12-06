@@ -25,7 +25,7 @@ module Api
         if result[:success]
           render json: {
             success: true,
-            message: 'Twilio connection successful',
+            message: "Twilio connection successful",
             account: result[:account]
           }
         else
@@ -61,7 +61,7 @@ module Api
             :saturday,
             :sunday
           ],
-          job_cascade_sort: [:key, :label, :enabled]
+          job_cascade_sort: [ :key, :label, :enabled ]
         )
       end
     end

@@ -11,8 +11,8 @@ class BankAccount < ApplicationRecord
   validate :date_closed_after_opened
 
   # Scopes
-  scope :active, -> { where(status: 'active') }
-  scope :closed, -> { where(status: 'closed') }
+  scope :active, -> { where(status: "active") }
+  scope :closed, -> { where(status: "closed") }
   scope :by_institution, ->(institution) { where(institution_name: institution) }
 
   # Callbacks
@@ -37,7 +37,7 @@ class BankAccount < ApplicationRecord
   end
 
   def active?
-    status == 'active'
+    status == "active"
   end
 
   def linked_to_xero?
@@ -64,7 +64,7 @@ class BankAccount < ApplicationRecord
   def create_activity
     user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
     company.company_activities.create!(
-      activity_type: 'bank_account_added',
+      activity_type: "bank_account_added",
       description: "Bank account added: #{display_name}",
       change_details: { bank_account_id: id, institution: institution_name },
       user: user || User.first
@@ -72,10 +72,10 @@ class BankAccount < ApplicationRecord
   end
 
   def create_update_activity
-    if status == 'closed'
+    if status == "closed"
       user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
       company.company_activities.create!(
-        activity_type: 'bank_account_closed',
+        activity_type: "bank_account_closed",
         description: "Bank account closed: #{display_name}",
         change_details: { bank_account_id: id, date_closed: date_closed },
         user: user || User.first

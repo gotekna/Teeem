@@ -1,6 +1,6 @@
 class Contact < ApplicationRecord
   # Exclude soft-deleted contacts by default
-  default_scope { where(deleted: [false, nil]) }
+  default_scope { where(deleted: [ false, nil ]) }
 
   # Associations
   has_many :contact_activities, dependent: :destroy
@@ -22,8 +22,8 @@ class Contact < ApplicationRecord
   has_many :contact_addresses, dependent: :destroy
   has_many :contact_group_memberships, dependent: :destroy
   has_many :contact_groups, through: :contact_group_memberships
-  has_many :external_links, class_name: 'ContactExternalLink', dependent: :destroy
-  has_many :xero_links, -> { where(source: 'xero') }, class_name: 'ContactExternalLink', dependent: :destroy
+  has_many :external_links, class_name: "ContactExternalLink", dependent: :destroy
+  has_many :xero_links, -> { where(source: "xero") }, class_name: "ContactExternalLink", dependent: :destroy
   has_many :external_invoices, dependent: :nullify
 
   # Enable nested attributes for Xero associations
@@ -33,20 +33,20 @@ class Contact < ApplicationRecord
   # Supplier-specific associations (when contact is a supplier)
   # After migration, supplier_id in these tables points to contact_id
   has_many :pricebook_items, foreign_key: :supplier_id, dependent: :destroy
-  has_many :default_pricebook_items, class_name: 'PricebookItem', foreign_key: :default_supplier_id, dependent: :nullify
+  has_many :default_pricebook_items, class_name: "PricebookItem", foreign_key: :default_supplier_id, dependent: :nullify
   has_many :purchase_orders, foreign_key: :supplier_id, dependent: :restrict_with_error
   has_many :price_histories, foreign_key: :supplier_id, dependent: :destroy
 
   # Contact relationships (bidirectional)
-  has_many :outgoing_relationships, class_name: 'ContactRelationship',
+  has_many :outgoing_relationships, class_name: "ContactRelationship",
            foreign_key: :source_contact_id, dependent: :destroy
-  has_many :incoming_relationships, class_name: 'ContactRelationship',
+  has_many :incoming_relationships, class_name: "ContactRelationship",
            foreign_key: :related_contact_id, dependent: :destroy
   has_many :related_contacts, through: :outgoing_relationships, source: :related_contact
 
   # Primary company relationship (person works for company)
-  belongs_to :primary_company, class_name: 'Contact', optional: true
-  has_many :employees, class_name: 'Contact', foreign_key: :primary_company_id, dependent: :nullify
+  belongs_to :primary_company, class_name: "Contact", optional: true
+  has_many :employees, class_name: "Contact", foreign_key: :primary_company_id, dependent: :nullify
 
   # Construction/Job associations
   has_many :job_contacts, dependent: :destroy
@@ -70,9 +70,9 @@ class Contact < ApplicationRecord
   has_many :pay_now_requests, dependent: :destroy
 
   # Corporate director/shareholder associations
-  has_many :company_directorships, class_name: 'CompanyDirector', dependent: :destroy
+  has_many :company_directorships, class_name: "CompanyDirector", dependent: :destroy
   has_many :directed_companies, through: :company_directorships, source: :company
-  has_many :current_directorships, -> { where(is_current: true) }, class_name: 'CompanyDirector'
+  has_many :current_directorships, -> { where(is_current: true) }, class_name: "CompanyDirector"
   has_many :company_shareholdings, foreign_key: :shareholder_id, dependent: :destroy
   has_many :shareholding_companies, through: :company_shareholdings, source: :company
   has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy
@@ -81,11 +81,11 @@ class Contact < ApplicationRecord
   has_many :company_documents, dependent: :destroy
 
   # Company Group memberships (SSoT - links contact to company groups with permissions)
-  has_many :company_group_memberships, class_name: 'ContactCompanyGroupMembership', dependent: :destroy
+  has_many :company_group_memberships, class_name: "ContactCompanyGroupMembership", dependent: :destroy
   has_many :company_groups_via_membership, through: :company_group_memberships, source: :company_group
 
   # SSoT - if this contact is a company/trust, link to the Company record
-  has_one :company_record, class_name: 'Company', foreign_key: 'contact_id', dependent: :nullify
+  has_one :company_record, class_name: "Company", foreign_key: "contact_id", dependent: :nullify
 
   # Encrypted TFN for directors
   encrypts :tfn, deterministic: true
@@ -139,34 +139,34 @@ class Contact < ApplicationRecord
   before_save :clear_roles_if_not_person
 
   # Scopes
-  scope :with_email, -> { where.not(email: [nil, '']) }
-  scope :with_phone, -> { where.not(mobile_phone: [nil, '']).or(where.not(office_phone: [nil, ''])) }
+  scope :with_email, -> { where.not(email: [ nil, "" ]) }
+  scope :with_phone, -> { where.not(mobile_phone: [ nil, "" ]).or(where.not(office_phone: [ nil, "" ])) }
   scope :with_role, ->(role) { where("? = ANY(roles)", role) }
-  scope :employees, -> { with_role('Employee') }
-  scope :directors, -> { with_role('Director') }
-  scope :sales, -> { with_role('sales') }
-  scope :land_agents, -> { with_role('land_agent') }
+  scope :employees, -> { with_role("Employee") }
+  scope :directors, -> { with_role("Director") }
+  scope :sales, -> { with_role("sales") }
+  scope :land_agents, -> { with_role("land_agent") }
 
   # Entity type scopes
-  scope :people, -> { where(entity_type: 'person') }
-  scope :companies, -> { where(entity_type: 'company') }
-  scope :trusts, -> { where(entity_type: 'trust') }
+  scope :people, -> { where(entity_type: "person") }
+  scope :companies, -> { where(entity_type: "company") }
+  scope :trusts, -> { where(entity_type: "trust") }
 
   # Instance methods
   def display_name
     case entity_type
-    when 'person'
+    when "person"
       # Person: prefer first + last, fall back to full_name
       "#{first_name} #{last_name}".strip.presence ||
         full_name.presence ||
         email ||
         "Contact ##{id}"
-    when 'company', 'trust'
+    when "company", "trust"
       # Company/Trust: prefer company_name_or_trust, fall back to full_name
       company_name_or_trust.presence ||
         full_name.presence ||
         "Contact ##{id}"
-    when 'default_supplier'
+    when "default_supplier"
       # Default Supplier: legacy type, uses full_name directly
       full_name.presence ||
         "Contact ##{id}"
@@ -192,19 +192,19 @@ class Contact < ApplicationRecord
 
   # Specific role helpers
   def is_employee?
-    has_role?('Employee')
+    has_role?("Employee")
   end
 
   def is_ceo?
-    has_role?('CEO')
+    has_role?("CEO")
   end
 
   def is_sales?
-    has_role?('sales')
+    has_role?("sales")
   end
 
   def is_land_agent?
-    has_role?('land_agent')
+    has_role?("land_agent")
   end
 
   def is_customer?
@@ -220,15 +220,15 @@ class Contact < ApplicationRecord
 
   # Entity type helpers
   def is_person?
-    entity_type == 'person'
+    entity_type == "person"
   end
 
   def is_company?
-    entity_type == 'company'
+    entity_type == "company"
   end
 
   def is_trust?
-    entity_type == 'trust'
+    entity_type == "trust"
   end
 
   # Family/Director helpers
@@ -250,7 +250,7 @@ class Contact < ApplicationRecord
 
   def additional_companies
     outgoing_relationships
-      .where(relationship_type: ['director_of', 'shareholder_of', 'trustee_of', 'employee_of', 'partner_in'])
+      .where(relationship_type: [ "director_of", "shareholder_of", "trustee_of", "employee_of", "partner_in" ])
       .includes(:related_contact)
       .map(&:related_contact)
   end
@@ -259,7 +259,7 @@ class Contact < ApplicationRecord
     companies = []
     companies << primary_company if primary_company.present?
     companies += outgoing_relationships
-      .where(relationship_type: 'employee_of')
+      .where(relationship_type: "employee_of")
       .includes(:related_contact)
       .map(&:related_contact)
     companies.uniq
@@ -267,14 +267,14 @@ class Contact < ApplicationRecord
 
   def directors_of
     outgoing_relationships
-      .where(relationship_type: 'director_of')
+      .where(relationship_type: "director_of")
       .includes(:related_contact)
       .map(&:related_contact)
   end
 
   def shareholders_of
     outgoing_relationships
-      .where(relationship_type: 'shareholder_of')
+      .where(relationship_type: "shareholder_of")
       .includes(:related_contact)
       .map(&:related_contact)
   end
@@ -285,7 +285,7 @@ class Contact < ApplicationRecord
 
   def trustees_of
     outgoing_relationships
-      .where(relationship_type: 'trustee_of')
+      .where(relationship_type: "trustee_of")
       .includes(:related_contact)
       .map(&:related_contact)
   end
@@ -309,7 +309,7 @@ class Contact < ApplicationRecord
   def case_relationships
     case_contacts
       .includes(:case_record, :added_by)
-      .order('case_contacts.created_at DESC')
+      .order("case_contacts.created_at DESC")
       .map do |cc|
         {
           id: cc.id,
@@ -399,7 +399,7 @@ class Contact < ApplicationRecord
     transaction do
       # Ensure portal access is enabled first
       unless has_portal_access?
-        enable_portal!('supplier')
+        enable_portal!("supplier")
       end
 
       # Create subcontractor account
@@ -547,9 +547,9 @@ class Contact < ApplicationRecord
 
   def roles_only_for_persons
     # roles is stored as a string (e.g. "[]"), so check for blank or "[]"
-    return if roles.blank? || roles == '[]'
+    return if roles.blank? || roles == "[]"
 
-    if entity_type != 'person'
+    if entity_type != "person"
       errors.add(:roles, "can only be assigned to people, not #{entity_type}")
     end
   end
@@ -558,16 +558,16 @@ class Contact < ApplicationRecord
     return if entity_type.blank? # Allow NULL for legacy data (will fix separately)
 
     case entity_type
-    when 'person'
+    when "person"
       if first_name.blank?
         errors.add(:first_name, "is required for person contacts")
       end
       # last_name is optional (only 30% have it currently)
-    when 'company', 'trust'
+    when "company", "trust"
       if company_name_or_trust.blank?
         errors.add(:company_name_or_trust, "is required for #{entity_type} contacts")
       end
-    when 'default_supplier'
+    when "default_supplier"
       if full_name.blank?
         errors.add(:full_name, "is required for supplier contacts")
       end
@@ -582,14 +582,14 @@ class Contact < ApplicationRecord
   # For company/trust, full_name is typically set directly
   def generate_full_name
     # Only auto-generate for person entity type when first/last name are present
-    if entity_type == 'person' && (first_name.present? || last_name.present?)
-      generated = [first_name, last_name].map(&:presence).compact.join(' ')
+    if entity_type == "person" && (first_name.present? || last_name.present?)
+      generated = [ first_name, last_name ].map(&:presence).compact.join(" ")
       self.full_name = generated if generated.present? && full_name.blank?
     end
 
     # Also update if full_name is explicitly blank/nil but we have name components
     if full_name.blank? && (first_name.present? || last_name.present?)
-      self.full_name = [first_name, last_name].map(&:presence).compact.join(' ')
+      self.full_name = [ first_name, last_name ].map(&:presence).compact.join(" ")
     end
   end
 
@@ -602,7 +602,7 @@ class Contact < ApplicationRecord
 
   # Auto-clear roles when entity_type changes from person to company/trust
   def clear_roles_if_not_person
-    if entity_type_changed? && entity_type != 'person'
+    if entity_type_changed? && entity_type != "person"
       self.roles = []
     end
   end

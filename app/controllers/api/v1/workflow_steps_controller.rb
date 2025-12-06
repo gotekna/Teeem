@@ -1,7 +1,7 @@
 module Api
   module V1
     class WorkflowStepsController < ApplicationController
-      before_action :set_workflow_step, only: [:show, :approve, :reject, :request_changes]
+      before_action :set_workflow_step, only: [ :show, :approve, :reject, :request_changes ]
 
       # GET /api/v1/workflow_steps
       # Get all workflow steps pending for current user
@@ -27,7 +27,7 @@ module Api
         unless @workflow_step.can_action?(current_user)
           return render json: {
             success: false,
-            error: 'You are not authorized to approve this step'
+            error: "You are not authorized to approve this step"
           }, status: :forbidden
         end
 
@@ -50,7 +50,7 @@ module Api
         unless @workflow_step.can_action?(current_user)
           return render json: {
             success: false,
-            error: 'You are not authorized to reject this step'
+            error: "You are not authorized to reject this step"
           }, status: :forbidden
         end
 
@@ -73,7 +73,7 @@ module Api
         unless @workflow_step.can_action?(current_user)
           return render json: {
             success: false,
-            error: 'You are not authorized to request changes for this step'
+            error: "You are not authorized to request changes for this step"
           }, status: :forbidden
         end
 
@@ -100,11 +100,11 @@ module Api
         step.as_json.merge(
           workflow_instance: step.workflow_instance.as_json(
             include: {
-              workflow_definition: { only: [:id, :name, :description, :workflow_type] },
-              subject: { only: [:id] }
+              workflow_definition: { only: [ :id, :name, :description, :workflow_type ] },
+              subject: { only: [ :id ] }
             }
           ),
-          assigned_to: step.assigned_to&.as_json(only: [:id, :name, :email])
+          assigned_to: step.assigned_to&.as_json(only: [ :id, :name, :email ])
         )
       end
     end

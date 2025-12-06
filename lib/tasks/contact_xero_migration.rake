@@ -22,7 +22,7 @@ namespace :contacts do
       puts "Created/found SyncConfiguration for tenant"
 
       # Find all contacts with xero_id
-      contacts_with_xero = Contact.where.not(xero_id: [nil, ''])
+      contacts_with_xero = Contact.where.not(xero_id: [ nil, "" ])
       total = contacts_with_xero.count
       puts "Found #{total} contacts with xero_id"
 
@@ -50,7 +50,7 @@ namespace :contacts do
             xero_tenant_name: tenant_name,
             xero_contact_id: contact.xero_id,
             sync_enabled: contact.sync_with_xero || false,
-            sync_direction: 'bidirectional',
+            sync_direction: "bidirectional",
             last_synced_at: contact.last_synced_at
           )
 
@@ -79,7 +79,7 @@ namespace :contacts do
 
       # Find all person contacts with a primary_company_id
       contacts_with_company = Contact.where.not(primary_company_id: nil)
-        .where(entity_type: 'person')
+        .where(entity_type: "person")
       total = contacts_with_company.count
       puts "Found #{total} person contacts with primary_company_id"
 
@@ -93,7 +93,7 @@ namespace :contacts do
           existing_rel = ContactRelationship.find_by(
             source_contact_id: contact.id,
             related_contact_id: contact.primary_company_id,
-            relationship_type: 'employee_of'
+            relationship_type: "employee_of"
           )
 
           if existing_rel
@@ -105,7 +105,7 @@ namespace :contacts do
           ContactRelationship.create!(
             source_contact_id: contact.id,
             related_contact_id: contact.primary_company_id,
-            relationship_type: 'employee_of',
+            relationship_type: "employee_of",
             is_active: true,
             start_date: contact.created_at&.to_date
           )
@@ -135,7 +135,7 @@ namespace :contacts do
       puts ""
 
       # Contacts with old xero_id
-      old_style = Contact.where.not(xero_id: [nil, '']).count
+      old_style = Contact.where.not(xero_id: [ nil, "" ]).count
       puts "Contacts with old xero_id column: #{old_style}"
 
       # ContactXeroLinks
@@ -176,11 +176,11 @@ namespace :contacts do
 
     desc "Run full migration (xero_ids + relationships)"
     task migrate_all: :environment do
-      Rake::Task['contacts:xero:migrate_xero_ids'].invoke
+      Rake::Task["contacts:xero:migrate_xero_ids"].invoke
       puts "\n" + "="*50 + "\n\n"
-      Rake::Task['contacts:xero:populate_relationships'].invoke
+      Rake::Task["contacts:xero:populate_relationships"].invoke
       puts "\n" + "="*50 + "\n\n"
-      Rake::Task['contacts:xero:status'].invoke
+      Rake::Task["contacts:xero:status"].invoke
     end
   end
 end

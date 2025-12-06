@@ -40,6 +40,6 @@ class CreateScheduleTasks < ActiveRecord::Migration[8.0]
 
     add_index :schedule_tasks, :status
     add_index :schedule_tasks, :matched_to_po
-    add_index :schedule_tasks, [:construction_id, :matched_to_po]
+    add_index :schedule_tasks, [ :construction_id, :matched_to_po ]
   end
 end

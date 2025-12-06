@@ -8,14 +8,14 @@ class CompanyXeroAccount < ApplicationRecord
   validates :status, inclusion: { in: %w[ACTIVE ARCHIVED DELETED] }, allow_blank: true
 
   # Scopes
-  scope :active, -> { where(status: 'ACTIVE') }
-  scope :archived, -> { where(status: 'ARCHIVED') }
+  scope :active, -> { where(status: "ACTIVE") }
+  scope :archived, -> { where(status: "ARCHIVED") }
   scope :by_type, ->(type) { where(account_type: type) }
-  scope :revenue, -> { where(account_type: 'REVENUE') }
-  scope :expense, -> { where(account_type: 'EXPENSE') }
-  scope :asset, -> { where(account_type: 'ASSET') }
-  scope :liability, -> { where(account_type: 'LIABILITY') }
-  scope :equity, -> { where(account_type: 'EQUITY') }
+  scope :revenue, -> { where(account_type: "REVENUE") }
+  scope :expense, -> { where(account_type: "EXPENSE") }
+  scope :asset, -> { where(account_type: "ASSET") }
+  scope :liability, -> { where(account_type: "LIABILITY") }
+  scope :equity, -> { where(account_type: "EQUITY") }
   scope :mapped, -> { where.not(consolidated_account_code: nil) }
   scope :unmapped, -> { where(consolidated_account_code: nil) }
 
@@ -29,7 +29,7 @@ class CompanyXeroAccount < ApplicationRecord
   end
 
   def active?
-    status == 'ACTIVE'
+    status == "ACTIVE"
   end
 
   def mapped?

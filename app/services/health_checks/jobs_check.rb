@@ -13,7 +13,7 @@ module HealthChecks
     FOUNDATION_ID = 204
 
     def self.check_type
-      'jobs'
+      "jobs"
     end
 
     def self.foundation_id
@@ -23,48 +23,48 @@ module HealthChecks
     # Jobs missing start date
     def check_jobs_without_start_date
       jobs = Job.where(start_date: nil)
-               .where.not(stage: ['completed', 'cancelled', 'on_hold'])
+               .where.not(stage: [ "completed", "cancelled", "on_hold" ])
                .select(:id, :title, :ted_number, :stage)
 
       build_result(
-        name: 'Jobs Without Start Date',
-        description: 'Active jobs that do not have a start date set. This affects scheduling and reporting.',
+        name: "Jobs Without Start Date",
+        description: "Active jobs that do not have a start date set. This affects scheduling and reporting.",
         severity: :warning,
         items: jobs,
-        icon: 'calendar',
-        action_path: '/jobs/:id'
+        icon: "calendar",
+        action_path: "/jobs/:id"
       )
     end
 
     # Jobs missing contract value
     def check_jobs_without_contract_value
-      jobs = Job.where(contract_value: [nil, 0])
-               .where.not(stage: ['completed', 'cancelled', 'on_hold'])
+      jobs = Job.where(contract_value: [ nil, 0 ])
+               .where.not(stage: [ "completed", "cancelled", "on_hold" ])
                .select(:id, :title, :ted_number, :stage)
 
       build_result(
-        name: 'Jobs Without Contract Value',
-        description: 'Jobs without a contract value set. This affects financial reporting and profitability tracking.',
+        name: "Jobs Without Contract Value",
+        description: "Jobs without a contract value set. This affects financial reporting and profitability tracking.",
         severity: :info,
         items: jobs,
-        icon: 'currency-dollar',
-        action_path: '/jobs/:id'
+        icon: "currency-dollar",
+        action_path: "/jobs/:id"
       )
     end
 
     # Jobs without project manager
     def check_jobs_without_pm
       jobs = Job.where(project_manager_id: nil)
-               .where.not(stage: ['completed', 'cancelled', 'on_hold', 'lead'])
+               .where.not(stage: [ "completed", "cancelled", "on_hold", "lead" ])
                .select(:id, :title, :ted_number, :stage)
 
       build_result(
-        name: 'Jobs Without Project Manager',
-        description: 'Active jobs without an assigned project manager.',
+        name: "Jobs Without Project Manager",
+        description: "Active jobs without an assigned project manager.",
         severity: :info,
         items: jobs,
-        icon: 'user',
-        action_path: '/jobs/:id'
+        icon: "user",
+        action_path: "/jobs/:id"
       )
     end
 

@@ -2,7 +2,7 @@ module Api
   module V1
     class CompanyShareholdingsController < ApplicationController
       before_action :set_company
-      before_action :set_shareholding, only: [:show, :update, :destroy]
+      before_action :set_shareholding, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/companies/:company_id/shareholdings
       def index
@@ -75,7 +75,7 @@ module Api
         if shares_to_transfer > from_shareholding.number_of_shares
           return render json: {
             success: false,
-            errors: ["Cannot transfer more shares than available (#{from_shareholding.number_of_shares})"]
+            errors: [ "Cannot transfer more shares than available (#{from_shareholding.number_of_shares})" ]
           }, status: :unprocessable_entity
         end
 
@@ -121,7 +121,7 @@ module Api
       rescue ActiveRecord::RecordInvalid => e
         render json: {
           success: false,
-          errors: [e.message]
+          errors: [ e.message ]
         }, status: :unprocessable_entity
       end
 

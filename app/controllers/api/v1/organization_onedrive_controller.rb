@@ -2,10 +2,10 @@ module Api
   module V1
     class OrganizationOnedriveController < ApplicationController
       # Skip auth for OAuth callback (comes from Microsoft, not our frontend)
-      skip_before_action :authorize_request, only: [:callback]
+      skip_before_action :authorize_request, only: [ :callback ]
 
       # Require admin for sensitive operations
-      before_action :require_admin, only: [:disconnect, :change_root_folder, :sync_pricebook_images, :sync_corporate_documents]
+      before_action :require_admin, only: [ :disconnect, :change_root_folder, :sync_pricebook_images, :sync_corporate_documents ]
 
       # Handle decryption errors gracefully - this happens when credentials were encrypted
       # with different encryption keys (e.g., production vs development environments)
@@ -13,7 +13,7 @@ module Api
         Rails.logger.warn "[OneDrive] Decryption error: #{e.message}"
         render json: {
           connected: false,
-          error: 'OneDrive credentials could not be decrypted. Please reconnect to OneDrive.',
+          error: "OneDrive credentials could not be decrypted. Please reconnect to OneDrive.",
           decryption_error: true
         }, status: :unauthorized
       end
@@ -41,16 +41,16 @@ module Api
           # UserMicrosoftToken doesn't have encryption, so this should be safe
           begin
             microsoft_token = current_user&.microsoft_token
-            if microsoft_token&.status == 'connected' && microsoft_token&.access_token.present?
+            if microsoft_token&.status == "connected" && microsoft_token&.access_token.present?
               # User has a connected Microsoft account - use it as the OneDrive connection
               return render json: {
                 connected: true,
-                source: 'user_microsoft_token',
-                drive_name: 'Personal OneDrive',
+                source: "user_microsoft_token",
+                drive_name: "Personal OneDrive",
                 connected_at: microsoft_token.created_at,
-                connected_by: current_user&.as_json(only: [:id, :email]),
+                connected_by: current_user&.as_json(only: [ :id, :email ]),
                 token_expires_at: microsoft_token.token_expires_at,
-                message: 'Using your Microsoft 365 connection for OneDrive access'
+                message: "Using your Microsoft 365 connection for OneDrive access"
               }
             end
           rescue StandardError => e
@@ -59,7 +59,7 @@ module Api
 
           return render json: {
             connected: false,
-            message: 'Not connected'
+            message: "Not connected"
           }
         end
 
@@ -75,8 +75,8 @@ module Api
             Rails.logger.error "[OneDrive Status] Token refresh failed: #{e.message}"
             return render json: {
               connected: false,
-              message: 'Session expired. Please reconnect to OneDrive.',
-              error: 'Token refresh failed'
+              message: "Session expired. Please reconnect to OneDrive.",
+              error: "Token refresh failed"
             }
           end
         end
@@ -84,21 +84,21 @@ module Api
         if credential.valid_credential?
           render json: {
             connected: true,
-            source: 'organization_credential',
+            source: "organization_credential",
             drive_id: credential.drive_id,
             drive_name: credential.drive_name,
             root_folder_id: credential.root_folder_id,
             root_folder_path: credential.root_folder_path,
-            root_folder_web_url: credential.metadata&.dig('root_folder_web_url'),
+            root_folder_web_url: credential.metadata&.dig("root_folder_web_url"),
             connected_at: credential.created_at,
-            connected_by: credential.connected_by&.as_json(only: [:id, :email]),
+            connected_by: credential.connected_by&.as_json(only: [ :id, :email ]),
             metadata: credential.metadata,
             token_expires_at: credential.token_expires_at
           }
         else
           render json: {
             connected: false,
-            message: 'Credential expired or invalid'
+            message: "Credential expired or invalid"
           }
         end
       end
@@ -109,9 +109,9 @@ module Api
         redirect_uri = "#{request.base_url}/api/v1/organization_onedrive/callback"
 
         auth_url = MicrosoftGraphClient.authorization_url(
-          client_id: ENV['ONEDRIVE_CLIENT_ID'],
+          client_id: ENV["ONEDRIVE_CLIENT_ID"],
           redirect_uri: redirect_uri,
-          scope: 'Files.ReadWrite.All Sites.ReadWrite.All offline_access'
+          scope: "Files.ReadWrite.All Sites.ReadWrite.All offline_access"
         )
 
         render json: { auth_url: auth_url }
@@ -123,7 +123,7 @@ module Api
         code = params[:code]
 
         unless code
-          return render json: { error: 'Authorization code not provided' }, status: :bad_request
+          return render json: { error: "Authorization code not provided" }, status: :bad_request
         end
 
         begin
@@ -134,8 +134,8 @@ module Api
           # Exchange authorization code for tokens
           token_data = MicrosoftGraphClient.exchange_code_for_tokens(
             code: code,
-            client_id: ENV['ONEDRIVE_CLIENT_ID'],
-            client_secret: ENV['ONEDRIVE_CLIENT_SECRET'],
+            client_id: ENV["ONEDRIVE_CLIENT_ID"],
+            client_secret: ENV["ONEDRIVE_CLIENT_SECRET"],
             redirect_uri: redirect_uri
           )
 
@@ -160,21 +160,21 @@ module Api
 
           # Check if we should use personal OneDrive or SharePoint
           # Default to personal OneDrive now (user can switch to SharePoint later)
-          use_personal = params[:use_personal] != 'false'
+          use_personal = params[:use_personal] != "false"
 
           if use_personal
             # Use personal OneDrive - just get the default drive info
             Rails.logger.info "Using personal OneDrive..."
             begin
-              drive_info = client.get('/me/drive')
+              drive_info = client.get("/me/drive")
               credential.update!(
-                drive_id: drive_info['id'],
-                drive_name: drive_info['name'] || 'My OneDrive',
+                drive_id: drive_info["id"],
+                drive_name: drive_info["name"] || "My OneDrive",
                 metadata: {
-                  drive_type: 'personal',
-                  owner_name: drive_info.dig('owner', 'user', 'displayName'),
-                  quota_total: drive_info.dig('quota', 'total'),
-                  quota_used: drive_info.dig('quota', 'used')
+                  drive_type: "personal",
+                  owner_name: drive_info.dig("owner", "user", "displayName"),
+                  quota_total: drive_info.dig("quota", "total"),
+                  quota_used: drive_info.dig("quota", "used")
                 }
               )
               Rails.logger.info "Connected to personal OneDrive: #{drive_info['name']}"
@@ -190,7 +190,7 @@ module Api
             rescue StandardError => e
               Rails.logger.warn "Could not find TEEEM SharePoint site, trying search..."
               sites = client.list_sharepoint_sites
-              teeem_site = sites.find { |s| s[:name]&.downcase&.include?('teeem') }
+              teeem_site = sites.find { |s| s[:name]&.downcase&.include?("teeem") }
               if teeem_site
                 result = client.use_sharepoint_site(teeem_site[:id])
                 Rails.logger.info "Connected to SharePoint site via search: #{teeem_site[:name]}"
@@ -234,9 +234,9 @@ module Api
 
         if credential
           credential.deactivate!
-          render json: { message: 'OneDrive disconnected successfully' }
+          render json: { message: "OneDrive disconnected successfully" }
         else
-          render json: { message: 'OneDrive was not connected' }, status: :not_found
+          render json: { message: "OneDrive was not connected" }, status: :not_found
         end
       end
 
@@ -247,7 +247,7 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         # If folder_id is provided, use direct selection (from folder browser)
@@ -258,36 +258,36 @@ module Api
         folder_path = params[:folder_name]
 
         if folder_path.blank?
-          return render json: { error: 'Folder name or folder_id is required' }, status: :bad_request
+          return render json: { error: "Folder name or folder_id is required" }, status: :bad_request
         end
 
         # Validate folder path to prevent path traversal attacks
         # Allow forward slashes for nested paths, but block ".." and backslashes
-        if folder_path.include?('..') || folder_path.include?('\\')
+        if folder_path.include?("..") || folder_path.include?("\\")
           return render json: { error: 'Invalid folder path. Folder paths cannot contain ".." or "\\" characters.' }, status: :bad_request
         end
 
         # Validate length
         if folder_path.length > 1000
-          return render json: { error: 'Folder path is too long (maximum 1000 characters)' }, status: :bad_request
+          return render json: { error: "Folder path is too long (maximum 1000 characters)" }, status: :bad_request
         end
 
         # Validate each path segment
-        path_segments = folder_path.split('/')
+        path_segments = folder_path.split("/")
         if path_segments.any?(&:blank?)
-          return render json: { error: 'Invalid folder path. Empty path segments are not allowed.' }, status: :bad_request
+          return render json: { error: "Invalid folder path. Empty path segments are not allowed." }, status: :bad_request
         end
 
         # Sanitize each path segment (allow alphanumeric, spaces, hyphens, underscores)
         sanitized_segments = path_segments.map do |segment|
-          segment.gsub(/[^a-zA-Z0-9\s\-_]/, '').strip
+          segment.gsub(/[^a-zA-Z0-9\s\-_]/, "").strip
         end
 
         if sanitized_segments.any?(&:blank?)
-          return render json: { error: 'Folder path contains invalid characters' }, status: :bad_request
+          return render json: { error: "Folder path contains invalid characters" }, status: :bad_request
         end
 
-        sanitized_path = sanitized_segments.join('/')
+        sanitized_path = sanitized_segments.join("/")
 
         begin
           client = MicrosoftGraphClient.new(credential)
@@ -299,10 +299,10 @@ module Api
           sanitized_segments.each do |folder_name|
             # Get children of current parent
             response = client.get("#{current_parent_path}/children")
-            folders = response['value'] || []
+            folders = response["value"] || []
 
             # Find folder in current level
-            folder = folders.find { |f| f['name'] == folder_name && f['folder'] }
+            folder = folders.find { |f| f["name"] == folder_name && f["folder"] }
 
             if folder
               # Folder exists, use it
@@ -313,7 +313,7 @@ module Api
               folder = client.post("#{current_parent_path}/children", {
                 name: folder_name,
                 folder: {},
-                '@microsoft.graph.conflictBehavior' => 'fail'
+                "@microsoft.graph.conflictBehavior" => "fail"
               })
               current_folder = folder
               current_parent_path = "/me/drive/items/#{folder['id']}"
@@ -322,19 +322,19 @@ module Api
 
           # Update credential with new root folder info
           credential.update!(
-            root_folder_id: current_folder['id'],
+            root_folder_id: current_folder["id"],
             root_folder_path: sanitized_path,
             metadata: credential.metadata.merge({
               root_folder_name: sanitized_segments.last,
-              root_folder_web_url: current_folder['webUrl'],
+              root_folder_web_url: current_folder["webUrl"],
               updated_at: Time.current
             })
           )
 
           render json: {
-            message: 'Root folder updated successfully',
+            message: "Root folder updated successfully",
             root_folder_path: sanitized_path,
-            root_folder_web_url: current_folder['webUrl']
+            root_folder_web_url: current_folder["webUrl"]
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
@@ -354,7 +354,7 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         begin
@@ -363,7 +363,7 @@ module Api
 
           render json: {
             sites: sites,
-            current_site: credential.metadata&.dig('site_name')
+            current_site: credential.metadata&.dig("site_name")
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
@@ -382,36 +382,36 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         begin
           client = MicrosoftGraphClient.new(credential)
 
           # Get personal OneDrive info
-          drive_info = client.get('/me/drive')
+          drive_info = client.get("/me/drive")
 
           # Update credential to use personal drive
           credential.update!(
-            drive_id: drive_info['id'],
-            drive_name: drive_info['name'] || 'My OneDrive',
+            drive_id: drive_info["id"],
+            drive_name: drive_info["name"] || "My OneDrive",
             root_folder_id: nil,
             root_folder_path: nil,
             metadata: credential.metadata.merge({
-              drive_type: 'personal',
-              owner_name: drive_info.dig('owner', 'user', 'displayName'),
-              quota_total: drive_info.dig('quota', 'total'),
-              quota_used: drive_info.dig('quota', 'used'),
+              drive_type: "personal",
+              owner_name: drive_info.dig("owner", "user", "displayName"),
+              quota_total: drive_info.dig("quota", "total"),
+              quota_used: drive_info.dig("quota", "used"),
               switched_at: Time.current
             })
           )
 
           render json: {
-            message: 'Switched to personal OneDrive',
+            message: "Switched to personal OneDrive",
             drive: {
-              id: drive_info['id'],
-              name: drive_info['name'],
-              type: 'personal'
+              id: drive_info["id"],
+              name: drive_info["name"],
+              type: "personal"
             }
           }
 
@@ -429,13 +429,13 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         site_name = params[:site_name]
 
         if site_name.blank?
-          return render json: { error: 'Site name is required' }, status: :bad_request
+          return render json: { error: "Site name is required" }, status: :bad_request
         end
 
         begin
@@ -451,13 +451,13 @@ module Api
           render json: {
             message: "Successfully switched to SharePoint site '#{result[:site]['displayName'] || site_name}'",
             site: {
-              id: result[:site]['id'],
-              name: result[:site]['displayName'] || result[:site]['name'],
-              web_url: result[:site]['webUrl']
+              id: result[:site]["id"],
+              name: result[:site]["displayName"] || result[:site]["name"],
+              web_url: result[:site]["webUrl"]
             },
             drive: {
-              id: result[:drive]['id'],
-              name: result[:drive]['name']
+              id: result[:drive]["id"],
+              name: result[:drive]["name"]
             }
           }
 
@@ -478,7 +478,7 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         folder_id = params[:folder_id] # Optional - if not provided, browse root
@@ -497,17 +497,17 @@ module Api
             # Get current folder info for breadcrumb
             current_folder_response = client.get("#{drive_path}/items/#{folder_id}")
             current_folder = {
-              id: current_folder_response['id'],
-              name: current_folder_response['name'],
-              parent_id: current_folder_response.dig('parentReference', 'id')
+              id: current_folder_response["id"],
+              name: current_folder_response["name"],
+              parent_id: current_folder_response.dig("parentReference", "id")
             }
 
             # Build breadcrumb path from parentReference.path
-            parent_path = current_folder_response.dig('parentReference', 'path') || ''
+            parent_path = current_folder_response.dig("parentReference", "path") || ""
             # Path looks like: /drive/root:/Shared Documents/TEEEM Jobs
-            if parent_path.include?(':')
-              path_after_root = parent_path.split(':').last.to_s
-              path_parts = path_after_root.split('/').reject(&:blank?)
+            if parent_path.include?(":")
+              path_after_root = parent_path.split(":").last.to_s
+              path_parts = path_after_root.split("/").reject(&:blank?)
               # Add each path segment to breadcrumbs (we'll get IDs by traversing)
               breadcrumbs = path_parts.map { |name| { name: name, id: nil } }
             end
@@ -522,16 +522,16 @@ module Api
           end
 
           # Filter to only show folders
-          folders = (response['value'] || []).select { |item| item['folder'] }
+          folders = (response["value"] || []).select { |item| item["folder"] }
 
           # Format response
           formatted_folders = folders.map do |folder|
             {
-              id: folder['id'],
-              name: folder['name'],
-              web_url: folder['webUrl'],
-              created_at: folder['createdDateTime'],
-              child_count: folder.dig('folder', 'childCount') || 0
+              id: folder["id"],
+              name: folder["name"],
+              web_url: folder["webUrl"],
+              created_at: folder["createdDateTime"],
+              child_count: folder.dig("folder", "childCount") || 0
             }
           end.sort_by { |f| f[:name].downcase }
 
@@ -560,7 +560,7 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         begin
@@ -579,7 +579,7 @@ module Api
               })
             )
             result[:auto_updated] = true
-            result[:message] = 'Folder location was updated to match current SharePoint path'
+            result[:message] = "Folder location was updated to match current SharePoint path"
           end
 
           render json: result
@@ -598,7 +598,7 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected. Please connect in Settings first.' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
         # Get folder template (use default or specified)
@@ -610,7 +610,7 @@ module Api
         end
 
         unless template
-          return render json: { error: 'No folder template found' }, status: :not_found
+          return render json: { error: "No folder template found" }, status: :not_found
         end
 
         begin
@@ -675,7 +675,7 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected. Please connect in Settings first.' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
         # Get folder template (use default or specified)
@@ -687,7 +687,7 @@ module Api
         end
 
         unless template
-          return render json: { error: 'No folder template found' }, status: :not_found
+          return render json: { error: "No folder template found" }, status: :not_found
         end
 
         begin
@@ -698,9 +698,9 @@ module Api
 
           if existing_folder
             return render json: {
-              message: 'Folder structure already exists for this job',
+              message: "Folder structure already exists for this job",
               job_folder: existing_folder,
-              web_url: existing_folder['webUrl']
+              web_url: existing_folder["webUrl"]
             }
           end
 
@@ -711,10 +711,10 @@ module Api
           credential.mark_synced!
 
           render json: {
-            message: 'Folder structure created successfully',
+            message: "Folder structure created successfully",
             job_folder: job_folder,
             folder_path: "#{credential.root_folder_path}/#{job_folder['name']}",
-            web_url: job_folder['webUrl']
+            web_url: job_folder["webUrl"]
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
@@ -736,7 +736,7 @@ module Api
         credential = get_onedrive_credential
 
         unless credential
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         begin
@@ -747,21 +747,21 @@ module Api
 
           unless job_folder
             return render json: {
-              error: 'Job folder not found. Please create the folder structure first.',
+              error: "Job folder not found. Please create the folder structure first.",
               job_folder_exists: false
             }, status: :not_found
           end
 
           # Get folder ID from params or use job folder
-          folder_id = params[:folder_id] || job_folder['id']
+          folder_id = params[:folder_id] || job_folder["id"]
 
           items = client.list_folder_items(folder_id)
 
           render json: {
-            items: items['value'],
-            count: items['value']&.length || 0,
-            job_folder_id: job_folder['id'],
-            job_folder_web_url: job_folder['webUrl']
+            items: items["value"],
+            count: items["value"]&.length || 0,
+            job_folder_id: job_folder["id"],
+            job_folder_web_url: job_folder["webUrl"]
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
@@ -782,18 +782,18 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         uploaded_file = params[:file]
         folder_id = params[:folder_id]
 
         unless uploaded_file
-          return render json: { error: 'No file provided' }, status: :bad_request
+          return render json: { error: "No file provided" }, status: :bad_request
         end
 
         unless folder_id
-          return render json: { error: 'No folder_id provided' }, status: :bad_request
+          return render json: { error: "No folder_id provided" }, status: :bad_request
         end
 
         begin
@@ -812,12 +812,12 @@ module Api
             # Return upload session URL for client to handle chunked upload
             return render json: {
               upload_session: session_data,
-              message: 'Upload session created. Use upload URL for chunked upload.'
+              message: "Upload session created. Use upload URL for chunked upload."
             }
           end
 
           render json: {
-            message: 'File uploaded successfully',
+            message: "File uploaded successfully",
             file: result
           }
 
@@ -836,12 +836,12 @@ module Api
       # Supports fetching from multiple folders (e.g., "Photo" and "Client Photo")
       def folder_contents
         job = Job.find(params[:job_id])
-        folder_names = params[:folder_names]&.split(',')&.map(&:strip) || [params[:folder_name]]
+        folder_names = params[:folder_names]&.split(",")&.map(&:strip) || [ params[:folder_name] ]
 
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         begin
@@ -852,14 +852,14 @@ module Api
 
           unless job_folder
             return render json: {
-              error: 'Job folder not found',
+              error: "Job folder not found",
               job_folder_exists: false
             }, status: :not_found
           end
 
           # Get all items in the job folder
-          job_items = client.list_folder_items(job_folder['id'])
-          job_folders = job_items['value']&.select { |item| item['folder'] } || []
+          job_items = client.list_folder_items(job_folder["id"])
+          job_folders = job_items["value"]&.select { |item| item["folder"] } || []
 
           # Find the target folders by name
           all_files = []
@@ -867,26 +867,26 @@ module Api
 
           folder_names.each do |folder_name|
             next if folder_name.blank?
-            target_folder = job_folders.find { |f| f['name']&.downcase == folder_name.downcase }
+            target_folder = job_folders.find { |f| f["name"]&.downcase == folder_name.downcase }
 
             if target_folder
-              found_folders << { name: target_folder['name'], id: target_folder['id'], web_url: target_folder['webUrl'] }
+              found_folders << { name: target_folder["name"], id: target_folder["id"], web_url: target_folder["webUrl"] }
 
               # Get contents of this folder with thumbnails for images
-              folder_contents = client.list_folder_items(target_folder['id'], include_thumbnails: true)
-              files = folder_contents['value'] || []
+              folder_contents = client.list_folder_items(target_folder["id"], include_thumbnails: true)
+              files = folder_contents["value"] || []
 
               # Add folder info to each file for context
               files.each do |file|
-                file['source_folder'] = folder_name
+                file["source_folder"] = folder_name
                 all_files << file
               end
             end
           end
 
           # Separate files and subfolders
-          files_only = all_files.reject { |item| item['folder'] }
-          subfolders = all_files.select { |item| item['folder'] }
+          files_only = all_files.reject { |item| item["folder"] }
+          subfolders = all_files.select { |item| item["folder"] }
 
           render json: {
             files: files_only,
@@ -894,8 +894,8 @@ module Api
             total_count: files_only.length,
             found_folders: found_folders,
             requested_folders: folder_names,
-            job_folder_id: job_folder['id'],
-            job_folder_web_url: job_folder['webUrl']
+            job_folder_id: job_folder["id"],
+            job_folder_web_url: job_folder["webUrl"]
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
@@ -914,13 +914,13 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         query = params[:q] || params[:query]
 
         unless query.present?
-          return render json: { error: 'Search query is required (use ?q=searchterm)' }, status: :bad_request
+          return render json: { error: "Search query is required (use ?q=searchterm)" }, status: :bad_request
         end
 
         begin
@@ -930,18 +930,18 @@ module Api
           results = client.search(query)
 
           # Format results
-          items = (results['value'] || []).map do |item|
+          items = (results["value"] || []).map do |item|
             {
-              id: item['id'],
-              name: item['name'],
-              path: item.dig('parentReference', 'path')&.gsub('/drive/root:', '') || '/',
+              id: item["id"],
+              name: item["name"],
+              path: item.dig("parentReference", "path")&.gsub("/drive/root:", "") || "/",
               full_path: "#{item.dig('parentReference', 'path')&.gsub('/drive/root:', '') || ''}/#{item['name']}",
-              web_url: item['webUrl'],
-              is_folder: item['folder'].present?,
-              size: item['size'],
-              created_at: item['createdDateTime'],
-              modified_at: item['lastModifiedDateTime'],
-              mime_type: item.dig('file', 'mimeType')
+              web_url: item["webUrl"],
+              is_folder: item["folder"].present?,
+              size: item["size"],
+              created_at: item["createdDateTime"],
+              modified_at: item["lastModifiedDateTime"],
+              mime_type: item.dig("file", "mimeType")
             }
           end
 
@@ -968,13 +968,13 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         file_id = params[:file_id]
 
         unless file_id
-          return render json: { error: 'No file_id provided' }, status: :bad_request
+          return render json: { error: "No file_id provided" }, status: :bad_request
         end
 
         begin
@@ -988,9 +988,9 @@ module Api
 
           # Send file to user
           send_data file_content,
-            filename: file_metadata['name'],
-            type: file_metadata['file']&.dig('mimeType') || 'application/octet-stream',
-            disposition: 'attachment'
+            filename: file_metadata["name"],
+            type: file_metadata["file"]&.dig("mimeType") || "application/octet-stream",
+            disposition: "attachment"
 
         rescue MicrosoftGraphClient::AuthenticationError => e
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
@@ -1008,7 +1008,7 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected. Please connect in Settings first.' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
         folder_path = params[:folder_path] || "Pricebook Images"
@@ -1050,7 +1050,7 @@ module Api
 
         unless credential&.valid_credential?
           Rails.logger.warn "[OneDrive Apply] No valid credential found"
-          return render json: { error: 'OneDrive not connected. Please connect in Settings first.' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
         folder_path = params[:folder_path] || "Pricebook Images"
@@ -1123,7 +1123,7 @@ module Api
 
         unless credential&.valid_credential?
           Rails.logger.warn "[OneDrive Sync] No valid credential found"
-          return render json: { error: 'OneDrive not connected. Please connect in Settings first.' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
         folder_path = params[:folder_path] || "Pricebook Images"
@@ -1176,7 +1176,7 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         begin
@@ -1204,7 +1204,7 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         foundation_id = params[:foundation_id]
@@ -1213,7 +1213,7 @@ module Api
         new_folder_name = params[:new_folder_name]
 
         if record_ids.empty?
-          return render json: { error: 'No records selected' }, status: :bad_request
+          return render json: { error: "No records selected" }, status: :bad_request
         end
 
         begin
@@ -1231,14 +1231,14 @@ module Api
                 "@microsoft.graph.conflictBehavior": "rename"
               })
             end
-            folder_id = new_folder['id']
+            folder_id = new_folder["id"]
           end
 
           # Get the target folder ID (use root if not specified)
           target_folder_id = folder_id || credential.root_folder_id
 
           unless target_folder_id
-            return render json: { error: 'No target folder specified and no root folder configured' }, status: :bad_request
+            return render json: { error: "No target folder specified and no root folder configured" }, status: :bad_request
           end
 
           # Get the model class for the foundation
@@ -1270,12 +1270,12 @@ module Api
                   result = client.post(
                     "/drives/#{credential.drive_id}/items/#{target_folder_id}:/#{filename}:/content",
                     file_content,
-                    { 'Content-Type' => attachment.content_type || 'application/octet-stream' }
+                    { "Content-Type" => attachment.content_type || "application/octet-stream" }
                   )
                   uploaded_files << {
                     record_id: record.id,
                     filename: filename,
-                    sharepoint_url: result['webUrl'],
+                    sharepoint_url: result["webUrl"],
                     size: file_content.bytesize
                   }
                 else
@@ -1283,31 +1283,31 @@ module Api
                   session = client.create_upload_session(target_folder_id, filename, file_content.bytesize)
 
                   # Upload in chunks
-                  upload_url = session['uploadUrl']
+                  upload_url = session["uploadUrl"]
                   chunk_size = 10.megabytes
                   position = 0
 
                   while position < file_content.bytesize
                     chunk = file_content[position, chunk_size]
-                    end_position = [position + chunk.bytesize - 1, file_content.bytesize - 1].min
+                    end_position = [ position + chunk.bytesize - 1, file_content.bytesize - 1 ].min
 
                     response = HTTParty.put(
                       upload_url,
                       body: chunk,
                       headers: {
-                        'Content-Length' => chunk.bytesize.to_s,
-                        'Content-Range' => "bytes #{position}-#{end_position}/#{file_content.bytesize}"
+                        "Content-Length" => chunk.bytesize.to_s,
+                        "Content-Range" => "bytes #{position}-#{end_position}/#{file_content.bytesize}"
                       }
                     )
 
                     position += chunk_size
 
                     # Final chunk returns the file metadata
-                    if response['id']
+                    if response["id"]
                       uploaded_files << {
                         record_id: record.id,
                         filename: filename,
-                        sharepoint_url: response['webUrl'],
+                        sharepoint_url: response["webUrl"],
                         size: file_content.bytesize
                       }
                     end
@@ -1349,7 +1349,7 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         begin
@@ -1377,7 +1377,7 @@ module Api
 
         unless credential&.valid_credential?
           Rails.logger.warn "[OneDrive Corporate Sync] No valid credential found"
-          return render json: { error: 'OneDrive not connected. Please connect in Settings first.' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
         folder_path = params[:folder_path] || "Corporate File"
@@ -1460,16 +1460,16 @@ module Api
           end
 
           # Sort by folder path then name
-          files_with_suggestions.sort_by! { |f| [f[:folder_path].to_s.downcase, f[:name].downcase] }
+          files_with_suggestions.sort_by! { |f| [ f[:folder_path].to_s.downcase, f[:name].downcase ] }
 
           # Calculate AI stats
           ai_stats = {
             total: cached_docs.count,
             analyzed: cached_docs.where.not(ai_analyzed_at: nil).count,
             unanalyzed: cached_docs.where(ai_analyzed_at: nil).count,
-            pending_review: cached_docs.where(rename_status: 'pending').where.not(ai_analyzed_at: nil).count,
-            approved: cached_docs.where(rename_status: 'completed').count,
-            rejected: cached_docs.where(rename_status: 'rejected').count
+            pending_review: cached_docs.where(rename_status: "pending").where.not(ai_analyzed_at: nil).count,
+            approved: cached_docs.where(rename_status: "completed").count,
+            rejected: cached_docs.where(rename_status: "rejected").count
           }
 
           return render json: {
@@ -1549,13 +1549,13 @@ module Api
       def build_document_type_display(doc)
         if doc.document_type_id.present? && doc.document_type
           # File has an assigned document type - show it as confirmed
-          [{
+          [ {
             id: doc.document_type.id,
             name: doc.document_type.name,
             abbreviation: doc.document_type.abbreviation,
             folder: doc.document_type.folder,
             confidence: 100
-          }]
+          } ]
         else
           # No type assigned - show suggestions
           suggest_cached_doc_type(doc)
@@ -1608,13 +1608,13 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         begin
           service = JobDocumentMigrationService.new
           # Pass folder_id for subfolder navigation, recursive for all files
-          recursive = params[:recursive] == 'true' || params[:recursive] == true
+          recursive = params[:recursive] == "true" || params[:recursive] == true
           items = service.list_legacy_files_for_job(job, folder_id: params[:folder_id], recursive: recursive)
 
           render json: {
@@ -1645,13 +1645,13 @@ module Api
         file_ids = params[:file_ids] || []
 
         if file_ids.empty?
-          return render json: { error: 'No files selected for import' }, status: :bad_request
+          return render json: { error: "No files selected for import" }, status: :bad_request
         end
 
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         begin
@@ -1682,7 +1682,7 @@ module Api
         limit = params[:limit]&.to_i || 25
 
         unless job_id.present?
-          return render json: { error: 'job_id is required' }, status: :bad_request
+          return render json: { error: "job_id is required" }, status: :bad_request
         end
 
         job = Job.find(job_id)
@@ -1693,7 +1693,7 @@ module Api
         if unanalyzed_count == 0
           return render json: {
             success: true,
-            message: 'All documents have already been analyzed',
+            message: "All documents have already been analyzed",
             job_id: job.id,
             analyzed_count: 0,
             total_unanalyzed: 0
@@ -1705,13 +1705,13 @@ module Api
 
         render json: {
           success: true,
-          message: "AI analysis queued for #{[limit, unanalyzed_count].min} documents",
+          message: "AI analysis queued for #{[ limit, unanalyzed_count ].min} documents",
           job_id: job.id,
-          queued_count: [limit, unanalyzed_count].min,
+          queued_count: [ limit, unanalyzed_count ].min,
           total_unanalyzed: unanalyzed_count
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Job not found' }, status: :not_found
+        render json: { error: "Job not found" }, status: :not_found
       end
 
       # GET /api/v1/organization_onedrive/documents_needing_review
@@ -1730,15 +1730,15 @@ module Api
         end
 
         # Filter by rename status
-        status = params[:status] || 'pending'
-        unless status == 'all'
+        status = params[:status] || "pending"
+        unless status == "all"
           scope = scope.where(rename_status: status)
         end
 
         # Filter by minimum confidence
         if params[:min_confidence].present?
           min_conf = params[:min_confidence].to_i
-          scope = scope.where('ai_confidence >= ?', min_conf)
+          scope = scope.where("ai_confidence >= ?", min_conf)
         end
 
         # Order by confidence descending (highest confidence first)
@@ -1771,18 +1771,18 @@ module Api
           return render json: { error: "action must be 'approve' or 'reject'" }, status: :bad_request
         end
 
-        if action == 'reject'
+        if action == "reject"
           document.update!(
-            rename_status: 'rejected',
+            rename_status: "rejected",
             rename_approved_at: Time.current,
             rename_approved_by_id: current_user&.id
           )
 
           return render json: {
             success: true,
-            message: 'Rename suggestion rejected',
+            message: "Rename suggestion rejected",
             document_id: document.id,
-            status: 'rejected'
+            status: "rejected"
           }
         end
 
@@ -1790,14 +1790,14 @@ module Api
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         # Determine the new name
         new_name = params[:custom_name].presence || document.ai_proposed_name
 
         unless new_name.present?
-          return render json: { error: 'No proposed name available' }, status: :bad_request
+          return render json: { error: "No proposed name available" }, status: :bad_request
         end
 
         # Determine the document type
@@ -1816,20 +1816,20 @@ module Api
           document.update!(
             file_name: new_name,
             document_type_id: new_type_id,
-            rename_status: 'completed',
+            rename_status: "completed",
             rename_approved_at: Time.current,
             rename_approved_by_id: current_user&.id,
-            web_url: result['webUrl']
+            web_url: result["webUrl"]
           )
 
           render json: {
             success: true,
-            message: 'Document renamed successfully',
+            message: "Document renamed successfully",
             document_id: document.id,
             old_name: document.original_file_name,
             new_name: new_name,
             document_type_id: new_type_id,
-            web_url: result['webUrl']
+            web_url: result["webUrl"]
           }
 
         rescue MicrosoftGraphClient::APIError => e
@@ -1840,7 +1840,7 @@ module Api
           render json: { error: "Failed to rename: #{e.message}" }, status: :internal_server_error
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Document not found' }, status: :not_found
+        render json: { error: "Document not found" }, status: :not_found
       end
 
       # POST /api/v1/organization_onedrive/bulk_approve_renames
@@ -1851,16 +1851,16 @@ module Api
         document_ids = params[:document_ids] || []
 
         if document_ids.empty?
-          return render json: { error: 'No document IDs provided' }, status: :bad_request
+          return render json: { error: "No document IDs provided" }, status: :bad_request
         end
 
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
-        documents = JobDocument.where(id: document_ids, rename_status: 'pending')
+        documents = JobDocument.where(id: document_ids, rename_status: "pending")
                               .where.not(ai_proposed_name: nil)
 
         results = { approved: 0, failed: 0, errors: [] }
@@ -1879,10 +1879,10 @@ module Api
             doc.update!(
               file_name: doc.ai_proposed_name,
               document_type_id: doc.ai_suggested_type_id,
-              rename_status: 'completed',
+              rename_status: "completed",
               rename_approved_at: Time.current,
               rename_approved_by_id: current_user&.id,
-              web_url: result['webUrl']
+              web_url: result["webUrl"]
             )
 
             results[:approved] += 1
@@ -1906,16 +1906,16 @@ module Api
       # Admin only - migrates all documents from legacy folder to job folders
       def run_migration
         unless current_user&.admin?
-          return render json: { error: 'Admin access required' }, status: :forbidden
+          return render json: { error: "Admin access required" }, status: :forbidden
         end
 
         credential = OrganizationOneDriveCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
-        dry_run = params[:dry_run] != 'false' && params[:dry_run] != false
+        dry_run = params[:dry_run] != "false" && params[:dry_run] != false
         limit = params[:limit]&.to_i
 
         begin
@@ -1948,33 +1948,33 @@ module Api
         folder_response = client.get("#{drive_path}/items/#{folder_id}")
 
         # Build the folder path from parentReference.path
-        parent_path = folder_response.dig('parentReference', 'path') || ''
-        folder_name = folder_response['name']
+        parent_path = folder_response.dig("parentReference", "path") || ""
+        folder_name = folder_response["name"]
 
         # Path looks like: /drive/root:/Shared Documents/TEEEM Jobs
-        if parent_path.include?(':')
-          path_after_root = parent_path.split(':').last.to_s
-          path_parts = path_after_root.split('/').reject(&:blank?)
-          full_path = (path_parts + [folder_name]).join('/')
+        if parent_path.include?(":")
+          path_after_root = parent_path.split(":").last.to_s
+          path_parts = path_after_root.split("/").reject(&:blank?)
+          full_path = (path_parts + [ folder_name ]).join("/")
         else
           full_path = folder_name
         end
 
         # Update credential with new root folder info
         credential.update!(
-          root_folder_id: folder_response['id'],
+          root_folder_id: folder_response["id"],
           root_folder_path: full_path,
           metadata: credential.metadata.merge({
             root_folder_name: folder_name,
-            root_folder_web_url: folder_response['webUrl'],
+            root_folder_web_url: folder_response["webUrl"],
             updated_at: Time.current
           })
         )
 
         render json: {
-          message: 'Root folder updated successfully',
+          message: "Root folder updated successfully",
           root_folder_path: full_path,
-          root_folder_web_url: folder_response['webUrl']
+          root_folder_web_url: folder_response["webUrl"]
         }
 
       rescue MicrosoftGraphClient::AuthenticationError => e
@@ -2008,7 +2008,7 @@ module Api
 
         # Fall back to user's Microsoft token
         microsoft_token = current_user&.microsoft_token
-        if microsoft_token&.status == 'connected' && microsoft_token&.access_token.present?
+        if microsoft_token&.status == "connected" && microsoft_token&.access_token.present?
           return microsoft_token
         end
 
@@ -2023,19 +2023,19 @@ module Api
       # Map foundation_id to model class
       def get_model_for_foundation(foundation_id)
         case foundation_id&.to_s&.downcase
-        when 'contacts', 'contact'
+        when "contacts", "contact"
           Contact
-        when 'jobs', 'job'
+        when "jobs", "job"
           Job
-        when 'companies', 'company'
+        when "companies", "company"
           Company
-        when 'assets', 'asset'
+        when "assets", "asset"
           Asset
-        when 'documents', 'document', 'company_documents'
+        when "documents", "document", "company_documents"
           CompanyDocument
-        when 'pay_now_requests', 'pay_now_request'
+        when "pay_now_requests", "pay_now_request"
           PayNowRequest
-        when 'financial_transactions', 'financial_transaction'
+        when "financial_transactions", "financial_transaction"
           FinancialTransaction
         else
           # Try to find a foundation and get its model
@@ -2059,7 +2059,7 @@ module Api
         attachments = []
 
         # Check for common attachment names
-        attachment_names = [:file, :files, :photos, :photo, :invoice, :document, :documents, :receipt, :attachments, :proof_photos, :invoice_file]
+        attachment_names = [ :file, :files, :photos, :photo, :invoice, :document, :documents, :receipt, :attachments, :proof_photos, :invoice_file ]
 
         attachment_names.each do |name|
           if record.respond_to?(name) && record.send(name).respond_to?(:attached?)
@@ -2083,7 +2083,7 @@ module Api
       # Similar to JobDocumentMigrationService but for the job's own folder
       def list_all_job_files_recursive(client, credential, root_folder_id, max_depth: 5, max_time: 25)
         files = []
-        folders_to_process = [[root_folder_id, 0, '']] # [folder_id, depth, path]
+        folders_to_process = [ [ root_folder_id, 0, "" ] ] # [folder_id, depth, path]
         start_time = Time.now
 
         while folders_to_process.any?
@@ -2099,22 +2099,22 @@ module Api
             url = "/drives/#{credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
             result = client.get(url)
 
-            result['value']&.each do |item|
-              if item['file']
+            result["value"]&.each do |item|
+              if item["file"]
                 files << {
-                  id: item['id'],
-                  name: item['name'],
-                  size: item['size'],
-                  web_url: item['webUrl'],
-                  modified: item['lastModifiedDateTime'],
-                  type: 'file',
+                  id: item["id"],
+                  name: item["name"],
+                  size: item["size"],
+                  web_url: item["webUrl"],
+                  modified: item["lastModifiedDateTime"],
+                  type: "file",
                   folder_path: current_path,
-                  mime_type: item.dig('file', 'mimeType')
+                  mime_type: item.dig("file", "mimeType")
                 }
-              elsif item['folder'] && depth < max_depth
-                folder_name = item['name']
+              elsif item["folder"] && depth < max_depth
+                folder_name = item["name"]
                 new_path = current_path.empty? ? folder_name : "#{current_path}/#{folder_name}"
-                folders_to_process << [item['id'], depth + 1, new_path]
+                folders_to_process << [ item["id"], depth + 1, new_path ]
               end
             end
           rescue MicrosoftGraphClient::APIError => e
@@ -2125,7 +2125,7 @@ module Api
         Rails.logger.info("[Job All Files] Listing completed: #{files.length} files in #{(Time.now - start_time).round(2)}s")
 
         # Sort by folder path then name
-        files.sort_by { |f| [f[:folder_path].to_s.downcase, f[:name].downcase] }
+        files.sort_by { |f| [ f[:folder_path].to_s.downcase, f[:name].downcase ] }
       end
 
       # Suggest document types for a file based on filename and folder path
@@ -2136,7 +2136,7 @@ module Api
 
         suggestions = []
         filename_lower = filename.downcase
-        folder_lower = (folder_path || '').downcase
+        folder_lower = (folder_path || "").downcase
 
         # Use cached doc types if available, otherwise query (fallback)
         job_doc_types = @cached_doc_types || DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil)).to_a
@@ -2167,13 +2167,13 @@ module Api
 
           # Check for common patterns
           case
-          when filename_lower.match?(/photo|img_|dsc_|image/i) && dt_name_lower.include?('photo')
+          when filename_lower.match?(/photo|img_|dsc_|image/i) && dt_name_lower.include?("photo")
             confidence += 40
-          when filename_lower.match?(/plan|drawing|cad|dwg/i) && dt_name_lower.include?('plan')
+          when filename_lower.match?(/plan|drawing|cad|dwg/i) && dt_name_lower.include?("plan")
             confidence += 40
           when filename_lower.match?(/contract|agreement|variation/i) && dt_name_lower.match?(/contract|variation|agreement/)
             confidence += 40
-          when filename_lower.match?(/certificate|cert/i) && dt_name_lower.include?('certificate')
+          when filename_lower.match?(/certificate|cert/i) && dt_name_lower.include?("certificate")
             confidence += 40
           when filename_lower.match?(/invoice|po|purchase/i) && dt_name_lower.match?(/invoice|purchase|order/)
             confidence += 40
@@ -2245,20 +2245,20 @@ module Api
         if referer.present?
           uri = URI.parse(referer)
           frontend_url = "#{uri.scheme}://#{uri.host}"
-          frontend_url += ":#{uri.port}" if uri.port && ![80, 443].include?(uri.port)
+          frontend_url += ":#{uri.port}" if uri.port && ![ 80, 443 ].include?(uri.port)
           Rails.logger.info "Using frontend URL from referer: #{frontend_url}"
           return frontend_url
         end
 
         # Fallback to Origin header if Referer is not present
-        origin = request.headers['Origin']
+        origin = request.headers["Origin"]
         if origin.present?
           Rails.logger.info "Using frontend URL from Origin header: #{origin}"
           return origin
         end
 
         # Final fallback to environment variable
-        frontend_url = ENV['FRONTEND_URL'] || 'https://teeem.vercel.app'
+        frontend_url = ENV["FRONTEND_URL"] || "https://teeem.vercel.app"
         Rails.logger.info "Using frontend URL from ENV (fallback): #{frontend_url}"
         frontend_url
       end

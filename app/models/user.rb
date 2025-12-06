@@ -6,9 +6,9 @@ class User < ApplicationRecord
   has_many :chat_messages, dependent: :destroy
   has_many :schedule_template_row_audits, dependent: :nullify
   has_many :foundation_views, dependent: :destroy
-  has_one :outlook_credential, class_name: 'UserOutlookCredential', dependent: :destroy
+  has_one :outlook_credential, class_name: "UserOutlookCredential", dependent: :destroy
   has_one :email_sync_status, dependent: :destroy
-  has_one :microsoft_token, class_name: 'UserMicrosoftToken', dependent: :destroy
+  has_one :microsoft_token, class_name: "UserMicrosoftToken", dependent: :destroy
   has_many :notifications, dependent: :destroy
 
   # Role constants
@@ -26,27 +26,27 @@ class User < ApplicationRecord
 
   # Role helper methods
   def admin?
-    role == 'admin'
+    role == "admin"
   end
 
   def user?
-    role == 'user'
+    role == "user"
   end
 
   def product_owner?
-    role == 'product_owner'
+    role == "product_owner"
   end
 
   def estimator?
-    role == 'estimator'
+    role == "estimator"
   end
 
   def supervisor?
-    role == 'supervisor'
+    role == "supervisor"
   end
 
   def builder?
-    role == 'builder'
+    role == "builder"
   end
 
   # SSoT: God View access (internal staff sees everything)
@@ -94,56 +94,56 @@ class User < ApplicationRecord
     perms = []
 
     # Base permissions for all users
-    perms += ['view_dashboard', 'view_jobs', 'view_contacts']
+    perms += [ "view_dashboard", "view_jobs", "view_contacts" ]
 
     # Role-specific permissions
     case role
-    when 'admin'
+    when "admin"
       # Admins get all permissions
       perms += [
-        'manage_permissions',
-        'manage_users',
-        'manage_system',
-        'create_templates',
-        'edit_schedule',
-        'view_supervisor_tasks',
-        'view_builder_tasks',
-        'edit_projects',
-        'manage_workflows',
-        'view_gantt',
-        'manage_company_settings',
-        'manage_integrations',
+        "manage_permissions",
+        "manage_users",
+        "manage_system",
+        "create_templates",
+        "edit_schedule",
+        "view_supervisor_tasks",
+        "view_builder_tasks",
+        "edit_projects",
+        "manage_workflows",
+        "view_gantt",
+        "manage_company_settings",
+        "manage_integrations",
         # SSoT Corporate permissions
-        'god_view',
-        'view_confidential_fields',
-        'view_all_company_groups',
-        'edit_company_group_memberships',
-        'run_investigations'
+        "god_view",
+        "view_confidential_fields",
+        "view_all_company_groups",
+        "edit_company_group_memberships",
+        "run_investigations"
       ]
-    when 'product_owner'
+    when "product_owner"
       perms += [
-        'create_templates',
-        'edit_schedule',
-        'edit_projects',
-        'view_gantt',
+        "create_templates",
+        "edit_schedule",
+        "edit_projects",
+        "view_gantt",
         # SSoT Corporate permissions
-        'god_view',
-        'view_all_company_groups'
+        "god_view",
+        "view_all_company_groups"
       ]
-    when 'estimator'
+    when "estimator"
       perms += [
-        'edit_schedule',
-        'edit_projects',
-        'view_gantt'
+        "edit_schedule",
+        "edit_projects",
+        "view_gantt"
       ]
-    when 'supervisor'
+    when "supervisor"
       perms += [
-        'view_supervisor_tasks',
-        'view_gantt'
+        "view_supervisor_tasks",
+        "view_gantt"
       ]
-    when 'builder'
+    when "builder"
       perms += [
-        'view_builder_tasks'
+        "view_builder_tasks"
       ]
     end
 
@@ -157,7 +157,7 @@ class User < ApplicationRecord
       user.name = auth.info.name
       user.oauth_token = auth.credentials.token
       user.oauth_expires_at = Time.at(auth.credentials.expires_at) if auth.credentials.expires_at
-      user.role = 'user'  # Default role for new OAuth users
+      user.role = "user"  # Default role for new OAuth users
       user.password = SecureRandom.hex(32)  # Set random password for OAuth users
     end
   end
@@ -177,7 +177,7 @@ class User < ApplicationRecord
     return if assigned_roles.blank?
 
     unless assigned_roles.is_a?(Array)
-      errors.add(:assigned_roles, 'must be an array')
+      errors.add(:assigned_roles, "must be an array")
       return
     end
 
@@ -197,22 +197,22 @@ class User < ApplicationRecord
 
     # Check for at least one uppercase letter
     unless password.match?(/[A-Z]/)
-      errors.add :password, 'must contain at least one uppercase letter'
+      errors.add :password, "must contain at least one uppercase letter"
     end
 
     # Check for at least one lowercase letter
     unless password.match?(/[a-z]/)
-      errors.add :password, 'must contain at least one lowercase letter'
+      errors.add :password, "must contain at least one lowercase letter"
     end
 
     # Check for at least one digit
     unless password.match?(/\d/)
-      errors.add :password, 'must contain at least one number'
+      errors.add :password, "must contain at least one number"
     end
 
     # Check for at least one special character
     unless password.match?(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/)
-      errors.add :password, 'must contain at least one special character'
+      errors.add :password, "must contain at least one special character"
     end
   end
 end

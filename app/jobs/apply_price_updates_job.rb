@@ -11,7 +11,7 @@ class ApplyPriceUpdatesJob < ApplicationJob
     # 2. The item's current price doesn't match the new_price
     # 3. The item's default_supplier matches the price history supplier
     PriceHistory.includes(:pricebook_item)
-                .where('date_effective <= ?', today)
+                .where("date_effective <= ?", today)
                 .find_each do |history|
       item = history.pricebook_item
 
@@ -26,7 +26,7 @@ class ApplyPriceUpdatesJob < ApplicationJob
       if item.current_price != history.new_price
         # Check if this is the most recent effective price for today or earlier
         latest_history = PriceHistory.where(pricebook_item_id: item.id, supplier_id: history.supplier_id)
-                                     .where('date_effective <= ?', today)
+                                     .where("date_effective <= ?", today)
                                      .order(date_effective: :desc, created_at: :desc)
                                      .first
 

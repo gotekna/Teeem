@@ -1,8 +1,8 @@
 class CompanyLoan < ApplicationRecord
   # Associations
-  belongs_to :lender_company, class_name: 'Company'
-  belongs_to :borrower_company, class_name: 'Company'
-  has_many :company_documents, foreign_key: 'loan_id', dependent: :nullify
+  belongs_to :lender_company, class_name: "Company"
+  belongs_to :borrower_company, class_name: "Company"
+  has_many :company_documents, foreign_key: "loan_id", dependent: :nullify
 
   # Validations
   validates :principal_amount, presence: true, numericality: { greater_than: 0 }
@@ -12,8 +12,8 @@ class CompanyLoan < ApplicationRecord
   validate :different_companies
 
   # Scopes
-  scope :active, -> { where(status: 'active') }
-  scope :repaid, -> { where(status: 'repaid') }
+  scope :active, -> { where(status: "active") }
+  scope :repaid, -> { where(status: "repaid") }
   scope :documented, -> { where(loan_documents_in_place: true) }
   scope :undocumented, -> { where(loan_documents_in_place: false) }
   scope :by_lender, ->(company_id) { where(lender_company_id: company_id) }
@@ -31,11 +31,11 @@ class CompanyLoan < ApplicationRecord
   end
 
   def interest_free?
-    interest_type == 'interest-free' || interest_rate.to_f.zero?
+    interest_type == "interest-free" || interest_rate.to_f.zero?
   end
 
   def overdue?
-    maturity_date.present? && maturity_date < Date.today && status == 'active'
+    maturity_date.present? && maturity_date < Date.today && status == "active"
   end
 
   private

@@ -3,7 +3,7 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   # No user interaction needed after admin consent is granted
   # Can access ANY user's mailbox in the tenant
 
-  belongs_to :setup_by, class_name: 'User', optional: true
+  belongs_to :setup_by, class_name: "User", optional: true
 
   # Encrypt sensitive data
   encrypts :client_secret
@@ -23,7 +23,7 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   end
 
   def self.connected?
-    active_credential&.status == 'connected'
+    active_credential&.status == "connected"
   end
 
   # Check if token is expired or about to expire (within 5 minutes)
@@ -46,29 +46,29 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
       form: {
         client_id: client_id,
         client_secret: client_secret,
-        scope: 'https://graph.microsoft.com/.default',
-        grant_type: 'client_credentials'
+        scope: "https://graph.microsoft.com/.default",
+        grant_type: "client_credentials"
       }
     )
 
     if response.status.success?
       data = response.parse
       update!(
-        access_token: data['access_token'],
-        token_expires_at: Time.current + data['expires_in'].to_i.seconds,
-        status: 'connected',
+        access_token: data["access_token"],
+        token_expires_at: Time.current + data["expires_in"].to_i.seconds,
+        status: "connected",
         last_error: nil
       )
       Rails.logger.info "[MicrosoftApp] Access token fetched successfully for tenant #{tenant_id}"
       true
     else
       error_msg = "Failed to fetch token: #{response.status} - #{response.body}"
-      update!(status: 'error', last_error: error_msg)
+      update!(status: "error", last_error: error_msg)
       Rails.logger.error "[MicrosoftApp] #{error_msg}"
       false
     end
   rescue StandardError => e
-    update!(status: 'error', last_error: e.message)
+    update!(status: "error", last_error: e.message)
     Rails.logger.error "[MicrosoftApp] Error fetching token: #{e.message}"
     false
   end
@@ -82,15 +82,15 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
                    .get("https://graph.microsoft.com/v1.0/users?$top=1&$select=id,mail")
 
     if response.status.success?
-      update!(status: 'connected', last_error: nil)
+      update!(status: "connected", last_error: nil)
       true
     else
       error_msg = "API test failed: #{response.status} - #{response.body}"
-      update!(status: 'error', last_error: error_msg)
+      update!(status: "error", last_error: error_msg)
       false
     end
   rescue StandardError => e
-    update!(status: 'error', last_error: e.message)
+    update!(status: "error", last_error: e.message)
     false
   end
 
@@ -99,7 +99,7 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
     update!(
       admin_consent_granted_at: Time.current,
       admin_consent_granted_by: admin_email,
-      status: 'connected'
+      status: "connected"
     )
   end
 
@@ -110,18 +110,18 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
 
   # Get list of users in the tenant (for sync configuration)
   def list_tenant_users
-    return [] unless status == 'connected'
+    return [] unless status == "connected"
 
     response = HTTP.auth("Bearer #{valid_access_token}")
                    .get("https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName")
 
     if response.status.success?
       data = response.parse
-      data['value'].map do |user|
+      data["value"].map do |user|
         {
-          id: user['id'],
-          name: user['displayName'],
-          email: user['mail'] || user['userPrincipalName']
+          id: user["id"],
+          name: user["displayName"],
+          email: user["mail"] || user["userPrincipalName"]
         }
       end
     else

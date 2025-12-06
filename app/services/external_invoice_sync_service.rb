@@ -3,7 +3,7 @@ class ExternalInvoiceSyncService
 
   RATE_LIMIT_SLEEP = 1200 # milliseconds between API calls (1.2s)
 
-  def initialize(source: 'xero', tenant_id: nil)
+  def initialize(source: "xero", tenant_id: nil)
     @source = source
     @tenant_id = tenant_id
     @stats = {
@@ -20,7 +20,7 @@ class ExternalInvoiceSyncService
     @sync_timestamp = Time.current
 
     case @source
-    when 'xero'
+    when "xero"
       @api_client = XeroApiClient.new
     else
       raise ArgumentError, "Unsupported source: #{@source}"
@@ -174,7 +174,7 @@ class ExternalInvoiceSyncService
       tenant_id: tenant_id,
       created_in_teeem: true,
       pending_push: true,
-      sync_direction: 'export_only',
+      sync_direction: "export_only",
       teeem_updated_at: Time.current,
       **attributes
     )
@@ -195,7 +195,7 @@ class ExternalInvoiceSyncService
     loop do
       Rails.logger.info("Fetching #{@source} invoices page #{page}")
 
-      result = @api_client.get('Invoices', {
+      result = @api_client.get("Invoices", {
         page: page,
         tenant_id: tenant_id
       })
@@ -204,7 +204,7 @@ class ExternalInvoiceSyncService
         raise XeroApiClient::ApiError, "Failed to fetch invoices: #{result[:error]}"
       end
 
-      invoices_page = result[:data]['Invoices'] || []
+      invoices_page = result[:data]["Invoices"] || []
       break if invoices_page.empty?
 
       all_invoices.concat(invoices_page)
@@ -223,7 +223,7 @@ class ExternalInvoiceSyncService
   end
 
   def process_invoice(invoice_data, tenant_id)
-    external_id = invoice_data['InvoiceID']
+    external_id = invoice_data["InvoiceID"]
 
     # Find or create the external invoice record
     invoice = ExternalInvoice.find_or_initialize_by(
@@ -236,26 +236,26 @@ class ExternalInvoiceSyncService
 
     # Map Xero data to our normalized format
     invoice.assign_attributes(
-      invoice_number: invoice_data['InvoiceNumber'],
-      reference: invoice_data['Reference'],
-      invoice_type: ExternalInvoice.normalize_xero_type(invoice_data['Type']),
-      status: ExternalInvoice.normalize_xero_status(invoice_data['Status']),
-      invoice_date: parse_xero_date(invoice_data['DateString'] || invoice_data['Date']),
-      due_date: parse_xero_date(invoice_data['DueDateString'] || invoice_data['DueDate']),
-      fully_paid_date: parse_xero_date(invoice_data['FullyPaidOnDate']),
-      subtotal: invoice_data['SubTotal'],
-      total_tax: invoice_data['TotalTax'],
-      total: invoice_data['Total'],
-      amount_due: invoice_data['AmountDue'],
-      amount_paid: invoice_data['AmountPaid'],
-      currency_code: invoice_data['CurrencyCode'] || 'AUD',
-      external_contact_id: invoice_data.dig('Contact', 'ContactID'),
-      contact_name: invoice_data.dig('Contact', 'Name'),
-      line_items: invoice_data['LineItems'] || [],
+      invoice_number: invoice_data["InvoiceNumber"],
+      reference: invoice_data["Reference"],
+      invoice_type: ExternalInvoice.normalize_xero_type(invoice_data["Type"]),
+      status: ExternalInvoice.normalize_xero_status(invoice_data["Status"]),
+      invoice_date: parse_xero_date(invoice_data["DateString"] || invoice_data["Date"]),
+      due_date: parse_xero_date(invoice_data["DueDateString"] || invoice_data["DueDate"]),
+      fully_paid_date: parse_xero_date(invoice_data["FullyPaidOnDate"]),
+      subtotal: invoice_data["SubTotal"],
+      total_tax: invoice_data["TotalTax"],
+      total: invoice_data["Total"],
+      amount_due: invoice_data["AmountDue"],
+      amount_paid: invoice_data["AmountPaid"],
+      currency_code: invoice_data["CurrencyCode"] || "AUD",
+      external_contact_id: invoice_data.dig("Contact", "ContactID"),
+      contact_name: invoice_data.dig("Contact", "Name"),
+      line_items: invoice_data["LineItems"] || [],
       payments: extract_payments(invoice_data),
       tracking_data: extract_tracking_categories(invoice_data),
       raw_data: invoice_data,
-      external_updated_at: parse_xero_date(invoice_data['UpdatedDateUTC']),
+      external_updated_at: parse_xero_date(invoice_data["UpdatedDateUTC"]),
       last_synced_at: @sync_timestamp,
       sync_error: nil
     )
@@ -286,18 +286,18 @@ class ExternalInvoiceSyncService
 
   def extract_tracking_categories(invoice_data)
     tracking = []
-    line_items = invoice_data['LineItems'] || []
+    line_items = invoice_data["LineItems"] || []
 
     line_items.each do |line_item|
-      item_tracking = line_item['Tracking'] || []
+      item_tracking = line_item["Tracking"] || []
       item_tracking.each do |t|
         # Store unique tracking options
-        unless tracking.any? { |existing| existing['Name'] == t['Name'] && existing['Option'] == t['Option'] }
+        unless tracking.any? { |existing| existing["Name"] == t["Name"] && existing["Option"] == t["Option"] }
           tracking << {
-            'Name' => t['Name'],
-            'Option' => t['Option'],
-            'TrackingCategoryID' => t['TrackingCategoryID'],
-            'TrackingOptionID' => t['TrackingOptionID']
+            "Name" => t["Name"],
+            "Option" => t["Option"],
+            "TrackingCategoryID" => t["TrackingCategoryID"],
+            "TrackingOptionID" => t["TrackingOptionID"]
           }
         end
       end
@@ -308,14 +308,14 @@ class ExternalInvoiceSyncService
 
   def extract_payments(invoice_data)
     # Payments might be in the invoice data directly or need separate fetch
-    payments = invoice_data['Payments'] || []
+    payments = invoice_data["Payments"] || []
     payments.map do |payment|
       {
-        'PaymentID' => payment['PaymentID'],
-        'Date' => payment['Date'],
-        'Amount' => payment['Amount'],
-        'Reference' => payment['Reference'],
-        'CurrencyRate' => payment['CurrencyRate']
+        "PaymentID" => payment["PaymentID"],
+        "Date" => payment["Date"],
+        "Amount" => payment["Amount"],
+        "Reference" => payment["Reference"],
+        "CurrencyRate" => payment["CurrencyRate"]
       }
     end
   end
@@ -325,7 +325,7 @@ class ExternalInvoiceSyncService
 
     # Find job by tracking option name
     invoice.tracking_data.each do |tracking|
-      option_name = tracking['Option']
+      option_name = tracking["Option"]
       next if option_name.blank?
 
       job = Job.find_by(xero_tracking_option_name: option_name)
@@ -398,7 +398,7 @@ class ExternalInvoiceSyncService
     Rails.logger.info("Starting incremental sync for tenant #{tenant_id} since #{since}")
 
     # Xero supports modifiedAfter parameter
-    result = @api_client.get('Invoices', {
+    result = @api_client.get("Invoices", {
       modifiedAfter: since.iso8601,
       tenant_id: tenant_id
     })
@@ -407,7 +407,7 @@ class ExternalInvoiceSyncService
       raise XeroApiClient::ApiError, "Failed to fetch invoices: #{result[:error]}"
     end
 
-    invoices = result[:data]['Invoices'] || []
+    invoices = result[:data]["Invoices"] || []
     Rails.logger.info("Found #{invoices.length} modified invoices since #{since}")
 
     invoices.each do |invoice_data|
@@ -439,7 +439,7 @@ class ExternalInvoiceSyncService
     loop do
       Rails.logger.info("Fetching #{@source} credit notes page #{page}")
 
-      result = @api_client.get('CreditNotes', {
+      result = @api_client.get("CreditNotes", {
         page: page,
         tenant_id: tenant_id
       })
@@ -449,7 +449,7 @@ class ExternalInvoiceSyncService
         break
       end
 
-      credit_notes_page = result[:data]['CreditNotes'] || []
+      credit_notes_page = result[:data]["CreditNotes"] || []
       break if credit_notes_page.empty?
 
       all_credit_notes.concat(credit_notes_page)
@@ -466,7 +466,7 @@ class ExternalInvoiceSyncService
 
   # Process a single credit note
   def process_credit_note(cn_data, tenant_id)
-    external_id = cn_data['CreditNoteID']
+    external_id = cn_data["CreditNoteID"]
 
     record = ExternalInvoice.find_or_initialize_by(
       source: @source,
@@ -477,25 +477,25 @@ class ExternalInvoiceSyncService
     is_new = record.new_record?
 
     record.assign_attributes(
-      invoice_number: cn_data['CreditNoteNumber'],
-      reference: cn_data['Reference'],
-      invoice_type: 'credit_note',
-      status: ExternalInvoice.normalize_xero_status(cn_data['Status']),
-      invoice_date: parse_xero_date(cn_data['DateString'] || cn_data['Date']),
+      invoice_number: cn_data["CreditNoteNumber"],
+      reference: cn_data["Reference"],
+      invoice_type: "credit_note",
+      status: ExternalInvoice.normalize_xero_status(cn_data["Status"]),
+      invoice_date: parse_xero_date(cn_data["DateString"] || cn_data["Date"]),
       due_date: nil,
-      subtotal: cn_data['SubTotal'],
-      total_tax: cn_data['TotalTax'],
-      total: cn_data['Total'],
-      amount_due: cn_data['RemainingCredit'],
-      amount_paid: (cn_data['Total'] || 0) - (cn_data['RemainingCredit'] || 0),
-      currency_code: cn_data['CurrencyCode'] || 'AUD',
-      external_contact_id: cn_data.dig('Contact', 'ContactID'),
-      contact_name: cn_data.dig('Contact', 'Name'),
-      line_items: cn_data['LineItems'] || [],
+      subtotal: cn_data["SubTotal"],
+      total_tax: cn_data["TotalTax"],
+      total: cn_data["Total"],
+      amount_due: cn_data["RemainingCredit"],
+      amount_paid: (cn_data["Total"] || 0) - (cn_data["RemainingCredit"] || 0),
+      currency_code: cn_data["CurrencyCode"] || "AUD",
+      external_contact_id: cn_data.dig("Contact", "ContactID"),
+      contact_name: cn_data.dig("Contact", "Name"),
+      line_items: cn_data["LineItems"] || [],
       payments: [],
-      tracking_data: extract_tracking_categories_from_lines(cn_data['LineItems']),
+      tracking_data: extract_tracking_categories_from_lines(cn_data["LineItems"]),
       raw_data: cn_data,
-      external_updated_at: parse_xero_date(cn_data['UpdatedDateUTC']),
+      external_updated_at: parse_xero_date(cn_data["UpdatedDateUTC"]),
       last_synced_at: @sync_timestamp,
       sync_error: nil
     )
@@ -521,7 +521,7 @@ class ExternalInvoiceSyncService
     loop do
       Rails.logger.info("Fetching #{@source} quotes page #{page}")
 
-      result = @api_client.get('Quotes', {
+      result = @api_client.get("Quotes", {
         page: page,
         tenant_id: tenant_id
       })
@@ -531,7 +531,7 @@ class ExternalInvoiceSyncService
         break
       end
 
-      quotes_page = result[:data]['Quotes'] || []
+      quotes_page = result[:data]["Quotes"] || []
       break if quotes_page.empty?
 
       all_quotes.concat(quotes_page)
@@ -548,7 +548,7 @@ class ExternalInvoiceSyncService
 
   # Process a single quote
   def process_quote(quote_data, tenant_id)
-    external_id = quote_data['QuoteID']
+    external_id = quote_data["QuoteID"]
 
     record = ExternalInvoice.find_or_initialize_by(
       source: @source,
@@ -559,25 +559,25 @@ class ExternalInvoiceSyncService
     is_new = record.new_record?
 
     record.assign_attributes(
-      invoice_number: quote_data['QuoteNumber'],
-      reference: quote_data['Reference'] || quote_data['Title'],
-      invoice_type: 'quote',
-      status: ExternalInvoice::XERO_QUOTE_STATUS_MAP[quote_data['Status']] || 'draft',
-      invoice_date: parse_xero_date(quote_data['DateString'] || quote_data['Date']),
-      due_date: parse_xero_date(quote_data['ExpiryDateString'] || quote_data['ExpiryDate']),
-      subtotal: quote_data['SubTotal'],
-      total_tax: quote_data['TotalTax'],
-      total: quote_data['Total'],
-      amount_due: quote_data['Total'],
+      invoice_number: quote_data["QuoteNumber"],
+      reference: quote_data["Reference"] || quote_data["Title"],
+      invoice_type: "quote",
+      status: ExternalInvoice::XERO_QUOTE_STATUS_MAP[quote_data["Status"]] || "draft",
+      invoice_date: parse_xero_date(quote_data["DateString"] || quote_data["Date"]),
+      due_date: parse_xero_date(quote_data["ExpiryDateString"] || quote_data["ExpiryDate"]),
+      subtotal: quote_data["SubTotal"],
+      total_tax: quote_data["TotalTax"],
+      total: quote_data["Total"],
+      amount_due: quote_data["Total"],
       amount_paid: 0,
-      currency_code: quote_data['CurrencyCode'] || 'AUD',
-      external_contact_id: quote_data.dig('Contact', 'ContactID'),
-      contact_name: quote_data.dig('Contact', 'Name'),
-      line_items: quote_data['LineItems'] || [],
+      currency_code: quote_data["CurrencyCode"] || "AUD",
+      external_contact_id: quote_data.dig("Contact", "ContactID"),
+      contact_name: quote_data.dig("Contact", "Name"),
+      line_items: quote_data["LineItems"] || [],
       payments: [],
-      tracking_data: extract_tracking_categories_from_lines(quote_data['LineItems']),
+      tracking_data: extract_tracking_categories_from_lines(quote_data["LineItems"]),
       raw_data: quote_data,
-      external_updated_at: parse_xero_date(quote_data['UpdatedDateUTC']),
+      external_updated_at: parse_xero_date(quote_data["UpdatedDateUTC"]),
       last_synced_at: @sync_timestamp,
       sync_error: nil
     )
@@ -598,13 +598,13 @@ class ExternalInvoiceSyncService
   def extract_tracking_categories_from_lines(line_items)
     tracking = []
     (line_items || []).each do |line_item|
-      (line_item['Tracking'] || []).each do |t|
-        unless tracking.any? { |existing| existing['Name'] == t['Name'] && existing['Option'] == t['Option'] }
+      (line_item["Tracking"] || []).each do |t|
+        unless tracking.any? { |existing| existing["Name"] == t["Name"] && existing["Option"] == t["Option"] }
           tracking << {
-            'Name' => t['Name'],
-            'Option' => t['Option'],
-            'TrackingCategoryID' => t['TrackingCategoryID'],
-            'TrackingOptionID' => t['TrackingOptionID']
+            "Name" => t["Name"],
+            "Option" => t["Option"],
+            "TrackingCategoryID" => t["TrackingCategoryID"],
+            "TrackingOptionID" => t["TrackingOptionID"]
           }
         end
       end
@@ -624,13 +624,13 @@ class ExternalInvoiceSyncService
       # Update existing invoice
       result = @api_client.put("Invoices/#{invoice.external_id}", {
         tenant_id: invoice.tenant_id,
-        body: { Invoices: [xero_invoice] }
+        body: { Invoices: [ xero_invoice ] }
       })
     else
       # Create new invoice
-      result = @api_client.post('Invoices', {
+      result = @api_client.post("Invoices", {
         tenant_id: invoice.tenant_id,
-        body: { Invoices: [xero_invoice] }
+        body: { Invoices: [ xero_invoice ] }
       })
     end
 
@@ -639,13 +639,13 @@ class ExternalInvoiceSyncService
     end
 
     # Update local record with Xero response
-    xero_response = result[:data]['Invoices']&.first
+    xero_response = result[:data]["Invoices"]&.first
     if xero_response
       invoice.update!(
-        external_id: xero_response['InvoiceID'],
-        invoice_number: xero_response['InvoiceNumber'],
-        status: ExternalInvoice.normalize_xero_status(xero_response['Status']),
-        external_updated_at: parse_xero_date(xero_response['UpdatedDateUTC']),
+        external_id: xero_response["InvoiceID"],
+        invoice_number: xero_response["InvoiceNumber"],
+        status: ExternalInvoice.normalize_xero_status(xero_response["Status"]),
+        external_updated_at: parse_xero_date(xero_response["UpdatedDateUTC"]),
         last_synced_at: Time.current,
         pending_push: false,
         sync_error: nil
@@ -659,42 +659,42 @@ class ExternalInvoiceSyncService
   # Build Xero-compatible invoice payload from ExternalInvoice
   def build_xero_invoice_payload(invoice)
     payload = {
-      'Type' => invoice.xero_type,
-      'Status' => invoice.xero_status,
-      'Reference' => invoice.reference,
-      'CurrencyCode' => invoice.currency_code || 'AUD'
+      "Type" => invoice.xero_type,
+      "Status" => invoice.xero_status,
+      "Reference" => invoice.reference,
+      "CurrencyCode" => invoice.currency_code || "AUD"
     }
 
     # Add invoice number if present (for updates)
-    payload['InvoiceNumber'] = invoice.invoice_number if invoice.invoice_number.present?
+    payload["InvoiceNumber"] = invoice.invoice_number if invoice.invoice_number.present?
 
     # Add contact
     if invoice.external_contact_id.present?
-      payload['Contact'] = { 'ContactID' => invoice.external_contact_id }
+      payload["Contact"] = { "ContactID" => invoice.external_contact_id }
     elsif invoice.contact_id.present?
       # Find the Xero contact ID from the TEEEM contact
       xero_link = ContactExternalLink.find_by(
         contact_id: invoice.contact_id,
-        source: 'xero',
+        source: "xero",
         tenant_id: invoice.tenant_id
       )
-      payload['Contact'] = { 'ContactID' => xero_link.external_contact_id } if xero_link
+      payload["Contact"] = { "ContactID" => xero_link.external_contact_id } if xero_link
     end
 
     # Add dates
-    payload['Date'] = invoice.invoice_date.iso8601 if invoice.invoice_date
-    payload['DueDate'] = invoice.due_date.iso8601 if invoice.due_date
+    payload["Date"] = invoice.invoice_date.iso8601 if invoice.invoice_date
+    payload["DueDate"] = invoice.due_date.iso8601 if invoice.due_date
 
     # Add line items
     if invoice.line_items.present?
-      payload['LineItems'] = invoice.line_items.map do |item|
+      payload["LineItems"] = invoice.line_items.map do |item|
         {
-          'Description' => item['Description'],
-          'Quantity' => item['Quantity'] || 1,
-          'UnitAmount' => item['UnitAmount'],
-          'AccountCode' => item['AccountCode'],
-          'TaxType' => item['TaxType'],
-          'Tracking' => item['Tracking']
+          "Description" => item["Description"],
+          "Quantity" => item["Quantity"] || 1,
+          "UnitAmount" => item["UnitAmount"],
+          "AccountCode" => item["AccountCode"],
+          "TaxType" => item["TaxType"],
+          "Tracking" => item["Tracking"]
         }.compact
       end
     end

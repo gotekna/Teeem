@@ -14,6 +14,6 @@ class CreateWorkflowSteps < ActiveRecord::Migration[8.0]
     end
 
     add_index :workflow_steps, :status
-    add_index :workflow_steps, [:assigned_to_type, :assigned_to_id]
+    add_index :workflow_steps, [ :assigned_to_type, :assigned_to_id ]
   end
 end

@@ -7,10 +7,10 @@ class Estimate < ApplicationRecord
 
   # Enums
   enum :status, {
-    pending: 'pending',
-    matched: 'matched',
-    imported: 'imported',
-    rejected: 'rejected'
+    pending: "pending",
+    matched: "matched",
+    imported: "imported",
+    rejected: "rejected"
   }, prefix: true, default: :pending
 
   # Validations
@@ -21,9 +21,9 @@ class Estimate < ApplicationRecord
   validates :match_confidence_score, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   # Scopes
-  scope :unmatched, -> { where(status: 'pending') }
-  scope :matched, -> { where(status: 'matched') }
-  scope :from_unreal, -> { where(source: 'unreal_engine') }
+  scope :unmatched, -> { where(status: "pending") }
+  scope :matched, -> { where(status: "matched") }
+  scope :from_unreal, -> { where(source: "unreal_engine") }
 
   # Callbacks
   after_create :set_imported_at

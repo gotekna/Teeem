@@ -25,12 +25,12 @@ module HealthChecks
 
     # Map table names to check services
     TABLE_CHECKS = {
-      'contacts' => ContactsCheck,
-      'jobs' => JobsCheck,
-      'pricebook' => PricebookCheck,
-      'pricebook_items' => PricebookCheck,
-      'companies' => CompaniesCheck,
-      'company_documents' => DocumentsCheck
+      "contacts" => ContactsCheck,
+      "jobs" => JobsCheck,
+      "pricebook" => PricebookCheck,
+      "pricebook_items" => PricebookCheck,
+      "companies" => CompaniesCheck,
+      "company_documents" => DocumentsCheck
     }.freeze
 
     # All available check services
@@ -68,9 +68,9 @@ module HealthChecks
       def run_all(foundation_id: nil, table_name: nil)
         service_class = if foundation_id
                          for_foundation(foundation_id) || for_table(table_name)
-                       else
+        else
                          for_table(table_name)
-                       end
+        end
 
         return empty_response unless service_class
 
@@ -104,11 +104,11 @@ module HealthChecks
             checks.each do |check|
               count = check[:count] || 0
               case check[:severity]
-              when 'critical'
+              when "critical"
                 total_critical += count
-              when 'warning'
+              when "warning"
                 total_warnings += count
-              when 'info'
+              when "info"
                 total_info += count
               end
 
@@ -188,11 +188,11 @@ module HealthChecks
 
       def health_status(score)
         if score >= 90
-          'healthy'
+          "healthy"
         elsif score >= 70
-          'warning'
+          "warning"
         else
-          'critical'
+          "critical"
         end
       end
     end

@@ -2,17 +2,17 @@
 gold_standard = Table.find(166)
 
 # Check for existing url columns
-existing = gold_standard.columns.where(column_type: 'url')
+existing = gold_standard.columns.where(column_type: "url")
 puts "Existing URL columns: #{existing.count}"
 
 if existing.count > 0
   puts "URL column already exists - skipping"
 else
   col = gold_standard.columns.create!(
-    name: 'URL',
-    column_name: 'website_url',
-    column_type: 'url',
-    description: 'Web URL field',
+    name: "URL",
+    column_name: "website_url",
+    column_type: "url",
+    description: "Web URL field",
     position: gold_standard.columns.maximum(:position).to_i + 1
   )
   puts "Created URL column with ID: #{col.id}"

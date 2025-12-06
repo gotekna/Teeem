@@ -2,7 +2,7 @@
 
 namespace :teeem do
   namespace :gold_standard do
-    desc 'Seed column_type_definitions table with all 30 column types'
+    desc "Seed column_type_definitions table with all 30 column types"
     task seed_type_definitions: :environment do
       puts "🔄 Seeding column type definitions..."
       puts "=" * 80
@@ -11,265 +11,265 @@ namespace :teeem do
       # Matches Column::COLUMN_SQL_TYPE_MAP and Trinity T19.001-T19.021
       type_definitions = [
         {
-          type_key: 'single_line_text',
-          display_name: 'Single Line Text',
-          sql_type: 'VARCHAR(255)',
+          type_key: "single_line_text",
+          display_name: "Single Line Text",
+          sql_type: "VARCHAR(255)",
           default_max_length: 255,
           validation_regex: nil,
-          used_for: 'Short text input for names, titles, and brief descriptions'
+          used_for: "Short text input for names, titles, and brief descriptions"
         },
         {
-          type_key: 'multiple_lines_text',
-          display_name: 'Multiple Lines Text',
-          sql_type: 'TEXT',
+          type_key: "multiple_lines_text",
+          display_name: "Multiple Lines Text",
+          sql_type: "TEXT",
           default_max_length: nil,
           validation_regex: nil,
-          used_for: 'Long text for notes, descriptions, and multi-paragraph content'
+          used_for: "Long text for notes, descriptions, and multi-paragraph content"
         },
         {
-          type_key: 'email',
-          display_name: 'Email',
-          sql_type: 'VARCHAR(255)',
+          type_key: "email",
+          display_name: "Email",
+          sql_type: "VARCHAR(255)",
           default_max_length: 255,
           validation_regex: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
-          used_for: 'Email address with format validation'
+          used_for: "Email address with format validation"
         },
         {
-          type_key: 'phone',
-          display_name: 'Phone',
-          sql_type: 'VARCHAR(20)',
+          type_key: "phone",
+          display_name: "Phone",
+          sql_type: "VARCHAR(20)",
           default_max_length: 20,
           validation_regex: '^\+?[0-9\s\-\(\)]+$',
-          used_for: 'Landline phone number'
+          used_for: "Landline phone number"
         },
         {
-          type_key: 'mobile',
-          display_name: 'Mobile',
-          sql_type: 'VARCHAR(20)',
+          type_key: "mobile",
+          display_name: "Mobile",
+          sql_type: "VARCHAR(20)",
           default_max_length: 20,
           validation_regex: '^\+?[0-9\s\-\(\)]+$',
-          used_for: 'Mobile phone number'
+          used_for: "Mobile phone number"
         },
         {
-          type_key: 'url',
-          display_name: 'URL',
-          sql_type: 'VARCHAR(500)',
+          type_key: "url",
+          display_name: "URL",
+          sql_type: "VARCHAR(500)",
           default_max_length: 500,
-          validation_regex: '^https?://.+',
-          used_for: 'Web address with http/https validation'
+          validation_regex: "^https?://.+",
+          used_for: "Web address with http/https validation"
         },
         {
-          type_key: 'number',
-          display_name: 'Number',
-          sql_type: 'NUMERIC(10,2)',
+          type_key: "number",
+          display_name: "Number",
+          sql_type: "NUMERIC(10,2)",
           default_max_length: nil,
           default_min_value: nil,
           default_max_value: nil,
           validation_regex: nil,
-          used_for: 'Decimal number with 2 decimal places'
+          used_for: "Decimal number with 2 decimal places"
         },
         {
-          type_key: 'whole_number',
-          display_name: 'Whole Number',
-          sql_type: 'INTEGER',
+          type_key: "whole_number",
+          display_name: "Whole Number",
+          sql_type: "INTEGER",
           default_max_length: nil,
           default_min_value: nil,
           default_max_value: nil,
-          validation_regex: '^-?[0-9]+$',
-          used_for: 'Integer without decimal places'
+          validation_regex: "^-?[0-9]+$",
+          used_for: "Integer without decimal places"
         },
         {
-          type_key: 'currency',
-          display_name: 'Currency',
-          sql_type: 'NUMERIC(10,2)',
+          type_key: "currency",
+          display_name: "Currency",
+          sql_type: "NUMERIC(10,2)",
           default_max_length: nil,
           default_min_value: 0,
           default_max_value: nil,
           validation_regex: nil,
-          used_for: 'Monetary value with 2 decimal places'
+          used_for: "Monetary value with 2 decimal places"
         },
         {
-          type_key: 'percentage',
-          display_name: 'Percentage',
-          sql_type: 'NUMERIC(5,2)',
+          type_key: "percentage",
+          display_name: "Percentage",
+          sql_type: "NUMERIC(5,2)",
           default_max_length: nil,
           default_min_value: 0,
           default_max_value: 100,
           validation_regex: nil,
-          used_for: 'Percentage value between 0-100'
+          used_for: "Percentage value between 0-100"
         },
         {
-          type_key: 'date',
-          display_name: 'Date',
-          sql_type: 'DATE',
+          type_key: "date",
+          display_name: "Date",
+          sql_type: "DATE",
           default_max_length: nil,
           validation_regex: nil,
-          used_for: 'Date without time component'
+          used_for: "Date without time component"
         },
         {
-          type_key: 'date_and_time',
-          display_name: 'Date and Time',
-          sql_type: 'TIMESTAMP',
+          type_key: "date_and_time",
+          display_name: "Date and Time",
+          sql_type: "TIMESTAMP",
           default_max_length: nil,
           validation_regex: nil,
-          used_for: 'Date with time component'
+          used_for: "Date with time component"
         },
         {
-          type_key: 'gps_coordinates',
-          display_name: 'GPS Coordinates',
-          sql_type: 'VARCHAR(100)',
+          type_key: "gps_coordinates",
+          display_name: "GPS Coordinates",
+          sql_type: "VARCHAR(100)",
           default_max_length: 100,
           validation_regex: '^-?[0-9]+\.?[0-9]*,\s*-?[0-9]+\.?[0-9]*$',
-          used_for: 'Latitude,Longitude coordinates'
+          used_for: "Latitude,Longitude coordinates"
         },
         {
-          type_key: 'color_picker',
-          display_name: 'Color Picker',
-          sql_type: 'VARCHAR(7)',
+          type_key: "color_picker",
+          display_name: "Color Picker",
+          sql_type: "VARCHAR(7)",
           default_max_length: 7,
-          validation_regex: '^#[0-9A-Fa-f]{6}$',
-          used_for: 'Hex color value (#RRGGBB)'
+          validation_regex: "^#[0-9A-Fa-f]{6}$",
+          used_for: "Hex color value (#RRGGBB)"
         },
         {
-          type_key: 'file_upload',
-          display_name: 'File Upload',
-          sql_type: 'TEXT',
+          type_key: "file_upload",
+          display_name: "File Upload",
+          sql_type: "TEXT",
           default_max_length: nil,
           validation_regex: nil,
-          used_for: 'File path or URL for uploaded files'
+          used_for: "File path or URL for uploaded files"
         },
         {
-          type_key: 'action_buttons',
-          display_name: 'Action Buttons',
-          sql_type: 'VARCHAR(255)',
+          type_key: "action_buttons",
+          display_name: "Action Buttons",
+          sql_type: "VARCHAR(255)",
           default_max_length: 255,
           validation_regex: nil,
-          used_for: 'Configurable action buttons'
+          used_for: "Configurable action buttons"
         },
         {
-          type_key: 'boolean',
-          display_name: 'Checkbox',
-          sql_type: 'BOOLEAN',
+          type_key: "boolean",
+          display_name: "Checkbox",
+          sql_type: "BOOLEAN",
           default_max_length: nil,
           validation_regex: nil,
-          used_for: 'True/false checkbox'
+          used_for: "True/false checkbox"
         },
         {
-          type_key: 'choice',
-          display_name: 'Choice',
-          sql_type: 'VARCHAR(50)',
+          type_key: "choice",
+          display_name: "Choice",
+          sql_type: "VARCHAR(50)",
           default_max_length: 50,
           validation_regex: nil,
-          used_for: 'Single selection from predefined options'
+          used_for: "Single selection from predefined options"
         },
         {
-          type_key: 'lookup',
-          display_name: 'Lookup',
-          sql_type: 'VARCHAR(255)',
+          type_key: "lookup",
+          display_name: "Lookup",
+          sql_type: "VARCHAR(255)",
           default_max_length: 255,
           validation_regex: nil,
-          used_for: 'Reference to another table (single value)',
+          used_for: "Reference to another table (single value)",
           needs_config: true
         },
         {
-          type_key: 'multiple_lookups',
-          display_name: 'Multiple Lookups',
-          sql_type: 'TEXT',
+          type_key: "multiple_lookups",
+          display_name: "Multiple Lookups",
+          sql_type: "TEXT",
           default_max_length: nil,
           validation_regex: nil,
-          used_for: 'Reference to another table (multiple values)',
+          used_for: "Reference to another table (multiple values)",
           needs_config: true
         },
         {
-          type_key: 'user',
-          display_name: 'User',
-          sql_type: 'INTEGER',
+          type_key: "user",
+          display_name: "User",
+          sql_type: "INTEGER",
           default_max_length: nil,
           validation_regex: nil,
-          used_for: 'Reference to a system user'
+          used_for: "Reference to a system user"
         },
         {
-          type_key: 'computed',
-          display_name: 'Computed',
-          sql_type: 'VIRTUAL/COMPUTED',
+          type_key: "computed",
+          display_name: "Computed",
+          sql_type: "VIRTUAL/COMPUTED",
           default_max_length: nil,
           validation_regex: nil,
-          used_for: 'Calculated field based on formula',
+          used_for: "Calculated field based on formula",
           needs_config: true
         },
         # Advanced Data Types (PostgreSQL-specific)
         {
-          type_key: 'structured_data',
-          display_name: 'Structured Data (JSON)',
-          sql_type: 'JSONB',
+          type_key: "structured_data",
+          display_name: "Structured Data (JSON)",
+          sql_type: "JSONB",
           default_max_length: nil,
           validation_regex: nil,
-          used_for: 'Flexible JSON objects for config, metadata, nested data'
+          used_for: "Flexible JSON objects for config, metadata, nested data"
         },
         {
-          type_key: 'array_of_items',
-          display_name: 'Array of Items',
-          sql_type: 'TEXT[]',
+          type_key: "array_of_items",
+          display_name: "Array of Items",
+          sql_type: "TEXT[]",
           default_max_length: nil,
           validation_regex: nil,
-          used_for: 'Multiple text values stored as an array (tags, IDs)'
+          used_for: "Multiple text values stored as an array (tags, IDs)"
         },
         {
-          type_key: 'searchable_text',
-          display_name: 'Full-Text Search',
-          sql_type: 'TSVECTOR',
+          type_key: "searchable_text",
+          display_name: "Full-Text Search",
+          sql_type: "TSVECTOR",
           default_max_length: nil,
           validation_regex: nil,
-          used_for: 'Auto-generated search index (read-only)'
+          used_for: "Auto-generated search index (read-only)"
         },
         # Australian Standard Identifiers
         {
-          type_key: 'abn',
-          display_name: 'ABN',
-          sql_type: 'VARCHAR(14)',
+          type_key: "abn",
+          display_name: "ABN",
+          sql_type: "VARCHAR(14)",
           default_max_length: 14,
           validation_regex: '^\d{2}\s?\d{3}\s?\d{3}\s?\d{3}$',
-          used_for: 'Australian Business Number (11 digits, format: XX XXX XXX XXX)'
+          used_for: "Australian Business Number (11 digits, format: XX XXX XXX XXX)"
         },
         {
-          type_key: 'acn',
-          display_name: 'ACN',
-          sql_type: 'VARCHAR(11)',
+          type_key: "acn",
+          display_name: "ACN",
+          sql_type: "VARCHAR(11)",
           default_max_length: 11,
           validation_regex: '^\d{3}\s?\d{3}\s?\d{3}$',
-          used_for: 'Australian Company Number (9 digits, format: XXX XXX XXX)'
+          used_for: "Australian Company Number (9 digits, format: XXX XXX XXX)"
         },
         {
-          type_key: 'bsb',
-          display_name: 'BSB',
-          sql_type: 'VARCHAR(7)',
+          type_key: "bsb",
+          display_name: "BSB",
+          sql_type: "VARCHAR(7)",
           default_max_length: 7,
           validation_regex: '^\d{3}-?\d{3}$',
-          used_for: 'Bank State Branch (6 digits, format: XXX-XXX)'
+          used_for: "Bank State Branch (6 digits, format: XXX-XXX)"
         },
         {
-          type_key: 'bank_account',
-          display_name: 'Bank Account',
-          sql_type: 'VARCHAR(9)',
+          type_key: "bank_account",
+          display_name: "Bank Account",
+          sql_type: "VARCHAR(9)",
           default_max_length: 9,
           validation_regex: '^\d{1,9}$',
-          used_for: 'Bank Account Number (up to 9 digits)'
+          used_for: "Bank Account Number (up to 9 digits)"
         },
         {
-          type_key: 'postcode',
-          display_name: 'Postcode',
-          sql_type: 'VARCHAR(4)',
+          type_key: "postcode",
+          display_name: "Postcode",
+          sql_type: "VARCHAR(4)",
           default_max_length: 4,
           validation_regex: '^\d{4}$',
-          used_for: 'Australian Postcode (4 digits)'
+          used_for: "Australian Postcode (4 digits)"
         },
         {
-          type_key: 'tfn',
-          display_name: 'TFN',
-          sql_type: 'VARCHAR(11)',
+          type_key: "tfn",
+          display_name: "TFN",
+          sql_type: "VARCHAR(11)",
           default_max_length: 11,
           validation_regex: '^\d{3}\s?\d{3}\s?\d{3}$',
-          used_for: 'Tax File Number (9 digits, format: XXX XXX XXX)'
+          used_for: "Tax File Number (9 digits, format: XXX XXX XXX)"
         }
       ]
 
@@ -299,7 +299,7 @@ namespace :teeem do
       puts ""
     end
 
-    desc 'Link existing columns to their type definitions'
+    desc "Link existing columns to their type definitions"
     task link_columns: :environment do
       puts "🔄 Linking columns to type definitions..."
       puts "=" * 80
@@ -310,7 +310,7 @@ namespace :teeem do
       # Get all columns without a type definition link (exclude system tables)
       columns = Column.joins(:foundation)
                       .where(column_type_definition_id: nil)
-                      .where.not(foundations: { table_type: 'system' })
+                      .where.not(foundations: { table_type: "system" })
 
       columns.find_each do |column|
         type_def = ColumnTypeDefinition.find_by(type_key: column.column_type)
@@ -336,7 +336,7 @@ namespace :teeem do
       puts ""
     end
 
-    desc 'Calculate compliance scores for all foundations'
+    desc "Calculate compliance scores for all foundations"
     task calculate_compliance: :environment do
       puts "🔄 Calculating compliance scores..."
       puts "=" * 80
@@ -344,7 +344,7 @@ namespace :teeem do
       results = GoldStandardComplianceService.recalculate_all!
 
       results.each do |result|
-        status = result[:score] >= 100 ? '✅' : result[:score] >= 70 ? '⚠️' : '❌'
+        status = result[:score] >= 100 ? "✅" : result[:score] >= 70 ? "⚠️" : "❌"
         puts "   #{status} #{result[:name]}: #{result[:score]}% (#{result[:compliant]}/#{result[:total]} columns)"
       end
 
@@ -361,11 +361,11 @@ namespace :teeem do
       puts ""
     end
 
-    desc 'Run full Gold Standard setup (seed + link + calculate)'
+    desc "Run full Gold Standard setup (seed + link + calculate)"
     task setup: :environment do
-      Rake::Task['teeem:gold_standard:seed_type_definitions'].invoke
-      Rake::Task['teeem:gold_standard:link_columns'].invoke
-      Rake::Task['teeem:gold_standard:calculate_compliance'].invoke
+      Rake::Task["teeem:gold_standard:seed_type_definitions"].invoke
+      Rake::Task["teeem:gold_standard:link_columns"].invoke
+      Rake::Task["teeem:gold_standard:calculate_compliance"].invoke
     end
   end
 end

@@ -3,7 +3,7 @@ namespace :teeem do
     desc "Add system columns (id, created_at, updated_at) to ALL system tables"
     task add_system_columns_to_all: :environment do
       # Find all system tables
-      system_tables = Table.where(table_type: 'system').order(:id)
+      system_tables = Table.where(table_type: "system").order(:id)
 
       puts "Found #{system_tables.count} system tables"
       puts "="*80

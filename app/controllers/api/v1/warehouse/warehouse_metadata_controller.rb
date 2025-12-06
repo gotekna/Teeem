@@ -37,75 +37,75 @@ module Api
       private
 
       MATERIALIZED_VIEWS = {
-        'mv_job_summary' => {
-          description: 'Per-job aggregated metrics including financials, tasks, documents, time entries',
-          refresh_frequency: 'hourly',
+        "mv_job_summary" => {
+          description: "Per-job aggregated metrics including financials, tasks, documents, time entries",
+          refresh_frequency: "hourly",
           has_unique_index: true,
-          primary_key: 'job_id'
+          primary_key: "job_id"
         },
-        'mv_financial_summary' => {
-          description: 'Monthly financial rollups by company including revenue, costs, margins',
-          refresh_frequency: 'hourly',
+        "mv_financial_summary" => {
+          description: "Monthly financial rollups by company including revenue, costs, margins",
+          refresh_frequency: "hourly",
           has_unique_index: false,
-          primary_key: 'company_id, period_start'
+          primary_key: "company_id, period_start"
         },
-        'mv_document_summary' => {
-          description: 'Document metrics by type, source, verification status, and year',
-          refresh_frequency: 'hourly',
+        "mv_document_summary" => {
+          description: "Document metrics by type, source, verification status, and year",
+          refresh_frequency: "hourly",
           has_unique_index: false,
-          primary_key: 'company_id, document_type, source'
+          primary_key: "company_id, document_type, source"
         },
-        'mv_document_completeness' => {
-          description: 'Document health and completeness scores per company',
-          refresh_frequency: 'hourly',
+        "mv_document_completeness" => {
+          description: "Document health and completeness scores per company",
+          refresh_frequency: "hourly",
           has_unique_index: false,
-          primary_key: 'company_id'
+          primary_key: "company_id"
         },
-        'mv_invoice_po_reconciliation' => {
-          description: 'Invoice-to-PO matching and variance detection',
-          refresh_frequency: 'hourly',
+        "mv_invoice_po_reconciliation" => {
+          description: "Invoice-to-PO matching and variance detection",
+          refresh_frequency: "hourly",
           has_unique_index: true,
-          primary_key: 'invoice_id, po_id'
+          primary_key: "invoice_id, po_id"
         },
-        'mv_resource_utilization' => {
-          description: 'Resource hours by week for labor tracking',
-          refresh_frequency: 'hourly',
+        "mv_resource_utilization" => {
+          description: "Resource hours by week for labor tracking",
+          refresh_frequency: "hourly",
           has_unique_index: false,
-          primary_key: 'user_id, week_start'
+          primary_key: "user_id, week_start"
         },
-        'mv_job_document_status' => {
-          description: 'Document completeness status per job',
-          refresh_frequency: 'hourly',
+        "mv_job_document_status" => {
+          description: "Document completeness status per job",
+          refresh_frequency: "hourly",
           has_unique_index: true,
-          primary_key: 'job_id'
+          primary_key: "job_id"
         },
-        'mv_task_metrics' => {
-          description: 'Task completion metrics aggregated by job',
-          refresh_frequency: 'hourly',
+        "mv_task_metrics" => {
+          description: "Task completion metrics aggregated by job",
+          refresh_frequency: "hourly",
           has_unique_index: false,
-          primary_key: 'job_id'
+          primary_key: "job_id"
         }
       }.freeze
 
       FACT_TABLES = {
-        'fact_job_daily_snapshots' => {
-          description: 'Daily snapshots of job metrics for trend analysis and historical reporting',
-          granularity: 'daily',
-          retention: 'unlimited',
-          primary_key: 'job_id, snapshot_date'
+        "fact_job_daily_snapshots" => {
+          description: "Daily snapshots of job metrics for trend analysis and historical reporting",
+          granularity: "daily",
+          retention: "unlimited",
+          primary_key: "job_id, snapshot_date"
         }
       }.freeze
 
       WAREHOUSE_TABLES = {
-        'email_warehouse' => {
-          description: 'Complete email storage with threading, full-text search, and job auto-matching',
-          source: 'Microsoft Outlook/Graph API',
-          sync_type: 'incremental'
+        "email_warehouse" => {
+          description: "Complete email storage with threading, full-text search, and job auto-matching",
+          source: "Microsoft Outlook/Graph API",
+          sync_type: "incremental"
         },
-        'external_invoices' => {
-          description: 'Normalized invoice storage from external systems (Xero, MYOB, QuickBooks)',
-          source: 'Xero API',
-          sync_type: 'incremental'
+        "external_invoices" => {
+          description: "Normalized invoice storage from external systems (Xero, MYOB, QuickBooks)",
+          source: "Xero API",
+          sync_type: "incremental"
         }
       }.freeze
 
@@ -161,7 +161,7 @@ module Api
       def safe_count(table_name)
         ActiveRecord::Base.connection.execute(
           "SELECT COUNT(*) FROM #{ActiveRecord::Base.connection.quote_table_name(table_name)}"
-        ).first['count'].to_i
+        ).first["count"].to_i
       rescue StandardError => e
         Rails.logger.warn("Failed to count #{table_name}: #{e.message}")
         nil
@@ -170,7 +170,7 @@ module Api
       def get_last_refresh_time(view_name)
         # Check if we have refresh logs
         if defined?(MvRefreshLog)
-          log = MvRefreshLog.where(view_name: view_name, status: 'success')
+          log = MvRefreshLog.where(view_name: view_name, status: "success")
                            .order(completed_at: :desc)
                            .first
           return log.completed_at.iso8601 if log
@@ -187,7 +187,7 @@ module Api
         row = result.first
         return nil unless row
 
-        times = [row['last_vacuum'], row['last_autovacuum'], row['last_analyze'], row['last_autoanalyze']].compact
+        times = [ row["last_vacuum"], row["last_autovacuum"], row["last_analyze"], row["last_autoanalyze"] ].compact
         times.max&.to_s
       rescue StandardError
         nil
@@ -204,9 +204,9 @@ module Api
 
         result.map do |row|
           {
-            name: row['column_name'],
-            type: row['data_type'],
-            nullable: row['is_nullable'] == 'YES'
+            name: row["column_name"],
+            type: row["data_type"],
+            nullable: row["is_nullable"] == "YES"
           }
         end
       rescue StandardError => e

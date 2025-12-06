@@ -7,7 +7,7 @@ class FoundationView < ApplicationRecord
   validates :user_id, presence: true, unless: :is_global?
 
   # Ensure only one default view per user per foundation
-  validates :is_default, uniqueness: { scope: [:user_id, :foundation_id] }, if: :is_default?
+  validates :is_default, uniqueness: { scope: [ :user_id, :foundation_id ] }, if: :is_default?
 
   # Protect the "Setup" view from being renamed
   validate :prevent_setup_view_rename, on: :update
@@ -29,8 +29,8 @@ class FoundationView < ApplicationRecord
 
   # Method to get visible columns from the columns JSON
   def visible_columns
-    return [] unless columns.is_a?(Hash) && columns['visible'].is_a?(Hash)
-    columns['visible'].select { |_k, v| v == true }.keys
+    return [] unless columns.is_a?(Hash) && columns["visible"].is_a?(Hash)
+    columns["visible"].select { |_k, v| v == true }.keys
   end
 
   # GOLD STANDARD RULE: display_order = 0 is always the default view
@@ -47,16 +47,16 @@ class FoundationView < ApplicationRecord
   private
 
   def deduplicate_column_order
-    return unless columns.is_a?(Hash) && columns['order'].is_a?(Array)
+    return unless columns.is_a?(Hash) && columns["order"].is_a?(Array)
 
     # Remove duplicate columns while preserving order
-    original_order = columns['order']
+    original_order = columns["order"]
     deduped_order = original_order.uniq
 
     # Only update if there were duplicates
     if original_order.length != deduped_order.length
       Rails.logger.warn "[FoundationView] Removed duplicate columns from view '#{name}': #{original_order - deduped_order}"
-      columns['order'] = deduped_order
+      columns["order"] = deduped_order
     end
   end
 
@@ -96,14 +96,14 @@ class FoundationView < ApplicationRecord
 
   # Prevent renaming the "Setup" view (it's the standard template)
   def prevent_setup_view_rename
-    if name_was == 'Setup' && name_changed? && name != 'Setup'
+    if name_was == "Setup" && name_changed? && name != "Setup"
       errors.add(:name, "The 'Setup' view cannot be renamed as it's the default template for new views")
     end
   end
 
   # Prevent deletion of the "Setup" view
   def prevent_setup_view_deletion
-    if name == 'Setup'
+    if name == "Setup"
       errors.add(:base, "The 'Setup' view cannot be deleted as it's required as the template for new views")
       throw(:abort)
     end

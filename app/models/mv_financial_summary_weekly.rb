@@ -1,15 +1,15 @@
 # Weekly financial summary materialized view
 # Pre-aggregated weekly rollups of financial transactions
 class MvFinancialSummaryWeekly < ApplicationRecord
-  self.table_name = 'mv_financial_summary_weekly'
+  self.table_name = "mv_financial_summary_weekly"
   self.primary_key = nil  # No single primary key for this view
 
   # Scopes
   scope :for_company, ->(company_id) { where(company_id: company_id) }
   scope :for_year, ->(year) { where(year: year) }
-  scope :income, -> { where(transaction_type: 'income') }
-  scope :expense, -> { where(transaction_type: 'expense') }
-  scope :recent, ->(weeks = 12) { where('week_start >= ?', weeks.weeks.ago.beginning_of_week) }
+  scope :income, -> { where(transaction_type: "income") }
+  scope :expense, -> { where(transaction_type: "expense") }
+  scope :recent, ->(weeks = 12) { where("week_start >= ?", weeks.weeks.ago.beginning_of_week) }
 
   # Get totals for a company within a date range
   def self.totals_for_range(company_id, start_date, end_date)
@@ -17,10 +17,10 @@ class MvFinancialSummaryWeekly < ApplicationRecord
       .where(week_start: start_date..end_date)
       .group(:transaction_type)
       .select(
-        'transaction_type',
-        'SUM(total_amount) as total',
-        'SUM(transaction_count) as count',
-        'AVG(avg_amount) as average'
+        "transaction_type",
+        "SUM(total_amount) as total",
+        "SUM(transaction_count) as count",
+        "AVG(avg_amount) as average"
       )
   end
 

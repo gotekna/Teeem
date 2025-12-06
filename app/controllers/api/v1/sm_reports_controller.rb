@@ -72,28 +72,28 @@ module Api
       # Export report data (CSV/JSON)
       def export
         service = SmDashboardService.new(construction_id: params[:job_id])
-        report_type = params[:type] || 'utilization'
-        format = params[:format] || 'json'
+        report_type = params[:type] || "utilization"
+        format = params[:format] || "json"
 
         start_date = parse_date(params[:start_date]) || Date.current.beginning_of_month
         end_date = parse_date(params[:end_date]) || Date.current.end_of_month
 
         data = case report_type
-               when 'utilization'
+        when "utilization"
                  service.resource_utilization(start_date: start_date, end_date: end_date)
-               when 'costs'
+        when "costs"
                  service.cost_summary(start_date: start_date, end_date: end_date)
-               when 'trends'
+        when "trends"
                  { weeks: service.weekly_trends(weeks: 12) }
-               else
+        else
                  service.project_summary
-               end
+        end
 
-        if format == 'csv'
+        if format == "csv"
           csv_data = generate_csv(report_type, data)
           send_data csv_data,
                     filename: "sm_#{report_type}_#{Date.current}.csv",
-                    type: 'text/csv'
+                    type: "text/csv"
         else
           render json: {
             success: true,
@@ -173,7 +173,7 @@ module Api
           end
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Resource not found' }, status: :not_found
+        render json: { success: false, error: "Resource not found" }, status: :not_found
       end
 
       # GET /api/v1/sm_reports/task/:task_id
@@ -192,7 +192,7 @@ module Api
         time_entries.each do |entry|
           resource = entry.resource
           rate = resource.hourly_rate || 0
-          multiplier = entry.entry_type == 'overtime' ? 1.5 : 1.0
+          multiplier = entry.entry_type == "overtime" ? 1.5 : 1.0
           cost = entry.total_hours * rate * multiplier
 
           cost_by_resource[resource.id] ||= {
@@ -232,7 +232,7 @@ module Api
           end
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Task not found' }, status: :not_found
+        render json: { success: false, error: "Task not found" }, status: :not_found
       end
 
       private
@@ -251,29 +251,29 @@ module Api
       end
 
       def generate_csv(report_type, data)
-        require 'csv'
+        require "csv"
 
         CSV.generate(headers: true) do |csv|
           case report_type
-          when 'utilization'
-            csv << ['Resource', 'Type', 'Trade', 'Capacity', 'Allocated', 'Logged', 'Utilization %']
+          when "utilization"
+            csv << [ "Resource", "Type", "Trade", "Capacity", "Allocated", "Logged", "Utilization %" ]
             data[:resources]&.each do |r|
-              csv << [r[:name], r[:type], r[:trade], r[:capacity], r[:allocated], r[:logged], r[:utilization]]
+              csv << [ r[:name], r[:type], r[:trade], r[:capacity], r[:allocated], r[:logged], r[:utilization] ]
             end
-          when 'costs'
-            csv << ['Category', 'Amount']
-            csv << ['Total Cost', data.dig(:summary, :total_cost)]
-            csv << ['Budget', data.dig(:summary, :budget)]
-            csv << ['Variance', data.dig(:summary, :variance)]
+          when "costs"
+            csv << [ "Category", "Amount" ]
+            csv << [ "Total Cost", data.dig(:summary, :total_cost) ]
+            csv << [ "Budget", data.dig(:summary, :budget) ]
+            csv << [ "Variance", data.dig(:summary, :variance) ]
             csv << []
-            csv << ['Trade', 'Cost']
+            csv << [ "Trade", "Cost" ]
             data[:by_trade]&.each do |trade, cost|
-              csv << [trade, cost]
+              csv << [ trade, cost ]
             end
-          when 'trends'
-            csv << ['Week', 'Tasks Completed', 'Hours Logged', 'Hours Approved', 'Efficiency %']
+          when "trends"
+            csv << [ "Week", "Tasks Completed", "Hours Logged", "Hours Approved", "Efficiency %" ]
             data[:weeks]&.each do |w|
-              csv << [w[:week_label], w[:tasks_completed], w[:hours_logged], w[:hours_approved], w[:efficiency]]
+              csv << [ w[:week_label], w[:tasks_completed], w[:hours_logged], w[:hours_approved], w[:efficiency] ]
             end
           end
         end

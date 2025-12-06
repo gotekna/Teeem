@@ -5,7 +5,7 @@ namespace :gold_standard do
     puts ""
 
     # Find the Gold Standard Reference table (ID 166)
-    table = Table.find_by(name: 'Gold Standard Reference') || Table.find_by(id: 166)
+    table = Table.find_by(name: "Gold Standard Reference") || Table.find_by(id: 166)
 
     unless table
       puts "❌ Gold Standard Reference table not found!"
@@ -20,28 +20,28 @@ namespace :gold_standard do
     # Format: [display_name, column_type, db_column_name]
     column_specs = [
       # 1. ID is automatic, skip it
-      ['Single line text', 'single_line_text', 'item_code'],
-      ['Long text', 'multiple_lines_text', 'notes'],
-      ['Email', 'email', 'email'],
-      ['Phone number', 'phone', 'phone'],
-      ['Mobile', 'mobile', 'mobile'],
-      ['URL', 'url', 'document_link'],
-      ['Number', 'number', 'quantity'],
-      ['Whole number', 'whole_number', 'whole_number'],
-      ['Currency', 'currency', 'price'],
-      ['Percent', 'percentage', 'discount'],
-      ['Date', 'date', 'start_date'],
-      ['Date & Time (Created)', 'date_and_time', 'created_at'],
-      ['GPS Coordinates', 'gps_coordinates', 'location_coords'],
-      ['Color Picker', 'color_picker', 'color_code'],
-      ['File Upload', 'file_upload', 'file_attachment'],
-      ['Checkbox', 'boolean', 'is_active'],
-      ['Choice', 'choice', 'status'],
-      ['Link to another record', 'lookup', 'category_type'],
-      ['Link to multiple records', 'multiple_lookups', 'multiple_category_ids'],
-      ['User', 'user', 'user_id'],
-      ['Formula', 'computed', 'total_cost'],
-      ['Date & Time (Updated)', 'date_and_time', 'updated_at']
+      [ "Single line text", "single_line_text", "item_code" ],
+      [ "Long text", "multiple_lines_text", "notes" ],
+      [ "Email", "email", "email" ],
+      [ "Phone number", "phone", "phone" ],
+      [ "Mobile", "mobile", "mobile" ],
+      [ "URL", "url", "document_link" ],
+      [ "Number", "number", "quantity" ],
+      [ "Whole number", "whole_number", "whole_number" ],
+      [ "Currency", "currency", "price" ],
+      [ "Percent", "percentage", "discount" ],
+      [ "Date", "date", "start_date" ],
+      [ "Date & Time (Created)", "date_and_time", "created_at" ],
+      [ "GPS Coordinates", "gps_coordinates", "location_coords" ],
+      [ "Color Picker", "color_picker", "color_code" ],
+      [ "File Upload", "file_upload", "file_attachment" ],
+      [ "Checkbox", "boolean", "is_active" ],
+      [ "Choice", "choice", "status" ],
+      [ "Link to another record", "lookup", "category_type" ],
+      [ "Link to multiple records", "multiple_lookups", "multiple_category_ids" ],
+      [ "User", "user", "user_id" ],
+      [ "Formula", "computed", "total_cost" ],
+      [ "Date & Time (Updated)", "date_and_time", "updated_at" ]
     ]
 
     puts "Target: #{column_specs.count} columns (excluding id)"
@@ -109,7 +109,7 @@ namespace :gold_standard do
 
   desc "Show current Gold Standard Reference table column status"
   task show_columns: :environment do
-    table = Table.find_by(name: 'Gold Standard Reference') || Table.find_by(id: 166)
+    table = Table.find_by(name: "Gold Standard Reference") || Table.find_by(id: 166)
 
     unless table
       puts "❌ Gold Standard Reference table not found!"

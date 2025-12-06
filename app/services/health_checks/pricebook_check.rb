@@ -15,7 +15,7 @@ module HealthChecks
     FOUNDATION_ID = 205
 
     def self.check_type
-      'pricebook'
+      "pricebook"
     end
 
     def self.foundation_id
@@ -28,12 +28,12 @@ module HealthChecks
                           .select(:id, :item_code, :item_name, :category)
 
       build_result(
-        name: 'Items Without Default Supplier',
-        description: 'Pricebook items that do not have a default supplier assigned. These items cannot be quoted until a supplier is set.',
+        name: "Items Without Default Supplier",
+        description: "Pricebook items that do not have a default supplier assigned. These items cannot be quoted until a supplier is set.",
         severity: :warning,
         items: items,
-        icon: 'building-storefront',
-        action_path: '/pricebook/:id'
+        icon: "building-storefront",
+        action_path: "/pricebook/:id"
       )
     end
 
@@ -43,15 +43,15 @@ module HealthChecks
                           .where.not(default_supplier_id: nil)
                           .left_joins(:price_histories)
                           .where(price_histories: { id: nil })
-                          .select('pricebook.id, pricebook.item_code, pricebook.item_name')
+                          .select("pricebook.id, pricebook.item_code, pricebook.item_name")
 
       build_result(
-        name: 'Items Without Price History',
-        description: 'Items with a default supplier but no price history records. Price history is needed for tracking costs over time.',
+        name: "Items Without Price History",
+        description: "Items with a default supplier but no price history records. Price history is needed for tracking costs over time.",
         severity: :info,
         items: items,
-        icon: 'clock',
-        action_path: '/pricebook/:id'
+        icon: "clock",
+        action_path: "/pricebook/:id"
       )
     end
 
@@ -63,12 +63,12 @@ module HealthChecks
                           .select(:id, :item_code, :item_name)
 
       build_result(
-        name: 'Items Missing Required Photos',
-        description: 'Items marked as requiring a photo but without an image uploaded. Photos help identify items during quotes and on-site.',
+        name: "Items Missing Required Photos",
+        description: "Items marked as requiring a photo but without an image uploaded. Photos help identify items during quotes and on-site.",
         severity: :info,
         items: items,
-        icon: 'photo',
-        action_path: '/pricebook/:id'
+        icon: "photo",
+        action_path: "/pricebook/:id"
       )
     end
 
@@ -77,12 +77,12 @@ module HealthChecks
       mismatches = find_price_mismatches(limit: 50)
 
       build_result(
-        name: 'Price Mismatches',
-        description: 'Items where the current price does not match the latest price history entry from the default supplier.',
+        name: "Price Mismatches",
+        description: "Items where the current price does not match the latest price history entry from the default supplier.",
         severity: :warning,
         items: mismatches,
-        icon: 'currency-dollar',
-        action_path: '/pricebook/:id'
+        icon: "currency-dollar",
+        action_path: "/pricebook/:id"
       )
     end
 
@@ -91,12 +91,12 @@ module HealthChecks
       coverage_issues = find_incomplete_category_coverage(limit: 20)
 
       build_result(
-        name: 'Suppliers with Incomplete Category Pricing',
-        description: 'Suppliers who have prices for some items in a category but not all. May indicate missing price updates.',
+        name: "Suppliers with Incomplete Category Pricing",
+        description: "Suppliers who have prices for some items in a category but not all. May indicate missing price updates.",
         severity: :info,
         items: coverage_issues,
-        icon: 'chart-pie',
-        action_path: '/contacts/:id'
+        icon: "chart-pie",
+        action_path: "/contacts/:id"
       )
     end
 
@@ -159,7 +159,7 @@ module HealthChecks
 
       # Get all categories with their item counts
       categories = PricebookItem.active
-                               .where.not(category: [nil, ''])
+                               .where.not(category: [ nil, "" ])
                                .group(:category)
                                .count
 
@@ -173,7 +173,7 @@ module HealthChecks
                                    .where(supplier_id: supplier.id)
                                    .where(pricebook: { is_active: true })
                                    .distinct
-                                   .pluck('pricebook.category', 'pricebook.id')
+                                   .pluck("pricebook.category", "pricebook.id")
 
         priced_by_category = priced_items.group_by(&:first)
 

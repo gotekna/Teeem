@@ -7,9 +7,9 @@
 #
 class SmBaseline < ApplicationRecord
   belongs_to :job
-  belongs_to :created_by, class_name: 'User', optional: true
+  belongs_to :created_by, class_name: "User", optional: true
 
-  has_many :baseline_tasks, class_name: 'SmBaselineTask', dependent: :destroy
+  has_many :baseline_tasks, class_name: "SmBaselineTask", dependent: :destroy
 
   validates :name, presence: true
   validates :baseline_date, presence: true
@@ -112,17 +112,17 @@ class SmBaseline < ApplicationRecord
   end
 
   def calculate_health(delayed, total)
-    return 'unknown' if total == 0
+    return "unknown" if total == 0
 
     ratio = delayed.to_f / total
     if ratio <= 0.1
-      'excellent'
+      "excellent"
     elsif ratio <= 0.25
-      'good'
+      "good"
     elsif ratio <= 0.5
-      'at_risk'
+      "at_risk"
     else
-      'critical'
+      "critical"
     end
   end
 

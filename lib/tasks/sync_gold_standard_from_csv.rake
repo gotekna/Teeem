@@ -1,4 +1,4 @@
-require 'csv'
+require "csv"
 
 namespace :gold_standard do
   desc "Sync Gold Standard Reference table columns from CSV specification"
@@ -7,7 +7,7 @@ namespace :gold_standard do
     puts ""
 
     # Find the Gold Standard Reference table (ID 166)
-    table = Table.find_by(name: 'Gold Standard Reference') || Table.find_by(id: 166)
+    table = Table.find_by(name: "Gold Standard Reference") || Table.find_by(id: 166)
 
     unless table
       puts "❌ Gold Standard Reference table not found!"
@@ -19,7 +19,7 @@ namespace :gold_standard do
     puts ""
 
     # CSV path - adjust if needed
-    csv_path = Rails.root.join('..', 'Downloads', 'gold_standard_columns (2).csv')
+    csv_path = Rails.root.join("..", "Downloads", "gold_standard_columns (2).csv")
 
     unless File.exist?(csv_path)
       puts "❌ CSV file not found at: #{csv_path}"
@@ -34,31 +34,31 @@ namespace :gold_standard do
     csv_columns = []
     CSV.foreach(csv_path, headers: true) do |row|
       # Skip the 'id' row as it's automatically handled
-      next if row['Column Name (Database)'] == 'id'
+      next if row["Column Name (Database)"] == "id"
 
       # Map CSV column type names to our internal column types
-      db_column_name = row['Column Name (Database)']
+      db_column_name = row["Column Name (Database)"]
 
       # Special handling for timestamp columns
       column_type = case db_column_name
-      when 'created_at', 'updated_at'
-        'date_and_time'
-      when 'checkbox'
-        'boolean'
-      when 'choice'
-        'choice'
+      when "created_at", "updated_at"
+        "date_and_time"
+      when "checkbox"
+        "boolean"
+      when "choice"
+        "choice"
       else
         db_column_name
       end
 
       csv_columns << {
         column_name: db_column_name,
-        name: row['Display Name'],
+        name: row["Display Name"],
         column_type: column_type,
-        sql_type: row['SQL Type'],
-        validation: row['Validation Rules'],
-        example: row['Example'],
-        used_for: row['Used For']
+        sql_type: row["SQL Type"],
+        validation: row["Validation Rules"],
+        example: row["Example"],
+        used_for: row["Used For"]
       }
     end
 
@@ -67,28 +67,28 @@ namespace :gold_standard do
 
     # Map to actual database column names used in gold_standard_items
     column_name_mapping = {
-      'single_line_text' => 'item_code',
-      'multiple_lines_text' => 'notes',
-      'email' => 'email',
-      'phone' => 'phone',
-      'mobile' => 'mobile',
-      'url' => 'document_link',
-      'number' => 'quantity',
-      'whole_number' => 'whole_number',
-      'currency' => 'price',
-      'percentage' => 'discount',
-      'date' => 'start_date',
-      'created_at' => 'created_at',
-      'gps_coordinates' => 'location_coords',
-      'color_picker' => 'color_code',
-      'file_upload' => 'file_attachment',
-      'checkbox' => 'is_active',
-      'choice' => 'status',
-      'lookup' => 'category_type',
-      'multiple_lookups' => 'multiple_category_ids',
-      'user' => 'user_id',
-      'computed' => 'total_cost',
-      'updated_at' => 'updated_at'
+      "single_line_text" => "item_code",
+      "multiple_lines_text" => "notes",
+      "email" => "email",
+      "phone" => "phone",
+      "mobile" => "mobile",
+      "url" => "document_link",
+      "number" => "quantity",
+      "whole_number" => "whole_number",
+      "currency" => "price",
+      "percentage" => "discount",
+      "date" => "start_date",
+      "created_at" => "created_at",
+      "gps_coordinates" => "location_coords",
+      "color_picker" => "color_code",
+      "file_upload" => "file_attachment",
+      "checkbox" => "is_active",
+      "choice" => "status",
+      "lookup" => "category_type",
+      "multiple_lookups" => "multiple_category_ids",
+      "user" => "user_id",
+      "computed" => "total_cost",
+      "updated_at" => "updated_at"
     }
 
     added_count = 0

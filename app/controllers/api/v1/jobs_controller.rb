@@ -1,18 +1,18 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage]
+      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage ]
 
       # GET /api/v1/jobs/pipeline
       # Returns jobs with Enquiry status grouped by stage for the pipeline view
       def pipeline
-        enquiry_status = JobStatus.find_by(name: 'Enquiry')
+        enquiry_status = JobStatus.find_by(name: "Enquiry")
 
         # Get all enquiry stages
         enquiry_stages = JobStage.where(job_status_id: enquiry_status&.id).order(:position)
 
         # Get all jobs with Enquiry status
-        jobs = Job.includes(:job_type, :job_status, :job_stage, :job_contacts => :contact)
+        jobs = Job.includes(:job_type, :job_status, :job_stage, job_contacts: :contact)
                   .where(job_status_id: enquiry_status&.id)
                   .order(created_at: :desc)
 
@@ -20,26 +20,26 @@ module Api
         jobs_by_stage = {}
         enquiry_stages.each do |stage|
           stage_jobs = jobs.select { |j| j.job_stage_id == stage.id }
-          jobs_by_stage[stage.name.downcase.gsub(' ', '_')] = stage_jobs.map { |job| pipeline_job_to_json(job) }
+          jobs_by_stage[stage.name.downcase.gsub(" ", "_")] = stage_jobs.map { |job| pipeline_job_to_json(job) }
         end
 
         # Add jobs without a stage to "proposal" (first stage)
         no_stage_jobs = jobs.select { |j| j.job_stage_id.nil? }
-        jobs_by_stage['proposal'] ||= []
-        jobs_by_stage['proposal'] = no_stage_jobs.map { |job| pipeline_job_to_json(job) } + jobs_by_stage['proposal']
+        jobs_by_stage["proposal"] ||= []
+        jobs_by_stage["proposal"] = no_stage_jobs.map { |job| pipeline_job_to_json(job) } + jobs_by_stage["proposal"]
 
         # Initialize empty won/lost arrays (only Enquiry jobs are shown in pipeline)
-        jobs_by_stage['won'] = []
-        jobs_by_stage['lost'] = []
+        jobs_by_stage["won"] = []
+        jobs_by_stage["lost"] = []
 
         # For stats, we can still count won/lost from other statuses
-        won_statuses = JobStatus.where(name: ['Pre Contract', 'Contract', 'Pre Start', 'Active Job', 'Handover', 'Archived'])
+        won_statuses = JobStatus.where(name: [ "Pre Contract", "Contract", "Pre Start", "Active Job", "Handover", "Archived" ])
         won_jobs = Job.where(job_status_id: won_statuses.pluck(:id))
-                      .where('created_at > ?', 30.days.ago)
+                      .where("created_at > ?", 30.days.ago)
 
         lost_statuses = JobStatus.where("name LIKE ?", "%Lost%")
         lost_jobs = Job.where(job_status_id: lost_statuses.pluck(:id))
-                       .where('created_at > ?', 30.days.ago)
+                       .where("created_at > ?", 30.days.ago)
 
         # Calculate stats
         total_pipeline_value = jobs.sum { |j| j.contract_value || 0 }
@@ -64,9 +64,9 @@ module Api
       def update_stage
         stage_name = params[:stage]
 
-        if stage_name == 'won'
+        if stage_name == "won"
           # Move to Pre Contract status
-          pre_contract = JobStatus.find_by(name: 'Pre Contract')
+          pre_contract = JobStatus.find_by(name: "Pre Contract")
           if @job.update(job_status_id: pre_contract&.id, job_stage_id: nil)
             render json: { success: true, job: pipeline_job_to_json(@job) }
           else
@@ -74,8 +74,8 @@ module Api
           end
         else
           # Find the stage by name
-          enquiry_status = JobStatus.find_by(name: 'Enquiry')
-          stage = JobStage.find_by(job_status_id: enquiry_status&.id, name: stage_name.titleize.gsub('_', ' '))
+          enquiry_status = JobStatus.find_by(name: "Enquiry")
+          stage = JobStage.find_by(job_status_id: enquiry_status&.id, name: stage_name.titleize.gsub("_", " "))
 
           unless stage
             return render json: { success: false, error: "Invalid stage: #{stage_name}" }, status: :unprocessable_entity
@@ -102,7 +102,7 @@ module Api
         # (not representative, broker, etc. - only actual client role)
         if params[:contact_id].present?
           @jobs = @jobs.joins(:job_contacts)
-                       .where(job_contacts: { contact_id: params[:contact_id], role: 'client' })
+                       .where(job_contacts: { contact_id: params[:contact_id], role: "client" })
                        .distinct
         end
 
@@ -113,14 +113,14 @@ module Api
         end
 
         # Filter by location presence if requested
-        if params[:has_location] == 'true'
+        if params[:has_location] == "true"
           @jobs = @jobs.where.not(latitude: nil).where.not(longitude: nil)
         end
 
         # Search functionality
         if params[:search].present?
           search_term = "%#{params[:search].downcase}%"
-          if params[:search_all].to_s == 'true'
+          if params[:search_all].to_s == "true"
             # Search across multiple columns
             @jobs = @jobs.where(
               "LOWER(jobs.title) LIKE ? OR LOWER(jobs.address) LIKE ? OR CAST(jobs.id AS TEXT) LIKE ?",
@@ -147,8 +147,8 @@ module Api
         # Include job_type and job_status in response
         jobs_with_associations = @jobs.map do |job|
           job.as_json.merge(
-            job_type: job.job_type&.as_json(only: [:id, :name, :icon]),
-            job_status: job.job_status&.as_json(only: [:id, :name, :color])
+            job_type: job.job_type&.as_json(only: [ :id, :name, :icon ]),
+            job_status: job.job_status&.as_json(only: [ :id, :name, :color ])
           )
         end
 
@@ -169,9 +169,9 @@ module Api
         job_json = @job.as_json
 
         # Include job_type, job_status, and job_stage associations
-        job_json[:job_type] = @job.job_type&.as_json(only: [:id, :name, :icon])
-        job_json[:job_status] = @job.job_status&.as_json(only: [:id, :name, :color])
-        job_json[:job_stage] = @job.job_stage&.as_json(only: [:id, :name])
+        job_json[:job_type] = @job.job_type&.as_json(only: [ :id, :name, :icon ])
+        job_json[:job_status] = @job.job_status&.as_json(only: [ :id, :name, :color ])
+        job_json[:job_stage] = @job.job_stage&.as_json(only: [ :id, :name ])
 
         job_json[:contacts] = @job.job_contacts
                                                      .includes(contact: :outgoing_relationships)
@@ -186,7 +186,7 @@ module Api
             primary: cc.primary,
             role: cc.role,
             contact: cc.contact.as_json(
-              only: [:id, :first_name, :last_name, :full_name, :company_name, :email, :mobile_phone, :office_phone]
+              only: [ :id, :first_name, :last_name, :full_name, :company_name, :email, :mobile_phone, :office_phone ]
             ),
             relationships_count: cc.contact.outgoing_relationships.count
           }
@@ -196,13 +196,13 @@ module Api
         if @job.email_job_proposal&.extracted_data.present?
           extracted = @job.email_job_proposal.extracted_data
           # Only include if the estimator fields are present
-          if extracted['job_summary'].present? || extracted['key_points'].present?
+          if extracted["job_summary"].present? || extracted["key_points"].present?
             job_json[:estimator_analysis] = {
-              job_summary: extracted['job_summary'],
-              key_points: extracted['key_points'],
-              estimated_scope: extracted['estimated_scope'],
-              recommendations: extracted['recommendations'],
-              source: 'pdf_extraction',
+              job_summary: extracted["job_summary"],
+              key_points: extracted["key_points"],
+              estimated_scope: extracted["estimated_scope"],
+              recommendations: extracted["recommendations"],
+              source: "pdf_extraction",
               extracted_at: @job.email_job_proposal.created_at
             }
           end
@@ -267,7 +267,7 @@ module Api
                                   .order(created_at: :desc)
 
         render json: @messages.as_json(
-          include: { user: { only: [:id, :name, :email] } },
+          include: { user: { only: [ :id, :name, :email ] } },
           methods: :formatted_timestamp
         )
       end
@@ -300,8 +300,8 @@ module Api
         render json: {
           sms_messages: messages.as_json(
             include: {
-              contact: { only: [:id, :full_name, :mobile_phone] },
-              user: { only: [:id, :name, :email] }
+              contact: { only: [ :id, :full_name, :mobile_phone ] },
+              user: { only: [ :id, :name, :email ] }
             }
           )
         }
@@ -342,7 +342,7 @@ module Api
         tracking_option_name = params[:tracking_option_name]
 
         unless tracking_option_id.present?
-          return render json: { success: false, error: 'tracking_option_id is required' }, status: :bad_request
+          return render json: { success: false, error: "tracking_option_id is required" }, status: :bad_request
         end
 
         if @job.update(
@@ -351,7 +351,7 @@ module Api
         )
           render json: {
             success: true,
-            job: @job.as_json(only: [:id, :title, :xero_tracking_option_id, :xero_tracking_option_name])
+            job: @job.as_json(only: [ :id, :title, :xero_tracking_option_id, :xero_tracking_option_name ])
           }
         else
           render json: { success: false, errors: @job.errors.full_messages }, status: :unprocessable_entity
@@ -368,14 +368,14 @@ module Api
 
         render json: {
           success: true,
-          tracking_options: tracking_options.map { |o| { id: o['TrackingOptionID'], name: o['Name'] } },
+          tracking_options: tracking_options.map { |o| { id: o["TrackingOptionID"], name: o["Name"] } },
           current_option: @job.xero_tracking_option_id.present? ? {
             id: @job.xero_tracking_option_id,
             name: @job.xero_tracking_option_name
           } : nil,
           suggested_match: suggested_match ? {
-            id: suggested_match['TrackingOptionID'],
-            name: suggested_match['Name']
+            id: suggested_match["TrackingOptionID"],
+            name: suggested_match["Name"]
           } : nil
         }
       rescue StandardError => e
@@ -418,7 +418,7 @@ module Api
       # Returns budget vs invoiced summary for purchase orders
       def budget_tracking
         purchase_orders = @job.purchase_orders
-                              .where.not(status: 'cancelled')
+                              .where.not(status: "cancelled")
                               .includes(:supplier)
 
         budget_items = purchase_orders.map do |po|
@@ -429,12 +429,12 @@ module Api
           {
             id: po.id,
             po_number: po.purchase_order_number,
-            supplier_name: po.supplier&.display_name || po.supplier&.company_name || 'Unknown Supplier',
-            item_description: po.description || po.line_items.first&.description || 'No description',
+            supplier_name: po.supplier&.display_name || po.supplier&.company_name || "Unknown Supplier",
+            item_description: po.description || po.line_items.first&.description || "No description",
             budgeted: budgeted.to_f.round(2),
             invoiced: invoiced.to_f.round(2),
             variance: variance.to_f.round(2),
-            payment_status: po.payment_status || 'pending'
+            payment_status: po.payment_status || "pending"
           }
         end
 
@@ -461,14 +461,14 @@ module Api
         secondary_job_ids = params[:secondary_job_ids]
 
         if secondary_job_ids.blank?
-          render json: { success: false, error: 'No secondary jobs provided' }, status: :unprocessable_entity
+          render json: { success: false, error: "No secondary jobs provided" }, status: :unprocessable_entity
           return
         end
 
         secondary_jobs = Job.where(id: secondary_job_ids)
 
         if secondary_jobs.count != secondary_job_ids.length
-          render json: { success: false, error: 'Some secondary jobs not found' }, status: :not_found
+          render json: { success: false, error: "Some secondary jobs not found" }, status: :not_found
           return
         end
 
@@ -546,9 +546,9 @@ module Api
         else
           # Slug - search by title (convert slug back to search term)
           # Remove the _God_Loves_You_ suffix if present
-          slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, '')
-          search_term = slug.gsub('-', ' ')
-          @job = Job.where('LOWER(title) LIKE ?', "%#{search_term.downcase}%").first
+          slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, "")
+          search_term = slug.gsub("-", " ")
+          @job = Job.where("LOWER(title) LIKE ?", "%#{search_term.downcase}%").first
           raise ActiveRecord::RecordNotFound, "Job not found with slug: #{id_or_slug}" unless @job
         end
       end
@@ -599,7 +599,7 @@ module Api
       # Serialize job for pipeline view (lightweight version)
       def pipeline_job_to_json(job)
         # Get primary client contact
-        client_contact = job.job_contacts.find { |jc| jc.role == 'client' }&.contact
+        client_contact = job.job_contacts.find { |jc| jc.role == "client" }&.contact
 
         {
           id: job.id,

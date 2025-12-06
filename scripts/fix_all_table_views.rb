@@ -46,7 +46,7 @@ tables_with_hidden.each do |table|
 
     # Build new order array
     current_order = view.columns['order'] || []
-    new_order = ['select', 'id'] + all_column_names + ['actions']
+    new_order = [ 'select', 'id' ] + all_column_names + [ 'actions' ]
 
     # Update the view
     view.update(

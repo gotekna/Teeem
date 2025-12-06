@@ -39,7 +39,7 @@ module Schedule
       @errors << e.message
       Rails.logger.error("ScheduleTemplateInstantiator failed: #{e.message}")
       Rails.logger.error(e.backtrace.join("\n"))
-      return { success: false, errors: @errors }
+      { success: false, errors: @errors }
     end
 
     private
@@ -62,7 +62,7 @@ module Schedule
         name: row.name,
         task_type: determine_task_type(row),
         category: determine_category(row),
-        status: 'not_started',
+        status: "not_started",
         progress_percentage: 0,
         duration_days: 1,  # Default, can be overridden
         sequence_order: row.sequence_order,
@@ -84,15 +84,15 @@ module Schedule
 
     def determine_task_type(row)
       # Try to infer task type from tags or supplier
-      return 'construction' if row.supplier.present?
-      return 'milestone' if row.tag_list.include?('milestone')
-      'general'
+      return "construction" if row.supplier.present?
+      return "milestone" if row.tag_list.include?("milestone")
+      "general"
     end
 
     def determine_category(row)
       # Use supplier's trade category or first tag as category
       return row.supplier.trade_categories&.first if row.supplier&.trade_categories&.any?
-      row.tag_list.first || 'general'
+      row.tag_list.first || "general"
     end
 
     def build_task_notes(row)
@@ -128,13 +128,13 @@ module Schedule
       # or legacy format: just an integer (template row sequence order)
 
       if pred_data.is_a?(Hash)
-        pred_row_id = pred_data['id'] || pred_data[:id]
-        dep_type = pred_data['type'] || pred_data[:type] || 'FS'
-        lag_days = pred_data['lag'] || pred_data[:lag] || 0
+        pred_row_id = pred_data["id"] || pred_data[:id]
+        dep_type = pred_data["type"] || pred_data[:type] || "FS"
+        lag_days = pred_data["lag"] || pred_data[:lag] || 0
       else
         # Legacy: pred_data is template row id
         pred_row_id = pred_data
-        dep_type = 'FS'
+        dep_type = "FS"
         lag_days = 0
       end
 
@@ -177,17 +177,17 @@ module Schedule
       task.predecessor_dependencies.includes(:predecessor_task).each do |dep|
         pred = dep.predecessor_task
         pred_date = case dep.dependency_type
-                    when 'FS'  # Finish-to-Start
+        when "FS"  # Finish-to-Start
                       pred.planned_end_date
-                    when 'SS'  # Start-to-Start
+        when "SS"  # Start-to-Start
                       pred.planned_start_date
-                    when 'FF'  # Finish-to-Finish (rare for start calc)
+        when "FF"  # Finish-to-Finish (rare for start calc)
                       pred.planned_end_date - task.duration_days.days
-                    when 'SF'  # Start-to-Finish (rare)
+        when "SF"  # Start-to-Finish (rare)
                       pred.planned_start_date
-                    else
+        else
                       pred.planned_end_date
-                    end
+        end
 
         # Apply lag
         pred_date += dep.lag_days.days if pred_date && dep.lag_days
@@ -217,7 +217,7 @@ module Schedule
       po = PurchaseOrder.create!(
         project: project,
         supplier: row.supplier,
-        status: 'draft',
+        status: "draft",
         required_on_site_date: task.planned_start_date,
         notes: "Auto-generated for task: #{task.name}",
         critical: row.critical_po

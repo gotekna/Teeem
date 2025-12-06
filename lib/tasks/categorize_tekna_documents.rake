@@ -31,75 +31,75 @@ namespace :corporate do
         new_type = case filename
         # ATO/Tax documents
         when /ATO Tax Return/i
-          'ATO Tax Return'
+          "ATO Tax Return"
         when /EOY ATO/i
-          'End of Year ATO Return'
+          "End of Year ATO Return"
         when /Tax File Number/i, /TFN/i
-          'ATO Documents'
+          "ATO Documents"
         when /BAS/i
-          'Business Activity Statement'
+          "Business Activity Statement"
         when /Tax Consolidation/i
-          'Tax Consolidation Schedule'
+          "Tax Consolidation Schedule"
 
         # ASIC documents
         when /EOY ASIC/i
-          'End of Year ASIC Return'
+          "End of Year ASIC Return"
         when /Solvency ASIC/i
-          'ASIC Solvency Declaration'
+          "ASIC Solvency Declaration"
         when /Corporate Key/i
-          'Corporate Key'
+          "Corporate Key"
         when /ASIC Key/i
-          'ASIC Company Key'
+          "ASIC Company Key"
         when /ASIC/i
-          'ASIC Documents'
+          "ASIC Documents"
 
         # Corporate setup documents
         when /Constitution/i
-          'Constitution'
+          "Constitution"
         when /Company Setup/i
-          'Company Setup'
+          "Company Setup"
         when /Register of Members/i
-          'Register of Members'
+          "Register of Members"
         when /Structure/i
-          'Structure'
+          "Structure"
 
         # Minutes and resolutions
         when /Board Resolution.*Loan/i
-          'Distribution Resolution'
+          "Distribution Resolution"
         when /Minutes/i, /Board Resolution/i
-          'Company Minutes'
+          "Company Minutes"
 
         # Director changes
         when /Appoint.*Director/i, /Resignation.*Director/i, /Change.*Director/i
-          'Director and Officer Changes'
+          "Director and Officer Changes"
         when /Registered Office/i
-          'Registered Office Address'
+          "Registered Office Address"
 
         # Financial documents
         when /EOY NAB/i, /EOY WBC/i, /Bank Statement/i
-          'Bank Statement'
+          "Bank Statement"
 
         # Loan documents
         when /Loan Agreement/i
-          'Loan Agreement'
+          "Loan Agreement"
         when /Security Deed/i
-          'Security Deed'
+          "Security Deed"
         when /Loan/i, /Token Issued/i, /Verification Statement/i
-          'Loan Agreement'
+          "Loan Agreement"
 
         # Asset documents
         when /Asset/i
-          'Asset'
+          "Asset"
 
         # Distributions
         when /Dividend/i
-          'Dividend Payment'
+          "Dividend Payment"
         when /Distribution/i
-          'Distribution'
+          "Distribution"
 
         # Trust documents
         when /Trust Deed/i
-          'Trust Deed'
+          "Trust Deed"
 
         else
           # Keep existing type if no match

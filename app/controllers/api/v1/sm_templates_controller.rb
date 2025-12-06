@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmTemplatesController < ApplicationController
-      before_action :set_template, only: [:show, :update, :destroy, :set_default]
+      before_action :set_template, only: [ :show, :update, :destroy, :set_default ]
 
       # GET /api/v1/sm_templates
       def index
@@ -63,7 +63,7 @@ module Api
         # Soft delete by marking inactive
         @template.update!(is_active: false, updated_by: current_user)
 
-        render json: { success: true, message: 'Template archived' }
+        render json: { success: true, message: "Template archived" }
       end
 
       # POST /api/v1/sm_templates/:id/set_default
@@ -88,7 +88,7 @@ module Api
         else
           render json: {
             success: false,
-            error: 'No default template found'
+            error: "No default template found"
           }, status: :not_found
         end
       end

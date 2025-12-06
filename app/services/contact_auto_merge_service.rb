@@ -44,7 +44,7 @@ class ContactAutoMergeService
   private
 
   def find_duplicate_groups
-    contacts = Contact.where(deleted: [false, nil])
+    contacts = Contact.where(deleted: [ false, nil ])
                      .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :xero_contact_status, :rating, :notes, :roles, :website, :address)
 
     groups = []
@@ -70,7 +70,7 @@ class ContactAutoMergeService
 
   def normalize_name(name)
     return nil if name.blank?
-    name.to_s.downcase.gsub(/\s+/, ' ').strip
+    name.to_s.downcase.gsub(/\s+/, " ").strip
   end
 
   def process_duplicate_group(group)
@@ -130,7 +130,7 @@ class ContactAutoMergeService
     score += contact.roles.to_a.size * 2 # More roles = more data
 
     # Prefer active Xero contacts
-    score += 20 if contact.xero_contact_status == 'ACTIVE'
+    score += 20 if contact.xero_contact_status == "ACTIVE"
 
     score
   end

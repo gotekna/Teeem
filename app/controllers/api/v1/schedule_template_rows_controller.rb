@@ -3,8 +3,8 @@ module Api
     class ScheduleTemplateRowsController < ApplicationController
       before_action :authorize_request
       before_action :set_template
-      before_action :set_row, only: [:update, :destroy, :audit_logs]
-      before_action :check_can_edit_templates, except: [:audit_logs]
+      before_action :set_row, only: [ :update, :destroy, :audit_logs ]
+      before_action :check_can_edit_templates, except: [ :audit_logs ]
 
       # POST /api/v1/schedule_templates/:template_id/rows
       def create
@@ -49,7 +49,7 @@ module Api
 
         # Track which attributes are changing for cascade detection
         changed_attrs = []
-        [:start_date, :duration].each do |attr|
+        [ :start_date, :duration ].each do |attr|
           changed_attrs << attr if row_params.key?(attr) && row_params[attr] != @row.send(attr)
         end
 
@@ -60,7 +60,7 @@ module Api
 
           # ANTI-LOOP FIX: Don't manually cascade here - the after_update callback handles it!
           # Get affected tasks from thread-local (set by cascade callback)
-          affected_tasks = Thread.current[:cascade_affected_tasks] || [@row]
+          affected_tasks = Thread.current[:cascade_affected_tasks] || [ @row ]
           Thread.current[:cascade_affected_tasks] = nil # Clear it
 
           # Return all affected tasks (original + cascaded)
@@ -94,7 +94,7 @@ module Api
       # POST /api/v1/schedule_templates/:template_id/rows/bulk_delete
       def bulk_delete
         ids = params[:ids]
-        return render json: { success: false, error: 'No IDs provided' }, status: :bad_request if ids.blank?
+        return render json: { success: false, error: "No IDs provided" }, status: :bad_request if ids.blank?
 
         ids = ids.first(1000) if ids.is_a?(Array)
         deleted_count = @template.schedule_template_rows.where(id: ids).delete_all
@@ -176,14 +176,14 @@ module Api
               next if row.predecessor_ids.blank?
 
               updated_predecessors = row.predecessor_ids.map do |pred|
-                pred_id = pred['id'].to_i
+                pred_id = pred["id"].to_i
                 new_pred_id = sequence_changes[pred_id] || pred_id
 
                 if new_pred_id != pred_id
                   Rails.logger.info "  📝 Row #{row.id}: Updating predecessor #{pred_id} -> #{new_pred_id}"
                 end
 
-                { 'id' => new_pred_id, 'type' => pred['type'], 'lag' => pred['lag'] }
+                { "id" => new_pred_id, "type" => pred["type"], "lag" => pred["lag"] }
               end
 
               if updated_predecessors != row.predecessor_ids
@@ -215,18 +215,18 @@ module Api
       def set_template
         @template = ScheduleTemplate.find(params[:schedule_template_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Template not found' }, status: :not_found
+        render json: { error: "Template not found" }, status: :not_found
       end
 
       def set_row
         @row = @template.schedule_template_rows.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Row not found' }, status: :not_found
+        render json: { error: "Row not found" }, status: :not_found
       end
 
       def check_can_edit_templates
         unless @current_user&.can_create_templates?
-          render json: { error: 'Unauthorized' }, status: :forbidden
+          render json: { error: "Unauthorized" }, status: :forbidden
         end
       end
 
@@ -260,8 +260,8 @@ module Api
           :start,
           :complete,
           :dependencies_broken,
-          predecessor_ids: [:id, :type, :lag],
-          broken_predecessor_ids: [:id, :type, :lag],
+          predecessor_ids: [ :id, :type, :lag ],
+          broken_predecessor_ids: [ :id, :type, :lag ],
           price_book_item_ids: [],
           documentation_category_ids: [],
           supervisor_checklist_template_ids: [],
@@ -303,8 +303,8 @@ module Api
           :start,
           :complete,
           :dependencies_broken,
-          predecessor_ids: [:id, :type, :lag],
-          broken_predecessor_ids: [:id, :type, :lag],
+          predecessor_ids: [ :id, :type, :lag ],
+          broken_predecessor_ids: [ :id, :type, :lag ],
           price_book_item_ids: [],
           documentation_category_ids: [],
           supervisor_checklist_template_ids: [],

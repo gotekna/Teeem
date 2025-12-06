@@ -1,12 +1,12 @@
 class Api::V1::GoldStandardTableController < ApplicationController
-  before_action :set_item, only: [:update, :destroy, :merge]
+  before_action :set_item, only: [ :update, :destroy, :merge ]
   # sync_with_columns uses the default authorize_request from ApplicationController
 
   def index
     # Pagination parameters
     page = (params[:page] || 1).to_i
-    per_page = [(params[:per_page] || 250).to_i, 250].min  # Default 250, cap at 250 max
-    page = [page, 1].max  # Ensure page is at least 1
+    per_page = [ (params[:per_page] || 250).to_i, 250 ].min  # Default 250, cap at 250 max
+    page = [ page, 1 ].max  # Ensure page is at least 1
 
     # Calculate offset
     offset = (page - 1) * per_page
@@ -17,12 +17,12 @@ class Api::V1::GoldStandardTableController < ApplicationController
     # Apply search if provided
     if params[:search].present?
       search_term = "%#{params[:search].downcase}%"
-      if params[:search_all] == 'true'
+      if params[:search_all] == "true"
         # Search across all text columns
         text_columns = GoldStandardTable.column_names.select do |col|
-          GoldStandardTable.columns_hash[col].type.in?([:string, :text])
+          GoldStandardTable.columns_hash[col].type.in?([ :string, :text ])
         end
-        conditions = text_columns.map { |col| "LOWER(CAST(#{col} AS TEXT)) LIKE ?" }.join(' OR ')
+        conditions = text_columns.map { |col| "LOWER(CAST(#{col} AS TEXT)) LIKE ?" }.join(" OR ")
         query = query.where(conditions, *text_columns.map { search_term })
       else
         # Search only primary text columns
@@ -49,9 +49,9 @@ class Api::V1::GoldStandardTableController < ApplicationController
 
     # Disable caching for admin table - needs to reflect changes immediately
     # expires_in 5.minutes, public: true unless params[:filters].present?
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
 
     render json: {
       success: true,
@@ -94,7 +94,7 @@ class Api::V1::GoldStandardTableController < ApplicationController
   # POST /api/v1/gold_standard_table/bulk_delete
   def bulk_delete
     ids = params[:ids]
-    return render json: { success: false, error: 'No IDs provided' }, status: :bad_request if ids.blank?
+    return render json: { success: false, error: "No IDs provided" }, status: :bad_request if ids.blank?
 
     ids = ids.first(1000) if ids.is_a?(Array)
     deleted_count = GoldStandardTable.where(id: ids).delete_all
@@ -113,7 +113,7 @@ class Api::V1::GoldStandardTableController < ApplicationController
   def merge
     secondary_ids = params[:secondary_ids]
 
-    return render json: { success: false, error: 'No secondary IDs provided' }, status: :bad_request if secondary_ids.blank?
+    return render json: { success: false, error: "No secondary IDs provided" }, status: :bad_request if secondary_ids.blank?
 
     secondary_items = GoldStandardTable.where(id: secondary_ids)
 

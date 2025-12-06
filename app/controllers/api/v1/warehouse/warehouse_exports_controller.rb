@@ -28,8 +28,8 @@ module Api
           end
 
           # Get query parameters
-          limit = [params[:limit].to_i, 10_000].min.clamp(1, 10_000)  # Max 10k rows
-          offset = [params[:offset].to_i, 0].max
+          limit = [ params[:limit].to_i, 10_000 ].min.clamp(1, 10_000)  # Max 10k rows
+          offset = [ params[:offset].to_i, 0 ].max
 
           # Fetch data
           data = fetch_data(view_name, limit, offset)
@@ -69,7 +69,7 @@ module Api
         def fetch_data(view_name, limit, offset)
           # Ensure limit and offset are sanitized integers
           safe_limit = limit.to_i.clamp(1, 10_000)
-          safe_offset = [offset.to_i, 0].max
+          safe_offset = [ offset.to_i, 0 ].max
 
           sql = <<~SQL
             SELECT * FROM #{ActiveRecord::Base.connection.quote_table_name(view_name)}
@@ -85,7 +85,7 @@ module Api
         def safe_count(table_name)
           ActiveRecord::Base.connection.execute(
             "SELECT COUNT(*) FROM #{ActiveRecord::Base.connection.quote_table_name(table_name)}"
-          ).first['count'].to_i
+          ).first["count"].to_i
         rescue StandardError
           0
         end
@@ -101,8 +101,8 @@ module Api
 
           send_data csv_data,
                     filename: "#{view_name}_#{Time.current.strftime('%Y%m%d_%H%M%S')}.csv",
-                    type: 'text/csv',
-                    disposition: 'attachment'
+                    type: "text/csv",
+                    disposition: "attachment"
         end
 
         def send_xlsx(view_name, data)
@@ -115,7 +115,7 @@ module Api
 
           workbook.add_worksheet(name: view_name.truncate(31)) do |sheet|
             # Header row with bold styling
-            header_style = sheet.styles.add_style(b: true, bg_color: 'DDDDDD')
+            header_style = sheet.styles.add_style(b: true, bg_color: "DDDDDD")
             sheet.add_row headers, style: header_style
 
             # Data rows
@@ -124,21 +124,21 @@ module Api
             end
 
             # Auto-fit columns (approximate)
-            sheet.column_widths(*headers.map { |h| [h.to_s.length * 1.2, 15].max })
+            sheet.column_widths(*headers.map { |h| [ h.to_s.length * 1.2, 15 ].max })
           end
 
           # Add metadata worksheet
-          workbook.add_worksheet(name: 'Export Info') do |sheet|
-            sheet.add_row ['View Name', view_name]
-            sheet.add_row ['Exported At', Time.current.iso8601]
-            sheet.add_row ['Row Count', data.size]
-            sheet.add_row ['Exported By', current_user&.email || 'System']
+          workbook.add_worksheet(name: "Export Info") do |sheet|
+            sheet.add_row [ "View Name", view_name ]
+            sheet.add_row [ "Exported At", Time.current.iso8601 ]
+            sheet.add_row [ "Row Count", data.size ]
+            sheet.add_row [ "Exported By", current_user&.email || "System" ]
           end
 
           send_data package.to_stream.read,
                     filename: "#{view_name}_#{Time.current.strftime('%Y%m%d_%H%M%S')}.xlsx",
-                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    disposition: 'attachment'
+                    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    disposition: "attachment"
         end
       end
     end

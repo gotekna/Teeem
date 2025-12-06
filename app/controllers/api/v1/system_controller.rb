@@ -16,16 +16,16 @@ module Api
           claude: check_claude
         }
 
-        infra_healthy = infrastructure.values.all? { |v| v[:status] != 'error' }
-        data_healthy = data_health[:status] != 'critical'
+        infra_healthy = infrastructure.values.all? { |v| v[:status] != "error" }
+        data_healthy = data_health[:status] != "critical"
 
         overall_status = if infra_healthy && data_healthy
-                          'healthy'
-                        elsif infra_healthy
-                          'degraded'
-                        else
-                          'unhealthy'
-                        end
+                          "healthy"
+        elsif infra_healthy
+                          "degraded"
+        else
+                          "unhealthy"
+        end
 
         render json: {
           success: true,
@@ -108,16 +108,16 @@ module Api
 
       def check_database
         ActiveRecord::Base.connection.active?
-        { status: 'connected' }
+        { status: "connected" }
       rescue StandardError => e
-        { status: 'error', message: e.message }
+        { status: "error", message: e.message }
       end
 
       def check_redis
         # Add Redis check if you're using it
-        { status: 'not_configured' }
+        { status: "not_configured" }
       rescue StandardError => e
-        { status: 'error', message: e.message }
+        { status: "error", message: e.message }
       end
 
       def check_storage
@@ -135,28 +135,28 @@ module Api
       end
 
       def check_claude
-        api_key = ENV['ANTHROPIC_API_KEY']
+        api_key = ENV["ANTHROPIC_API_KEY"]
         if api_key.blank?
-          return { status: 'not_configured', message: 'ANTHROPIC_API_KEY not set' }
+          return { status: "not_configured", message: "ANTHROPIC_API_KEY not set" }
         end
 
         # Quick connectivity test
         begin
-          require 'anthropic'
+          require "anthropic"
           client = Anthropic::Client.new(access_token: api_key)
           # Make a minimal test call
           response = client.messages(
             parameters: {
-              model: 'claude-3-haiku-20240307',
+              model: "claude-3-haiku-20240307",
               max_tokens: 5,
-              messages: [{ role: 'user', content: 'Hi' }]
+              messages: [ { role: "user", content: "Hi" } ]
             }
           )
-          { status: 'connected', key_present: true, test_successful: true }
+          { status: "connected", key_present: true, test_successful: true }
         rescue Anthropic::Error => e
-          { status: 'error', key_present: true, message: e.message }
+          { status: "error", key_present: true, message: e.message }
         rescue => e
-          { status: 'error', key_present: true, message: e.class.to_s + ': ' + e.message }
+          { status: "error", key_present: true, message: e.class.to_s + ": " + e.message }
         end
       end
 
@@ -179,13 +179,13 @@ module Api
       end
 
       def count_tmp_files
-        Dir.glob(Rails.root.join('tmp', '**', '*')).select { |f| File.file?(f) }.count
+        Dir.glob(Rails.root.join("tmp", "**", "*")).select { |f| File.file?(f) }.count
       rescue
         0
       end
 
       def get_log_size
-        log_files = Dir.glob(Rails.root.join('log', '*.log'))
+        log_files = Dir.glob(Rails.root.join("log", "*.log"))
         total_size = log_files.sum { |f| File.size(f) rescue 0 }
         (total_size / 1024.0 / 1024.0).round(2) # Convert to MB
       rescue

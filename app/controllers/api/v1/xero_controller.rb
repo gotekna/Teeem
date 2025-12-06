@@ -90,7 +90,7 @@ module Api
             success: true,
             data: {
               connected: false,
-              message: 'Xero integration not configured'
+              message: "Xero integration not configured"
             }
           }
         rescue StandardError => e
@@ -131,7 +131,7 @@ module Api
         unless tenant_id.present?
           return render json: {
             success: false,
-            error: 'Tenant ID is required'
+            error: "Tenant ID is required"
           }, status: :bad_request
         end
 
@@ -140,7 +140,7 @@ module Api
         unless credential
           return render json: {
             success: false,
-            error: 'Xero organization not found'
+            error: "Xero organization not found"
           }, status: :not_found
         end
 
@@ -160,7 +160,7 @@ module Api
           Rails.logger.error("Failed to set primary Xero: #{e.message}")
           render json: {
             success: false,
-            error: 'Failed to set primary organization'
+            error: "Failed to set primary organization"
           }, status: :internal_server_error
         end
       end
@@ -219,7 +219,7 @@ module Api
 
           # Combine where clauses
           if where_clauses.any?
-            query_params[:where] = where_clauses.join(' AND ')
+            query_params[:where] = where_clauses.join(" AND ")
           end
 
           # Add pagination
@@ -228,10 +228,10 @@ module Api
           # Include line items for description display (summaryOnly=false is default, but explicit)
           query_params[:unitdp] = 4
 
-          result = client.get('Invoices', query_params)
+          result = client.get("Invoices", query_params)
 
           if result[:success]
-            invoices = result[:data]['Invoices'] || []
+            invoices = result[:data]["Invoices"] || []
 
             render json: {
               success: true,
@@ -243,14 +243,14 @@ module Api
           else
             render json: {
               success: false,
-              error: 'Failed to fetch invoices'
+              error: "Failed to fetch invoices"
             }, status: :unprocessable_entity
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero invoices auth error: #{e.message}")
           render json: {
             success: false,
-            error: 'Not authenticated with Xero'
+            error: "Not authenticated with Xero"
           }, status: :unauthorized
         rescue XeroApiClient::ApiError => e
           Rails.logger.error("Xero invoices API error: #{e.message}")
@@ -279,7 +279,7 @@ module Api
           result = client.get("Invoices/#{invoice_id}", { unitdp: 4 })
 
           if result[:success]
-            invoice = result[:data]['Invoices']&.first
+            invoice = result[:data]["Invoices"]&.first
 
             if invoice
               render json: {
@@ -287,14 +287,14 @@ module Api
                 data: invoice
               }
             else
-              render json: { success: false, error: 'Invoice not found' }, status: :not_found
+              render json: { success: false, error: "Invoice not found" }, status: :not_found
             end
           else
-            render json: { success: false, error: 'Failed to fetch invoice' }, status: :unprocessable_entity
+            render json: { success: false, error: "Failed to fetch invoice" }, status: :unprocessable_entity
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero invoice detail auth error: #{e.message}")
-          render json: { success: false, error: 'Not authenticated with Xero' }, status: :unauthorized
+          render json: { success: false, error: "Not authenticated with Xero" }, status: :unauthorized
         rescue StandardError => e
           Rails.logger.error("Xero invoice detail error: #{e.message}")
           render json: { success: false, error: "Failed to fetch invoice details" }, status: :internal_server_error
@@ -316,13 +316,13 @@ module Api
           end
 
           if where_clauses.any?
-            query_params[:where] = where_clauses.join(' AND ')
+            query_params[:where] = where_clauses.join(" AND ")
           end
 
-          result = client.get('Payments', query_params)
+          result = client.get("Payments", query_params)
 
           if result[:success]
-            payments = result[:data]['Payments'] || []
+            payments = result[:data]["Payments"] || []
 
             render json: {
               success: true,
@@ -332,7 +332,7 @@ module Api
               }
             }
           else
-            render json: { success: false, error: 'Failed to fetch payments' }, status: :unprocessable_entity
+            render json: { success: false, error: "Failed to fetch payments" }, status: :unprocessable_entity
           end
         rescue StandardError => e
           Rails.logger.error("Xero payments error: #{e.message}")
@@ -354,13 +354,13 @@ module Api
           end
 
           if where_clauses.any?
-            query_params[:where] = where_clauses.join(' AND ')
+            query_params[:where] = where_clauses.join(" AND ")
           end
 
-          result = client.get('CreditNotes', query_params)
+          result = client.get("CreditNotes", query_params)
 
           if result[:success]
-            credit_notes = result[:data]['CreditNotes'] || []
+            credit_notes = result[:data]["CreditNotes"] || []
 
             render json: {
               success: true,
@@ -370,7 +370,7 @@ module Api
               }
             }
           else
-            render json: { success: false, error: 'Failed to fetch credit notes' }, status: :unprocessable_entity
+            render json: { success: false, error: "Failed to fetch credit notes" }, status: :unprocessable_entity
           end
         rescue StandardError => e
           Rails.logger.error("Xero credit_notes error: #{e.message}")
@@ -394,13 +394,13 @@ module Api
           end
 
           if where_clauses.any?
-            query_params[:where] = where_clauses.join(' AND ')
+            query_params[:where] = where_clauses.join(" AND ")
           end
 
-          result = client.get('Quotes', query_params)
+          result = client.get("Quotes", query_params)
 
           if result[:success]
-            quotes = result[:data]['Quotes'] || []
+            quotes = result[:data]["Quotes"] || []
 
             render json: {
               success: true,
@@ -410,7 +410,7 @@ module Api
               }
             }
           else
-            render json: { success: false, error: 'Failed to fetch quotes' }, status: :unprocessable_entity
+            render json: { success: false, error: "Failed to fetch quotes" }, status: :unprocessable_entity
           end
         rescue StandardError => e
           Rails.logger.error("Xero quotes error: #{e.message}")
@@ -443,7 +443,7 @@ module Api
             }, status: :unprocessable_entity
           end
 
-          invoice_data = result[:data]['Invoices']&.first
+          invoice_data = result[:data]["Invoices"]&.first
 
           unless invoice_data
             return render json: {
@@ -481,7 +481,7 @@ module Api
           Rails.logger.error("Xero match_invoice auth error: #{e.message}")
           render json: {
             success: false,
-            error: 'Not authenticated with Xero'
+            error: "Not authenticated with Xero"
           }, status: :unauthorized
         rescue StandardError => e
           Rails.logger.error("Xero match_invoice error: #{e.message}")
@@ -501,7 +501,7 @@ module Api
         unless tracking_option_name.present?
           return render json: {
             success: false,
-            error: 'tracking_option_name is required'
+            error: "tracking_option_name is required"
           }, status: :bad_request
         end
 
@@ -517,7 +517,7 @@ module Api
 
           loop do
             Rails.logger.info("Fetching Xero invoices page #{page}")
-            result = client.get('Invoices', {
+            result = client.get("Invoices", {
               page: page,
               unitdp: 4
             })
@@ -525,11 +525,11 @@ module Api
             unless result[:success]
               return render json: {
                 success: false,
-                error: 'Failed to fetch invoices from Xero'
+                error: "Failed to fetch invoices from Xero"
               }, status: :unprocessable_entity
             end
 
-            invoices_page = result[:data]['Invoices'] || []
+            invoices_page = result[:data]["Invoices"] || []
             break if invoices_page.empty?
 
             all_invoices.concat(invoices_page)
@@ -541,18 +541,18 @@ module Api
 
           # Filter invoices that have line items with matching tracking category
           matching_invoices = all_invoices.select do |invoice|
-            line_items = invoice['LineItems'] || []
+            line_items = invoice["LineItems"] || []
             line_items.any? do |line_item|
-              tracking = line_item['Tracking'] || []
-              tracking.any? { |t| t['Option'] == tracking_option_name }
+              tracking = line_item["Tracking"] || []
+              tracking.any? { |t| t["Option"] == tracking_option_name }
             end
           end
 
           Rails.logger.info("Found #{matching_invoices.length} invoices matching tracking '#{tracking_option_name}'")
 
           # Separate into invoices (ACCREC = sales) and bills (ACCPAY = purchases)
-          invoices = matching_invoices.select { |inv| inv['Type'] == 'ACCREC' }
-          bills = matching_invoices.select { |inv| inv['Type'] == 'ACCPAY' }
+          invoices = matching_invoices.select { |inv| inv["Type"] == "ACCREC" }
+          bills = matching_invoices.select { |inv| inv["Type"] == "ACCPAY" }
 
           render json: {
             success: true,
@@ -568,7 +568,7 @@ module Api
           Rails.logger.error("Xero invoices_by_tracking auth error: #{e.message}")
           render json: {
             success: false,
-            error: 'Not authenticated with Xero'
+            error: "Not authenticated with Xero"
           }, status: :unauthorized
         rescue StandardError => e
           Rails.logger.error("Xero invoices_by_tracking error: #{e.message}")
@@ -586,24 +586,24 @@ module Api
         unless verify_xero_webhook_signature
           return render json: {
             success: false,
-            error: 'Invalid webhook signature'
+            error: "Invalid webhook signature"
           }, status: :unauthorized
         end
 
         # Parse webhook payload
         payload = JSON.parse(request.body.read)
-        events = payload['events'] || []
+        events = payload["events"] || []
 
         # Process events (can be expanded for specific event types)
         events.each do |event|
           Rails.logger.info("Xero webhook event: #{event['eventType']} - Resource: #{event['resourceId']}")
 
-          case event['eventType']
-          when 'CREATE', 'UPDATE'
-            if event['eventType'].include?('INVOICE')
+          case event["eventType"]
+          when "CREATE", "UPDATE"
+            if event["eventType"].include?("INVOICE")
               # Queue background job to sync invoice
               # XeroInvoiceSyncJob.perform_later(event['resourceId'])
-            elsif event['eventType'].include?('CONTACT')
+            elsif event["eventType"].include?("CONTACT")
               # Queue background job to sync contact
               # XeroContactSyncJob.perform_later(event['resourceId'])
             end
@@ -612,11 +612,11 @@ module Api
 
         render json: {
           success: true,
-          message: 'Webhook received and queued for processing'
+          message: "Webhook received and queued for processing"
         }, status: :ok
       rescue JSON::ParserError => e
         Rails.logger.error("Failed to parse Xero webhook: #{e.message}")
-        render json: { success: false, error: 'Invalid JSON payload' }, status: :bad_request
+        render json: { success: false, error: "Invalid JSON payload" }, status: :bad_request
       end
 
       # POST /api/v1/xero/sync_contacts
@@ -632,7 +632,7 @@ module Api
           unless status[:connected] && !status[:expired]
             return render json: {
               success: false,
-              error: 'Not authenticated with Xero. Please connect to Xero first.'
+              error: "Not authenticated with Xero. Please connect to Xero first."
             }, status: :unauthorized
           end
 
@@ -646,7 +646,7 @@ module Api
               "xero_sync_job_#{job_id}",
               {
                 job_id: job_id,
-                status: 'queued',
+                status: "queued",
                 queued_at: Time.current,
                 total: 0,
                 processed: 0
@@ -659,10 +659,10 @@ module Api
 
           render json: {
             success: true,
-            message: 'Contact sync job queued successfully',
+            message: "Contact sync job queued successfully",
             data: {
               job_id: job_id,
-              status: 'queued',
+              status: "queued",
               queued_at: Time.current
             }
           }
@@ -670,7 +670,7 @@ module Api
           Rails.logger.error("Xero sync_contacts auth error: #{e.message}")
           render json: {
             success: false,
-            error: 'Not authenticated with Xero. Please connect to Xero first.'
+            error: "Not authenticated with Xero. Please connect to Xero first."
           }, status: :unauthorized
         rescue StandardError => e
           Rails.logger.error("Xero sync_contacts unexpected error: #{e.message}")
@@ -690,7 +690,7 @@ module Api
         unless job_id.present?
           return render json: {
             success: false,
-            error: 'Job ID is required'
+            error: "Job ID is required"
           }, status: :bad_request
         end
 
@@ -701,7 +701,7 @@ module Api
           if job_data.nil?
             return render json: {
               success: false,
-              error: 'Job not found or expired'
+              error: "Job not found or expired"
             }, status: :not_found
           end
 
@@ -827,13 +827,13 @@ module Api
           Rails.logger.error("Xero tax_rates auth error: #{e.message}")
           render json: {
             success: false,
-            error: 'Not authenticated with Xero'
+            error: "Not authenticated with Xero"
           }, status: :unauthorized
         rescue StandardError => e
           Rails.logger.error("Xero tax_rates error: #{e.message}")
           render json: {
             success: false,
-            error: 'Failed to fetch tax rates'
+            error: "Failed to fetch tax rates"
           }, status: :internal_server_error
         end
       end
@@ -876,13 +876,13 @@ module Api
           Rails.logger.error("Xero accounts auth error: #{e.message}")
           render json: {
             success: false,
-            error: 'Not authenticated with Xero'
+            error: "Not authenticated with Xero"
           }, status: :unauthorized
         rescue StandardError => e
           Rails.logger.error("Xero accounts error: #{e.message}")
           render json: {
             success: false,
-            error: 'Failed to fetch accounts'
+            error: "Failed to fetch accounts"
           }, status: :internal_server_error
         end
       end
@@ -897,7 +897,7 @@ module Api
           unless status[:connected] && !status[:expired]
             return render json: {
               success: false,
-              error: 'Not authenticated with Xero. Please connect to Xero first.'
+              error: "Not authenticated with Xero. Please connect to Xero first."
             }, status: :unauthorized
           end
 
@@ -909,7 +909,7 @@ module Api
           Rails.logger.error("Xero import_tracking_categories auth error: #{e.message}")
           render json: {
             success: false,
-            error: 'Not authenticated with Xero'
+            error: "Not authenticated with Xero"
           }, status: :unauthorized
         rescue StandardError => e
           Rails.logger.error("Xero import_tracking_categories error: #{e.message}")
@@ -931,7 +931,7 @@ module Api
           unless status[:connected] && !status[:expired]
             return render json: {
               success: false,
-              error: 'Not authenticated with Xero. Please connect to Xero first.'
+              error: "Not authenticated with Xero. Please connect to Xero first."
             }, status: :unauthorized
           end
 
@@ -943,7 +943,7 @@ module Api
           Rails.logger.error("Xero import_all_bills auth error: #{e.message}")
           render json: {
             success: false,
-            error: 'Not authenticated with Xero'
+            error: "Not authenticated with Xero"
           }, status: :unauthorized
         rescue StandardError => e
           Rails.logger.error("Xero import_all_bills error: #{e.message}")
@@ -965,7 +965,7 @@ module Api
           unless status[:connected] && !status[:expired]
             return render json: {
               success: false,
-              error: 'Not authenticated with Xero. Please connect to Xero first.'
+              error: "Not authenticated with Xero. Please connect to Xero first."
             }, status: :unauthorized
           end
 
@@ -977,7 +977,7 @@ module Api
           Rails.logger.error("Xero import_all_claims auth error: #{e.message}")
           render json: {
             success: false,
-            error: 'Not authenticated with Xero'
+            error: "Not authenticated with Xero"
           }, status: :unauthorized
         rescue StandardError => e
           Rails.logger.error("Xero import_all_claims error: #{e.message}")
@@ -999,7 +999,7 @@ module Api
           unless status[:connected] && !status[:expired]
             return render json: {
               success: false,
-              error: 'Not authenticated with Xero. Please connect to Xero first.'
+              error: "Not authenticated with Xero. Please connect to Xero first."
             }, status: :unauthorized
           end
 
@@ -1038,7 +1038,7 @@ module Api
           Rails.logger.error("Xero full_import auth error: #{e.message}")
           render json: {
             success: false,
-            error: 'Not authenticated with Xero'
+            error: "Not authenticated with Xero"
           }, status: :unauthorized
         rescue StandardError => e
           Rails.logger.error("Xero full_import error: #{e.message}")
@@ -1058,7 +1058,7 @@ module Api
         if query.blank?
           return render json: {
             success: false,
-            error: 'Search query is required'
+            error: "Search query is required"
           }, status: :bad_request
         end
 
@@ -1066,7 +1066,7 @@ module Api
         if query.length < 2
           return render json: {
             success: false,
-            error: 'Search query must be at least 2 characters'
+            error: "Search query must be at least 2 characters"
           }, status: :bad_request
         end
 
@@ -1075,7 +1075,7 @@ module Api
 
           # Sanitize query to prevent OData injection
           # Escape double quotes and backslashes in the query string
-          sanitized_query = query.gsub('\\', '\\\\\\\\').gsub('"', '\\"')
+          sanitized_query = query.gsub("\\", "\\\\\\\\").gsub('"', '\\"')
 
           # Search Xero contacts with a WHERE clause
           # Search by name, email, or tax number
@@ -1083,23 +1083,23 @@ module Api
 
           Rails.logger.info("Xero contact search - Original query: '#{query}', Sanitized: '#{sanitized_query}'")
 
-          result = client.get('Contacts', { where: where_clause })
+          result = client.get("Contacts", { where: where_clause })
 
           if result[:success]
-            contacts = result[:data]['Contacts'] || []
+            contacts = result[:data]["Contacts"] || []
 
             Rails.logger.info("Xero contact search - Found #{contacts.length} contacts")
 
             # Format contacts for the frontend
             formatted_contacts = contacts.map do |contact|
               {
-                xero_id: contact['ContactID'],
-                name: contact['Name'],
-                email: contact['EmailAddress'],
-                tax_number: contact['TaxNumber'],
-                first_name: contact['FirstName'],
-                last_name: contact['LastName'],
-                phones: contact['Phones']
+                xero_id: contact["ContactID"],
+                name: contact["Name"],
+                email: contact["EmailAddress"],
+                tax_number: contact["TaxNumber"],
+                first_name: contact["FirstName"],
+                last_name: contact["LastName"],
+                phones: contact["Phones"]
               }
             end
 
@@ -1111,14 +1111,14 @@ module Api
           else
             render json: {
               success: false,
-              error: 'Failed to search Xero contacts'
+              error: "Failed to search Xero contacts"
             }, status: :unprocessable_entity
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero search_contacts auth error: #{e.message}")
           render json: {
             success: false,
-            error: 'Not authenticated with Xero. Please connect to Xero first.'
+            error: "Not authenticated with Xero. Please connect to Xero first."
           }, status: :unauthorized
         rescue StandardError => e
           Rails.logger.error("Xero search_contacts error: #{e.message}")
@@ -1139,7 +1139,7 @@ module Api
         if xero_contact_id.blank?
           return render json: {
             success: false,
-            error: 'Contact ID is required'
+            error: "Contact ID is required"
           }, status: :bad_request
         end
 
@@ -1154,7 +1154,7 @@ module Api
           unless credential
             return render json: {
               success: false,
-              error: tenant_id.present? ? "No Xero credential found for tenant #{tenant_id}" : 'Not connected to Xero'
+              error: tenant_id.present? ? "No Xero credential found for tenant #{tenant_id}" : "Not connected to Xero"
             }, status: :unauthorized
           end
 
@@ -1162,7 +1162,7 @@ module Api
           result = make_xero_request(credential, "Contacts/#{xero_contact_id}")
 
           if result[:success]
-            xero_contact = result[:data]['Contacts']&.first
+            xero_contact = result[:data]["Contacts"]&.first
 
             if xero_contact
               render json: {
@@ -1174,20 +1174,20 @@ module Api
             else
               render json: {
                 success: false,
-                error: 'Contact not found in Xero'
+                error: "Contact not found in Xero"
               }, status: :not_found
             end
           else
             render json: {
               success: false,
-              error: 'Failed to fetch contact from Xero'
+              error: "Failed to fetch contact from Xero"
             }, status: :unprocessable_entity
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero show_contact auth error: #{e.message}")
           render json: {
             success: false,
-            error: 'Not authenticated with Xero'
+            error: "Not authenticated with Xero"
           }, status: :unauthorized
         rescue StandardError => e
           Rails.logger.error("Xero show_contact error: #{e.message}")
@@ -1213,10 +1213,10 @@ module Api
         url = "https://api.xero.com/api.xro/2.0/#{endpoint}"
 
         headers = {
-          'Authorization' => "Bearer #{credential.access_token}",
-          'Xero-tenant-id' => credential.tenant_id,
-          'Content-Type' => 'application/json',
-          'Accept' => 'application/json'
+          "Authorization" => "Bearer #{credential.access_token}",
+          "Xero-tenant-id" => credential.tenant_id,
+          "Content-Type" => "application/json",
+          "Accept" => "application/json"
         }
 
         response = HTTParty.get(url, headers: headers, query: params, timeout: 30)
@@ -1244,13 +1244,13 @@ module Api
       # Determine what sync action was taken for a contact
       def determine_sync_action(contact)
         if contact.xero_sync_error.present?
-          'Sync Failed'
+          "Sync Failed"
         elsif contact.xero_id.present? && contact.created_at < contact.last_synced_at
-          'Updated from Xero'
+          "Updated from Xero"
         elsif contact.xero_id.present?
-          'Created from Xero'
+          "Created from Xero"
         else
-          'Synced to Xero'
+          "Synced to Xero"
         end
       end
 
@@ -1259,11 +1259,11 @@ module Api
         # This is a simple implementation using cache
         # In production, you might want to use a proper job tracking mechanism
         cache_keys = Rails.cache.instance_variable_get(:@data)&.keys || []
-        job_keys = cache_keys.select { |k| k.to_s.start_with?('xero_sync_job_') }
+        job_keys = cache_keys.select { |k| k.to_s.start_with?("xero_sync_job_") }
 
         job_keys.each do |key|
           job_data = Rails.cache.read(key)
-          if job_data && ['queued', 'processing'].include?(job_data[:status])
+          if job_data && [ "queued", "processing" ].include?(job_data[:status])
             return job_data
           end
         end
@@ -1273,7 +1273,7 @@ module Api
 
       # Verify Xero webhook signature using HMAC-SHA256
       def verify_xero_webhook_signature
-        webhook_key = ENV['XERO_WEBHOOK_KEY']
+        webhook_key = ENV["XERO_WEBHOOK_KEY"]
 
         unless webhook_key.present?
           Rails.logger.error("XERO_WEBHOOK_KEY not configured")
@@ -1281,7 +1281,7 @@ module Api
         end
 
         # Get signature from header
-        signature = request.headers['X-Xero-Signature']
+        signature = request.headers["X-Xero-Signature"]
 
         unless signature.present?
           Rails.logger.warn("Missing X-Xero-Signature header")
@@ -1294,7 +1294,7 @@ module Api
 
         # Calculate expected signature
         expected_signature = Base64.strict_encode64(
-          OpenSSL::HMAC.digest('SHA256', webhook_key, body)
+          OpenSSL::HMAC.digest("SHA256", webhook_key, body)
         )
 
         # Compare signatures (use secure comparison to prevent timing attacks)

@@ -16,6 +16,6 @@ class CreateJobActivities < ActiveRecord::Migration[8.0]
 
     add_index :job_activities, :activity_type
     add_index :job_activities, :occurred_at
-    add_index :job_activities, [:related_type, :related_id]
+    add_index :job_activities, [ :related_type, :related_id ]
   end
 end

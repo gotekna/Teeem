@@ -46,26 +46,26 @@ module Api
           system_type = params[:system_type]
 
           unless AccountingIntegration::SYSTEM_TYPES.include?(system_type)
-            render json: { success: false, error: 'Invalid system type' }, status: :bad_request
+            render json: { success: false, error: "Invalid system type" }, status: :bad_request
             return
           end
 
           # Check if already connected
           existing = current_contact.accounting_integrations.active.where(system_type: system_type).first
           if existing
-            render json: { success: false, error: 'Already connected to this system' }, status: :unprocessable_entity
+            render json: { success: false, error: "Already connected to this system" }, status: :unprocessable_entity
             return
           end
 
           # Generate OAuth URL based on system type
           oauth_url = case system_type
-          when 'xero'
+          when "xero"
             generate_xero_oauth_url
-          when 'myob'
+          when "myob"
             generate_myob_oauth_url
-          when 'quickbooks'
+          when "quickbooks"
             generate_quickbooks_oauth_url
-          when 'reckon'
+          when "reckon"
             generate_reckon_oauth_url
           else
             nil
@@ -81,7 +81,7 @@ module Api
               }
             }
           else
-            render json: { success: false, error: 'OAuth URL generation failed' }, status: :internal_server_error
+            render json: { success: false, error: "OAuth URL generation failed" }, status: :internal_server_error
           end
         end
 
@@ -93,25 +93,25 @@ module Api
           state = params[:state]
 
           unless AccountingIntegration::SYSTEM_TYPES.include?(system_type)
-            render json: { success: false, error: 'Invalid system type' }, status: :bad_request
+            render json: { success: false, error: "Invalid system type" }, status: :bad_request
             return
           end
 
           # Verify state to prevent CSRF
           unless verify_oauth_state(state, system_type)
-            render json: { success: false, error: 'Invalid OAuth state' }, status: :forbidden
+            render json: { success: false, error: "Invalid OAuth state" }, status: :forbidden
             return
           end
 
           # Exchange code for tokens
           token_data = case system_type
-          when 'xero'
+          when "xero"
             exchange_xero_code(code)
-          when 'myob'
+          when "myob"
             exchange_myob_code(code)
-          when 'quickbooks'
+          when "quickbooks"
             exchange_quickbooks_code(code)
-          when 'reckon'
+          when "reckon"
             exchange_reckon_code(code)
           end
 
@@ -128,7 +128,7 @@ module Api
             token_expires_at: token_data[:expires_at],
             organization_id: token_data[:organization_id],
             organization_name: token_data[:organization_name],
-            sync_status: 'active',
+            sync_status: "active",
             last_sync_at: Time.current
           )
 
@@ -144,7 +144,7 @@ module Api
           else
             render json: {
               success: false,
-              error: 'Failed to save integration',
+              error: "Failed to save integration",
               errors: integration.errors.full_messages
             }, status: :unprocessable_entity
           end
@@ -155,7 +155,7 @@ module Api
         def destroy
           integration = current_contact.accounting_integrations.find(params[:id])
 
-          if integration.update(sync_status: 'disconnected', oauth_token: nil, refresh_token: nil)
+          if integration.update(sync_status: "disconnected", oauth_token: nil, refresh_token: nil)
             # Update subcontractor account flag if no other active integrations
             unless current_contact.accounting_integrations.active.any?
               current_subcontractor_account&.update(accounting_system_connected: false)
@@ -163,12 +163,12 @@ module Api
 
             render json: {
               success: true,
-              message: 'Integration disconnected successfully'
+              message: "Integration disconnected successfully"
             }
           else
             render json: {
               success: false,
-              error: 'Failed to disconnect integration'
+              error: "Failed to disconnect integration"
             }, status: :unprocessable_entity
           end
         end
@@ -179,21 +179,21 @@ module Api
           integration = current_contact.accounting_integrations.find(params[:id])
 
           unless integration.active?
-            render json: { success: false, error: 'Integration is not active' }, status: :unprocessable_entity
+            render json: { success: false, error: "Integration is not active" }, status: :unprocessable_entity
             return
           end
 
           if integration.refresh_token!
             render json: {
               success: true,
-              message: 'Token refreshed successfully',
+              message: "Token refreshed successfully",
               data: integration_json(integration)
             }
           else
             render json: {
               success: false,
-              error: 'Failed to refresh token',
-              message: 'You may need to reconnect your accounting system'
+              error: "Failed to refresh token",
+              message: "You may need to reconnect your accounting system"
             }, status: :unprocessable_entity
           end
         end
@@ -204,7 +204,7 @@ module Api
           integration = current_contact.accounting_integrations.find(params[:id])
 
           unless integration.active?
-            render json: { success: false, error: 'Integration is not active' }, status: :unprocessable_entity
+            render json: { success: false, error: "Integration is not active" }, status: :unprocessable_entity
             return
           end
 
@@ -213,7 +213,7 @@ module Api
             connected: true,
             organization: integration.organization_name,
             last_sync: integration.last_sync_at,
-            message: 'Connection test successful'
+            message: "Connection test successful"
           }
 
           render json: {
@@ -256,9 +256,9 @@ module Api
 
           begin
             state_data = JSON.parse(Base64.urlsafe_decode64(state))
-            state_data['contact_id'] == current_contact.id &&
-              state_data['system_type'] == system_type &&
-              state_data['timestamp'] > 1.hour.ago.to_i
+            state_data["contact_id"] == current_contact.id &&
+              state_data["system_type"] == system_type &&
+              state_data["timestamp"] > 1.hour.ago.to_i
           rescue
             false
           end
@@ -268,17 +268,17 @@ module Api
 
         def generate_xero_oauth_url
           # TODO: Use actual Xero OAuth client_id from ENV
-          client_id = ENV['XERO_CLIENT_ID'] || 'YOUR_XERO_CLIENT_ID'
+          client_id = ENV["XERO_CLIENT_ID"] || "YOUR_XERO_CLIENT_ID"
           redirect_uri = "#{ENV['FRONTEND_URL']}/portal/accounting/callback/xero"
-          scope = 'accounting.transactions accounting.contacts'
-          state = generate_oauth_state('xero')
+          scope = "accounting.transactions accounting.contacts"
+          state = generate_oauth_state("xero")
 
           "https://login.xero.com/identity/connect/authorize?response_type=code&client_id=#{client_id}&redirect_uri=#{CGI.escape(redirect_uri)}&scope=#{CGI.escape(scope)}&state=#{state}"
         end
 
         def generate_myob_oauth_url
           # TODO: Implement MYOB OAuth
-          client_id = ENV['MYOB_CLIENT_ID'] || 'YOUR_MYOB_CLIENT_ID'
+          client_id = ENV["MYOB_CLIENT_ID"] || "YOUR_MYOB_CLIENT_ID"
           redirect_uri = "#{ENV['FRONTEND_URL']}/portal/accounting/callback/myob"
 
           "https://secure.myob.com/oauth2/account/authorize?client_id=#{client_id}&redirect_uri=#{CGI.escape(redirect_uri)}&response_type=code&scope=CompanyFile"
@@ -286,7 +286,7 @@ module Api
 
         def generate_quickbooks_oauth_url
           # TODO: Implement QuickBooks OAuth
-          client_id = ENV['QUICKBOOKS_CLIENT_ID'] || 'YOUR_QUICKBOOKS_CLIENT_ID'
+          client_id = ENV["QUICKBOOKS_CLIENT_ID"] || "YOUR_QUICKBOOKS_CLIENT_ID"
           redirect_uri = "#{ENV['FRONTEND_URL']}/portal/accounting/callback/quickbooks"
 
           "https://appcenter.intuit.com/connect/oauth2?client_id=#{client_id}&redirect_uri=#{CGI.escape(redirect_uri)}&response_type=code&scope=com.intuit.quickbooks.accounting"
@@ -294,7 +294,7 @@ module Api
 
         def generate_reckon_oauth_url
           # TODO: Implement Reckon OAuth (similar to QuickBooks)
-          generate_quickbooks_oauth_url.gsub('quickbooks', 'reckon')
+          generate_quickbooks_oauth_url.gsub("quickbooks", "reckon")
         end
 
         # Token exchange methods (placeholders - actual implementation uses HTTP clients)
@@ -303,11 +303,11 @@ module Api
           # TODO: Implement actual Xero token exchange
           # Use HTTParty or similar to POST to Xero token endpoint
           {
-            access_token: 'placeholder_access_token',
-            refresh_token: 'placeholder_refresh_token',
+            access_token: "placeholder_access_token",
+            refresh_token: "placeholder_refresh_token",
             expires_at: 30.minutes.from_now,
-            organization_id: 'xero_org_id',
-            organization_name: 'Demo Organization',
+            organization_id: "xero_org_id",
+            organization_name: "Demo Organization",
             error: nil
           }
         end
@@ -315,11 +315,11 @@ module Api
         def exchange_myob_code(code)
           # TODO: Implement actual MYOB token exchange
           {
-            access_token: 'placeholder_access_token',
-            refresh_token: 'placeholder_refresh_token',
+            access_token: "placeholder_access_token",
+            refresh_token: "placeholder_refresh_token",
             expires_at: 20.minutes.from_now,
-            organization_id: 'myob_org_id',
-            organization_name: 'Demo Company',
+            organization_id: "myob_org_id",
+            organization_name: "Demo Company",
             error: nil
           }
         end
@@ -327,11 +327,11 @@ module Api
         def exchange_quickbooks_code(code)
           # TODO: Implement actual QuickBooks token exchange
           {
-            access_token: 'placeholder_access_token',
-            refresh_token: 'placeholder_refresh_token',
+            access_token: "placeholder_access_token",
+            refresh_token: "placeholder_refresh_token",
             expires_at: 1.hour.from_now,
-            organization_id: 'qb_realm_id',
-            organization_name: 'Demo Company',
+            organization_id: "qb_realm_id",
+            organization_name: "Demo Company",
             error: nil
           }
         end

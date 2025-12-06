@@ -12,7 +12,7 @@ class EstimateLineItem < ApplicationRecord
     parts = []
     parts << category if category.present?
     parts << item_description
-    parts.join(' - ')
+    parts.join(" - ")
   end
 
   def quantity_with_unit

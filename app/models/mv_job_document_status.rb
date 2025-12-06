@@ -1,8 +1,8 @@
 # Read-only model for mv_job_document_status materialized view
 # Shows document completeness and counts per job
 class MvJobDocumentStatus < ApplicationRecord
-  self.table_name = 'mv_job_document_status'
-  self.primary_key = 'job_id'
+  self.table_name = "mv_job_document_status"
+  self.primary_key = "job_id"
 
   # Read-only - prevent accidental writes
   def readonly?
@@ -13,32 +13,32 @@ class MvJobDocumentStatus < ApplicationRecord
   belongs_to :job, optional: true
 
   # Scopes by documentation status
-  scope :complete, -> { where(documentation_status: 'complete') }
-  scope :partial, -> { where(documentation_status: 'partial') }
-  scope :missing, -> { where(documentation_status: 'missing') }
+  scope :complete, -> { where(documentation_status: "complete") }
+  scope :partial, -> { where(documentation_status: "partial") }
+  scope :missing, -> { where(documentation_status: "missing") }
   scope :needs_attention, -> { where(documentation_status: %w[partial missing]) }
 
   # Scopes by job status
   scope :for_job_status, ->(status) { where(job_status: status) }
   scope :for_job_type, ->(type) { where(job_type: type) }
-  scope :with_pos, -> { where('po_count > 0') }
-  scope :with_invoices, -> { where('invoice_count > 0') }
-  scope :with_emails, -> { where('email_count > 0') }
+  scope :with_pos, -> { where("po_count > 0") }
+  scope :with_invoices, -> { where("invoice_count > 0") }
+  scope :with_emails, -> { where("email_count > 0") }
 
   # Summary statistics
   def self.status_summary
     group(:documentation_status)
-      .select('documentation_status, COUNT(*) as job_count')
+      .select("documentation_status, COUNT(*) as job_count")
       .order(:documentation_status)
   end
 
   def self.totals
     select(
-      'COUNT(*) as total_jobs',
-      'SUM(job_document_count) as total_documents',
-      'SUM(po_count) as total_pos',
-      'SUM(invoice_count) as total_invoices',
-      'SUM(email_count) as total_emails'
+      "COUNT(*) as total_jobs",
+      "SUM(job_document_count) as total_documents",
+      "SUM(po_count) as total_pos",
+      "SUM(invoice_count) as total_invoices",
+      "SUM(email_count) as total_emails"
     ).first
   end
 
@@ -56,7 +56,7 @@ class MvJobDocumentStatus < ApplicationRecord
   end
 
   def complete?
-    documentation_status == 'complete'
+    documentation_status == "complete"
   end
 
   # Class method to refresh the view (supports CONCURRENTLY due to unique index)

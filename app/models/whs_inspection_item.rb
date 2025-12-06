@@ -18,28 +18,28 @@ class WHSInspectionItem < ApplicationRecord
 
   # Scopes
   scope :ordered, -> { order(:position) }
-  scope :passed, -> { where(result: 'pass') }
-  scope :failed, -> { where(result: 'fail') }
-  scope :not_applicable, -> { where(result: 'na') }
-  scope :not_checked, -> { where(result: 'not_checked') }
+  scope :passed, -> { where(result: "pass") }
+  scope :failed, -> { where(result: "fail") }
+  scope :not_applicable, -> { where(result: "na") }
+  scope :not_checked, -> { where(result: "not_checked") }
   scope :by_category, ->(category) { where(category: category) }
   scope :requiring_action, -> { where(action_required: true) }
 
   # Helper methods
   def passed?
-    result == 'pass'
+    result == "pass"
   end
 
   def failed?
-    result == 'fail'
+    result == "fail"
   end
 
   def not_applicable?
-    result == 'na'
+    result == "na"
   end
 
   def checked?
-    result != 'not_checked'
+    result != "not_checked"
   end
 
   def has_photos?
@@ -53,14 +53,14 @@ class WHSInspectionItem < ApplicationRecord
   private
 
   def notes_required_when_flagged
-    if notes_required? && result == 'fail' && notes.blank?
-      errors.add(:notes, 'must be provided when item fails')
+    if notes_required? && result == "fail" && notes.blank?
+      errors.add(:notes, "must be provided when item fails")
     end
   end
 
   def photo_required_when_flagged
-    if photo_required? && result == 'fail' && !has_photos?
-      errors.add(:photo_urls, 'must be provided when item fails')
+    if photo_required? && result == "fail" && !has_photos?
+      errors.add(:photo_urls, "must be provided when item fails")
     end
   end
 

@@ -3,7 +3,7 @@
 module Api
   module V1
     class DocumentsController < ApplicationController
-      before_action :set_document, only: [:show, :update, :destroy]
+      before_action :set_document, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/documents
       # Returns documents with folder structure for the documents page
@@ -16,7 +16,7 @@ module Api
         documents = documents.by_folder(params[:folder]) if params[:folder].present?
 
         # Get unique folders
-        folders = CompanyDocument.where.not(folder: [nil, ''])
+        folders = CompanyDocument.where.not(folder: [ nil, "" ])
                                  .group(:folder)
                                  .pluck(:folder)
                                  .map.with_index do |folder_name, index|
@@ -61,7 +61,7 @@ module Api
       # DELETE /api/v1/documents/:id
       def destroy
         @document.destroy
-        render json: { success: true, message: 'Document deleted successfully' }
+        render json: { success: true, message: "Document deleted successfully" }
       end
 
       # POST /api/v1/documents/analyze
@@ -103,13 +103,13 @@ module Api
           id: doc.id,
           name: doc.file_name || doc.title,
           display_title: doc.display_title,
-          type: doc.mime_type || 'application/octet-stream',
+          type: doc.mime_type || "application/octet-stream",
           size: doc.file_size || 0,
           url: doc.sharepoint_url,
           job_title: nil, # CompanyDocuments aren't linked to jobs
           job_id: nil,
           uploaded_at: doc.created_at&.iso8601,
-          uploaded_by: doc.user&.name || 'Unknown',
+          uploaded_by: doc.user&.name || "Unknown",
           folder_path: doc.folder,
           document_type: doc.document_type_record ? {
             id: doc.document_type_record.id,
@@ -118,7 +118,7 @@ module Api
           } : nil,
           fiscal_year: doc.year&.to_s,
           company_name: doc.company&.name,
-          verified: doc.ai_verification_status == 'verified',
+          verified: doc.ai_verification_status == "verified",
           verified_at: doc.validated_at&.iso8601,
           verified_by: doc.user_validated_by&.name
         }

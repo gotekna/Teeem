@@ -73,7 +73,7 @@ class CreateWHSIncidents < ActiveRecord::Migration[8.0]
     end
 
     add_index :whs_incidents, :incident_number, unique: true
-    add_index :whs_incidents, [:construction_id, :status]
+    add_index :whs_incidents, [ :construction_id, :status ]
     add_index :whs_incidents, :status
     add_index :whs_incidents, :incident_category
     add_index :whs_incidents, :severity_level
