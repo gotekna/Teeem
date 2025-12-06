@@ -523,7 +523,17 @@ export default function ContactDetailPage() {
 
     setEnrichingFromWeb(true);
     try {
-      const response = await api.post<{ success: boolean; is_sole_trader?: boolean; company_created?: boolean; company_linked?: boolean; company_found_from_domain?: boolean; found_from_contact?: { name: string; email: string }; company?: { name: string }; website_details?: { phone?: string; abn?: string; acn?: string; address?: string } }>(`/api/v1/contacts/${contact.id}/enrich_from_web`);
+      const response = await api.post<{
+        success: boolean;
+        is_sole_trader?: boolean;
+        company_created?: boolean;
+        company_linked?: boolean;
+        company_found_from_domain?: boolean;
+        found_from_contact?: { name: string; email: string };
+        company?: { name: string };
+        website_details?: { phone?: string; abn?: string; acn?: string; address?: string };
+        error?: string;
+      }>(`/api/v1/contacts/${contact.id}/enrich_from_web`);
 
       if (response?.success) {
         const { is_sole_trader, company_created, company_linked, company_found_from_domain, found_from_contact, company, website_details } = response;
@@ -553,7 +563,7 @@ export default function ContactDetailPage() {
         alert(message);
         await loadContact(); // Reload contact to show updated details
       } else {
-        alert(`Failed: ${response.data.error}`);
+        alert(`Failed: ${response?.error || 'Unknown error'}`);
       }
     } catch (error: any) {
       console.error("Error enriching contact:", error);
