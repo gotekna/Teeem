@@ -307,12 +307,12 @@ export default function SystemHealthPage() {
                             <TableCell>{getSeverityBadge(issue.severity)}</TableCell>
                             <TableCell>
                               {issue.fix_url && (
-                                <Button variant="ghost" size="sm" asChild>
-                                  <Link href={issue.fix_url}>
+                                <Link href={issue.fix_url}>
+                                  <Button variant="ghost" size="sm">
                                     Fix
                                     <ExternalLink className="h-3 w-3 ml-1" />
-                                  </Link>
-                                </Button>
+                                  </Button>
+                                </Link>
                               )}
                             </TableCell>
                           </TableRow>
