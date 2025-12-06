@@ -370,7 +370,7 @@ interface EmailsPagination {
 }
 
 // Relationship types available for company relationships
-const COMPANY_RELATIONSHIP_TYPES = [
+const COMPANY_RELATIONSHIP_TYPES: Option[] = [
   { value: "employee_of", label: "Employee" },
   { value: "contractor_for", label: "Contractor" },
   { value: "director_of", label: "Director" },
@@ -378,7 +378,7 @@ const COMPANY_RELATIONSHIP_TYPES = [
   { value: "authorized_signatory_of", label: "Authorized Signatory" },
   { value: "beneficial_owner_of", label: "Beneficial Owner" },
   { value: "partner_in", label: "Partner" },
-] as const;
+];
 
 export default function ContactDetailPage() {
   const params = useParams();
@@ -1430,13 +1430,7 @@ export default function ContactDetailPage() {
                             value={selectedCompanies}
                             onChange={handleCompanyChange}
                             placeholder="Click to search companies..."
-                            defaultOptions={availableCompanies}
-                            onSearchSync={(search) => {
-                              if (!search) return availableCompanies;
-                              return availableCompanies.filter(company =>
-                                company.label.toLowerCase().includes(search.toLowerCase())
-                              );
-                            }}
+                            options={availableCompanies}
                             emptyIndicator={
                               <p className="text-center text-sm text-muted-foreground">
                                 {loadingCompanies ? "Loading companies..." : "No companies found"}
@@ -1445,7 +1439,6 @@ export default function ContactDetailPage() {
                             disabled={loadingCompanies}
                             className="w-full"
                             hidePlaceholderWhenSelected
-                            triggerSearchOnFocus
                           />
                           <p className="text-xs text-muted-foreground">Add companies this person is associated with. View and edit roles in the Overview tab.</p>
                         </div>
@@ -1461,13 +1454,7 @@ export default function ContactDetailPage() {
                             value={selectedEmployees}
                             onChange={handleEmployeeChange}
                             placeholder="Click to search employees..."
-                            defaultOptions={availablePeople}
-                            onSearchSync={(search) => {
-                              if (!search) return availablePeople;
-                              return availablePeople.filter(person =>
-                                person.label.toLowerCase().includes(search.toLowerCase())
-                              );
-                            }}
+                            options={availablePeople}
                             emptyIndicator={
                               <p className="text-center text-sm text-muted-foreground">
                                 {loadingPeople ? "Loading people..." : "No people found"}
@@ -1476,7 +1463,6 @@ export default function ContactDetailPage() {
                             disabled={loadingPeople}
                             className="w-full"
                             hidePlaceholderWhenSelected
-                            triggerSearchOnFocus
                           />
                           <p className="text-xs text-muted-foreground">Add people who work for this {formData.entity_type === 'trust' ? 'trust' : 'company'}. View and edit roles in the Overview tab.</p>
                         </div>

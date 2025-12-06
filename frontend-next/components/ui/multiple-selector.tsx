@@ -1,7 +1,7 @@
 "use client";
 
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
-import { X } from "lucide-react";
+import { X, Check } from "lucide-react";
 import * as React from "react";
 import { forwardRef, useEffect } from "react";
 
@@ -406,8 +406,8 @@ const MultipleSelector = React.forwardRef<
     }, [creatable, emptyIndicator, onSearch, options]);
 
     const selectables = React.useMemo<GroupOption>(
-      () => removePickedOption(options, selected),
-      [options, selected],
+      () => options, // Keep all options visible, even if selected
+      [options],
     );
 
     const commandFilter = React.useCallback(() => {
