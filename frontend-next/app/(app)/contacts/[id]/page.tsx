@@ -449,6 +449,9 @@ export default function ContactDetailPage() {
   const [selectedEmployees, setSelectedEmployees] = useState<Option[]>([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
 
+  // Track roles for each employee (employeeId -> roleTypes[])
+  const [employeeRoles, setEmployeeRoles] = useState<Record<string, string[]>>({});
+
   const activeTab = searchParams.get("tab") || "overview";
   const activeSubTab = searchParams.get("subtab") || "identity";
 
@@ -605,14 +608,43 @@ export default function ContactDetailPage() {
     if (contact?.employees) {
       const selected: Option[] = contact.employees.map((emp: any) => ({
         value: emp.id.toString(),
-        label: emp.name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || "Unknown Person",
+        label: emp.full_name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || "Unknown Person",
       }));
       console.log('[Employee useEffect] Setting selectedEmployees to:', selected);
       setSelectedEmployees(selected);
+
+      // Fetch roles for each employee by getting their relationships to this company
+      const fetchEmployeeRoles = async () => {
+        if (!contact?.id) return;
+        try {
+          const response = await api.get(`/api/v1/contacts/${contact.id}/relationships`) as any;
+          const incoming = response.relationships?.incoming || [];
+
+          // Group relationships by employee ID and collect role types
+          const rolesMap: Record<string, string[]> = {};
+          incoming.forEach((rel: any) => {
+            const employeeId = rel.source_contact_id.toString();
+            if (!rolesMap[employeeId]) {
+              rolesMap[employeeId] = [];
+            }
+            // Only include company-related roles
+            if (['employee_of', 'director_of', 'shareholder_of', 'contractor_for', 'partner_in',
+                 'authorized_signatory_of', 'beneficial_owner_of'].includes(rel.relationship_type)) {
+              rolesMap[employeeId].push(rel.relationship_type);
+            }
+          });
+
+          setEmployeeRoles(rolesMap);
+        } catch (err) {
+          console.error('Failed to fetch employee roles:', err);
+        }
+      };
+      fetchEmployeeRoles();
     } else {
       console.log('[Employee useEffect] No employees found on contact');
+      setEmployeeRoles({});
     }
-  }, [contact?.employees]);
+  }, [contact?.employees, contact?.id]);
 
   // SSoT: Auto-open edit modal when ?edit=true is in URL (e.g., from CG page)
   useEffect(() => {
@@ -1018,6 +1050,77 @@ export default function ContactDetailPage() {
     }
   };
 
+  // Handle removing an employee from the People list
+  const handleRemoveEmployee = async (employeeId: number) => {
+    if (!contact) return;
+
+    if (!confirm("Remove this person from the company?")) return;
+
+    try {
+      // Find and delete the employee_of relationship
+      const relationshipsResponse = await api.get(`/api/v1/contacts/${employeeId}/relationships`) as any;
+      const rel = relationshipsResponse.relationships.outgoing.find(
+        (r: any) => r.related_contact_id === contact.id && r.relationship_type === 'employee_of'
+      );
+
+      if (rel) {
+        await api.delete(`/api/v1/contacts/${employeeId}/relationships/${rel.id}`);
+        await loadContact();
+      }
+    } catch (err) {
+      console.error("Failed to remove employee:", err);
+      alert("Failed to remove employee");
+    }
+  };
+
+  // Handle updating roles for an employee
+  const handleEmployeeRolesChange = async (employeeId: number, newRoleTypes: string[]) => {
+    if (!contact) return;
+
+    try {
+      // Get current relationships for this employee to this company
+      const relationshipsResponse = await api.get(`/api/v1/contacts/${employeeId}/relationships`) as any;
+      const currentRels = relationshipsResponse.relationships.outgoing.filter(
+        (r: any) => r.related_contact_id === contact.id
+      );
+
+      const currentRoleTypes = currentRels.map((r: any) => r.relationship_type);
+
+      // Find roles to add
+      const rolesToAdd = newRoleTypes.filter(rt => !currentRoleTypes.includes(rt));
+
+      // Find roles to remove
+      const rolesToRemove = currentRoleTypes.filter(rt => !newRoleTypes.includes(rt));
+
+      // Add new roles
+      for (const roleType of rolesToAdd) {
+        await api.post(`/api/v1/contacts/${employeeId}/relationships`, {
+          contact_relationship: {
+            related_contact_id: contact.id,
+            relationship_type: roleType,
+            is_active: true,
+          },
+        });
+      }
+
+      // Remove old roles
+      for (const roleType of rolesToRemove) {
+        const rel = currentRels.find((r: any) => r.relationship_type === roleType);
+        if (rel) {
+          await api.delete(`/api/v1/contacts/${employeeId}/relationships/${rel.id}`);
+        }
+      }
+
+      // Update local state
+      const newEmployeeRoles = { ...employeeRoles };
+      newEmployeeRoles[employeeId.toString()] = newRoleTypes;
+      setEmployeeRoles(newEmployeeRoles);
+    } catch (err) {
+      console.error("Failed to update employee roles:", err);
+      alert("Failed to update employee roles");
+    }
+  };
+
   // Save contact changes
   const handleSave = async () => {
     if (!contact) return;
@@ -1392,34 +1495,79 @@ export default function ContactDetailPage() {
                         )}
                       </div>
                     )}
-                    {/* Linked Company - show for company/trust entity types */}
-                    {(formData.entity_type === 'company' || formData.entity_type === 'trust') && contact.linked_company && (
-                      <div className="space-y-2">
-                        <Label>Linked {formData.entity_type === 'trust' ? 'Trust' : 'Company'}</Label>
-                        <div className="flex items-center gap-2 p-3 rounded-md border bg-muted/30">
-                          <Building2 className="h-4 w-4 text-muted-foreground" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{contact.linked_company.name}</p>
-                            {(contact.linked_company.acn || contact.linked_company.abn) && (
-                              <p className="text-xs text-muted-foreground truncate">
-                                {contact.linked_company.acn && `ACN: ${contact.linked_company.acn}`}
-                                {contact.linked_company.acn && contact.linked_company.abn && ' • '}
-                                {contact.linked_company.abn && `ABN: ${contact.linked_company.abn}`}
-                              </p>
-                            )}
-                          </div>
-                          <Link href={`/corporate/companies/${contact.linked_company.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    )}
+                    {/* Linked Company - removed for companies (redundant to show company its own details) */}
                     {/* Employee multi-select - show for company/trust entity types */}
                     {(formData.entity_type === 'company' || formData.entity_type === 'trust') && (
                       <div className="space-y-2">
                         <Label>Employees</Label>
+                        {/* Display first 3 employees as badges, rest in dropdown */}
+                        {selectedEmployees.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-2 p-2 rounded-md border bg-muted/30">
+                            {selectedEmployees.slice(0, 3).map((employee) => {
+                              const roles = employeeRoles[employee.value] || [];
+                              const roleLabels = roles
+                                .map(roleType => COMPANY_RELATIONSHIP_TYPES.find(r => r.value === roleType)?.label)
+                                .filter(Boolean)
+                                .join(', ');
+
+                              return (
+                                <Badge key={employee.value} variant="secondary" className="gap-1 flex items-center">
+                                  <span className="flex items-center gap-1">
+                                    {employee.label}
+                                    {roleLabels && (
+                                      <span className="text-xs opacity-70">({roleLabels})</span>
+                                    )}
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      const newSelected = selectedEmployees.filter(e => e.value !== employee.value);
+                                      handleEmployeeChange(newSelected);
+                                    }}
+                                    className="ml-1 hover:bg-destructive/20 rounded-sm"
+                                  >
+                                    ×
+                                  </button>
+                                </Badge>
+                              );
+                            })}
+                            {selectedEmployees.length > 3 && (
+                              <details className="relative">
+                                <summary className="cursor-pointer list-none">
+                                  <Badge variant="outline">+{selectedEmployees.length - 3} more</Badge>
+                                </summary>
+                                <div className="absolute top-full left-0 mt-1 z-10 min-w-[200px] rounded-md border bg-popover p-2 shadow-md space-y-1">
+                                  {selectedEmployees.slice(3).map((employee) => {
+                                    const roles = employeeRoles[employee.value] || [];
+                                    const roleLabels = roles
+                                      .map(roleType => COMPANY_RELATIONSHIP_TYPES.find(r => r.value === roleType)?.label)
+                                      .filter(Boolean)
+                                      .join(', ');
+
+                                    return (
+                                      <div key={employee.value} className="flex items-center justify-between p-2 rounded hover:bg-accent">
+                                        <div className="flex-1 min-w-0">
+                                          <span className="text-sm font-medium">{employee.label}</span>
+                                          {roleLabels && (
+                                            <span className="text-xs text-muted-foreground ml-2">({roleLabels})</span>
+                                          )}
+                                        </div>
+                                        <button
+                                          onClick={() => {
+                                            const newSelected = selectedEmployees.filter(e => e.value !== employee.value);
+                                            handleEmployeeChange(newSelected);
+                                          }}
+                                          className="text-destructive hover:bg-destructive/20 rounded-sm px-1"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </details>
+                            )}
+                          </div>
+                        )}
                         <MultipleSelector
                           value={selectedEmployees}
                           onChange={handleEmployeeChange}
@@ -1805,13 +1953,19 @@ export default function ContactDetailPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {contact.employees.map((employee) => (
-                        <div key={employee.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      {contact.employees.map((employee) => {
+                        const roles = employeeRoles[employee.id.toString()] || [];
+                        const roleOptions = roles.map(roleType => ({
+                          value: roleType,
+                          label: COMPANY_RELATIONSHIP_TYPES.find(r => r.value === roleType)?.label || roleType,
+                        }));
+
+                        return (
+                          <div key={employee.id} className="flex items-start gap-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                               <User className="h-5 w-5 text-primary" />
                             </div>
-                            <div>
+                            <div className="flex-1 min-w-0">
                               <Link href={`/contacts/${employee.id}`} className="text-sm font-medium hover:underline">
                                 {employee.full_name}
                               </Link>
@@ -1829,20 +1983,45 @@ export default function ContactDetailPage() {
                                   </span>
                                 )}
                               </div>
-                              {employee.primary_role && (
-                                <Badge variant="outline" className="mt-1 text-xs">
-                                  {employee.primary_role}
-                                </Badge>
-                              )}
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className="text-xs font-medium text-muted-foreground">Role:</span>
+                                <MultipleSelector
+                                  value={roleOptions}
+                                  onChange={(selectedRoles) => {
+                                    const roleTypes = selectedRoles.map(r => r.value);
+                                    handleEmployeeRolesChange(employee.id, roleTypes);
+                                  }}
+                                  placeholder="Select roles..."
+                                  options={COMPANY_RELATIONSHIP_TYPES}
+                                  className="flex-1 max-w-md"
+                                  badgeClassName="text-xs"
+                                  hidePlaceholderWhenSelected
+                                  emptyIndicator={
+                                    <p className="text-center text-xs text-muted-foreground">
+                                      No role types available
+                                    </p>
+                                  }
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveEmployee(employee.id)}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Link href={`/contacts/${employee.id}`}>
+                                <Button variant="ghost" size="sm">
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              </Link>
                             </div>
                           </div>
-                          <Link href={`/contacts/${employee.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>

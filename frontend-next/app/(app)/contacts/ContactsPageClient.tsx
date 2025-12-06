@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useSetAtom } from "jotai";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
+import { clearSelectionAtom } from "@/lib/table-atoms";
 
 interface Contact {
   id: number;
@@ -125,6 +127,13 @@ export default function ContactsPageClient({
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
+
+  // Clear table selection when tab changes
+  const clearSelection = useSetAtom(clearSelectionAtom);
+  const handleTabChange = useCallback((newTab: string) => {
+    clearSelection(); // Clear selection when switching tabs
+    setActiveTab(newTab);
+  }, [clearSelection]);
 
   // Refresh function to reload data
   const refresh = useCallback(async () => {
@@ -342,7 +351,7 @@ export default function ContactsPageClient({
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="persons">Persons</TabsTrigger>

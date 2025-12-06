@@ -920,8 +920,8 @@ export default function TeeemTableView({
         setSelectedRows(new Set(filteredAndSortedEntries.map((e) => e.id)));
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally watching selectedRows.size only, other deps accessed directly
-  }, [selectedRows.size, groupedEntries, collapsedGroups]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally watching selectedRows.size only, groupedEntries/collapsedGroups accessed directly
+  }, [selectedRows.size]);
 
   // Merge handler - opens the shared merge modal
   const handleMergeClick = useCallback((ids: (number | string)[]) => {

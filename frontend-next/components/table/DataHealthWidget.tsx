@@ -353,7 +353,7 @@ export function DataHealthWidget({
                             </div>
                           ))}
                           {check.count > check.items.length && (
-                            <div className="px-4 py-2 text-center text-xs text-muted-foreground">
+                            <div key="more-items" className="px-4 py-2 text-center text-xs text-muted-foreground">
                               + {check.count - check.items.length} more items
                             </div>
                           )}

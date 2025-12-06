@@ -112,7 +112,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
 
     // Fetch records
     const recordsRes = await fetch(
-      `${API_BASE_URL}/api/v1/foundations/${foundation.id}/records?per_page=500`,
+      `${API_BASE_URL}/api/v1/foundations/${foundation.id}/records?per_page=2000`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
