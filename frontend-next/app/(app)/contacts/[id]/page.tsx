@@ -967,13 +967,22 @@ export default function ContactDetailPage() {
     try {
       // Create relationships FROM person TO company for added employees
       for (const personId of addedIds) {
-        await api.post(`/api/v1/contacts/${personId}/relationships`, {
-          contact_relationship: {
-            related_contact_id: contact.id,
-            relationship_type: 'employee_of',
-            is_active: true,
-          },
-        });
+        try {
+          await api.post(`/api/v1/contacts/${personId}/relationships`, {
+            contact_relationship: {
+              related_contact_id: contact.id,
+              relationship_type: 'employee_of',
+              is_active: true,
+            },
+          });
+        } catch (err: any) {
+          // Skip if relationship already exists
+          if (err?.response?.data?.error?.includes('already exists')) {
+            console.log(`Skipping duplicate relationship for person ${personId}`);
+            continue;
+          }
+          throw err; // Re-throw if it's a different error
+        }
       }
 
       // Delete relationships for removed employees
