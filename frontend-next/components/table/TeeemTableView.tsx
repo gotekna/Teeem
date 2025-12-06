@@ -1646,10 +1646,15 @@ export default function TeeemTableView({
 
   // Drag-to-select handlers
   const handleMouseDown = useCallback((rowId: number | string, rowIndex: number, e: React.MouseEvent) => {
+    // Only enable drag-to-select when holding Shift key
+    if (!e.shiftKey) return;
+
     // Only start drag selection on the select column
     const target = e.target as HTMLElement;
     const isSelectColumn = target.closest('[data-column="select"]');
     if (!isSelectColumn) return;
+
+    e.preventDefault(); // Prevent text selection while dragging
 
     // Store initial position and row info, but don't start dragging yet
     dragStartPosRef.current = { x: e.clientX, y: e.clientY };
@@ -1658,7 +1663,7 @@ export default function TeeemTableView({
   }, []);
 
   const handleMouseMove = useCallback((rowId: number | string, rowIndex: number, e: React.MouseEvent) => {
-    // Check if we should start dragging based on movement threshold
+    // Only track movement if we started with Shift held
     if (!dragStartPosRef.current || isDragging) return;
 
     const deltaX = Math.abs(e.clientX - dragStartPosRef.current.x);
@@ -1690,7 +1695,7 @@ export default function TeeemTableView({
   }, [isDragging, filteredAndSortedEntries, selectedRows, setSelectedRows]);
 
   const handleMouseUp = useCallback(() => {
-    // If we never started dragging (just a click), toggle the row
+    // If we never started dragging (just a Shift+click), toggle the row
     if (!isDragging && dragStartIndexRef.current !== null && dragStartId !== null) {
       const newSelection = new Set(selectedRows);
       if (newSelection.has(dragStartId)) {
