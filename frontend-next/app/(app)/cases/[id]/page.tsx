@@ -2148,11 +2148,11 @@ export default function CaseDetailPage() {
                               </span>
                             </div>
                           </div>
-                          {action.status === "completed" && action.results && (
+                          {action.status === "completed" && action.results ? (
                             <Button variant="outline" size="sm">
                               View Results
                             </Button>
-                          )}
+                          ) : null}
                         </div>
                         {action.error_message && (
                           <div className="mt-2 p-2 bg-red-50 text-red-700 text-sm rounded">
