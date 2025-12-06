@@ -884,9 +884,9 @@ class EmailToContactExtractionService
     # Example: "SVP" matches "SV Partners", "ABC" matches "ABC Construction" or "Australian Building Co"
     if matches.empty? && suggested_name.length <= 5 && suggested_name.match?(/^[A-Z]+$/)
       # Try matching as a word boundary (e.g., "SVP" matches "SV Partners", "SVP Group")
-      # Use word boundary regex to match "SVP" in "SVP Group" or "SV" in "SV Partners"
+      # Use PostgreSQL regex with ~* (case-insensitive) and \y for word boundaries
       abbreviation_matches = Company.joins(:contact)
-                                    .where("contacts.full_name REGEXP ?", "\\b#{suggested_name}\\b")
+                                    .where("contacts.full_name ~* ?", "\\y#{suggested_name}\\y")
                                     .order("LENGTH(contacts.full_name)")
                                     .limit(10)
 
@@ -895,7 +895,7 @@ class EmailToContactExtractionService
         # Build regex pattern: "SVP" -> match names where words start with S, V, P
         # This is complex, so let's try a simpler approach: match names containing the abbreviation
         word_match = Company.joins(:contact)
-                           .where("contacts.full_name LIKE ?", "%#{suggested_name}%")
+                           .where("contacts.full_name ILIKE ?", "%#{suggested_name}%")
                            .order("LENGTH(contacts.full_name)")
                            .limit(10)
 

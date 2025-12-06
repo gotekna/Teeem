@@ -720,9 +720,26 @@ export default function ContactDetailPage() {
       setContact(response.contact);
     } catch (err) {
       console.error("Failed to load contact:", err);
-      setError("Failed to load contact");
+      // Auto-redirect to contacts list if contact not found
+      router.push('/contacts');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!contact) return;
+
+    if (!confirm(`Delete contact "${contact.full_name || contact.name}"?`)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/api/v1/foundations/contacts/records/${contact.id}`);
+      router.push('/contacts');
+    } catch (error) {
+      console.error("Failed to delete contact:", error);
+      alert("Failed to delete contact. Please try again.");
     }
   };
 
@@ -1380,7 +1397,7 @@ export default function ContactDetailPage() {
               </>
             )}
           </Button>
-          <Button variant="destructive">
+          <Button variant="destructive" onClick={handleDelete}>
             <Trash2 className="h-4 w-4 mr-2" />
             Delete
           </Button>

@@ -663,6 +663,8 @@ export default function TeeemTableView({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartId, setDragStartId] = useState<number | string | null>(null);
   const dragStartIndexRef = useRef<number | null>(null);
+  const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const DRAG_THRESHOLD = 5; // pixels - must move this far to start dragging
 
   // Global Views Manager state managed by atom (SSoT)
   const [showGlobalViewsManager, setShowGlobalViewsManager] = useAtom(showGlobalViewsManagerAtom);
@@ -1649,20 +1651,24 @@ export default function TeeemTableView({
     const isSelectColumn = target.closest('[data-column="select"]');
     if (!isSelectColumn) return;
 
-    e.preventDefault();
-    setIsDragging(true);
+    // Store initial position and row info, but don't start dragging yet
+    dragStartPosRef.current = { x: e.clientX, y: e.clientY };
     setDragStartId(rowId);
     dragStartIndexRef.current = rowIndex;
+  }, []);
 
-    // Toggle the clicked row
-    const newSelection = new Set(selectedRows);
-    if (newSelection.has(rowId)) {
-      newSelection.delete(rowId);
-    } else {
-      newSelection.add(rowId);
+  const handleMouseMove = useCallback((rowId: number | string, rowIndex: number, e: React.MouseEvent) => {
+    // Check if we should start dragging based on movement threshold
+    if (!dragStartPosRef.current || isDragging) return;
+
+    const deltaX = Math.abs(e.clientX - dragStartPosRef.current.x);
+    const deltaY = Math.abs(e.clientY - dragStartPosRef.current.y);
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    if (distance > DRAG_THRESHOLD) {
+      setIsDragging(true);
     }
-    setSelectedRows(newSelection);
-  }, [selectedRows, setSelectedRows]);
+  }, [isDragging, DRAG_THRESHOLD]);
 
   const handleMouseEnter = useCallback((rowId: number | string, rowIndex: number) => {
     if (!isDragging || dragStartIndexRef.current === null) return;
@@ -1684,18 +1690,31 @@ export default function TeeemTableView({
   }, [isDragging, filteredAndSortedEntries, selectedRows, setSelectedRows]);
 
   const handleMouseUp = useCallback(() => {
+    // If we never started dragging (just a click), toggle the row
+    if (!isDragging && dragStartIndexRef.current !== null && dragStartId !== null) {
+      const newSelection = new Set(selectedRows);
+      if (newSelection.has(dragStartId)) {
+        newSelection.delete(dragStartId);
+      } else {
+        newSelection.add(dragStartId);
+      }
+      setSelectedRows(newSelection);
+    }
+
+    // Reset drag state
     setIsDragging(false);
     setDragStartId(null);
     dragStartIndexRef.current = null;
-  }, []);
+    dragStartPosRef.current = null;
+  }, [isDragging, dragStartId, selectedRows, setSelectedRows]);
 
   // Add global mouseup listener to end drag selection
   useEffect(() => {
-    if (isDragging) {
+    if (dragStartPosRef.current) {
       document.addEventListener('mouseup', handleMouseUp);
       return () => document.removeEventListener('mouseup', handleMouseUp);
     }
-  }, [isDragging, handleMouseUp]);
+  }, [dragStartPosRef.current, handleMouseUp]);
 
   // Helper to extract display value from a cell (handles objects with display/name properties)
   const getDisplayValue = useCallback((value: unknown): string => {
@@ -2458,6 +2477,7 @@ export default function TeeemTableView({
                       onClick={() => onRowClick?.(row)}
                       onDoubleClick={() => onRowDoubleClick?.(row)}
                       onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
+                      onMouseMove={(e) => handleMouseMove(row.id, globalIndex, e)}
                       onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
                     >
                       {visibleColumnsInOrder.map((column, colIndex) => {
@@ -2559,6 +2579,7 @@ export default function TeeemTableView({
         onClick={() => onRowClick?.(row)}
         onDoubleClick={() => onRowDoubleClick?.(row)}
         onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
+        onMouseMove={(e) => handleMouseMove(row.id, globalIndex, e)}
         onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
       >
         {visibleColumnsInOrder.map((column, colIndex) => {
@@ -2662,6 +2683,7 @@ export default function TeeemTableView({
                 onClick={() => onRowClick?.(row)}
                 onDoubleClick={() => onRowDoubleClick?.(row)}
                 onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
+                onMouseMove={(e) => handleMouseMove(row.id, globalIndex, e)}
                 onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -2890,6 +2912,7 @@ export default function TeeemTableView({
                     !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
                   }
                   onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
+                  onMouseMove={(e) => handleMouseMove(row.id, globalIndex, e)}
                   onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
                 >
                   {visibleColumnsInOrder.map((column, colIndex) => {
