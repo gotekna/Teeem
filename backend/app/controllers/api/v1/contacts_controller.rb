@@ -2281,6 +2281,36 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # GET /api/v1/contacts/missing_contact_info
+      # Health check: Find contacts (excluding price_only) without mobile or email
+      def missing_contact_info
+        begin
+          # Exclude price_only - they're just pricebook placeholders
+          violations = Contact.where.not(entity_type: 'price_only')
+            .where("(mobile_phone IS NULL OR mobile_phone = '') AND (email IS NULL OR email = '')")
+            .select(:id, :full_name, :entity_type, :mobile_phone, :email, :is_active)
+
+          render json: {
+            success: true,
+            total_count: violations.count,
+            items: violations.map { |c|
+              {
+                id: c.id,
+                full_name: c.full_name,
+                entity_type: c.entity_type,
+                mobile_phone: c.mobile_phone,
+                email: c.email,
+                is_active: c.is_active,
+                issue: "Contact has no mobile phone or email - at least one contact method is required"
+              }
+            }
+          }
+        rescue => e
+          Rails.logger.error("Missing contact info check error: #{e.message}")
+          render json: { success: false, error: e.message }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/contacts/:id/case_relationships
       # Returns all cases this contact has been involved in with relationship details
       def case_relationships

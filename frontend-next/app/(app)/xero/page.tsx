@@ -203,7 +203,7 @@ export default function XeroPage() {
 
   const filteredInvoices = allTransactions.filter((invoice) => {
     const matchesSearch =
-      invoice.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (invoice.invoice_number || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (invoice.contact_name || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType =
       invoiceType === "all" ||
