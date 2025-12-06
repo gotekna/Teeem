@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_06_041737) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1157,6 +1157,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_041737) do
     t.string "state"
     t.string "postcode"
     t.text "xero_contact_types", default: [], array: true
+    t.string "middle_name"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
