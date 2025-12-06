@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
+// api imported for future use
 import {
   Briefcase,
   FileText,
@@ -79,7 +79,7 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight font-serif">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Welcome back, {user?.name || "User"}. Here's what's happening today.
+          Welcome back, {user?.name || "User"}. Here&apos;s what&apos;s happening today.
         </p>
       </div>
 

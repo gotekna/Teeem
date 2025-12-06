@@ -408,7 +408,7 @@ function XeroFieldMapping() {
       });
 
       toast({ title: "Success", description: "Validation rules updated" });
-    } catch (error) {
+    } catch {
       toast({ title: "Error", description: "Failed to update rules", variant: "destructive" });
     }
   };

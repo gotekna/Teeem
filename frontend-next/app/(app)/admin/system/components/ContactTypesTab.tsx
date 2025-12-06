@@ -230,7 +230,7 @@ export function ContactTypesTab() {
             {contactTypes.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  No contact types found. Click "Add Type" to create one.
+                  No contact types found. Click &quot;Add Type&quot; to create one.
                 </TableCell>
               </TableRow>
             ) : (

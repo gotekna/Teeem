@@ -239,6 +239,7 @@ export default function UsersPage() {
           <TeeemTableView
             category="users"
             foundationId="users"
+            foundationIdNumeric={212}
             tableName="Users"
             entries={users}
             columns={USER_COLUMNS}

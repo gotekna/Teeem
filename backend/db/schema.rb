@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_06_202315) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -231,6 +231,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["company_id", "transaction_date"], name: "index_bank_transactions_on_company_id_and_transaction_date"
     t.index ["company_id"], name: "index_bank_transactions_on_company_id"
     t.index ["status"], name: "index_bank_transactions_on_status"
+    t.index ["xero_contact_id"], name: "index_bank_transactions_on_xero_contact_id"
     t.index ["xero_transaction_id"], name: "index_bank_transactions_on_xero_transaction_id", unique: true
   end
 
@@ -244,6 +245,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.integer "template_id"
     t.text "console_output"
     t.index ["created_at"], name: "index_bug_hunter_test_runs_on_created_at"
+    t.index ["template_id"], name: "index_bug_hunter_test_runs_on_template_id"
     t.index ["test_id"], name: "index_bug_hunter_test_runs_on_test_id"
   end
 
@@ -459,6 +461,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["contact_id"], name: "index_cases_on_contact_id"
     t.index ["created_by_id"], name: "index_cases_on_created_by_id"
     t.index ["deadline"], name: "index_cases_on_deadline"
+    t.index ["onedrive_folder_id"], name: "index_cases_on_onedrive_folder_id"
     t.index ["parent_case_id", "status"], name: "index_cases_on_parent_and_status"
     t.index ["parent_case_id"], name: "index_cases_on_parent_case_id"
     t.index ["priority"], name: "index_cases_on_priority"
@@ -477,12 +480,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.boolean "saved_to_job", default: false
     t.bigint "contact_id"
     t.bigint "case_id"
+    t.index ["case_id"], name: "index_chat_messages_on_case_id"
     t.index ["channel", "created_at"], name: "index_chat_messages_on_channel_and_created_at"
+    t.index ["contact_id"], name: "index_chat_messages_on_contact_id"
     t.index ["created_at"], name: "index_chat_messages_on_created_at"
     t.index ["job_id", "channel", "created_at"], name: "index_chat_messages_on_construction_channel_created"
     t.index ["job_id"], name: "index_chat_messages_on_job_id"
     t.index ["project_id", "created_at"], name: "index_chat_messages_on_project_id_and_created_at"
     t.index ["project_id"], name: "index_chat_messages_on_project_id"
+    t.index ["recipient_user_id"], name: "index_chat_messages_on_recipient_user_id"
     t.index ["user_id"], name: "index_chat_messages_on_user_id"
   end
 
@@ -620,6 +626,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["consolidation_parent_id"], name: "index_companies_on_consolidation_parent_id"
     t.index ["contact_id"], name: "index_companies_on_contact_id"
     t.index ["name"], name: "index_companies_on_name"
+    t.index ["onedrive_folder_id"], name: "index_companies_on_onedrive_folder_id"
     t.index ["parent_company_id"], name: "index_companies_on_parent_company_id"
     t.index ["review_date"], name: "index_companies_on_review_date"
     t.index ["slug"], name: "index_companies_on_slug", unique: true
@@ -753,6 +760,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["onedrive_file_id"], name: "index_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
     t.index ["source"], name: "index_company_documents_on_source"
     t.index ["storage_type"], name: "index_company_documents_on_storage_type"
+    t.index ["user_validated_by_id"], name: "index_company_documents_on_user_validated_by_id"
   end
 
   create_table "company_groups", force: :cascade do |t|
@@ -1040,7 +1048,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.date "end_date"
     t.boolean "is_active", default: true
     t.jsonb "metadata", default: {}
+    t.integer "display_order", default: 0
     t.index ["is_active"], name: "index_contact_relationships_on_is_active"
+    t.index ["related_contact_id", "display_order"], name: "index_contact_relationships_on_company_and_order"
     t.index ["related_contact_id"], name: "index_contact_relationships_on_related_contact_id"
     t.index ["relationship_type"], name: "index_contact_relationships_on_relationship_type"
     t.index ["source_contact_id", "related_contact_id"], name: "index_contact_relationships_on_source_and_related", unique: true
@@ -1160,13 +1170,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.string "middle_name"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
+    t.index ["contact_region_id"], name: "index_contacts_on_contact_region_id"
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
+    t.index ["linked_company_id"], name: "index_contacts_on_linked_company_id"
+    t.index ["parent_id"], name: "index_contacts_on_parent_id"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
     t.index ["rating"], name: "index_contacts_on_rating"
     t.index ["supplier_code"], name: "index_contacts_on_supplier_code", unique: true, where: "(supplier_code IS NOT NULL)"
+    t.index ["sys_type_id"], name: "index_contacts_on_sys_type_id"
     t.index ["teeem_rating"], name: "index_contacts_on_teeem_rating"
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
     t.index ["xero_contact_status"], name: "index_contacts_on_xero_contact_status"
@@ -1249,6 +1263,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["access_token"], name: "index_director_onboarding_requests_on_access_token", unique: true
     t.index ["company_id"], name: "index_director_onboarding_requests_on_company_id"
     t.index ["contact_id"], name: "index_director_onboarding_requests_on_contact_id"
+    t.index ["director_id"], name: "index_director_onboarding_requests_on_director_id"
     t.index ["email"], name: "index_director_onboarding_requests_on_email"
     t.index ["invited_by_id"], name: "index_director_onboarding_requests_on_invited_by_id"
     t.index ["reviewed_by_id"], name: "index_director_onboarding_requests_on_reviewed_by_id"
@@ -1324,6 +1339,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["case_id"], name: "index_document_duplicate_reviews_on_case_id"
     t.index ["existing_document_id"], name: "index_document_duplicate_reviews_on_existing_document_id"
     t.index ["new_document_id"], name: "index_document_duplicate_reviews_on_new_document_id"
+    t.index ["resolved_by_id"], name: "index_document_duplicate_reviews_on_resolved_by_id"
   end
 
   create_table "document_tasks", force: :cascade do |t|
@@ -1532,6 +1548,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["synced_by_user_id"], name: "index_email_warehouse_on_synced_by_user_id"
     t.index ["to_emails"], name: "index_email_warehouse_on_to_emails", using: :gin
     t.index ["user_classification"], name: "index_email_warehouse_on_user_classification"
+    t.index ["user_classification_by_id"], name: "index_email_warehouse_on_user_classification_by_id"
   end
 
   create_table "emails", force: :cascade do |t|
@@ -1898,6 +1915,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.string "bank_account", limit: 9
     t.string "postcode", limit: 4
     t.string "tfn", limit: 11
+    t.index ["user_id"], name: "index_gold_standard_table_on_user_id"
   end
 
   create_table "grok_plans", force: :cascade do |t|
@@ -2055,6 +2073,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["invoice_number"], name: "index_job_claims_on_invoice_number"
     t.index ["job_id"], name: "index_job_claims_on_job_id"
     t.index ["status"], name: "index_job_claims_on_status"
+    t.index ["xero_contact_id"], name: "index_job_claims_on_xero_contact_id"
     t.index ["xero_invoice_id"], name: "index_job_claims_on_xero_invoice_id", unique: true
   end
 
@@ -2127,9 +2146,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["job_id", "file_type"], name: "index_job_documents_on_job_id_and_file_type"
     t.index ["job_id", "folder_path"], name: "index_job_documents_on_job_id_and_folder_path"
     t.index ["job_id"], name: "index_job_documents_on_job_id"
+    t.index ["onedrive_drive_id"], name: "index_job_documents_on_onedrive_drive_id"
     t.index ["onedrive_item_id"], name: "index_job_documents_on_onedrive_item_id", unique: true
+    t.index ["rename_approved_by_id"], name: "index_job_documents_on_rename_approved_by_id"
     t.index ["rename_status"], name: "index_job_documents_on_rename_status"
     t.index ["sync_status"], name: "index_job_documents_on_sync_status"
+    t.index ["version_id"], name: "index_job_documents_on_version_id"
   end
 
   create_table "job_people", force: :cascade do |t|
@@ -2240,6 +2262,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.bigint "archived_by_id"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
+    t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
     t.index ["created_at"], name: "index_jobs_on_created_at"
     t.index ["design_id"], name: "index_jobs_on_design_id"
     t.index ["design_name"], name: "index_jobs_on_design_name"
@@ -2247,6 +2270,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["onedrive_folder_creation_status"], name: "index_jobs_on_onedrive_folder_creation_status"
+    t.index ["xero_tracking_option_id"], name: "index_jobs_on_xero_tracking_option_id"
   end
 
   create_table "known_parties", force: :cascade do |t|
@@ -2313,6 +2337,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.integer "contract_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["contract_id"], name: "index_leads_on_contract_id"
     t.index ["job_id"], name: "index_leads_on_job_id"
     t.index ["lead_number"], name: "index_leads_on_lead_number", unique: true
     t.index ["status"], name: "index_leads_on_status"
@@ -2499,6 +2524,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.datetime "updated_at", null: false
     t.index ["drive_id"], name: "index_one_drive_credentials_on_drive_id"
     t.index ["job_id"], name: "index_one_drive_credentials_on_job_id", unique: true
+    t.index ["root_folder_id"], name: "index_one_drive_credentials_on_root_folder_id"
     t.index ["token_expires_at"], name: "index_one_drive_credentials_on_token_expires_at"
   end
 
@@ -2519,6 +2545,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.datetime "created_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.index ["is_active"], name: "index_org_microsoft_app_credentials_on_is_active", unique: true, where: "(is_active = true)"
+    t.index ["setup_by_id"], name: "index_organization_microsoft_app_credentials_on_setup_by_id"
     t.index ["tenant_id"], name: "index_org_microsoft_app_credentials_on_tenant_id"
   end
 
@@ -2537,7 +2564,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["connected_by_id"], name: "index_organization_one_drive_credentials_on_connected_by_id"
+    t.index ["drive_id"], name: "index_organization_one_drive_credentials_on_drive_id"
     t.index ["is_active"], name: "index_organization_one_drive_credentials_on_is_active", unique: true, where: "(is_active = true)"
+    t.index ["root_folder_id"], name: "index_organization_one_drive_credentials_on_root_folder_id"
     t.index ["token_expires_at"], name: "index_organization_one_drive_credentials_on_token_expires_at"
   end
 
@@ -2684,6 +2713,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.string "lga"
     t.date "date_effective"
     t.string "user_name"
+    t.index ["changed_by_user_id"], name: "index_price_histories_on_changed_by_user_id"
     t.index ["created_at"], name: "index_price_histories_on_created_at"
     t.index ["pricebook_item_id", "supplier_id", "new_price", "created_at"], name: "index_price_histories_on_unique_combination", unique: true, comment: "Prevents duplicate price history entries from race conditions"
     t.index ["pricebook_item_id"], name: "index_price_histories_on_pricebook_item_id"
@@ -2727,11 +2757,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["category_id"], name: "index_pricebook_on_category_id"
     t.index ["default_supplier_id"], name: "index_pricebook_on_default_supplier_id"
     t.index ["image_fetch_status"], name: "index_pricebook_on_image_fetch_status"
+    t.index ["image_file_id"], name: "index_pricebook_on_image_file_id"
     t.index ["is_active"], name: "index_pricebook_on_is_active"
     t.index ["item_code"], name: "index_pricebook_on_item_code", unique: true
     t.index ["needs_pricing_review"], name: "index_pricebook_on_needs_pricing_review"
     t.index ["price_last_updated_at"], name: "index_pricebook_on_price_last_updated_at"
+    t.index ["qr_code_file_id"], name: "index_pricebook_on_qr_code_file_id"
     t.index ["searchable_text"], name: "idx_pricebook_search", using: :gin
+    t.index ["spec_file_id"], name: "index_pricebook_on_spec_file_id"
     t.index ["supplier_id"], name: "index_pricebook_on_supplier_id"
   end
 
@@ -2940,8 +2973,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.datetime "arrived_at"
     t.datetime "completed_at"
     t.string "xero_invoice_number"
+    t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["completed_at"], name: "index_purchase_orders_on_completed_at"
+    t.index ["created_by_id"], name: "index_purchase_orders_on_created_by_id"
     t.index ["creates_schedule_tasks"], name: "index_purchase_orders_on_creates_schedule_tasks"
     t.index ["estimate_id"], name: "index_purchase_orders_on_estimate_id"
     t.index ["job_id", "status"], name: "index_purchase_orders_on_construction_and_status"
@@ -2955,6 +2990,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["status"], name: "index_purchase_orders_on_status"
     t.index ["supplier_id"], name: "index_purchase_orders_on_supplier_id"
     t.index ["visible_to_supplier"], name: "index_purchase_orders_on_visible_to_supplier"
+    t.index ["xero_invoice_id"], name: "index_purchase_orders_on_xero_invoice_id"
   end
 
   create_table "quote_request_contacts", force: :cascade do |t|
@@ -3186,6 +3222,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.jsonb "broken_predecessor_ids", default: [], null: false
     t.index ["assigned_user_id"], name: "index_schedule_template_rows_on_assigned_user_id"
     t.index ["documentation_category_ids"], name: "index_schedule_template_rows_on_documentation_category_ids", using: :gin
+    t.index ["linked_template_id"], name: "index_schedule_template_rows_on_linked_template_id"
     t.index ["schedule_template_id", "sequence_order"], name: "idx_on_schedule_template_id_sequence_order_1bea5d762b"
     t.index ["schedule_template_id"], name: "index_schedule_template_rows_on_schedule_template_id"
     t.index ["sequence_order"], name: "index_schedule_template_rows_on_sequence_order"
@@ -3360,6 +3397,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.bigint "default_template_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["default_template_id"], name: "index_sm_settings_on_default_template_id"
   end
 
   create_table "sm_spawn_logs", force: :cascade do |t|
@@ -3420,6 +3458,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["checklist_id"], name: "index_sm_template_rows_on_checklist_id"
+    t.index ["created_by_id"], name: "index_sm_template_rows_on_created_by_id"
     t.index ["is_active"], name: "index_sm_template_rows_on_is_active"
     t.index ["parent_row_id"], name: "index_sm_template_rows_on_parent_row_id"
     t.index ["sm_template_id", "sequence_order"], name: "index_sm_template_rows_on_sm_template_id_and_sequence_order"
@@ -3428,6 +3467,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["stage"], name: "index_sm_template_rows_on_stage"
     t.index ["supplier_id"], name: "index_sm_template_rows_on_supplier_id"
     t.index ["trade"], name: "index_sm_template_rows_on_trade"
+    t.index ["updated_by_id"], name: "index_sm_template_rows_on_updated_by_id"
   end
 
   create_table "sm_templates", force: :cascade do |t|
@@ -3439,8 +3479,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_sm_templates_on_created_by_id"
     t.index ["is_active"], name: "index_sm_templates_on_is_active"
     t.index ["is_default"], name: "index_sm_templates_on_is_default"
+    t.index ["updated_by_id"], name: "index_sm_templates_on_updated_by_id"
   end
 
   create_table "sm_time_entries", force: :cascade do |t|
@@ -4147,6 +4189,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_044949) do
     t.index ["job_id"], name: "index_whs_inductions_on_job_id"
     t.index ["status"], name: "index_whs_inductions_on_status"
     t.index ["user_id"], name: "index_whs_inductions_on_user_id"
+    t.index ["whs_induction_template_id"], name: "index_whs_inductions_on_whs_induction_template_id"
     t.index ["worker_name", "induction_type"], name: "index_whs_inductions_on_worker_name_and_induction_type"
   end
 

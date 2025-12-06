@@ -55,6 +55,24 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical, Star } from 'lucide-react';
 
 // Helper function to format ABN as XX XXX XXX XXX
 const formatABN = (abn: string | null) => {
@@ -434,6 +452,326 @@ const COMPANY_RELATIONSHIP_TYPES: Option[] = [
   { value: "partner_in", label: "Partner" },
 ];
 
+// Sortable Employee Item Component
+interface SortableEmployeeItemProps {
+  employee: any;
+  index: number;
+  employeeRoles: Record<string, string[]>;
+  onRolesChange: (employeeId: number, roleTypes: string[]) => void;
+  onRemove: (employeeId: number) => void;
+  onPositionChange: (employeeId: number, position: number) => void;
+  isPrimary: boolean;
+}
+
+function SortableEmployeeItem({
+  employee,
+  index,
+  employeeRoles,
+  onRolesChange,
+  onRemove,
+  onPositionChange,
+  isPrimary,
+}: SortableEmployeeItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: employee.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const roles = employeeRoles[employee.id.toString()] || [];
+  const roleOptions = roles.map(roleType => ({
+    value: roleType,
+    label: COMPANY_RELATIONSHIP_TYPES.find(r => r.value === roleType)?.label || roleType,
+  }));
+
+  const [positionInput, setPositionInput] = useState(String(index + 1));
+
+  // Update position input when index changes (after drag)
+  useEffect(() => {
+    setPositionInput(String(index + 1));
+  }, [index]);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-start gap-3 p-3 rounded-lg border transition-colors",
+        isDragging ? "bg-accent" : "hover:bg-accent/50",
+        isPrimary && "border-yellow-400 bg-yellow-50/30 dark:bg-yellow-900/10"
+      )}
+    >
+      {/* Drag Handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing mt-2 shrink-0"
+      >
+        <GripVertical className="h-5 w-5 text-muted-foreground" />
+      </div>
+
+      {/* Position Input */}
+      <div className="shrink-0 mt-1">
+        <Input
+          type="number"
+          min={1}
+          value={positionInput}
+          onChange={(e) => setPositionInput(e.target.value)}
+          onBlur={() => {
+            const newPos = parseInt(positionInput);
+            if (!isNaN(newPos) && newPos >= 1) {
+              onPositionChange(employee.id, newPos);
+            } else {
+              setPositionInput(String(index + 1)); // Reset to current position
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const newPos = parseInt(positionInput);
+              if (!isNaN(newPos) && newPos >= 1) {
+                onPositionChange(employee.id, newPos);
+              }
+            }
+          }}
+          className="w-14 h-8 text-center text-sm"
+        />
+      </div>
+
+      {/* Primary Star */}
+      {isPrimary && (
+        <div className="shrink-0 mt-2" title="Primary Contact">
+          <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+        </div>
+      )}
+
+      {/* Avatar */}
+      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        <User className="h-5 w-5 text-primary" />
+      </div>
+
+      {/* Employee Info */}
+      <div className="flex-1 min-w-0">
+        <Link href={`/contacts/${employee.id}`} className="text-sm font-medium hover:underline">
+          {employee.full_name}
+        </Link>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+          {employee.email && (
+            <span className="flex items-center gap-1">
+              <Mail className="h-3 w-3" />
+              {employee.email}
+            </span>
+          )}
+          {employee.mobile_phone && (
+            <span className="flex items-center gap-1">
+              <Phone className="h-3 w-3" />
+              {employee.mobile_phone}
+            </span>
+          )}
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Role:</span>
+          <MultipleSelector
+            value={roleOptions}
+            onChange={(selectedRoles) => {
+              const roleTypes = selectedRoles.map(r => r.value);
+              onRolesChange(employee.id, roleTypes);
+            }}
+            placeholder="Select roles..."
+            options={COMPANY_RELATIONSHIP_TYPES}
+            className="flex-1 max-w-md"
+            badgeClassName="text-xs"
+            hidePlaceholderWhenSelected
+            emptyIndicator={
+              <p className="text-center text-xs text-muted-foreground">
+                No role types available
+              </p>
+            }
+          />
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onRemove(employee.id)}
+          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+        <Link href={`/contacts/${employee.id}`}>
+          <Button variant="ghost" size="sm">
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// Sortable Company Item Component (for person contacts)
+interface SortableCompanyItemProps {
+  company: Option;
+  index: number;
+  companyRoles: Record<string, string[]>;
+  onRolesChange: (companyId: string, roleTypes: string[]) => void;
+  onRemove: () => void;
+  onPositionChange: (companyId: string, position: number) => void;
+  isPrimary: boolean;
+}
+
+function SortableCompanyItem({
+  company,
+  index,
+  companyRoles,
+  onRolesChange,
+  onRemove,
+  onPositionChange,
+  isPrimary,
+}: SortableCompanyItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: company.value });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const roles = companyRoles[company.value] || [];
+  const roleOptions = roles.map(roleType => ({
+    value: roleType,
+    label: COMPANY_RELATIONSHIP_TYPES.find(r => r.value === roleType)?.label || roleType,
+  }));
+
+  const [positionInput, setPositionInput] = useState(String(index + 1));
+
+  // Update position input when index changes (after drag)
+  useEffect(() => {
+    setPositionInput(String(index + 1));
+  }, [index]);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-start gap-3 p-3 rounded-lg border transition-colors",
+        isDragging ? "bg-accent" : "hover:bg-accent/50",
+        isPrimary && "border-yellow-400 bg-yellow-50/30 dark:bg-yellow-900/10"
+      )}
+    >
+      {/* Drag Handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing mt-2 shrink-0"
+      >
+        <GripVertical className="h-5 w-5 text-muted-foreground" />
+      </div>
+
+      {/* Position Input */}
+      <div className="shrink-0 mt-1">
+        <Input
+          type="number"
+          min={1}
+          value={positionInput}
+          onChange={(e) => setPositionInput(e.target.value)}
+          onBlur={() => {
+            const newPos = parseInt(positionInput);
+            if (!isNaN(newPos) && newPos >= 1) {
+              onPositionChange(company.value, newPos);
+            } else {
+              setPositionInput(String(index + 1)); // Reset to current position
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const newPos = parseInt(positionInput);
+              if (!isNaN(newPos) && newPos >= 1) {
+                onPositionChange(company.value, newPos);
+              }
+            }
+          }}
+          className="w-14 h-8 text-center text-sm"
+        />
+      </div>
+
+      {/* Primary Star */}
+      {isPrimary && (
+        <div className="shrink-0 mt-2" title="Primary Company">
+          <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+        </div>
+      )}
+
+      {/* Company Icon */}
+      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        <Building2 className="h-5 w-5 text-primary" />
+      </div>
+
+      {/* Company Info */}
+      <div className="flex-1 min-w-0">
+        <Link href={`/contacts/${company.value}`} className="text-sm font-medium hover:underline">
+          {company.label}
+        </Link>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Role:</span>
+          <MultipleSelector
+            value={roleOptions}
+            onChange={(selectedRoles) => {
+              const roleTypes = selectedRoles.map(r => r.value);
+              onRolesChange(company.value, roleTypes);
+            }}
+            placeholder="Select roles..."
+            options={COMPANY_RELATIONSHIP_TYPES}
+            className="flex-1 max-w-md"
+            badgeClassName="text-xs"
+            hidePlaceholderWhenSelected
+            emptyIndicator={
+              <p className="text-center text-xs text-muted-foreground">
+                No role types available
+              </p>
+            }
+          />
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onRemove}
+          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+        <Link href={`/contacts/${company.value}`}>
+          <Button variant="ghost" size="sm">
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export default function ContactDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -509,6 +847,14 @@ export default function ContactDetailPage() {
 
   // Track roles for each employee (employeeId -> roleTypes[])
   const [employeeRoles, setEmployeeRoles] = useState<Record<string, string[]>>({});
+
+  // Drag and drop sensors for employee ordering
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const activeTab = searchParams.get("tab") || "overview";
   const activeSubTab = searchParams.get("subtab") || "identity";
@@ -680,7 +1026,12 @@ export default function ContactDetailPage() {
 
       // Fetch roles for each employee by getting their relationships to this company
       const fetchEmployeeRoles = async () => {
-        if (!contact?.id) return;
+        if (!contact?.id) {
+          console.log('[Employee useEffect] Skipping fetchEmployeeRoles - no contact.id');
+          return;
+        }
+
+        console.log('[Employee useEffect] Fetching roles for contact.id:', contact.id);
         try {
           const response = await api.get<RelationshipsResponse>(`/api/v1/contacts/${contact.id}/relationships`);
           const incoming = response.relationships?.incoming || [];
@@ -699,9 +1050,10 @@ export default function ContactDetailPage() {
             }
           });
 
+          console.log('[Employee useEffect] Employee roles fetched:', rolesMap);
           setEmployeeRoles(rolesMap);
         } catch (err) {
-          console.error('Failed to fetch employee roles:', err);
+          console.error('[Employee useEffect] Failed to fetch employee roles for contact.id:', contact.id, 'Error:', err);
         }
       };
       fetchEmployeeRoles();
@@ -1090,6 +1442,50 @@ export default function ContactDetailPage() {
     }
   };
 
+  // Handle drag end for company reordering
+  const handleCompanyDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || !selectedCompanies) return;
+
+    const oldIndex = selectedCompanies.findIndex(c => c.value === active.id);
+    const newIndex = selectedCompanies.findIndex(c => c.value === over.id);
+    if (oldIndex === newIndex) return;
+
+    // Optimistically update UI
+    const newCompanies = arrayMove(selectedCompanies, oldIndex, newIndex);
+    setSelectedCompanies(newCompanies);
+
+    // Save to backend
+    try {
+      const company_ids = newCompanies.map(c => parseInt(c.value));
+      await api.post(`/api/v1/contacts/${contact!.id}/reorder_companies`, { company_ids });
+    } catch (err) {
+      console.error("Failed to reorder companies:", err);
+      alert("Failed to save company order");
+      loadContact(); // Reload on error
+    }
+  };
+
+  const handleCompanyPositionChange = async (companyId: string, newPosition: number) => {
+    if (!selectedCompanies) return;
+    const oldIndex = selectedCompanies.findIndex(c => c.value === companyId);
+    if (oldIndex === -1) return;
+
+    const newIndex = Math.max(0, Math.min(newPosition - 1, selectedCompanies.length - 1));
+    if (oldIndex === newIndex) return;
+
+    const newCompanies = arrayMove(selectedCompanies, oldIndex, newIndex);
+    setSelectedCompanies(newCompanies);
+
+    try {
+      const company_ids = newCompanies.map(c => parseInt(c.value));
+      await api.post(`/api/v1/contacts/${contact!.id}/reorder_companies`, { company_ids });
+    } catch (err) {
+      console.error("Failed to reorder companies:", err);
+      loadContact();
+    }
+  };
+
   // Handle employee selection changes (for company contacts)
   const handleEmployeeChange = async (newSelectedEmployees: Option[]) => {
     console.log('[Employee Change] Called with:', newSelectedEmployees);
@@ -1219,6 +1615,65 @@ export default function ContactDetailPage() {
     } catch (err) {
       console.error("Failed to update employee roles:", err);
       alert("Failed to update employee roles");
+    }
+  };
+
+  // Handle drag end for employee reordering
+  const handleEmployeeDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || !contact?.employees) return;
+
+    const oldIndex = contact.employees.findIndex(e => e.id === active.id);
+    const newIndex = contact.employees.findIndex(e => e.id === over.id);
+
+    if (oldIndex === newIndex) return;
+
+    // Optimistically update UI
+    const newEmployees = arrayMove(contact.employees, oldIndex, newIndex);
+    setContact({ ...contact, employees: newEmployees });
+
+    // Save to backend
+    try {
+      const employee_ids = newEmployees.map(e => e.id);
+      await api.post(`/api/v1/contacts/${contact.id}/reorder_employees`, {
+        employee_ids
+      });
+    } catch (err) {
+      console.error("Failed to reorder employees:", err);
+      alert("Failed to save employee order");
+      // Reload to get correct order from server
+      loadContact();
+    }
+  };
+
+  // Handle manual position change via input
+  const handleEmployeePositionChange = async (employeeId: number, newPosition: number) => {
+    if (!contact?.employees) return;
+
+    const oldIndex = contact.employees.findIndex(e => e.id === employeeId);
+    if (oldIndex === -1) return;
+
+    // Convert 1-based position to 0-based index
+    const newIndex = Math.max(0, Math.min(newPosition - 1, contact.employees.length - 1));
+
+    if (oldIndex === newIndex) return;
+
+    // Optimistically update UI
+    const newEmployees = arrayMove(contact.employees, oldIndex, newIndex);
+    setContact({ ...contact, employees: newEmployees });
+
+    // Save to backend
+    try {
+      const employee_ids = newEmployees.map(e => e.id);
+      await api.post(`/api/v1/contacts/${contact.id}/reorder_employees`, {
+        employee_ids
+      });
+    } catch (err) {
+      console.error("Failed to reorder employees:", err);
+      alert("Failed to save employee order");
+      // Reload to get correct order from server
+      loadContact();
     }
   };
 
@@ -1950,77 +2405,31 @@ export default function ContactDetailPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      {contact.employees.map((employee) => {
-                        const roles = employeeRoles[employee.id.toString()] || [];
-                        const roleOptions = roles.map(roleType => ({
-                          value: roleType,
-                          label: COMPANY_RELATIONSHIP_TYPES.find(r => r.value === roleType)?.label || roleType,
-                        }));
-
-                        return (
-                          <div key={employee.id} className="flex items-start gap-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors">
-                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                              <User className="h-5 w-5 text-primary" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <Link href={`/contacts/${employee.id}`} className="text-sm font-medium hover:underline">
-                                {employee.full_name}
-                              </Link>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                                {employee.email && (
-                                  <span className="flex items-center gap-1">
-                                    <Mail className="h-3 w-3" />
-                                    {employee.email}
-                                  </span>
-                                )}
-                                {employee.mobile_phone && (
-                                  <span className="flex items-center gap-1">
-                                    <Phone className="h-3 w-3" />
-                                    {employee.mobile_phone}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="mt-2 flex items-center gap-2">
-                                <span className="text-xs font-medium text-muted-foreground">Role:</span>
-                                <MultipleSelector
-                                  value={roleOptions}
-                                  onChange={(selectedRoles) => {
-                                    const roleTypes = selectedRoles.map(r => r.value);
-                                    handleEmployeeRolesChange(employee.id, roleTypes);
-                                  }}
-                                  placeholder="Select roles..."
-                                  options={COMPANY_RELATIONSHIP_TYPES}
-                                  className="flex-1 max-w-md"
-                                  badgeClassName="text-xs"
-                                  hidePlaceholderWhenSelected
-                                  emptyIndicator={
-                                    <p className="text-center text-xs text-muted-foreground">
-                                      No role types available
-                                    </p>
-                                  }
-                                />
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveEmployee(employee.id)}
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                              <Link href={`/contacts/${employee.id}`}>
-                                <Button variant="ghost" size="sm">
-                                  <ExternalLink className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleEmployeeDragEnd}
+                    >
+                      <SortableContext
+                        items={contact.employees.map(e => e.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-3">
+                          {contact.employees.map((employee, index) => (
+                            <SortableEmployeeItem
+                              key={employee.id}
+                              employee={employee}
+                              index={index}
+                              employeeRoles={employeeRoles}
+                              onRolesChange={handleEmployeeRolesChange}
+                              onRemove={handleRemoveEmployee}
+                              onPositionChange={handleEmployeePositionChange}
+                              isPrimary={index === 0}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
                   </CardContent>
                 </Card>
               )}
@@ -2036,66 +2445,34 @@ export default function ContactDetailPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      {selectedCompanies.map((company) => {
-                        const roles = companyRoles[company.value] || [];
-                        const roleOptions = roles.map(roleType => ({
-                          value: roleType,
-                          label: COMPANY_RELATIONSHIP_TYPES.find(r => r.value === roleType)?.label || roleType,
-                        }));
-
-                        return (
-                          <div key={company.value} className="flex items-start gap-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors">
-                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                              <Building2 className="h-5 w-5 text-primary" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <Link href={`/contacts/${company.value}`} className="text-sm font-medium hover:underline">
-                                {company.label}
-                              </Link>
-                              <div className="mt-2 flex items-center gap-2">
-                                <span className="text-xs font-medium text-muted-foreground">Role:</span>
-                                <MultipleSelector
-                                  value={roleOptions}
-                                  onChange={(selectedRoles) => {
-                                    const roleTypes = selectedRoles.map(r => r.value);
-                                    handleCompanyRolesChange(company.value, roleTypes);
-                                  }}
-                                  placeholder="Select roles..."
-                                  options={COMPANY_RELATIONSHIP_TYPES}
-                                  className="flex-1 max-w-md"
-                                  badgeClassName="text-xs"
-                                  hidePlaceholderWhenSelected
-                                  emptyIndicator={
-                                    <p className="text-center text-xs text-muted-foreground">
-                                      No role types available
-                                    </p>
-                                  }
-                                />
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const newSelected = selectedCompanies.filter(c => c.value !== company.value);
-                                  handleCompanyChange(newSelected);
-                                }}
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                              <Link href={`/contacts/${company.value}`}>
-                                <Button variant="ghost" size="sm">
-                                  <ExternalLink className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleCompanyDragEnd}
+                    >
+                      <SortableContext
+                        items={selectedCompanies.map(c => c.value)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-3">
+                          {selectedCompanies.map((company, index) => (
+                            <SortableCompanyItem
+                              key={company.value}
+                              company={company}
+                              index={index}
+                              companyRoles={companyRoles}
+                              onRolesChange={handleCompanyRolesChange}
+                              onRemove={(companyId) => {
+                                const newSelected = selectedCompanies.filter(c => c.value !== companyId);
+                                handleCompanyChange(newSelected);
+                              }}
+                              onPositionChange={handleCompanyPositionChange}
+                              isPrimary={index === 0}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
                   </CardContent>
                 </Card>
               )}
@@ -3110,7 +3487,6 @@ export default function ContactDetailPage() {
               <CardContent>
                 <XeroInvoicesList
                   contactId={contact.id}
-                  xeroContactId={contact.xero_contact_id}
                   type="ACCREC"
                   onViewInvoiceDetail={handleViewInvoiceDetail}
                 />
@@ -3129,7 +3505,6 @@ export default function ContactDetailPage() {
               <CardContent>
                 <XeroInvoicesList
                   contactId={contact.id}
-                  xeroContactId={contact.xero_contact_id}
                   type="ACCPAY"
                   onViewInvoiceDetail={handleViewInvoiceDetail}
                 />

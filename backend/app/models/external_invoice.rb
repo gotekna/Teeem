@@ -241,4 +241,30 @@ class ExternalInvoice < ApplicationRecord
 
     update!(contact: link.contact) if link&.contact
   end
+
+  # Helper to get supplier contact (for bills)
+  def supplier
+    bill? ? contact : nil
+  end
+
+  # Helper to get customer contact (for sales invoices)
+  def customer
+    sales_invoice? ? contact : nil
+  end
+
+  # Formatted display name
+  def display_name
+    case invoice_type
+    when "bill"
+      "Bill #{invoice_number} from #{contact_name}"
+    when "sales_invoice"
+      "Invoice #{invoice_number} to #{contact_name}"
+    when "credit_note"
+      "Credit Note #{invoice_number} - #{contact_name}"
+    when "quote"
+      "Quote #{invoice_number} - #{contact_name}"
+    else
+      "#{invoice_type.titleize} #{invoice_number}"
+    end
+  end
 end

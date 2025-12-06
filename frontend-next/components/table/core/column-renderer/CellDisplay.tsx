@@ -204,6 +204,22 @@ export function displayLookup(value: unknown): React.ReactNode {
     return String((value as { display: unknown }).display);
   }
 
+  // Handle object with name property (fallback for full objects)
+  if (typeof value === "object" && value !== null && "name" in value) {
+    return String((value as { name: unknown }).name);
+  }
+
+  // Handle object with full_name property (for Contact lookups)
+  if (typeof value === "object" && value !== null && "full_name" in value) {
+    return String((value as { full_name: unknown }).full_name);
+  }
+
+  // If it's still an object, log a warning and show [Unknown]
+  if (typeof value === "object" && value !== null) {
+    console.warn("[displayLookup] Received object without display/name/full_name property:", value);
+    return "[Unknown]";
+  }
+
   return String(value);
 }
 

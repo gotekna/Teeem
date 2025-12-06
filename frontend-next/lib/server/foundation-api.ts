@@ -194,6 +194,7 @@ function transformColumns(foundation: Foundation): TableColumn[] {
 function getDefaultWidth(columnName: string, columnType: string): number {
   if (columnName === 'id') return 60;
   if (columnName === 'name' || columnName === 'title') return 250;
+  if (columnName === 'primary_company_id') return 250;
   if (columnName === 'ted_number') return 100;
   if (columnName === 'status' || columnName === 'job_status') return 120;
   if (columnName === 'job_type') return 120;

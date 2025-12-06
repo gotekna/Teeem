@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Building2,
   Search,
-  CheckCircle,
   AlertTriangle,
   XCircle,
   BarChart3,

@@ -36,7 +36,6 @@ import {
   DollarSign,
   Plus,
   Search,
-  Filter,
   LayoutGrid,
   List,
   TrendingUp,

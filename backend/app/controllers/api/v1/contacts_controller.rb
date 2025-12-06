@@ -1,7 +1,7 @@
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [ :show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles, :ownership_chain, :enrich_from_web ]
+      before_action :set_contact, only: [ :show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles, :ownership_chain, :enrich_from_web, :reorder_employees, :reorder_companies ]
 
       # GET /api/v1/contacts/read_only_fields
       # Returns the list of Xero-synced fields that are read-only in TEEEM
@@ -240,25 +240,32 @@ module Api
 
         # Add employees for company contacts (using BOTH old and new systems)
         if @contact.entity_type == "company" || @contact.entity_type == "trust"
-          # Get employees from NEW ContactRelationship system
-          employees_from_relationships = @contact.incoming_relationships
+          # Get employees from NEW ContactRelationship system (with display_order)
+          employee_relationships = @contact.incoming_relationships
             .active
             .where(relationship_type: "employee_of")
+            .order(:display_order, :created_at)  # Sort by display_order first, then created_at
             .includes(:source_contact)
+
+          employees_from_relationships = employee_relationships
             .map { |rel| rel.source_contact }
             .compact
+
+          # Create a map of employee_id => display_order for later use
+          employee_display_order = employee_relationships.each_with_object({}) do |rel, hash|
+            hash[rel.source_contact_id] = rel.display_order if rel.source_contact
+          end
 
           # Get employees from OLD primary_company_id system (for backwards compatibility)
           employees_from_primary = Contact
             .where(primary_company_id: @contact.id)
             .where(entity_type: "person")
+            .where.not(id: employees_from_relationships.map(&:id))  # Exclude duplicates
 
-          # Combine both sources, remove duplicates, and sort
-          all_employees = (employees_from_relationships + employees_from_primary)
-            .uniq { |e| e.id }
-            .sort_by { |e| e.full_name || "" }
+          # Combine both sources (relationships already sorted, primary at end)
+          all_employees = employees_from_relationships + employees_from_primary
 
-          contact_json[:employees] = all_employees.map do |employee|
+          contact_json[:employees] = all_employees.map.with_index do |employee, index|
             {
               id: employee.id,
               full_name: employee.full_name,
@@ -266,7 +273,9 @@ module Api
               last_name: employee.last_name,
               email: employee.email,
               mobile_phone: employee.mobile_phone,
-              primary_role: employee.primary_role
+              primary_role: employee.primary_role,
+              display_order: employee_display_order[employee.id] || index,  # Use stored order or position
+              is_primary: index == 0  # First employee is primary
             }
           end
         end
@@ -489,6 +498,106 @@ module Api
         render json: {
           success: false,
           error: "Failed to delete contact: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contacts/:id/reorder_employees
+      # Updates the display_order of employees for a company contact
+      # Expects: { employee_ids: [123, 456, 789] } (in desired order)
+      def reorder_employees
+        unless @contact.entity_type == "company" || @contact.entity_type == "trust"
+          return render json: {
+            success: false,
+            error: "Only company or trust contacts can have employees"
+          }, status: :unprocessable_entity
+        end
+
+        employee_ids = params[:employee_ids]
+        unless employee_ids.is_a?(Array)
+          return render json: {
+            success: false,
+            error: "employee_ids must be an array"
+          }, status: :unprocessable_entity
+        end
+
+        # Update display_order for each employee relationship
+        ActiveRecord::Base.transaction do
+          employee_ids.each_with_index do |employee_id, index|
+            relationship = @contact.incoming_relationships
+              .active
+              .where(relationship_type: "employee_of")
+              .find_by(source_contact_id: employee_id)
+
+            if relationship
+              relationship.update!(display_order: index)
+            end
+          end
+        end
+
+        render json: {
+          success: true,
+          message: "Employee order updated successfully"
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to reorder employees: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contacts/:id/reorder_companies
+      # Updates the display_order of companies for a person contact
+      # Expects: { company_ids: [123, 456, 789] } (in desired order)
+      def reorder_companies
+        unless @contact.entity_type == "person"
+          return render json: {
+            success: false,
+            error: "Only person contacts can have ordered companies"
+          }, status: :unprocessable_entity
+        end
+
+        company_ids = params[:company_ids]
+        unless company_ids.is_a?(Array)
+          return render json: {
+            success: false,
+            error: "company_ids must be an array"
+          }, status: :unprocessable_entity
+        end
+
+        # Update display_order for each company relationship (outgoing from person)
+        ActiveRecord::Base.transaction do
+          company_ids.each_with_index do |company_id, index|
+            # Find outgoing relationship from this person to the company
+            relationship = @contact.outgoing_relationships
+              .active
+              .find_by(related_contact_id: company_id)
+
+            if relationship
+              relationship.update!(display_order: index)
+            end
+          end
+        end
+
+        # Update primary_company_id to be the first company (if employee_of relationship exists)
+        if company_ids.any?
+          first_company_relationship = @contact.outgoing_relationships
+            .active
+            .where(relationship_type: "employee_of")
+            .find_by(related_contact_id: company_ids.first)
+
+          if first_company_relationship && @contact.primary_company_id != company_ids.first
+            @contact.update!(primary_company_id: company_ids.first)
+          end
+        end
+
+        render json: {
+          success: true,
+          message: "Company order updated successfully"
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to reorder companies: #{e.message}"
         }, status: :internal_server_error
       end
 
