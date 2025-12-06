@@ -52,6 +52,10 @@ class Contact < ApplicationRecord
   has_many :job_contacts, dependent: :destroy
   has_many :jobs, through: :job_contacts
 
+  # Case associations (legal/investigation cases)
+  has_many :case_contacts, dependent: :destroy
+  has_many :cases, through: :case_contacts, source: :case_record
+
   # Portal-related associations
   has_one :portal_user, dependent: :destroy
   has_many :maintenance_requests, foreign_key: :supplier_contact_id, dependent: :destroy
@@ -299,6 +303,32 @@ class Contact < ApplicationRecord
 
   def primary_jobs
     job_contacts.where(primary: true).includes(:job).map(&:job)
+  end
+
+  # Case helpers
+  def case_relationships
+    case_contacts
+      .includes(:case_record, :added_by)
+      .order('case_contacts.created_at DESC')
+      .map do |cc|
+        {
+          id: cc.id,
+          case_id: cc.case_id,
+          case_number: cc.case_record&.case_number,
+          case_title: cc.case_record&.title,
+          case_status: cc.case_record&.status,
+          relationship_type: cc.relationship_type,
+          formatted_relationship_type: cc.formatted_relationship_type,
+          alignment: cc.alignment,
+          role: cc.role,
+          reason: cc.reason,
+          notes: cc.notes,
+          is_primary: cc.is_primary,
+          include_all_emails: cc.include_all_emails,
+          added_by: cc.added_by&.name,
+          added_at: cc.created_at
+        }
+      end
   end
 
   # Supplier-specific helper methods

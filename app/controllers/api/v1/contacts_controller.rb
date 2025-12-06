@@ -1,7 +1,7 @@
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles, :ownership_chain]
+      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles, :ownership_chain, :enrich_from_web]
 
       # GET /api/v1/contacts/read_only_fields
       # Returns the list of Xero-synced fields that are read-only in TEEEM
@@ -474,6 +474,168 @@ module Api
         render json: {
           success: false,
           error: "Failed to delete contact: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contacts/:id/enrich_from_web
+      # Enriches a contact by scraping their website and determining if they need a company
+      def enrich_from_web
+        unless @contact.email.present?
+          return render json: {
+            success: false,
+            error: "Contact has no email address"
+          }, status: :unprocessable_entity
+        end
+
+        # Extract domain from email
+        domain = @contact.email.split('@').last.to_s.downcase
+
+        # Check for generic domains
+        generic_domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'live.com']
+        if generic_domains.include?(domain)
+          return render json: {
+            success: false,
+            error: "Cannot enrich from generic email domain (#{domain})"
+          }, status: :unprocessable_entity
+        end
+
+        # FIRST: Check if any existing contacts with this domain already have a company
+        # This is faster and prevents duplicate companies
+        existing_contact_with_company = Contact.joins(:primary_company)
+                                               .where("contacts.email LIKE ?", "%@#{domain}")
+                                               .where.not(id: @contact.id)
+                                               .includes(:primary_company)
+                                               .first
+
+        if existing_contact_with_company && existing_contact_with_company.primary_company
+          # Found existing company for this domain - link to it
+          company_contact = existing_contact_with_company.primary_company
+          company = Company.find_by(contact_id: company_contact.id)
+
+          @contact.update!(primary_company_id: company_contact.id)
+
+          return render json: {
+            success: true,
+            message: "Contact linked to existing company from domain",
+            contact: @contact.as_json(include: :primary_company),
+            company_found_from_domain: true,
+            company_linked: true,
+            found_from_contact: {
+              name: existing_contact_with_company.full_name,
+              email: existing_contact_with_company.email
+            },
+            company: {
+              id: company&.id,
+              name: company_contact.full_name,
+              contact_id: company_contact.id
+            }
+          }, status: :ok
+        end
+
+        # No existing company found - proceed with web scraping
+        service = EmailToContactExtractionService.new(user: current_user)
+        website_details = service.send(:fetch_company_details_from_website, domain)
+
+        if website_details.blank? || website_details.keys.length <= 1
+          return render json: {
+            success: false,
+            error: "No details found on website",
+            website: website_details[:website]
+          }, status: :not_found
+        end
+
+        # Determine if it's a company or sole trader
+        has_acn = website_details[:acn].present?
+        has_abn = website_details[:abn].present?
+        company_name = website_details[:full_name].presence || website_details[:name]
+
+        # Check if company name matches person's name (indicates sole trader)
+        is_sole_trader = false
+        if company_name.present? && @contact.full_name.present?
+          # Simple match: company name contains person's full name or vice versa
+          name_match = company_name.downcase.include?(@contact.full_name.downcase) ||
+                       @contact.full_name.downcase.include?(company_name.downcase.split.first(2).join(' '))
+          is_sole_trader = name_match && !has_acn
+        end
+
+        ActiveRecord::Base.transaction do
+          # Update contact with website details
+          @contact.update!(
+            website: website_details[:website],
+            office_phone: website_details[:phone] || @contact.office_phone,
+            tax_number: website_details[:abn] || @contact.tax_number
+          )
+
+          company_created = false
+          company_linked = false
+          company_info = nil
+
+          if has_acn || (has_abn && !is_sole_trader)
+            # It's a company - check if company already exists
+            existing_company = Company.find_by(abn: website_details[:abn]) if website_details[:abn].present?
+            existing_company ||= Company.find_by(acn: website_details[:acn]) if website_details[:acn].present?
+
+            if existing_company
+              # Link to existing company
+              @contact.update!(primary_company_id: existing_company.contact_id)
+              company_linked = true
+              company_info = {
+                id: existing_company.id,
+                name: existing_company.name,
+                contact_id: existing_company.contact_id
+              }
+            else
+              # Create new company
+              company_contact = Contact.create!(
+                full_name: company_name,
+                entity_type: 'company',
+                is_active: true,
+                created_by: current_user.id,
+                website: website_details[:website],
+                office_phone: website_details[:phone],
+                email: website_details[:email]
+              )
+
+              company = Company.create!(
+                name: company_name,
+                contact_id: company_contact.id,
+                status: 'active',
+                abn: website_details[:abn],
+                acn: website_details[:acn],
+                registered_office_address: website_details[:address],
+                purpose: website_details[:description]
+              )
+
+              # Link person to company
+              @contact.update!(primary_company_id: company_contact.id)
+
+              company_created = true
+              company_info = {
+                id: company.id,
+                name: company_name,
+                contact_id: company_contact.id
+              }
+            end
+          end
+
+          render json: {
+            success: true,
+            message: "Contact enriched from website",
+            contact: @contact.as_json(include: :primary_company),
+            website_details: website_details,
+            is_sole_trader: is_sole_trader,
+            company_created: company_created,
+            company_linked: company_linked,
+            company: company_info
+          }, status: :ok
+        end
+      rescue StandardError => e
+        Rails.logger.error("ContactsController#enrich_from_web error: #{e.message}")
+        Rails.logger.error(e.backtrace.join("\n"))
+
+        render json: {
+          success: false,
+          error: e.message
         }, status: :internal_server_error
       end
 
@@ -1770,6 +1932,24 @@ module Api
         render json: {
           success: false,
           error: "Failed to find possible duplicates: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/:id/case_relationships
+      # Returns all cases this contact has been involved in with relationship details
+      def case_relationships
+        relationships = @contact.case_relationships
+
+        render json: {
+          success: true,
+          data: relationships,
+          total_count: relationships.length
+        }
+      rescue => e
+        Rails.logger.error("Case relationships error: #{e.message}")
+        render json: {
+          success: false,
+          error: "Failed to load case relationships: #{e.message}"
         }, status: :internal_server_error
       end
 
