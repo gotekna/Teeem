@@ -142,6 +142,10 @@ module Api
           available_sync_directions: SyncConfiguration::SYNC_DIRECTIONS,
           field_mappings: config.field_mappings.presence || SyncConfiguration::DEFAULT_FIELD_MAPPINGS,
           cleanup_options: config.cleanup_options.presence || SyncConfiguration::DEFAULT_CLEANUP_OPTIONS,
+          validation_rules: {
+            skip_sync_employees: config.skip_sync_employees?,
+            skip_sync_default_suppliers: config.skip_sync_default_suppliers?
+          },
           last_full_sync_at: config.last_full_sync_at,
           webhooks_registered_at: config.webhooks_registered_at,
           created_at: config.created_at,

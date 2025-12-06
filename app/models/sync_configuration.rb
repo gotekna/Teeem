@@ -23,7 +23,9 @@ class SyncConfiguration < ApplicationRecord
   DEFAULT_CLEANUP_OPTIONS = {
     "delete_primary_person_after_import" => false,
     "archive_duplicates" => false,
-    "standardize_abn_format" => true
+    "standardize_abn_format" => true,
+    "skip_sync_employees" => false,
+    "skip_sync_default_suppliers" => false
   }.freeze
 
   # Valid sync directions for the overall sync configuration
@@ -89,6 +91,40 @@ class SyncConfiguration < ApplicationRecord
   # Should standardize ABN format?
   def standardize_abn_format?
     cleanup_option("standardize_abn_format")
+  end
+
+  # Should skip syncing employees to Xero?
+  def skip_sync_employees?
+    cleanup_option("skip_sync_employees")
+  end
+
+  # Should skip syncing default suppliers to Xero?
+  def skip_sync_default_suppliers?
+    cleanup_option("skip_sync_default_suppliers")
+  end
+
+  # Should this contact be synced based on validation rules?
+  def should_sync_contact?(contact)
+    return false if skip_sync_employees? && contact.is_employee?
+
+    if skip_sync_default_suppliers?
+      return false if contact.entity_type == "default_supplier"
+      return false if contact.default_pricebook_items.exists?
+    end
+
+    true
+  end
+
+  # Get the skip reason for a contact (returns nil if should sync)
+  def skip_reason(contact)
+    return "employee" if skip_sync_employees? && contact.is_employee?
+
+    if skip_sync_default_suppliers?
+      return "default_supplier" if contact.entity_type == "default_supplier"
+      return "default_supplier" if contact.default_pricebook_items.exists?
+    end
+
+    nil
   end
 
   # Get the effective sync direction (uses default if not set)

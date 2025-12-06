@@ -20,7 +20,8 @@ class XeroContactSyncService
       links_created: 0,
       links_updated: 0,
       errors: [],
-      skipped: 0
+      skipped: 0,
+      skipped_by_rule: {}
     }
     @sync_timestamp = Time.current
   end
@@ -286,6 +287,17 @@ class XeroContactSyncService
         begin
           # Only export contacts that are marked for sync
           next unless teeem_contact.sync_with_xero
+
+          # Apply validation rules (skip employees, default suppliers, etc.)
+          unless @sync_config&.should_sync_contact?(teeem_contact)
+            skip_reason = @sync_config.skip_reason(teeem_contact)
+            Rails.logger.info("Skipping contact #{teeem_contact.display_name} - rule: #{skip_reason}")
+
+            @stats[:skipped_by_rule][skip_reason] ||= 0
+            @stats[:skipped_by_rule][skip_reason] += 1
+            @stats[:skipped] += 1
+            next
+          end
 
           result = create_xero_contact_for_tenant(teeem_contact, tenant_id)
           if result[:success]
@@ -717,6 +729,16 @@ class XeroContactSyncService
 
   def create_xero_contact_for_tenant(teeem_contact, tenant_id)
     Rails.logger.info("Creating Xero contact from TEEEM: #{teeem_contact.display_name} in tenant #{tenant_id}")
+
+    # Check validation rules
+    unless @sync_config&.should_sync_contact?(teeem_contact)
+      skip_reason = @sync_config.skip_reason(teeem_contact)
+      return {
+        success: false,
+        error: "Contact skipped by validation rule: #{skip_reason}",
+        skipped: true
+      }
+    end
 
     xero_payload = {
       Contacts: [
