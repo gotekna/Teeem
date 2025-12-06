@@ -269,7 +269,7 @@ const DEFAULT_FIELD_MAPPINGS: FieldMapping[] = [
   { id: "first_name", xero_field: "FirstName", teeem_field: "first_name", section: "basic", sync_direction: "both", enabled: true },
   { id: "last_name", xero_field: "LastName", teeem_field: "last_name", section: "basic", sync_direction: "both", enabled: true },
   { id: "email", xero_field: "EmailAddress", teeem_field: "email", section: "basic", sync_direction: "both", enabled: true },
-  { id: "is_supplier_customer", xero_field: "IsSupplier/IsCustomer", teeem_field: "contact_types", section: "basic", sync_direction: "xero-to-teeem", enabled: true },
+  { id: "is_supplier_customer", xero_field: "IsSupplier/IsCustomer", teeem_field: "xero_contact_types", section: "basic", sync_direction: "xero-to-teeem", enabled: true, description: "Multiple values: Customer, Supplier, or both" },
   { id: "contact_id", xero_field: "ContactID", teeem_field: "xero_id", section: "basic", sync_direction: "xero-to-teeem", enabled: true, read_only: true },
 
   // CONTACT DETAILS

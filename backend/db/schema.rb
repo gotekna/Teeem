@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_06_035720) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_06_041737) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1156,6 +1156,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_035720) do
     t.string "city"
     t.string "state"
     t.string "postcode"
+    t.text "xero_contact_types", default: [], array: true
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
@@ -1168,6 +1169,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_06_035720) do
     t.index ["teeem_rating"], name: "index_contacts_on_teeem_rating"
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
     t.index ["xero_contact_status"], name: "index_contacts_on_xero_contact_status"
+    t.index ["xero_contact_types"], name: "index_contacts_on_xero_contact_types", using: :gin
     t.index ["xero_id", "last_synced_at"], name: "index_contacts_on_xero_id_and_last_synced_at"
   end
 
