@@ -43,6 +43,7 @@ import {
   Table,
   Loader2,
   Save,
+  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -1966,12 +1967,6 @@ export default function ContactDetailPage() {
             </TabsTrigger>
           )}
           {contact["is_supplier?"] && (
-            <TabsTrigger value="bills">
-              <FileText className="h-3.5 w-3.5 mr-1" />
-              Bills
-            </TabsTrigger>
-          )}
-          {contact["is_supplier?"] && (
             <TabsTrigger value="pricebook">Price Book</TabsTrigger>
           )}
           <TabsTrigger value="portal">Portal Access</TabsTrigger>
@@ -2036,11 +2031,45 @@ export default function ContactDetailPage() {
                       <div className="space-y-3">
                         <div className="space-y-2">
                           <Label>Companies</Label>
+
+                          {/* Selected companies display */}
+                          {selectedCompanies.length > 0 && (
+                            <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-md border">
+                              {selectedCompanies.map((company) => (
+                                <Badge
+                                  key={company.value}
+                                  variant="secondary"
+                                  className="bg-blue-100 text-blue-900 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-100 px-3 py-1.5 text-sm font-medium"
+                                >
+                                  {company.label}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newSelected = selectedCompanies.filter(c => c.value !== company.value);
+                                      handleCompanyChange(newSelected);
+                                    }}
+                                    className="ml-2 hover:text-blue-700 dark:hover:text-blue-300"
+                                  >
+                                    <X className="size-3" />
+                                  </button>
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Search/add input */}
                           <MultipleSelector
-                            value={selectedCompanies}
-                            onChange={handleCompanyChange}
-                            placeholder="Type to search and add companies..."
-                            options={availableCompanies}
+                            value={[]}
+                            onChange={(newOptions) => {
+                              if (newOptions.length > 0) {
+                                const newCompany = newOptions[0];
+                                if (!selectedCompanies.find(c => c.value === newCompany.value)) {
+                                  handleCompanyChange([...selectedCompanies, newCompany]);
+                                }
+                              }
+                            }}
+                            placeholder="🔍 Search and add companies..."
+                            options={availableCompanies.filter(opt => !selectedCompanies.find(s => s.value === opt.value))}
                             emptyIndicator={
                               <p className="text-center text-sm text-muted-foreground">
                                 {loadingCompanies ? "Loading companies..." : "No companies found"}
@@ -2048,13 +2077,13 @@ export default function ContactDetailPage() {
                             }
                             disabled={loadingCompanies}
                             className="w-full bg-white dark:bg-gray-950"
-                            badgeClassName="bg-blue-100 text-blue-900 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-100 font-medium"
-                            hidePlaceholderWhenSelected
+                            maxSelected={1}
                           />
+
                           <p className="text-xs text-muted-foreground">
                             {formData.entity_type === 'sole_trader'
-                              ? '✓ Selected companies shown as blue chips above. Click × to remove. View and edit roles in the Overview tab.'
-                              : '✓ Selected companies shown as blue chips above. Click × to remove. View and edit roles in the Overview tab.'}
+                              ? 'Search above to add companies. Selected companies shown in blue boxes. View and edit roles in the Overview tab.'
+                              : 'Search above to add companies. Selected companies shown in blue boxes. View and edit roles in the Overview tab.'}
                           </p>
                         </div>
                       </div>
@@ -2087,19 +2116,21 @@ export default function ContactDetailPage() {
                     {formData.entity_type === 'person' && contact.primary_company && (
                       <div className="space-y-2">
                         <Label>Primary Company (Auto-synced)</Label>
-                        <div className="flex items-center gap-2 p-3 rounded-md border bg-muted/30">
-                          <Building2 className="h-4 w-4 text-muted-foreground" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{contact.primary_company.name}</p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              Synced from employee relationships
-                            </p>
-                          </div>
-                          <Link href={`/contacts/${contact.primary_company.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </Link>
+                        <div className="p-3 rounded-md border bg-muted/30">
+                          <Badge
+                            variant="secondary"
+                            className="bg-green-100 text-green-900 dark:bg-green-900 dark:text-green-100 px-3 py-1.5 text-sm font-medium inline-flex items-center gap-2"
+                          >
+                            <Building2 className="h-4 w-4" />
+                            {contact.primary_company.name}
+                            <Link href={`/contacts/${contact.primary_company.id}`}>
+                              <ExternalLink className="h-3.5 w-3.5 ml-1 hover:text-green-700 dark:hover:text-green-300" />
+                            </Link>
+                          </Badge>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            <CheckCircle className="inline h-3 w-3 mr-1" />
+                            Automatically synced from employee relationships
+                          </p>
                         </div>
                       </div>
                     )}
@@ -3150,7 +3181,7 @@ export default function ContactDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* Financial Tab with nested sub-tabs (Bank Details, Xero) */}
+        {/* Financial Tab with nested sub-tabs (Bank Details, Xero, Bills) */}
         <TabsContent value="financial" className="mt-6">
           <Tabs value={activeFinancialSubTab} onValueChange={handleFinancialSubTabChange}>
             <TabsList className="mb-4">
@@ -3162,6 +3193,12 @@ export default function ContactDetailPage() {
                 <ExternalLink className="h-3.5 w-3.5 mr-1" />
                 Xero
               </TabsTrigger>
+              {contact["is_supplier?"] && (
+                <TabsTrigger value="bills">
+                  <FileText className="h-3.5 w-3.5 mr-1" />
+                  Bills
+                </TabsTrigger>
+              )}
             </TabsList>
 
             {/* Bank Details Sub-Tab */}
@@ -3526,24 +3563,6 @@ export default function ContactDetailPage() {
                 <XeroInvoicesList
                   contactId={contact.id}
                   type="ACCREC"
-                  onViewInvoiceDetail={handleViewInvoiceDetail}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-
-        {/* Bills Tab */}
-        {contact["is_supplier?"] && (
-          <TabsContent value="bills" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Bills</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <XeroInvoicesList
-                  contactId={contact.id}
-                  type="ACCPAY"
                   onViewInvoiceDetail={handleViewInvoiceDetail}
                 />
               </CardContent>
