@@ -511,10 +511,12 @@ export default function ContactDetailPage() {
           params: { entity_type: "company" },
         });
         const companies = response.contacts || [];
+        console.log('[Company Multi-Select] Loaded companies:', companies.length);
         const companyOptions: Option[] = companies.map((c: any) => ({
           value: c.id.toString(),
           label: c.full_name || c.first_name || "Unknown Company",
         }));
+        console.log('[Company Multi-Select] Company options:', companyOptions);
         setAvailableCompanies(companyOptions);
       } catch (err) {
         console.error("Failed to fetch companies:", err);
@@ -1213,7 +1215,7 @@ export default function ContactDetailPage() {
                           value={selectedCompanies}
                           onChange={handleCompanyChange}
                           options={availableCompanies}
-                          placeholder="Select companies..."
+                          placeholder="Search companies..."
                           emptyIndicator={
                             <p className="text-center text-sm text-muted-foreground">
                               {loadingCompanies ? "Loading companies..." : "No companies found"}
@@ -1221,6 +1223,13 @@ export default function ContactDetailPage() {
                           }
                           disabled={loadingCompanies}
                           className="w-full"
+                          hidePlaceholderWhenSelected
+                          onSearchSync={(value) => {
+                            if (!value) return availableCompanies;
+                            return availableCompanies.filter(option =>
+                              option.label.toLowerCase().includes(value.toLowerCase())
+                            );
+                          }}
                         />
                         <p className="text-xs text-muted-foreground">Select one or more companies this person is associated with</p>
                       </div>
@@ -1257,7 +1266,7 @@ export default function ContactDetailPage() {
                           value={selectedEmployees}
                           onChange={handleEmployeeChange}
                           options={availablePeople}
-                          placeholder="Select employees..."
+                          placeholder="Search employees..."
                           emptyIndicator={
                             <p className="text-center text-sm text-muted-foreground">
                               {loadingPeople ? "Loading people..." : "No people found"}
@@ -1265,6 +1274,13 @@ export default function ContactDetailPage() {
                           }
                           disabled={loadingPeople}
                           className="w-full"
+                          hidePlaceholderWhenSelected
+                          onSearchSync={(value) => {
+                            if (!value) return availablePeople;
+                            return availablePeople.filter(option =>
+                              option.label.toLowerCase().includes(value.toLowerCase())
+                            );
+                          }}
                         />
                         <p className="text-xs text-muted-foreground">Select people who work for this {formData.entity_type === 'trust' ? 'trust' : 'company'}</p>
                       </div>
