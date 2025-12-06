@@ -50,6 +50,7 @@ import { ContactEditModal } from "@/components/contacts/ContactEditModal";
 import { XeroSyncSection } from "@/components/contacts/XeroSyncSection";
 import { XeroTransactionsSection } from "@/components/contacts/XeroTransactionsSection";
 import { XeroInvoiceDetailModal } from "@/components/contacts/XeroInvoiceDetailModal";
+import { XeroInvoicesList } from "@/components/contacts/XeroInvoicesList";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
@@ -723,6 +724,11 @@ export default function ContactDetailPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleViewInvoiceDetail = (invoiceId: string) => {
+    setSelectedInvoiceId(invoiceId);
+    setShowInvoiceDetail(true);
   };
 
   const handleEnrichFromWeb = async () => {
@@ -1421,6 +1427,18 @@ export default function ContactDetailPage() {
                   {emailsPagination.total}
                 </Badge>
               )}
+            </TabsTrigger>
+          )}
+          {contact["is_customer?"] && (
+            <TabsTrigger value="invoices">
+              <FileText className="h-3.5 w-3.5 mr-1" />
+              Invoices
+            </TabsTrigger>
+          )}
+          {contact["is_supplier?"] && (
+            <TabsTrigger value="bills">
+              <FileText className="h-3.5 w-3.5 mr-1" />
+              Bills
             </TabsTrigger>
           )}
           {contact["is_supplier?"] && (
@@ -3043,6 +3061,44 @@ export default function ContactDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Invoices Tab */}
+        {contact["is_customer?"] && (
+          <TabsContent value="invoices" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Invoices</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <XeroInvoicesList
+                  contactId={contact.id}
+                  xeroContactId={contact.xero_contact_id}
+                  type="ACCREC"
+                  onViewInvoiceDetail={handleViewInvoiceDetail}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {/* Bills Tab */}
+        {contact["is_supplier?"] && (
+          <TabsContent value="bills" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Bills</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <XeroInvoicesList
+                  contactId={contact.id}
+                  xeroContactId={contact.xero_contact_id}
+                  type="ACCPAY"
+                  onViewInvoiceDetail={handleViewInvoiceDetail}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         {/* Portal Access Tab */}
         <TabsContent value="portal" className="mt-6">

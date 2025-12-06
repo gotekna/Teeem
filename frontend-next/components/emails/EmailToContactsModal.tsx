@@ -272,6 +272,10 @@ export function EmailToContactsModal({
             add_to_existing_contact_id: candidate.possibleDuplicate.id,
             set_as_primary: duplicateAction.setAsPrimary || false,
             phones: candidate?.phones || {}, // Include phone numbers when adding to existing contact
+            // Add company fields:
+            company_action: companyAction.action,
+            company_id: companyAction.companyId || null,
+            company_name: companyAction.companyName || null,
           };
         }
 
@@ -363,11 +367,23 @@ export function EmailToContactsModal({
     const candidate = candidates.find((c) => c.email === email);
     const currentAction = companyActions.get(email);
 
+    // For "link" action with multiple matches, preserve existing companyId
+    let companyId;
+    if (action === "link") {
+      if (candidate?.suggestedCompany?.multipleMatches && candidate?.suggestedCompany?.matches?.length) {
+        // Keep current selection or default to first match
+        companyId = currentAction?.companyId || candidate.suggestedCompany.matches[0].id;
+      } else {
+        // Single match - use existingCompanyId
+        companyId = candidate?.suggestedCompany?.existingCompanyId || undefined;
+      }
+    }
+
     setCompanyActions(
       new Map(
         companyActions.set(email, {
           action: action as "link" | "create" | "none",
-          companyId: action === "link" ? candidate?.suggestedCompany?.existingCompanyId || undefined : undefined,
+          companyId: companyId,
           companyName: action === "create" ? candidate?.suggestedCompany?.name : undefined,
         })
       )

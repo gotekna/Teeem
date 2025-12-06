@@ -194,6 +194,26 @@ class EmailToContactExtractionService
               is_primary: selection[:set_as_primary] || false
             }
 
+            # Handle company action for existing contact
+            if selection[:company_action].present? && selection[:company_action] != "none"
+              company_id = handle_company_action(
+                selection[:company_action],
+                selection[:company_id],
+                selection[:company_name],
+                created_companies,
+                selection[:website_details] || {}
+              )
+
+              if company_id.present? && contact.primary_company_id != company_id
+                contact.update!(primary_company_id: company_id)
+                linked_to_companies << {
+                  contact_id: contact.id,
+                  company_id: company_id,
+                  company_name: Company.find(company_id).contact&.full_name || Company.find(company_id).name
+                }
+              end
+            end
+
             next
           end
 
