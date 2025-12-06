@@ -238,22 +238,37 @@ module Api
           }
         end
 
-        # Add employees for company contacts (people whose primary_company_id points to this contact)
-        if @contact.entity_type == "company"
-          contact_json[:employees] = Contact.where(primary_company_id: @contact.id)
+        # Add employees for company contacts (using BOTH old and new systems)
+        if @contact.entity_type == "company" || @contact.entity_type == "trust"
+          # Get employees from NEW ContactRelationship system
+          employees_from_relationships = @contact.incoming_relationships
+            .active
+            .where(relationship_type: "employee_of")
+            .includes(:source_contact)
+            .map { |rel| rel.source_contact }
+            .compact
+
+          # Get employees from OLD primary_company_id system (for backwards compatibility)
+          employees_from_primary = Contact
+            .where(primary_company_id: @contact.id)
             .where(entity_type: "person")
-            .order(:full_name)
-            .map do |employee|
-              {
-                id: employee.id,
-                full_name: employee.full_name,
-                first_name: employee.first_name,
-                last_name: employee.last_name,
-                email: employee.email,
-                mobile_phone: employee.mobile_phone,
-                primary_role: employee.primary_role
-              }
-            end
+
+          # Combine both sources, remove duplicates, and sort
+          all_employees = (employees_from_relationships + employees_from_primary)
+            .uniq { |e| e.id }
+            .sort_by { |e| e.full_name || "" }
+
+          contact_json[:employees] = all_employees.map do |employee|
+            {
+              id: employee.id,
+              full_name: employee.full_name,
+              first_name: employee.first_name,
+              last_name: employee.last_name,
+              email: employee.email,
+              mobile_phone: employee.mobile_phone,
+              primary_role: employee.primary_role
+            }
+          end
         end
 
         # Add additional companies via relationships
@@ -2188,6 +2203,7 @@ module Api
           :drive_id,
           :folder_id,
           :sync_with_xero,
+          :xero_disconnect,
           :contact_region_id,
           :contact_region,
           :branch,
@@ -2203,8 +2219,7 @@ module Api
           :is_family_member,
           :is_potential_director,
           :company_group_id,
-          # Company/Employee linking
-          :primary_company_id,
+          # NOTE: primary_company_id is now READ-ONLY (auto-synced from ContactRelationship)
           # NOTE: Xero accounting fields (bank details, payment terms, balances) are READ-ONLY
           # They are synced from Xero and cannot be edited in TEEEM
           # See Contact::XERO_READ_ONLY_FIELDS for the full list

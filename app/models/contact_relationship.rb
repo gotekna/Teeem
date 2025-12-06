@@ -59,6 +59,9 @@ class ContactRelationship < ApplicationRecord
   after_update :update_reverse_relationship
   after_destroy :destroy_reverse_relationship
 
+  # Callback to sync primary_company_id when employee_of relationships change
+  after_commit :sync_primary_company_id, if: :should_sync_primary_company?
+
   # Find the reverse relationship
   def reverse_relationship
     ContactRelationship.find_by(
@@ -142,5 +145,31 @@ class ContactRelationship < ApplicationRecord
     reverse.destroy!
   ensure
     Thread.current[:destroying_reverse_relationship] = false
+  end
+
+  # Guard method to determine if primary_company_id should be synced
+  def should_sync_primary_company?
+    relationship_type == "employee_of" &&
+    source_contact&.entity_type == "person"
+  end
+
+  # Sync primary_company_id field when employee_of relationships change
+  # This keeps the legacy primary_company_id field in sync with ContactRelationship data
+  def sync_primary_company_id
+    person = source_contact
+    return unless person
+
+    # Find all active employee_of relationships for this person
+    active_relationships = person.outgoing_relationships
+      .active
+      .where(relationship_type: "employee_of")
+
+    # Set primary_company_id to first active relationship (or nil if none)
+    new_primary_company_id = active_relationships.first&.related_contact_id
+
+    # Only update if changed (avoid unnecessary writes)
+    if person.primary_company_id != new_primary_company_id
+      person.update_column(:primary_company_id, new_primary_company_id)
+    end
   end
 end
