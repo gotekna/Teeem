@@ -227,8 +227,7 @@ class EmailToContactExtractionService
             primary_company_id: company_id,
             mobile_phone: phones[:mobile],
             office_phone: phones[:office] || phones[:direct],
-            is_active: true,
-            created_by: @user.id
+            is_active: true
           )
 
           created_contacts << {
@@ -879,7 +878,6 @@ class EmailToContactExtractionService
         full_name: full_company_name,
         entity_type: "company",
         is_active: true,
-        created_by: @user.id,
         website: website_details[:website],
         office_phone: website_details[:phone],
         email: website_details[:email]

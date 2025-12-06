@@ -187,22 +187,13 @@ interface ResourceModalProps {
 }
 
 function ResourceModal({ isOpen, onClose, resource, onSave }: ResourceModalProps) {
-  const [formData, setFormData] = useState<ResourceFormData>({
-    name: "",
-    code: "",
-    resource_type: "person",
-    trade: "",
-    email: "",
-    phone: "",
-    hourly_rate: "",
-    availability_hours_per_day: 8,
-    color: "#3b82f6",
-    active: true,
-  });
-
-  useEffect(() => {
+  // Initialize form data from resource prop
+  // Fix for PATTERN-005: Use key prop on component instead of useEffect
+  // The parent component sets key={resource?.id} which remounts this component
+  // when editing a different resource, automatically resetting all state
+  const getInitialFormData = (): ResourceFormData => {
     if (resource) {
-      setFormData({
+      return {
         name: resource.name || "",
         code: resource.code || "",
         resource_type: resource.resource_type || "person",
@@ -213,22 +204,23 @@ function ResourceModal({ isOpen, onClose, resource, onSave }: ResourceModalProps
         availability_hours_per_day: resource.availability_hours_per_day || 8,
         color: resource.color || "#3b82f6",
         active: resource.active !== false,
-      });
-    } else {
-      setFormData({
-        name: "",
-        code: "",
-        resource_type: "person",
-        trade: "",
-        email: "",
-        phone: "",
-        hourly_rate: "",
-        availability_hours_per_day: 8,
-        color: "#3b82f6",
-        active: true,
-      });
+      };
     }
-  }, [resource, isOpen]);
+    return {
+      name: "",
+      code: "",
+      resource_type: "person",
+      trade: "",
+      email: "",
+      phone: "",
+      hourly_rate: "",
+      availability_hours_per_day: 8,
+      color: "#3b82f6",
+      active: true,
+    };
+  };
+
+  const [formData, setFormData] = useState<ResourceFormData>(getInitialFormData());
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -661,6 +653,7 @@ export default function SmResourcesPage() {
 
       {/* Resource Modal */}
       <ResourceModal
+        key={`resource-modal-${editingResource?.id ?? "new"}`}
         isOpen={showResourceModal}
         onClose={() => {
           setShowResourceModal(false);

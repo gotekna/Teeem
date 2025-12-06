@@ -45,7 +45,6 @@ import {
   Save,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { slugifyContactName } from "@/lib/url-utils";
 import { cn } from "@/lib/utils";
 import { ContactEditModal } from "@/components/contacts/ContactEditModal";
 import { XeroSyncSection } from "@/components/contacts/XeroSyncSection";
@@ -64,16 +63,6 @@ const formatABN = (abn: string | null) => {
     return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)} ${digits.slice(8, 11)}`;
   }
   return abn;
-};
-
-// Helper function to format Australian mobile phone as XXXX XXX XXX
-const formatMobilePhone = (phone: string | null) => {
-  if (!phone) return "";
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length === 10) {
-    return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7, 10)}`;
-  }
-  return phone;
 };
 
 interface ContactPerson {
@@ -370,6 +359,66 @@ interface EmailsPagination {
   total_pages: number;
 }
 
+// Case relationship for contacts linked to cases
+interface CaseRelationship {
+  id: number;
+  case_id: number;
+  case_number: string;
+  case_title: string;
+  relationship_type: string;
+  formatted_relationship_type?: string;
+  alignment: 'friendly' | 'opposing' | 'neutral' | null;
+  role?: string | null;
+  reason?: string | null;
+  notes?: string | null;
+  is_primary?: boolean;
+  include_all_emails?: boolean;
+}
+
+// Contact data from company list API
+interface CompanyListContact {
+  id: number;
+  full_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  entity_type: string | null;
+}
+
+// API response for company list
+interface CompanyListResponse {
+  success: boolean;
+  contacts: CompanyListContact[];
+  pagination?: {
+    total: number;
+    page: number;
+    per_page: number;
+  };
+}
+
+// Contact relationship data from relationships API
+interface ContactRelationship {
+  id: number;
+  source_contact_id: number;
+  target_contact_id: number;
+  relationship_type: string;
+  role_in_relationship?: string | null;
+  ownership_percentage?: number | null;
+  context?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  is_active: boolean;
+}
+
+// API response for relationships
+interface RelationshipsResponse {
+  success: boolean;
+  relationships: {
+    outgoing: ContactRelationship[];
+    incoming: ContactRelationship[];
+  };
+}
+
 // Relationship types available for company relationships
 const COMPANY_RELATIONSHIP_TYPES: Option[] = [
   { value: "employee_of", label: "Employee" },
@@ -405,7 +454,7 @@ export default function ContactDetailPage() {
   const [loadingTrustRoles, setLoadingTrustRoles] = useState(false);
   const [ownershipChain, setOwnershipChain] = useState<OwnershipNode[]>([]);
   const [loadingOwnershipChain, setLoadingOwnershipChain] = useState(false);
-  const [caseRelationships, setCaseRelationships] = useState<any[]>([]);
+  const [caseRelationships, setCaseRelationships] = useState<CaseRelationship[]>([]);
   const [loadingCaseRelationships, setLoadingCaseRelationships] = useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [showInvoiceDetail, setShowInvoiceDetail] = useState(false);
@@ -527,12 +576,12 @@ export default function ContactDetailPage() {
     const fetchCompanies = async () => {
       setLoadingCompanies(true);
       try {
-        const response: any = await api.get("/api/v1/contacts", {
+        const response = await api.get<CompanyListResponse>("/api/v1/contacts", {
           params: { entity_type: "company" },
         });
         const companies = response.contacts || [];
         console.log('[Company Multi-Select] Loaded companies:', companies.length);
-        const companyOptions: Option[] = companies.map((c: any) => ({
+        const companyOptions: Option[] = companies.map((c: CompanyListContact) => ({
           value: c.id.toString(),
           label: c.full_name || c.first_name || "Unknown Company",
         }));
@@ -554,8 +603,8 @@ export default function ContactDetailPage() {
       const companyMap = new Map<string, { name: string; roles: string[] }>();
 
       contact.additional_companies
-        .filter((ac: any) => ac.is_active)
-        .forEach((ac: any) => {
+        .filter((ac: AdditionalCompany) => ac.is_active)
+        .forEach((ac: AdditionalCompany) => {
           const companyId = ac.id.toString();
           if (!companyMap.has(companyId)) {
             companyMap.set(companyId, { name: ac.name || "Unknown Company", roles: [] });
@@ -585,11 +634,11 @@ export default function ContactDetailPage() {
     const fetchPeople = async () => {
       setLoadingPeople(true);
       try {
-        const response: any = await api.get("/api/v1/contacts", {
+        const response = await api.get<CompanyListResponse>("/api/v1/contacts", {
           params: { entity_type: "person" },
         });
         const people = response.contacts || [];
-        const peopleOptions: Option[] = people.map((p: any) => ({
+        const peopleOptions: Option[] = people.map((p: CompanyListContact) => ({
           value: p.id.toString(),
           label: `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.full_name || "Unknown Person",
         }));
@@ -607,7 +656,7 @@ export default function ContactDetailPage() {
   useEffect(() => {
     console.log('[Employee useEffect] Triggered. contact.employees:', contact?.employees);
     if (contact?.employees) {
-      const selected: Option[] = contact.employees.map((emp: any) => ({
+      const selected: Option[] = contact.employees.map((emp) => ({
         value: emp.id.toString(),
         label: emp.full_name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || "Unknown Person",
       }));
@@ -618,12 +667,12 @@ export default function ContactDetailPage() {
       const fetchEmployeeRoles = async () => {
         if (!contact?.id) return;
         try {
-          const response = await api.get(`/api/v1/contacts/${contact.id}/relationships`) as any;
+          const response = await api.get<RelationshipsResponse>(`/api/v1/contacts/${contact.id}/relationships`);
           const incoming = response.relationships?.incoming || [];
 
           // Group relationships by employee ID and collect role types
           const rolesMap: Record<string, string[]> = {};
-          incoming.forEach((rel: any) => {
+          incoming.forEach((rel: ContactRelationship) => {
             const employeeId = rel.source_contact_id.toString();
             if (!rolesMap[employeeId]) {
               rolesMap[employeeId] = [];
@@ -719,9 +768,10 @@ export default function ContactDetailPage() {
       } else {
         alert(`Failed: ${response?.error || 'Unknown error'}`);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error enriching contact:", error);
-      alert(error.response?.data?.error || "Failed to enrich contact from web");
+      const err = error as { response?: { data?: { error?: string } } };
+      alert(err.response?.data?.error || "Failed to enrich contact from web");
     } finally {
       setEnrichingFromWeb(false);
     }
@@ -815,7 +865,7 @@ export default function ContactDetailPage() {
     if (!contact?.id) return;
     try {
       setLoadingCaseRelationships(true);
-      const response = await api.get<{ success: boolean; data: any[]; total_count: number }>(
+      const response = await api.get<{ success: boolean; data: CaseRelationship[]; total_count: number }>(
         `/api/v1/contacts/${contact.id}/case_relationships`
       );
       setCaseRelationships(response.data || []);
@@ -906,9 +956,9 @@ export default function ContactDetailPage() {
 
       // Delete ALL relationships for removed companies
       for (const companyId of removedIds) {
-        const relationshipsResponse = await api.get(`/api/v1/contacts/${contact.id}/relationships`) as any;
+        const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${contact.id}/relationships`);
         const relsToDelete = relationshipsResponse.relationships.outgoing.filter(
-          (r: any) => r.related_contact_id.toString() === companyId
+          (r) => r.target_contact_id.toString() === companyId
         );
         for (const rel of relsToDelete) {
           await api.delete(`/api/v1/contacts/${contact.id}/relationships/${rel.id}`);
@@ -1425,10 +1475,11 @@ export default function ContactDetailPage() {
                         <option value="person">Person</option>
                         <option value="company">Company</option>
                         <option value="trust">Trust</option>
+                        <option value="sole_trader">Sole Trader</option>
                       </select>
                     </div>
-                    {/* Company multi-select - show for person entity type */}
-                    {formData.entity_type === 'person' && (
+                    {/* Company multi-select - show for person and sole_trader entity types */}
+                    {(formData.entity_type === 'person' || formData.entity_type === 'sole_trader') && (
                       <div className="space-y-3">
                         <div className="space-y-2">
                           <Label>Companies</Label>
@@ -1446,7 +1497,11 @@ export default function ContactDetailPage() {
                             className="w-full"
                             hidePlaceholderWhenSelected
                           />
-                          <p className="text-xs text-muted-foreground">Add companies this person is associated with. View and edit roles in the Overview tab.</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formData.entity_type === 'sole_trader'
+                              ? 'Add your own business or other companies you work with. View and edit roles in the Overview tab.'
+                              : 'Add companies this person is associated with. View and edit roles in the Overview tab.'}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -2779,7 +2834,7 @@ export default function ContactDetailPage() {
                 </div>
               ) : caseRelationships && caseRelationships.length > 0 ? (
                 <div className="space-y-4">
-                  {caseRelationships.map((rel: any) => (
+                  {caseRelationships.map((rel: CaseRelationship) => (
                     <div key={rel.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">

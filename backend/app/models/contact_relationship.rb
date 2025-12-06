@@ -73,6 +73,9 @@ class ContactRelationship < ApplicationRecord
   private
 
   def cannot_relate_to_self
+    # Allow sole traders to have self-referential relationships (they are both person and business)
+    return if source_contact&.entity_type == "sole_trader" && source_contact_id == related_contact_id
+
     if source_contact_id == related_contact_id
       errors.add(:related_contact_id, "cannot be the same as source contact")
     end
@@ -150,7 +153,7 @@ class ContactRelationship < ApplicationRecord
   # Guard method to determine if primary_company_id should be synced
   def should_sync_primary_company?
     relationship_type == "employee_of" &&
-    source_contact&.entity_type == "person"
+    (source_contact&.entity_type == "person" || source_contact&.entity_type == "sole_trader")
   end
 
   # Sync primary_company_id field when employee_of relationships change
