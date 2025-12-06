@@ -334,11 +334,13 @@ export function displayComputed(value: unknown, column: TableColumn): React.Reac
   if (value === null || value === undefined || value === "") return formatEmpty();
 
   // Computed values might be formatted based on their type
-  if (column.computed_type === "currency") {
+  const computedType = (column as { computed_type?: string }).computed_type;
+
+  if (computedType === "currency") {
     return displayCurrency(value);
   }
 
-  if (column.computed_type === "number") {
+  if (computedType === "number") {
     return displayNumber(value);
   }
 

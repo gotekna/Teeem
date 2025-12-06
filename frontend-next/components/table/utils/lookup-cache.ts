@@ -16,8 +16,8 @@ export interface LookupOption {
 }
 
 // Module-level cache storage (persists across remounts)
-const lookupCache: Record<string, LookupOption[]> = {};
-const lookupFetchPromises: Record<string, Promise<LookupOption[]> | undefined> = {};
+export const lookupCache: Record<string, LookupOption[]> = {};
+export const lookupFetchPromises: Record<string, Promise<LookupOption[]> | undefined> = {};
 
 /**
  * Get lookup options from cache or fetch from API

@@ -208,7 +208,7 @@ import { renderCell as renderCellWithRegistry } from "./core/column-renderer/Col
 
 // Extracted utilities (Phase 1 refactoring)
 import { extractSelectedIds, formatCellValue, truncateText } from "./utils/table-utils";
-import { getLookupOptions, fetchLookupOptionsForTable, invalidateLookupCache } from "./utils/lookup-cache";
+import { getLookupOptions, fetchLookupOptionsForTable, invalidateLookupCache, lookupCache, lookupFetchPromises } from "./utils/lookup-cache";
 import { exportToCSV, exportToExcel, exportToPDF, getSuggestedFilename } from "./utils/export-utils";
 
 // Jotai atoms for centralized state management (SSoT)
@@ -3799,7 +3799,7 @@ export default function TeeemTableView({
       validationErrors,
       handleCellBlur,
       isEditMode,
-      renderDisplayValue,
+      renderCellWithRegistry,
     ]
   );
 

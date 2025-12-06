@@ -108,4 +108,4 @@ export const ActionsButtons = memo(function ActionsButtons<T extends { id: strin
       )}
     </div>
   );
-}) as <T extends { id: string | number }>(props: ActionsButtonsProps<T>) => JSX.Element;
+}) as <T extends { id: string | number }>(props: ActionsButtonsProps<T>) => React.ReactElement;

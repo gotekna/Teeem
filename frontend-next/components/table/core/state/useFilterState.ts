@@ -17,20 +17,7 @@ import {
   currentInterGroupLogicAtom,
   showFiltersAtom,
 } from '@/lib/table-atoms';
-
-export interface CascadeFilter {
-  id: string | number;
-  column: string;
-  operator: '=' | '!=' | '>' | '<' | '>=' | '<=' | 'contains' | 'not_contains' | 'starts_with' | 'ends_with' | 'is_empty' | 'is_not_empty';
-  value: unknown;
-}
-
-export interface FilterGroup {
-  id: string | number;
-  name: string;
-  filters: CascadeFilter[];
-  logic: 'AND' | 'OR';
-}
+import type { CascadeFilter, FilterGroup } from '@/components/table/types';
 
 export interface FilterState {
   // Legacy cascade filters (deprecated, but still used in some places)

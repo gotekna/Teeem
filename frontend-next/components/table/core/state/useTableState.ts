@@ -35,6 +35,7 @@ import {
 import { useColumnState } from './useColumnState';
 import { useFilterState } from './useFilterState';
 import { useEditingState } from './useEditingState';
+import type { SavedView } from '@/components/table/types';
 
 export interface TableState {
   // Specialized state (from other hooks)
@@ -53,22 +54,10 @@ export interface TableState {
   setSelectedRows: (value: Set<number | string>) => void;
 
   // View state
-  savedViews: Array<{
-    id: number;
-    name: string;
-    filters?: unknown;
-    sort?: unknown;
-    columns?: unknown;
-  }>;
-  setSavedViews: (value: Array<{
-    id: number;
-    name: string;
-    filters?: unknown;
-    sort?: unknown;
-    columns?: unknown;
-  }>) => void;
-  activeViewId: number | null;
-  setActiveViewId: (value: number | null) => void;
+  savedViews: SavedView[];
+  setSavedViews: (value: SavedView[]) => void;
+  activeViewId: number | string | null;
+  setActiveViewId: (value: number | string | null) => void;
 
   // Display state
   rowLimit: number;
@@ -83,8 +72,8 @@ export interface TableState {
   setGroupByColumns: (value: string[]) => void;
   collapsedGroups: Set<string>;
   setCollapsedGroups: (value: Set<string>) => void;
-  groupViewMode: 'expanded' | 'collapsed' | 'mixed';
-  setGroupViewMode: (value: 'expanded' | 'collapsed' | 'mixed') => void;
+  groupViewMode: 'inline' | 'panel';
+  setGroupViewMode: (value: 'inline' | 'panel') => void;
 
   // Health panel state
   healthPanelOpen: boolean;
