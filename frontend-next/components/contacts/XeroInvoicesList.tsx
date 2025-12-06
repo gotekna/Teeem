@@ -20,6 +20,7 @@ interface ExternalInvoice {
   id: number;
   external_id: string;
   invoice_number: string;
+  reference?: string;
   invoice_type: string;
   status: string;
   invoice_date: string;
@@ -223,7 +224,7 @@ export function XeroInvoicesList({
               <TableHead>Date</TableHead>
               <TableHead>Due Date</TableHead>
               <TableHead>Job</TableHead>
-              <TableHead>PO</TableHead>
+              <TableHead>Reference</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead className="text-right">{isInvoice ? "Amount Due" : "Amount Owing"}</TableHead>
@@ -246,8 +247,8 @@ export function XeroInvoicesList({
                   )}
                 </TableCell>
                 <TableCell className="text-sm">
-                  {(invoice as any).po_number ? (
-                    <span className="font-mono">{(invoice as any).po_number}</span>
+                  {(invoice as any).reference ? (
+                    <span className="font-mono text-xs">{(invoice as any).reference}</span>
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}

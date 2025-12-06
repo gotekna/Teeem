@@ -81,18 +81,21 @@ interface ContactsPageClientProps {
   initialError: string | null;
 }
 
+// SSoT: Valid entity_type values are: person, company, trust, sole_trader
+// Note: "Supplier" is NOT an entity_type - it's a virtual attribute (is_supplier?)
+// determined by whether a contact has purchase_orders, pricebook_items, or bills
 const entityTypeColors: Record<string, string> = {
   person: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
   company: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
   trust: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
-  default_supplier: "bg-purple-100 text-purple-700 dark:bg-purple-400/10 dark:text-purple-400",
+  sole_trader: "bg-orange-100 text-orange-700 dark:bg-orange-400/10 dark:text-orange-400",
 };
 
 const entityTypeLabels: Record<string, string> = {
   person: "Person",
   company: "Company",
   trust: "Trust",
-  default_supplier: "Supplier",
+  sole_trader: "Sole Trader",
 };
 
 export default function ContactsPageClient({
