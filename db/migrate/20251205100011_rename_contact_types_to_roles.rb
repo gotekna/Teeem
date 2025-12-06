@@ -7,7 +7,7 @@ class RenameContactTypesToRoles < ActiveRecord::Migration[8.0]
     execute <<-SQL
       UPDATE contacts
       SET roles = '[]'
-      WHERE entity_type IN ('company', 'trust', 'default_supplier')
+      WHERE entity_type IN ('company', 'trust', 'price_only')
         AND roles IS NOT NULL
         AND roles != '[]';
     SQL
@@ -26,7 +26,7 @@ class RenameContactTypesToRoles < ActiveRecord::Migration[8.0]
       # Map old → new
       new_roles = current_roles.map do |role|
         case role
-        when 'customer', 'supplier', 'corporate', 'default_supplier'
+        when 'customer', 'supplier', 'corporate', 'default_supplier', 'price_only'
           'Employee'
         when 'sales', 'land_agent'
           role # Keep as-is

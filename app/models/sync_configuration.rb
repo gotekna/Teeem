@@ -98,7 +98,8 @@ class SyncConfiguration < ApplicationRecord
     cleanup_option("skip_sync_employees")
   end
 
-  # Should skip syncing default suppliers to Xero?
+  # Should skip syncing suppliers to Xero?
+  # Note: Suppliers are identified by the is_supplier? virtual method, NOT entity_type
   def skip_sync_default_suppliers?
     cleanup_option("skip_sync_default_suppliers")
   end
@@ -107,9 +108,14 @@ class SyncConfiguration < ApplicationRecord
   def should_sync_contact?(contact)
     return false if skip_sync_employees? && contact.is_employee?
 
+    # Skip price_only entity types (cannot sync to Xero - they're not real companies/persons)
+    # price_only contacts can have POs and pricebook items, but cannot be synced to accounting systems
+    return false if contact.entity_type == "price_only"
+
     if skip_sync_default_suppliers?
-      return false if contact.entity_type == "default_supplier"
-      return false if contact.default_pricebook_items.exists?
+      # SSoT: Use is_supplier? virtual method (checks purchase_orders, pricebook_items, bills)
+      # NOT entity_type - suppliers can be any entity_type (person, company, trust, sole_trader)
+      return false if contact.is_supplier?
     end
 
     true
@@ -118,10 +124,12 @@ class SyncConfiguration < ApplicationRecord
   # Get the skip reason for a contact (returns nil if should sync)
   def skip_reason(contact)
     return "employee" if skip_sync_employees? && contact.is_employee?
+    return "price_only" if contact.entity_type == "price_only"
 
     if skip_sync_default_suppliers?
-      return "default_supplier" if contact.entity_type == "default_supplier"
-      return "default_supplier" if contact.default_pricebook_items.exists?
+      # SSoT: Use is_supplier? virtual method (checks purchase_orders, pricebook_items, bills)
+      # NOT entity_type - suppliers can be any entity_type (person, company, trust, sole_trader)
+      return "supplier" if contact.is_supplier?
     end
 
     nil

@@ -46,7 +46,8 @@ namespace :contacts do
         next if current_first_name.blank?
 
         # Detect entity type ONLY if missing (trust existing entity_type)
-        if contact.entity_type.nil? || contact.entity_type.blank? || contact.entity_type == "default_supplier"
+        # SSoT: Valid entity_type values are: person, company, trust, sole_trader
+        if contact.entity_type.nil? || contact.entity_type.blank?
           is_company = COMPANY_INDICATORS.any? { |pattern| current_first_name.match?(pattern) }
           contact.entity_type = is_company ? "company" : "person"
           stats[:entity_type_detected] += 1
@@ -125,7 +126,8 @@ namespace :contacts do
       entity_type = c.entity_type || "NULL"
 
       # Only detect if entity_type is missing
-      final_type = if entity_type.in?(["NULL", "default_supplier"])
+      # SSoT: Valid entity_type values are: person, company, trust, sole_trader
+      final_type = if entity_type == "NULL"
         is_company = COMPANY_INDICATORS.any? { |p| c.first_name.to_s.match?(p) }
         is_company ? "company" : "person"
       else

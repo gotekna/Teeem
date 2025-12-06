@@ -1,9 +1,12 @@
 namespace :contacts do
-  desc "Convert all ALL CAPS contacts to default_supplier entity type"
-  task convert_all_caps_to_default_supplier: :environment do
+  desc "Convert all ALL CAPS contacts to company entity type"
+  task convert_all_caps_to_company: :environment do
     puts "=" * 60
-    puts "CONVERTING ALL CAPS CONTACTS TO DEFAULT_SUPPLIER"
+    puts "CONVERTING ALL CAPS CONTACTS TO COMPANY ENTITY TYPE"
     puts "=" * 60
+    puts
+    puts "SSoT: Valid entity_type values are: person, company, trust, sole_trader"
+    puts "Note: ALL CAPS names are typically companies/suppliers, so converting to 'company'"
     puts
 
     # Find contacts where full_name is all uppercase
@@ -23,14 +26,14 @@ namespace :contacts do
     end
     puts
 
-    # Filter to only those that need conversion (not already default_supplier)
-    to_convert = all_caps_contacts.reject { |c| c.entity_type == 'default_supplier' }
+    # Filter to only those that need conversion (not already company)
+    to_convert = all_caps_contacts.reject { |c| c.entity_type == 'company' }
 
     puts "Need to convert: #{to_convert.count} contacts"
     puts
 
     if to_convert.count == 0
-      puts "All ALL CAPS contacts are already default_supplier!"
+      puts "All ALL CAPS contacts are already company entity type!"
       return
     end
 
@@ -48,14 +51,14 @@ namespace :contacts do
       old_type = contact.entity_type
 
       begin
-        # Update entity_type and clear first_name/last_name
+        # Update entity_type and clear first_name/last_name (companies don't have first/last name)
         contact.update_columns(
-          entity_type: 'default_supplier',
+          entity_type: 'company',
           first_name: nil,
           last_name: nil
         )
         puts "✓ [#{contact.id}] #{contact.full_name}"
-        puts "  #{old_type} → default_supplier (cleared first_name/last_name)"
+        puts "  #{old_type} → company (cleared first_name/last_name)"
         puts
         stats[:converted] += 1
       rescue => e
@@ -76,5 +79,23 @@ namespace :contacts do
       puts "Error details:"
       stats[:errors].each { |err| puts "  - #{err}" }
     end
+  end
+
+  # Legacy task name - kept for backwards compatibility, but warns user
+  desc "[DEPRECATED] Use convert_all_caps_to_company instead"
+  task convert_all_caps_to_default_supplier: :environment do
+    puts "=" * 60
+    puts "⚠️  DEPRECATED TASK"
+    puts "=" * 60
+    puts
+    puts "This task is deprecated. The entity_type was renamed for clarity:"
+    puts "  'default_supplier' → 'price_only'"
+    puts
+    puts "Valid entity_type values are: person, company, trust, sole_trader, price_only"
+    puts
+    puts "Note: 'price_only' is for contacts used ONLY for pricebook pricing data."
+    puts "For regular ALL CAPS companies, use: rake contacts:convert_all_caps_to_company"
+    puts
+    puts "=" * 60
   end
 end
