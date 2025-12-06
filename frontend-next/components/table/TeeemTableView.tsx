@@ -659,6 +659,11 @@ export default function TeeemTableView({
   // Email to Contacts modal state (local state)
   const [showEmailToContactsModal, setShowEmailToContactsModal] = useState(false);
 
+  // Drag-to-select state (local state for temporary UI interaction)
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartId, setDragStartId] = useState<number | string | null>(null);
+  const dragStartIndexRef = useRef<number | null>(null);
+
   // Global Views Manager state managed by atom (SSoT)
   const [showGlobalViewsManager, setShowGlobalViewsManager] = useAtom(showGlobalViewsManagerAtom);
 
@@ -1637,6 +1642,61 @@ export default function TeeemTableView({
     setShowAllRows(false);
   }, [cascadeFilters, sortColumns, search, INITIAL_ROW_LIMIT]);
 
+  // Drag-to-select handlers
+  const handleMouseDown = useCallback((rowId: number | string, rowIndex: number, e: React.MouseEvent) => {
+    // Only start drag selection on the select column
+    const target = e.target as HTMLElement;
+    const isSelectColumn = target.closest('[data-column="select"]');
+    if (!isSelectColumn) return;
+
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStartId(rowId);
+    dragStartIndexRef.current = rowIndex;
+
+    // Toggle the clicked row
+    const newSelection = new Set(selectedRows);
+    if (newSelection.has(rowId)) {
+      newSelection.delete(rowId);
+    } else {
+      newSelection.add(rowId);
+    }
+    setSelectedRows(newSelection);
+  }, [selectedRows, setSelectedRows]);
+
+  const handleMouseEnter = useCallback((rowId: number | string, rowIndex: number) => {
+    if (!isDragging || dragStartIndexRef.current === null) return;
+
+    const startIndex = dragStartIndexRef.current;
+    const endIndex = rowIndex;
+    const minIndex = Math.min(startIndex, endIndex);
+    const maxIndex = Math.max(startIndex, endIndex);
+
+    // Select all rows between start and current
+    const rowsToSelect = filteredAndSortedEntries.slice(minIndex, maxIndex + 1);
+    const newSelection = new Set(selectedRows);
+
+    rowsToSelect.forEach(row => {
+      newSelection.add(row.id);
+    });
+
+    setSelectedRows(newSelection);
+  }, [isDragging, filteredAndSortedEntries, selectedRows, setSelectedRows]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+    setDragStartId(null);
+    dragStartIndexRef.current = null;
+  }, []);
+
+  // Add global mouseup listener to end drag selection
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => document.removeEventListener('mouseup', handleMouseUp);
+    }
+  }, [isDragging, handleMouseUp]);
+
   // Helper to extract display value from a cell (handles objects with display/name properties)
   const getDisplayValue = useCallback((value: unknown): string => {
     if (value === null || value === undefined) return "No Value";
@@ -2052,10 +2112,12 @@ export default function TeeemTableView({
       switch (column.key) {
         case "select":
           return (
-            <SelectCheckbox
-              checked={selectedRows.has(entry.id)}
-              onCheckedChange={() => toggleRowSelection(entry.id)}
-            />
+            <div data-column="select">
+              <SelectCheckbox
+                checked={selectedRows.has(entry.id)}
+                onCheckedChange={() => toggleRowSelection(entry.id)}
+              />
+            </div>
           );
 
         case "actions":
@@ -2384,7 +2446,9 @@ export default function TeeemTableView({
               <Table className="w-full border rounded" style={{ tableLayout: 'fixed' }}>
                 {renderTableHeader()}
                 <TableBody>
-                  {group.rows.map((row, rowIndex) => (
+                  {group.rows.map((row, rowIndex) => {
+                    const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === row.id);
+                    return (
                     <TableRow
                       key={`${fullKey}-row-${row.id}-${rowIndex}`}
                       className={cn(
@@ -2393,6 +2457,8 @@ export default function TeeemTableView({
                       )}
                       onClick={() => onRowClick?.(row)}
                       onDoubleClick={() => onRowDoubleClick?.(row)}
+                      onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
+                      onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
                     >
                       {visibleColumnsInOrder.map((column, colIndex) => {
                         const stickyStyles = getStickyColumnStyles(column.key, false);
@@ -2412,13 +2478,19 @@ export default function TeeemTableView({
                               column.key === "select" && "!border-r-0 !p-0 !h-full",
                               column.key === "actions" && "!border-l-0"
                             )}
+                            onClick={(e) => {
+                              if (column.key === "select") {
+                                e.stopPropagation();
+                              }
+                            }}
                           >
                             {renderCellValue(row, column)}
                           </TableCell>
                         );
                       })}
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -2475,7 +2547,9 @@ export default function TeeemTableView({
       );
     }
 
-    return rows.map((row, rowIndex) => (
+    return rows.map((row, rowIndex) => {
+      const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === row.id);
+      return (
       <TableRow
         key={`row-${row.id}-${rowIndex}`}
         className={cn(
@@ -2484,6 +2558,8 @@ export default function TeeemTableView({
         )}
         onClick={() => onRowClick?.(row)}
         onDoubleClick={() => onRowDoubleClick?.(row)}
+        onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
+        onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
       >
         {visibleColumnsInOrder.map((column, colIndex) => {
           const stickyStyles = getStickyColumnStyles(column.key, false);
@@ -2507,13 +2583,19 @@ export default function TeeemTableView({
                 column.key === "select" && "!border-r-0 !p-0 !h-full",
                 column.key === "actions" && "!border-l-0"
               )}
+              onClick={(e) => {
+                if (column.key === "select") {
+                  e.stopPropagation();
+                }
+              }}
             >
               {renderCellValue(row, column)}
             </TableCell>
           );
         })}
       </TableRow>
-    ));
+      );
+    });
   };
 
   // Render inline group rows (old style - groups mixed with data in table body)
@@ -2569,6 +2651,7 @@ export default function TeeemTableView({
         } else {
           // Render actual data rows
           group.rows.forEach((row, rowIndex) => {
+            const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === row.id);
             result.push(
               <TableRow
                 key={`${fullKey}-row-${row.id}-${rowIndex}`}
@@ -2578,6 +2661,8 @@ export default function TeeemTableView({
                 )}
                 onClick={() => onRowClick?.(row)}
                 onDoubleClick={() => onRowDoubleClick?.(row)}
+                onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
+                onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
                   const isSystemGen = isSystemGeneratedColumn(column);
@@ -2609,6 +2694,11 @@ export default function TeeemTableView({
                       column.key === "select" && "!border-r-0 !p-0 !h-full",
                       column.key === "actions" && "!border-l-0"
                     )}
+                    onClick={(e) => {
+                      if (column.key === "select") {
+                        e.stopPropagation();
+                      }
+                    }}
                   >
                     {renderCellValue(row, column)}
                   </TableCell>
@@ -2781,7 +2871,9 @@ export default function TeeemTableView({
             </TableRow>
           ) : (
             <>
-              {displayedRows.map((row, rowIndex) => (
+              {displayedRows.map((row, rowIndex) => {
+                const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === row.id);
+                return (
                 <TableRow
                   key={`${row.id}-${rowIndex}`}
                   className={cn(
@@ -2797,6 +2889,8 @@ export default function TeeemTableView({
                   onDoubleClick={() =>
                     !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
                   }
+                  onMouseDown={(e) => handleMouseDown(row.id, globalIndex, e)}
+                  onMouseEnter={() => handleMouseEnter(row.id, globalIndex)}
                 >
                   {visibleColumnsInOrder.map((column, colIndex) => {
                     const isSystemGen = isSystemGeneratedColumn(column);
@@ -2830,13 +2924,19 @@ export default function TeeemTableView({
                         column.key === "select" && "!border-r-0 !p-0 !h-full",
                         column.key === "actions" && "!border-l-0"
                       )}
+                      onClick={(e) => {
+                        if (column.key === "select") {
+                          e.stopPropagation();
+                        }
+                      }}
                     >
                       {renderCellValue(row, column)}
                     </TableCell>
                   );
                   })}
                 </TableRow>
-              ))}
+                );
+              })}
               {/* Show "Load More" row if there are more rows to display */}
               {!showAllRows && displayedRows.length < filteredAndSortedEntries.length && (
                 <TableRow>

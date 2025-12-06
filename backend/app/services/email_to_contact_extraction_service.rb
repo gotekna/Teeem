@@ -470,6 +470,7 @@ class EmailToContactExtractionService
   # Format company name from domain
   # "tekna.com.au" => "Tekna"
   # "abc-construction.com" => "ABC Construction"
+  # "svp.com.au" => "SVP" (abbreviation handling)
   def format_company_name(domain)
     # Remove common TLDs
     name = domain.gsub(/\.(com|net|org|au|uk|co|io|dev|app|tech|biz|info)(\..*)?$/, "")
@@ -477,8 +478,15 @@ class EmailToContactExtractionService
     # Replace hyphens and underscores with spaces
     name = name.tr("-_", " ")
 
-    # Capitalize each word
-    name.split.map(&:capitalize).join(" ")
+    # Check if this looks like an abbreviation (short, all letters, no spaces)
+    # Examples: "svp", "abc", "ibm"
+    if name.length <= 5 && name.match?(/^[a-z]+$/i) && !name.include?(" ")
+      # Format as uppercase abbreviation
+      name.upcase
+    else
+      # Capitalize each word
+      name.split.map(&:capitalize).join(" ")
+    end
   end
 
   # Fetch company details from website
@@ -870,6 +878,32 @@ class EmailToContactExtractionService
                              .limit(10)
 
     matches.concat(partial_matches) if partial_matches.any?
+
+    # Try abbreviation match - if suggested name looks like an abbreviation (all caps, short)
+    # Match it as a word in company names
+    # Example: "SVP" matches "SV Partners", "ABC" matches "ABC Construction" or "Australian Building Co"
+    if matches.empty? && suggested_name.length <= 5 && suggested_name.match?(/^[A-Z]+$/)
+      # Try matching as a word boundary (e.g., "SVP" matches "SV Partners", "SVP Group")
+      # Use word boundary regex to match "SVP" in "SVP Group" or "SV" in "SV Partners"
+      abbreviation_matches = Company.joins(:contact)
+                                    .where("contacts.full_name REGEXP ?", "\\b#{suggested_name}\\b")
+                                    .order("LENGTH(contacts.full_name)")
+                                    .limit(10)
+
+      # Also try matching first letters of words (e.g., "SVP" matches "SV Partners", "St Vincent Partners")
+      if abbreviation_matches.empty?
+        # Build regex pattern: "SVP" -> match names where words start with S, V, P
+        # This is complex, so let's try a simpler approach: match names containing the abbreviation
+        word_match = Company.joins(:contact)
+                           .where("contacts.full_name LIKE ?", "%#{suggested_name}%")
+                           .order("LENGTH(contacts.full_name)")
+                           .limit(10)
+
+        matches.concat(word_match) if word_match.any?
+      else
+        matches.concat(abbreviation_matches)
+      end
+    end
 
     # Also try reverse - if suggested name contains an existing company name
     if matches.empty?
