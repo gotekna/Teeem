@@ -2499,8 +2499,8 @@ export default function ContactDetailPage() {
                               index={index}
                               companyRoles={companyRoles}
                               onRolesChange={handleCompanyRolesChange}
-                              onRemove={(companyId) => {
-                                const newSelected = selectedCompanies.filter(c => c.value !== companyId);
+                              onRemove={() => {
+                                const newSelected = selectedCompanies.filter(c => c.value !== company.value);
                                 handleCompanyChange(newSelected);
                               }}
                               onPositionChange={handleCompanyPositionChange}

@@ -289,8 +289,165 @@ cd backend && bin/rails teeem:export_lexicon
 - Read chapter: ~3-5s
 - Format output: ~1s
 
+## Data Warehouse Audit
+
+**Special Command:** `/ttt warehouse`
+
+Runs a comprehensive audit of data warehouse usage across the entire codebase.
+
+### What It Checks
+
+**Frontend API Usage:**
+- Which components use warehouse endpoints vs direct API calls
+- Xero API usage patterns (`/api/v1/xero/*`)
+- Cache opportunities and missing warehouse endpoints
+- N+1 query patterns
+- API call performance issues
+
+**Backend Endpoints:**
+- Available warehouse endpoints and coverage
+- Missing warehouse tables
+- Sync status and cache metadata
+- Data integrity issues
+
+### Execution Steps
+
+1. **Scan Frontend Components**
+   ```bash
+   # Search for direct Xero API calls
+   grep -r "/api/v1/xero/" frontend-next/components --include="*.tsx"
+   grep -r "/api/v1/xero/" frontend-next/app --include="*.tsx"
+
+   # Search for warehouse endpoint usage
+   grep -r "/api/v1/external_invoices" frontend-next --include="*.tsx"
+   ```
+
+2. **Analyze Patterns**
+   - Count components using warehouse vs direct API
+   - Identify high-impact migration opportunities
+   - Calculate potential performance improvements
+
+3. **Generate Report**
+   ```
+   ════════════════════════════════════════════════════════════════
+                    DATA WAREHOUSE AUDIT REPORT
+                    [Brisbane Time]
+   ════════════════════════════════════════════════════════════════
+
+   SUMMARY
+   ───────
+   Total Components Checked: X
+   Using Warehouse: Y (Z%)
+   Using Direct API: W
+
+   WAREHOUSE COVERAGE
+   ──────────────────
+   ✅ External Invoices (Bills/Invoices): 3 components (25%)
+   ⚠️  Xero Contacts: 0 components (0%)
+   ⚠️  Xero Payments: 0 components (0%)
+
+   HIGH-PRIORITY MIGRATIONS
+   ────────────────────────
+   1. XeroTransactionsSection.tsx (3 API calls → 1 warehouse)
+      Impact: 30-90x performance improvement
+
+   2. XeroInvoiceDetailModal.tsx (detail view)
+      Impact: 10-30x performance improvement
+
+   RECOMMENDATIONS
+   ───────────────
+   - Migrate XeroTransactionsSection (highest impact)
+   - Create warehouse endpoint for payments
+   - Add cache metadata to existing endpoints
+   - Document warehouse patterns in Teacher
+
+   ════════════════════════════════════════════════════════════════
+   ```
+
+4. **Create Migration Tasks**
+   - List specific files to update
+   - Provide code examples for migrations
+   - Estimate performance improvements
+
+### Current Warehouse Status (as of 2025-12-07)
+
+**Implemented:**
+- ✅ External Invoices (bills/invoices) - 2,416 records
+- ✅ `/api/v1/external_invoices/by_contact/{id}` endpoint
+- ✅ `/api/v1/external_invoices/by_job/{id}` endpoint
+- ✅ Cache metadata (last_synced_at, cache_age_seconds)
+
+**Migration Success:**
+- ✅ XeroInvoicesList.tsx - Migrated (10-100x faster)
+- ✅ JobProfitTab.tsx - Using warehouse
+- ⚠️ XeroTransactionsSection.tsx - Still using 3 Xero API calls (TOP PRIORITY)
+
+**Performance Gains:**
+- Bills tab: 1-3 seconds → <100ms (10-100x faster)
+- Offline support enabled
+- Cache age visibility for users
+
+### Warehouse Best Practices
+
+**When to Warehouse:**
+- ✅ Frequently accessed data (invoices, bills, contacts)
+- ✅ External API data (Xero, OneDrive)
+- ✅ Data that changes infrequently
+- ✅ Data needed offline
+
+**When NOT to Warehouse:**
+- ❌ Authentication/OAuth flows
+- ❌ Real-time search queries
+- ❌ System sync operations
+- ❌ Write/update operations
+
+**Warehouse Endpoint Pattern:**
+```ruby
+# Backend: app/controllers/api/v1/resource_controller.rb
+def by_contact
+  @resources = Resource.where(contact_id: params[:contact_id])
+  render json: {
+    success: true,
+    data: @resources,
+    meta: {
+      source: 'local_cache',
+      last_synced_at: sync_record&.synced_at,
+      cache_age_seconds: cache_age
+    }
+  }
+end
+```
+
+**Frontend Pattern:**
+```typescript
+// Use warehouse endpoint
+const response = await api.get<WarehouseResponse>(
+  `/api/v1/resource/by_contact/${contactId}`
+);
+
+// Show cache age
+{response.meta?.last_synced_at && (
+  <span>Last synced: {formatRelativeTime(response.meta.last_synced_at)}</span>
+)}
+```
+
+### Related Documentation
+
+After running warehouse audit, check:
+- `TEEEM_DOCS/DATA_WAREHOUSE_AUDIT_REPORT.md` - Latest findings
+- `TEEEM_DOCS/BILL_WAREHOUSE_IMPLEMENTATION.md` - Implementation example
+- `TEEEM_DOCS/BILL_STORAGE_ARCHITECTURE.md` - SSoT architecture
+
+### Output Files
+
+Audit generates:
+- `TEEEM_DOCS/DATA_WAREHOUSE_AUDIT_REPORT.md` - Full report
+- Console summary with actionable recommendations
+- Migration task list with priorities
+
 ## Related Commands
 
-- `/t` - Trinity Code Review (audit existing code)
+- `/t` - Trinity Code Review (audit existing code for SSoT, security, quality)
 - `/ttt` - Trinity Documentation Lookup (this command)
-- Use `/ttt` to research, then `/t` to audit
+- `/ttt warehouse` - Data Warehouse Audit (check API usage patterns)
+- Use `/ttt` to research, then `/t` to audit, or `/ttt warehouse` for performance optimization
