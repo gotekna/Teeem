@@ -274,11 +274,13 @@ namespace :xero do
       end
 
       synced += 1
-      print "\rProgress: #{synced}/#{total} | PDFs: #{pdf_count}" if synced % 10 == 0
+      if synced % 10 == 0
+        puts "Progress: #{synced}/#{total} | PDFs: #{pdf_count} | Errors: #{errors.count}"
+      end
 
-      # Xero has a rate limit of ~60 requests/minute for PDF endpoints
-      # Use 1.5s delay to stay safely under limit
-      sleep(1.5)
+      # Xero has strict rate limits for PDF/attachment endpoints
+      # Use 3s delay to stay safely under limit
+      sleep(3)
     end
 
     puts ""
