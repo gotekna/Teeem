@@ -15,7 +15,6 @@ import type { TableRow as TTableRow, TableColumn } from "@/components/table/type
 interface Contact {
   id: number;
   display_name: string;
-  display_name: string;
   first_name: string | null;
   last_name: string | null;
   email: string | null;

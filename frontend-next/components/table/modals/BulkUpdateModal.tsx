@@ -99,7 +99,9 @@ export function BulkUpdateModal({
                   c.key !== "select" &&
                   c.key !== "actions" &&
                   c.key !== "id" &&
-                  c.editable !== false
+                  c.editable !== false &&
+                  c.column_type !== "computed" &&
+                  c.column_type !== "searchable_text"
               )
                 .sort((a, b) => a.label.localeCompare(b.label))
                 .map((col) => ({
