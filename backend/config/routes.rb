@@ -975,6 +975,7 @@ Rails.application.routes.draw do
           post :sync_contacts
           get :sync_status
           get :sync_history
+          get :contacts_sync_list
           get :tax_rates
           get :accounts
           get :search_contacts

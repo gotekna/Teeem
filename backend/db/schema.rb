@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_07_011307) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_07_015011) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -834,6 +834,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_07_011307) do
     t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>false, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}, null: false
     t.jsonb "job_cascade_sort"
     t.jsonb "job_folder_name_format"
+    t.string "contact_documents_path"
   end
 
   create_table "company_shareholdings", force: :cascade do |t|
@@ -957,6 +958,36 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_07_011307) do
     t.index ["contact_id", "is_primary"], name: "index_contact_emails_on_primary", where: "(is_primary = true)"
     t.index ["contact_id", "position"], name: "index_contact_emails_on_contact_id_and_position"
     t.index ["contact_id"], name: "index_contact_emails_on_contact_id"
+  end
+
+  create_table "contact_employments", force: :cascade do |t|
+    t.bigint "employee_id", null: false
+    t.bigint "employer_id", null: false
+    t.string "role"
+    t.string "department"
+    t.boolean "is_primary", default: false
+    t.boolean "is_active", default: true
+    t.string "work_email"
+    t.string "work_phone"
+    t.string "extension"
+    t.date "start_date"
+    t.date "end_date"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "previous_work_email"
+    t.string "previous_work_phone"
+    t.datetime "email_changed_at"
+    t.datetime "phone_changed_at"
+    t.string "previous_role"
+    t.datetime "role_changed_at"
+    t.integer "last_modified_by_id"
+    t.text "change_notes"
+    t.index ["email_changed_at"], name: "index_contact_employments_on_email_changed_at"
+    t.index ["employee_id", "employer_id"], name: "idx_employee_employer_unique", unique: true
+    t.index ["employee_id", "is_active"], name: "index_contact_employments_on_employee_id_and_is_active"
+    t.index ["employee_id"], name: "index_contact_employments_on_employee_id"
+    t.index ["employer_id"], name: "index_contact_employments_on_employer_id"
+    t.index ["role_changed_at"], name: "index_contact_employments_on_role_changed_at"
   end
 
   create_table "contact_external_links", force: :cascade do |t|
@@ -4554,6 +4585,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_07_011307) do
   add_foreign_key "contact_company_group_memberships", "company_groups"
   add_foreign_key "contact_company_group_memberships", "contacts"
   add_foreign_key "contact_emails", "contacts"
+  add_foreign_key "contact_employments", "contacts", column: "employee_id"
+  add_foreign_key "contact_employments", "contacts", column: "employer_id"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"

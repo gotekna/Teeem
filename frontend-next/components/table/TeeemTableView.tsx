@@ -31,6 +31,7 @@ import React, {
   useCallback,
   memo,
 } from "react";
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   DndContext,
   closestCenter,
@@ -385,6 +386,168 @@ const FILTER_OPERATOR_LABELS: Record<string, string> = {
 };
 
 // ============================================================================
+// VIRTUALIZED GROUP TABLE COMPONENT
+// ============================================================================
+
+interface VirtualizedGroupTableProps {
+  fullKey: string;
+  depth: number;
+  rows: any[];
+  selectedRows: Set<number | string>;
+  visibleColumnsInOrder: any[];
+  columnWidths: Record<string, number>;
+  filteredAndSortedEntries: any[];
+  getStickyColumnStyles: (key: string, isHeader: boolean) => React.CSSProperties;
+  isSystemGeneratedColumn: (column: any) => boolean;
+  SYSTEM_COLUMN_BG: string;
+  getToggleCallback: (id: number | string) => () => void;
+  handleSelectMouseDown: (rowId: number | string, rowIndex: number, e: React.MouseEvent) => void;
+  handleRowMouseEnter: (rowId: number | string, rowIndex: number) => void;
+  onRowClick?: (row: any) => void;
+  onRowDoubleClick?: (row: any) => void;
+  renderCellValue: (row: any, column: any) => React.ReactNode;
+  renderTableHeader: () => React.ReactNode;
+}
+
+const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
+  fullKey,
+  depth,
+  rows,
+  selectedRows,
+  visibleColumnsInOrder,
+  columnWidths,
+  filteredAndSortedEntries,
+  getStickyColumnStyles,
+  isSystemGeneratedColumn,
+  SYSTEM_COLUMN_BG,
+  getToggleCallback,
+  handleSelectMouseDown,
+  handleRowMouseEnter,
+  onRowClick,
+  onRowDoubleClick,
+  renderCellValue,
+  renderTableHeader,
+}: VirtualizedGroupTableProps) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 33, // Estimated row height in pixels
+    overscan: 5, // Render 5 extra rows above/below viewport for smooth scrolling
+  });
+
+  return (
+    <div
+      key={`data-${fullKey}`}
+      className="mb-4"
+      style={{ marginLeft: `${(depth + 1) * 24}px`, marginRight: '16px' }}
+    >
+      <Table className="w-full border rounded" style={{ tableLayout: 'fixed' }}>
+        {renderTableHeader()}
+        <TableBody>
+          <tr>
+            <td colSpan={visibleColumnsInOrder.length} style={{ padding: 0 }}>
+              <div
+                ref={parentRef}
+                style={{
+                  height: `${Math.min(rows.length * 33, 500)}px`, // Max 500px tall
+                  overflow: 'auto',
+                  position: 'relative',
+                }}
+              >
+                <div
+                  style={{
+                    height: `${rowVirtualizer.getTotalSize()}px`,
+                    width: '100%',
+                    position: 'relative',
+                  }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const row = rows[virtualRow.index];
+                    const rowIndex = virtualRow.index;
+                    const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === row.id);
+
+                    return (
+                      <div
+                        key={virtualRow.key}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: `${virtualRow.size}px`,
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                      >
+                        <table style={{ width: '100%', tableLayout: 'fixed' }}>
+                          <tbody>
+                            <TableRow
+                              className={cn(
+                                selectedRows.has(row.id) && "bg-muted/50",
+                                "hover:bg-muted/30 cursor-pointer"
+                              )}
+                              onClick={() => onRowClick?.(row)}
+                              onDoubleClick={() => onRowDoubleClick?.(row)}
+                              onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
+                            >
+                              {visibleColumnsInOrder.map((column, colIndex) => {
+                                const stickyStyles = getStickyColumnStyles(column.key, false);
+                                const isSystemGen = isSystemGeneratedColumn(column);
+                                return (
+                                  <TableCell
+                                    key={`${column.key}-${colIndex}`}
+                                    style={{
+                                      width: columnWidths[column.key],
+                                      minWidth: columnWidths[column.key],
+                                      ...stickyStyles,
+                                      ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
+                                        backgroundColor: SYSTEM_COLUMN_BG,
+                                      })
+                                    }}
+                                    className={cn(
+                                      column.key === "select" && "!border-r-0 !p-0 !h-full",
+                                      column.key === "actions" && "!border-l-0"
+                                    )}
+                                    onClick={(e) => {
+                                      if (column.key === "select") {
+                                        e.stopPropagation();
+                                      }
+                                    }}
+                                  >
+                                    {column.key === "select" ? (
+                                      <div
+                                        data-column="select"
+                                        onMouseDown={(e) => handleSelectMouseDown(row.id, globalIndex, e)}
+                                      >
+                                        <SelectCheckbox
+                                          checked={selectedRows.has(row.id)}
+                                          onCheckedChange={getToggleCallback(row.id)}
+                                        />
+                                      </div>
+                                    ) : (
+                                      renderCellValue(row, column)
+                                    )}
+                                  </TableCell>
+                                );
+                              })}
+                            </TableRow>
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </td>
+          </tr>
+        </TableBody>
+      </Table>
+    </div>
+  );
+});
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -728,28 +891,8 @@ export default function TeeemTableView({
   }, [COLUMNS, columnOrder, visibleColumns]);
 
   // ============================================================================
-  // PERFORMANCE DEBUGGING
+  // PERFORMANCE DEBUGGING (removed - use React DevTools Profiler for detailed analysis)
   // ============================================================================
-
-  // Track render time when selectedRows changes
-  const renderStartTimeRef = React.useRef<number>(performance.now());
-  const prevSelectedCountRef = React.useRef<number>(selectedRows.size);
-
-  React.useEffect(() => {
-    const renderEndTime = performance.now();
-    const renderDuration = renderEndTime - renderStartTimeRef.current;
-
-    if (selectedRows.size !== prevSelectedCountRef.current) {
-      console.log('[PERF] RENDER COMPLETE after selection change');
-      console.log('[PERF] Previous count:', prevSelectedCountRef.current, '-> New count:', selectedRows.size);
-      console.log('[PERF] Total render time:', renderDuration.toFixed(2), 'ms');
-      console.log('[PERF] Total entries:', entries.length);
-
-      prevSelectedCountRef.current = selectedRows.size;
-    }
-
-    renderStartTimeRef.current = performance.now();
-  }, [selectedRows.size, entries.length]);
 
   // ============================================================================
   // DEVELOPER WARNINGS
@@ -903,21 +1046,13 @@ export default function TeeemTableView({
 
   // Row selection handlers
   const toggleRowSelection = useCallback((id: number | string) => {
-    const startTime = performance.now();
-    console.log('[PERF] toggleRowSelection START - Row ID:', id);
-
     setSelectedRows((prev) => {
-      const setStartTime = performance.now();
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
       } else {
         next.add(id);
       }
-      const setEndTime = performance.now();
-      console.log('[PERF] toggleRowSelection - Set operation:', (setEndTime - setStartTime).toFixed(2), 'ms');
-      console.log('[PERF] toggleRowSelection - Total selected:', next.size);
-      console.log('[PERF] toggleRowSelection - TOTAL:', (performance.now() - startTime).toFixed(2), 'ms');
       return next;
     });
   }, []);
@@ -927,7 +1062,6 @@ export default function TeeemTableView({
   const toggleCallbacksRef = React.useRef<Map<number | string, () => void>>(new Map());
   const getToggleCallback = useCallback((id: number | string) => {
     if (!toggleCallbacksRef.current.has(id)) {
-      console.log('[PERF] Creating new callback for row:', id);
       toggleCallbacksRef.current.set(id, () => toggleRowSelection(id));
     }
     return toggleCallbacksRef.current.get(id)!;
@@ -1828,19 +1962,18 @@ export default function TeeemTableView({
   const handleRowMouseEnter = useCallback((rowId: number | string, rowIndex: number) => {
     if (!dragStateRef.current?.isDragging) return;
 
-    const startIndex = dragStateRef.current.startRowIndex!;
-    const minIndex = Math.min(startIndex, rowIndex);
-    const maxIndex = Math.max(startIndex, rowIndex);
+    const startRowId = dragStateRef.current.startRowId!;
 
-    // Get visible rows from the filtered list
-    const rowsToSelect = filteredAndSortedEntries.slice(minIndex, maxIndex + 1);
-
+    // For now, just select the single row being hovered
+    // TODO: Implement proper range selection that respects collapsed groups
+    // This requires access to groupedEntries which is defined later
     setSelectedRows((prev) => {
       const next = new Set(prev);
-      rowsToSelect.forEach(row => next.add(row.id));
+      next.add(startRowId);
+      next.add(rowId);
       return next;
     });
-  }, [filteredAndSortedEntries]);
+  }, []);
 
   const handleMouseUp = useCallback(() => {
     dragStateRef.current = null;
@@ -1927,6 +2060,36 @@ export default function TeeemTableView({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setCollapsedGroups is setState function (stable), groupedEntries and getAllGroupKeys are intentionally included
   }, [groupedEntries, getAllGroupKeys]);
+
+  // Helper to get visible (non-collapsed) row IDs in grouped tables
+  const getVisibleRowIds = useCallback(() => {
+    const visibleRowIds: (number | string)[] = [];
+
+    if (groupedEntries) {
+      const collectVisibleRows = (
+        groups: Record<string, { rows: any[]; subgroups?: any }>,
+        parentKey: string = ""
+      ) => {
+        Object.entries(groups).forEach(([groupKey, group]) => {
+          const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
+          const isCollapsed = collapsedGroups.has(fullKey);
+
+          if (!isCollapsed) {
+            if (group.subgroups && Object.keys(group.subgroups).length > 0) {
+              collectVisibleRows(group.subgroups, fullKey);
+            } else {
+              visibleRowIds.push(...group.rows.map(r => r.id));
+            }
+          }
+        });
+      };
+      collectVisibleRows(groupedEntries);
+    } else {
+      visibleRowIds.push(...filteredAndSortedEntries.map(r => r.id));
+    }
+
+    return visibleRowIds;
+  }, [groupedEntries, collapsedGroups, filteredAndSortedEntries]);
 
   // Auto-expand all groups when searching/filtering
   useEffect(() => {
@@ -2700,71 +2863,28 @@ export default function TeeemTableView({
           // Render subgroups recursively
           result.push(...renderGroupNavigation(group.subgroups as typeof groups, depth + 1, fullKey));
         } else {
-          // Render data table for this group's rows
+          // Render data table for this group's rows with virtualization
           result.push(
-            <div key={`data-${fullKey}`} className="mb-4" style={{ marginLeft: `${(depth + 1) * 24}px`, marginRight: '16px' }}>
-              <Table className="w-full border rounded" style={{ tableLayout: 'fixed' }}>
-                {renderTableHeader()}
-                <TableBody>
-                  {group.rows.map((row, rowIndex) => {
-                    const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === row.id);
-                    return (
-                    <TableRow
-                      key={`${fullKey}-row-${row.id}-${rowIndex}`}
-                      className={cn(
-                        selectedRows.has(row.id) && "bg-muted/50",
-                        "hover:bg-muted/30 cursor-pointer"
-                      )}
-                      onClick={() => onRowClick?.(row)}
-                      onDoubleClick={() => onRowDoubleClick?.(row)}
-                      onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
-                    >
-                      {visibleColumnsInOrder.map((column, colIndex) => {
-                        const stickyStyles = getStickyColumnStyles(column.key, false);
-                        const isSystemGen = isSystemGeneratedColumn(column);
-                        return (
-                          <TableCell
-                            key={`${column.key}-${colIndex}`}
-                            style={{
-                              width: columnWidths[column.key],
-                              minWidth: columnWidths[column.key],
-                              ...stickyStyles,
-                              ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
-                                backgroundColor: SYSTEM_COLUMN_BG,
-                              })
-                            }}
-                            className={cn(
-                              column.key === "select" && "!border-r-0 !p-0 !h-full",
-                              column.key === "actions" && "!border-l-0"
-                            )}
-                            onClick={(e) => {
-                              if (column.key === "select") {
-                                e.stopPropagation();
-                              }
-                            }}
-                          >
-                            {column.key === "select" ? (
-                              <div
-                                data-column="select"
-                                onMouseDown={(e) => handleSelectMouseDown(row.id, globalIndex, e)}
-                              >
-                                <SelectCheckbox
-                                  checked={selectedRows.has(row.id)}
-                                  onCheckedChange={getToggleCallback(row.id)}
-                                />
-                              </div>
-                            ) : (
-                              renderCellValue(row, column)
-                            )}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <VirtualizedGroupTable
+              key={`data-${fullKey}`}
+              fullKey={fullKey}
+              depth={depth}
+              rows={group.rows}
+              selectedRows={selectedRows}
+              visibleColumnsInOrder={visibleColumnsInOrder}
+              columnWidths={columnWidths}
+              filteredAndSortedEntries={filteredAndSortedEntries}
+              getStickyColumnStyles={getStickyColumnStyles}
+              isSystemGeneratedColumn={isSystemGeneratedColumn}
+              SYSTEM_COLUMN_BG={SYSTEM_COLUMN_BG}
+              getToggleCallback={getToggleCallback}
+              handleSelectMouseDown={handleSelectMouseDown}
+              handleRowMouseEnter={handleRowMouseEnter}
+              onRowClick={onRowClick}
+              onRowDoubleClick={onRowDoubleClick}
+              renderCellValue={renderCellValue}
+              renderTableHeader={renderTableHeader}
+            />
           );
         }
       }

@@ -36,10 +36,12 @@ import {
   Trash2,
   GripVertical,
   Users,
+  FolderOpen,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { OneDriveFolderPicker } from "@/components/onedrive/OneDriveFolderPicker";
 
 interface ContactType {
   id: number;
@@ -60,6 +62,11 @@ export function ContactTypesTab() {
   const [editingType, setEditingType] = React.useState<ContactType | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [deleting, setDeleting] = React.useState<number | null>(null);
+  const [contactDocPath, setContactDocPath] = React.useState("");
+  const [savingPath, setSavingPath] = React.useState(false);
+  const [showFolderPicker, setShowFolderPicker] = React.useState(false);
+  const [extracting, setExtracting] = React.useState(false);
+  const [extractionResult, setExtractionResult] = React.useState<any>(null);
 
   const [formData, setFormData] = React.useState({
     name: "",
@@ -71,6 +78,7 @@ export function ContactTypesTab() {
 
   React.useEffect(() => {
     loadData();
+    loadSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, []);
 
@@ -88,6 +96,44 @@ export function ContactTypesTab() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadSettings = async () => {
+    try {
+      const settings = await api.get<any>("/api/v1/company_settings");
+      setContactDocPath(settings.contact_documents_path || "");
+    } catch (error) {
+      console.error("Failed to load settings:", error);
+    }
+  };
+
+  const handleSaveDocPath = async (path?: string) => {
+    setSavingPath(true);
+    const pathToSave = path !== undefined ? path : contactDocPath;
+    try {
+      await api.put("/api/v1/company_settings", {
+        company_setting: { contact_documents_path: pathToSave },
+      });
+      toast({
+        title: "Success",
+        description: "Contact documents path saved successfully",
+      });
+    } catch (error) {
+      console.error("Failed to save path:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save contact documents path",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPath(false);
+    }
+  };
+
+  const handleFolderSelect = (folder: { id: string | null; name: string; path: string }) => {
+    const fullPath = folder.path || folder.name;
+    setContactDocPath(fullPath);
+    handleSaveDocPath(fullPath);
   };
 
   const handleOpenAddDialog = () => {
@@ -191,6 +237,30 @@ export function ContactTypesTab() {
     }
   };
 
+  const handleExtractEmployees = async () => {
+    if (!confirm("Extract employees from accounts@ email addresses and link them to companies?")) return;
+
+    setExtracting(true);
+    setExtractionResult(null);
+    try {
+      const result = await api.post<any>("/api/v1/contacts/extract_employees");
+      setExtractionResult(result);
+      toast({
+        title: "Success",
+        description: `Extracted ${result.employments_created} employment relationships`,
+      });
+    } catch (error: any) {
+      console.error("Failed to extract employees:", error);
+      toast({
+        title: "Error",
+        description: error?.response?.data?.error || "Failed to extract employees",
+        variant: "destructive",
+      });
+    } finally {
+      setExtracting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -203,9 +273,9 @@ export function ContactTypesTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Contact Types</h2>
+          <h2 className="text-lg font-semibold">Contacts Settings</h2>
           <p className="text-sm text-muted-foreground">
-            Manage the types of contacts (Customer, Supplier, etc.) used throughout the system.
+            Manage contact types and configure where contact documents are stored.
           </p>
         </div>
         <Button onClick={handleOpenAddDialog}>
@@ -213,6 +283,89 @@ export function ContactTypesTab() {
           Add Type
         </Button>
       </div>
+
+      {/* Contact Documents Path Configuration */}
+      <Card className="p-6">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <FolderOpen className="h-5 w-5 text-muted-foreground" />
+            <h3 className="font-semibold">Contact Documents Path</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Select the OneDrive folder where documents associated with contacts should be stored.
+            This path will be used when uploading or linking documents to contact records.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowFolderPicker(true)}
+              className="flex-1 justify-start"
+            >
+              <FolderOpen className="h-4 w-4 mr-2" />
+              {contactDocPath || "Select Folder..."}
+            </Button>
+            {contactDocPath && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setContactDocPath("");
+                  handleSaveDocPath();
+                }}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+          {contactDocPath && (
+            <div className="text-xs text-muted-foreground bg-muted px-3 py-2 rounded-md">
+              Current path: <span className="font-mono">{contactDocPath}</span>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* Employee Extraction Tool */}
+      <Card className="p-6">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-muted-foreground" />
+            <h3 className="font-semibold">Employee-Company Relationships</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Automatically extract employee data from contacts with accounts@ email addresses and link them to their companies.
+            This creates many-to-many employment relationships with role, work email, and work phone tracking.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleExtractEmployees}
+              disabled={extracting}
+            >
+              {extracting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Extracting...
+                </>
+              ) : (
+                <>
+                  <Users className="h-4 w-4 mr-2" />
+                  Extract Employees
+                </>
+              )}
+            </Button>
+          </div>
+          {extractionResult && (
+            <div className="bg-muted px-4 py-3 rounded-md space-y-2">
+              <div className="text-sm font-medium">Extraction Complete:</div>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <div>✓ {extractionResult.employments_created} employment relationships created</div>
+                <div>✓ {extractionResult.companies_created} companies created</div>
+                <div>✓ {extractionResult.total_employees} employees processed</div>
+                <div>✓ {extractionResult.total_employers} employers found</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
 
       <Card>
         <Table>
@@ -375,6 +528,13 @@ export function ContactTypesTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <OneDriveFolderPicker
+        open={showFolderPicker}
+        onOpenChange={setShowFolderPicker}
+        onSelect={handleFolderSelect}
+        title="Select Contact Documents Folder"
+      />
     </div>
   );
 }

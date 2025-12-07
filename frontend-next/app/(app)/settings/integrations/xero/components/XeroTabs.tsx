@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   ArrowRightLeft,
   Users,
+  Filter,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -50,6 +51,19 @@ interface XeroTenant {
   tenant_id: string;
   tenant_name: string;
   is_primary: boolean;
+}
+
+interface ContactSyncItem {
+  id: number;
+  display_name: string;
+  email: string | null;
+  contact_type: string;
+  xero_id: string | null;
+  synced: boolean;
+  last_synced_at: string | null;
+  sync_enabled: boolean;
+  sync_error: string | null;
+  has_error: boolean;
 }
 
 // Default field mappings
@@ -380,9 +394,15 @@ export function XeroContactSync() {
     errors: string[];
   } | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [contacts, setContacts] = React.useState<ContactSyncItem[]>([]);
+  const [totalContacts, setTotalContacts] = React.useState(0);
+  const [syncedCount, setSyncedCount] = React.useState(0);
+  const [errorCount, setErrorCount] = React.useState(0);
+  const [filterStatus, setFilterStatus] = React.useState<"all" | "synced" | "not-synced" | "errors">("all");
 
   React.useEffect(() => {
     loadSyncStatus();
+    loadContacts();
   }, []);
 
   const loadSyncStatus = async () => {
@@ -391,6 +411,33 @@ export function XeroContactSync() {
       setLastSync(response.data);
     } catch (error) {
       console.error("Failed to load sync status:", error);
+    }
+  };
+
+  const loadContacts = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        contacts: ContactSyncItem[];
+        total: number;
+        synced_count: number;
+        error_count: number;
+      }>("/api/v1/xero/contacts_sync_list");
+
+      if (response.success) {
+        setContacts(response.contacts);
+        setTotalContacts(response.total);
+        setSyncedCount(response.synced_count);
+        setErrorCount(response.error_count);
+      }
+    } catch (error) {
+      console.error("Failed to load contacts:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load contacts list",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -406,6 +453,8 @@ export function XeroContactSync() {
           title: "Success",
           description: `Synced ${response.data.contacts_created + response.data.contacts_updated} contacts`,
         });
+        // Reload contacts after sync
+        loadContacts();
       }
     } catch (error) {
       console.error("Sync failed:", error);
@@ -419,6 +468,19 @@ export function XeroContactSync() {
     }
   };
 
+  const filteredContacts = React.useMemo(() => {
+    switch (filterStatus) {
+      case "synced":
+        return contacts.filter(c => c.synced);
+      case "not-synced":
+        return contacts.filter(c => !c.synced);
+      case "errors":
+        return contacts.filter(c => c.has_error);
+      default:
+        return contacts;
+    }
+  }, [contacts, filterStatus]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -429,6 +491,7 @@ export function XeroContactSync() {
 
   return (
     <div className="space-y-6">
+      {/* Sync Stats Card */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -438,7 +501,7 @@ export function XeroContactSync() {
                 Contact Sync
               </CardTitle>
               <CardDescription>
-                Manually sync contacts between Xero and TEEEM
+                View all contacts and their Xero sync status
               </CardDescription>
             </div>
             <Button onClick={handleSync} disabled={syncing}>
@@ -447,58 +510,113 @@ export function XeroContactSync() {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {lastSync && (
-            <>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="p-4 bg-muted rounded-lg">
-                  <div className="text-sm text-muted-foreground">Last Synced</div>
-                  <div className="text-lg font-medium">
-                    {new Date(lastSync.synced_at).toLocaleString()}
-                  </div>
-                </div>
-                <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-lg">
-                  <div className="text-sm text-muted-foreground">Created</div>
-                  <div className="text-lg font-medium text-green-700 dark:text-green-400">
-                    {lastSync.contacts_created}
-                  </div>
-                </div>
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
-                  <div className="text-sm text-muted-foreground">Updated</div>
-                  <div className="text-lg font-medium text-blue-700 dark:text-blue-400">
-                    {lastSync.contacts_updated}
-                  </div>
-                </div>
-              </div>
-
-              {lastSync.errors && lastSync.errors.length > 0 && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-                    <div>
-                      <div className="font-medium text-red-900 dark:text-red-200">
-                        {lastSync.errors.length} Error{lastSync.errors.length !== 1 ? "s" : ""} During Sync
-                      </div>
-                      <ul className="mt-2 text-sm text-red-800 dark:text-red-300 space-y-1">
-                        {lastSync.errors.slice(0, 5).map((error, i) => (
-                          <li key={i}>• {error}</li>
-                        ))}
-                        {lastSync.errors.length > 5 && (
-                          <li>• ... and {lastSync.errors.length - 5} more</li>
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {!lastSync && (
-            <div className="text-center py-8 text-muted-foreground">
-              No sync history available. Click "Sync Now" to start.
+        <CardContent>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="p-4 bg-muted rounded-lg">
+              <div className="text-sm text-muted-foreground">Total Contacts</div>
+              <div className="text-2xl font-bold">{totalContacts}</div>
             </div>
-          )}
+            <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-lg">
+              <div className="text-sm text-muted-foreground">Synced</div>
+              <div className="text-2xl font-bold text-green-700 dark:text-green-400">
+                {syncedCount}
+              </div>
+            </div>
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-lg">
+              <div className="text-sm text-muted-foreground">Not Synced</div>
+              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
+                {totalContacts - syncedCount}
+              </div>
+            </div>
+            <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-lg">
+              <div className="text-sm text-muted-foreground">Errors</div>
+              <div className="text-2xl font-bold text-red-700 dark:text-red-400">
+                {errorCount}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Contacts Table Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">All Contacts</CardTitle>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
+                <SelectTrigger className="w-[160px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Contacts</SelectItem>
+                  <SelectItem value="synced">Synced Only</SelectItem>
+                  <SelectItem value="not-synced">Not Synced</SelectItem>
+                  <SelectItem value="errors">With Errors</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-[600px] overflow-y-auto">
+            <Table>
+              <TableHeader className="sticky top-0 bg-background">
+                <TableRow>
+                  <TableHead>Contact Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last Synced</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredContacts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      No contacts found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredContacts.map((contact) => (
+                    <TableRow key={contact.id}>
+                      <TableCell className="font-medium">{contact.display_name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {contact.email || "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{contact.contact_type || "Unknown"}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {contact.has_error ? (
+                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Error
+                          </Badge>
+                        ) : contact.synced ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            <Check className="h-3 w-3 mr-1" />
+                            Synced
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                            <X className="h-3 w-3 mr-1" />
+                            Not Synced
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {contact.last_synced_at
+                          ? new Date(contact.last_synced_at).toLocaleString()
+                          : "Never"}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

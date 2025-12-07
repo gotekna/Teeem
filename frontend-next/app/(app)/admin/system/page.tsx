@@ -86,7 +86,7 @@ const MAIN_TABS = [
   { id: "company", label: "Company", icon: Building2 },
   { id: "data-warehouse", label: "Data Warehouse", icon: Database },
   { id: "document-types", label: "Document Types", icon: FileText },
-  { id: "contact-types", label: "Contact Types", icon: Tag },
+  { id: "contact-types", label: "Contacts", icon: Tag },
   { id: "contact-roles", label: "Contact Roles", icon: UserCog },
   { id: "gold-standard", label: "Gold Standard View", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },

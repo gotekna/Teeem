@@ -22,21 +22,11 @@ export const SelectCheckbox = memo(function SelectCheckbox({
   checked,
   onCheckedChange,
 }: SelectCheckboxProps) {
-  const handleChange = (newChecked: boolean) => {
-    const startTime = performance.now();
-    console.log('[PERF] SelectCheckbox CLICKED - Current state:', checked, '-> New state:', newChecked);
-
-    onCheckedChange(newChecked);
-
-    const endTime = performance.now();
-    console.log('[PERF] SelectCheckbox - onCheckedChange callback time:', (endTime - startTime).toFixed(2), 'ms');
-  };
-
   return (
     <div className="flex items-center justify-center h-full w-full">
       <Checkbox
         checked={checked}
-        onCheckedChange={handleChange}
+        onCheckedChange={onCheckedChange}
         onClick={(e) => e.stopPropagation()}
       />
     </div>

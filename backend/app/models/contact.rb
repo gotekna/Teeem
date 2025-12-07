@@ -48,6 +48,15 @@ class Contact < ApplicationRecord
   belongs_to :primary_company, class_name: "Contact", optional: true
   has_many :employees, class_name: "Contact", foreign_key: :primary_company_id, dependent: :nullify
 
+  # Employment relationships (many-to-many via contact_employments)
+  # As an employee: person works for multiple companies
+  has_many :employments_as_employee, class_name: "ContactEmployment", foreign_key: :employee_id, dependent: :destroy
+  has_many :employers, through: :employments_as_employee, source: :employer
+
+  # As an employer: company has multiple employees
+  has_many :employments_as_employer, class_name: "ContactEmployment", foreign_key: :employer_id, dependent: :destroy
+  has_many :staff, through: :employments_as_employer, source: :employee
+
   # Construction/Job associations
   has_many :job_contacts, dependent: :destroy
   has_many :jobs, through: :job_contacts
