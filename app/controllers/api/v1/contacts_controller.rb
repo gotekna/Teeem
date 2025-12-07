@@ -2424,18 +2424,24 @@ module Api
           end
 
           # Get email domain company (skip personal email providers)
-          domain = email_addr.split('@').last
-          personal_email_domains = %w[
-            gmail.com googlemail.com hotmail.com outlook.com live.com msn.com
-            yahoo.com yahoo.com.au ymail.com icloud.com me.com mac.com
-            aol.com protonmail.com zoho.com mail.com inbox.com
-            bigpond.com bigpond.net.au optusnet.com.au
+          domain = email_addr.split('@').last.downcase
+
+          # Personal email domain patterns - match base name regardless of TLD
+          personal_domain_bases = %w[
+            gmail googlemail hotmail outlook live msn
+            yahoo ymail icloud me mac
+            aol protonmail proton zoho mail inbox
+            bigpond optusnet
           ]
+
+          # Check if domain matches any personal email pattern (e.g., outlook.com, outlook.com.au, hotmail.co.uk)
+          domain_base = domain.split('.').first
+          is_personal_domain = personal_domain_bases.include?(domain_base)
 
           domain_company = nil
           domain_company_name = nil
 
-          unless personal_email_domains.include?(domain.downcase)
+          unless is_personal_domain
             domain_company_name = domain.split('.').first.titleize
 
             # First, check if any matching contact already has a company relationship
@@ -2456,11 +2462,24 @@ module Api
 
             # Fallback: try to match by domain name
             if domain_company.nil?
+              # First try exact substring match
               domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
                 .where("LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
                        "%#{domain_company_name.downcase}%",
                        "%#{domain_company_name.downcase}%")
                 .first
+
+              # If no match and domain looks like an abbreviation (2-4 uppercase letters like SVP),
+              # try matching the first letters of each word in company names
+              # e.g., "SVP" matches "SV Partners" (S-V from first two words)
+              if domain_company.nil? && domain_company_name.length <= 5
+                # Search for companies starting with "SV" from "SVP" domain
+                abbrev = domain_company_name.upcase
+                # Try matching as word start - "SV" matches "SV Partners"
+                domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+                  .where("UPPER(full_name) LIKE ?", "#{abbrev[0..1]}%")
+                  .first
+              end
             end
           end
 
@@ -2527,7 +2546,7 @@ module Api
                 website: domain_company.website,
                 exists: true
               }
-            elsif domain_company_name.present? && !personal_email_domains.include?(domain.downcase)
+            elsif domain_company_name.present? && !is_personal_domain
               # Only suggest creating a company for non-personal domains
               {
                 id: nil,
