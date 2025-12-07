@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_07_100115) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_07_105530) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -742,6 +742,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_07_100115) do
     t.string "documentable_type"
     t.bigint "documentable_id"
     t.string "content_hash"
+    t.string "external_id"
+    t.integer "job_id"
+    t.string "mime_type"
     t.index ["asset_id"], name: "index_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"
@@ -754,8 +757,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_07_100115) do
     t.index ["document_type"], name: "index_company_documents_on_document_type"
     t.index ["document_type_id"], name: "index_company_documents_on_document_type_id"
     t.index ["documentable_type", "documentable_id"], name: "idx_company_docs_documentable"
+    t.index ["external_id"], name: "index_company_documents_on_external_id"
     t.index ["financial_years"], name: "index_company_documents_on_financial_years", using: :gin
     t.index ["folder"], name: "index_company_documents_on_folder"
+    t.index ["job_id"], name: "index_company_documents_on_job_id"
     t.index ["loan_id"], name: "index_company_documents_on_loan_id"
     t.index ["onedrive_file_id"], name: "index_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
     t.index ["source"], name: "index_company_documents_on_source"
@@ -4664,7 +4669,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_07_100115) do
   add_foreign_key "job_status_stages", "job_types"
   add_foreign_key "job_type_statuses", "job_status"
   add_foreign_key "job_type_statuses", "job_types"
-  add_foreign_key "jobs", "designs"
   add_foreign_key "jobs", "designs"
   add_foreign_key "jobs", "job_stages"
   add_foreign_key "jobs", "job_status", on_delete: :nullify
