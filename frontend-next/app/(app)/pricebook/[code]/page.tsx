@@ -89,7 +89,6 @@ interface PriceHistory {
 
 interface Supplier {
   id: number;
-  display_name: string;
   display_name?: string;
   name?: string;  // Some API responses use 'name' instead of 'display_name'
 }

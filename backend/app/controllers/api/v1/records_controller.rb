@@ -76,10 +76,11 @@ module Api
             # ILIKE conditions for exact substring matches
             ilike_conditions = searchable_columns.map { |col| "#{col} ILIKE :search" }.join(" OR ")
 
-            # Fuzzy similarity conditions (similarity > 0.2 catches most typos)
+            # Fuzzy word_similarity conditions (matches search term against words in text)
+            # word_similarity > 0.4 catches typos like "tekan" -> "Tekna Admin"
             # Only apply to first few columns to keep it fast
             fuzzy_columns = searchable_columns.first(3)
-            fuzzy_conditions = fuzzy_columns.map { |col| "similarity(COALESCE(#{col}, ''), #{sanitized_search}) > 0.2" }.join(" OR ")
+            fuzzy_conditions = fuzzy_columns.map { |col| "word_similarity(#{sanitized_search}, COALESCE(#{col}, '')) > 0.4" }.join(" OR ")
 
             # Combine: match if ILIKE OR fuzzy match
             combined_conditions = "(#{ilike_conditions}) OR (#{fuzzy_conditions})"
