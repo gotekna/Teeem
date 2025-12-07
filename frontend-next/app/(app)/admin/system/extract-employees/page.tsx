@@ -37,6 +37,7 @@ interface MatchingContact {
   full_name: string;
   email: string | null;
   mobile_phone: string | null;
+  office_phone: string | null; // Direct line for person
   entity_type: string;
   xero_contact_type: string | null; // CUSTOMER, SUPPLIER, or null
   xero_invoice_count: number | null; // If > 0, likely a customer
@@ -85,6 +86,8 @@ interface SelectionState {
   newContactName: string; // Name for the new contact (editable)
   addEmail: boolean;
   addMobile: boolean;
+  addDirect: boolean; // Add direct line to contact
+  addOfficeToCompany: boolean; // Add office phone to company
   isPerfectMatch: boolean; // If true, this is a perfect match - no confirmation needed for mobile
   linkToDomainCompany: boolean;
   parentCompanyLinks: Record<number, boolean>; // company_id -> enabled
@@ -173,6 +176,8 @@ function ExtractEmployeesContent() {
           newContactName: item.person_name_from_email, // Default to extracted name
           addEmail: true, // Always add email for new contacts
           addMobile: !!item.phones?.mobile, // Auto-add mobile if found
+          addDirect: !!item.phones?.direct && !firstContact?.office_phone, // Add direct if found and contact doesn't have one
+          addOfficeToCompany: !!item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone, // Add office to company if found and company doesn't have one
           isPerfectMatch: isPerfectMatch,
           // Default to YES for new contacts (they're employees of the domain company)
           linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !firstContact?.relationship_to_domain_company_exists),
@@ -277,6 +282,8 @@ function ExtractEmployeesContent() {
           newContactName: item.person_name_from_email, // Default to extracted name
           addEmail: true, // Always add email
           addMobile: !!item.phones?.mobile, // Auto-add mobile if found
+          addDirect: !!item.phones?.direct && !firstContact?.office_phone, // Add direct if found and contact doesn't have one
+          addOfficeToCompany: !!item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone, // Add office to company if found and company doesn't have one
           isPerfectMatch: isPerfectMatch,
           // Default to YES for new contacts (they're employees of the domain company)
           linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !firstContact?.relationship_to_domain_company_exists),
@@ -319,6 +326,10 @@ function ExtractEmployeesContent() {
           add_email: sel.addEmail,
           mobile: item.phones?.mobile,
           add_mobile: sel.addMobile,
+          direct: item.phones?.direct,
+          add_direct: sel.addDirect,
+          office: item.phones?.office,
+          add_office_to_company: sel.addOfficeToCompany,
           link_to_domain_company: sel.linkToDomainCompany,
           domain_company_id: item.domain_company.id,
           domain_company_name: item.domain_company.name,
@@ -350,6 +361,8 @@ function ExtractEmployeesContent() {
       if (result.relationships_created > 0) parts.push(`${result.relationships_created} relationships`);
       if (result.emails_added > 0) parts.push(`${result.emails_added} emails`);
       if (result.mobiles_added > 0) parts.push(`${result.mobiles_added} mobiles`);
+      if (result.directs_added > 0) parts.push(`${result.directs_added} direct lines`);
+      if (result.company_phones_added > 0) parts.push(`${result.company_phones_added} company phones`);
       if (result.contacts_merged > 0) parts.push(`${result.contacts_merged} contacts merged`);
       toast({
         title: "Success!",
@@ -409,6 +422,8 @@ function ExtractEmployeesContent() {
         selectedContactId: contactId,
         addEmail: !contact?.email || contact.email.toLowerCase() !== item.email.toLowerCase(), // Add email if contact doesn't have one or has different (case-insensitive)
         addMobile: !!item.phones?.mobile && !contact?.mobile_phone, // Add mobile if found and contact doesn't have one
+        addDirect: !!item.phones?.direct && !contact?.office_phone, // Add direct if found and contact doesn't have one
+        addOfficeToCompany: !!item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone, // Add office to company
         isPerfectMatch: isPerfectMatch,
         linkToDomainCompany: !contact?.relationship_to_domain_company_exists,
         parentCompanyLinks: parentLinks,
@@ -443,6 +458,26 @@ function ExtractEmployeesContent() {
       [idx]: {
         ...prev[idx],
         addMobile: !prev[idx]?.addMobile,
+      },
+    }));
+  };
+
+  const toggleAddDirect = (idx: number) => {
+    setSelections((prev) => ({
+      ...prev,
+      [idx]: {
+        ...prev[idx],
+        addDirect: !prev[idx]?.addDirect,
+      },
+    }));
+  };
+
+  const toggleAddOfficeToCompany = (idx: number) => {
+    setSelections((prev) => ({
+      ...prev,
+      [idx]: {
+        ...prev[idx],
+        addOfficeToCompany: !prev[idx]?.addOfficeToCompany,
       },
     }));
   };
@@ -1040,6 +1075,81 @@ function ExtractEmployeesContent() {
                                         </button>
                                       </div>
                                     )}
+                                  </div>
+                                )}
+
+                                {/* Add Direct Line Option - show if we found a direct AND contact doesn't have office_phone */}
+                                {item.phones?.direct && !selectedContact?.office_phone && (
+                                  <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200">
+                                    <div className="flex items-center gap-2">
+                                      <Phone className="h-4 w-4 text-blue-600" />
+                                      <span className="text-sm">
+                                        Add direct line <span className="font-mono font-semibold">{item.phones.direct}</span>
+                                      </span>
+                                    </div>
+                                    {sel?.isPerfectMatch ? (
+                                      <Badge className="bg-blue-600 gap-1">
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        Will Add
+                                      </Badge>
+                                    ) : (
+                                      <div className="flex rounded-lg overflow-hidden border-2 border-blue-400">
+                                        <button
+                                          onClick={() => toggleAddDirect(idx)}
+                                          className={`px-3 py-1.5 font-bold text-sm transition-colors ${
+                                            sel?.addDirect
+                                              ? "bg-blue-500 text-white"
+                                              : "bg-white dark:bg-gray-800 text-gray-400"
+                                          }`}
+                                        >
+                                          Yes
+                                        </button>
+                                        <button
+                                          onClick={() => toggleAddDirect(idx)}
+                                          className={`px-3 py-1.5 font-bold text-sm transition-colors ${
+                                            !sel?.addDirect
+                                              ? "bg-gray-400 text-white"
+                                              : "bg-white dark:bg-gray-800 text-gray-400"
+                                          }`}
+                                        >
+                                          No
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Add Office Phone to Company Option - show if we found office AND company exists AND company doesn't have office_phone */}
+                                {item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone && (
+                                  <div className="flex items-center justify-between p-3 rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200">
+                                    <div className="flex items-center gap-2">
+                                      <Building2 className="h-4 w-4 text-orange-600" />
+                                      <span className="text-sm">
+                                        Add office phone to <span className="font-semibold">{item.domain_company.name}</span>: <span className="font-mono font-semibold">{item.phones.office}</span>
+                                      </span>
+                                    </div>
+                                    <div className="flex rounded-lg overflow-hidden border-2 border-orange-400">
+                                      <button
+                                        onClick={() => toggleAddOfficeToCompany(idx)}
+                                        className={`px-3 py-1.5 font-bold text-sm transition-colors ${
+                                          sel?.addOfficeToCompany
+                                            ? "bg-orange-500 text-white"
+                                            : "bg-white dark:bg-gray-800 text-gray-400"
+                                        }`}
+                                      >
+                                        Yes
+                                      </button>
+                                      <button
+                                        onClick={() => toggleAddOfficeToCompany(idx)}
+                                        className={`px-3 py-1.5 font-bold text-sm transition-colors ${
+                                          !sel?.addOfficeToCompany
+                                            ? "bg-gray-400 text-white"
+                                            : "bg-white dark:bg-gray-800 text-gray-400"
+                                        }`}
+                                      >
+                                        No
+                                      </button>
+                                    </div>
                                   </div>
                                 )}
                               </div>

@@ -753,7 +753,7 @@ class EmailToContactExtractionService
       /(?:Direct|Dir|D)[:\s]*(0\d\s?\d{4}\s?\d{4})/i
     ]
 
-    # Try to extract mobile
+    # Try to extract mobile first
     mobile_patterns.each do |pattern|
       match = signature.match(pattern)
       if match && match[1]
@@ -762,27 +762,27 @@ class EmailToContactExtractionService
       end
     end
 
-    # Try to extract office
-    office_patterns.each do |pattern|
+    # Try to extract direct BEFORE office (so "D:" lines aren't matched by office patterns)
+    direct_patterns.each do |pattern|
       match = signature.match(pattern)
       if match && match[1]
-        # Don't use this if it's already the mobile
         candidate = normalize_phone(match[1])
+        # Don't use if it's already mobile
         unless candidate == phones[:mobile]
-          phones[:office] = candidate
+          phones[:direct] = candidate
           break
         end
       end
     end
 
-    # Try to extract direct
-    direct_patterns.each do |pattern|
+    # Try to extract office last
+    office_patterns.each do |pattern|
       match = signature.match(pattern)
       if match && match[1]
+        # Don't use this if it's already the mobile or direct
         candidate = normalize_phone(match[1])
-        # Don't use if it's already mobile or office
-        unless candidate == phones[:mobile] || candidate == phones[:office]
-          phones[:direct] = candidate
+        unless candidate == phones[:mobile] || candidate == phones[:direct]
+          phones[:office] = candidate
           break
         end
       end

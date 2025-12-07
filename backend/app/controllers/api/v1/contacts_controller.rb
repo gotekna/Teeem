@@ -2500,6 +2500,7 @@ module Api
                 full_name: c.full_name,
                 email: c.email,
                 mobile_phone: c.mobile_phone,
+                office_phone: c.office_phone, # Direct line for person
                 entity_type: c.entity_type,
                 xero_contact_type: c.xero_contact_types&.first, # CUSTOMER, SUPPLIER, or nil - helps determine if this is an employee or client
                 xero_invoice_count: c.xero_invoice_count, # If > 0, likely a customer
@@ -2554,18 +2555,26 @@ module Api
         preview_data = preview_data.select { |item| item[:matching_contacts].any? }
 
         # Filter out "perfect matches" that have nothing to update
-        # A perfect match with nothing to update = single contact match + email matches + employer linked + no phone found
+        # A perfect match with nothing to update = single contact match + email matches + employer linked + no phones to add
         preview_data = preview_data.reject do |item|
           next false if item[:matching_contacts].length != 1
 
           contact = item[:matching_contacts].first
+          phones = item[:phones] || {}
+          domain_company = item[:domain_company]
+
           email_matches = contact[:email]&.downcase == item[:email].downcase
           employer_linked = contact[:relationship_to_domain_company_exists]
-          no_phone_found = item[:phones].blank? || item[:phones][:mobile].blank?
-          contact_has_mobile = contact[:mobile_phone].present?
 
-          # Skip if: email matches AND employer linked AND (no phone found OR contact already has mobile)
-          email_matches && employer_linked && (no_phone_found || contact_has_mobile)
+          # Check if there are any phones we could add
+          can_add_mobile = phones[:mobile].present? && contact[:mobile_phone].blank?
+          can_add_direct = phones[:direct].present? && contact[:office_phone].blank?
+          can_add_office_to_company = phones[:office].present? && domain_company && domain_company[:exists] && domain_company[:office_phone].blank?
+
+          has_something_to_update = can_add_mobile || can_add_direct || can_add_office_to_company || !email_matches || !employer_linked
+
+          # Skip if: nothing to update
+          !has_something_to_update
         end
 
         render json: {
@@ -2591,6 +2600,8 @@ module Api
         contacts_created = 0
         emails_added = 0
         mobiles_added = 0
+        directs_added = 0
+        company_phones_added = 0
         contacts_merged = 0
 
         confirmed_extractions.each do |extraction|
@@ -2643,6 +2654,25 @@ module Api
               elsif contact.mobile_phone != extraction[:mobile]
                 Rails.logger.info("Contact #{contact.id} already has mobile #{contact.mobile_phone}, not overwriting with #{extraction[:mobile]}")
               end
+            end
+
+            # Add direct line to contact if requested and not already present
+            if extraction[:add_direct] && extraction[:direct].present?
+              if contact.office_phone.blank?
+                contact.update!(office_phone: extraction[:direct])
+                directs_added += 1
+              elsif contact.office_phone != extraction[:direct]
+                Rails.logger.info("Contact #{contact.id} already has office_phone #{contact.office_phone}, not overwriting with #{extraction[:direct]}")
+              end
+            end
+          end
+
+          # Add office phone to company if requested
+          if extraction[:add_office_to_company] && extraction[:office].present? && extraction[:domain_company_id].present?
+            company = Contact.find_by(id: extraction[:domain_company_id])
+            if company && company.office_phone.blank?
+              company.update!(office_phone: extraction[:office])
+              company_phones_added += 1
             end
           end
 
@@ -2698,6 +2728,8 @@ module Api
           companies_created: companies_created,
           emails_added: emails_added,
           mobiles_added: mobiles_added,
+          directs_added: directs_added,
+          company_phones_added: company_phones_added,
           contacts_merged: contacts_merged
         }
       rescue => e
@@ -2816,7 +2848,7 @@ module Api
             /(?:Direct|Dir|D)[:\s]*(0\d\s?\d{4}\s?\d{4})/i
           ]
 
-          # Try to extract mobile
+          # Try to extract mobile first
           mobile_patterns.each do |pattern|
             match = signature.match(pattern)
             if match && match[1]
@@ -2825,26 +2857,26 @@ module Api
             end
           end
 
-          # Try to extract office
-          office_patterns.each do |pattern|
-            match = signature.match(pattern)
-            if match && match[1]
-              candidate = normalize_phone_number(match[1])
-              unless candidate == phones[:mobile]
-                phones[:office] ||= candidate
-                break if phones[:office]
-              end
-            end
-          end
-
-          # Try to extract direct
+          # Try to extract direct BEFORE office (so "D:" lines aren't matched by office patterns)
           direct_patterns.each do |pattern|
             match = signature.match(pattern)
             if match && match[1]
               candidate = normalize_phone_number(match[1])
-              unless candidate == phones[:mobile] || candidate == phones[:office]
+              unless candidate == phones[:mobile]
                 phones[:direct] ||= candidate
                 break if phones[:direct]
+              end
+            end
+          end
+
+          # Try to extract office last
+          office_patterns.each do |pattern|
+            match = signature.match(pattern)
+            if match && match[1]
+              candidate = normalize_phone_number(match[1])
+              unless candidate == phones[:mobile] || candidate == phones[:direct]
+                phones[:office] ||= candidate
+                break if phones[:office]
               end
             end
           end
@@ -2856,9 +2888,28 @@ module Api
         phones.compact
       end
 
-      # Extract signature portion from email text
+      # Extract signature portion from email text (only the sender's signature, not quoted replies)
       def extract_signature_from_text(text)
-        delimiters = [
+        # First, remove any quoted reply content
+        # Common patterns that indicate start of quoted content
+        quote_indicators = [
+          /\n[-]+\s*Original Message\s*[-]+/i,   # ----- Original Message -----
+          /\nFrom:\s*[^\n]+\nSent:/i,             # From: xxx \n Sent:
+          /\nOn\s+.+wrote:/i,                     # On Mon, Jan 5, 2023 wrote:
+          /\n>+/,                                  # > quoted lines
+          /\n_{10,}/                               # ______________ separator
+        ]
+
+        # Truncate at first quote indicator
+        clean_text = text.dup
+        quote_indicators.each do |indicator|
+          if (match = clean_text.match(indicator))
+            clean_text = clean_text[0...match.begin(0)]
+          end
+        end
+
+        # Now find signature in the clean text
+        signature_delimiters = [
           /\n--\s*\n/,           # Standard "-- " delimiter
           /\nRegards,?\n/i,      # "Regards,"
           /\nBest regards,?\n/i, # "Best regards,"
@@ -2867,16 +2918,20 @@ module Api
           /\nKind regards,?\n/i  # "Kind regards,"
         ]
 
-        delimiters.each do |delimiter|
-          if text.match(delimiter)
-            parts = text.split(delimiter, 2)
-            return parts[1] if parts.length > 1
+        signature_delimiters.each do |delimiter|
+          if clean_text.match(delimiter)
+            parts = clean_text.split(delimiter, 2)
+            if parts.length > 1
+              # Return up to 20 lines of signature
+              sig_lines = parts[1].split("\n").first(20)
+              return sig_lines.join("\n")
+            end
           end
         end
 
-        # If no delimiter found, try to get last 10 lines
-        lines = text.split("\n")
-        lines.last(10).join("\n")
+        # If no delimiter found, try to get last 15 lines of clean text
+        lines = clean_text.split("\n")
+        lines.last(15).join("\n")
       end
 
       # Normalize phone number to consistent format
