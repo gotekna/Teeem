@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   FileText,
@@ -15,6 +16,7 @@ import {
   Database,
   Download,
   Upload,
+  ExternalLink,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -67,6 +69,7 @@ interface Stage3Sharepoint {
   pending: number;
   progress_percentage: number;
   blocker: Blocker | null;
+  sharepoint_url: string | null;
 }
 
 interface PdfSyncStatus {
@@ -361,18 +364,31 @@ export function XeroPdfSyncStatus() {
           />
 
           {/* Stage 3: SharePoint Upload */}
-          <StageProgress
-            stage={3}
-            title="SharePoint"
-            icon={Upload}
-            completed={data.stage3_sharepoint?.uploaded || data.sharepoint_uploads}
-            total={data.stage3_sharepoint?.total_to_upload || data.pdfs_synced}
-            percentage={data.stage3_sharepoint?.progress_percentage || 0}
-            lastSync={null}
-            schedule="Uploads with PDF sync"
-            color="bg-green-100 text-green-600"
-            blocker={data.stage3_sharepoint?.blocker}
-          />
+          <div className="space-y-2">
+            {data.stage3_sharepoint?.sharepoint_url && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => window.open(data.stage3_sharepoint?.sharepoint_url!, '_blank')}
+              >
+                <ExternalLink className="h-3.5 w-3.5 mr-2" />
+                Open SharePoint
+              </Button>
+            )}
+            <StageProgress
+              stage={3}
+              title="SharePoint"
+              icon={Upload}
+              completed={data.stage3_sharepoint?.uploaded || data.sharepoint_uploads}
+              total={data.stage3_sharepoint?.total_to_upload || data.pdfs_synced}
+              percentage={data.stage3_sharepoint?.progress_percentage || 0}
+              lastSync={null}
+              schedule="Uploads with PDF sync"
+              color="bg-green-100 text-green-600"
+              blocker={data.stage3_sharepoint?.blocker}
+            />
+          </div>
         </div>
 
         {/* Summary Stats */}

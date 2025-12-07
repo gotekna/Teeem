@@ -697,6 +697,27 @@ export function XeroContactSync() {
   );
 }
 
+// Helper to format last sync date compactly
+function formatLastSync(dateString: string | null): string {
+  if (!dateString) return "-";
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    // Today - show time
+    return date.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" });
+  } else if (diffDays === 1) {
+    return "Yesterday";
+  } else if (diffDays < 7) {
+    return `${diffDays}d ago`;
+  } else {
+    // Show date
+    return date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+  }
+}
+
 // Helper component for rendering contact rows
 function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: () => void }) {
   const isPriceOnly = contact.entity_type === "price_only";
@@ -718,32 +739,36 @@ function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: (
       )}
       onClick={onClick}
     >
-      <TableCell className="font-medium">
-        {contact.display_name}
+      <TableCell className="font-medium py-2">
+        <div className="truncate max-w-[200px]" title={contact.display_name}>
+          {contact.display_name}
+        </div>
+        {contact.primary_company_name && (
+          <div className="text-xs text-muted-foreground truncate max-w-[200px]">
+            {contact.primary_company_name}
+          </div>
+        )}
       </TableCell>
-      <TableCell>
-        <Badge variant="outline" className={isPriceOnly ? "bg-red-100 text-red-700 border-red-300" : ""}>
-          {contact.entity_type || "Unknown"}
+      <TableCell className="py-2">
+        <Badge variant="outline" className={cn("text-xs", isPriceOnly ? "bg-red-100 text-red-700 border-red-300" : "")}>
+          {contact.entity_type || "?"}
         </Badge>
       </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
-        {contact.primary_company_name || "-"}
-      </TableCell>
-      <TableCell className="text-center text-sm">
+      <TableCell className="text-center text-sm py-2">
         {contact.invoices_count > 0 ? (
           <span className="font-medium">{contact.invoices_count}</span>
         ) : (
           <span className="text-muted-foreground">-</span>
         )}
       </TableCell>
-      <TableCell className="text-center text-sm">
+      <TableCell className="text-center text-sm py-2">
         {contact.bills_count > 0 ? (
           <span className="font-medium">{contact.bills_count}</span>
         ) : (
           <span className="text-muted-foreground">-</span>
         )}
       </TableCell>
-      <TableCell className="text-center text-sm">
+      <TableCell className="text-center text-sm py-2">
         {contact.pdf_sync_percent !== null ? (
           <span className={cn("font-medium", getPdfSyncColor(contact.pdf_sync_percent))}>
             {contact.pdf_sync_percent}%
@@ -752,21 +777,24 @@ function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: (
           <span className="text-muted-foreground">-</span>
         )}
       </TableCell>
-      <TableCell>
+      <TableCell className="text-xs text-muted-foreground py-2">
+        {formatLastSync(contact.last_synced_at)}
+      </TableCell>
+      <TableCell className="py-2">
         {contact.has_error ? (
-          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">
             <AlertTriangle className="h-3 w-3 mr-1" />
             Error
           </Badge>
         ) : contact.synced ? (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
             <Check className="h-3 w-3 mr-1" />
-            Synced
+            OK
           </Badge>
         ) : (
-          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">
             <X className="h-3 w-3 mr-1" />
-            Not Synced
+            No
           </Badge>
         )}
       </TableCell>
@@ -812,13 +840,13 @@ function ContactsGroupedTable({
   const TableHeaders = () => (
     <TableHeader className="sticky top-0 bg-background z-10">
       <TableRow>
-        <TableHead>Contact Name</TableHead>
-        <TableHead>Entity Type</TableHead>
-        <TableHead>Company</TableHead>
-        <TableHead className="text-center">Invoices</TableHead>
-        <TableHead className="text-center">Bills</TableHead>
-        <TableHead className="text-center">PDF %</TableHead>
-        <TableHead>Status</TableHead>
+        <TableHead>Contact</TableHead>
+        <TableHead>Type</TableHead>
+        <TableHead className="text-center w-16">Inv</TableHead>
+        <TableHead className="text-center w-16">Bills</TableHead>
+        <TableHead className="text-center w-16">PDF</TableHead>
+        <TableHead className="w-24">Last Sync</TableHead>
+        <TableHead className="w-20">Status</TableHead>
       </TableRow>
     </TableHeader>
   );
