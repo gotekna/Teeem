@@ -30,7 +30,7 @@ import { api } from "@/lib/api";
 
 interface Contact {
   id: number;
-  full_name?: string;
+  display_name?: string;
   company_name?: string;
   email?: string;
   mobile_phone?: string;
@@ -324,7 +324,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   const getContactDisplayName = (contact?: Contact) => {
     if (!contact) return "Unknown";
     return (
-      contact.full_name ||
+      contact.display_name ||
       contact.company_name ||
       "Unnamed Contact"
     );
@@ -566,7 +566,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
               {roleContacts.map((contact) => {
                 const isExpanded = expandedContacts.has(contact.id);
                 const displayName =
-                  contact.contact?.full_name || contact.contact?.company_name || "Unknown";
+                  contact.contact?.display_name || contact.contact?.company_name || "Unknown";
                 const email = contact.contact?.email;
                 const mobile = contact.contact?.mobile_phone;
                 const isPrimary = contact.primary;
@@ -704,7 +704,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                                         }
                                         className="font-medium text-xs text-primary hover:underline"
                                       >
-                                        {rel.related_contact.full_name ||
+                                        {rel.related_contact.display_name ||
                                           rel.related_contact.company_name}
                                       </button>
                                       <p className="text-xs text-muted-foreground mt-0.5">

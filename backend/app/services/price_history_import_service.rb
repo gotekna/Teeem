@@ -268,12 +268,12 @@ class PriceHistoryImportService
     return nil if name.blank?
 
     # Try to find existing contact by name (suppliers are just contacts with purchase orders/pricebook items)
-    supplier = Contact.find_by("LOWER(full_name) = ?", name.downcase)
+    supplier = Contact.find_by("LOWER(display_name) = ?", name.downcase)
 
     # Create new contact if not found
     unless supplier
       supplier = Contact.create!(
-        full_name: name,
+        display_name: name,
         entity_type: "company", # Default to company for suppliers
         is_active: true
       )

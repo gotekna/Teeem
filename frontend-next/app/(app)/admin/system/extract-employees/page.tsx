@@ -34,7 +34,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 interface MatchingContact {
   id: number;
-  full_name: string;
+  display_name: string;
   email: string | null;
   mobile_phone: string | null;
   office_phone: string | null; // Direct line for person
@@ -70,7 +70,7 @@ interface PreviewItem {
   email_exists_on_contact: boolean;
   existing_contact_with_email: {
     id: number;
-    full_name: string;
+    display_name: string;
     entity_type: string;
   } | null;
   matching_contacts: MatchingContact[];
@@ -1040,7 +1040,7 @@ function ExtractEmployeesContent() {
                                           <User className="h-5 w-5 text-green-600" />
                                           <div className="flex-1">
                                             <div className="flex items-center gap-2">
-                                              <span className="font-semibold">{contact.full_name}</span>
+                                              <span className="font-semibold">{contact.display_name}</span>
                                               {(contact.xero_contact_type === "CUSTOMER" || (contact.xero_invoice_count != null && contact.xero_invoice_count > 0)) && (
                                                 <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
                                                   Customer{contact.xero_invoice_count != null && contact.xero_invoice_count > 0 ? ` (${contact.xero_invoice_count} invoices)` : ""}
@@ -1079,7 +1079,7 @@ function ExtractEmployeesContent() {
                                       <Merge className="h-4 w-4 text-amber-600" />
                                       <span className="text-sm font-medium">
                                         Merge {sel?.contactsToMerge.length} duplicate{sel?.contactsToMerge.length !== 1 ? "s" : ""} into{" "}
-                                        <span className="font-semibold">{selectedContact?.full_name}</span>
+                                        <span className="font-semibold">{selectedContact?.display_name}</span>
                                       </span>
                                     </div>
                                     <div className="flex rounded-lg overflow-hidden border-2 border-amber-400">
@@ -1111,7 +1111,7 @@ function ExtractEmployeesContent() {
                                   <User className="h-5 w-5 text-green-600" />
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="font-semibold">{selectedContact?.full_name}</span>
+                                      <span className="font-semibold">{selectedContact?.display_name}</span>
                                       {sel?.isPerfectMatch && (
                                         <Badge className="bg-green-600 text-xs gap-1">
                                           <CheckCircle2 className="h-3 w-3" />

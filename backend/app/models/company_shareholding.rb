@@ -25,7 +25,7 @@ class CompanyShareholding < ApplicationRecord
   def shareholder_name
     case shareholder
     when Contact
-      shareholder.full_name || shareholder.first_name
+      shareholder.display_name || shareholder.first_name
     when Company
       shareholder.name
     else

@@ -11,7 +11,7 @@ export const COLUMN_PRIORITY_CONFIG: Record<ColumnPriority, ColumnPriorityConfig
   // Tier 1: Essential Business Data
   essential: {
     patterns: [
-      /^(name|title|display_name|full_name|company_name)$/i,
+      /^(name|title|display_name|display_name|company_name)$/i,
       /^address/i,
       /^(email|mobile|primary_email|primary_mobile)$/i,
       /description$/i,

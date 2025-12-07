@@ -54,7 +54,7 @@ module Api
               # For system tables, use a predefined list of key searchable columns (fast)
               # These are the columns users typically want to search
               system_searchable = {
-                "contacts" => %w[full_name first_name last_name email company_name_or_trust mobile_phone office_phone notes],
+                "contacts" => %w[display_name first_name last_name email company_name_or_trust mobile_phone office_phone notes],
                 "constructions" => %w[name description address status],
                 "jobs" => %w[title location ted_number]
               }
@@ -285,9 +285,9 @@ module Api
               if @foundation.model_class == "Contact" && filtered_updates.key?("entity_type")
                 new_entity_type = filtered_updates["entity_type"]
                 if [ "company", "trust" ].include?(new_entity_type)
-                  # If company_name_or_trust is blank, set it to full_name
-                  if record.company_name_or_trust.blank? && record.full_name.present?
-                    filtered_updates["company_name_or_trust"] = record.full_name
+                  # If company_name_or_trust is blank, set it to display_name
+                  if record.company_name_or_trust.blank? && record.display_name.present?
+                    filtered_updates["company_name_or_trust"] = record.display_name
                   end
                 end
               end
@@ -748,8 +748,8 @@ module Api
       # Find all contact IDs that are possible duplicates (share normalized name with another contact)
       def find_duplicate_contact_ids
         contacts_by_name = Contact.where(deleted: [ false, nil ])
-          .select(:id, :full_name)
-          .group_by { |c| normalize_contact_name(c.full_name) }
+          .select(:id, :display_name)
+          .group_by { |c| normalize_contact_name(c.display_name) }
 
         duplicate_ids = []
         contacts_by_name.each do |normalized_name, contacts|

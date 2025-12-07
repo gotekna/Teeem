@@ -45,13 +45,13 @@ class ContactAutoMergeService
 
   def find_duplicate_groups
     contacts = Contact.where(deleted: [ false, nil ])
-                     .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :xero_contact_status, :rating, :notes, :roles, :website, :address)
+                     .select(:id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :xero_contact_status, :rating, :notes, :roles, :website, :address)
 
     groups = []
     seen_ids = Set.new
 
     # Group by normalized full name
-    by_name = contacts.group_by { |c| normalize_name(c.full_name) }
+    by_name = contacts.group_by { |c| normalize_name(c.display_name) }
     by_name.each do |normalized, group|
       next if normalized.blank? || group.size < 2
       next if group.all? { |c| seen_ids.include?(c.id) }
@@ -86,7 +86,7 @@ class ContactAutoMergeService
     target = scored.first[:contact]
     sources = scored[1..-1].map { |s| s[:contact] }
 
-    Rails.logger.info "[ContactAutoMerge] Group '#{group[:match_value]}': keeping #{target.id} (#{target.full_name}, score=#{scored.first[:score]}), merging #{sources.map(&:id).join(', ')}"
+    Rails.logger.info "[ContactAutoMerge] Group '#{group[:match_value]}': keeping #{target.id} (#{target.display_name}, score=#{scored.first[:score]}), merging #{sources.map(&:id).join(', ')}"
 
     if target.xero_id.present?
       @stats[:xero_connections_preserved] += 1
@@ -98,10 +98,10 @@ class ContactAutoMergeService
       @stats[:contacts_deleted] += sources.size
       @stats[:merged_groups] << {
         target_id: target.id,
-        target_name: target.full_name,
+        target_name: target.display_name,
         target_xero: target.xero_id.present?,
         source_ids: sources.map(&:id),
-        source_names: sources.map(&:full_name)
+        source_names: sources.map(&:display_name)
       }
     else
       # Actually perform the merge
@@ -252,10 +252,10 @@ class ContactAutoMergeService
 
       @stats[:merged_groups] << {
         target_id: target.id,
-        target_name: target.full_name,
+        target_name: target.display_name,
         target_xero: target.xero_id.present?,
         source_ids: sources.map(&:id),
-        source_names: sources.map(&:full_name)
+        source_names: sources.map(&:display_name)
       }
     end
 

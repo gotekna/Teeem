@@ -115,7 +115,7 @@ const KNOWN_LOOKUP_MAPPINGS: Record<string, { foundationId: number; displayColum
   job_status_id: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_statuses', responseKey: 'job_statuses' },
   job_status: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_statuses', responseKey: 'job_statuses' },
   design_id: { foundationId: 368, displayColumn: 'name' },
-  contact_id: { foundationId: 214, displayColumn: 'full_name' },
+  contact_id: { foundationId: 214, displayColumn: 'display_name' },
 };
 
 export function ViewManagerSheet({

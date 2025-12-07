@@ -39,7 +39,7 @@ import type {
 
 interface Contact {
   id: number;
-  full_name: string;
+  display_name: string;
   first_name?: string | null;
   last_name?: string | null;
   email?: string | null;
@@ -292,9 +292,9 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
     // Contact fields
     const contactMappings = [
       {
-        teeemField: "full_name",
+        teeemField: "display_name",
         xeroField: "Name",
-        teeemValue: contact.full_name,
+        teeemValue: contact.display_name,
         xeroValue: xeroContactData.Name,
       },
       {

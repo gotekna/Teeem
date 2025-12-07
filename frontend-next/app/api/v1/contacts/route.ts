@@ -6,7 +6,7 @@ export async function GET() {
     const contacts = await query(`
       SELECT
         id,
-        full_name,
+        display_name,
         first_name,
         last_name,
         email,
@@ -21,7 +21,7 @@ export async function GET() {
         updated_at
       FROM contacts
       WHERE deleted IS NOT TRUE
-      ORDER BY full_name ASC
+      ORDER BY display_name ASC
       LIMIT 200
     `);
 

@@ -46,14 +46,14 @@ class XeroContactValidator
 
   def validate_name_presence
     # Xero requires either Name OR (FirstName + LastName)
-    # We use full_name as Name field, so check that it's present
-    name = contact.full_name.presence ||
+    # We use display_name as Name field, so check that it's present
+    name = contact.display_name.presence ||
            "#{contact.first_name} #{contact.last_name}".strip.presence
 
     if name.blank?
       @errors << {
         field: :name,
-        message: "Contact must have a name (full_name or first_name + last_name)"
+        message: "Contact must have a name (display_name or first_name + last_name)"
       }
     end
 
@@ -162,8 +162,8 @@ class XeroContactValidator
         }
       end
     when "company", "trust"
-      # Company/Trust contacts need company_name_or_trust OR full_name
-      if contact.company_name_or_trust.blank? && contact.full_name.blank?
+      # Company/Trust contacts need company_name_or_trust OR display_name
+      if contact.company_name_or_trust.blank? && contact.display_name.blank?
         @errors << {
           field: :company_name_or_trust,
           message: "Company/trust name is required for #{contact.entity_type} contacts"

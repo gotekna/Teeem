@@ -33,7 +33,7 @@ import { isPerson, isCompany, isTrust, canHaveEmployees, getEntityTypeBadge } fr
 interface Contact {
   id: number;
   name?: string;
-  full_name?: string;
+  display_name?: string;
   email?: string | null;
   phone?: string | null;
   mobile_phone?: string | null;
@@ -211,7 +211,7 @@ export function MergeContactsModal({
               <AlertDescription>
                 Multiple contacts are linked to Xero. Only the primary contact's Xero connection
                 will be preserved. The following Xero links will be lost:{" "}
-                {xeroContactsToLose.map((c) => c.name || c.full_name).join(", ")}
+                {xeroContactsToLose.map((c) => c.name || c.display_name).join(", ")}
               </AlertDescription>
             </Alert>
           )}
@@ -242,7 +242,7 @@ export function MergeContactsModal({
                         htmlFor={`contact-${contact.id}`}
                         className="font-medium cursor-pointer"
                       >
-                        {contact.name || contact.full_name}
+                        {contact.name || contact.display_name}
                       </Label>
                       {/* Entity Type Badge */}
                       {contact.entity_type && (

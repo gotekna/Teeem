@@ -123,13 +123,13 @@ module Api
         if include_details
           data[:from_shareholder] = transfer.from_shareholder ? {
             id: transfer.from_shareholder.id,
-            full_name: transfer.from_shareholder.full_name,
+            display_name: transfer.from_shareholder.display_name,
             entity_type: transfer.from_shareholder.entity_type
           } : nil
 
           data[:to_shareholder] = {
             id: transfer.to_shareholder.id,
-            full_name: transfer.to_shareholder.full_name,
+            display_name: transfer.to_shareholder.display_name,
             entity_type: transfer.to_shareholder.entity_type
           }
         end

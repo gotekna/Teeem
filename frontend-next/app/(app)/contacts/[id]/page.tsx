@@ -180,7 +180,7 @@ interface ContactPhone {
 
 interface Contact {
   id: number;
-  full_name: string;
+  display_name: string;
   display_name: string;
   first_name: string | null;
   middle_name: string | null;
@@ -249,7 +249,7 @@ interface Contact {
   } | null;
   employees?: Array<{
     id: number;
-    full_name: string;
+    display_name: string;
     first_name: string | null;
     last_name: string | null;
     email: string | null;
@@ -477,7 +477,7 @@ interface CaseRelationship {
 // Contact data from company list API
 interface CompanyListContact {
   id: number;
-  full_name: string;
+  display_name: string;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -647,7 +647,7 @@ function SortableEmployeeItem({
       {/* Employee Info */}
       <div className="flex-1 min-w-0">
         <Link href={`/contacts/${employee.id}`} className="text-sm font-medium hover:underline">
-          {employee.full_name}
+          {employee.display_name}
         </Link>
         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
           {employee.email && (
@@ -905,7 +905,7 @@ export default function ContactDetailPage() {
     first_name: "",
     middle_name: "",
     last_name: "",
-    full_name: "",
+    display_name: "",
     company_name_or_trust: "", // SSoT for company/trust names
     email: "",
     mobile_phone: "",
@@ -1049,7 +1049,7 @@ export default function ContactDetailPage() {
         console.log('[Company Multi-Select] Loaded companies:', companies.length);
         const companyOptions: Option[] = companies.map((c: CompanyListContact) => ({
           value: c.id.toString(),
-          label: c.full_name || c.first_name || "Unknown Company",
+          label: c.display_name || c.first_name || "Unknown Company",
         }));
         console.log('[Company Multi-Select] Company options:', companyOptions);
         setAvailableCompanies(companyOptions);
@@ -1106,7 +1106,7 @@ export default function ContactDetailPage() {
         const people = response.contacts || [];
         const peopleOptions: Option[] = people.map((p: CompanyListContact) => ({
           value: p.id.toString(),
-          label: `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.full_name || "Unknown Person",
+          label: `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.display_name || "Unknown Person",
         }));
         setAvailablePeople(peopleOptions);
       } catch (err) {
@@ -1124,7 +1124,7 @@ export default function ContactDetailPage() {
     if (contact?.employees) {
       const selected: Option[] = contact.employees.map((emp) => ({
         value: emp.id.toString(),
-        label: emp.full_name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || "Unknown Person",
+        label: emp.display_name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || "Unknown Person",
       }));
       console.log('[Employee useEffect] Setting selectedEmployees to:', selected);
       setSelectedEmployees(selected);
@@ -1204,7 +1204,7 @@ export default function ContactDetailPage() {
   const handleDelete = async () => {
     if (!contact) return;
 
-    if (!confirm(`Delete contact "${contact.full_name}"?`)) {
+    if (!confirm(`Delete contact "${contact.display_name}"?`)) {
       return;
     }
 
@@ -1436,7 +1436,7 @@ export default function ContactDetailPage() {
         first_name: contact.first_name || "",
         middle_name: contact.middle_name || "",
         last_name: contact.last_name || "",
-        full_name: contact.full_name || "",
+        display_name: contact.display_name || "",
         company_name_or_trust: contact.company_name_or_trust || "", // SSoT for company/trust names
         email: contact.email || "",
         mobile_phone: contact.mobile_phone || "",
@@ -1468,19 +1468,19 @@ export default function ContactDetailPage() {
         const isNewPersonType = hasFirstLastName(newType);
 
         // Switching from person/sole_trader to company/trust
-        // Populate full_name from first/middle/last name
+        // Populate display_name from first/middle/last name
         if (isPrevPersonType && !isNewPersonType) {
           const constructedName = [prev.first_name, prev.middle_name, prev.last_name].filter(Boolean).join(" ");
-          if (constructedName && (!updated.full_name || updated.full_name === 'Unknown')) {
-            updated.full_name = constructedName;
+          if (constructedName && (!updated.display_name || updated.display_name === 'Unknown')) {
+            updated.display_name = constructedName;
           }
         }
 
         // Switching from company/trust to person/sole_trader
-        // Try to parse full_name into first/last name if they're empty
+        // Try to parse display_name into first/last name if they're empty
         if (!isPrevPersonType && isNewPersonType) {
-          if (prev.full_name && (!prev.first_name && !prev.last_name)) {
-            const nameParts = prev.full_name.trim().split(/\s+/);
+          if (prev.display_name && (!prev.first_name && !prev.last_name)) {
+            const nameParts = prev.display_name.trim().split(/\s+/);
             if (nameParts.length >= 2) {
               updated.first_name = nameParts[0];
               updated.last_name = nameParts.slice(1).join(" ");
@@ -1892,18 +1892,18 @@ export default function ContactDetailPage() {
     if (!contact) return;
     setSaving(true);
     try {
-      // For person/sole_trader: construct full_name from first/last name
+      // For person/sole_trader: construct display_name from first/last name
       // For company/trust: use company_name_or_trust (SSoT) - backend syncs this to display_name
-      // For price_only: use full_name directly (AUTO-UPPERCASE)
-      let full_name = hasFirstLastName(formData.entity_type)
+      // For price_only: use display_name directly (AUTO-UPPERCASE)
+      let display_name = hasFirstLastName(formData.entity_type)
         ? [formData.first_name, formData.middle_name, formData.last_name].filter(Boolean).join(" ") || "Unknown"
         : hasCompanyName(formData.entity_type)
           ? formData.company_name_or_trust || "Unknown"
-          : formData.full_name || "Unknown";
+          : formData.display_name || "Unknown";
 
       // Price Only contacts are always saved in CAPITALS
       if (isPriceOnly(formData.entity_type)) {
-        full_name = full_name.toUpperCase();
+        display_name = display_name.toUpperCase();
       }
 
       // Prepare contact_emails_attributes (filtering out destroyed items for new records)
@@ -1939,7 +1939,7 @@ export default function ContactDetailPage() {
       await api.patch(`/api/v1/contacts/${contact.id}`, {
         contact: {
           ...formData,
-          full_name,
+          display_name,
           // Keep legacy fields in sync for backwards compatibility
           email: primaryEmail?.email || formData.email,
           mobile_phone: primaryMobile?.phone_number || formData.mobile_phone,
@@ -1994,7 +1994,7 @@ export default function ContactDetailPage() {
         contact: {
           entity_type: "company",
           company_name_or_trust: newCompanyName.trim(),
-          full_name: newCompanyName.trim(),
+          display_name: newCompanyName.trim(),
           display_name: newCompanyName.trim(),
         },
       });
@@ -2035,7 +2035,7 @@ export default function ContactDetailPage() {
           entity_type: "person",
           first_name: newEmployeeFirstName.trim(),
           last_name: newEmployeeLastName.trim(),
-          full_name: fullName,
+          display_name: fullName,
           display_name: fullName,
         },
       });
@@ -2160,7 +2160,7 @@ export default function ContactDetailPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold tracking-tight font-serif">
-                {contact.display_name || contact.full_name}
+                {contact.display_name || contact.display_name}
               </h1>
               {contact["is_supplier?"] && (
                 <Badge className="bg-purple-100 text-purple-700">Supplier</Badge>
@@ -2302,12 +2302,12 @@ export default function ContactDetailPage() {
                             <Label htmlFor="last_name">Last Name</Label>
                             <Input id="last_name" value={formData.last_name} onChange={(e) => handleInputChange("last_name", e.target.value)} onBlur={handleAutoSave} />
                           </div>
-                          {/* Show full_name from database as read-only (SSoT) */}
+                          {/* Show display_name from database as read-only (SSoT) */}
                           <div className="space-y-2">
-                            <Label htmlFor="full_name_display">Display Name (SSoT)</Label>
+                            <Label htmlFor="display_name_display">Display Name (SSoT)</Label>
                             <Input
-                              id="full_name_display"
-                              value={contact.full_name || ""}
+                              id="display_name_display"
+                              value={contact.display_name || ""}
                               disabled
                               className="bg-muted"
                             />
@@ -2315,7 +2315,7 @@ export default function ContactDetailPage() {
                           </div>
                         </>
                       ) : (
-                        /* Company, Trust use company_name_or_trust (SSoT), Price Only shows full_name read-only */
+                        /* Company, Trust use company_name_or_trust (SSoT), Price Only shows display_name read-only */
                         <>
                           <div className="space-y-2">
                             <Label htmlFor="company_name_or_trust">
@@ -2323,11 +2323,11 @@ export default function ContactDetailPage() {
                             </Label>
                             <Input
                               id="company_name_or_trust"
-                              value={isPriceOnly(formData.entity_type) ? formData.full_name : formData.company_name_or_trust}
+                              value={isPriceOnly(formData.entity_type) ? formData.display_name : formData.company_name_or_trust}
                               onChange={(e) => {
                                 if (isPriceOnly(formData.entity_type)) {
-                                  // For Price Only, update full_name directly
-                                  handleInputChange("full_name", e.target.value);
+                                  // For Price Only, update display_name directly
+                                  handleInputChange("display_name", e.target.value);
                                 } else {
                                   handleInputChange("company_name_or_trust", e.target.value);
                                 }
@@ -2339,13 +2339,13 @@ export default function ContactDetailPage() {
                               <p className="text-xs text-muted-foreground">Will be saved in CAPITALS automatically</p>
                             )}
                           </div>
-                          {/* Show full_name from database as read-only (SSoT) for Company/Trust */}
+                          {/* Show display_name from database as read-only (SSoT) for Company/Trust */}
                           {!isPriceOnly(formData.entity_type) && (
                             <div className="space-y-2">
-                              <Label htmlFor="full_name_display">Display Name (SSoT)</Label>
+                              <Label htmlFor="display_name_display">Display Name (SSoT)</Label>
                               <Input
-                                id="full_name_display"
-                                value={contact.full_name || ""}
+                                id="display_name_display"
+                                value={contact.display_name || ""}
                                 disabled
                                 className="bg-muted"
                               />
@@ -3679,7 +3679,7 @@ export default function ContactDetailPage() {
                     </div>
                   ) : ownershipChain.length > 0 || directorships.length > 0 ? (
                     <PersonStructureChart
-                      personName={contact.full_name}
+                      personName={contact.display_name}
                       personEmail={contact.email}
                       ownershipChain={ownershipChain}
                       directorRoles={directorships.map(d => ({

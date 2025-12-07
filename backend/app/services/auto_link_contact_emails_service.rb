@@ -26,7 +26,7 @@ class AutoLinkContactEmailsService
       @case_record.add_email(
         email,
         relevance: "supporting",
-        notes: "Auto-linked from #{@contact.full_name || @contact.email}",
+        notes: "Auto-linked from #{@contact.display_name || @contact.email}",
         added_by: @case_contact.added_by || @case_record.created_by
       )
 

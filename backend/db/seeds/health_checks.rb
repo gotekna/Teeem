@@ -47,7 +47,7 @@ TableHealthCheck.find_or_create_by!(
   check_type: 'company_with_first_name'
 ) do |check|
   check.name = 'Companies With Person Names'
-  check.description = 'Contacts with entity_type "company", "trust", or "price_only" that have first_name or last_name set. These should only have company_name_or_trust or full_name.'
+  check.description = 'Contacts with entity_type "company", "trust", or "price_only" that have first_name or last_name set. These should only have company_name_or_trust or display_name.'
   check.api_endpoint = '/api/v1/contacts/company_with_first_name'
   check.severity = 'warning'
   check.icon = 'user-x'

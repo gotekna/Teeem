@@ -9,7 +9,7 @@ require "fuzzy_match"
 # 2. email (case-insensitive)
 # 3. tax_number/ABN
 # 4. mobile_phone (normalized)
-# 5. full_name (fuzzy match >85%)
+# 5. display_name (fuzzy match >85%)
 class EasybuildContactMatcher
   SIMILARITY_THRESHOLD = 0.85
 
@@ -78,7 +78,7 @@ class EasybuildContactMatcher
     email = row["email"].presence
     tax_number = row["tax_number"].presence
     mobile_phone = row["mobile_phone"].presence
-    full_name = row["full_name"].presence
+    display_name = row["display_name"].presence
     first_name = row["first_name"].presence
     last_name = row["last_name"].presence
 
@@ -94,14 +94,14 @@ class EasybuildContactMatcher
       email: email,
       tax_number: tax_number,
       mobile_phone: mobile_phone,
-      full_name: full_name
+      display_name: display_name
     )
 
     if match_result[:contact]
       # Found a match - update with easybuild_id
       result = {
         easybuild_id: easybuild_id,
-        easybuild_name: full_name,
+        easybuild_name: display_name,
         match_type: match_result[:match_type],
         teeem_id: match_result[:contact].id,
         teeem_name: match_result[:contact].display_name,
@@ -117,7 +117,7 @@ class EasybuildContactMatcher
       # No match - create new contact or skip
       result = {
         easybuild_id: easybuild_id,
-        easybuild_name: full_name,
+        easybuild_name: display_name,
         easybuild_email: email,
         easybuild_phone: mobile_phone,
         match_type: "none",
@@ -128,7 +128,7 @@ class EasybuildContactMatcher
 
       unless dry_run
         new_contact = Contact.create!(
-          full_name: full_name,
+          display_name: display_name,
           first_name: first_name,
           last_name: last_name,
           email: email,
@@ -147,7 +147,7 @@ class EasybuildContactMatcher
     @results << result
   end
 
-  def find_match(xero_id:, email:, tax_number:, mobile_phone:, full_name:)
+  def find_match(xero_id:, email:, tax_number:, mobile_phone:, display_name:)
     # Priority 1: Match by xero_id
     if xero_id.present? && @by_xero_id[xero_id]
       return { contact: @by_xero_id[xero_id], match_type: "xero_id" }
@@ -179,8 +179,8 @@ class EasybuildContactMatcher
     end
 
     # Priority 5: Match by fuzzy name
-    if full_name.present?
-      match = fuzzy_match_by_name(full_name)
+    if display_name.present?
+      match = fuzzy_match_by_name(display_name)
       if match
         return { contact: match, match_type: "name" }
       end

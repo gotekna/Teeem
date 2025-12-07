@@ -373,7 +373,7 @@ class XeroContactSyncJob < ApplicationJob
     }
 
     # Update fields if Xero has data and TEEEM doesn't, or if explicitly syncing
-    updates[:full_name] = xero_contact["Name"] if xero_contact["Name"].present?
+    updates[:display_name] = xero_contact["Name"] if xero_contact["Name"].present?
     updates[:first_name] = xero_contact["FirstName"] if xero_contact["FirstName"].present?
     updates[:last_name] = xero_contact["LastName"] if xero_contact["LastName"].present?
     updates[:tax_number] = normalize_tax_number(xero_contact["TaxNumber"]) if xero_contact["TaxNumber"].present?
@@ -480,7 +480,7 @@ class XeroContactSyncJob < ApplicationJob
 
     contact_data = {
       xero_id: xero_contact["ContactID"],
-      full_name: xero_contact["Name"],
+      display_name: xero_contact["Name"],
       first_name: xero_contact["FirstName"],
       last_name: xero_contact["LastName"],
       tax_number: normalize_tax_number(xero_contact["TaxNumber"]),
@@ -581,7 +581,7 @@ class XeroContactSyncJob < ApplicationJob
 
   def build_xero_contact_payload(teeem_contact)
     payload = {
-      Name: teeem_contact.full_name || "#{teeem_contact.first_name} #{teeem_contact.last_name}".strip
+      Name: teeem_contact.display_name || "#{teeem_contact.first_name} #{teeem_contact.last_name}".strip
     }
 
     payload[:FirstName] = teeem_contact.first_name if teeem_contact.first_name.present?

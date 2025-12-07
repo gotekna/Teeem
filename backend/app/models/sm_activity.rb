@@ -119,7 +119,7 @@ class SmActivity < ApplicationRecord
 
   def actor_name
     if user.present?
-      user.full_name || user.email
+      user.display_name || user.email
     elsif resource.present?
       resource.name
     else

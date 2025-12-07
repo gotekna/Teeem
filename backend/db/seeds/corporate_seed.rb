@@ -23,19 +23,19 @@ puts "  Created #{CompanyGroup.count} company groups"
 # Directors as Contacts
 puts "Creating Directors..."
 directors = [
-  { full_name: 'Aaron Thomas Glowka', first_name: 'Aaron', last_name: 'Glowka', director_id: '002095619' },
-  { full_name: 'Andrew Mark Clement', first_name: 'Andrew', last_name: 'Clement', director_id: '002037498' },
-  { full_name: 'Rachel Anne Harder', first_name: 'Rachel', last_name: 'Harder', director_id: '002036826' },
-  { full_name: 'Robert John Harder', first_name: 'Robert', last_name: 'Harder', director_id: '002036822' },
-  { full_name: 'Jared Sa-Bin Harder', first_name: 'Jared', last_name: 'Harder', director_id: '002036829' },
-  { full_name: 'Samuel James Harder', first_name: 'Samuel', last_name: 'Harder', director_id: '002036831' },
-  { full_name: 'Sophie Mee-jeong Harder', first_name: 'Sophie', last_name: 'Harder', director_id: '002036833' },
-  { full_name: 'Christine Leanne Harder', first_name: 'Christine', last_name: 'Harder', director_id: '002036835' },
-  { full_name: 'James Jonathan Harder', first_name: 'James', last_name: 'Harder', director_id: '002036837' },
-  { full_name: 'Jake Baird', first_name: 'Jake', last_name: 'Baird', director_id: '002095604' }
+  { display_name: 'Aaron Thomas Glowka', first_name: 'Aaron', last_name: 'Glowka', director_id: '002095619' },
+  { display_name: 'Andrew Mark Clement', first_name: 'Andrew', last_name: 'Clement', director_id: '002037498' },
+  { display_name: 'Rachel Anne Harder', first_name: 'Rachel', last_name: 'Harder', director_id: '002036826' },
+  { display_name: 'Robert John Harder', first_name: 'Robert', last_name: 'Harder', director_id: '002036822' },
+  { display_name: 'Jared Sa-Bin Harder', first_name: 'Jared', last_name: 'Harder', director_id: '002036829' },
+  { display_name: 'Samuel James Harder', first_name: 'Samuel', last_name: 'Harder', director_id: '002036831' },
+  { display_name: 'Sophie Mee-jeong Harder', first_name: 'Sophie', last_name: 'Harder', director_id: '002036833' },
+  { display_name: 'Christine Leanne Harder', first_name: 'Christine', last_name: 'Harder', director_id: '002036835' },
+  { display_name: 'James Jonathan Harder', first_name: 'James', last_name: 'Harder', director_id: '002036837' },
+  { display_name: 'Jake Baird', first_name: 'Jake', last_name: 'Baird', director_id: '002095604' }
 ]
 directors.each do |d|
-  Contact.find_or_create_by!(full_name: d[:full_name]) do |c|
+  Contact.find_or_create_by!(display_name: d[:display_name]) do |c|
     c.first_name = d[:first_name]
     c.last_name = d[:last_name]
     c.director_id = d[:director_id]
@@ -99,7 +99,7 @@ director_links = [
 ]
 director_links.each do |dl|
   company = Company.find_by(name: dl[:company])
-  director = Contact.find_by("full_name ILIKE ?", "%#{dl[:director]}%")
+  director = Contact.find_by("display_name ILIKE ?", "%#{dl[:director]}%")
   next unless company && director
 
   CompanyDirector.find_or_create_by!(company: company, contact: director) do |cd|
@@ -121,7 +121,7 @@ shareholdings_data.each do |sh|
   next unless company
 
   # Find or create shareholder contact
-  shareholder = Contact.find_or_create_by!(full_name: sh[:shareholder]) do |c|
+  shareholder = Contact.find_or_create_by!(display_name: sh[:shareholder]) do |c|
     c.first_name = sh[:shareholder].split.first
     c.last_name = sh[:shareholder].split[1..-1]&.join(' ')
     c.entity_type = sh[:shareholder].include?('Pty') || sh[:shareholder].include?('Trust') ? 'company' : 'person'

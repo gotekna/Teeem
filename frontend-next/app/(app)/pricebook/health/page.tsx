@@ -118,7 +118,7 @@ interface XeroInvoiceSyncHealth {
 
 interface DuplicateContact {
   id: number;
-  full_name: string;
+  display_name: string;
   email?: string;
   entity_type?: string;
   has_xero?: boolean;
@@ -1227,14 +1227,14 @@ export default function PricebookHealthPage() {
                               <div className="flex items-center gap-2 mb-2">
                                 <Badge
                                   variant={
-                                    group.match_type === "full_name"
+                                    group.match_type === "display_name"
                                       ? "default"
                                       : group.match_type === "first_last_name"
                                       ? "secondary"
                                       : "outline"
                                   }
                                 >
-                                  {group.match_type === "full_name"
+                                  {group.match_type === "display_name"
                                     ? "Same Full Name"
                                     : group.match_type === "first_last_name"
                                     ? "Same First+Last"
@@ -1253,7 +1253,7 @@ export default function PricebookHealthPage() {
                                       <Link href={`/contacts/${contact.id}`} className="text-primary hover:underline font-medium">
                                         #{contact.id}
                                       </Link>
-                                      <span>{contact.full_name}</span>
+                                      <span>{contact.display_name}</span>
                                       {contact.entity_type && (
                                         <Badge variant="outline" className="text-xs">
                                           {contact.entity_type}

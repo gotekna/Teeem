@@ -117,7 +117,7 @@ interface Director {
   formatted_position: string;
   contact: {
     id: number;
-    full_name: string;
+    display_name: string;
     email?: string;
     mobile_phone?: string;
   };
@@ -340,7 +340,7 @@ function InformationTab({ company }: { company: Company }) {
           <ul className="space-y-1">
             {company.current_directors.map((director) => (
               <li key={director.id} className="text-sm">
-                {director.contact?.full_name || "Unknown"}
+                {director.contact?.display_name || "Unknown"}
               </li>
             ))}
           </ul>
@@ -626,10 +626,10 @@ function DirectorsTab({ company }: { company: Company }) {
             <div key={director.id} className="flex items-center justify-between py-3 border-b last:border-0">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-                  {director.contact?.full_name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?"}
+                  {director.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?"}
                 </div>
                 <div>
-                  <p className="font-medium">{director.contact?.full_name || "Unknown"}</p>
+                  <p className="font-medium">{director.contact?.display_name || "Unknown"}</p>
                   <p className="text-sm text-muted-foreground">{director.formatted_position}</p>
                 </div>
               </div>

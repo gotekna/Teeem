@@ -62,8 +62,8 @@ const ENTITY_TYPE_FIELDS = [
   { field: "first_name", label: "First Name", description: "Person's first name" },
   { field: "middle_name", label: "Middle Name", description: "Person's middle name" },
   { field: "last_name", label: "Last Name", description: "Person's last name" },
-  { field: "company_name_or_trust", label: "Company/Trust Name", description: "Business entity name - updates full_name on save" },
-  { field: "full_name", label: "Display Name", description: "Display name (auto-synced from name fields)" },
+  { field: "company_name_or_trust", label: "Company/Trust Name", description: "Business entity name - updates display_name on save" },
+  { field: "display_name", label: "Display Name", description: "Display name (auto-synced from name fields)" },
   { field: "email", label: "Email", description: "Primary email address" },
   { field: "phone", label: "Phone", description: "Primary phone number" },
   { field: "website", label: "Website", description: "Website URL" },
@@ -80,7 +80,7 @@ const FIELD_MATRIX: Record<string, Record<string, "required" | "optional" | "com
     middle_name: "optional",
     last_name: "required",
     company_name_or_trust: "na",
-    full_name: "computed", // computed from first + middle + last
+    display_name: "computed", // computed from first + middle + last
     email: "optional",
     phone: "optional",
     website: "optional",
@@ -94,7 +94,7 @@ const FIELD_MATRIX: Record<string, Record<string, "required" | "optional" | "com
     middle_name: "optional",
     last_name: "required",
     company_name_or_trust: "na",
-    full_name: "computed",
+    display_name: "computed",
     email: "optional",
     phone: "optional",
     website: "optional",
@@ -108,7 +108,7 @@ const FIELD_MATRIX: Record<string, Record<string, "required" | "optional" | "com
     middle_name: "na",
     last_name: "na",
     company_name_or_trust: "required",
-    full_name: "required", // SSoT: company_name_or_trust syncs TO full_name
+    display_name: "required", // SSoT: company_name_or_trust syncs TO display_name
     email: "optional",
     phone: "optional",
     website: "optional",
@@ -122,7 +122,7 @@ const FIELD_MATRIX: Record<string, Record<string, "required" | "optional" | "com
     middle_name: "na",
     last_name: "na",
     company_name_or_trust: "required",
-    full_name: "required", // SSoT: company_name_or_trust syncs TO full_name
+    display_name: "required", // SSoT: company_name_or_trust syncs TO display_name
     email: "optional",
     phone: "optional",
     website: "optional",
@@ -136,7 +136,7 @@ const FIELD_MATRIX: Record<string, Record<string, "required" | "optional" | "com
     middle_name: "na",
     last_name: "na",
     company_name_or_trust: "na",
-    full_name: "required", // only field used - AUTO UPPERCASE on save
+    display_name: "required", // only field used - AUTO UPPERCASE on save
     email: "na",
     phone: "na",
     website: "na",

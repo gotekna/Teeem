@@ -14,7 +14,7 @@ import type { TableRow as TTableRow, TableColumn } from "@/components/table/type
 
 interface Contact {
   id: number;
-  full_name: string;
+  display_name: string;
   display_name: string;
   first_name: string | null;
   last_name: string | null;
@@ -198,7 +198,7 @@ export default function ContactsPageClient({
   // Backend sets deleted=true, record disappears from UI but can be recovered
   const handleDelete = useCallback(async (row: TTableRow) => {
     const contact = row as unknown as Contact;
-    const contactName = contact.display_name || contact.full_name || contact.name || 'Contact';
+    const contactName = contact.display_name || contact.display_name || contact.name || 'Contact';
 
     // Pick a random TEEEM value
     const randomValue = teeemValues[Math.floor(Math.random() * teeemValues.length)];

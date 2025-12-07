@@ -40,7 +40,7 @@ interface OwnershipNode {
 
 interface PersonData {
   id: number;
-  full_name: string;
+  display_name: string;
   email?: string | null;
 }
 
@@ -196,7 +196,7 @@ export default function CorporateStructurePage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif flex items-center gap-2">
               <GitBranch className="h-6 w-6 text-teal-600" />
-              {person.full_name} - Corporate Structure
+              {person.display_name} - Corporate Structure
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               All company relationships for this person
@@ -214,7 +214,7 @@ export default function CorporateStructurePage() {
       {/* Structure Chart - Full Width */}
       <div className="flex-1 min-h-[600px]">
         <PersonStructureChart
-          personName={person.full_name}
+          personName={person.display_name}
           personEmail={person.email}
           ownershipChain={ownershipChain}
           directorRoles={directorRoles}

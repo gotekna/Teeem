@@ -70,7 +70,7 @@ export const COLUMN_WIDTH_OVERRIDES = {
   },
   directors: {
     id: 60,
-    full_name: 200,
+    display_name: 200,
     email: 180,
     mobile_phone: 130,
     director_position: 120,

@@ -61,7 +61,7 @@ interface Directorship {
 
 interface Director {
   id: number;
-  full_name: string;
+  display_name: string;
   email?: string;
   mobile_phone?: string;
   director_position?: string;
@@ -106,7 +106,7 @@ export default function DirectorsPage() {
     const query = searchQuery.toLowerCase();
     return directors.filter(
       (director) =>
-        director.full_name?.toLowerCase().includes(query) ||
+        director.display_name?.toLowerCase().includes(query) ||
         director.email?.toLowerCase().includes(query) ||
         director.director_tfn?.toLowerCase().includes(query)
     );
@@ -180,7 +180,7 @@ export default function DirectorsPage() {
                       {director.photo_url ? (
                         <img
                           src={director.photo_url}
-                          alt={director.full_name}
+                          alt={director.display_name}
                           className="h-12 w-12 rounded-full object-cover"
                         />
                       ) : (
@@ -203,7 +203,7 @@ export default function DirectorsPage() {
                       </div>
                     </div>
                     <div className="ml-4 flex-1">
-                      <h3 className="text-lg font-medium">{director.full_name}</h3>
+                      <h3 className="text-lg font-medium">{director.display_name}</h3>
                       {director.director_position && (
                         <p className="text-sm text-muted-foreground">{director.director_position}</p>
                       )}

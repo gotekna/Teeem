@@ -73,7 +73,7 @@ import { cn } from "@/lib/utils";
 interface PriceHistorySupplier {
   id: number;
   name: string;
-  full_name?: string;
+  display_name?: string;
   display_name?: string;
 }
 
@@ -90,9 +90,9 @@ interface PriceHistory {
 
 interface Supplier {
   id: number;
-  full_name: string;
+  display_name: string;
   display_name?: string;
-  name?: string;  // Some API responses use 'name' instead of 'full_name'
+  name?: string;  // Some API responses use 'name' instead of 'display_name'
 }
 
 interface PriceBookItem {
@@ -483,7 +483,7 @@ export default function PriceBookItemDetailPage() {
 
         // Build a Supplier object from the price_history supplier data
         const newDefaultSupplier: Supplier | null = supplierFromHistory
-          ? { id: supplierFromHistory.id, full_name: supplierFromHistory.name }
+          ? { id: supplierFromHistory.id, display_name: supplierFromHistory.name }
           : prevItem.default_supplier;
 
         return {
@@ -679,7 +679,7 @@ export default function PriceBookItemDetailPage() {
                       </div>
                       {item.default_supplier && (
                         <div className="mt-1 text-xs text-muted-foreground">
-                          from {item.default_supplier.display_name || item.default_supplier.full_name}
+                          from {item.default_supplier.display_name || item.default_supplier.display_name}
                         </div>
                       )}
                     </dd>
@@ -898,8 +898,8 @@ export default function PriceBookItemDetailPage() {
                                     role="combobox"
                                     className="w-full justify-between h-9 text-sm font-normal"
                                   >
-                                    {pendingEdit?.supplier?.display_name || pendingEdit?.supplier?.full_name || pendingEdit?.supplier?.name ||
-                                     history.supplier?.display_name || history.supplier?.full_name || history.supplier?.name ||
+                                    {pendingEdit?.supplier?.display_name || pendingEdit?.supplier?.display_name || pendingEdit?.supplier?.name ||
+                                     history.supplier?.display_name || history.supplier?.display_name || history.supplier?.name ||
                                      <span className="text-muted-foreground">Select supplier...</span>}
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                   </Button>
@@ -913,7 +913,7 @@ export default function PriceBookItemDetailPage() {
                                         {suppliers.map((supplier) => (
                                           <CommandItem
                                             key={supplier.id}
-                                            value={supplier.display_name || supplier.full_name}
+                                            value={supplier.display_name || supplier.display_name}
                                             onSelect={() => {
                                               handleFieldChange(history.id, 'supplier', supplier);
                                               setSupplierPopoverOpen(prev => ({ ...prev, [history.id]: false }));
@@ -925,7 +925,7 @@ export default function PriceBookItemDetailPage() {
                                                 (pendingEdit?.supplier?.id || history.supplier?.id) === supplier.id ? "opacity-100" : "opacity-0"
                                               )}
                                             />
-                                            {supplier.display_name || supplier.full_name}
+                                            {supplier.display_name || supplier.display_name}
                                           </CommandItem>
                                         ))}
                                       </CommandGroup>
@@ -1047,7 +1047,7 @@ export default function PriceBookItemDetailPage() {
                                   console.log('[Supplier button] Could not find supplier with ID:', newPriceEntry.supplier_id, 'in', suppliers.length, 'suppliers');
                                   return <span className="text-muted-foreground">Select Supplier...</span>;
                                 }
-                                return selectedSupplier.display_name || selectedSupplier.full_name;
+                                return selectedSupplier.display_name || selectedSupplier.display_name;
                               })()}
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
@@ -1061,9 +1061,9 @@ export default function PriceBookItemDetailPage() {
                                   {suppliers.map((supplier) => (
                                     <CommandItem
                                       key={supplier.id}
-                                      value={supplier.display_name || supplier.full_name}
+                                      value={supplier.display_name || supplier.display_name}
                                       onSelect={() => {
-                                        console.log('[New price supplier select] Selected:', supplier.display_name || supplier.full_name, 'ID:', supplier.id);
+                                        console.log('[New price supplier select] Selected:', supplier.display_name || supplier.display_name, 'ID:', supplier.id);
                                         setNewPriceEntry(prev => {
                                           console.log('[New price supplier select] Previous state:', prev);
                                           const newState = { ...prev, supplier_id: supplier.id };
@@ -1079,7 +1079,7 @@ export default function PriceBookItemDetailPage() {
                                           newPriceEntry.supplier_id === supplier.id ? "opacity-100" : "opacity-0"
                                         )}
                                       />
-                                      {supplier.display_name || supplier.full_name}
+                                      {supplier.display_name || supplier.display_name}
                                     </CommandItem>
                                   ))}
                                 </CommandGroup>

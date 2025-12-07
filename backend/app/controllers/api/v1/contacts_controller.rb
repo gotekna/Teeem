@@ -38,11 +38,11 @@ module Api
         if params[:search].present?
           search_term = "%#{params[:search]}%"
           @contacts = @contacts.left_outer_joins(:primary_company).where(
-            "contacts.full_name ILIKE :q OR
+            "contacts.display_name ILIKE :q OR
              contacts.email ILIKE :q OR
              contacts.first_name ILIKE :q OR
              contacts.last_name ILIKE :q OR
-             (contacts.is_team_contact = true AND companies_contacts.full_name ILIKE :q)",
+             (contacts.is_team_contact = true AND companies_contacts.display_name ILIKE :q)",
             q: search_term
           )
         end
@@ -73,7 +73,7 @@ module Api
 
         # Filter to only show possible duplicate contacts
         if params[:duplicates_only] == "true"
-          # Find contacts that share a normalized full_name with at least one other contact
+          # Find contacts that share a normalized display_name with at least one other contact
           duplicate_ids = find_duplicate_contact_ids
           @contacts = @contacts.where(id: duplicate_ids)
         end
@@ -87,7 +87,7 @@ module Api
           @contacts = @contacts.where(entity_type: params[:entity_type])
         end
 
-        @contacts = @contacts.order(:full_name)
+        @contacts = @contacts.order(:display_name)
 
         # Optionally include companies and jobs data
         include_companies = params[:include_companies] == "true"
@@ -97,7 +97,7 @@ module Api
         director_fields = params[:is_director] == "true" ? [ :director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country, :residential_address, :drivers_licence, :passport_number, :photo_url ] : []
 
         contacts_json = @contacts.as_json(
-          only: [ :id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status, :is_family_member, :is_potential_director, :company_group_id, :is_team_contact ] + director_fields,
+          only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status, :is_family_member, :is_potential_director, :company_group_id, :is_team_contact ] + director_fields,
           include: {
             portal_user: { only: [ :id, :email, :portal_type, :active ] },
             company_group: { only: [ :id, :name ] }
@@ -145,7 +145,7 @@ module Api
         # If this contact is a supplier, include their supplier-specific data
         contact_json = @contact.as_json(
           only: [
-            :id, :full_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :fax_phone, :website,
+            :id, :display_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :fax_phone, :website,
             :tax_number, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :xero_sync_error,
             :sys_type_id, :deleted, :parent_id, :parent,
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
@@ -272,7 +272,7 @@ module Api
           contact_json[:employees] = all_employees.map.with_index do |employee, index|
             {
               id: employee.id,
-              full_name: employee.full_name,
+              display_name: employee.display_name,
               first_name: employee.first_name,
               last_name: employee.last_name,
               email: employee.email,
@@ -358,7 +358,7 @@ module Api
                 id: s.id,
                 shareholder_type: s.shareholder_type,
                 shareholder_id: s.shareholder_id,
-                shareholder_name: s.shareholder&.respond_to?(:name) ? s.shareholder.name : s.shareholder&.full_name,
+                shareholder_name: s.shareholder&.respond_to?(:name) ? s.shareholder.name : s.shareholder&.display_name,
                 share_class: s.share_class,
                 number_of_shares: s.number_of_shares,
                 beneficially_held: s.beneficially_held,
@@ -406,7 +406,7 @@ module Api
           render json: {
             success: true,
             contact: @contact.as_json(
-              only: [ :id, :full_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :is_team_contact, :is_family_member ],
+              only: [ :id, :display_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :is_team_contact, :is_family_member ],
               methods: [ :is_employee?, :is_sales?, :is_land_agent? ]
             )
           }
@@ -702,12 +702,12 @@ module Api
             company_found_from_domain: true,
             company_linked: true,
             found_from_contact: {
-              name: existing_contact_with_company.full_name,
+              name: existing_contact_with_company.display_name,
               email: existing_contact_with_company.email
             },
             company: {
               id: company&.id,
-              name: company_contact.full_name,
+              name: company_contact.display_name,
               contact_id: company_contact.id
             }
           }, status: :ok
@@ -728,14 +728,14 @@ module Api
         # Determine if it's a company or sole trader
         has_acn = website_details[:acn].present?
         has_abn = website_details[:abn].present?
-        company_name = website_details[:full_name].presence || website_details[:name]
+        company_name = website_details[:display_name].presence || website_details[:name]
 
         # Check if company name matches person's name (indicates sole trader)
         is_sole_trader = false
-        if company_name.present? && @contact.full_name.present?
+        if company_name.present? && @contact.display_name.present?
           # Simple match: company name contains person's full name or vice versa
-          name_match = company_name.downcase.include?(@contact.full_name.downcase) ||
-                       @contact.full_name.downcase.include?(company_name.downcase.split.first(2).join(" "))
+          name_match = company_name.downcase.include?(@contact.display_name.downcase) ||
+                       @contact.display_name.downcase.include?(company_name.downcase.split.first(2).join(" "))
           is_sole_trader = name_match && !has_acn
         end
 
@@ -768,7 +768,7 @@ module Api
             else
               # Create new company
               company_contact = Contact.create!(
-                full_name: company_name,
+                display_name: company_name,
                 entity_type: "company",
                 is_active: true,
                 created_by: current_user.id,
@@ -1010,7 +1010,7 @@ module Api
               # Clear email from company
               old_email = company.email
               company.update!(email: nil)
-              results[:email_cleared] << { id: company.id, name: company.full_name, old_email: old_email }
+              results[:email_cleared] << { id: company.id, name: company.display_name, old_email: old_email }
 
               # Create employment relationship if it doesn't exist
               unless ContactEmployment.exists?(employee_id: person.id, employer_id: company.id)
@@ -1020,7 +1020,7 @@ module Api
                   is_active: true,
                   is_primary: results[:employments_created].empty? # First one is primary
                 )
-                results[:employments_created] << { person_id: person.id, company_id: company.id, company_name: company.full_name }
+                results[:employments_created] << { person_id: person.id, company_id: company.id, company_name: company.display_name }
               end
             rescue => e
               results[:errors] << { company_id: company.id, error: e.message }
@@ -1212,7 +1212,7 @@ module Api
                 supplier_id: target_contact.id,
                 lga: selected_price_history.lga,
                 date_effective: effective_date,
-                change_reason: "Copied from #{source_contact.full_name}"
+                change_reason: "Copied from #{source_contact.display_name}"
               )
               copied_count += 1
             end
@@ -1236,8 +1236,8 @@ module Api
           message: message,
           copied_count: copied_count,
           updated_count: updated_count,
-          source_contact: source_contact.full_name,
-          target_contact: target_contact.full_name,
+          source_contact: source_contact.display_name,
+          target_contact: target_contact.display_name,
           categories: categories || [],
           set_as_default: set_as_default
         }
@@ -1489,9 +1489,9 @@ module Api
 
         render json: {
           success: true,
-          message: "Successfully merged #{source_contacts.count} contact(s) into #{target_contact.full_name}",
+          message: "Successfully merged #{source_contacts.count} contact(s) into #{target_contact.display_name}",
           contact: target_contact.as_json(
-            only: [ :id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles ]
+            only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles ]
           )
         }
       rescue ActiveRecord::RecordNotFound => e
@@ -1774,7 +1774,7 @@ module Api
             success: true,
             message: "Successfully linked contact to Xero: #{xero_contact['Name']}",
             contact: @contact.as_json(
-              only: [ :id, :full_name, :xero_id, :last_synced_at, :sync_with_xero ]
+              only: [ :id, :display_name, :xero_id, :last_synced_at, :sync_with_xero ]
             ),
             xero_contact: {
               xero_id: xero_contact["ContactID"],
@@ -1831,7 +1831,7 @@ module Api
               success: true,
               message: "Contact synced from Xero successfully",
               contact: result[:contact].as_json(
-                only: [ :id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
+                only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
                        :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
                        :tax_number, :bank_bsb, :bank_account_number, :bank_account_name,
                        :accounts_payable_outstanding, :accounts_receivable_outstanding ]
@@ -1911,7 +1911,7 @@ module Api
           success: true,
           message: "Contact synced from Xero successfully (legacy)",
           contact: @contact.reload.as_json(
-            only: [ :id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
+            only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
                    :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
                    :tax_number, :accounts_payable_outstanding, :accounts_receivable_outstanding ],
             include: { contact_addresses: { only: [ :id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country ] } }
@@ -1953,7 +1953,7 @@ module Api
               success: true,
               message: "Contact pushed to Xero successfully",
               contact: @contact.reload.as_json(
-                only: [ :id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
+                only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
                        :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
                        :tax_number, :bank_bsb, :bank_account_number, :bank_account_name ]
               )
@@ -2185,7 +2185,7 @@ module Api
               id: rel.id,
               role_type: "trustee",
               trust_id: rel.related_contact_id,
-              trust_name: rel.related_contact&.full_name,
+              trust_name: rel.related_contact&.display_name,
               trust_entity_type: rel.related_contact&.entity_type,
               start_date: rel.start_date,
               end_date: rel.end_date,
@@ -2203,7 +2203,7 @@ module Api
               id: rel.id,
               role_type: "beneficiary",
               trust_id: rel.related_contact_id,
-              trust_name: rel.related_contact&.full_name,
+              trust_name: rel.related_contact&.display_name,
               trust_entity_type: rel.related_contact&.entity_type,
               ownership_percentage: rel.ownership_percentage,
               start_date: rel.start_date,
@@ -2222,7 +2222,7 @@ module Api
               id: rel.id,
               role_type: "appointor",
               trust_id: rel.related_contact_id,
-              trust_name: rel.related_contact&.full_name,
+              trust_name: rel.related_contact&.display_name,
               trust_entity_type: rel.related_contact&.entity_type,
               start_date: rel.start_date,
               end_date: rel.end_date,
@@ -2278,11 +2278,11 @@ module Api
       def possible_duplicates
         duplicates = []
 
-        # Find contacts with similar full_name (case insensitive, ignoring extra whitespace)
+        # Find contacts with similar display_name (case insensitive, ignoring extra whitespace)
         # Group by normalized name
         contacts_by_name = Contact.where(deleted: [ false, nil ])
-          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
-          .group_by { |c| normalize_name(c.full_name) }
+          .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
+          .group_by { |c| normalize_name(c.display_name) }
 
         contacts_by_name.each do |normalized_name, contacts|
           next if normalized_name.blank?
@@ -2290,7 +2290,7 @@ module Api
 
           # This is a potential duplicate group
           duplicates << {
-            match_type: "full_name",
+            match_type: "display_name",
             match_value: normalized_name,
             contacts: contacts.map { |c| contact_duplicate_json(c) }
           }
@@ -2300,14 +2300,14 @@ module Api
         contacts_by_first_last = Contact.where(deleted: [ false, nil ])
           .where.not(first_name: [ nil, "" ])
           .where.not(last_name: [ nil, "" ])
-          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
+          .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| "#{normalize_name(c.first_name)}|#{normalize_name(c.last_name)}" }
 
         contacts_by_first_last.each do |name_key, contacts|
           next if name_key.blank? || name_key == "|"
           next if contacts.size < 2
 
-          # Check if we already have this group from full_name matching
+          # Check if we already have this group from display_name matching
           first_ids = contacts.map(&:id).sort
           already_found = duplicates.any? do |d|
             d[:contacts].map { |c| c[:id] }.sort == first_ids
@@ -2324,7 +2324,7 @@ module Api
         # Check for same email (different contacts with same email)
         contacts_by_email = Contact.where(deleted: [ false, nil ])
           .where.not(email: [ nil, "" ])
-          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
+          .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| c.email&.downcase&.strip }
 
         contacts_by_email.each do |email, contacts|
@@ -2433,7 +2433,7 @@ module Api
         valid_types = Contact::ENTITY_TYPES
         invalid = Contact.where.not(entity_type: valid_types)
           .or(Contact.where(entity_type: nil))
-          .select(:id, :full_name, :entity_type, :is_active, :xero_id)
+          .select(:id, :display_name, :entity_type, :is_active, :xero_id)
 
         render json: {
           success: true,
@@ -2441,7 +2441,7 @@ module Api
           items: invalid.map { |c|
             {
               id: c.id,
-              full_name: c.full_name,
+              display_name: c.display_name,
               entity_type: c.entity_type,
               is_active: c.is_active,
               has_xero: c.xero_id.present?,
@@ -2459,7 +2459,7 @@ module Api
       def price_only_with_xero
         violations = Contact.where(entity_type: 'price_only')
           .where.not(xero_id: nil)
-          .select(:id, :full_name, :xero_id, :xero_contact_types, :is_active)
+          .select(:id, :display_name, :xero_id, :xero_contact_types, :is_active)
 
         render json: {
           success: true,
@@ -2467,7 +2467,7 @@ module Api
           items: violations.map { |c|
             {
               id: c.id,
-              full_name: c.full_name,
+              display_name: c.display_name,
               xero_id: c.xero_id,
               xero_contact_types: c.xero_contact_types,
               is_active: c.is_active,
@@ -2485,7 +2485,7 @@ module Api
       def company_with_first_name
         violations = Contact.where(entity_type: [ 'company', 'trust', 'price_only' ])
           .where("first_name IS NOT NULL OR last_name IS NOT NULL")
-          .select(:id, :full_name, :entity_type, :first_name, :last_name, :company_name_or_trust, :is_active)
+          .select(:id, :display_name, :entity_type, :first_name, :last_name, :company_name_or_trust, :is_active)
 
         render json: {
           success: true,
@@ -2493,13 +2493,13 @@ module Api
           items: violations.map { |c|
             {
               id: c.id,
-              full_name: c.full_name,
+              display_name: c.display_name,
               entity_type: c.entity_type,
               first_name: c.first_name,
               last_name: c.last_name,
               company_name_or_trust: c.company_name_or_trust,
               is_active: c.is_active,
-              issue: "#{c.entity_type.humanize} contacts should only have company_name_or_trust or full_name, not first_name/last_name"
+              issue: "#{c.entity_type.humanize} contacts should only have company_name_or_trust or display_name, not first_name/last_name"
             }
           }
         }
@@ -2513,7 +2513,7 @@ module Api
       def person_without_name
         violations = Contact.where(entity_type: [ 'person', 'sole_trader' ])
           .where("first_name IS NULL OR first_name = ''")
-          .select(:id, :full_name, :entity_type, :first_name, :last_name, :is_active)
+          .select(:id, :display_name, :entity_type, :first_name, :last_name, :is_active)
 
         render json: {
           success: true,
@@ -2521,7 +2521,7 @@ module Api
           items: violations.map { |c|
             {
               id: c.id,
-              full_name: c.full_name,
+              display_name: c.display_name,
               entity_type: c.entity_type,
               first_name: c.first_name,
               last_name: c.last_name,
@@ -2542,7 +2542,7 @@ module Api
           # Exclude price_only - they're just pricebook placeholders
           violations = Contact.where.not(entity_type: 'price_only')
             .where("(mobile_phone IS NULL OR mobile_phone = '') AND (email IS NULL OR email = '')")
-            .select(:id, :full_name, :entity_type, :mobile_phone, :email, :is_active)
+            .select(:id, :display_name, :entity_type, :mobile_phone, :email, :is_active)
 
           render json: {
             success: true,
@@ -2550,7 +2550,7 @@ module Api
             items: violations.map { |c|
               {
                 id: c.id,
-                full_name: c.full_name,
+                display_name: c.display_name,
                 entity_type: c.entity_type,
                 mobile_phone: c.mobile_phone,
                 email: c.email,
@@ -2649,7 +2649,7 @@ module Api
           parent_domain = first_pattern.split('@').last
           parent_company_name = parent_domain.split('.').first.titleize
           parent_company = Contact.find_by(
-            "LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
+            "LOWER(display_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
             "%#{parent_company_name.downcase}%",
             "%#{parent_company_name.downcase}%"
           )
@@ -2663,7 +2663,7 @@ module Api
               if direct_from.include?(addr) || direct_to.include?(addr)
                 email_to_parent_companies[addr].add({
                   id: parent_company.id,
-                  name: parent_company.full_name,
+                  name: parent_company.display_name,
                   entity_type: parent_company.entity_type
                 })
               end
@@ -2730,7 +2730,7 @@ module Api
             # Multiple full name parts (3+ chars each): require ALL parts to be present (AND logic)
             # e.g., "Sophie Harder" matches "Sophie Harder" and "Sophie Mee-jeong Harder"
             Contact.where(entity_type: 'person')
-              .where(name_parts.map { "LOWER(full_name) ILIKE ?" }.join(' AND '), *name_parts.map { |p| "%#{p}%" })
+              .where(name_parts.map { "LOWER(display_name) ILIKE ?" }.join(' AND '), *name_parts.map { |p| "%#{p}%" })
               .limit(5)
           end
 
@@ -2761,23 +2761,23 @@ module Api
             domain_company_name = (meaningful_parts.first || domain_parts.first).titleize
 
             # FIRST: Try to match by domain name (the email domain is the best indicator of employer)
-            # IMPORTANT: Prioritize full_name matches over company_name_or_trust to avoid false matches
+            # IMPORTANT: Prioritize display_name matches over company_name_or_trust to avoid false matches
             # (e.g., contact might have incorrect data in company_name_or_trust field)
 
-            # Step 1: Try exact-ish match on full_name first
+            # Step 1: Try exact-ish match on display_name first
             domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
-              .where("LOWER(full_name) LIKE ?", "%#{domain_company_name.downcase}%")
+              .where("LOWER(display_name) LIKE ?", "%#{domain_company_name.downcase}%")
               .first
 
-            # Step 2: If no full_name match, try with spaces removed on full_name
+            # Step 2: If no display_name match, try with spaces removed on display_name
             if domain_company.nil?
               domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
-                .where("LOWER(REPLACE(full_name, ' ', '')) LIKE ?",
+                .where("LOWER(REPLACE(display_name, ' ', '')) LIKE ?",
                        "%#{domain_company_name.downcase.gsub(' ', '')}%")
                 .first
             end
 
-            # Step 3: Only fall back to company_name_or_trust if no full_name match
+            # Step 3: Only fall back to company_name_or_trust if no display_name match
             # (company_name_or_trust can have stale/incorrect data)
             if domain_company.nil?
               domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
@@ -2791,7 +2791,7 @@ module Api
             if domain_company.nil? && domain_company_name.length <= 5
               abbrev = domain_company_name.upcase
               domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
-                .where("UPPER(full_name) LIKE ?", "#{abbrev[0..1]}%")
+                .where("UPPER(display_name) LIKE ?", "#{abbrev[0..1]}%")
                 .first
             end
 
@@ -2847,7 +2847,7 @@ module Api
             email_exists_on_contact: contact_with_email.present?,
             existing_contact_with_email: contact_with_email ? {
               id: contact_with_email.id,
-              full_name: contact_with_email.full_name,
+              display_name: contact_with_email.display_name,
               entity_type: contact_with_email.entity_type
             } : nil,
 
@@ -2855,7 +2855,7 @@ module Api
             matching_contacts: matching_contacts.map { |c|
               {
                 id: c.id,
-                full_name: c.full_name,
+                display_name: c.display_name,
                 email: c.email,
                 mobile_phone: c.mobile_phone,
                 office_phone: c.office_phone, # Direct line for person
@@ -2879,7 +2879,7 @@ module Api
             domain_company: if domain_company
               {
                 id: domain_company.id,
-                name: domain_company.full_name,
+                name: domain_company.display_name,
                 entity_type: domain_company.entity_type,
                 office_phone: domain_company.office_phone,
                 website: domain_company.website,
@@ -2975,7 +2975,7 @@ module Api
           # Create new contact if requested
           if extraction[:create_new_contact]
             contact = Contact.create!(
-              full_name: extraction[:new_contact_name],
+              display_name: extraction[:new_contact_name],
               email: extraction[:email],
               mobile_phone: extraction[:mobile],
               entity_type: 'person',
@@ -3050,7 +3050,7 @@ module Api
             # Create company if it doesn't exist
             unless company
               company = Contact.create!(
-                full_name: extraction[:domain_company_name],
+                display_name: extraction[:domain_company_name],
                 company_name_or_trust: extraction[:domain_company_name],
                 entity_type: 'company',
                 is_active: true
@@ -3151,7 +3151,7 @@ module Api
       def merge_contact_into(primary, duplicate)
         return if primary.id == duplicate.id
 
-        Rails.logger.info("Merging contact #{duplicate.id} (#{duplicate.full_name}) into #{primary.id} (#{primary.full_name})")
+        Rails.logger.info("Merging contact #{duplicate.id} (#{duplicate.display_name}) into #{primary.id} (#{primary.display_name})")
 
         # Copy missing contact info from duplicate to primary
         primary.email ||= duplicate.email
@@ -3160,7 +3160,7 @@ module Api
         primary.first_name ||= duplicate.first_name
         primary.last_name ||= duplicate.last_name
         primary.primary_role ||= duplicate.primary_role
-        primary.notes = [primary.notes, duplicate.notes].compact.reject(&:blank?).join("\n\n---\nMerged from #{duplicate.full_name}:\n") if duplicate.notes.present? && duplicate.notes != primary.notes
+        primary.notes = [primary.notes, duplicate.notes].compact.reject(&:blank?).join("\n\n---\nMerged from #{duplicate.display_name}:\n") if duplicate.notes.present? && duplicate.notes != primary.notes
         primary.save! if primary.changed?
 
         # Move outgoing relationships (where duplicate is source)
@@ -3355,8 +3355,8 @@ module Api
       # Find all contact IDs that are possible duplicates (share normalized name with another contact)
       def find_duplicate_contact_ids
         contacts_by_name = Contact.where(deleted: [ false, nil ])
-          .select(:id, :full_name)
-          .group_by { |c| normalize_name(c.full_name) }
+          .select(:id, :display_name)
+          .group_by { |c| normalize_name(c.display_name) }
 
         duplicate_ids = []
         contacts_by_name.each do |normalized_name, contacts|
@@ -3370,7 +3370,7 @@ module Api
       def contact_duplicate_json(contact)
         {
           id: contact.id,
-          full_name: contact.full_name,
+          display_name: contact.display_name,
           first_name: contact.first_name,
           last_name: contact.last_name,
           email: contact.email,
@@ -3429,14 +3429,14 @@ module Api
           search_term = slug.gsub("-", " ")
 
           # Try exact substring match first
-          @contact = Contact.where("LOWER(full_name) LIKE ?", "%#{search_term.downcase}%").first
+          @contact = Contact.where("LOWER(display_name) LIKE ?", "%#{search_term.downcase}%").first
 
           # If not found, try matching all words (handles middle names)
           # e.g., "rachel harder" should match "Rachel Anne Harder"
           unless @contact
             words = search_term.downcase.split(/\s+/).reject(&:blank?)
             if words.any?
-              conditions = words.map { |w| "LOWER(full_name) LIKE '%#{Contact.sanitize_sql_like(w)}%'" }.join(" AND ")
+              conditions = words.map { |w| "LOWER(display_name) LIKE '%#{Contact.sanitize_sql_like(w)}%'" }.join(" AND ")
               @contact = Contact.where(conditions).first
             end
           end
@@ -3548,7 +3548,7 @@ module Api
         # Exclude Xero read-only fields from manual updates
         # These fields are synced from Xero and should not be edited directly in TEEEM
         permitted = params.require(:contact).permit(
-          :full_name,
+          :display_name,
           :first_name,
           :middle_name,
           :last_name,

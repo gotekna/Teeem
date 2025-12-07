@@ -59,7 +59,7 @@ class CompanyEnrichService
     return { success: false, error: "Contact is not a company/trust" } unless company_entity?
     return { success: true, website: @contact.website, method: "already_set" } if @contact.website.present?
 
-    company_name = @contact.company_name_or_trust.presence || @contact.full_name
+    company_name = @contact.company_name_or_trust.presence || @contact.display_name
     return { success: false, error: "No company name available" } if company_name.blank?
 
     # Try to find website
@@ -79,7 +79,7 @@ class CompanyEnrichService
     return { success: false, error: "Contact is not a business entity" } unless business_entity?
     return { success: true, abn: @contact.tax_number, method: "already_set" } if @contact.tax_number.present?
 
-    company_name = @contact.company_name_or_trust.presence || @contact.full_name
+    company_name = @contact.company_name_or_trust.presence || @contact.display_name
     return { success: false, error: "No company name available" } if company_name.blank?
 
     # Look up ABN by name using ABR API

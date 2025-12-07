@@ -32,7 +32,7 @@ class DirectorOnboardingRequest < ApplicationRecord
   scope :rejected, -> { where(status: "rejected") }
   scope :needs_review, -> { where(status: "submitted") }
 
-  def full_name
+  def display_name
     "#{first_name} #{last_name}".strip
   end
 
@@ -152,7 +152,7 @@ class DirectorOnboardingRequest < ApplicationRecord
     {
       first_name: first_name,
       last_name: last_name,
-      full_name: full_name,
+      display_name: display_name,
       email: email,
       mobile_phone: mobile_phone,
       date_of_birth: date_of_birth,

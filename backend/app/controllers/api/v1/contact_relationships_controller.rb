@@ -144,7 +144,7 @@ module Api
           },
           related_contact: {
             id: relationship.related_contact&.id,
-            full_name: relationship.related_contact&.display_name,
+            display_name: relationship.related_contact&.display_name,
             email: relationship.related_contact&.email,
             phone: relationship.related_contact&.primary_phone,
             roles: relationship.related_contact&.roles

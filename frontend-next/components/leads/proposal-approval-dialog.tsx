@@ -35,7 +35,7 @@ import { api } from "@/lib/api";
 
 interface Contact {
   id: number;
-  full_name: string;
+  display_name: string;
   email?: string;
   company_name?: string;
 }
@@ -203,7 +203,7 @@ export function ProposalApprovalDialog({
   const handleSetClient = (contact: Contact) => {
     setClientContact({
       contact_id: contact.id,
-      name: contact.full_name,
+      name: contact.display_name,
       email: contact.email,
       contact_exists: true,
     });
@@ -216,7 +216,7 @@ export function ProposalApprovalDialog({
         ...externalSalesContacts,
         {
           contact_id: contact.id,
-          name: contact.full_name,
+          name: contact.display_name,
           email: contact.email,
           contact_exists: true,
         },
@@ -228,7 +228,7 @@ export function ProposalApprovalDialog({
   const handleSetReferral = (contact: Contact) => {
     setReferralContact({
       contact_id: contact.id,
-      name: contact.full_name,
+      name: contact.display_name,
       email: contact.email,
       contact_exists: true,
     });
@@ -343,7 +343,7 @@ export function ProposalApprovalDialog({
                     onClick={() => onSelect(contact)}
                     className="w-full text-left px-3 py-2 hover:bg-muted border-b last:border-b-0"
                   >
-                    <div className="font-medium text-sm">{contact.full_name}</div>
+                    <div className="font-medium text-sm">{contact.display_name}</div>
                     {contact.email && (
                       <div className="text-xs text-muted-foreground">{contact.email}</div>
                     )}
@@ -427,7 +427,7 @@ export function ProposalApprovalDialog({
                           onClick={() => handleAddExternalSales(contact)}
                           className="w-full text-left px-3 py-2 hover:bg-muted border-b last:border-b-0"
                         >
-                          <div className="font-medium text-sm">{contact.full_name}</div>
+                          <div className="font-medium text-sm">{contact.display_name}</div>
                           {contact.email && (
                             <div className="text-xs text-muted-foreground">{contact.email}</div>
                           )}

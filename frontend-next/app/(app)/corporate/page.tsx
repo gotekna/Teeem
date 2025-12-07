@@ -556,7 +556,7 @@ export default function CorporateDashboardPage() {
               seenIds.add(m.contact_id);
               allPeople.push({
                 id: m.contact_id,
-                full_name: m.contact_name,
+                display_name: m.contact_name,
                 email: m.contact_email,
                 entity_type: m.contact_entity_type,
                 company_group_memberships_count: 1, // Will be updated below
@@ -583,7 +583,7 @@ export default function CorporateDashboardPage() {
         }
 
         // Sort by name
-        allPeople.sort((a, b) => ((a.full_name as string) || '').localeCompare((b.full_name as string) || ''));
+        allPeople.sort((a, b) => ((a.display_name as string) || '').localeCompare((b.display_name as string) || ''));
         setPeople(allPeople);
       } catch (error) {
         console.error("Failed to load people:", error);
@@ -1575,7 +1575,7 @@ export default function CorporateDashboardPage() {
                       </thead>
                       <tbody>
                         {people.map((person) => {
-                          const name = (person.full_name || person.name || "Unknown") as string;
+                          const name = (person.display_name || person.name || "Unknown") as string;
                           const email = (person.email || "—") as string;
                           const membershipTypes = (person.membership_types || []) as string[];
                           const groupNames = (person.company_group_names || []) as string[];
@@ -1644,7 +1644,7 @@ export default function CorporateDashboardPage() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-xl">
                   <GitBranch className="h-6 w-6 text-teal-600" />
-                  {String(fullScreenPerson?.full_name || fullScreenPerson?.name || "")} - Corporate Structure
+                  {String(fullScreenPerson?.display_name || fullScreenPerson?.name || "")} - Corporate Structure
                 </DialogTitle>
                 <DialogDescription>
                   All company relationships for this person
@@ -1660,7 +1660,7 @@ export default function CorporateDashboardPage() {
                   <div className="space-y-6">
                     {/* Visual Ownership Chart */}
                     <PersonStructureChart
-                      personName={String(fullScreenPerson?.full_name || fullScreenPerson?.name || "")}
+                      personName={String(fullScreenPerson?.display_name || fullScreenPerson?.name || "")}
                       personEmail={fullScreenPerson?.email as string | null}
                       ownershipChain={fullScreenPersonOwnershipChain}
                       directorRoles={fullScreenPersonRoles

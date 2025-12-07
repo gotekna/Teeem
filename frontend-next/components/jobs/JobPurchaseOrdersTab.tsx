@@ -61,7 +61,7 @@ import { cn } from "@/lib/utils";
 
 interface Contact {
   id: number;
-  full_name: string;
+  display_name: string;
   display_name?: string;
 }
 
@@ -81,7 +81,7 @@ interface PurchaseOrder {
   required_date?: string;
   supplier?: {
     id: number;
-    full_name?: string;
+    display_name?: string;
     display_name?: string;
   };
   schedule_task?: {
@@ -248,7 +248,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   };
 
   const filteredPOs = purchaseOrders.filter((po) => {
-    const supplierName = po.supplier?.display_name || po.supplier?.full_name || "";
+    const supplierName = po.supplier?.display_name || po.supplier?.display_name || "";
     const matchesSearch =
       !searchQuery ||
       po.purchase_order_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -407,7 +407,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                           }}
                           className="text-primary hover:underline"
                         >
-                          {po.supplier.display_name || po.supplier.full_name}
+                          {po.supplier.display_name || po.supplier.display_name}
                         </button>
                       ) : (
                         "-"
@@ -515,7 +515,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                     {loadingContacts ? (
                       <span className="text-muted-foreground">Loading suppliers...</span>
                     ) : selectedContact ? (
-                      selectedContact.display_name || selectedContact.full_name
+                      selectedContact.display_name || selectedContact.display_name
                     ) : (
                       <span className="text-muted-foreground">Select supplier...</span>
                     )}
@@ -531,7 +531,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                         {contacts.map((contact) => (
                           <CommandItem
                             key={contact.id}
-                            value={contact.display_name || contact.full_name}
+                            value={contact.display_name || contact.display_name}
                             onSelect={() => {
                               setSelectedContact(contact);
                               setContactOpen(false);
@@ -543,7 +543,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                                 selectedContact?.id === contact.id ? "opacity-100" : "opacity-0"
                               )}
                             />
-                            {contact.display_name || contact.full_name}
+                            {contact.display_name || contact.display_name}
                           </CommandItem>
                         ))}
                       </CommandGroup>

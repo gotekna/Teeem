@@ -21,7 +21,7 @@ interface LinkXeroContactModalProps {
   onClose: () => void;
   contact: {
     id: number;
-    full_name: string;
+    display_name: string;
   };
   onSuccess: (updatedContact: any) => void;
 }
@@ -102,7 +102,7 @@ export function LinkXeroContactModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <LinkIcon className="h-5 w-5" />
-            Link {contact.full_name} to Xero Contact
+            Link {contact.display_name} to Xero Contact
           </DialogTitle>
           <DialogDescription>
             Search for the corresponding contact in Xero and link them to enable automatic syncing.

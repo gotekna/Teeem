@@ -189,9 +189,9 @@ module HealthChecks
 
           issues << {
             id: supplier.id,
-            display: "#{supplier.full_name || supplier.company_name}: #{category} (#{coverage}%)",
+            display: "#{supplier.display_name || supplier.company_name}: #{category} (#{coverage}%)",
             supplier_id: supplier.id,
-            supplier_name: supplier.full_name || supplier.company_name,
+            supplier_name: supplier.display_name || supplier.company_name,
             category: category,
             coverage_percentage: coverage,
             priced_count: priced_count,

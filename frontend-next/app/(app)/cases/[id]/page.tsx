@@ -436,7 +436,7 @@ export default function CaseDetailPage() {
   // Add contact modal
   const [showAddContact, setShowAddContact] = React.useState(false);
   const [contactSearchQuery, setContactSearchQuery] = React.useState("");
-  const [contactSearchResults, setContactSearchResults] = React.useState<Array<{id: number; full_name: string; email: string | null; company_name: string | null}>>([]);
+  const [contactSearchResults, setContactSearchResults] = React.useState<Array<{id: number; display_name: string; email: string | null; company_name: string | null}>>([]);
   const [searchingContacts, setSearchingContacts] = React.useState(false);
   const [selectedContactRole, setSelectedContactRole] = React.useState("related_party");
   const [contactReason, setContactReason] = React.useState("");
@@ -684,7 +684,7 @@ export default function CaseDetailPage() {
     }
     try {
       setSearchingContacts(true);
-      const response = await api.get<{ contacts?: Array<{id: number; full_name: string; email: string | null; company_name: string | null}> }>("/api/v1/contacts", {
+      const response = await api.get<{ contacts?: Array<{id: number; display_name: string; email: string | null; company_name: string | null}> }>("/api/v1/contacts", {
         params: { search: query, per_page: 10 },
       });
       // Filter out contacts already in the case
@@ -3849,7 +3849,7 @@ export default function CaseDetailPage() {
                         <User className="h-4 w-4" />
                       </div>
                       <div>
-                        <div className="font-medium">{contact.full_name || "No name"}</div>
+                        <div className="font-medium">{contact.display_name || "No name"}</div>
                         <div className="text-sm text-muted-foreground">
                           {contact.email || "No email"}
                           {contact.company_name && (

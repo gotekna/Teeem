@@ -246,11 +246,11 @@ class InvoiceMatchingService
 
   def find_supplier(supplier_name)
     # Try exact match first (suppliers are just contacts with purchase orders or bills)
-    supplier = Contact.find_by("LOWER(full_name) = ?", supplier_name.downcase)
+    supplier = Contact.find_by("LOWER(display_name) = ?", supplier_name.downcase)
     return supplier if supplier
 
     # Try fuzzy match (contains)
-    supplier = Contact.where("LOWER(full_name) LIKE ?", "%#{supplier_name.downcase}%").first
+    supplier = Contact.where("LOWER(display_name) LIKE ?", "%#{supplier_name.downcase}%").first
     supplier
   end
 

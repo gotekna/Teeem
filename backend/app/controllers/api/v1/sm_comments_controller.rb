@@ -178,7 +178,7 @@ module Api
           body: comment.body,
           author: {
             id: comment.author_id,
-            name: comment.author&.full_name || comment.author&.email,
+            name: comment.author&.display_name || comment.author&.email,
             avatar_url: comment.author&.avatar_url
           },
           parent_id: comment.parent_id,
@@ -209,7 +209,7 @@ module Api
           comment: {
             id: mention.comment.id,
             body: mention.comment.body.truncate(200),
-            author_name: mention.comment.author&.full_name
+            author_name: mention.comment.author&.display_name
           },
           task: {
             id: mention.comment.task.id,

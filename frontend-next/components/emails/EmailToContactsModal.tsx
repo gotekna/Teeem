@@ -57,7 +57,7 @@ interface EmailCandidate {
     source?: "domain" | "signature";
     websiteDetails?: {
       website?: string;
-      full_name?: string;
+      display_name?: string;
       abn?: string;
       acn?: string;
       phone?: string;
@@ -669,8 +669,8 @@ export function EmailToContactsModal({
                           <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
                             <p className="font-medium text-green-900 mb-1">Company details from website:</p>
                             <div className="text-green-700 space-y-0.5">
-                              {candidate.suggestedCompany.websiteDetails.full_name && (
-                                <p>• Name: {candidate.suggestedCompany.websiteDetails.full_name}</p>
+                              {candidate.suggestedCompany.websiteDetails.display_name && (
+                                <p>• Name: {candidate.suggestedCompany.websiteDetails.display_name}</p>
                               )}
                               {candidate.suggestedCompany.websiteDetails.abn && (
                                 <p>• ABN: {candidate.suggestedCompany.websiteDetails.abn}</p>

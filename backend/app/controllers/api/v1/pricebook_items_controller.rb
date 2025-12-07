@@ -53,7 +53,7 @@ module Api
             "item_name" => "item_name",
             "category" => "category",
             "current_price" => "current_price",
-            "supplier" => "contacts.full_name"
+            "supplier" => "contacts.display_name"
           }
 
           db_column = column_mapping[sort_column] || "item_code"
@@ -62,7 +62,7 @@ module Api
           if sort_column == "supplier"
             @items = @items.left_joins(:supplier)
             # Use Arel to safely construct the query
-            @items = @items.order(Arel.sql("#{Contact.connection.quote_column_name('contacts')}.#{Contact.connection.quote_column_name('full_name')} #{sort_direction}"))
+            @items = @items.order(Arel.sql("#{Contact.connection.quote_column_name('contacts')}.#{Contact.connection.quote_column_name('display_name')} #{sort_direction}"))
           else
             # Use Arel to safely construct the query with sanitized column name
             @items = @items.order(Arel.sql("#{PricebookItem.connection.quote_column_name(db_column)} #{sort_direction}"))
@@ -115,7 +115,7 @@ module Api
 
           # Combine both and get distinct
           combined_ids = (default_supplier_ids + price_history_supplier_ids).uniq
-          Contact.where(id: combined_ids).order(:full_name).pluck(:id, :full_name)
+          Contact.where(id: combined_ids).order(:display_name).pluck(:id, :display_name)
         else
           # Get ALL suppliers (contacts) that appear in either default_supplier_id or price_histories
           default_supplier_ids = Contact.joins("INNER JOIN pricebook ON pricebook.default_supplier_id = contacts.id")
@@ -131,7 +131,7 @@ module Api
 
           # Combine both and get distinct
           combined_ids = (default_supplier_ids + price_history_supplier_ids).uniq
-          Contact.where(id: combined_ids).order(:full_name).pluck(:id, :full_name)
+          Contact.where(id: combined_ids).order(:display_name).pluck(:id, :display_name)
         end
 
         render json: {
@@ -155,25 +155,25 @@ module Api
       def show
         item_json = @item.as_json(
           include: {
-            supplier: { only: [ :id, :full_name, :email, :mobile_phone, :office_phone, :rating ] },
-            default_supplier: { only: [ :id, :full_name ] },
+            supplier: { only: [ :id, :display_name, :email, :mobile_phone, :office_phone, :rating ] },
+            default_supplier: { only: [ :id, :display_name ] },
             price_histories: {
               only: [ :id, :old_price, :new_price, :change_reason, :created_at, :date_effective ],
-              include: { supplier: { only: [ :id, :full_name ] } }
+              include: { supplier: { only: [ :id, :display_name ] } }
             }
           }
         )
 
-        # Map full_name to name for backwards compatibility
+        # Map display_name to name for backwards compatibility
         if item_json["supplier"]
-          item_json["supplier"]["name"] = item_json["supplier"]["full_name"]
+          item_json["supplier"]["name"] = item_json["supplier"]["display_name"]
         end
         if item_json["default_supplier"]
-          item_json["default_supplier"]["name"] = item_json["default_supplier"]["full_name"]
+          item_json["default_supplier"]["name"] = item_json["default_supplier"]["display_name"]
         end
         item_json["price_histories"]&.each do |ph|
           if ph["supplier"]
-            ph["supplier"]["name"] = ph["supplier"]["full_name"]
+            ph["supplier"]["name"] = ph["supplier"]["display_name"]
           end
         end
 
@@ -209,8 +209,8 @@ module Api
       # GET /api/v1/pricebook/:id/history
       def history
         histories = @item.price_histories.recent.includes(:supplier)
-        render json: histories.as_json(include: { supplier: { only: [ :id, :full_name ], methods: [] } }).map { |h|
-          h["supplier"]["name"] = h["supplier"]["full_name"] if h["supplier"]
+        render json: histories.as_json(include: { supplier: { only: [ :id, :display_name ], methods: [] } }).map { |h|
+          h["supplier"]["name"] = h["supplier"]["display_name"] if h["supplier"]
           h
         }
       end
@@ -444,7 +444,7 @@ module Api
               new_price: price_history.new_price,
               lga: price_history.lga,
               date_effective: price_history.date_effective,
-              supplier: price_history.supplier ? { id: price_history.supplier.id, name: price_history.supplier.full_name } : nil,
+              supplier: price_history.supplier ? { id: price_history.supplier.id, name: price_history.supplier.display_name } : nil,
               created_at: price_history.created_at
             }
           }
@@ -636,7 +636,7 @@ module Api
               item_code: item.item_code,
               item_name: item.item_name,
               default_supplier_id: item.default_supplier_id,
-              default_supplier_name: item.default_supplier&.full_name,
+              default_supplier_name: item.default_supplier&.display_name,
               item_current_price: item.current_price,
               active_price_id: active_price.id,
               active_price_value: active_price.new_price,
@@ -649,7 +649,7 @@ module Api
               item_code: item.item_code,
               item_name: item.item_name,
               default_supplier_id: item.default_supplier_id,
-              default_supplier_name: item.default_supplier&.full_name,
+              default_supplier_name: item.default_supplier&.display_name,
               item_current_price: item.current_price,
               active_price_id: nil,
               active_price_value: nil,
@@ -793,17 +793,17 @@ module Api
                  :brand, :notes, :gst_code, :is_active, :needs_pricing_review,
                  :created_at, :updated_at, :image_url ],
           include: {
-            supplier: { only: [ :id, :full_name ] },
-            default_supplier: { only: [ :id, :full_name ] }
+            supplier: { only: [ :id, :display_name ] },
+            default_supplier: { only: [ :id, :display_name ] }
           }
         )
 
-        # Map full_name to name for backwards compatibility
+        # Map display_name to name for backwards compatibility
         if item_json["supplier"]
-          item_json["supplier"]["name"] = item_json["supplier"]["full_name"]
+          item_json["supplier"]["name"] = item_json["supplier"]["display_name"]
         end
         if item_json["default_supplier"]
-          item_json["default_supplier"]["name"] = item_json["default_supplier"]["full_name"]
+          item_json["default_supplier"]["name"] = item_json["default_supplier"]["display_name"]
         end
 
         item_json
@@ -811,26 +811,26 @@ module Api
 
       def item_with_risk_data(item)
         item_json = item.as_json(include: {
-          supplier: { only: [ :id, :full_name ] },
-          default_supplier: { only: [ :id, :full_name ] },
+          supplier: { only: [ :id, :display_name ] },
+          default_supplier: { only: [ :id, :display_name ] },
           price_histories: {
-            include: { supplier: { only: [ :id, :full_name ] } },
+            include: { supplier: { only: [ :id, :display_name ] } },
             methods: []
           }
         })
 
-        # Map full_name to name for backwards compatibility
+        # Map display_name to name for backwards compatibility
         if item_json["supplier"]
-          item_json["supplier"]["name"] = item_json["supplier"]["full_name"]
+          item_json["supplier"]["name"] = item_json["supplier"]["display_name"]
         end
         if item_json["default_supplier"]
-          item_json["default_supplier"]["name"] = item_json["default_supplier"]["full_name"]
+          item_json["default_supplier"]["name"] = item_json["default_supplier"]["display_name"]
         end
-        # Map full_name to name for price_histories suppliers
+        # Map display_name to name for price_histories suppliers
         if item_json["price_histories"]
           item_json["price_histories"].each do |ph|
             if ph["supplier"]
-              ph["supplier"]["name"] = ph["supplier"]["full_name"]
+              ph["supplier"]["name"] = ph["supplier"]["display_name"]
             end
           end
         end
@@ -858,11 +858,11 @@ module Api
       end
 
       def item_with_image_data(item)
-        item_json = item.as_json(include: { supplier: { only: [ :id, :full_name ] } })
+        item_json = item.as_json(include: { supplier: { only: [ :id, :display_name ] } })
 
-        # Map full_name to name for backwards compatibility
+        # Map display_name to name for backwards compatibility
         if item_json["supplier"]
-          item_json["supplier"]["name"] = item_json["supplier"]["full_name"]
+          item_json["supplier"]["name"] = item_json["supplier"]["display_name"]
         end
 
         item_json.merge(

@@ -48,7 +48,7 @@ interface ContactPerson {
 
 interface Contact {
   id: number;
-  full_name: string;
+  display_name: string;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -66,12 +66,12 @@ interface Contact {
   primary_company_id?: number | null;
   primary_company?: { id: number; name: string } | null;
   contact_persons?: ContactPerson[];
-  employees?: Array<{ id: number; full_name: string; email: string | null }>;
+  employees?: Array<{ id: number; display_name: string; email: string | null }>;
 }
 
 interface CompanySearchResult {
   id: number;
-  full_name: string;
+  display_name: string;
   email: string | null;
   entity_type: string | null;
 }
@@ -118,7 +118,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
   const [employeeSearchQuery, setEmployeeSearchQuery] = React.useState("");
   const [employeeSearchResults, setEmployeeSearchResults] = React.useState<CompanySearchResult[]>([]);
   const [searchingEmployees, setSearchingEmployees] = React.useState(false);
-  const [employees, setEmployees] = React.useState<Array<{ id: number; full_name: string; email: string | null }>>([]);
+  const [employees, setEmployees] = React.useState<Array<{ id: number; display_name: string; email: string | null }>>([]);
 
   // Initialize form data when contact changes
   React.useEffect(() => {
@@ -248,7 +248,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
   // Company selection
   const selectCompany = (company: CompanySearchResult) => {
     setFormData(prev => ({ ...prev, primary_company_id: company.id }));
-    setSelectedCompanyName(company.full_name);
+    setSelectedCompanyName(company.display_name);
     setCompanySearchOpen(false);
     setCompanySearchQuery("");
   };
@@ -256,16 +256,16 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
   const createAndSelectCompany = async () => {
     if (!companySearchQuery.trim()) return;
     try {
-      const response = await api.post<{ contact: { id: number; full_name: string } }>("/api/v1/contacts", {
+      const response = await api.post<{ contact: { id: number; display_name: string } }>("/api/v1/contacts", {
         contact: {
-          full_name: companySearchQuery,
+          display_name: companySearchQuery,
           entity_type: "company",
         },
       });
       if (response?.contact) {
         setFormData(prev => ({ ...prev, primary_company_id: response.contact.id }));
-        setSelectedCompanyName(response.contact.full_name);
-        toast({ title: "Company created", description: `Created "${response.contact.full_name}"` });
+        setSelectedCompanyName(response.contact.display_name);
+        toast({ title: "Company created", description: `Created "${response.contact.display_name}"` });
       }
     } catch (error) {
       console.error("Failed to create company:", error);
@@ -287,8 +287,8 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
       await api.patch(`/api/v1/contacts/${employee.id}`, {
         contact: { primary_company_id: contact.id },
       });
-      setEmployees([...employees, { id: employee.id, full_name: employee.full_name, email: employee.email }]);
-      toast({ title: "Employee added", description: `${employee.full_name} linked to this company` });
+      setEmployees([...employees, { id: employee.id, display_name: employee.display_name, email: employee.email }]);
+      toast({ title: "Employee added", description: `${employee.display_name} linked to this company` });
     } catch (error) {
       console.error("Failed to add employee:", error);
       toast({ title: "Error", description: "Failed to add employee", variant: "destructive" });
@@ -300,16 +300,16 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
   const createAndAddEmployee = async () => {
     if (!contact || !employeeSearchQuery.trim()) return;
     try {
-      const response = await api.post<{ contact: { id: number; full_name: string; email: string | null } }>("/api/v1/contacts", {
+      const response = await api.post<{ contact: { id: number; display_name: string; email: string | null } }>("/api/v1/contacts", {
         contact: {
-          full_name: employeeSearchQuery,
+          display_name: employeeSearchQuery,
           entity_type: "person",
           primary_company_id: contact.id,
         },
       });
       if (response?.contact) {
-        setEmployees([...employees, { id: response.contact.id, full_name: response.contact.full_name, email: response.contact.email }]);
-        toast({ title: "Employee created", description: `Created and linked "${response.contact.full_name}"` });
+        setEmployees([...employees, { id: response.contact.id, display_name: response.contact.display_name, email: response.contact.email }]);
+        toast({ title: "Employee created", description: `Created and linked "${response.contact.display_name}"` });
       }
     } catch (error) {
       console.error("Failed to create employee:", error);
@@ -337,13 +337,13 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
 
     setSaving(true);
     try {
-      // Build full_name from first_name and last_name
-      const full_name = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || "Unknown";
+      // Build display_name from first_name and last_name
+      const display_name = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || "Unknown";
 
       await api.patch(`/api/v1/contacts/${contact.id}`, {
         contact: {
           ...formData,
-          full_name,
+          display_name,
           contact_persons_attributes: contactPersons.filter(cp => !cp._destroy || cp.id), // Include marked for deletion if has ID
         },
       });
@@ -674,7 +674,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
                                     )}
                                   />
                                   <div>
-                                    <div className="font-medium">{company.full_name}</div>
+                                    <div className="font-medium">{company.display_name}</div>
                                     {company.email && (
                                       <div className="text-xs text-muted-foreground">{company.email}</div>
                                     )}
@@ -753,7 +753,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
                               >
                                 <User className="mr-2 h-4 w-4" />
                                 <div>
-                                  <div className="font-medium">{person.full_name}</div>
+                                  <div className="font-medium">{person.display_name}</div>
                                   {person.email && (
                                     <div className="text-xs text-muted-foreground">{person.email}</div>
                                   )}
@@ -782,7 +782,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
                             <User className="h-4 w-4 text-primary" />
                           </div>
                           <div>
-                            <div className="font-medium">{emp.full_name}</div>
+                            <div className="font-medium">{emp.display_name}</div>
                             {emp.email && (
                               <div className="text-xs text-muted-foreground">{emp.email}</div>
                             )}

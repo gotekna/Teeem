@@ -30,7 +30,7 @@ import { hasFirstLastName, hasCompanyName, canHaveEmployees, canHaveEmployer, ge
 
 interface ContactSearchResult {
   id: number;
-  full_name: string;
+  display_name: string;
   email: string | null;
   entity_type: string | null;
 }
@@ -142,7 +142,7 @@ export default function NewContactPage() {
   // Company selection
   const selectCompany = (company: ContactSearchResult) => {
     setFormData(prev => ({ ...prev, primary_company_id: company.id }));
-    setSelectedCompanyName(company.full_name);
+    setSelectedCompanyName(company.display_name);
     setCompanySearchOpen(false);
     setCompanySearchQuery("");
   };
@@ -150,16 +150,16 @@ export default function NewContactPage() {
   const createAndSelectCompany = async () => {
     if (!companySearchQuery.trim()) return;
     try {
-      const response = await api.post<{ contact: { id: number; full_name: string } }>("/api/v1/contacts", {
+      const response = await api.post<{ contact: { id: number; display_name: string } }>("/api/v1/contacts", {
         contact: {
-          full_name: companySearchQuery,
+          display_name: companySearchQuery,
           entity_type: "company",
         },
       });
       if (response?.contact) {
         setFormData(prev => ({ ...prev, primary_company_id: response.contact.id }));
-        setSelectedCompanyName(response.contact.full_name);
-        toast({ title: "Company created", description: `Created "${response.contact.full_name}"` });
+        setSelectedCompanyName(response.contact.display_name);
+        toast({ title: "Company created", description: `Created "${response.contact.display_name}"` });
       }
     } catch (error) {
       console.error("Failed to create company:", error);
@@ -195,15 +195,15 @@ export default function NewContactPage() {
       const useCompanyName = hasCompanyName(formData.entity_type);
       const entityCanHaveEmployees = canHaveEmployees(formData.entity_type);
 
-      // Build full_name based on entity type
-      let full_name = "";
+      // Build display_name based on entity type
+      let display_name = "";
       if (useFirstLastName) {
-        full_name = [formData.first_name, formData.last_name].filter(Boolean).join(" ");
+        display_name = [formData.first_name, formData.last_name].filter(Boolean).join(" ");
       } else if (useCompanyName) {
-        full_name = formData.company_name_or_trust;
+        display_name = formData.company_name_or_trust;
       }
 
-      if (!full_name.trim()) {
+      if (!display_name.trim()) {
         toast({
           title: "Error",
           description: useFirstLastName ? "Please enter a name" : "Please enter a company/trust name",
@@ -215,7 +215,7 @@ export default function NewContactPage() {
 
       // Build the contact payload
       const contactPayload: Record<string, unknown> = {
-        full_name,
+        display_name,
         entity_type: formData.entity_type,
         email: formData.email || null,
         mobile_phone: formData.mobile_phone || null,
@@ -260,7 +260,7 @@ export default function NewContactPage() {
           try {
             await api.post("/api/v1/contacts", {
               contact: {
-                full_name: emp.name,
+                display_name: emp.name,
                 entity_type: "person",
                 primary_company_id: newContactId,
               },
@@ -426,7 +426,7 @@ export default function NewContactPage() {
                                       )}
                                     />
                                     <div>
-                                      <div className="font-medium">{company.full_name}</div>
+                                      <div className="font-medium">{company.display_name}</div>
                                       {company.email && (
                                         <div className="text-xs text-muted-foreground">{company.email}</div>
                                       )}

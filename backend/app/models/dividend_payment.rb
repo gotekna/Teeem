@@ -19,7 +19,7 @@ class DividendPayment < ApplicationRecord
   end
 
   def shareholder_name
-    shareholder&.full_name
+    shareholder&.display_name
   end
 
   def company

@@ -48,7 +48,7 @@ interface ContactGroup {
 
 interface Contact {
   id: number;
-  full_name: string;
+  display_name: string;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -126,7 +126,7 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
 
   const handleOpenFullPage = () => {
     if (contact) {
-      const slug = slugifyContactName(contact.first_name || undefined, contact.last_name || undefined, contact.full_name);
+      const slug = slugifyContactName(contact.first_name || undefined, contact.last_name || undefined, contact.display_name);
       router.push(`/contacts/${slug}`);
     }
   };
@@ -148,7 +148,7 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
             <SheetHeader className="p-4 border-b shrink-0">
               <div className="flex items-start justify-between">
                 <div>
-                  <SheetTitle className="text-xl font-serif">{contact.full_name}</SheetTitle>
+                  <SheetTitle className="text-xl font-serif">{contact.display_name}</SheetTitle>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {contact["is_supplier?"] && (
                       <Badge className="bg-purple-100 text-purple-700">Supplier</Badge>
@@ -370,7 +370,7 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
                     <EntityChat
                       entityType="contact"
                       entityId={contact.id}
-                      entityName={contact.full_name}
+                      entityName={contact.display_name}
                       showOnlineUsers={false}
                       maxHeight="300px"
                     />

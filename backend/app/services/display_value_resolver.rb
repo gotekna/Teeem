@@ -11,7 +11,7 @@ class DisplayValueResolver
       return record.display_name if record.respond_to?(:display_name)
 
       # Try full_name (contacts, persons)
-      return record.full_name if record.respond_to?(:full_name) && record.full_name.present?
+      return record.display_name if record.respond_to?(:display_name) && record.display_name.present?
 
       # Try name (most models)
       return record.name if record.respond_to?(:name) && record.name.present?

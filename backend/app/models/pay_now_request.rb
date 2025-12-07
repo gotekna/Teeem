@@ -221,7 +221,7 @@ class PayNowRequest < ApplicationRecord
           methods: [ :supplier_name ]
         },
         contact: {
-          only: [ :id, :full_name, :email ]
+          only: [ :id, :display_name, :email ]
         },
         reviewed_by_supervisor: {
           only: [ :id, :first_name, :last_name, :email ]

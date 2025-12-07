@@ -77,7 +77,7 @@ class SmActivityService
         metadata: {
           task_name: task.name,
           assignee_id: assignee.id,
-          assignee_name: assignee.respond_to?(:full_name) ? assignee.full_name : assignee.name
+          assignee_name: assignee.respond_to?(:display_name) ? assignee.display_name : assignee.name
         }
       )
     end

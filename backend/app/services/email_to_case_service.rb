@@ -380,12 +380,12 @@ class EmailToCaseService
       if party["email"].present?
         contact = Contact.find_by(email: party["email"])
       end
-      contact ||= Contact.find_by(full_name: party["name"]) if party["name"].present?
+      contact ||= Contact.find_by(display_name: party["name"]) if party["name"].present?
 
       if contact
         party["contact_id"] = contact.id
         party["contact_exists"] = true
-        party["full_name"] = contact.full_name if party["name"].blank?
+        party["display_name"] = contact.display_name if party["name"].blank?
         # Update party with contact details if missing
         party["email"] ||= contact.email
         party["phone"] ||= contact.mobile_phone
@@ -455,7 +455,7 @@ class EmailToCaseService
         contact = Contact.find_by(email: email)
       elsif party["name"].present?
         # Try to find by exact name match
-        contact = Contact.find_by(full_name: party["name"])
+        contact = Contact.find_by(display_name: party["name"])
       end
 
       # Update existing contact with new details if provided
@@ -477,7 +477,7 @@ class EmailToCaseService
 
         contact = Contact.create(
           email: email,
-          full_name: party["name"],
+          display_name: party["name"],
           mobile_phone: party["phone"],
           company_name_or_trust: party["company"],
           primary_company_id: company_contact&.id,
@@ -518,7 +518,7 @@ class EmailToCaseService
 
     # Try to find existing company by name (case-insensitive)
     company = Contact.where(entity_type: "company")
-                     .where("LOWER(full_name) = LOWER(?)", company_name.strip)
+                     .where("LOWER(display_name) = LOWER(?)", company_name.strip)
                      .first
 
     # Also check trading_name and company_name_or_trust
@@ -530,10 +530,10 @@ class EmailToCaseService
     # Create if not found
     if company.nil?
       company = Contact.create(
-        full_name: company_name.strip,
+        display_name: company_name.strip,
         entity_type: "company"
       )
-      Rails.logger.info "[EmailToCase] Created new company contact: #{company.full_name} (ID: #{company.id})"
+      Rails.logger.info "[EmailToCase] Created new company contact: #{company.display_name} (ID: #{company.id})"
     end
 
     company

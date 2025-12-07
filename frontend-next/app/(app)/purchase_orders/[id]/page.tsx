@@ -45,7 +45,7 @@ import { cn } from "@/lib/utils";
 
 interface Supplier {
   id: number;
-  full_name: string;
+  display_name: string;
   display_name?: string;
   email?: string;
   phone?: string;
@@ -92,7 +92,7 @@ interface Job {
   title: string;
   site_supervisor_info?: {
     id: number;
-    full_name: string;
+    display_name: string;
   } | null;
 }
 
@@ -700,9 +700,9 @@ export default function PurchaseOrderDetailPage() {
                 </Command>
               </PopoverContent>
             </Popover>
-            {purchaseOrder.job?.site_supervisor_info?.full_name && (
+            {purchaseOrder.job?.site_supervisor_info?.display_name && (
               <span className="text-sm text-muted-foreground">
-                Site Supervisor: {purchaseOrder.job.site_supervisor_info.full_name}
+                Site Supervisor: {purchaseOrder.job.site_supervisor_info.display_name}
               </span>
             )}
           </div>
@@ -786,7 +786,7 @@ export default function PurchaseOrderDetailPage() {
                   {loadingSuppliers ? (
                     <span className="text-muted-foreground">Loading...</span>
                   ) : selectedSupplier ? (
-                    selectedSupplier.display_name || selectedSupplier.full_name
+                    selectedSupplier.display_name || selectedSupplier.display_name
                   ) : (
                     <span className="text-muted-foreground">Select...</span>
                   )}
@@ -802,7 +802,7 @@ export default function PurchaseOrderDetailPage() {
                       {suppliers.map((supplier) => (
                         <CommandItem
                           key={supplier.id}
-                          value={supplier.display_name || supplier.full_name}
+                          value={supplier.display_name || supplier.display_name}
                           onSelect={() => {
                             setSelectedSupplier(supplier);
                             setSupplierOpen(false);
@@ -816,7 +816,7 @@ export default function PurchaseOrderDetailPage() {
                               selectedSupplier?.id === supplier.id ? "opacity-100" : "opacity-0"
                             )}
                           />
-                          {supplier.display_name || supplier.full_name}
+                          {supplier.display_name || supplier.display_name}
                         </CommandItem>
                       ))}
                     </CommandGroup>

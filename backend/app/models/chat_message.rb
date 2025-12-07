@@ -27,7 +27,7 @@ class ChatMessage < ApplicationRecord
       include: {
         user: { only: [ :id, :email, :name ] },
         job: { only: [ :id, :title ] },
-        contact: { only: [ :id, :full_name ] },
+        contact: { only: [ :id, :display_name ] },
         legal_case: { only: [ :id, :case_number, :title ] }
       },
       methods: [ :formatted_timestamp ]

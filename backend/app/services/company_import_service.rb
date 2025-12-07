@@ -217,7 +217,7 @@ class CompanyImportService
       # Columns: Given Names, Family Name, Director Number, Date Of Birth, Place of Birth, State, Country, Residential Address, TFN, Directors ID
       # Indices: 0            1            2                3               4               5      6        7                    8    10 (column K)
       updates = {
-        full_name: "#{row[0]} #{row[1]}".strip,
+        display_name: "#{row[0]} #{row[1]}".strip,
         date_of_birth: parse_date(row[3]),
         place_of_birth: row[4].to_s,
         birth_state: row[5].to_s,
@@ -387,7 +387,7 @@ class CompanyImportService
       next if dir_data[:name].blank?
 
       names = dir_data[:name].split(" ")
-      contact = Contact.find_by("LOWER(full_name) LIKE ?", "%#{dir_data[:name].downcase}%")
+      contact = Contact.find_by("LOWER(display_name) LIKE ?", "%#{dir_data[:name].downcase}%")
 
       next unless contact
 
@@ -408,7 +408,7 @@ class CompanyImportService
 
       # Try to find shareholder as a company first, then as a contact
       shareholder = Company.find_by("LOWER(name) LIKE ?", "%#{share_data[:name].downcase}%")
-      shareholder ||= Contact.find_by("LOWER(full_name) LIKE ?", "%#{share_data[:name].downcase}%")
+      shareholder ||= Contact.find_by("LOWER(display_name) LIKE ?", "%#{share_data[:name].downcase}%")
 
       next unless shareholder
 
@@ -486,7 +486,7 @@ class CompanyImportService
       )
 
       contact.assign_attributes(
-        full_name: "#{row[0]} #{row[1]}",
+        display_name: "#{row[0]} #{row[1]}",
         email: row[2],
         mobile_phone: row[3],
         date_of_birth: parse_date(row[4]),
@@ -498,7 +498,7 @@ class CompanyImportService
       contact.save!
       count += 1
 
-      @import_log << "Imported director: #{contact.full_name}"
+      @import_log << "Imported director: #{contact.display_name}"
     rescue StandardError => e
       @errors << "Row #{row_num}: Failed to import director - #{e.message}"
     end

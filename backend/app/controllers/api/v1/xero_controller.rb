@@ -844,12 +844,12 @@ module Api
           recent_syncs = Contact.where.not(last_synced_at: nil)
                                 .order(last_synced_at: :desc)
                                 .limit(50)
-                                .select(:id, :full_name, :first_name, :last_name, :email, :last_synced_at, :xero_sync_error, :xero_id, :created_at, :updated_at)
+                                .select(:id, :display_name, :first_name, :last_name, :email, :last_synced_at, :xero_sync_error, :xero_id, :created_at, :updated_at)
 
           history_items = recent_syncs.map do |contact|
             {
               id: contact.id,
-              contact_name: contact.full_name || "#{contact.first_name} #{contact.last_name}".strip,
+              contact_name: contact.display_name || "#{contact.first_name} #{contact.last_name}".strip,
               email: contact.email,
               synced_at: contact.last_synced_at,
               has_error: contact.xero_sync_error.present?,
@@ -1576,7 +1576,7 @@ module Api
               if validation_results[:sample_errors].length < 10
                 validation_results[:sample_errors] << {
                   contact_id: contact.id,
-                  contact_name: contact.full_name || "#{contact.first_name} #{contact.last_name}".strip,
+                  contact_name: contact.display_name || "#{contact.first_name} #{contact.last_name}".strip,
                   errors: validator.errors
                 }
               end

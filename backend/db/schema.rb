@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_07_105530) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_07_221849) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1131,7 +1131,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_07_105530) do
     t.string "website"
     t.string "first_name"
     t.string "last_name"
-    t.string "full_name"
+    t.string "display_name"
     t.boolean "sync_with_xero"
     t.integer "contact_region_id"
     t.string "contact_region"
