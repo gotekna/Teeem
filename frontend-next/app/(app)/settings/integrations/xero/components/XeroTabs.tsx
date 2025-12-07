@@ -30,6 +30,7 @@ import {
   ArrowRightLeft,
   Users,
   Filter,
+  Mail,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -432,6 +433,18 @@ export function XeroFieldMapping() {
   );
 }
 
+// Xero data stats interface (invoices, bills, quotes synced from Xero)
+interface XeroDataStats {
+  sales_invoices: { count: number; total: number };
+  bills: { count: number; total: number };
+  quotes: { count: number; total: number };
+  credit_notes: number;
+  contacts_with_data: number;
+  unpaid_count: number;
+  synced_today: number;
+  last_sync_at: string | null;
+}
+
 // Contact Sync Component
 export function XeroContactSync() {
   const { toast } = useToast();
@@ -448,6 +461,7 @@ export function XeroContactSync() {
   const [syncedCount, setSyncedCount] = React.useState(0);
   const [errorCount, setErrorCount] = React.useState(0);
   const [filterStatus, setFilterStatus] = React.useState<"all" | "synced" | "not-synced" | "errors">("all");
+  const [xeroDataStats, setXeroDataStats] = React.useState<XeroDataStats | null>(null);
 
   React.useEffect(() => {
     loadSyncStatus();
@@ -472,6 +486,7 @@ export function XeroContactSync() {
         total: number;
         synced_count: number;
         error_count: number;
+        xero_data?: XeroDataStats;
       }>("/api/v1/xero/contacts_sync_list");
 
       if (response.success) {
@@ -479,6 +494,9 @@ export function XeroContactSync() {
         setTotalContacts(response.total);
         setSyncedCount(response.synced_count);
         setErrorCount(response.error_count);
+        if (response.xero_data) {
+          setXeroDataStats(response.xero_data);
+        }
       }
     } catch (error) {
       console.error("Failed to load contacts:", error);
@@ -586,6 +604,49 @@ export function XeroContactSync() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Email Warehouse Stats Card */}
+      {emailWarehouseStats && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Email Warehouse
+            </CardTitle>
+            <CardDescription>
+              Emails synced from Microsoft 365 and their relationship to contacts
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
+                <div className="text-sm text-muted-foreground">Total Emails</div>
+                <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                  {emailWarehouseStats.total_emails.toLocaleString()}
+                </div>
+              </div>
+              <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg">
+                <div className="text-sm text-muted-foreground">With Xero Contacts</div>
+                <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
+                  {emailWarehouseStats.emails_with_xero_contacts.toLocaleString()}
+                </div>
+              </div>
+              <div className="p-4 bg-cyan-50 dark:bg-cyan-900/10 rounded-lg">
+                <div className="text-sm text-muted-foreground">Linked to Jobs</div>
+                <div className="text-2xl font-bold text-cyan-700 dark:text-cyan-400">
+                  {emailWarehouseStats.emails_linked_to_jobs.toLocaleString()}
+                </div>
+              </div>
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 rounded-lg">
+                <div className="text-sm text-muted-foreground">Synced Today</div>
+                <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+                  {emailWarehouseStats.emails_synced_today.toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Contacts Table Card */}
       <Card>

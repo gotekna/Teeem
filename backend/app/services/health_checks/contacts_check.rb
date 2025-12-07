@@ -100,13 +100,15 @@ module HealthChecks
 
     # Contacts with invalid entity_type
     def check_invalid_entity_type
+      # Use Contact::ENTITY_TYPES as SSoT for valid values
+      valid_types = Contact::ENTITY_TYPES + [ nil ]
       contacts = Contact.where(deleted: [ false, nil ])
-                       .where.not(entity_type: [ "person", "company", nil ])
+                       .where.not(entity_type: valid_types)
                        .select(:id, :full_name, :entity_type)
 
       build_result(
         name: "Contacts with Invalid Entity Type",
-        description: "Contacts with entity_type that is not 'person' or 'company'.",
+        description: "Contacts with entity_type not in: #{Contact::ENTITY_TYPES.join(', ')}.",
         severity: :warning,
         items: contacts,
         icon: "alert-triangle",

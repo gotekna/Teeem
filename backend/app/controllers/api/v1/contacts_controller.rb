@@ -2395,21 +2395,32 @@ module Api
           contact_with_email = Contact.find_by(email: email_addr)
 
           # Search for potential matching contacts by name match
-          # STRICT matching: require ALL name parts to be present
-          # Single name (e.g., "andrew") won't match anyone - too ambiguous
+          # STRICT matching rules:
+          # 1. Single name (e.g., "andrew") - no matches, too ambiguous
+          # 2. First name + single initial (e.g., "Justin S") - require initial to match START of last name
+          # 3. First name + full last name (e.g., "Sophie Harder") - standard matching
           name_parts = person_name_from_email.downcase.split(' ')
 
-          matching_contacts = if name_parts.length >= 2
-            # Multiple name parts: require ALL parts to be present (AND logic)
+          matching_contacts = if name_parts.length < 2
+            # Single name part only (e.g., "andrew@tekna.com.au")
+            # Don't match - too ambiguous. Can't determine which "Andrew" is correct.
+            Contact.none
+          elsif name_parts.any? { |p| p.length == 1 }
+            # Has a single-letter initial (e.g., "Justin S" -> ["justin", "s"])
+            # This is too ambiguous - "Justin S" could be Stevens, Smith, Saunders, etc.
+            # We CANNOT reliably match this to an existing contact.
+            # User should create a new contact instead.
+            Contact.none
+          elsif name_parts.any? { |p| p.length == 2 }
+            # Has a very short name part (e.g., "Justin St" -> ["justin", "st"])
+            # Still too ambiguous - could match many last names
+            Contact.none
+          else
+            # Multiple full name parts (3+ chars each): require ALL parts to be present (AND logic)
             # e.g., "Sophie Harder" matches "Sophie Harder" and "Sophie Mee-jeong Harder"
             Contact.where(entity_type: 'person')
               .where(name_parts.map { "LOWER(full_name) ILIKE ?" }.join(' AND '), *name_parts.map { |p| "%#{p}%" })
               .limit(5)
-          else
-            # Single name part only (e.g., "andrew@tekna.com.au")
-            # Don't match - too ambiguous. Can't determine which "Andrew" is correct.
-            # User will need to find this contact manually or use a more specific email.
-            Contact.none
           end
 
           # Get email domain company (skip personal email providers)
@@ -2542,14 +2553,27 @@ module Api
         confirmed_extractions = params[:extractions] || []
         relationships_created = 0
         companies_created = 0
+        contacts_created = 0
         emails_added = 0
         mobiles_added = 0
         contacts_merged = 0
 
         confirmed_extractions.each do |extraction|
-          # Find the contact to update
-          contact = Contact.find_by(id: extraction[:contact_id])
-          next unless contact
+          # Create new contact if requested
+          if extraction[:create_new_contact]
+            contact = Contact.create!(
+              full_name: extraction[:new_contact_name],
+              email: extraction[:email],
+              mobile_phone: extraction[:mobile],
+              entity_type: 'person',
+              is_active: true
+            )
+            contacts_created += 1
+          else
+            # Find the existing contact to update
+            contact = Contact.find_by(id: extraction[:contact_id])
+            next unless contact
+          end
 
           # Merge duplicate contacts if requested
           if extraction[:merge_contacts] && extraction[:contacts_to_merge].present?
@@ -2563,25 +2587,27 @@ module Api
             end
           end
 
-          # Add email to contact if requested and not already present
-          if extraction[:add_email] && extraction[:email].present?
-            if contact.email.blank?
-              contact.update!(email: extraction[:email])
-              emails_added += 1
-            elsif contact.email != extraction[:email]
-              # Could add to secondary email field if available
-              # For now, just log
-              Rails.logger.info("Contact #{contact.id} already has email #{contact.email}, not overwriting with #{extraction[:email]}")
+          # Add email to contact if requested and not already present (skip for new contacts - already set during creation)
+          unless extraction[:create_new_contact]
+            if extraction[:add_email] && extraction[:email].present?
+              if contact.email.blank?
+                contact.update!(email: extraction[:email])
+                emails_added += 1
+              elsif contact.email != extraction[:email]
+                # Could add to secondary email field if available
+                # For now, just log
+                Rails.logger.info("Contact #{contact.id} already has email #{contact.email}, not overwriting with #{extraction[:email]}")
+              end
             end
-          end
 
-          # Add mobile phone to contact if requested and not already present
-          if extraction[:add_mobile] && extraction[:mobile].present?
-            if contact.mobile_phone.blank?
-              contact.update!(mobile_phone: extraction[:mobile])
-              mobiles_added += 1
-            elsif contact.mobile_phone != extraction[:mobile]
-              Rails.logger.info("Contact #{contact.id} already has mobile #{contact.mobile_phone}, not overwriting with #{extraction[:mobile]}")
+            # Add mobile phone to contact if requested and not already present
+            if extraction[:add_mobile] && extraction[:mobile].present?
+              if contact.mobile_phone.blank?
+                contact.update!(mobile_phone: extraction[:mobile])
+                mobiles_added += 1
+              elsif contact.mobile_phone != extraction[:mobile]
+                Rails.logger.info("Contact #{contact.id} already has mobile #{contact.mobile_phone}, not overwriting with #{extraction[:mobile]}")
+              end
             end
           end
 
@@ -2632,6 +2658,7 @@ module Api
 
         render json: {
           success: true,
+          contacts_created: contacts_created,
           relationships_created: relationships_created,
           companies_created: companies_created,
           emails_added: emails_added,

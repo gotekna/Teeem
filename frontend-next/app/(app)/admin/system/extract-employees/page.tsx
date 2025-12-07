@@ -81,6 +81,8 @@ interface PreviewItem {
 interface SelectionState {
   selected: boolean;
   selectedContactId: number | null;
+  createNewContact: boolean; // If true, create a new contact instead of matching existing
+  newContactName: string; // Name for the new contact (editable)
   addEmail: boolean;
   addMobile: boolean;
   linkToDomainCompany: boolean;
@@ -134,6 +136,8 @@ function ExtractEmployeesContent() {
       const defaultSelections: Record<number, SelectionState> = {};
       result.preview.forEach((item: PreviewItem, idx: number) => {
         const firstContact = item.matching_contacts[0];
+        const hasNoMatches = item.matching_contacts.length === 0;
+
         const parentLinks: Record<number, boolean> = {};
         item.parent_companies.forEach((pc) => {
           if (pc.id) {
@@ -157,11 +161,13 @@ function ExtractEmployeesContent() {
         defaultSelections[idx] = {
           selected: true,
           selectedContactId: firstContact?.id || null,
-          addEmail: !firstContact?.email || firstContact.email !== item.email,
-          addMobile: !!item.phones?.mobile && !firstContact?.mobile_phone,
-          // Default to NO for customers (they're clients, not employees)
-          linkToDomainCompany: isCustomer ? false : !firstContact?.relationship_to_domain_company_exists,
-          parentCompanyLinks: isCustomer ? {} : parentLinks,
+          createNewContact: hasNoMatches, // Create new if no matches found
+          newContactName: item.person_name_from_email, // Default to extracted name
+          addEmail: true, // Always add email for new contacts
+          addMobile: !!item.phones?.mobile,
+          // Default to YES for new contacts (they're employees of the domain company)
+          linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !firstContact?.relationship_to_domain_company_exists),
+          parentCompanyLinks: hasNoMatches ? {} : (isCustomer ? {} : parentLinks),
           mergeContacts: otherContactIds.length > 0, // Default to merge if duplicates found
           contactsToMerge: otherContactIds,
         };
@@ -225,6 +231,8 @@ function ExtractEmployeesContent() {
       const defaultSelections: Record<number, SelectionState> = {};
       result.preview.forEach((item: PreviewItem, idx: number) => {
         const firstContact = item.matching_contacts[0];
+        const hasNoMatches = item.matching_contacts.length === 0;
+
         const parentLinks: Record<number, boolean> = {};
         item.parent_companies.forEach((pc) => {
           if (pc.id) {
@@ -249,11 +257,13 @@ function ExtractEmployeesContent() {
         defaultSelections[idx] = {
           selected: true,
           selectedContactId: firstContact?.id || null,
-          addEmail: !firstContact?.email || firstContact.email !== item.email, // Add email if contact doesn't have one or has different
-          addMobile: !!item.phones?.mobile && !firstContact?.mobile_phone, // Add mobile if found and contact doesn't have one
-          // Default to NO for customers (they're clients, not employees)
-          linkToDomainCompany: isCustomer ? false : !firstContact?.relationship_to_domain_company_exists,
-          parentCompanyLinks: isCustomer ? {} : parentLinks,
+          createNewContact: hasNoMatches, // Create new if no matches found
+          newContactName: item.person_name_from_email, // Default to extracted name
+          addEmail: true, // Always add email
+          addMobile: !!item.phones?.mobile,
+          // Default to YES for new contacts (they're employees of the domain company)
+          linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !firstContact?.relationship_to_domain_company_exists),
+          parentCompanyLinks: hasNoMatches ? {} : (isCustomer ? {} : parentLinks),
           mergeContacts: otherContactIds.length > 0, // Default to merge if duplicates found
           contactsToMerge: otherContactIds,
         };
@@ -280,10 +290,14 @@ function ExtractEmployeesContent() {
     const extractions = previewData
       .map((item, idx) => {
         const sel = selections[idx];
-        if (!sel?.selected || !sel.selectedContactId) return null;
+        if (!sel?.selected) return null;
+        // For new contacts, we don't need a selectedContactId
+        if (!sel.createNewContact && !sel.selectedContactId) return null;
 
         return {
           contact_id: sel.selectedContactId,
+          create_new_contact: sel.createNewContact,
+          new_contact_name: sel.newContactName || item.person_name_from_email,
           email: item.email,
           add_email: sel.addEmail,
           mobile: item.phones?.mobile,
@@ -315,6 +329,7 @@ function ExtractEmployeesContent() {
         extractions,
       });
       const parts = [];
+      if (result.contacts_created > 0) parts.push(`${result.contacts_created} contacts created`);
       if (result.relationships_created > 0) parts.push(`${result.relationships_created} relationships`);
       if (result.emails_added > 0) parts.push(`${result.emails_added} emails`);
       if (result.mobiles_added > 0) parts.push(`${result.mobiles_added} mobiles`);
@@ -732,13 +747,56 @@ function ExtractEmployeesContent() {
                               <ArrowRight className="h-6 w-6 text-muted-foreground" />
                             </div>
 
-                            {/* Match to Contact */}
+                            {/* Match to Contact or Create New */}
                             <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
                               <div className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide mb-3">
-                                Match to Existing Contact
+                                {item.matching_contacts.length === 0 ? "Create New Contact" : "Match to Existing Contact"}
                               </div>
 
-                              {item.matching_contacts.length > 1 ? (
+                              {item.matching_contacts.length === 0 ? (
+                                /* No matches - offer to create new contact */
+                                <div className="space-y-3">
+                                  <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-700">
+                                    <div className="flex items-start gap-2">
+                                      <Plus className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                      <div>
+                                        <div className="font-semibold text-blue-800 dark:text-blue-300">
+                                          No Matching Contact Found
+                                        </div>
+                                        <div className="text-sm text-blue-700 dark:text-blue-400">
+                                          We couldn&apos;t find an existing contact matching &quot;{item.person_name_from_email}&quot;.
+                                          A new contact will be created.
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-800 border">
+                                    <User className="h-5 w-5 text-blue-600" />
+                                    <div className="flex-1">
+                                      <Input
+                                        value={sel?.newContactName || item.person_name_from_email}
+                                        onChange={(e) => {
+                                          setSelections((prev) => ({
+                                            ...prev,
+                                            [idx]: {
+                                              ...prev[idx],
+                                              newContactName: e.target.value,
+                                            },
+                                          }));
+                                        }}
+                                        className="font-semibold"
+                                        placeholder="Contact name"
+                                      />
+                                      <div className="text-xs text-muted-foreground font-mono mt-1">{item.email}</div>
+                                    </div>
+                                    <Badge className="bg-blue-600">
+                                      <Plus className="h-3 w-3 mr-1" />
+                                      New
+                                    </Badge>
+                                  </div>
+                                </div>
+                              ) : item.matching_contacts.length > 1 ? (
                                 <>
                                   {/* Warning about duplicate contacts */}
                                   <div className="mb-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700">
