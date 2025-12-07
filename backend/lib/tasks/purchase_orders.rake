@@ -51,8 +51,8 @@ namespace :purchase_orders do
       end
 
       begin
-        # Create purchase order (without line items, so skip calculate_totals callback)
-        po = PurchaseOrder.new(
+        # Create purchase order
+        po = PurchaseOrder.create!(
           job_id: bill.job_id,
           supplier_id: bill.contact_id,
           status: "invoiced", # Bill already exists, so mark as invoiced
@@ -62,12 +62,8 @@ namespace :purchase_orders do
           invoice_reference: bill.invoice_number,
           description: "Auto-generated from Xero bill #{bill.invoice_number}",
           ordered_date: bill.invoice_date, # Use invoice date as order date
-          payment_status: bill.status == "paid" ? "complete" : "pending"
-        )
-
-        # Set totals manually and skip callbacks to preserve values
-        po.save!(validate: false)
-        po.update_columns(
+          payment_status: bill.status == "paid" ? "complete" : "pending",
+          # Set totals directly since we have no line items
           total: bill.total || 0,
           sub_total: bill.subtotal || 0,
           tax: bill.total_tax || 0

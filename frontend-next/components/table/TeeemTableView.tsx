@@ -927,10 +927,22 @@ export default function TeeemTableView({
   const toggleCallbacksRef = React.useRef<Map<number | string, () => void>>(new Map());
   const getToggleCallback = useCallback((id: number | string) => {
     if (!toggleCallbacksRef.current.has(id)) {
+      console.log('[PERF] Creating new callback for row:', id);
       toggleCallbacksRef.current.set(id, () => toggleRowSelection(id));
     }
     return toggleCallbacksRef.current.get(id)!;
   }, [toggleRowSelection]);
+
+  // Clear callback cache when rows change to prevent memory leaks
+  React.useEffect(() => {
+    const currentIds = new Set(entries.map(e => e.id));
+    const cachedIds = Array.from(toggleCallbacksRef.current.keys());
+    cachedIds.forEach(id => {
+      if (!currentIds.has(id)) {
+        toggleCallbacksRef.current.delete(id);
+      }
+    });
+  }, [entries]);
 
   const toggleSelectAll = useCallback(() => {
     // In grouped view, select only visible/expanded rows
