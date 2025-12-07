@@ -1979,7 +1979,7 @@ export default function ContactDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" onClick={() => router.push('/contacts')}>
+          <Button variant="ghost" onClick={() => router.back()}>
             <ArrowLeft className="h-5 w-5 mr-2" />
             Contacts
           </Button>
