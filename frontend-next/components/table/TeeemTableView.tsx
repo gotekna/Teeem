@@ -675,9 +675,6 @@ export default function TeeemTableView({
   // Ref for table container
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
-  // Refs and state for dynamic view button visibility
-  const toolbarRef = useRef<HTMLDivElement>(null);
-  const [visibleViewCount, setVisibleViewCount] = useState(0);
 
   // Global Views Manager state managed by atom (SSoT)
   const [showGlobalViewsManager, setShowGlobalViewsManager] = useAtom(showGlobalViewsManagerAtom);
@@ -757,43 +754,6 @@ export default function TeeemTableView({
       }
     }
   }, [foundationIdNumeric, enableSchemaEditor, preloadedViews, viewOnly, tableName, foundationId]);
-
-  // Calculate how many view buttons can fit in available space
-  useEffect(() => {
-    if (!toolbarRef.current || savedViews.length === 0) return;
-
-    const calculateVisibleViews = () => {
-      const toolbar = toolbarRef.current;
-      if (!toolbar) return;
-
-      const toolbarWidth = toolbar.offsetWidth;
-      const leftSection = toolbar.querySelector('.toolbar-left') as HTMLElement;
-      const rightSection = toolbar.querySelector('.toolbar-right') as HTMLElement;
-
-      if (!leftSection || !rightSection) return;
-
-      // Calculate available space (toolbar width - left section - right section reserved space)
-      const leftWidth = leftSection.offsetWidth;
-      const rightReservedWidth = 400; // Space for Filters, More menu, etc.
-      const availableWidth = toolbarWidth - leftWidth - rightReservedWidth;
-
-      // Estimate button width (varies by view name length, use average ~120px per button)
-      const avgButtonWidth = 120;
-      const maxVisibleViews = Math.floor(availableWidth / avgButtonWidth);
-
-      setVisibleViewCount(Math.max(0, Math.min(maxVisibleViews, savedViews.length)));
-    };
-
-    calculateVisibleViews();
-
-    // Recalculate on window resize
-    const resizeObserver = new ResizeObserver(calculateVisibleViews);
-    if (toolbarRef.current) {
-      resizeObserver.observe(toolbarRef.current);
-    }
-
-    return () => resizeObserver.disconnect();
-  }, [savedViews.length]);
 
   // ============================================================================
   // HANDLERS
@@ -3282,79 +3242,45 @@ export default function TeeemTableView({
         />
       )}
 
-      {/* Toolbar */}
+      {/* Toolbar - First row: Search and main actions */}
       <div className="flex items-center justify-between gap-4">
-        {/* Left section: Add button + leftActions + Search */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Add Row button - auto-shown when onAddRow is provided */}
-          {onAddRow && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={onAddRow}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Record
-            </Button>
-          )}
-          {/* Edit Mode Toggle - enables inline cell editing */}
-          <EditModeToggle />
-          {leftActions}
-          {/* Health Indicator Button - shows if table has health checks */}
-          {foundationIdNumeric && (
-            <HealthIndicatorButton
-              foundationId={foundationIdNumeric}
-              onClick={() => setHealthPanelOpen(!healthPanelOpen)}
-            />
-          )}
-          <SearchInput
-          value={search}
-          onSearch={handleSearchFromInput}
-          onSearchAllChange={handleSearchAllChange}
-          searchAllColumns={searchAllColumns}
-          serverSearchLoading={serverSearchLoading}
-          hasServerSearch={!!onServerSearch}
-        />
-        </div>
+          {/* Left section: Add button + leftActions + Search */}
+          <div className="toolbar-left flex items-center gap-2 flex-shrink-0">
+            {/* Add Row button - auto-shown when onAddRow is provided */}
+            {onAddRow && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={onAddRow}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Record
+              </Button>
+            )}
+            {/* Edit Mode Toggle - enables inline cell editing */}
+            <EditModeToggle />
+            {leftActions}
+            {/* Health Indicator Button - shows if table has health checks */}
+            {foundationIdNumeric && (
+              <HealthIndicatorButton
+                foundationId={foundationIdNumeric}
+                onClick={() => setHealthPanelOpen(!healthPanelOpen)}
+              />
+            )}
+            <SearchInput
+            value={search}
+            onSearch={handleSearchFromInput}
+            onSearchAllChange={handleSearchAllChange}
+            searchAllColumns={searchAllColumns}
+            serverSearchLoading={serverSearchLoading}
+            hasServerSearch={!!onServerSearch}
+          />
+          </div>
 
-        {/* Actions - right side with saved views and buttons */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Custom actions */}
-          {customActions && <div className="shrink-0">{customActions}</div>}
-
-          {/* Saved Views - compact dropdown showing all views */}
-          {savedViews.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="shrink-0">
-                  <Eye className="h-4 w-4 mr-2" />
-                  Views
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                    {savedViews.length}
-                  </Badge>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 max-h-96 overflow-y-auto">
-                {savedViews.map((view) => (
-                  <DropdownMenuItem
-                    key={view.id}
-                    onClick={() => loadViewState(view)}
-                    className={cn(
-                      activeViewId === view.id && "bg-accent font-medium"
-                    )}
-                  >
-                    {view.is_global && (
-                      <Globe className="h-3 w-3 mr-2 text-blue-500" />
-                    )}
-                    <span className="flex-1">{view.name}</span>
-                    {activeViewId === view.id && (
-                      <Check className="h-3 w-3 ml-2" />
-                    )}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          {/* Actions - right side with buttons */}
+          <div className="toolbar-right flex items-center gap-2 shrink-0">
+            {/* Custom actions */}
+            {customActions && <div className="shrink-0">{customActions}</div>}
 
           {/* Filters button - auto-enabled when foundationIdNumeric is set */}
           {/* Opens GlobalViewsManager for managing saved views, filters, sorting, columns */}
@@ -3474,6 +3400,38 @@ export default function TeeemTableView({
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Second row: Saved Views buttons - scrollable if overflow */}
+      {savedViews.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto mt-3 pb-2">
+          {/* Show all views as individual buttons */}
+          {savedViews.map((view) => (
+            <TooltipProvider key={view.id}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={activeViewId === view.id ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => loadViewState(view)}
+                    className={cn(
+                      "shrink-0 max-w-[140px]",
+                      view.is_global && "border-blue-300 dark:border-blue-700"
+                    )}
+                  >
+                    {view.is_global && (
+                      <Globe className="h-3 w-3 mr-1 flex-shrink-0" />
+                    )}
+                    <span className="truncate">{view.name}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {view.is_global ? `Global view: ${view.name}` : `Personal view: ${view.name}`}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ))}
+        </div>
+      )}
 
       {/* Active filters indicator - only show when NO saved view is active (view buttons already indicate active view) */}
       {safeFilters.length > 0 && !activeViewId && (

@@ -20,6 +20,7 @@ class XeroContactSyncService
       links_created: 0,
       links_updated: 0,
       errors: [],
+      validation_errors: [],
       skipped: 0,
       skipped_by_rule: {}
     }
@@ -740,6 +741,25 @@ class XeroContactSyncService
       }
     end
 
+    # Validate contact data before syncing to Xero
+    validator = XeroContactValidator.new(teeem_contact)
+    unless validator.valid?
+      error_msg = "Contact validation failed: #{validator.error_messages}"
+      Rails.logger.warn("#{error_msg} for contact #{teeem_contact.display_name} (ID: #{teeem_contact.id})")
+      teeem_contact.update(xero_sync_error: error_msg)
+      @stats[:validation_errors] ||= []
+      @stats[:validation_errors] << {
+        contact_id: teeem_contact.id,
+        contact_name: teeem_contact.display_name,
+        errors: validator.errors
+      }
+      return {
+        success: false,
+        error: error_msg,
+        validation_failed: true
+      }
+    end
+
     xero_payload = {
       Contacts: [
         build_xero_contact_payload(teeem_contact)
@@ -788,6 +808,25 @@ class XeroContactSyncService
 
   def update_xero_contact(teeem_contact, link)
     Rails.logger.info("Updating Xero contact: #{link.external_contact_id}")
+
+    # Validate contact data before syncing to Xero
+    validator = XeroContactValidator.new(teeem_contact)
+    unless validator.valid?
+      error_msg = "Contact validation failed: #{validator.error_messages}"
+      Rails.logger.warn("#{error_msg} for contact #{teeem_contact.display_name} (ID: #{teeem_contact.id})")
+      link.update!(sync_error: error_msg)
+      @stats[:validation_errors] ||= []
+      @stats[:validation_errors] << {
+        contact_id: teeem_contact.id,
+        contact_name: teeem_contact.display_name,
+        errors: validator.errors
+      }
+      return {
+        success: false,
+        error: error_msg,
+        validation_failed: true
+      }
+    end
 
     xero_payload = {
       Contacts: [
