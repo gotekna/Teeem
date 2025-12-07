@@ -330,6 +330,7 @@ Rails.application.routes.draw do
           get :company_with_first_name
           get :person_without_name
           get :missing_contact_info
+          post :extract_employees
         end
         member do
           post :reorder_employees
