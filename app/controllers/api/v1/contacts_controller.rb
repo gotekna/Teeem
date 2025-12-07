@@ -2317,78 +2317,191 @@ module Api
 
       # GET /api/v1/contacts/preview_employee_extraction
       # Preview what would be extracted from email warehouse for specified email addresses
+      # New flow:
+      # 1. Search email warehouse for emails involving specified addresses
+      # 2. For each unique email, find matching EXISTING contacts by fuzzy name match
+      # 3. Show option to add email to existing contact
+      # 4. Create relationships to BOTH parent company AND email domain company
       def preview_employee_extraction
-        email_patterns = params[:email_patterns] || []
+        # Parse email patterns - can be array or comma-separated string
+        email_patterns = if params[:email_patterns].is_a?(String)
+          params[:email_patterns].split(',').map(&:strip).reject(&:blank?)
+        else
+          Array(params[:email_patterns]).reject(&:blank?)
+        end
 
         # Query email warehouse for emails involving the specified addresses
         emails = EmailWarehouse.involving_email(email_patterns)
 
-        # Extract unique email addresses from email headers (from, to, cc)
+        # Track which parent companies each email is associated with
+        # Key: email address, Value: Set of parent company info
+        email_to_parent_companies = Hash.new { |h, k| h[k] = Set.new }
+
+        # Track email bodies for signature extraction
+        email_bodies = Hash.new { |h, k| h[k] = [] }
+
+        # Extract unique email addresses and track their parent company context
         unique_emails = Set.new
         emails.each do |email|
-          unique_emails.add(email.from_email) if email.from_email.present?
-          email.to_emails&.each { |to| unique_emails.add(to) }
-          email.cc_emails&.each { |cc| unique_emails.add(cc) }
+          # Find the parent company context (the company that owns the searched email)
+          parent_email = email_patterns.find { |pattern|
+            email.from_email == pattern ||
+            email.to_emails&.include?(pattern) ||
+            email.cc_emails&.include?(pattern)
+          }
+
+          if parent_email
+            parent_domain = parent_email.split('@').last
+            parent_company_name = parent_domain.split('.').first.titleize
+            parent_company = Contact.find_by(
+              "LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
+              "%#{parent_company_name.downcase}%",
+              "%#{parent_company_name.downcase}%"
+            )
+
+            # Collect all other emails in this thread
+            [email.from_email, *email.to_emails, *email.cc_emails].compact.each do |addr|
+              next if email_patterns.include?(addr)
+              unique_emails.add(addr)
+              if parent_company
+                email_to_parent_companies[addr].add({
+                  id: parent_company.id,
+                  name: parent_company.full_name,
+                  entity_type: parent_company.entity_type
+                })
+              end
+            end
+
+            # Store email body for signature extraction (only for from_email)
+            if email.from_email.present? && email.body_text.present?
+              email_bodies[email.from_email] << email.body_text
+            end
+          end
         end
 
-        # Filter out the search patterns themselves and generic/system emails
-        generic_patterns = ['noreply', 'no-reply', 'donotreply', 'postmaster', 'mailer-daemon', 'accounts@']
+        # Filter out generic/system emails
+        generic_patterns = ['noreply', 'no-reply', 'donotreply', 'postmaster', 'mailer-daemon', 'accounts@', 'info@', 'support@', 'admin@']
         candidate_emails = unique_emails.reject do |email_addr|
-          email_patterns.include?(email_addr) ||
           generic_patterns.any? { |pattern| email_addr.downcase.include?(pattern) }
         end
 
         # Build preview data for each unique email address
-        # ONLY include existing contacts - skip any emails without a contact match
         preview_data = candidate_emails.filter_map do |email_addr|
-          # Check if contact already exists
-          existing_contact = Contact.find_by(email: email_addr)
+          # Extract person name from email (e.g., "sophie.harder" -> "Sophie Harder")
+          email_local = email_addr.split('@').first
+          person_name_from_email = email_local.split(/[._-]/).map(&:capitalize).join(' ')
 
-          # Skip if contact doesn't exist - we only link existing contacts, never create new ones
-          next unless existing_contact
+          # Check if this email already exists on any contact
+          contact_with_email = Contact.find_by(email: email_addr)
 
+          # Search for potential matching contacts by fuzzy name match
+          name_parts = person_name_from_email.downcase.split(' ')
+          matching_contacts = Contact.where(entity_type: 'person')
+            .where(name_parts.map { "LOWER(full_name) ILIKE ?" }.join(' OR '), *name_parts.map { |p| "%#{p}%" })
+            .limit(5)
+
+          # Get email domain company
           domain = email_addr.split('@').last
-          company_name = domain.split('.').first.titleize
+          domain_company_name = domain.split('.').first.titleize
+          domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+            .where("LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
+                   "%#{domain_company_name.downcase}%",
+                   "%#{domain_company_name.downcase}%")
+            .first
 
-          # Check if company exists
-          existing_company = Contact.find_by(
-            full_name: company_name,
-            entity_type: ['company', 'trust', 'sole_trader']
-          )
+          # Get parent companies this email was found communicating with
+          parent_companies = email_to_parent_companies[email_addr].to_a
 
-          # Check if employment already exists
-          existing_employment = if existing_company
-            ContactEmployment.find_by(employee_id: existing_contact.id, employer_id: existing_company.id)
-          else
-            nil
-          end
+          # Extract phone numbers from email signatures
+          phones = extract_phones_from_signatures(email_bodies[email_addr])
+
+          # Check existing relationships for each potential link
+          check_relationship_exists = ->(person_id, company_id) {
+            return false unless person_id && company_id
+            ContactRelationship.exists?(
+              source_contact_id: person_id,
+              related_contact_id: company_id,
+              relationship_type: 'employee_of'
+            )
+          }
 
           {
-            employee_id: existing_contact.id,
-            employee_name: existing_contact.full_name,
-            employee_email: email_addr,
-            employee_phone: existing_contact.mobile_phone,
-            company_name: company_name,
-            company_id: existing_company&.id,
-            company_exists: existing_company.present?,
-            contact_exists: true, # Always true since we filtered above
-            employment_exists: existing_employment.present?,
-            would_create_contact: false, # Never creating new contacts
-            would_create_company: existing_company.nil?,
-            would_create_employment: existing_employment.nil?,
-            role: 'Employee'
+            # The email we found
+            email: email_addr,
+            person_name_from_email: person_name_from_email,
+
+            # Whether this email is already on a contact
+            email_exists_on_contact: contact_with_email.present?,
+            existing_contact_with_email: contact_with_email ? {
+              id: contact_with_email.id,
+              full_name: contact_with_email.full_name,
+              entity_type: contact_with_email.entity_type
+            } : nil,
+
+            # Matching contacts we could add this email to
+            matching_contacts: matching_contacts.map { |c|
+              {
+                id: c.id,
+                full_name: c.full_name,
+                email: c.email,
+                mobile_phone: c.mobile_phone,
+                entity_type: c.entity_type,
+                # Check if relationships already exist
+                relationship_to_domain_company_exists: domain_company ? check_relationship_exists.call(c.id, domain_company.id) : false,
+                relationships_to_parent_companies: parent_companies.map { |pc|
+                  {
+                    company_id: pc[:id],
+                    company_name: pc[:name],
+                    exists: check_relationship_exists.call(c.id, pc[:id])
+                  }
+                }
+              }
+            },
+
+            # The company derived from email domain (e.g., Tekna from @tekna.com.au)
+            domain_company: domain_company ? {
+              id: domain_company.id,
+              name: domain_company.full_name,
+              entity_type: domain_company.entity_type,
+              office_phone: domain_company.office_phone,
+              website: domain_company.website,
+              exists: true
+            } : {
+              id: nil,
+              name: domain_company_name,
+              entity_type: 'company',
+              office_phone: nil,
+              website: nil,
+              exists: false
+            },
+
+            # Parent companies this person was communicating with
+            parent_companies: parent_companies.map { |pc|
+              parent_contact = Contact.find_by(id: pc[:id])
+              {
+                id: pc[:id],
+                name: pc[:name],
+                entity_type: pc[:entity_type],
+                office_phone: parent_contact&.office_phone,
+                website: parent_contact&.website,
+                exists: true
+              }
+            },
+
+            # Phone numbers extracted from signature
+            phones: phones
           }
         end
+
+        # Filter to only show items where we have matching contacts
+        preview_data = preview_data.select { |item| item[:matching_contacts].any? }
 
         render json: {
           success: true,
           preview: preview_data,
           total_found: preview_data.length,
           emails_searched: emails.count,
-          unique_people: candidate_emails.count,
-          new_contacts: preview_data.count { |p| p[:would_create_contact] },
-          companies_to_create: preview_data.count { |p| p[:would_create_company] },
-          employments_to_create: preview_data.count { |p| p[:would_create_employment] }
+          unique_emails_found: candidate_emails.count
         }
       rescue => e
         Rails.logger.error("Preview employee extraction error: #{e.message}")
@@ -2398,56 +2511,92 @@ module Api
 
       # POST /api/v1/contacts/extract_employees
       # Execute employee extraction based on confirmation data
+      # Creates ContactRelationship records (not ContactEmployment)
       def extract_employees
         confirmed_extractions = params[:extractions] || []
-        employments_created = 0
+        relationships_created = 0
         companies_created = 0
-        contacts_created = 0
+        emails_added = 0
+        mobiles_added = 0
 
         confirmed_extractions.each do |extraction|
-          # Find the contact (employee) - must exist, we never create new contacts
-          person = Contact.find_by(id: extraction[:employee_id])
+          # Find the contact to update
+          contact = Contact.find_by(id: extraction[:contact_id])
+          next unless contact
 
-          # Skip if contact doesn't exist - should never happen since preview filters these out
-          next unless person
-
-          # Find or create company
-          company = Contact.find_by(id: extraction[:company_id]) if extraction[:company_id]
-
-          unless company
-            company = Contact.create!(
-              full_name: extraction[:company_name],
-              company_name_or_trust: extraction[:company_name],
-              entity_type: 'company',
-              is_active: true
-            )
-            companies_created += 1
+          # Add email to contact if requested and not already present
+          if extraction[:add_email] && extraction[:email].present?
+            if contact.email.blank?
+              contact.update!(email: extraction[:email])
+              emails_added += 1
+            elsif contact.email != extraction[:email]
+              # Could add to secondary email field if available
+              # For now, just log
+              Rails.logger.info("Contact #{contact.id} already has email #{contact.email}, not overwriting with #{extraction[:email]}")
+            end
           end
 
-          # Create employment record
-          employment = ContactEmployment.find_or_initialize_by(
-            employee_id: person.id,
-            employer_id: company.id
-          )
+          # Add mobile phone to contact if requested and not already present
+          if extraction[:add_mobile] && extraction[:mobile].present?
+            if contact.mobile_phone.blank?
+              contact.update!(mobile_phone: extraction[:mobile])
+              mobiles_added += 1
+            elsif contact.mobile_phone != extraction[:mobile]
+              Rails.logger.info("Contact #{contact.id} already has mobile #{contact.mobile_phone}, not overwriting with #{extraction[:mobile]}")
+            end
+          end
 
-          if employment.new_record?
-            employment.assign_attributes(
-              role: extraction[:role] || 'Employee',
-              work_email: extraction[:employee_email],
-              work_phone: extraction[:employee_phone],
-              is_active: true,
-              is_primary: person.employers.empty?
-            )
-            employment.save!
-            employments_created += 1
+          # Create relationship to domain company
+          if extraction[:link_to_domain_company] && extraction[:domain_company_id]
+            company = Contact.find_by(id: extraction[:domain_company_id])
+
+            # Create company if it doesn't exist
+            unless company
+              company = Contact.create!(
+                full_name: extraction[:domain_company_name],
+                company_name_or_trust: extraction[:domain_company_name],
+                entity_type: 'company',
+                is_active: true
+              )
+              companies_created += 1
+            end
+
+            # Create relationship if it doesn't exist
+            unless ContactRelationship.exists?(source_contact_id: contact.id, related_contact_id: company.id)
+              ContactRelationship.create!(
+                source_contact_id: contact.id,
+                related_contact_id: company.id,
+                relationship_type: 'employee_of',
+                is_active: true
+              )
+              relationships_created += 1
+            end
+          end
+
+          # Create relationships to parent companies
+          (extraction[:parent_company_ids] || []).each do |parent_id|
+            next unless parent_id
+            parent_company = Contact.find_by(id: parent_id)
+            next unless parent_company
+
+            unless ContactRelationship.exists?(source_contact_id: contact.id, related_contact_id: parent_company.id)
+              ContactRelationship.create!(
+                source_contact_id: contact.id,
+                related_contact_id: parent_company.id,
+                relationship_type: 'employee_of',
+                is_active: true
+              )
+              relationships_created += 1
+            end
           end
         end
 
         render json: {
           success: true,
-          contacts_created: contacts_created,
-          employments_created: employments_created,
-          companies_created: companies_created
+          relationships_created: relationships_created,
+          companies_created: companies_created,
+          emails_added: emails_added,
+          mobiles_added: mobiles_added
         }
       rescue => e
         Rails.logger.error("Extract employees error: #{e.message}")
@@ -2474,6 +2623,120 @@ module Api
       end
 
       private
+
+      # Extract phone numbers from email signature text
+      # Returns { mobile:, office:, direct: } hash
+      def extract_phones_from_signatures(bodies)
+        return {} if bodies.blank?
+
+        phones = { mobile: nil, office: nil, direct: nil }
+
+        bodies.each do |body|
+          next if body.blank?
+
+          # Extract signature (text after common signature delimiters)
+          signature = extract_signature_from_text(body)
+          next if signature.blank?
+
+          # Australian mobile pattern: 04XX XXX XXX or +61 4XX XXX XXX
+          mobile_patterns = [
+            /(?:Mobile|Mob|M)[:\s]*(\+61\s?4\d{2}\s?\d{3}\s?\d{3})/i,
+            /(?:Mobile|Mob|M)[:\s]*(04\d{2}\s?\d{3}\s?\d{3})/i,
+            /(?:Mobile|Mob|M)[:\s]*(\+61\s?4\d{8})/i,
+            /(?:Mobile|Mob|M)[:\s]*(04\d{8})/i,
+            /(\+61\s?4\d{2}\s?\d{3}\s?\d{3})/,
+            /(04\d{2}\s?\d{3}\s?\d{3})/
+          ]
+
+          # Office/landline pattern: (0X) XXXX XXXX or +61 X XXXX XXXX
+          office_patterns = [
+            /(?:Office|Off|Tel|Phone|Ph|P)[:\s]*(\+61\s?\d{1}\s?\d{4}\s?\d{4})/i,
+            /(?:Office|Off|Tel|Phone|Ph|P)[:\s]*(\(0\d\)\s?\d{4}\s?\d{4})/i,
+            /(?:Office|Off|Tel|Phone|Ph|P)[:\s]*(0\d\s?\d{4}\s?\d{4})/i,
+            /(\+61\s?\d{1}\s?\d{4}\s?\d{4})/,
+            /(\(0\d\)\s?\d{4}\s?\d{4})/,
+            /(0\d\s?\d{4}\s?\d{4})/
+          ]
+
+          # Direct line pattern
+          direct_patterns = [
+            /(?:Direct|Dir|D)[:\s]*(\+61\s?\d{1}\s?\d{4}\s?\d{4})/i,
+            /(?:Direct|Dir|D)[:\s]*(\(0\d\)\s?\d{4}\s?\d{4})/i,
+            /(?:Direct|Dir|D)[:\s]*(0\d\s?\d{4}\s?\d{4})/i
+          ]
+
+          # Try to extract mobile
+          mobile_patterns.each do |pattern|
+            match = signature.match(pattern)
+            if match && match[1]
+              phones[:mobile] ||= normalize_phone_number(match[1])
+              break if phones[:mobile]
+            end
+          end
+
+          # Try to extract office
+          office_patterns.each do |pattern|
+            match = signature.match(pattern)
+            if match && match[1]
+              candidate = normalize_phone_number(match[1])
+              unless candidate == phones[:mobile]
+                phones[:office] ||= candidate
+                break if phones[:office]
+              end
+            end
+          end
+
+          # Try to extract direct
+          direct_patterns.each do |pattern|
+            match = signature.match(pattern)
+            if match && match[1]
+              candidate = normalize_phone_number(match[1])
+              unless candidate == phones[:mobile] || candidate == phones[:office]
+                phones[:direct] ||= candidate
+                break if phones[:direct]
+              end
+            end
+          end
+
+          # Stop if we found at least a mobile
+          break if phones[:mobile].present?
+        end
+
+        phones.compact
+      end
+
+      # Extract signature portion from email text
+      def extract_signature_from_text(text)
+        delimiters = [
+          /\n--\s*\n/,           # Standard "-- " delimiter
+          /\nRegards,?\n/i,      # "Regards,"
+          /\nBest regards,?\n/i, # "Best regards,"
+          /\nThanks,?\n/i,       # "Thanks,"
+          /\nCheers,?\n/i,       # "Cheers,"
+          /\nKind regards,?\n/i  # "Kind regards,"
+        ]
+
+        delimiters.each do |delimiter|
+          if text.match(delimiter)
+            parts = text.split(delimiter, 2)
+            return parts[1] if parts.length > 1
+          end
+        end
+
+        # If no delimiter found, try to get last 10 lines
+        lines = text.split("\n")
+        lines.last(10).join("\n")
+      end
+
+      # Normalize phone number to consistent format
+      def normalize_phone_number(phone)
+        return nil if phone.blank?
+        clean = phone.gsub(/[^\d+]/, "")
+        if clean.start_with?("+61")
+          clean = "0" + clean[3..]
+        end
+        clean
+      end
 
       def normalize_name(name)
         return nil if name.blank?

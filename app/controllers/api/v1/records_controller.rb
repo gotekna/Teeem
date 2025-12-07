@@ -200,7 +200,26 @@ module Api
         model = @foundation.dynamic_model
         record = model.find(params[:id])
 
-        record.destroy
+        # For contacts, check if it has related records
+        # If no records, hard delete. If has records, soft delete (archive).
+        if model.table_name == "contacts"
+          has_records = contact_has_records?(record)
+
+          if has_records
+            # Soft delete - archive the contact (can be recovered)
+            record.update!(deleted: true)
+          else
+            # Hard delete - no related records, safe to remove completely
+            record.destroy!
+          end
+        elsif model.column_names.include?("deleted")
+          # Other tables with deleted column: soft delete
+          record.update!(deleted: true)
+        else
+          # Tables without deleted column: hard delete
+          record.destroy!
+        end
+
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
         render json: { error: "Record not found" }, status: :not_found
@@ -364,6 +383,24 @@ module Api
       end
 
       private
+
+      # Check if a contact has any related records that would require soft delete
+      def contact_has_records?(contact)
+        # Check key associations that indicate this contact has history
+        return true if contact.job_contacts.exists?
+        return true if contact.purchase_orders.exists?
+        return true if contact.external_invoices.exists?
+        return true if contact.subcontractor_invoices.exists?
+        return true if contact.quote_responses.exists?
+        return true if contact.quote_request_contacts.exists?
+        return true if contact.pricebook_items.exists?
+        return true if contact.case_contacts.exists?
+        return true if contact.company_directorships.exists?
+        return true if contact.company_shareholdings.exists?
+        return true if contact.contact_activities.exists?
+
+        false
+      end
 
       def set_foundation
         # Support both ID and slug
