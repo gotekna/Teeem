@@ -616,9 +616,10 @@ module Api
             end
           end
 
-          # Add computed columns for contacts (employees_count for companies)
+          # Add computed columns for contacts (employees_count for companies, display_name for team contacts)
           if record.class.name == "Contact"
             json[:employees_count] = employees_count_cache[record.id] || 0
+            json[:display_name] = record.display_name  # Computed: includes company name for team contacts
           end
 
           return json
