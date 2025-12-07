@@ -248,6 +248,7 @@ export default function NewContactPage() {
         contactPayload.is_customer = true;
       }
 
+      console.log("Creating contact with payload:", JSON.stringify(contactPayload, null, 2));
       const response = await api.post<{ contact: { id: number } }>("/api/v1/contacts", {
         contact: contactPayload,
       });

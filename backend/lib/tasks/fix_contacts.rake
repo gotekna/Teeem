@@ -81,8 +81,51 @@ namespace :contacts do
     puts "Done! Fixed #{fixed_count} contacts, #{error_count} errors."
   end
 
-  desc "Fix all contact issues (name casing + website URLs + company enrichment)"
-  task fix_all: [:fix_name_casing, :fix_website_urls, :enrich_company_websites]
+  desc "Fix all contact issues (name casing + website URLs + company enrichment + full_name)"
+  task fix_all: [:fix_name_casing, :fix_website_urls, :enrich_company_websites, :fix_full_names]
+
+  desc "Fix full_name field based on entity type rules"
+  task fix_full_names: :environment do
+    puts "Fixing contact full_name fields..."
+    puts
+
+    fixed_count = 0
+    error_count = 0
+
+    Contact.unscoped.find_each do |contact|
+      begin
+        # Calculate the correct full_name based on entity type
+        correct_full_name = case contact.entity_type
+        when "person", "sole_trader"
+          # Person: first_name + middle_name + last_name
+          [contact.first_name, contact.middle_name, contact.last_name].compact.reject(&:blank?).join(" ")
+        when "company", "trust"
+          # Company/Trust: use company_name_or_trust
+          contact.company_name_or_trust.presence || contact.full_name
+        else
+          # Unknown type: try to build from parts or keep existing
+          parts = [contact.first_name, contact.middle_name, contact.last_name].compact.reject(&:blank?)
+          parts.any? ? parts.join(" ") : (contact.company_name_or_trust.presence || contact.full_name)
+        end
+
+        # Skip if full_name is already correct or we couldn't determine a name
+        next if correct_full_name.blank?
+        next if contact.full_name == correct_full_name
+
+        # Update the full_name
+        old_name = contact.full_name
+        contact.update_columns(full_name: correct_full_name)
+        fixed_count += 1
+        puts "Fixed: #{contact.id} - '#{old_name}' -> '#{correct_full_name}' (#{contact.entity_type})"
+      rescue => e
+        error_count += 1
+        puts "Error fixing #{contact.id}: #{e.message}"
+      end
+    end
+
+    puts
+    puts "Done! Fixed #{fixed_count} contacts, #{error_count} errors."
+  end
 
   desc "Auto-enrich company contacts with obvious website URLs"
   task enrich_company_websites: :environment do
