@@ -2316,18 +2316,38 @@ module Api
       end
 
       # GET /api/v1/contacts/preview_employee_extraction
-      # Preview what would be extracted from specified email addresses
+      # Preview what would be extracted from email warehouse for specified email addresses
       def preview_employee_extraction
         email_patterns = params[:email_patterns] || []
 
-        # Build query for email patterns
-        conditions = email_patterns.map { |pattern| "email ILIKE ?" }.join(' OR ')
-        person_accounts = Contact.where(conditions, *email_patterns)
-                                .where(entity_type: 'person')
-                                .where.not(full_name: ['Accounts Team', 'accounts team', '', nil])
+        # Query email warehouse for emails involving the specified addresses
+        emails = EmailWarehouse.involving_email(email_patterns)
 
-        preview_data = person_accounts.map do |person|
-          domain = person.email.split('@').last
+        # Extract unique email addresses from email headers (from, to, cc)
+        unique_emails = Set.new
+        emails.each do |email|
+          unique_emails.add(email.from_email) if email.from_email.present?
+          email.to_emails&.each { |to| unique_emails.add(to) }
+          email.cc_emails&.each { |cc| unique_emails.add(cc) }
+        end
+
+        # Filter out the search patterns themselves and generic/system emails
+        generic_patterns = ['noreply', 'no-reply', 'donotreply', 'postmaster', 'mailer-daemon', 'accounts@']
+        candidate_emails = unique_emails.reject do |email_addr|
+          email_patterns.include?(email_addr) ||
+          generic_patterns.any? { |pattern| email_addr.downcase.include?(pattern) }
+        end
+
+        # Build preview data for each unique email address
+        # ONLY include existing contacts - skip any emails without a contact match
+        preview_data = candidate_emails.filter_map do |email_addr|
+          # Check if contact already exists
+          existing_contact = Contact.find_by(email: email_addr)
+
+          # Skip if contact doesn't exist - we only link existing contacts, never create new ones
+          next unless existing_contact
+
+          domain = email_addr.split('@').last
           company_name = domain.split('.').first.titleize
 
           # Check if company exists
@@ -2337,21 +2357,26 @@ module Api
           )
 
           # Check if employment already exists
-          existing_employment = existing_company ?
-            ContactEmployment.find_by(employee_id: person.id, employer_id: existing_company.id) : nil
+          existing_employment = if existing_company
+            ContactEmployment.find_by(employee_id: existing_contact.id, employer_id: existing_company.id)
+          else
+            nil
+          end
 
           {
-            employee_id: person.id,
-            employee_name: person.full_name,
-            employee_email: person.email,
-            employee_phone: person.mobile_phone,
+            employee_id: existing_contact.id,
+            employee_name: existing_contact.full_name,
+            employee_email: email_addr,
+            employee_phone: existing_contact.mobile_phone,
             company_name: company_name,
             company_id: existing_company&.id,
             company_exists: existing_company.present?,
+            contact_exists: true, # Always true since we filtered above
             employment_exists: existing_employment.present?,
+            would_create_contact: false, # Never creating new contacts
             would_create_company: existing_company.nil?,
             would_create_employment: existing_employment.nil?,
-            role: 'Accounts'
+            role: 'Employee'
           }
         end
 
@@ -2359,11 +2384,15 @@ module Api
           success: true,
           preview: preview_data,
           total_found: preview_data.length,
+          emails_searched: emails.count,
+          unique_people: candidate_emails.count,
+          new_contacts: preview_data.count { |p| p[:would_create_contact] },
           companies_to_create: preview_data.count { |p| p[:would_create_company] },
           employments_to_create: preview_data.count { |p| p[:would_create_employment] }
         }
       rescue => e
         Rails.logger.error("Preview employee extraction error: #{e.message}")
+        Rails.logger.error(e.backtrace.join("\n"))
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
@@ -2373,9 +2402,13 @@ module Api
         confirmed_extractions = params[:extractions] || []
         employments_created = 0
         companies_created = 0
+        contacts_created = 0
 
         confirmed_extractions.each do |extraction|
+          # Find the contact (employee) - must exist, we never create new contacts
           person = Contact.find_by(id: extraction[:employee_id])
+
+          # Skip if contact doesn't exist - should never happen since preview filters these out
           next unless person
 
           # Find or create company
@@ -2399,9 +2432,9 @@ module Api
 
           if employment.new_record?
             employment.assign_attributes(
-              role: extraction[:role] || 'Accounts',
-              work_email: person.email,
-              work_phone: person.mobile_phone,
+              role: extraction[:role] || 'Employee',
+              work_email: extraction[:employee_email],
+              work_phone: extraction[:employee_phone],
               is_active: true,
               is_primary: person.employers.empty?
             )
@@ -2412,11 +2445,13 @@ module Api
 
         render json: {
           success: true,
+          contacts_created: contacts_created,
           employments_created: employments_created,
           companies_created: companies_created
         }
       rescue => e
         Rails.logger.error("Extract employees error: #{e.message}")
+        Rails.logger.error(e.backtrace.join("\n"))
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
