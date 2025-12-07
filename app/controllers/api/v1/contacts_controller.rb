@@ -2976,7 +2976,7 @@ module Api
         end
 
         # Soft delete the duplicate contact
-        duplicate.update!(deleted: true, deleted_at: Time.current)
+        duplicate.update!(deleted: true)
 
         Rails.logger.info("Merged and deleted duplicate contact #{duplicate.id}")
       end
