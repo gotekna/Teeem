@@ -282,8 +282,8 @@ namespace :xero do
       end
 
       # Xero has strict rate limits for PDF/attachment endpoints
-      # Use 3s delay to stay safely under limit
-      sleep(3)
+      # Use 10s delay to stay safely under limit (3s was too aggressive)
+      sleep(10)
     end
 
     puts ""
