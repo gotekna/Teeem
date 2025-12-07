@@ -45,7 +45,6 @@ import { cn } from "@/lib/utils";
 
 interface Supplier {
   id: number;
-  display_name: string;
   display_name?: string;
   email?: string;
   phone?: string;

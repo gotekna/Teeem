@@ -61,7 +61,6 @@ import { cn } from "@/lib/utils";
 
 interface Contact {
   id: number;
-  display_name: string;
   display_name?: string;
 }
 
@@ -81,7 +80,6 @@ interface PurchaseOrder {
   required_date?: string;
   supplier?: {
     id: number;
-    display_name?: string;
     display_name?: string;
   };
   schedule_task?: {
