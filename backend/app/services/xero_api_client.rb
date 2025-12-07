@@ -659,7 +659,8 @@ class XeroApiClient
   def make_binary_request(method, endpoint, options = {})
     tenant_id = options[:tenant_id]
     accept_type = options[:accept] || "application/octet-stream"
-    retried_401 = false
+    attempts = 0
+    max_attempts = 2  # Initial attempt + 1 retry after 401
 
     # Find credential (same logic as make_request)
     credential = nil
@@ -687,7 +688,9 @@ class XeroApiClient
     request_tenant_id = credential.respond_to?(:xero_tenant_id) ? credential.xero_tenant_id : credential.tenant_id
     url = "#{BASE_URL}/#{endpoint}"
 
-    begin
+    loop do
+      attempts += 1
+
       headers = {
         "Authorization" => "Bearer #{credential.access_token}",
         "Xero-tenant-id" => request_tenant_id,
@@ -705,7 +708,7 @@ class XeroApiClient
           filename = match[1] if match
         end
 
-        {
+        return {
           success: true,
           content: response.body,
           filename: filename,
@@ -714,8 +717,7 @@ class XeroApiClient
         }
       when 401
         # Try refreshing token once and retry
-        if !retried_401
-          retried_401 = true
+        if attempts < max_attempts
           Rails.logger.info("[Xero] Got 401, attempting token refresh and retry...")
           if credential.is_a?(CompanyXeroConnection)
             credential.refresh_tokens!
@@ -723,16 +725,16 @@ class XeroApiClient
             refresh_access_token_for(credential)
           end
           credential.reload
-          retry
+          next  # Retry the loop
         else
           raise AuthenticationError, "Authentication failed after token refresh"
         end
       when 404
-        { success: false, error: "Not found" }
+        return { success: false, error: "Not found" }
       when 429
         raise RateLimitError, "Rate limit exceeded"
       else
-        { success: false, error: "Request failed with status #{response.code}" }
+        return { success: false, error: "Request failed with status #{response.code}" }
       end
     end
   end
