@@ -1,3 +1,5 @@
+require "cgi"
+
 class EmailWarehouseSyncService
   BATCH_SIZE = 100  # Emails per API call
   DEFAULT_SYNC_YEARS = 3  # Go back 3 years
@@ -247,13 +249,28 @@ class EmailWarehouseSyncService
 
   def parse_outlook_emails(emails)
     emails.map do |email|
+      body_content = email.dig("body", "content")
+      content_type = email.dig("body", "contentType")
+
+      # Extract plain text from HTML if needed
+      if content_type == "html" && body_content.present?
+        body_html = body_content
+        body_text = extract_text_from_html(body_content)
+      elsif content_type == "text" && body_content.present?
+        body_text = body_content
+        body_html = nil
+      else
+        body_text = nil
+        body_html = nil
+      end
+
       {
         internet_message_id: email["internetMessageId"],
         outlook_id: email["id"],
         conversation_id: email["conversationId"],
         subject: email["subject"],
-        body_text: email.dig("body", "contentType") == "text" ? email.dig("body", "content") : nil,
-        body_html: email.dig("body", "contentType") == "html" ? email.dig("body", "content") : nil,
+        body_text: body_text,
+        body_html: body_html,
         from_email: email.dig("from", "emailAddress", "address"),
         from_name: email.dig("from", "emailAddress", "name"),
         to_emails: email["toRecipients"]&.map { |r| r.dig("emailAddress", "address") } || [],
@@ -266,6 +283,36 @@ class EmailWarehouseSyncService
         internet_headers: parse_internet_headers(email["internetMessageHeaders"])
       }
     end
+  end
+
+  # Extract plain text from HTML email body
+  def extract_text_from_html(html)
+    return nil if html.blank?
+
+    # Remove script and style tags and their content
+    text = html.gsub(/<script[^>]*>.*?<\/script>/mi, "")
+    text = text.gsub(/<style[^>]*>.*?<\/style>/mi, "")
+
+    # Replace <br> and block elements with newlines
+    text = text.gsub(/<br\s*\/?>/i, "\n")
+    text = text.gsub(/<\/(p|div|tr|li|h[1-6])>/i, "\n")
+
+    # Remove all remaining HTML tags
+    text = text.gsub(/<[^>]+>/, "")
+
+    # Decode HTML entities
+    text = CGI.unescapeHTML(text)
+
+    # Clean up whitespace
+    text = text.gsub(/\r\n/, "\n")           # Normalize line endings
+    text = text.gsub(/[ \t]+/, " ")          # Collapse horizontal whitespace
+    text = text.gsub(/\n{3,}/, "\n\n")       # Collapse multiple blank lines
+    text = text.strip
+
+    text.presence
+  rescue => e
+    Rails.logger.warn "[EmailSync] Failed to extract text from HTML: #{e.message}"
+    nil
   end
 
   # Parse internet headers from Graph API format to hash
