@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +54,8 @@ interface ValidationTest {
 
 export default function XeroIntegrationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get("tab") || "connection";
   const [status, setStatus] = React.useState<XeroStatus | null>(null);
   const [tenants, setTenants] = React.useState<XeroTenant[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -336,7 +338,13 @@ export default function XeroIntegrationPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="connection" className="space-y-6">
+      <Tabs
+        value={currentTab}
+        onValueChange={(value) => {
+          router.push(`/settings/integrations/xero?tab=${value}`);
+        }}
+        className="space-y-6"
+      >
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="connection">
             <Link2 className="h-4 w-4 mr-2" />

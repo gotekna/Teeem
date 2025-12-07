@@ -97,6 +97,52 @@ const formatABN = (abn: string | null) => {
   return abn;
 };
 
+// Validate ABN - must be 11 digits
+const validateABN = (abn: string | null): { isValid: boolean; error?: string } => {
+  if (!abn || abn.trim() === "") return { isValid: true }; // Empty is OK
+  const digits = abn.replace(/\D/g, "");
+  if (digits.length === 0) return { isValid: true }; // Just spaces/formatting chars is OK
+  if (digits.length !== 11) {
+    return { isValid: false, error: `ABN must be 11 digits (got ${digits.length})` };
+  }
+  return { isValid: true };
+};
+
+// Format Australian phone number - handles mobile (04XX XXX XXX) and landline (0X XXXX XXXX)
+const formatPhoneNumber = (phone: string | null): string => {
+  if (!phone) return "";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 0) return "";
+
+  // Mobile: 04XX XXX XXX (10 digits starting with 04)
+  if (digits.length === 10 && digits.startsWith("04")) {
+    return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7, 10)}`;
+  }
+  // Landline: 0X XXXX XXXX (10 digits starting with 0)
+  if (digits.length === 10 && digits.startsWith("0")) {
+    return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
+  }
+  // International or other format - return as-is with spaces every 3-4 digits
+  if (digits.length >= 8) {
+    return digits.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+  }
+  return phone;
+};
+
+// Validate phone number - must be 8-15 digits
+const validatePhoneNumber = (phone: string | null): { isValid: boolean; error?: string } => {
+  if (!phone || phone.trim() === "") return { isValid: true }; // Empty is OK
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 0) return { isValid: true };
+  if (digits.length < 8) {
+    return { isValid: false, error: `Phone must be at least 8 digits (got ${digits.length})` };
+  }
+  if (digits.length > 15) {
+    return { isValid: false, error: `Phone must be at most 15 digits (got ${digits.length})` };
+  }
+  return { isValid: true };
+};
+
 interface ContactPerson {
   id: number;
   first_name: string;
@@ -876,6 +922,9 @@ export default function ContactDetailPage() {
   });
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Validation errors for fields
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Company multi-select state (for person contacts)
   const [availableCompanies, setAvailableCompanies] = useState<Option[]>([]);
@@ -2237,15 +2286,15 @@ export default function ContactDetailPage() {
                         <>
                           <div className="space-y-2">
                             <Label htmlFor="first_name">First Name</Label>
-                            <Input id="first_name" value={formData.first_name} onChange={(e) => handleInputChange("first_name", e.target.value)} />
+                            <Input id="first_name" value={formData.first_name} onChange={(e) => handleInputChange("first_name", e.target.value)} onBlur={handleAutoSave} />
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="middle_name">Middle Name</Label>
-                            <Input id="middle_name" value={formData.middle_name} onChange={(e) => handleInputChange("middle_name", e.target.value)} />
+                            <Input id="middle_name" value={formData.middle_name} onChange={(e) => handleInputChange("middle_name", e.target.value)} onBlur={handleAutoSave} />
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="last_name">Last Name</Label>
-                            <Input id="last_name" value={formData.last_name} onChange={(e) => handleInputChange("last_name", e.target.value)} />
+                            <Input id="last_name" value={formData.last_name} onChange={(e) => handleInputChange("last_name", e.target.value)} onBlur={handleAutoSave} />
                           </div>
                         </>
                       ) : (
@@ -2255,16 +2304,16 @@ export default function ContactDetailPage() {
                             Display Name
                           </Label>
                           {isPriceOnly(formData.entity_type) ? (
-                            <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange("full_name", e.target.value)} />
+                            <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange("full_name", e.target.value)} onBlur={handleAutoSave} />
                           ) : (
-                            <Input id="company_name_or_trust" value={formData.company_name_or_trust} onChange={(e) => handleInputChange("company_name_or_trust", e.target.value)} />
+                            <Input id="company_name_or_trust" value={formData.company_name_or_trust} onChange={(e) => handleInputChange("company_name_or_trust", e.target.value)} onBlur={handleAutoSave} />
                           )}
                         </div>
                       )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="entity_type">Entity Type</Label>
-                      <select id="entity_type" value={formData.entity_type} onChange={(e) => handleInputChange("entity_type", e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      <select id="entity_type" value={formData.entity_type} onChange={(e) => handleInputChange("entity_type", e.target.value)} onBlur={handleAutoSave} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                         {/* SSoT: Entity types from API */}
                         {entityTypeMetadata.map((type) => (
                           <option key={type.value} value={type.value}>{type.label}</option>
@@ -2512,12 +2561,12 @@ export default function ContactDetailPage() {
                     )}
                     <div className="flex items-center justify-between py-2">
                       <div><Label>Active</Label><p className="text-xs text-muted-foreground">Is this contact active?</p></div>
-                      <Switch checked={formData.is_active} onCheckedChange={(c) => handleInputChange("is_active", c)} />
+                      <Switch checked={formData.is_active} onCheckedChange={(c) => { handleInputChange("is_active", c); handleAutoSave(); }} />
                     </div>
                     {isPerson(formData.entity_type) && (
                       <div className="flex items-center justify-between py-2">
                         <div><Label>Family Member</Label></div>
-                        <Switch checked={formData.is_family_member} onCheckedChange={(c) => handleInputChange("is_family_member", c)} />
+                        <Switch checked={formData.is_family_member} onCheckedChange={(c) => { handleInputChange("is_family_member", c); handleAutoSave(); }} />
                       </div>
                     )}
                     {isPerson(formData.entity_type) && (
@@ -2708,11 +2757,35 @@ export default function ContactDetailPage() {
                                 updated[originalIndex] = { ...updated[originalIndex], phone_number: e.target.value };
                                 setContact({ ...contact, contact_phones: updated });
                                 setHasChanges(true);
+                                // Clear error on change
+                                setFieldErrors(prev => ({ ...prev, [`phone_${originalIndex}`]: '' }));
                               }}
-                              onBlur={handleAutoSave}
+                              onBlur={() => {
+                                // Validate and format
+                                const validation = validatePhoneNumber(phone.phone_number);
+                                if (!validation.isValid) {
+                                  setFieldErrors(prev => ({ ...prev, [`phone_${originalIndex}`]: validation.error || 'Invalid phone' }));
+                                } else {
+                                  // Format the number
+                                  const formatted = formatPhoneNumber(phone.phone_number);
+                                  if (formatted !== phone.phone_number) {
+                                    const updated = [...(contact.contact_phones || [])];
+                                    updated[originalIndex] = { ...updated[originalIndex], phone_number: formatted };
+                                    setContact({ ...contact, contact_phones: updated });
+                                  }
+                                  setFieldErrors(prev => ({ ...prev, [`phone_${originalIndex}`]: '' }));
+                                }
+                                handleAutoSave();
+                              }}
                               placeholder="0400 000 000"
-                              className={phone.is_primary ? 'border-primary' : ''}
+                              className={cn(
+                                phone.is_primary ? 'border-primary' : '',
+                                fieldErrors[`phone_${originalIndex}`] && 'border-red-500 focus-visible:ring-red-500'
+                              )}
                             />
+                            {fieldErrors[`phone_${originalIndex}`] && (
+                              <p className="text-xs text-red-500">{fieldErrors[`phone_${originalIndex}`]}</p>
+                            )}
                             <Button
                               type="button"
                               variant={phone.is_primary ? 'default' : 'outline'}
@@ -2758,11 +2831,11 @@ export default function ContactDetailPage() {
                       <>
                         <div className="space-y-2">
                           <Label htmlFor="website">Website</Label>
-                          <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} placeholder="https://example.com" />
+                          <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} onBlur={handleAutoSave} placeholder="https://example.com" />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="address">Address</Label>
-                          <Textarea id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Full address" rows={2} />
+                          <Textarea id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} onBlur={handleAutoSave} placeholder="Full address" rows={2} />
                         </div>
                       </>
                     )}
@@ -2954,14 +3027,42 @@ export default function ContactDetailPage() {
                       <Label htmlFor="tax_number">
                         {isPerson(formData.entity_type) ? 'ABN (Sole Trader)' : 'ABN / Tax Number'}
                       </Label>
-                      <Input id="tax_number" value={formData.tax_number} onChange={(e) => handleInputChange("tax_number", e.target.value)} placeholder="XX XXX XXX XXX" />
-                      {isPerson(formData.entity_type) && (
+                      <Input
+                        id="tax_number"
+                        value={formData.tax_number}
+                        onChange={(e) => {
+                          handleInputChange("tax_number", e.target.value);
+                          // Clear error on change
+                          setFieldErrors(prev => ({ ...prev, tax_number: '' }));
+                        }}
+                        onBlur={() => {
+                          // Validate and format ABN
+                          const validation = validateABN(formData.tax_number);
+                          if (!validation.isValid) {
+                            setFieldErrors(prev => ({ ...prev, tax_number: validation.error || 'Invalid ABN' }));
+                          } else {
+                            // Format the ABN
+                            const formatted = formatABN(formData.tax_number);
+                            if (formatted !== formData.tax_number) {
+                              handleInputChange("tax_number", formatted);
+                            }
+                            setFieldErrors(prev => ({ ...prev, tax_number: '' }));
+                          }
+                          handleAutoSave();
+                        }}
+                        placeholder="XX XXX XXX XXX"
+                        className={cn(fieldErrors.tax_number && 'border-red-500 focus-visible:ring-red-500')}
+                      />
+                      {fieldErrors.tax_number && (
+                        <p className="text-xs text-red-500">{fieldErrors.tax_number}</p>
+                      )}
+                      {isPerson(formData.entity_type) && !fieldErrors.tax_number && (
                         <p className="text-xs text-muted-foreground">For sole traders/contractors only. ACN is company-only.</p>
                       )}
                     </div>
                     <div className="flex items-center justify-between py-2">
                       <div><Label>Sync with Xero</Label><p className="text-xs text-muted-foreground">Keep synced with Xero</p></div>
-                      <Switch checked={formData.sync_with_xero} onCheckedChange={(c) => handleInputChange("sync_with_xero", c)} />
+                      <Switch checked={formData.sync_with_xero} onCheckedChange={(c) => { handleInputChange("sync_with_xero", c); handleAutoSave(); }} />
                     </div>
                     {contact.linked_company && (
                       <Link href={`/corporate/companies/${contact.linked_company.id}`}>
@@ -2981,7 +3082,7 @@ export default function ContactDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Textarea id="notes" value={formData.notes} onChange={(e) => handleInputChange("notes", e.target.value)} placeholder="Internal notes..." rows={4} />
+                  <Textarea id="notes" value={formData.notes} onChange={(e) => handleInputChange("notes", e.target.value)} onBlur={handleAutoSave} placeholder="Internal notes..." rows={4} />
                 </CardContent>
               </Card>
 
