@@ -123,6 +123,7 @@ interface ContactPhone {
 interface Contact {
   id: number;
   full_name: string;
+  display_name: string;
   first_name: string | null;
   middle_name: string | null;
   last_name: string | null;
@@ -1893,7 +1894,7 @@ export default function ContactDetailPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold tracking-tight font-serif">
-                {contact.full_name}
+                {contact.display_name || contact.full_name}
               </h1>
               {contact["is_supplier?"] && (
                 <Badge className="bg-purple-100 text-purple-700">Supplier</Badge>
