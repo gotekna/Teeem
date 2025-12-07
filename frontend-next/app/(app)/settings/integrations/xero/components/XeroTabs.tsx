@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Loader2,
   Check,
   X,
@@ -30,6 +36,8 @@ import {
   ArrowRightLeft,
   Users,
   Filter,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -682,130 +690,233 @@ export function XeroContactSync() {
       )}
 
       {/* Contacts Table Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">All Contacts</CardTitle>
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
-                <SelectTrigger className="w-[160px] h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Contacts</SelectItem>
-                  <SelectItem value="synced">Synced Only</SelectItem>
-                  <SelectItem value="not-synced">Not Synced</SelectItem>
-                  <SelectItem value="errors">With Errors</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="max-h-[600px] overflow-y-auto">
-            <Table>
-              <TableHeader className="sticky top-0 bg-background">
-                <TableRow>
-                  <TableHead>Contact Name</TableHead>
-                  <TableHead>Entity Type</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead className="text-center">Invoices</TableHead>
-                  <TableHead className="text-center">Bills</TableHead>
-                  <TableHead className="text-center">PDF %</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredContacts.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      No contacts found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredContacts.map((contact) => {
-                    // Highlight in light red if:
-                    // 1. Entity is "price_only"
-                    // 2. Person entity with a primary_company (person-to-company relationship)
-                    const isPriceOnly = contact.entity_type === "price_only";
-                    const isPersonWithCompany = contact.entity_type === "person" && contact.primary_company_id != null;
-                    const shouldHighlight = isPriceOnly || isPersonWithCompany;
-
-                    // PDF sync status coloring - only green if 100%
-                    const getPdfSyncColor = (percent: number | null) => {
-                      if (percent === null) return "";
-                      if (percent === 100) return "text-green-600";
-                      if (percent >= 50) return "text-amber-600";
-                      return "text-red-600";
-                    };
-
-                    return (
-                      <TableRow
-                        key={contact.id}
-                        className={shouldHighlight ? "bg-red-50 dark:bg-red-900/20" : ""}
-                      >
-                        <TableCell className="font-medium">
-                          {contact.display_name}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={isPriceOnly ? "bg-red-100 text-red-700 border-red-300" : ""}>
-                            {contact.entity_type || "Unknown"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {contact.primary_company_name || "-"}
-                        </TableCell>
-                        <TableCell className="text-center text-sm">
-                          {contact.invoices_count > 0 ? (
-                            <span className="font-medium">{contact.invoices_count}</span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center text-sm">
-                          {contact.bills_count > 0 ? (
-                            <span className="font-medium">{contact.bills_count}</span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center text-sm">
-                          {contact.pdf_sync_percent !== null ? (
-                            <span className={cn("font-medium", getPdfSyncColor(contact.pdf_sync_percent))}>
-                              {contact.pdf_sync_percent}%
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {contact.has_error ? (
-                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Error
-                            </Badge>
-                          ) : contact.synced ? (
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                              <Check className="h-3 w-3 mr-1" />
-                              Synced
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                              <X className="h-3 w-3 mr-1" />
-                              Not Synced
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      <ContactsGroupedTable contacts={filteredContacts} filterStatus={filterStatus} setFilterStatus={setFilterStatus} />
     </div>
+  );
+}
+
+// Helper component for rendering contact rows
+function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: () => void }) {
+  const isPriceOnly = contact.entity_type === "price_only";
+  const isPersonWithCompany = contact.entity_type === "person" && contact.primary_company_id != null;
+  const shouldHighlight = isPriceOnly || isPersonWithCompany;
+
+  const getPdfSyncColor = (percent: number | null) => {
+    if (percent === null) return "";
+    if (percent === 100) return "text-green-600";
+    if (percent >= 50) return "text-amber-600";
+    return "text-red-600";
+  };
+
+  return (
+    <TableRow
+      className={cn(
+        "cursor-pointer hover:bg-muted/50 transition-colors",
+        shouldHighlight ? "bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30" : ""
+      )}
+      onClick={onClick}
+    >
+      <TableCell className="font-medium">
+        {contact.display_name}
+      </TableCell>
+      <TableCell>
+        <Badge variant="outline" className={isPriceOnly ? "bg-red-100 text-red-700 border-red-300" : ""}>
+          {contact.entity_type || "Unknown"}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">
+        {contact.primary_company_name || "-"}
+      </TableCell>
+      <TableCell className="text-center text-sm">
+        {contact.invoices_count > 0 ? (
+          <span className="font-medium">{contact.invoices_count}</span>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        )}
+      </TableCell>
+      <TableCell className="text-center text-sm">
+        {contact.bills_count > 0 ? (
+          <span className="font-medium">{contact.bills_count}</span>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        )}
+      </TableCell>
+      <TableCell className="text-center text-sm">
+        {contact.pdf_sync_percent !== null ? (
+          <span className={cn("font-medium", getPdfSyncColor(contact.pdf_sync_percent))}>
+            {contact.pdf_sync_percent}%
+          </span>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {contact.has_error ? (
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            Error
+          </Badge>
+        ) : contact.synced ? (
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+            <Check className="h-3 w-3 mr-1" />
+            Synced
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+            <X className="h-3 w-3 mr-1" />
+            Not Synced
+          </Badge>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+// Grouped table with collapsible sections
+function ContactsGroupedTable({
+  contacts,
+  filterStatus,
+  setFilterStatus,
+}: {
+  contacts: ContactSyncItem[];
+  filterStatus: string;
+  setFilterStatus: (value: string) => void;
+}) {
+  const router = useRouter();
+  const [normalOpen, setNormalOpen] = React.useState(true);
+  const [flaggedOpen, setFlaggedOpen] = React.useState(true);
+
+  // Split contacts into normal and flagged (price_only or person with company)
+  const normalContacts = contacts
+    .filter((c) => {
+      const isPriceOnly = c.entity_type === "price_only";
+      const isPersonWithCompany = c.entity_type === "person" && c.primary_company_id != null;
+      return !isPriceOnly && !isPersonWithCompany;
+    })
+    .sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
+
+  const flaggedContacts = contacts
+    .filter((c) => {
+      const isPriceOnly = c.entity_type === "price_only";
+      const isPersonWithCompany = c.entity_type === "person" && c.primary_company_id != null;
+      return isPriceOnly || isPersonWithCompany;
+    })
+    .sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
+
+  const handleContactClick = (contactId: number) => {
+    router.push(`/contacts/${contactId}`);
+  };
+
+  const TableHeaders = () => (
+    <TableHeader className="sticky top-0 bg-background z-10">
+      <TableRow>
+        <TableHead>Contact Name</TableHead>
+        <TableHead>Entity Type</TableHead>
+        <TableHead>Company</TableHead>
+        <TableHead className="text-center">Invoices</TableHead>
+        <TableHead className="text-center">Bills</TableHead>
+        <TableHead className="text-center">PDF %</TableHead>
+        <TableHead>Status</TableHead>
+      </TableRow>
+    </TableHeader>
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">All Contacts</CardTitle>
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
+              <SelectTrigger className="w-[160px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Contacts</SelectItem>
+                <SelectItem value="synced">Synced Only</SelectItem>
+                <SelectItem value="not-synced">Not Synced</SelectItem>
+                <SelectItem value="errors">With Errors</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        {contacts.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No contacts found
+          </div>
+        ) : (
+          <div className="max-h-[700px] overflow-y-auto">
+            {/* Normal Contacts Group */}
+            <Collapsible open={normalOpen} onOpenChange={setNormalOpen}>
+              <CollapsibleTrigger asChild>
+                <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b cursor-pointer hover:bg-muted/70 transition-colors">
+                  {normalOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <span className="font-medium">Active Contacts</span>
+                  <Badge variant="secondary" className="ml-2">
+                    {normalContacts.length}
+                  </Badge>
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <Table>
+                  <TableHeaders />
+                  <TableBody>
+                    {normalContacts.map((contact) => (
+                      <ContactRow
+                        key={contact.id}
+                        contact={contact}
+                        onClick={() => handleContactClick(contact.id)}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Flagged Contacts Group (Price Only + Person with Company) */}
+            {flaggedContacts.length > 0 && (
+              <Collapsible open={flaggedOpen} onOpenChange={setFlaggedOpen}>
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
+                    {flaggedOpen ? (
+                      <ChevronDown className="h-4 w-4 text-red-600" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-red-600" />
+                    )}
+                    <span className="font-medium text-red-700 dark:text-red-400">
+                      Flagged Contacts (Price Only / Person with Company)
+                    </span>
+                    <Badge variant="outline" className="ml-2 bg-red-100 text-red-700 border-red-300">
+                      {flaggedContacts.length}
+                    </Badge>
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <Table>
+                    <TableHeaders />
+                    <TableBody>
+                      {flaggedContacts.map((contact) => (
+                        <ContactRow
+                          key={contact.id}
+                          contact={contact}
+                          onClick={() => handleContactClick(contact.id)}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
