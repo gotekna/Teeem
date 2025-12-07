@@ -2077,9 +2077,12 @@ export default function ContactDetailPage() {
                           </div>
                         </>
                       ) : (
-                        /* Company and Trust show single Name field */
+                        /* Company, Trust, and Price show single Name field */
                         <div className="space-y-2">
-                          <Label htmlFor="full_name">{formData.entity_type === "trust" ? "Trust Name" : "Company Name"}</Label>
+                          <Label htmlFor="full_name">
+                            {formData.entity_type === "trust" ? "Trust Name" :
+                             formData.entity_type === "price_only" ? "Name" : "Company Name"}
+                          </Label>
                           <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange("full_name", e.target.value)} />
                         </div>
                       )}
@@ -2091,6 +2094,7 @@ export default function ContactDetailPage() {
                         <option value="company">Company</option>
                         <option value="trust">Trust</option>
                         <option value="sole_trader">Sole Trader</option>
+                        <option value="price_only">Price Only</option>
                       </select>
                     </div>
                     {/* Company multi-select - show for person and sole_trader entity types */}

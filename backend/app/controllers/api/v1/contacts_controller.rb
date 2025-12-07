@@ -2450,11 +2450,19 @@ module Api
             )
 
             # Collect all other emails in this thread (normalize to lowercase for deduplication)
-            [email.from_email, *email.to_emails, *email.cc_emails].compact.each do |addr|
+            # But ONLY associate parent company with emails that DIRECTLY communicated
+            # with the parent (from/to), not everyone CC'd on the same thread
+            all_emails_in_thread = [email.from_email, *email.to_emails, *email.cc_emails].compact
+            direct_communicators = [email.from_email, *email.to_emails].compact # Only from/to, not CC
+
+            all_emails_in_thread.each do |addr|
               addr_normalized = addr.downcase
               next if email_patterns.any? { |p| p.downcase == addr_normalized }
               unique_emails.add(addr_normalized)
-              if parent_company
+
+              # Only link to parent company if this email was a DIRECT communicator (from/to)
+              # Don't link CC'd parties - they may just be observers on unrelated threads
+              if parent_company && direct_communicators.any? { |dc| dc&.downcase == addr_normalized }
                 email_to_parent_companies[addr_normalized].add({
                   id: parent_company.id,
                   name: parent_company.full_name,
