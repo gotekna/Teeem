@@ -2470,7 +2470,8 @@ module Api
                 email: c.email,
                 mobile_phone: c.mobile_phone,
                 entity_type: c.entity_type,
-                xero_contact_type: c.xero_contact_type, # CUSTOMER, SUPPLIER, or nil - helps determine if this is an employee or client
+                xero_contact_type: c.xero_contact_types&.first, # CUSTOMER, SUPPLIER, or nil - helps determine if this is an employee or client
+                xero_invoice_count: c.xero_invoice_count, # If > 0, likely a customer
                 # Check if relationships already exist
                 relationship_to_domain_company_exists: domain_company ? check_relationship_exists.call(c.id, domain_company.id) : false,
                 relationships_to_parent_companies: parent_companies.map { |pc|
