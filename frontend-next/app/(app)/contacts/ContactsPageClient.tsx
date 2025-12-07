@@ -281,10 +281,10 @@ export default function ContactsPageClient({
   const handleDataHealthIssueClick = useCallback((item: unknown, check: unknown) => {
     // Type guard for the item and check
     const healthItem = item as { id?: number; contacts?: Contact[] };
-    const healthCheck = check as { check_type?: string };
+    const healthCheck = check as { check_name?: string };
 
     // For duplicate email checks, open merge modal with the duplicate contacts
-    if (healthCheck.check_type === 'duplicate_emails' && healthItem.contacts && Array.isArray(healthItem.contacts)) {
+    if (healthCheck.check_name === 'duplicate_emails' && healthItem.contacts && Array.isArray(healthItem.contacts)) {
       setSelectedForMerge(healthItem.contacts);
       setMergeModalOpen(true);
     } else if (healthItem.id) {
