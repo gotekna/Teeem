@@ -2880,7 +2880,7 @@ module Api
           success: true,
           preview: preview_data,
           total_found: preview_data.length,
-          emails_searched: emails.count,
+          emails_searched: base_query.count,
           unique_emails_found: candidate_emails.count
         }
       rescue => e
