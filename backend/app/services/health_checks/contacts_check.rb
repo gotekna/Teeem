@@ -13,6 +13,15 @@ module HealthChecks
   #   - Invalid entity_type (warning)
   #   - Invalid website URL - must be http:// or https:// (warning)
   #
+  # Naming Convention Checks:
+  #   - Person names in ALL CAPS (warning) - should be Title Case
+  #   - Person names in all lowercase (warning) - should be Title Case
+  #   - Email used as name (warning) - first/last name should be proper names
+  #   - Person missing last name (info) - persons should have both first and last name
+  #   - Team contact missing company (warning) - is_team_contact requires primary_company
+  #   - Company/Trust missing business name (critical) - must use company_name_or_trust
+  #   - Sole trader missing business name (info) - should have company_name_or_trust
+  #
   class ContactsCheck < BaseCheck
     def self.check_type
       "contacts"
@@ -137,6 +146,137 @@ module HealthChecks
         icon: "globe",
         action_path: "/contacts/:id",
         check_name: "invalid_website"
+      )
+    end
+
+    # ============================================
+    # NAMING CONVENTION HEALTH CHECKS
+    # ============================================
+
+    # Person contacts with names in ALL CAPS (should be Title Case)
+    def check_all_caps_names
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where(entity_type: "person")
+                       .where("(first_name IS NOT NULL AND first_name != '' AND first_name = UPPER(first_name) AND first_name != LOWER(first_name)) OR (last_name IS NOT NULL AND last_name != '' AND last_name = UPPER(last_name) AND last_name != LOWER(last_name))")
+                       .select(:id, :full_name, :first_name, :last_name, :entity_type)
+
+      build_result(
+        name: "Person Names in ALL CAPS",
+        description: "Person names should be Title Case (e.g., 'John Smith' not 'JOHN SMITH'). Fix by editing name to proper case.",
+        severity: :warning,
+        items: contacts,
+        icon: "text-cursor",
+        action_path: "/contacts/:id",
+        check_name: "all_caps_names"
+      )
+    end
+
+    # Person contacts with names in all lowercase (should be Title Case)
+    def check_all_lowercase_names
+      # PostgreSQL compatible - check if name equals its lowercase version and contains letters
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where(entity_type: "person")
+                       .where("(first_name IS NOT NULL AND first_name != '' AND first_name = LOWER(first_name) AND first_name ~ '[a-z]') OR (last_name IS NOT NULL AND last_name != '' AND last_name = LOWER(last_name) AND last_name ~ '[a-z]')")
+                       .select(:id, :full_name, :first_name, :last_name, :entity_type)
+
+      build_result(
+        name: "Person Names in lowercase",
+        description: "Person names should be Title Case (e.g., 'John Smith' not 'john smith'). Fix by editing name to proper case.",
+        severity: :warning,
+        items: contacts,
+        icon: "text-cursor-input",
+        action_path: "/contacts/:id",
+        check_name: "all_lowercase_names"
+      )
+    end
+
+    # Contacts with email address used as first_name or last_name
+    def check_email_as_name
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where("first_name LIKE '%@%' OR last_name LIKE '%@%'")
+                       .select(:id, :full_name, :first_name, :last_name, :email, :entity_type)
+
+      build_result(
+        name: "Email Used as Name",
+        description: "First or last name contains an email address. Fix by using proper names instead.",
+        severity: :warning,
+        items: contacts,
+        icon: "at-sign",
+        action_path: "/contacts/:id",
+        check_name: "email_as_name"
+      )
+    end
+
+    # Person contacts missing last_name (should have first + last)
+    def check_person_missing_last_name
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where(entity_type: "person")
+                       .where("first_name IS NOT NULL AND first_name != ''")
+                       .where("last_name IS NULL OR last_name = ''")
+                       .select(:id, :full_name, :first_name, :last_name, :entity_type)
+
+      build_result(
+        name: "Person Missing Last Name",
+        description: "Person contacts should have both first and last name for proper identification.",
+        severity: :info,
+        items: contacts,
+        icon: "user-minus",
+        action_path: "/contacts/:id",
+        check_name: "person_missing_last_name"
+      )
+    end
+
+    # Team contacts (is_team_contact=true) without a linked primary_company
+    def check_team_contact_missing_company
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where(is_team_contact: true)
+                       .where(primary_company_id: nil)
+                       .select(:id, :full_name, :first_name, :last_name, :entity_type)
+
+      build_result(
+        name: "Team Contact Missing Company",
+        description: "Team contacts (is_team_contact=true) must have a primary company linked. Fix by setting the primary_company field.",
+        severity: :warning,
+        items: contacts,
+        icon: "building-2",
+        action_path: "/contacts/:id",
+        check_name: "team_contact_missing_company"
+      )
+    end
+
+    # Company or Trust contacts missing company_name_or_trust
+    def check_company_missing_business_name
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where(entity_type: [ "company", "trust" ])
+                       .where("company_name_or_trust IS NULL OR company_name_or_trust = ''")
+                       .select(:id, :full_name, :company_name_or_trust, :entity_type)
+
+      build_result(
+        name: "Company/Trust Missing Business Name",
+        description: "Company and Trust contacts must have company_name_or_trust filled in. This is the primary identifier.",
+        severity: :critical,
+        items: contacts,
+        icon: "building-x",
+        action_path: "/contacts/:id",
+        check_name: "company_missing_business_name"
+      )
+    end
+
+    # Sole trader contacts missing company_name_or_trust (optional but recommended)
+    def check_sole_trader_missing_business_name
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where(entity_type: "sole_trader")
+                       .where("company_name_or_trust IS NULL OR company_name_or_trust = ''")
+                       .select(:id, :full_name, :first_name, :last_name, :company_name_or_trust, :entity_type)
+
+      build_result(
+        name: "Sole Trader Missing Business Name",
+        description: "Sole trader contacts should have a trading name in company_name_or_trust for business identification.",
+        severity: :info,
+        items: contacts,
+        icon: "store",
+        action_path: "/contacts/:id",
+        check_name: "sole_trader_missing_business_name"
       )
     end
 
