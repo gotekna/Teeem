@@ -43,7 +43,7 @@ module Api
           query = query.where(id: duplicate_ids)
         end
 
-        # Apply search filter
+        # Apply search filter with fuzzy matching support (pg_trgm)
         if search.present?
           searchable_columns = if @foundation.table_type == "system"
             if search_all
@@ -69,8 +69,21 @@ module Api
             @foundation.columns.where(searchable: true).pluck(:column_name)
           end
           if searchable_columns.any?
-            search_conditions = searchable_columns.map { |col| "#{col} ILIKE :search" }.join(" OR ")
-            query = query.where(search_conditions, search: "%#{search}%")
+            # Build search conditions: exact ILIKE OR fuzzy similarity (pg_trgm)
+            # Fuzzy search catches typos like "coasal" -> "coastal"
+            sanitized_search = ActiveRecord::Base.connection.quote(search)
+
+            # ILIKE conditions for exact substring matches
+            ilike_conditions = searchable_columns.map { |col| "#{col} ILIKE :search" }.join(" OR ")
+
+            # Fuzzy similarity conditions (similarity > 0.2 catches most typos)
+            # Only apply to first few columns to keep it fast
+            fuzzy_columns = searchable_columns.first(3)
+            fuzzy_conditions = fuzzy_columns.map { |col| "similarity(COALESCE(#{col}, ''), #{sanitized_search}) > 0.2" }.join(" OR ")
+
+            # Combine: match if ILIKE OR fuzzy match
+            combined_conditions = "(#{ilike_conditions}) OR (#{fuzzy_conditions})"
+            query = query.where(combined_conditions, search: "%#{search}%")
           end
         end
 
