@@ -319,6 +319,7 @@ Rails.application.routes.draw do
           patch :bulk_update
           post :bulk_delete
           post :merge
+          post :fix_name_casing
           post :match_supplier
           get :validate_abn
           get :possible_duplicates

@@ -869,6 +869,96 @@ module Api
         }, status: :internal_server_error
       end
 
+      # POST /api/v1/contacts/fix_name_casing
+      # Auto-fix name casing issues by converting to Title Case
+      # Params:
+      #   contact_ids: Array of contact IDs to fix
+      #   fix_type: 'all_caps' or 'all_lowercase' (determines which names to fix)
+      def fix_name_casing
+        contact_ids = params[:contact_ids]
+        fix_type = params[:fix_type] || "all"
+
+        if contact_ids.blank? || !contact_ids.is_a?(Array)
+          return render json: {
+            success: false,
+            error: "contact_ids must be a non-empty array"
+          }, status: :unprocessable_entity
+        end
+
+        fixed_count = 0
+        errors = []
+
+        Contact.where(id: contact_ids).find_each do |contact|
+          begin
+            changes = {}
+
+            # Fix first_name if needed
+            if contact.first_name.present?
+              if fix_type == "all_caps" && contact.first_name == contact.first_name.upcase && contact.first_name != contact.first_name.downcase
+                changes[:first_name] = titleize_name(contact.first_name)
+              elsif fix_type == "all_lowercase" && contact.first_name == contact.first_name.downcase && contact.first_name =~ /[a-z]/
+                changes[:first_name] = titleize_name(contact.first_name)
+              elsif fix_type == "all"
+                # Fix both cases
+                if (contact.first_name == contact.first_name.upcase && contact.first_name != contact.first_name.downcase) ||
+                   (contact.first_name == contact.first_name.downcase && contact.first_name =~ /[a-z]/)
+                  changes[:first_name] = titleize_name(contact.first_name)
+                end
+              end
+            end
+
+            # Fix last_name if needed
+            if contact.last_name.present?
+              if fix_type == "all_caps" && contact.last_name == contact.last_name.upcase && contact.last_name != contact.last_name.downcase
+                changes[:last_name] = titleize_name(contact.last_name)
+              elsif fix_type == "all_lowercase" && contact.last_name == contact.last_name.downcase && contact.last_name =~ /[a-z]/
+                changes[:last_name] = titleize_name(contact.last_name)
+              elsif fix_type == "all"
+                # Fix both cases
+                if (contact.last_name == contact.last_name.upcase && contact.last_name != contact.last_name.downcase) ||
+                   (contact.last_name == contact.last_name.downcase && contact.last_name =~ /[a-z]/)
+                  changes[:last_name] = titleize_name(contact.last_name)
+                end
+              end
+            end
+
+            # Fix middle_name if needed
+            if contact.middle_name.present?
+              if fix_type == "all_caps" && contact.middle_name == contact.middle_name.upcase && contact.middle_name != contact.middle_name.downcase
+                changes[:middle_name] = titleize_name(contact.middle_name)
+              elsif fix_type == "all_lowercase" && contact.middle_name == contact.middle_name.downcase && contact.middle_name =~ /[a-z]/
+                changes[:middle_name] = titleize_name(contact.middle_name)
+              elsif fix_type == "all"
+                # Fix both cases
+                if (contact.middle_name == contact.middle_name.upcase && contact.middle_name != contact.middle_name.downcase) ||
+                   (contact.middle_name == contact.middle_name.downcase && contact.middle_name =~ /[a-z]/)
+                  changes[:middle_name] = titleize_name(contact.middle_name)
+                end
+              end
+            end
+
+            if changes.any?
+              contact.update!(changes)
+              fixed_count += 1
+            end
+          rescue => e
+            errors << { id: contact.id, error: e.message }
+          end
+        end
+
+        render json: {
+          success: true,
+          fixed_count: fixed_count,
+          errors: errors,
+          message: "Fixed name casing for #{fixed_count} contact#{fixed_count == 1 ? '' : 's'}"
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to fix name casing: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       # POST /api/v1/contacts/match_supplier
       # DEPRECATED: This endpoint was for migrating suppliers table to contacts.
       # The suppliers table has been removed - all suppliers are now contacts with type='supplier'.
@@ -2451,19 +2541,27 @@ module Api
             domain_company_name = (meaningful_parts.first || domain_parts.first).titleize
 
             # FIRST: Try to match by domain name (the email domain is the best indicator of employer)
-            # Try substring match on company name
+            # IMPORTANT: Prioritize full_name matches over company_name_or_trust to avoid false matches
+            # (e.g., contact might have incorrect data in company_name_or_trust field)
+
+            # Step 1: Try exact-ish match on full_name first
             domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
-              .where("LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
-                     "%#{domain_company_name.downcase}%",
-                     "%#{domain_company_name.downcase}%")
+              .where("LOWER(full_name) LIKE ?", "%#{domain_company_name.downcase}%")
               .first
 
-            # If no match, try matching with spaces removed (e.g., "harveynorman" -> "Harvey Norman")
+            # Step 2: If no full_name match, try with spaces removed on full_name
             if domain_company.nil?
               domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
-                .where("LOWER(REPLACE(full_name, ' ', '')) LIKE ? OR LOWER(REPLACE(company_name_or_trust, ' ', '')) LIKE ?",
-                       "%#{domain_company_name.downcase.gsub(' ', '')}%",
+                .where("LOWER(REPLACE(full_name, ' ', '')) LIKE ?",
                        "%#{domain_company_name.downcase.gsub(' ', '')}%")
+                .first
+            end
+
+            # Step 3: Only fall back to company_name_or_trust if no full_name match
+            # (company_name_or_trust can have stale/incorrect data)
+            if domain_company.nil?
+              domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+                .where("LOWER(company_name_or_trust) LIKE ?", "%#{domain_company_name.downcase}%")
                 .first
             end
 
@@ -2801,6 +2899,25 @@ module Api
       end
 
       private
+
+      # Convert name to Title Case while handling special cases
+      # - "JOHN" -> "John"
+      # - "john" -> "John"
+      # - "mcdonald" -> "Mcdonald" (simple titleize, not perfect for all edge cases)
+      # - "O'BRIEN" -> "O'Brien"
+      def titleize_name(name)
+        return name if name.blank?
+
+        # Split by spaces and titleize each word
+        name.split(/\s+/).map do |word|
+          # Handle names with apostrophes like O'Brien
+          if word.include?("'")
+            word.split("'").map(&:capitalize).join("'")
+          else
+            word.capitalize
+          end
+        end.join(" ")
+      end
 
       # Merge a duplicate contact into the primary contact
       # - Moves relationships from duplicate to primary

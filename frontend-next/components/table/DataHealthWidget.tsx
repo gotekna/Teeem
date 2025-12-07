@@ -39,6 +39,7 @@ interface HealthCheck {
   description?: string;
   severity: "critical" | "warning" | "info";
   check_type: string;
+  check_name?: string;
   count: number;
   items?: HealthCheckItem[];
   action_path?: string;
@@ -142,6 +143,45 @@ export function DataHealthWidget({
   const handleItemClick = (item: HealthCheckItem, check: HealthCheck) => {
     if (onIssueClick) {
       onIssueClick(item, check);
+    }
+  };
+
+  // State for auto-fix in progress
+  const [fixingCheckName, setFixingCheckName] = useState<string | null>(null);
+
+  // Check if a health check supports auto-fix
+  const isAutoFixable = (checkName?: string) => {
+    return checkName === "all_caps_names" || checkName === "all_lowercase_names";
+  };
+
+  // Get fix type for auto-fix API
+  const getFixType = (checkName?: string) => {
+    if (checkName === "all_caps_names") return "all_caps";
+    if (checkName === "all_lowercase_names") return "all_lowercase";
+    return "all";
+  };
+
+  // Handle auto-fix for name casing issues
+  const handleAutoFix = async (check: HealthCheck) => {
+    if (!check.items || check.items.length === 0) return;
+
+    const contactIds = check.items.map(item => item.id).filter(id => typeof id === "number");
+    if (contactIds.length === 0) return;
+
+    setFixingCheckName(check.check_name || null);
+
+    try {
+      await api.post("/api/v1/contacts/fix_name_casing", {
+        contact_ids: contactIds,
+        fix_type: getFixType(check.check_name),
+      });
+
+      // Refresh health data after fix
+      await loadHealthData();
+    } catch (err) {
+      console.error("Failed to auto-fix:", err);
+    } finally {
+      setFixingCheckName(null);
     }
   };
 
@@ -307,6 +347,28 @@ export function DataHealthWidget({
                           >
                             {check.count} {check.count === 1 ? "issue" : "issues"}
                           </span>
+                          {/* Auto-fix button for name casing checks */}
+                          {isAutoFixable(check.check_name) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs"
+                              disabled={fixingCheckName === check.check_name}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAutoFix(check);
+                              }}
+                            >
+                              {fixingCheckName === check.check_name ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                  Fixing...
+                                </>
+                              ) : (
+                                "Fix All"
+                              )}
+                            </Button>
+                          )}
                           <Badge
                             variant="secondary"
                             className={cn(
