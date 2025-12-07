@@ -766,6 +766,52 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/contacts_sync_list
+      # Returns all TEEEM contacts with their Xero sync status
+      def contacts_sync_list
+        begin
+          contacts = Contact.order(display_name: :asc).select(
+            :id,
+            :display_name,
+            :email,
+            :xero_id,
+            :last_synced_at,
+            :sync_with_xero,
+            :xero_sync_error,
+            :contact_type
+          )
+
+          contacts_data = contacts.map do |contact|
+            {
+              id: contact.id,
+              display_name: contact.display_name,
+              email: contact.email,
+              contact_type: contact.contact_type,
+              xero_id: contact.xero_id,
+              synced: contact.xero_id.present?,
+              last_synced_at: contact.last_synced_at,
+              sync_enabled: contact.sync_with_xero,
+              sync_error: contact.xero_sync_error,
+              has_error: contact.xero_sync_error.present?
+            }
+          end
+
+          render json: {
+            success: true,
+            contacts: contacts_data,
+            total: contacts.count,
+            synced_count: contacts.count { |c| c.xero_id.present? },
+            error_count: contacts.count { |c| c.xero_sync_error.present? }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero contacts_sync_list error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to get contacts sync list"
+          }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/xero/sync_history
       # Returns recent sync activity for contacts
       def sync_history
