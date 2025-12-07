@@ -123,12 +123,18 @@ export function MergeContactsModal({
   const primaryContact = contacts.find((c) => c.id === primaryContactId);
   const secondaryContacts = contacts.filter((c) => c.id !== primaryContactId);
 
-  const hasXeroConflict = contacts.filter((c) => c.xero_contact_id).length > 1;
-  const xeroContactsToLose = secondaryContacts.filter((c) => c.xero_contact_id);
+  const hasXeroConflict = contacts.filter((c) => c.xero_contact_id || c.xero_id).length > 1;
+  const xeroContactsToLose = secondaryContacts.filter((c) => c.xero_contact_id || c.xero_id);
+
+  // Check for mixed entity types (person + company sharing email)
+  const entityTypes = [...new Set(contacts.map(c => c.entity_type).filter(Boolean))];
+  const hasMixedEntityTypes = entityTypes.length > 1;
+  const hasPersonAndCompany = entityTypes.includes('person') &&
+    (entityTypes.includes('company') || entityTypes.includes('trust'));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Merge Duplicate Contacts</DialogTitle>
           <DialogDescription>
@@ -137,6 +143,22 @@ export function MergeContactsModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Mixed Entity Types Warning */}
+          {hasPersonAndCompany && (
+            <Alert className="border-amber-200 bg-amber-50">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                <strong>⚠️ Different entity types detected!</strong> These contacts include both
+                people and companies sharing the same email. Instead of merging, consider:
+                <ul className="list-disc ml-5 mt-2 space-y-1">
+                  <li>Keep the person contact with this email</li>
+                  <li>Remove/change the email on company contacts</li>
+                  <li>Link the person as an employee of the company</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Xero Warning */}
           {hasXeroConflict && (
             <Alert variant="destructive">
@@ -144,7 +166,7 @@ export function MergeContactsModal({
               <AlertDescription>
                 Multiple contacts are linked to Xero. Only the primary contact's Xero connection
                 will be preserved. The following Xero links will be lost:{" "}
-                {xeroContactsToLose.map((c) => c.name).join(", ")}
+                {xeroContactsToLose.map((c) => c.name || c.full_name).join(", ")}
               </AlertDescription>
             </Alert>
           )}
@@ -170,14 +192,35 @@ export function MergeContactsModal({
                     <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Label
                         htmlFor={`contact-${contact.id}`}
                         className="font-medium cursor-pointer"
                       >
-                        {contact.name}
+                        {contact.name || contact.full_name}
                       </Label>
-                      {contact.xero_contact_id && (
+                      {/* Entity Type Badge */}
+                      {contact.entity_type && (
+                        <Badge
+                          variant="outline"
+                          className={
+                            contact.entity_type === 'person'
+                              ? "text-purple-600 border-purple-200 bg-purple-50"
+                              : contact.entity_type === 'company'
+                              ? "text-blue-600 border-blue-200 bg-blue-50"
+                              : contact.entity_type === 'trust'
+                              ? "text-amber-600 border-amber-200 bg-amber-50"
+                              : "text-gray-600 border-gray-200"
+                          }
+                        >
+                          {contact.entity_type === 'person' ? '👤 Person' :
+                           contact.entity_type === 'company' ? '🏢 Company' :
+                           contact.entity_type === 'trust' ? '🏛️ Trust' :
+                           contact.entity_type === 'sole_trader' ? '👷 Sole Trader' :
+                           contact.entity_type}
+                        </Badge>
+                      )}
+                      {(contact.xero_contact_id || contact.xero_id) && (
                         <Badge variant="outline" className="text-blue-600 border-blue-200">
                           <ExternalLink className="h-3 w-3 mr-1" />
                           Xero

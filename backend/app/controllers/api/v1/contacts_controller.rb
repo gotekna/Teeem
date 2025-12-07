@@ -173,7 +173,7 @@ module Api
             portal_user: { only: [ :id, :email, :portal_type, :active, :last_login_at, :created_at ] },
             company_group: { only: [ :id, :name ] }
           },
-          methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies ]
+          methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies, :display_name ]
         )
 
         # If contact is a supplier, add pricebook items and purchase orders

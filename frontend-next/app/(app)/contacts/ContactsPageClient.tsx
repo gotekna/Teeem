@@ -280,16 +280,25 @@ export default function ContactsPageClient({
 
   // Handle data health issue click (e.g., fix duplicate emails)
   const handleDataHealthIssueClick = useCallback((item: unknown, check: unknown) => {
+    console.log('[ContactsPageClient] handleDataHealthIssueClick called');
+    console.log('[ContactsPageClient] item:', item);
+    console.log('[ContactsPageClient] check:', check);
+
     // Type guard for the item and check
     const healthItem = item as { id?: number; contacts?: Contact[] };
     const healthCheck = check as { check_name?: string };
 
+    console.log('[ContactsPageClient] healthCheck.check_name:', healthCheck.check_name);
+    console.log('[ContactsPageClient] healthItem.contacts:', healthItem.contacts);
+
     // For duplicate email checks, open merge modal with the duplicate contacts
     if (healthCheck.check_name === 'duplicate_emails' && healthItem.contacts && Array.isArray(healthItem.contacts)) {
+      console.log('[ContactsPageClient] Opening merge modal with', healthItem.contacts.length, 'contacts');
       setSelectedForMerge(healthItem.contacts);
       setMergeModalOpen(true);
     } else if (healthItem.id) {
       // For all other checks, navigate to the contact detail page
+      console.log('[ContactsPageClient] Navigating to contact:', healthItem.id);
       router.push(`/contacts/${healthItem.id}`);
     }
   }, [router]);
