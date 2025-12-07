@@ -777,7 +777,7 @@ module Api
               id: contact.id,
               display_name: contact.display_name,
               email: contact.email,
-              contact_type: contact.contact_type,
+              contact_type: contact.entity_type,
               xero_id: contact.xero_id,
               synced: contact.xero_id.present?,
               last_synced_at: contact.last_synced_at,
