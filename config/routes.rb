@@ -326,6 +326,8 @@ Rails.application.routes.draw do
           get :possible_duplicates
           get :duplicates, action: :possible_duplicates  # Alias for frontend-next
           get :read_only_fields
+          # SSoT: Entity types from Contact::ENTITY_TYPES
+          get :entity_types
           # Health check endpoints (SSoT validation)
           get :invalid_entity_types
           get :price_only_with_xero

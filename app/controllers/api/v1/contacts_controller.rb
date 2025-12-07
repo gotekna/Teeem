@@ -2359,6 +2359,71 @@ module Api
         }, status: :internal_server_error
       end
 
+      # GET /api/v1/contacts/entity_types
+      # SSoT: Returns valid entity types from Contact::ENTITY_TYPES
+      # Frontend should use this instead of hardcoding entity types
+      def entity_types
+        # Entity type metadata for UI display
+        entity_type_metadata = {
+          "person" => {
+            value: "person",
+            label: "Person",
+            description: "Individual contact",
+            icon: "user",
+            has_first_last_name: true,
+            can_have_employer: true,
+            can_have_employees: false,
+            show_in_create_form: true
+          },
+          "company" => {
+            value: "company",
+            label: "Company",
+            description: "Business entity (Pty Ltd, Ltd, Inc)",
+            icon: "building",
+            has_first_last_name: false,
+            can_have_employer: false,
+            can_have_employees: true,
+            show_in_create_form: true
+          },
+          "sole_trader" => {
+            value: "sole_trader",
+            label: "Sole Trader",
+            description: "Individual trading as a business",
+            icon: "user",
+            has_first_last_name: true,
+            can_have_employer: false,
+            can_have_employees: true,
+            show_in_create_form: true
+          },
+          "trust" => {
+            value: "trust",
+            label: "Trust",
+            description: "Trust entity (Family Trust, Unit Trust)",
+            icon: "building",
+            has_first_last_name: false,
+            can_have_employer: false,
+            can_have_employees: true,
+            show_in_create_form: true
+          },
+          "price_only" => {
+            value: "price_only",
+            label: "Price Only",
+            description: "Contact used only for pricebook pricing (no other info)",
+            icon: "dollar",
+            has_first_last_name: false,
+            can_have_employer: false,
+            can_have_employees: false,
+            show_in_create_form: false  # Legacy/internal type - don't show in create form
+          }
+        }
+
+        render json: {
+          success: true,
+          entity_types: Contact::ENTITY_TYPES,
+          metadata: Contact::ENTITY_TYPES.map { |type| entity_type_metadata[type] }
+        }
+      end
+
       # GET /api/v1/contacts/invalid_entity_types
       # Health check: Find contacts with invalid entity_type values
       def invalid_entity_types
