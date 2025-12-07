@@ -281,6 +281,46 @@ module HealthChecks
       )
     end
 
+    # ============================================
+    # BUSINESS DATA ENRICHMENT CHECKS
+    # ============================================
+
+    # Company/Trust contacts missing website URL
+    def check_company_missing_website
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where(entity_type: [ "company", "trust" ])
+                       .where("website IS NULL OR website = ''")
+                       .select(:id, :full_name, :company_name_or_trust, :entity_type)
+
+      build_result(
+        name: "Company Missing Website",
+        description: "Company and Trust contacts should have a website URL for easy lookup and verification.",
+        severity: :info,
+        items: contacts,
+        icon: "globe",
+        action_path: "/contacts/:id",
+        check_name: "company_missing_website"
+      )
+    end
+
+    # Company/Trust contacts missing ABN/Tax Number
+    def check_company_missing_abn
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where(entity_type: [ "company", "trust", "sole_trader" ])
+                       .where("tax_number IS NULL OR tax_number = ''")
+                       .select(:id, :full_name, :company_name_or_trust, :entity_type)
+
+      build_result(
+        name: "Company Missing ABN",
+        description: "Australian business contacts should have an ABN for tax compliance and verification.",
+        severity: :info,
+        items: contacts,
+        icon: "file-text",
+        action_path: "/contacts/:id",
+        check_name: "company_missing_abn"
+      )
+    end
+
     protected
 
     def format_items(items)
