@@ -9,13 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -32,6 +25,8 @@ import { ArrowLeft, Loader2, User, Building2, Plus, ChevronsUpDown, Check, X } f
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { useEntityTypes } from "@/hooks/useEntityTypes";
+import { hasFirstLastName, hasCompanyName, canHaveEmployees, canHaveEmployer, getEntityTypeIcon } from "@/lib/entity-types";
 
 interface ContactSearchResult {
   id: number;
@@ -57,6 +52,7 @@ interface ContactFormData {
 export default function NewContactPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { createFormTypes, loading: entityTypesLoading } = useEntityTypes();
   const [loading, setLoading] = React.useState(false);
   const [formData, setFormData] = React.useState<ContactFormData>({
     entity_type: "person",
@@ -193,21 +189,23 @@ export default function NewContactPage() {
     setLoading(true);
 
     try {
-      const isPerson = formData.entity_type === "person";
-      const isCompanyOrTrust = formData.entity_type === "company" || formData.entity_type === "trust";
+      // Use SSoT helper functions
+      const useFirstLastName = hasFirstLastName(formData.entity_type);
+      const useCompanyName = hasCompanyName(formData.entity_type);
+      const entityCanHaveEmployees = canHaveEmployees(formData.entity_type);
 
       // Build full_name based on entity type
       let full_name = "";
-      if (isPerson) {
+      if (useFirstLastName) {
         full_name = [formData.first_name, formData.last_name].filter(Boolean).join(" ");
-      } else if (isCompanyOrTrust) {
+      } else if (useCompanyName) {
         full_name = formData.company_name_or_trust;
       }
 
       if (!full_name.trim()) {
         toast({
           title: "Error",
-          description: isPerson ? "Please enter a name" : "Please enter a company/trust name",
+          description: useFirstLastName ? "Please enter a name" : "Please enter a company/trust name",
           variant: "destructive"
         });
         setLoading(false);
@@ -225,14 +223,14 @@ export default function NewContactPage() {
         notes: formData.notes || null,
       };
 
-      // Add entity-specific fields
-      if (isPerson) {
+      // Add entity-specific fields based on SSoT helpers
+      if (useFirstLastName) {
         contactPayload.first_name = formData.first_name;
         contactPayload.last_name = formData.last_name;
         if (formData.primary_company_id) {
           contactPayload.primary_company_id = formData.primary_company_id;
         }
-      } else if (isCompanyOrTrust) {
+      } else if (useCompanyName) {
         contactPayload.company_name_or_trust = formData.company_name_or_trust;
       }
 
@@ -255,8 +253,8 @@ export default function NewContactPage() {
 
       const newContactId = response?.contact?.id;
 
-      // If this is a company and we have pending employees, create them
-      if (isCompanyOrTrust && newContactId && pendingEmployees.length > 0) {
+      // If this entity can have employees and we have pending employees, create them
+      if (entityCanHaveEmployees && newContactId && pendingEmployees.length > 0) {
         for (const emp of pendingEmployees) {
           try {
             await api.post("/api/v1/contacts", {
@@ -287,8 +285,12 @@ export default function NewContactPage() {
     }
   };
 
-  const isPerson = formData.entity_type === "person";
-  const isCompanyOrTrust = formData.entity_type === "company" || formData.entity_type === "trust";
+  // Use helper functions from entity-types.ts (SSoT)
+  const showFirstLastName = hasFirstLastName(formData.entity_type);
+  const showCompanyName = hasCompanyName(formData.entity_type);
+  const showEmployees = canHaveEmployees(formData.entity_type);
+  const showEmployer = canHaveEmployer(formData.entity_type);
+  const entityIcon = getEntityTypeIcon(formData.entity_type);
 
   return (
     <div className="space-y-6">
@@ -309,59 +311,20 @@ export default function NewContactPage() {
 
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Entity Type Selection */}
-          <Card className="lg:col-span-3">
-            <CardHeader>
-              <CardTitle>What type of contact is this?</CardTitle>
-              <CardDescription>Choose the entity type to see relevant fields</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-4">
-                <Button
-                  type="button"
-                  variant={formData.entity_type === "person" ? "default" : "outline"}
-                  className="flex-1 h-20 flex-col gap-2"
-                  onClick={() => handleChange("entity_type", "person")}
-                >
-                  <User className="h-6 w-6" />
-                  <span>Person</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant={formData.entity_type === "company" ? "default" : "outline"}
-                  className="flex-1 h-20 flex-col gap-2"
-                  onClick={() => handleChange("entity_type", "company")}
-                >
-                  <Building2 className="h-6 w-6" />
-                  <span>Company</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant={formData.entity_type === "trust" ? "default" : "outline"}
-                  className="flex-1 h-20 flex-col gap-2"
-                  onClick={() => handleChange("entity_type", "trust")}
-                >
-                  <Building2 className="h-6 w-6" />
-                  <span>Trust</span>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Main Details */}
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                {isPerson ? <User className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
-                {isPerson ? "Person Details" : formData.entity_type === "trust" ? "Trust Details" : "Company Details"}
+                {entityIcon === "user" ? <User className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
+                {createFormTypes.find(t => t.value === formData.entity_type)?.label || "Contact"} Details
               </CardTitle>
               <CardDescription>
-                {isPerson ? "Enter the person's information" : "Enter the organisation's information"}
+                {showFirstLastName ? "Enter the person's information" : "Enter the organisation's information"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {isPerson ? (
-                /* Person Name Fields */
+              {showFirstLastName ? (
+                /* Person/Sole Trader Name Fields */
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="first_name">First Name *</Label>
@@ -383,11 +346,11 @@ export default function NewContactPage() {
                     />
                   </div>
                 </div>
-              ) : (
+              ) : showCompanyName ? (
                 /* Company/Trust Name Field */
                 <div className="space-y-2">
                   <Label htmlFor="company_name_or_trust">
-                    {formData.entity_type === "trust" ? "Trust Name *" : "Company Name *"}
+                    {createFormTypes.find(t => t.value === formData.entity_type)?.label || "Entity"} Name *
                   </Label>
                   <Input
                     id="company_name_or_trust"
@@ -397,10 +360,10 @@ export default function NewContactPage() {
                     required
                   />
                 </div>
-              )}
+              ) : null}
 
-              {/* Company Link (for Person) */}
-              {isPerson && (
+              {/* Company Link (for Person only - can have employer) */}
+              {showEmployer && (
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Building2 className="h-4 w-4" />
@@ -491,15 +454,15 @@ export default function NewContactPage() {
                 </div>
               )}
 
-              {/* Employees (for Company/Trust) */}
-              {isCompanyOrTrust && (
+              {/* Employees (for Company/Trust/Sole Trader - can have employees) */}
+              {showEmployees && (
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <User className="h-4 w-4" />
                     Employees / Key Contacts
                   </Label>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Add people who work at this {formData.entity_type} (optional)
+                    Add people who work at this {createFormTypes.find(t => t.value === formData.entity_type)?.label?.toLowerCase() || "entity"} (optional)
                   </p>
                   <div className="flex gap-2">
                     <Input
@@ -595,33 +558,39 @@ export default function NewContactPage() {
             </CardContent>
           </Card>
 
-          {/* Contact Type */}
+          {/* Entity Type - SSoT: Loaded from API */}
           <Card>
             <CardHeader>
-              <CardTitle>Contact Type</CardTitle>
-              <CardDescription>How you work with this contact</CardDescription>
+              <CardTitle>Entity Type</CardTitle>
+              <CardDescription>What kind of contact is this?</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="contact_type">Type</Label>
-                <Select
-                  value={formData.contact_type}
-                  onValueChange={(value) => handleChange("contact_type", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="customer">Customer</SelectItem>
-                    <SelectItem value="supplier">Supplier</SelectItem>
-                    <SelectItem value="both">Both</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {formData.contact_type === "customer" && "This contact is a client who hires you for jobs"}
-                  {formData.contact_type === "supplier" && "This contact supplies materials or services to you"}
-                  {formData.contact_type === "both" && "This contact is both a customer and supplier"}
-                </p>
+              <div className="space-y-3">
+                {entityTypesLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  </div>
+                ) : (
+                  createFormTypes.map((type) => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      className={cn(
+                        "w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors",
+                        formData.entity_type === type.value
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/50"
+                      )}
+                      onClick={() => handleChange("entity_type", type.value)}
+                    >
+                      {type.icon === "user" ? <User className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
+                      <div>
+                        <div className="font-medium">{type.label}</div>
+                        <div className="text-xs text-muted-foreground">{type.description}</div>
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -641,7 +610,7 @@ export default function NewContactPage() {
             ) : (
               <>
                 <Plus className="h-4 w-4 mr-2" />
-                Add {isPerson ? "Contact" : formData.entity_type === "trust" ? "Trust" : "Company"}
+                Add {createFormTypes.find(t => t.value === formData.entity_type)?.label || "Contact"}
               </>
             )}
           </Button>

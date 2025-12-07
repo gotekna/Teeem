@@ -81,8 +81,8 @@ namespace :contacts do
     puts "Done! Fixed #{fixed_count} contacts, #{error_count} errors."
   end
 
-  desc "Fix all contact issues (name casing + website URLs + company enrichment + full_name)"
-  task fix_all: [:fix_name_casing, :fix_website_urls, :enrich_company_websites, :fix_full_names]
+  desc "Fix all contact issues (name casing + website URLs + company enrichment + full_name + clear person fields)"
+  task fix_all: [:fix_name_casing, :fix_website_urls, :enrich_company_websites, :fix_full_names, :clear_person_fields_from_non_persons]
 
   desc "Fix full_name field based on entity type rules"
   task fix_full_names: :environment do
@@ -125,6 +125,53 @@ namespace :contacts do
 
     puts
     puts "Done! Fixed #{fixed_count} contacts, #{error_count} errors."
+  end
+
+  desc "Clear first_name, middle_name, last_name from company/trust/price_only contacts"
+  task clear_person_fields_from_non_persons: :environment do
+    puts "Clearing person name fields from company/trust/price_only contacts..."
+    puts
+
+    fixed_count = 0
+    error_count = 0
+
+    # Find company, trust, and price_only contacts that have first_name, middle_name, or last_name set
+    Contact.unscoped
+           .where(entity_type: ["company", "trust", "price_only"])
+           .where("first_name IS NOT NULL AND first_name != '' OR middle_name IS NOT NULL AND middle_name != '' OR last_name IS NOT NULL AND last_name != ''")
+           .find_each do |contact|
+      begin
+        changes = {}
+        old_values = []
+
+        if contact.first_name.present?
+          old_values << "first_name: '#{contact.first_name}'"
+          changes[:first_name] = nil
+        end
+
+        if contact.middle_name.present?
+          old_values << "middle_name: '#{contact.middle_name}'"
+          changes[:middle_name] = nil
+        end
+
+        if contact.last_name.present?
+          old_values << "last_name: '#{contact.last_name}'"
+          changes[:last_name] = nil
+        end
+
+        if changes.any?
+          contact.update_columns(changes)
+          fixed_count += 1
+          puts "Cleared: #{contact.id} - #{contact.full_name} (#{contact.entity_type}) - #{old_values.join(', ')}"
+        end
+      rescue => e
+        error_count += 1
+        puts "Error clearing #{contact.id}: #{e.message}"
+      end
+    end
+
+    puts
+    puts "Done! Cleared person fields from #{fixed_count} contacts, #{error_count} errors."
   end
 
   desc "Auto-enrich company contacts with obvious website URLs"

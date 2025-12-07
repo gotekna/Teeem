@@ -28,6 +28,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { isPerson, canHaveEmployees, getEntityTypeBadge } from "@/lib/entity-types";
 
 interface Contact {
   id: number;
@@ -124,12 +125,10 @@ export function MergeContactsModal({
 
   // Handle fix email assignment: keep email on person, clear from companies, create employment links
   const handleFixEmailAssignment = async () => {
-    // Find the person contact
-    const personContact = contacts.find(c => c.entity_type === 'person');
-    // Find all company/trust contacts
-    const companyContacts = contacts.filter(c =>
-      c.entity_type === 'company' || c.entity_type === 'trust' || c.entity_type === 'sole_trader'
-    );
+    // Find the person contact (using SSoT helper)
+    const personContact = contacts.find(c => isPerson(c.entity_type));
+    // Find all contacts that can have employees (company/trust/sole_trader - using SSoT helper)
+    const companyContacts = contacts.filter(c => canHaveEmployees(c.entity_type));
 
     if (!personContact || companyContacts.length === 0) {
       setError("Could not identify person and company contacts");
@@ -250,7 +249,7 @@ export function MergeContactsModal({
                         <Badge
                           variant="outline"
                           className={
-                            contact.entity_type === 'person'
+                            isPerson(contact.entity_type)
                               ? "text-purple-600 border-purple-200 bg-purple-50"
                               : contact.entity_type === 'company'
                               ? "text-blue-600 border-blue-200 bg-blue-50"
@@ -259,11 +258,8 @@ export function MergeContactsModal({
                               : "text-gray-600 border-gray-200"
                           }
                         >
-                          {contact.entity_type === 'person' ? '👤 Person' :
-                           contact.entity_type === 'company' ? '🏢 Company' :
-                           contact.entity_type === 'trust' ? '🏛️ Trust' :
-                           contact.entity_type === 'sole_trader' ? '👷 Sole Trader' :
-                           contact.entity_type}
+                          {/* SSoT: Use helper function for badge display */}
+                          {getEntityTypeBadge(contact.entity_type)}
                         </Badge>
                       )}
                       {(contact.xero_contact_id || contact.xero_id) && (

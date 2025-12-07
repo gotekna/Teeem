@@ -74,6 +74,17 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Star } from 'lucide-react';
+import { useEntityTypes } from "@/hooks/useEntityTypes";
+import {
+  getEntityTypeLabel,
+  hasFirstLastName,
+  hasCompanyName,
+  canHaveEmployees,
+  canHaveEmployer,
+  isPerson,
+  isTrust,
+  isPriceOnly
+} from "@/lib/entity-types";
 
 // Helper function to format ABN as XX XXX XXX XXX
 const formatABN = (abn: string | null) => {
@@ -804,6 +815,9 @@ export default function ContactDetailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = params.id as string;
+
+  // SSoT: Entity types from API
+  const { metadata: entityTypeMetadata } = useEntityTypes();
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1816,7 +1830,7 @@ export default function ContactDetailPage() {
     try {
       // For person/sole_trader: construct full_name from first/last name
       // For company/trust: use the full_name field directly
-      const full_name = (formData.entity_type === 'person' || formData.entity_type === 'sole_trader')
+      const full_name = hasFirstLastName(formData.entity_type)
         ? [formData.first_name, formData.middle_name, formData.last_name].filter(Boolean).join(" ") || "Unknown"
         : formData.full_name || "Unknown";
 
@@ -2094,7 +2108,7 @@ export default function ContactDetailPage() {
                   <CardContent className="space-y-4">
                     <div className="space-y-4">
                       {/* Person and Sole Trader show first/middle/last name fields */}
-                      {(formData.entity_type === "person" || formData.entity_type === "sole_trader") ? (
+                      {hasFirstLastName(formData.entity_type) ? (
                         <>
                           <div className="space-y-2">
                             <Label htmlFor="first_name">First Name</Label>
@@ -2113,8 +2127,8 @@ export default function ContactDetailPage() {
                         /* Company, Trust, and Price show single Name field */
                         <div className="space-y-2">
                           <Label htmlFor="full_name">
-                            {formData.entity_type === "trust" ? "Trust Name" :
-                             formData.entity_type === "price_only" ? "Name" : "Company Name"}
+                            {isTrust(formData.entity_type) ? "Trust Name" :
+                             isPriceOnly(formData.entity_type) ? "Name" : "Company Name"}
                           </Label>
                           <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange("full_name", e.target.value)} />
                         </div>
@@ -2123,15 +2137,14 @@ export default function ContactDetailPage() {
                     <div className="space-y-2">
                       <Label htmlFor="entity_type">Entity Type</Label>
                       <select id="entity_type" value={formData.entity_type} onChange={(e) => handleInputChange("entity_type", e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                        <option value="person">Person</option>
-                        <option value="company">Company</option>
-                        <option value="trust">Trust</option>
-                        <option value="sole_trader">Sole Trader</option>
-                        <option value="price_only">Price Only</option>
+                        {/* SSoT: Entity types from API */}
+                        {entityTypeMetadata.map((type) => (
+                          <option key={type.value} value={type.value}>{type.label}</option>
+                        ))}
                       </select>
                     </div>
                     {/* Company multi-select - show for person and sole_trader entity types */}
-                    {(formData.entity_type === 'person' || formData.entity_type === 'sole_trader') && (
+                    {canHaveEmployer(formData.entity_type) && (
                       <div className="space-y-3">
                         <div className="space-y-2">
                           <Label>Companies</Label>

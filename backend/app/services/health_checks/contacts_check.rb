@@ -321,6 +321,24 @@ module HealthChecks
       )
     end
 
+    # Company/Trust/Price_only contacts with person name fields that should be cleared
+    def check_non_person_with_person_fields
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where(entity_type: [ "company", "trust", "price_only" ])
+                       .where("first_name IS NOT NULL AND first_name != '' OR middle_name IS NOT NULL AND middle_name != '' OR last_name IS NOT NULL AND last_name != ''")
+                       .select(:id, :full_name, :first_name, :middle_name, :last_name, :entity_type)
+
+      build_result(
+        name: "Non-Person with Person Fields",
+        description: "Company, Trust, and Price Only contacts should not have first_name, middle_name, or last_name. These fields are for persons only.",
+        severity: :warning,
+        items: contacts,
+        icon: "user-x",
+        action_path: "/contacts/:id",
+        check_name: "non_person_with_person_fields"
+      )
+    end
+
     protected
 
     def format_items(items)

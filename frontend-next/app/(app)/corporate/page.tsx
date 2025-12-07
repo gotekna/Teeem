@@ -75,6 +75,8 @@ import {
   CORPORATE_TABLE_IDS,
   COLUMN_WIDTH_OVERRIDES,
 } from "@/lib/corporate/config";
+import { useEntityTypes } from "@/hooks/useEntityTypes";
+import { getEntityTypeLabel } from "@/lib/entity-types";
 
 // Use centralized table ID
 const COMPANIES_TABLE_ID = CORPORATE_TABLE_IDS.COMPANIES;
@@ -973,10 +975,14 @@ export default function CorporateDashboardPage() {
     return grouped;
   }, [groupedByContact]);
 
+  // SSoT: Use helper function for entity type labels
+  // Custom plural labels for display, but using SSoT for base labels
   const entityTypeLabels: Record<string, string> = {
     person: "People",
     company: "Companies",
     trust: "Trusts",
+    sole_trader: "Sole Traders",
+    price_only: "Price Only",
     unknown: "Unknown",
   };
 
@@ -1873,7 +1879,8 @@ export default function CorporateDashboardPage() {
                 </div>
               ) : groupByEntityType ? (
                 <div className="space-y-6">
-                  {["person", "company", "trust", "unknown"].map((entityType) => {
+                  {/* SSoT: Include all entity types from Contact::ENTITY_TYPES plus unknown */}
+                  {["person", "company", "sole_trader", "trust", "price_only", "unknown"].map((entityType) => {
                     const contacts = groupedByEntityType[entityType];
                     if (contacts.length === 0) return null;
                     return (
