@@ -1038,6 +1038,7 @@ Rails.application.routes.draw do
       end
       get "external_invoices/by_job/:job_id", to: "external_invoices#by_job", as: :external_invoices_by_job
       get "external_invoices/by_contact/:contact_id", to: "external_invoices#by_contact", as: :external_invoices_by_contact
+      get "external_invoices/by_external_id/:external_id", to: "external_invoices#by_external_id", as: :external_invoice_by_external_id
 
       # OneDrive integration (per-job - legacy)
       get "onedrive/authorize", to: "one_drive#authorize"

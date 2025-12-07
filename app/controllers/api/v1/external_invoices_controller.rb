@@ -60,6 +60,27 @@ module Api
         render json: { success: false, error: "Invoice not found" }, status: :not_found
       end
 
+      # GET /api/v1/external_invoices/by_external_id/:external_id
+      # Find invoice by Xero ID (external_id) - for invoice detail modal
+      def by_external_id
+        invoice = ExternalInvoice.find_by!(external_id: params[:external_id])
+
+        # Check if PDF is available in warehouse
+        pdf_doc = invoice.company_documents.find_by(document_type: invoice.invoice_type)
+        has_pdf = pdf_doc&.file&.attached?
+
+        render json: {
+          success: true,
+          data: serialize_invoice(invoice, include_details: true).merge(
+            has_pdf: has_pdf,
+            pdf_url: has_pdf ? Rails.application.routes.url_helpers.rails_blob_url(pdf_doc.file, disposition: "inline", host: ENV.fetch("RAILS_HOST", "localhost:3001")) : nil,
+            pdf_synced_at: pdf_doc&.created_at&.iso8601
+          )
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Invoice not found" }, status: :not_found
+      end
+
       # GET /api/v1/external_invoices/by_job/:job_id
       # Optimized endpoint for fetching all invoices/bills for a job
       def by_job
@@ -164,8 +185,8 @@ module Api
         credit_notes = invoices.credit_notes
         quotes = invoices.quotes
 
-        # Get last sync time
-        last_sync = ExternalInvoice.where(source: "xero").maximum(:last_synced_at)
+        # Get last sync time - SSoT: use this contact's most recent sync, not global
+        contact_last_sync = invoices.maximum(:last_synced_at)
 
         render json: {
           success: true,
@@ -183,8 +204,8 @@ module Api
           },
           meta: {
             source: "local_cache",
-            last_synced_at: last_sync&.iso8601,
-            cache_age_seconds: last_sync ? (Time.current - last_sync).to_i : nil
+            last_synced_at: contact_last_sync&.iso8601,
+            cache_age_seconds: contact_last_sync ? (Time.current - contact_last_sync).to_i : nil
           }
         }
       rescue ActiveRecord::RecordNotFound

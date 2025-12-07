@@ -660,23 +660,42 @@ module Api
 
       # POST /api/v1/contacts/:id/enrich_from_web
       # Enriches a contact by scraping their website and determining if they need a company
+      # Can use either email domain or website URL as the source
       def enrich_from_web
-        unless @contact.email.present?
-          return render json: {
-            success: false,
-            error: "Contact has no email address"
-          }, status: :unprocessable_entity
+        domain = nil
+
+        # First try to extract domain from email
+        if @contact.email.present?
+          domain = @contact.email.split("@").last.to_s.downcase
+
+          # Check for generic email domains - fall back to website if generic
+          generic_domains = [ "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com", "live.com" ]
+          if generic_domains.include?(domain)
+            domain = nil # Reset so we try website instead
+          end
         end
 
-        # Extract domain from email
-        domain = @contact.email.split("@").last.to_s.downcase
+        # If no domain from email, try to extract from website URL
+        if domain.blank? && @contact.website.present?
+          begin
+            uri = URI.parse(@contact.website)
+            domain = uri.host.to_s.downcase.sub(/^www\./, "")
+          rescue URI::InvalidURIError
+            # Try adding https:// prefix
+            begin
+              uri = URI.parse("https://#{@contact.website}")
+              domain = uri.host.to_s.downcase.sub(/^www\./, "")
+            rescue URI::InvalidURIError
+              domain = nil
+            end
+          end
+        end
 
-        # Check for generic domains
-        generic_domains = [ "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com", "live.com" ]
-        if generic_domains.include?(domain)
+        # If still no domain, we can't enrich
+        if domain.blank?
           return render json: {
             success: false,
-            error: "Cannot enrich from generic email domain (#{domain})"
+            error: "Contact has no email address or website to enrich from"
           }, status: :unprocessable_entity
         end
 
