@@ -74,7 +74,8 @@ module HealthChecks
     # @param limit [Integer] Max items to include in response (default 10)
     # @param icon [String] Heroicon name for UI
     # @param action_path [String] Path template for fixing items (use :id as placeholder)
-    def build_result(name:, severity:, items:, description: nil, limit: 10, icon: nil, action_path: nil)
+    # @param check_name [String] Machine-readable check name (e.g., 'duplicate_emails')
+    def build_result(name:, severity:, items:, description: nil, limit: 10, icon: nil, action_path: nil, check_name: nil)
       # Get count efficiently - use count(:all) for relations to avoid issues with custom select
       count = if items.is_a?(Array)
                 items.size
@@ -92,6 +93,7 @@ module HealthChecks
 
       {
         check_type: self.class.check_type,
+        check_name: check_name,
         name: name,
         description: description,
         severity: severity.to_s,
@@ -105,6 +107,7 @@ module HealthChecks
       Rails.logger.error "[HealthCheck] Error in #{name}: #{e.message}"
       {
         check_type: self.class.check_type,
+        check_name: check_name,
         name: name,
         description: description,
         severity: severity.to_s,

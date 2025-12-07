@@ -42,7 +42,8 @@ module HealthChecks
         severity: :warning,
         items: duplicates,
         icon: "envelope",
-        action_path: "/contacts/:id"
+        action_path: "/contacts/:id",
+        check_name: "duplicate_emails"
       )
     end
 
