@@ -1929,6 +1929,87 @@ export default function ContactDetailPage() {
     };
   }, []);
 
+  // Create a new company and link current person as employee
+  const handleCreateCompany = async () => {
+    if (!contact?.id || !newCompanyName.trim()) return;
+    setCreatingCompany(true);
+    try {
+      // Create the new company contact
+      const response = await api.post<{ contact?: { id: number }; id?: number }>("/api/v1/contacts", {
+        contact: {
+          entity_type: "company",
+          company_name_or_trust: newCompanyName.trim(),
+          full_name: newCompanyName.trim(),
+          display_name: newCompanyName.trim(),
+        },
+      });
+      const newCompanyId = response?.contact?.id || (response as { id?: number })?.id;
+      if (!newCompanyId) throw new Error("Failed to get new company ID");
+
+      // Link current person as employee of the new company
+      await api.post("/api/v1/contact_relationships", {
+        contact_relationship: {
+          company_id: newCompanyId,
+          employee_id: contact.id,
+          role_type: "employee",
+        },
+      });
+
+      // Reset and refresh
+      setNewCompanyName("");
+      setShowAddCompany(false);
+
+      // Navigate to the new company
+      router.push(`/contacts/${newCompanyId}`);
+    } catch (err) {
+      console.error("Failed to create company:", err);
+    } finally {
+      setCreatingCompany(false);
+    }
+  };
+
+  // Create a new employee and link to current company
+  const handleCreateEmployee = async () => {
+    if (!contact?.id || !newEmployeeFirstName.trim()) return;
+    setCreatingEmployee(true);
+    try {
+      // Create the new person contact
+      const fullName = [newEmployeeFirstName.trim(), newEmployeeLastName.trim()].filter(Boolean).join(" ");
+      const response = await api.post<{ contact?: { id: number }; id?: number }>("/api/v1/contacts", {
+        contact: {
+          entity_type: "person",
+          first_name: newEmployeeFirstName.trim(),
+          last_name: newEmployeeLastName.trim(),
+          full_name: fullName,
+          display_name: fullName,
+        },
+      });
+      const newEmployeeId = response?.contact?.id || (response as { id?: number })?.id;
+      if (!newEmployeeId) throw new Error("Failed to get new employee ID");
+
+      // Link new person as employee of current company
+      await api.post("/api/v1/contact_relationships", {
+        contact_relationship: {
+          company_id: contact.id,
+          employee_id: newEmployeeId,
+          role_type: "employee",
+        },
+      });
+
+      // Reset and refresh
+      setNewEmployeeFirstName("");
+      setNewEmployeeLastName("");
+      setShowAddEmployee(false);
+
+      // Navigate to the new employee
+      router.push(`/contacts/${newEmployeeId}`);
+    } catch (err) {
+      console.error("Failed to create employee:", err);
+    } finally {
+      setCreatingEmployee(false);
+    }
+  };
+
   // SSoT: Load tab-specific data when tab changes
   useEffect(() => {
     if (!contact?.id) return;
@@ -2194,7 +2275,67 @@ export default function ContactDetailPage() {
                     {canHaveEmployer(formData.entity_type) && (
                       <div className="space-y-3">
                         <div className="space-y-2">
-                          <Label>Companies</Label>
+                          <div className="flex items-center justify-between">
+                            <Label>Companies</Label>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowAddCompany(!showAddCompany)}
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Add Company
+                            </Button>
+                          </div>
+
+                          {/* Add Company inline form */}
+                          {showAddCompany && (
+                            <div className="p-3 border rounded-md bg-muted/30 space-y-3">
+                              <div className="space-y-2">
+                                <Label htmlFor="new-company-name">Company Name</Label>
+                                <Input
+                                  id="new-company-name"
+                                  value={newCompanyName}
+                                  onChange={(e) => setNewCompanyName(e.target.value)}
+                                  placeholder="Enter company name..."
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && newCompanyName.trim()) {
+                                      handleCreateCompany();
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={handleCreateCompany}
+                                  disabled={creatingCompany || !newCompanyName.trim()}
+                                >
+                                  {creatingCompany ? (
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  ) : (
+                                    <Plus className="h-3 w-3 mr-1" />
+                                  )}
+                                  Create & Link
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setShowAddCompany(false);
+                                    setNewCompanyName("");
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Creates a new company and adds {formData.first_name || "this person"} as an employee.
+                              </p>
+                            </div>
+                          )}
 
                           {/* Selected companies display */}
                           {selectedCompanies.length > 0 && (
@@ -2255,7 +2396,80 @@ export default function ContactDetailPage() {
                     {canHaveEmployees(formData.entity_type) && (
                       <div className="space-y-3">
                         <div className="space-y-2">
-                          <Label>Employees</Label>
+                          <div className="flex items-center justify-between">
+                            <Label>Employees</Label>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowAddEmployee(!showAddEmployee)}
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Add Employee
+                            </Button>
+                          </div>
+
+                          {/* Add Employee inline form */}
+                          {showAddEmployee && (
+                            <div className="p-3 border rounded-md bg-muted/30 space-y-3">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label htmlFor="new-employee-first">First Name</Label>
+                                  <Input
+                                    id="new-employee-first"
+                                    value={newEmployeeFirstName}
+                                    onChange={(e) => setNewEmployeeFirstName(e.target.value)}
+                                    placeholder="First name..."
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label htmlFor="new-employee-last">Last Name</Label>
+                                  <Input
+                                    id="new-employee-last"
+                                    value={newEmployeeLastName}
+                                    onChange={(e) => setNewEmployeeLastName(e.target.value)}
+                                    placeholder="Last name..."
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" && newEmployeeFirstName.trim()) {
+                                        handleCreateEmployee();
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={handleCreateEmployee}
+                                  disabled={creatingEmployee || !newEmployeeFirstName.trim()}
+                                >
+                                  {creatingEmployee ? (
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  ) : (
+                                    <Plus className="h-3 w-3 mr-1" />
+                                  )}
+                                  Create & Link
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setShowAddEmployee(false);
+                                    setNewEmployeeFirstName("");
+                                    setNewEmployeeLastName("");
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Creates a new person and adds them as an employee of {formData.company_name_or_trust || "this company"}.
+                              </p>
+                            </div>
+                          )}
+
                           <MultipleSelector
                             value={selectedEmployees}
                             onChange={handleEmployeeChange}

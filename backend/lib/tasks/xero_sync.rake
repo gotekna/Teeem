@@ -1,6 +1,29 @@
 namespace :xero do
   desc "Sync all invoices from Xero to local database (full sync)"
   task sync_invoices: :environment do
+    # Check if we already have data - warn about API usage
+    existing_count = ExternalInvoice.count
+    if existing_count > 100
+      puts "=" * 60
+      puts "WARNING: You already have #{existing_count} invoices synced!"
+      puts "Full sync makes 50-100+ API calls and may hit rate limits."
+      puts ""
+      puts "Consider using incremental sync instead:"
+      puts "  bin/rails xero:sync_invoices_incremental"
+      puts ""
+      puts "Continue with full sync? (y/N)"
+      puts "=" * 60
+
+      # In non-interactive mode (heroku run:detached), skip confirmation
+      unless ENV["SKIP_CONFIRMATION"] == "true"
+        response = STDIN.gets&.strip&.downcase rescue "n"
+        unless response == "y" || response == "yes"
+          puts "Aborted. Use SKIP_CONFIRMATION=true to bypass this check."
+          exit 0
+        end
+      end
+    end
+
     puts "Starting full invoice sync from Xero..."
     puts "This may take several minutes for large datasets."
     puts ""
@@ -235,23 +258,60 @@ namespace :xero do
     puts "PDFs will be uploaded to SharePoint and stored in Active Storage."
     puts ""
 
-    # Only sync PDFs for invoices linked to contacts
-    invoices_with_contacts = ExternalInvoice.where.not(contact_id: nil)
-    total = invoices_with_contacts.count
+    # Find invoices that DON'T already have PDFs synced
+    # This avoids unnecessary API calls for already-synced invoices
+    already_synced_ids = CompanyDocument
+      .where(source: "xero")
+      .where("external_id LIKE ?", "xero:%:pdf")
+      .where(documentable_type: "ExternalInvoice")
+      .pluck(:documentable_id)
+
+    invoices_needing_pdfs = ExternalInvoice
+      .where.not(contact_id: nil)
+      .where.not(id: already_synced_ids)
+
+    total_with_contacts = ExternalInvoice.where.not(contact_id: nil).count
+    already_synced = already_synced_ids.count
+    remaining = invoices_needing_pdfs.count
+
+    puts "=" * 60
+    puts "PDF Sync Status:"
+    puts "  Total invoices with contacts: #{total_with_contacts}"
+    puts "  Already synced (skipping):    #{already_synced}"
+    puts "  Remaining to sync:            #{remaining}"
+    puts "=" * 60
+    puts ""
+
+    if remaining == 0
+      puts "All PDFs already synced! Nothing to do."
+      exit 0
+    end
+
+    # Estimate time (10s per invoice)
+    estimated_minutes = (remaining * 10 / 60.0).round(0)
+    puts "Estimated time: ~#{estimated_minutes} minutes (#{remaining} invoices x 10s delay)"
+    puts ""
+
     synced = 0
     pdf_count = 0
     sharepoint_count = 0
+    skipped_count = 0
     errors = []
     rate_limit_retries = 0
     max_rate_limit_retries = 3
 
-    puts "Found #{total} invoices linked to contacts"
-
-    invoices_with_contacts.find_each do |invoice|
+    invoices_needing_pdfs.find_each do |invoice|
       retries = 0
       begin
+        puts "[#{synced + 1}/#{remaining}] Syncing invoice #{invoice.invoice_number}..."
         result = XeroAttachmentSyncService.new(invoice).sync!
-        pdf_count += 1 if result[:pdf].present?
+
+        if result[:skipped]
+          skipped_count += 1
+        elsif result[:pdf].present?
+          pdf_count += 1
+        end
+
         sharepoint_count += result[:sharepoint_uploads]&.count || 0
         errors.concat(result[:errors]) if result[:errors].any?
         rate_limit_retries = 0 # Reset on success
@@ -270,6 +330,7 @@ namespace :xero do
         # If we hit rate limits too many times in a row, abort
         if rate_limit_retries >= max_rate_limit_retries
           puts "\n[ABORT] Hit rate limit #{max_rate_limit_retries} times in a row. Stopping sync."
+          puts "Re-run this task later to continue where you left off."
           break
         end
       rescue StandardError => e
@@ -278,24 +339,29 @@ namespace :xero do
 
       synced += 1
       if synced % 10 == 0
-        puts "Progress: #{synced}/#{total} | PDFs: #{pdf_count} | SharePoint: #{sharepoint_count} | Errors: #{errors.count}"
+        puts "Progress: #{synced}/#{remaining} | New PDFs: #{pdf_count} | SharePoint: #{sharepoint_count} | Errors: #{errors.count}"
       end
 
       # Xero has strict rate limits for PDF/attachment endpoints
-      # Use 10s delay to stay safely under limit (3s was too aggressive)
-      sleep(10)
+      # Use 10s delay to stay safely under limit
+      sleep(10) unless result&.dig(:skipped)
     end
 
     puts ""
     puts ""
+    puts "=" * 60
     puts "PDF Sync Complete!"
+    puts "=" * 60
     puts "  Invoices processed: #{synced}"
-    puts "  PDFs synced to Active Storage: #{pdf_count}"
-    puts "  PDFs uploaded to SharePoint: #{sharepoint_count}"
+    puts "  New PDFs synced:    #{pdf_count}"
+    puts "  Already had PDF:    #{skipped_count}"
+    puts "  SharePoint uploads: #{sharepoint_count}"
     puts "  Errors: #{errors.count}"
     if errors.any?
       puts "\nFirst 10 errors:"
       errors.first(10).each { |e| puts "  - #{e}" }
     end
+    puts ""
+    puts "Total synced (including previous runs): #{already_synced + pdf_count}"
   end
 end
