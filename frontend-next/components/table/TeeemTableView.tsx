@@ -2976,137 +2976,117 @@ export default function TeeemTableView({
 
     return (
       <div style={{ width: `${totalTableWidth}px` }}>
-        {/* View mode toggle + Expand/Collapse buttons */}
+        {/* Expand/Collapse toggle - always visible when grouped */}
         <div className="flex items-center gap-2 mb-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <div className="flex items-center">
-                <Checkbox
-                  checked={
-                    visibleRows.length > 0 &&
-                    visibleRows.every(row => selectedRows.has(row.id))
-                  }
-                  onCheckedChange={toggleSelectAll}
-                />
-                <ChevronDown className="h-3 w-3 ml-1 text-muted-foreground" />
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => setSelectedRows(new Set(filteredAndSortedEntries.map(r => r.id)))}>
-                Select All ({filteredAndSortedEntries.length})
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  const visible = visibleRows;
-                  setSelectedRows(new Set(visible.map(r => r.id)));
-                }}
-                disabled={visibleRows.length === 0}
-              >
-                Select Expanded ({visibleRows.length})
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setSelectedRows(new Set<string | number>())}>
-                Clear Selection
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <span className="text-sm font-medium text-muted-foreground">View:</span>
-          <div className="flex rounded-md border overflow-hidden">
-            <Button
-              variant={groupViewMode === "inline" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setGroupViewMode("inline")}
-              className="h-7 px-3 text-xs rounded-none border-r"
-            >
-              Inline
-            </Button>
-            <Button
-              variant={groupViewMode === "panel" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setGroupViewMode("panel")}
-              className="h-7 px-3 text-xs rounded-none"
-            >
-              Panel
-            </Button>
-          </div>
-          <div className="h-4 w-px bg-border mx-2" />
+          {/* Expand/Collapse all button - just icon, no text */}
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            onClick={expandAllGroups}
-            disabled={allExpanded}
-            className="h-7 px-2 text-xs"
+            onClick={() => {
+              if (collapsedGroups.size === 0) {
+                collapseAllGroups();
+              } else {
+                expandAllGroups();
+              }
+            }}
+            className="h-7 w-7 p-0"
           >
-            <ChevronsUpDown className="h-3 w-3 mr-1" />
-            Expand All
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={collapseAllGroups}
-            disabled={allCollapsed}
-            className="h-7 px-2 text-xs"
-          >
-            <ChevronsDownUp className="h-3 w-3 mr-1" />
-            Collapse All
+            {collapsedGroups.size === 0 ? (
+              <ChevronsDownUp className="h-4 w-4" />
+            ) : (
+              <ChevronsUpDown className="h-4 w-4" />
+            )}
           </Button>
 
-          {/* Spacer to push content to the right */}
-          <div className="flex-1" />
-
-          {/* Bulk action buttons and selection count - only show when rows selected */}
+          {/* Selection dropdown - only show when rows selected */}
           {selectedRows.size > 0 && (
-            <>
-              <div className="h-4 w-px bg-border mx-2" />
-              {/* Bulk Update - column-based update modal */}
-              {onRowUpdate && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBulkUpdateModal(true)}
-                  className="h-7 px-2 text-xs"
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <div className="flex items-center">
+                  <Checkbox
+                    checked={
+                      visibleRows.length > 0 &&
+                      visibleRows.every(row => selectedRows.has(row.id))
+                    }
+                    onCheckedChange={toggleSelectAll}
+                  />
+                  <ChevronDown className="h-3 w-3 ml-1 text-muted-foreground" />
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => setSelectedRows(new Set(filteredAndSortedEntries.map(r => r.id)))}>
+                  Select All ({filteredAndSortedEntries.length})
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    const visible = visibleRows;
+                    setSelectedRows(new Set(visible.map(r => r.id)));
+                  }}
+                  disabled={visibleRows.length === 0}
                 >
-                  <Pencil className="h-3 w-3 mr-1" />
-                  Bulk Update
-                </Button>
-              )}
-              {/* Inline Edit - edit all selected rows inline like a spreadsheet */}
-              {onRowUpdate && !viewOnly && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => startMultiEditing(Array.from(selectedRows))}
-                  className="h-7 px-2 text-xs"
-                >
-                  <Pencil className="h-3 w-3 mr-1" />
-                  Inline Edit
-                </Button>
-              )}
-              {/* Merge button - combine rows into one */}
-              {(onBulkMerge || (enableMerge !== false && foundationIdNumeric)) && !viewOnly && selectedRows.size >= 2 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleMergeClick(Array.from(selectedRows))}
-                  className="h-7 px-2 text-xs"
-                >
-                  <GitMerge className="h-3 w-3 mr-1" />
-                  Merge
-                </Button>
-              )}
-              <div className="h-4 w-px bg-border mx-2" />
-              <span className="text-sm font-medium">{selectedRows.size} selected</span>
+                  Select Expanded ({visibleRows.length})
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setSelectedRows(new Set<string | number>())}>
+                  Clear Selection
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+            {/* Selection info and bulk actions */}
+            <span className="text-xs text-muted-foreground ml-auto">
+              {visibleRows.length} rows visible
+            </span>
+            <div className="h-4 w-px bg-border mx-2" />
+            {/* Bulk Update - column-based update modal */}
+            {onRowUpdate && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedRows(new Set<string | number>())}
+                onClick={() => setShowBulkUpdateModal(true)}
                 className="h-7 px-2 text-xs"
               >
-                Clear
+                <Pencil className="h-3 w-3 mr-1" />
+                Bulk Update
               </Button>
-            </>
-          )}
-        </div>
+            )}
+            {/* Inline Edit - edit all selected rows inline like a spreadsheet */}
+            {onRowUpdate && !viewOnly && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => startMultiEditing(Array.from(selectedRows))}
+                className="h-7 px-2 text-xs"
+              >
+                <Pencil className="h-3 w-3 mr-1" />
+                Inline Edit
+              </Button>
+            )}
+            {/* Merge button - combine rows into one */}
+            {(onBulkMerge || (enableMerge !== false && foundationIdNumeric)) && !viewOnly && selectedRows.size >= 2 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleMergeClick(Array.from(selectedRows))}
+                className="h-7 px-2 text-xs"
+              >
+                <GitMerge className="h-3 w-3 mr-1" />
+                Merge
+              </Button>
+            )}
+            <div className="h-4 w-px bg-border mx-2" />
+            <span className="text-sm font-medium">{selectedRows.size} selected</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedRows(new Set<string | number>())}
+              className="h-7 px-2 text-xs"
+            >
+              Clear
+            </Button>
+          </div>
+        )}
 
         {groupViewMode === "inline" ? (
           /* Inline mode (default) - groups as rows in table body */
@@ -3315,6 +3295,31 @@ export default function TeeemTableView({
             hasServerSearch={!!onServerSearch}
           />
           </div>
+
+          {/* View mode toggle - only show when grouped */}
+          {groupByColumn && (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-sm font-medium text-muted-foreground">View:</span>
+              <div className="flex rounded-md border overflow-hidden">
+                <Button
+                  variant={groupViewMode === "inline" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setGroupViewMode("inline")}
+                  className="h-7 px-3 text-xs rounded-none border-r"
+                >
+                  Inline
+                </Button>
+                <Button
+                  variant={groupViewMode === "panel" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setGroupViewMode("panel")}
+                  className="h-7 px-3 text-xs rounded-none"
+                >
+                  Panel
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Bulk action buttons - show when rows selected (flat table only, grouped has inline) */}
           {selectedRows.size > 0 && !groupByColumn && (

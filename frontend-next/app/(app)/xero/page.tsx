@@ -151,11 +151,11 @@ export default function XeroPage() {
       setLoading(true);
       try {
         // Load status
-        const statusRes = await api.get<XeroStatus>("/api/v1/xero/status");
-        setStatus(statusRes);
+        const statusRes = await api.get<{ success: boolean; data: XeroStatus }>("/api/v1/xero/status");
+        setStatus(statusRes.data);
 
         // Only load invoices if connected
-        if (statusRes.connected) {
+        if (statusRes.data.connected) {
           // Load invoices and bills from warehouse (10-100x faster than Xero API)
           const [invoicesRes, billsRes] = await Promise.all([
             api.get<WarehouseResponse>("/api/v1/external_invoices?type=invoice&per_page=200"),
