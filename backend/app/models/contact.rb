@@ -171,7 +171,8 @@ class Contact < ApplicationRecord
         person_name = "#{first_name} #{last_name}".strip.presence ||
                       full_name.presence ||
                       email
-        "#{person_name} - #{primary_company.display_name}"
+        company_name = primary_company.company_name_or_trust.presence || primary_company.full_name
+        "#{person_name} - #{company_name}"
       else
         # Person: prefer first + last, fall back to full_name
         "#{first_name} #{last_name}".strip.presence ||

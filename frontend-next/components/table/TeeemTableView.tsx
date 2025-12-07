@@ -728,6 +728,30 @@ export default function TeeemTableView({
   }, [COLUMNS, columnOrder, visibleColumns]);
 
   // ============================================================================
+  // PERFORMANCE DEBUGGING
+  // ============================================================================
+
+  // Track render time when selectedRows changes
+  const renderStartTimeRef = React.useRef<number>(performance.now());
+  const prevSelectedCountRef = React.useRef<number>(selectedRows.size);
+
+  React.useEffect(() => {
+    const renderEndTime = performance.now();
+    const renderDuration = renderEndTime - renderStartTimeRef.current;
+
+    if (selectedRows.size !== prevSelectedCountRef.current) {
+      console.log('[PERF] RENDER COMPLETE after selection change');
+      console.log('[PERF] Previous count:', prevSelectedCountRef.current, '-> New count:', selectedRows.size);
+      console.log('[PERF] Total render time:', renderDuration.toFixed(2), 'ms');
+      console.log('[PERF] Total entries:', entries.length);
+
+      prevSelectedCountRef.current = selectedRows.size;
+    }
+
+    renderStartTimeRef.current = performance.now();
+  }, [selectedRows.size, entries.length]);
+
+  // ============================================================================
   // DEVELOPER WARNINGS
   // ============================================================================
 
@@ -879,16 +903,34 @@ export default function TeeemTableView({
 
   // Row selection handlers
   const toggleRowSelection = useCallback((id: number | string) => {
+    const startTime = performance.now();
+    console.log('[PERF] toggleRowSelection START - Row ID:', id);
+
     setSelectedRows((prev) => {
+      const setStartTime = performance.now();
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
       } else {
         next.add(id);
       }
+      const setEndTime = performance.now();
+      console.log('[PERF] toggleRowSelection - Set operation:', (setEndTime - setStartTime).toFixed(2), 'ms');
+      console.log('[PERF] toggleRowSelection - Total selected:', next.size);
+      console.log('[PERF] toggleRowSelection - TOTAL:', (performance.now() - startTime).toFixed(2), 'ms');
       return next;
     });
   }, []);
+
+  // PERFORMANCE OPTIMIZATION: Memoize toggle callbacks per row ID
+  // This prevents creating new functions on every render, which breaks React.memo
+  const toggleCallbacksRef = React.useRef<Map<number | string, () => void>>(new Map());
+  const getToggleCallback = useCallback((id: number | string) => {
+    if (!toggleCallbacksRef.current.has(id)) {
+      toggleCallbacksRef.current.set(id, () => toggleRowSelection(id));
+    }
+    return toggleCallbacksRef.current.get(id)!;
+  }, [toggleRowSelection]);
 
   const toggleSelectAll = useCallback(() => {
     // In grouped view, select only visible/expanded rows
@@ -2696,7 +2738,7 @@ export default function TeeemTableView({
                               >
                                 <SelectCheckbox
                                   checked={selectedRows.has(row.id)}
-                                  onCheckedChange={() => toggleRowSelection(row.id)}
+                                  onCheckedChange={getToggleCallback(row.id)}
                                 />
                               </div>
                             ) : (
@@ -2812,7 +2854,7 @@ export default function TeeemTableView({
                 >
                   <SelectCheckbox
                     checked={selectedRows.has(row.id)}
-                    onCheckedChange={() => toggleRowSelection(row.id)}
+                    onCheckedChange={getToggleCallback(row.id)}
                   />
                 </div>
               ) : (
@@ -2934,7 +2976,7 @@ export default function TeeemTableView({
                       >
                         <SelectCheckbox
                           checked={selectedRows.has(row.id)}
-                          onCheckedChange={() => toggleRowSelection(row.id)}
+                          onCheckedChange={getToggleCallback(row.id)}
                         />
                       </div>
                     ) : (
@@ -2974,94 +3016,7 @@ export default function TeeemTableView({
 
     return (
       <div style={{ width: `${totalTableWidth}px` }}>
-        {/* Selection bar - only show when rows selected */}
-        {selectedRows.size > 0 && (
-          <div className="flex items-center gap-2 mb-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <div className="flex items-center">
-                  <Checkbox
-                    checked={
-                      visibleRows.length > 0 &&
-                      visibleRows.every(row => selectedRows.has(row.id))
-                    }
-                    onCheckedChange={toggleSelectAll}
-                  />
-                  <ChevronDown className="h-3 w-3 ml-1 text-muted-foreground" />
-                </div>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => setSelectedRows(new Set(filteredAndSortedEntries.map(r => r.id)))}>
-                  Select All ({filteredAndSortedEntries.length})
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    const visible = visibleRows;
-                    setSelectedRows(new Set(visible.map(r => r.id)));
-                  }}
-                  disabled={visibleRows.length === 0}
-                >
-                  Select Expanded ({visibleRows.length})
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setSelectedRows(new Set<string | number>())}>
-                  Clear Selection
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {/* Selection info and bulk actions */}
-            <span className="text-xs text-muted-foreground ml-auto">
-              {visibleRows.length} rows visible
-            </span>
-            <div className="h-4 w-px bg-border mx-2" />
-            {/* Bulk Update - column-based update modal */}
-            {onRowUpdate && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowBulkUpdateModal(true)}
-                className="h-7 px-2 text-xs"
-              >
-                <Pencil className="h-3 w-3 mr-1" />
-                Bulk Update
-              </Button>
-            )}
-            {/* Inline Edit - edit all selected rows inline like a spreadsheet */}
-            {onRowUpdate && !viewOnly && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => startMultiEditing(Array.from(selectedRows))}
-                className="h-7 px-2 text-xs"
-              >
-                <Pencil className="h-3 w-3 mr-1" />
-                Inline Edit
-              </Button>
-            )}
-            {/* Merge button - combine rows into one */}
-            {(onBulkMerge || (enableMerge !== false && foundationIdNumeric)) && !viewOnly && selectedRows.size >= 2 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleMergeClick(Array.from(selectedRows))}
-                className="h-7 px-2 text-xs"
-              >
-                <GitMerge className="h-3 w-3 mr-1" />
-                Merge
-              </Button>
-            )}
-            <div className="h-4 w-px bg-border mx-2" />
-            <span className="text-sm font-medium">{selectedRows.size} selected</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedRows(new Set<string | number>())}
-              className="h-7 px-2 text-xs"
-            >
-              Clear
-            </Button>
-          </div>
-        )}
+        {/* Selection controls moved to saved views row in toolbar (lines 3467-3560) */}
 
         {groupViewMode === "inline" ? (
           /* Inline mode (default) - groups as rows in table body */
@@ -3171,7 +3126,7 @@ export default function TeeemTableView({
                         >
                           <SelectCheckbox
                             checked={selectedRows.has(row.id)}
-                            onCheckedChange={() => toggleRowSelection(row.id)}
+                            onCheckedChange={getToggleCallback(row.id)}
                           />
                         </div>
                       ) : (
@@ -3460,57 +3415,156 @@ export default function TeeemTableView({
         </div>
       </div>
 
-      {/* Second row: Saved Views buttons - scrollable if overflow */}
+      {/* Second row: Saved Views OR Selection Controls (for grouped tables) */}
       {savedViews.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto mt-3 pb-2">
-          {/* Expand/Collapse all button - only show when grouped */}
-          {groupByColumn && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (collapsedGroups.size === 0) {
-                  collapseAllGroups();
-                } else {
-                  expandAllGroups();
-                }
-              }}
-              className="h-7 w-7 p-0 shrink-0"
-            >
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 transition-transform",
-                  collapsedGroups.size === 0 ? "rotate-0" : "rotate-180"
-                )}
-              />
-            </Button>
-          )}
-          {/* Show all views as individual buttons */}
-          {savedViews.map((view) => (
-            <TooltipProvider key={view.id}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={activeViewId === view.id ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => loadViewState(view)}
+          {/* When grouped table has selections, show selection controls here instead of saved views */}
+          {groupByColumn && selectedRows.size > 0 ? (
+            <>
+              {/* Expand/Collapse all button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (collapsedGroups.size === 0) {
+                    collapseAllGroups();
+                  } else {
+                    expandAllGroups();
+                  }
+                }}
+                className="h-7 w-7 p-0 shrink-0"
+              >
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform",
+                    collapsedGroups.size === 0 ? "rotate-0" : "rotate-180"
+                  )}
+                />
+              </Button>
+
+              {/* Selection dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="flex items-center cursor-pointer">
+                    <Checkbox
+                      checked={
+                        filteredAndSortedEntries.length > 0 &&
+                        filteredAndSortedEntries.every(row => selectedRows.has(row.id))
+                      }
+                      onCheckedChange={toggleSelectAll}
+                    />
+                    <ChevronDown className="h-3 w-3 ml-1 text-muted-foreground" />
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => setSelectedRows(new Set(filteredAndSortedEntries.map(r => r.id)))}>
+                    Select All ({filteredAndSortedEntries.length})
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setSelectedRows(new Set<string | number>())}>
+                    Clear Selection
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Bulk action buttons */}
+              {onRowUpdate && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBulkUpdateModal(true)}
+                  className="h-7 px-2 text-xs"
+                >
+                  <Pencil className="h-3 w-3 mr-1" />
+                  Bulk Update
+                </Button>
+              )}
+              {onRowUpdate && !viewOnly && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => startMultiEditing(Array.from(selectedRows))}
+                  className="h-7 px-2 text-xs"
+                >
+                  <Pencil className="h-3 w-3 mr-1" />
+                  Inline Edit
+                </Button>
+              )}
+              {(onBulkMerge || (enableMerge !== false && foundationIdNumeric)) && !viewOnly && selectedRows.size >= 2 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleMergeClick(Array.from(selectedRows))}
+                  className="h-7 px-2 text-xs"
+                >
+                  <GitMerge className="h-3 w-3 mr-1" />
+                  Merge
+                </Button>
+              )}
+
+              {/* Selection count and clear */}
+              <span className="text-sm font-medium ml-auto">{selectedRows.size} selected</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedRows(new Set<string | number>())}
+                className="h-7 px-2 text-xs"
+              >
+                Clear
+              </Button>
+            </>
+          ) : (
+            <>
+              {/* Expand/Collapse all button - only show when grouped */}
+              {groupByColumn && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (collapsedGroups.size === 0) {
+                      collapseAllGroups();
+                    } else {
+                      expandAllGroups();
+                    }
+                  }}
+                  className="h-7 w-7 p-0 shrink-0"
+                >
+                  <ChevronDown
                     className={cn(
-                      "shrink-0 max-w-[140px]",
-                      view.is_global && "border-blue-300 dark:border-blue-700"
+                      "h-4 w-4 transition-transform",
+                      collapsedGroups.size === 0 ? "rotate-0" : "rotate-180"
                     )}
-                  >
-                    {view.is_global && (
-                      <Globe className="h-3 w-3 mr-1 flex-shrink-0" />
-                    )}
-                    <span className="truncate">{view.name}</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {view.is_global ? `Global view: ${view.name}` : `Personal view: ${view.name}`}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ))}
+                  />
+                </Button>
+              )}
+              {/* Show all views as individual buttons */}
+              {savedViews.map((view) => (
+                <TooltipProvider key={view.id}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={activeViewId === view.id ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => loadViewState(view)}
+                        className={cn(
+                          "shrink-0 max-w-[140px]",
+                          view.is_global && "border-blue-300 dark:border-blue-700"
+                        )}
+                      >
+                        {view.is_global && (
+                          <Globe className="h-3 w-3 mr-1 flex-shrink-0" />
+                        )}
+                        <span className="truncate">{view.name}</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {view.is_global ? `Global view: ${view.name}` : `Personal view: ${view.name}`}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ))}
+            </>
+          )}
         </div>
       )}
 
