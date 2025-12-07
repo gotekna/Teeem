@@ -2595,10 +2595,15 @@ module Api
           end
 
           # Get parent companies this email was found communicating with
-          # BUT only show these if:
-          # 1. We didn't find a domain company (they work FOR the domain company, not these)
-          # 2. It's not a personal email domain (gmail users aren't employees just because they emailed a company)
-          parent_companies = (domain_company || is_personal_domain) ? [] : email_to_parent_companies[email_addr].to_a
+          # These are companies the person has communicated with (like suppliers/clients)
+          # ONLY hide these for personal email domains (gmail users aren't employees just because they emailed a company)
+          # But DO show them when we have a domain company - they're still valid relationship options
+          parent_companies = is_personal_domain ? [] : email_to_parent_companies[email_addr].to_a
+
+          # Filter out the domain company from parent companies to avoid duplication
+          if domain_company
+            parent_companies = parent_companies.reject { |pc| pc[:id] == domain_company.id }
+          end
 
           # Extract phone numbers from email signatures
           phones = extract_phones_from_signatures(email_bodies[email_addr])
