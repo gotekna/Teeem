@@ -3965,9 +3965,10 @@ export default function TeeemTableView({
       )}
 
       {/* Table - scrollable container with max height so scrollbar stays visible */}
+      {/* DataHealthWidget has max-h-[40vh] so table gets remaining ~60vh minus toolbar/footer */}
       <div
         ref={tableContainerRef}
-        className="flex-1 min-h-[360px] max-h-[calc(100vh-300px)] w-full overflow-auto relative border rounded-md"
+        className="flex-1 min-h-[200px] max-h-[calc(100vh-350px)] w-full overflow-auto relative border rounded-md"
       >
         {groupedEntries ? renderGroupedTable() : renderFlatTable()}
       </div>

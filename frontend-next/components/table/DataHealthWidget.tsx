@@ -179,7 +179,7 @@ export function DataHealthWidget({
   const checksWithIssues = allChecks.filter((c) => c.count > 0);
 
   return (
-    <div className="bg-background border rounded-lg overflow-hidden">
+    <div className="bg-background border rounded-lg overflow-hidden max-h-[40vh] overflow-y-auto flex-shrink-0">
       {/* Header */}
       <Collapsible open={expanded} onOpenChange={setExpanded}>
         <div className="px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors">

@@ -139,13 +139,27 @@ function ExtractEmployeesContent() {
       // Initialize selections
       const defaultSelections: Record<number, SelectionState> = {};
       result.preview.forEach((item: PreviewItem, idx: number) => {
-        const firstContact = item.matching_contacts[0];
+        // Select contact to keep: prioritize the one with Xero data (invoices)
+        // to preserve accounting connections during merge
+        const primaryContact = item.matching_contacts.length > 0
+          ? item.matching_contacts.reduce((best, current) => {
+              // Prefer contact with invoices
+              const bestHasInvoices = (best.xero_invoice_count ?? 0) > 0;
+              const currentHasInvoices = (current.xero_invoice_count ?? 0) > 0;
+              if (currentHasInvoices && !bestHasInvoices) return current;
+              if (bestHasInvoices && !currentHasInvoices) return best;
+              // If both or neither have invoices, prefer the one with more invoices
+              if ((current.xero_invoice_count ?? 0) > (best.xero_invoice_count ?? 0)) return current;
+              // Otherwise keep first one
+              return best;
+            }, item.matching_contacts[0])
+          : undefined;
         const hasNoMatches = item.matching_contacts.length === 0;
 
         const parentLinks: Record<number, boolean> = {};
         item.parent_companies.forEach((pc) => {
           if (pc.id) {
-            const existingRel = firstContact?.relationships_to_parent_companies.find(
+            const existingRel = primaryContact?.relationships_to_parent_companies.find(
               (r) => r.company_id === pc.id
             );
             parentLinks[pc.id] = !existingRel?.exists;
@@ -153,34 +167,35 @@ function ExtractEmployeesContent() {
         });
 
         // If multiple contacts found, suggest merging them (they're likely duplicates)
+        // Merge all OTHER contacts into the primary (the one with Xero data)
         const otherContactIds = item.matching_contacts
-          .filter((c) => c.id !== firstContact?.id)
+          .filter((c) => c.id !== primaryContact?.id)
           .map((c) => c.id);
 
         // Don't suggest employee relationships for customers - they are clients, not employees
         // Check xero_contact_type or fallback to xero_invoice_count (if they have invoices, they're likely a customer)
-        const isCustomer = firstContact?.xero_contact_type === "CUSTOMER" ||
-          (firstContact?.xero_invoice_count && firstContact.xero_invoice_count > 0);
+        const isCustomer = primaryContact?.xero_contact_type === "CUSTOMER" ||
+          (primaryContact?.xero_invoice_count && primaryContact.xero_invoice_count > 0);
 
         // Perfect match = single contact match + employer already linked + email matches (case-insensitive)
         // For perfect matches, we auto-add mobile without asking
         const isPerfectMatch = !hasNoMatches &&
           item.matching_contacts.length === 1 &&
-          firstContact?.relationship_to_domain_company_exists &&
-          (firstContact?.email?.toLowerCase() === item.email.toLowerCase() || !firstContact?.email);
+          primaryContact?.relationship_to_domain_company_exists &&
+          (primaryContact?.email?.toLowerCase() === item.email.toLowerCase() || !primaryContact?.email);
 
         defaultSelections[idx] = {
           selected: true,
-          selectedContactId: firstContact?.id || null,
+          selectedContactId: primaryContact?.id || null,
           createNewContact: hasNoMatches, // Create new if no matches found
           newContactName: item.person_name_from_email, // Default to extracted name
           addEmail: true, // Always add email for new contacts
           addMobile: !!item.phones?.mobile, // Auto-add mobile if found
-          addDirect: !!item.phones?.direct && !firstContact?.office_phone, // Add direct if found and contact doesn't have one
+          addDirect: !!(item.phones?.direct && !primaryContact?.office_phone), // Add direct if found and contact doesn't have one
           addOfficeToCompany: !!(item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone), // Add office to company if found and company doesn't have one
           isPerfectMatch: isPerfectMatch,
           // Default to YES for new contacts (they're employees of the domain company)
-          linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !firstContact?.relationship_to_domain_company_exists),
+          linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !!primaryContact && !primaryContact.relationship_to_domain_company_exists),
           parentCompanyLinks: hasNoMatches ? {} : (isCustomer ? {} : parentLinks),
           mergeContacts: otherContactIds.length > 0, // Default to merge if duplicates found
           contactsToMerge: otherContactIds,
@@ -241,17 +256,31 @@ function ExtractEmployeesContent() {
       );
       setPreviewData(result.preview || []);
 
-      // Initialize selections - select first matching contact by default
+      // Initialize selections - prioritize contact with Xero data when merging
       const defaultSelections: Record<number, SelectionState> = {};
       result.preview.forEach((item: PreviewItem, idx: number) => {
-        const firstContact = item.matching_contacts[0];
+        // Select contact to keep: prioritize the one with Xero data (invoices)
+        // to preserve accounting connections during merge
+        const primaryContact = item.matching_contacts.length > 0
+          ? item.matching_contacts.reduce((best, current) => {
+              // Prefer contact with invoices
+              const bestHasInvoices = (best.xero_invoice_count ?? 0) > 0;
+              const currentHasInvoices = (current.xero_invoice_count ?? 0) > 0;
+              if (currentHasInvoices && !bestHasInvoices) return current;
+              if (bestHasInvoices && !currentHasInvoices) return best;
+              // If both or neither have invoices, prefer the one with more invoices
+              if ((current.xero_invoice_count ?? 0) > (best.xero_invoice_count ?? 0)) return current;
+              // Otherwise keep first one
+              return best;
+            }, item.matching_contacts[0])
+          : undefined;
         const hasNoMatches = item.matching_contacts.length === 0;
 
         const parentLinks: Record<number, boolean> = {};
         item.parent_companies.forEach((pc) => {
           if (pc.id) {
             // Check if relationship already exists for this contact
-            const existingRel = firstContact?.relationships_to_parent_companies.find(
+            const existingRel = primaryContact?.relationships_to_parent_companies.find(
               (r) => r.company_id === pc.id
             );
             parentLinks[pc.id] = !existingRel?.exists; // Default ON if doesn't exist
@@ -259,34 +288,35 @@ function ExtractEmployeesContent() {
         });
 
         // If multiple contacts found, suggest merging them (they're likely duplicates)
+        // Merge all OTHER contacts into the primary (the one with Xero data)
         const otherContactIds = item.matching_contacts
-          .filter((c) => c.id !== firstContact?.id)
+          .filter((c) => c.id !== primaryContact?.id)
           .map((c) => c.id);
 
         // Don't suggest employee relationships for customers - they are clients, not employees
         // Check xero_contact_type or fallback to xero_invoice_count (if they have invoices, they're likely a customer)
-        const isCustomer = firstContact?.xero_contact_type === "CUSTOMER" ||
-          (firstContact?.xero_invoice_count && firstContact.xero_invoice_count > 0);
+        const isCustomer = primaryContact?.xero_contact_type === "CUSTOMER" ||
+          (primaryContact?.xero_invoice_count && primaryContact.xero_invoice_count > 0);
 
         // Perfect match = single contact match + employer already linked + email matches (case-insensitive)
         // For perfect matches, we auto-add mobile without asking
         const isPerfectMatch = !hasNoMatches &&
           item.matching_contacts.length === 1 &&
-          firstContact?.relationship_to_domain_company_exists &&
-          (firstContact?.email?.toLowerCase() === item.email.toLowerCase() || !firstContact?.email);
+          primaryContact?.relationship_to_domain_company_exists &&
+          (primaryContact?.email?.toLowerCase() === item.email.toLowerCase() || !primaryContact?.email);
 
         defaultSelections[idx] = {
           selected: true,
-          selectedContactId: firstContact?.id || null,
+          selectedContactId: primaryContact?.id || null,
           createNewContact: hasNoMatches, // Create new if no matches found
           newContactName: item.person_name_from_email, // Default to extracted name
           addEmail: true, // Always add email
           addMobile: !!item.phones?.mobile, // Auto-add mobile if found
-          addDirect: !!item.phones?.direct && !firstContact?.office_phone, // Add direct if found and contact doesn't have one
+          addDirect: !!(item.phones?.direct && !primaryContact?.office_phone), // Add direct if found and contact doesn't have one
           addOfficeToCompany: !!(item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone), // Add office to company if found and company doesn't have one
           isPerfectMatch: isPerfectMatch,
           // Default to YES for new contacts (they're employees of the domain company)
-          linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !firstContact?.relationship_to_domain_company_exists),
+          linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !!primaryContact && !primaryContact.relationship_to_domain_company_exists),
           parentCompanyLinks: hasNoMatches ? {} : (isCustomer ? {} : parentLinks),
           mergeContacts: otherContactIds.length > 0, // Default to merge if duplicates found
           contactsToMerge: otherContactIds,
@@ -1155,8 +1185,8 @@ function ExtractEmployeesContent() {
                               </div>
                             </div>
 
-                            {/* Relationships to Create - only show if there's a domain company OR parent companies */}
-                            {(item.domain_company || item.parent_companies.length > 0) && (
+                            {/* Relationships to Create - only show if there's a domain company OR parent companies (and not a customer) */}
+                            {(item.domain_company || (item.parent_companies.length > 0 && !(selectedContact?.xero_contact_type === "CUSTOMER" || (selectedContact?.xero_invoice_count && selectedContact.xero_invoice_count > 0)))) && (
                             <div className="space-y-3">
                               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                                 Create Relationships
@@ -1237,9 +1267,12 @@ function ExtractEmployeesContent() {
                               </div>
                               )}
 
-                              {/* Parent Company Relationships - only show if person doesn't already have an employer (domain company) */}
-                              {/* If they work for SV Partners (domain_company), don't suggest Tekna as employer just because they communicated */}
-                              {(!item.domain_company || !item.domain_company.exists) && item.parent_companies.map((pc) => {
+                              {/* Parent Company Relationships - only show if:
+                                  1. Person doesn't already have an employer (domain company)
+                                  2. Selected contact is NOT a customer (customers are clients, not employees) */}
+                              {(!item.domain_company || !item.domain_company.exists) &&
+                               !(selectedContact?.xero_contact_type === "CUSTOMER" || (selectedContact?.xero_invoice_count && selectedContact.xero_invoice_count > 0)) &&
+                               item.parent_companies.map((pc) => {
                                 const existingRel = selectedContact?.relationships_to_parent_companies.find(
                                   (r) => r.company_id === pc.id
                                 );
