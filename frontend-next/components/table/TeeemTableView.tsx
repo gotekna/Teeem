@@ -90,8 +90,6 @@ import {
   Paperclip,
   CalendarIcon,
   GitMerge,
-  ChevronsDownUp,
-  ChevronsUpDown,
   UserPlus,
 } from "lucide-react";
 
@@ -2976,30 +2974,9 @@ export default function TeeemTableView({
 
     return (
       <div style={{ width: `${totalTableWidth}px` }}>
-        {/* Expand/Collapse toggle - always visible when grouped */}
-        <div className="flex items-center gap-2 mb-3">
-          {/* Expand/Collapse all button - just icon, no text */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              if (collapsedGroups.size === 0) {
-                collapseAllGroups();
-              } else {
-                expandAllGroups();
-              }
-            }}
-            className="h-7 w-7 p-0"
-          >
-            {collapsedGroups.size === 0 ? (
-              <ChevronsDownUp className="h-4 w-4" />
-            ) : (
-              <ChevronsUpDown className="h-4 w-4" />
-            )}
-          </Button>
-
-          {/* Selection dropdown - only show when rows selected */}
-          {selectedRows.size > 0 && (
+        {/* Selection bar - only show when rows selected */}
+        {selectedRows.size > 0 && (
+          <div className="flex items-center gap-2 mb-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <div className="flex items-center">
@@ -3032,8 +3009,6 @@ export default function TeeemTableView({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
-
             {/* Selection info and bulk actions */}
             <span className="text-xs text-muted-foreground ml-auto">
               {visibleRows.length} rows visible
