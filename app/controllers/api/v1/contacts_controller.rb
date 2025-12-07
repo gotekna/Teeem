@@ -2315,41 +2315,83 @@ module Api
         end
       end
 
-      # POST /api/v1/contacts/extract_employees
-      # Extract employees from contacts with accounts@ email addresses
-      def extract_employees
-        employments_created = 0
-        companies_created = 0
-        employees_processed = []
-        employers_found = []
+      # GET /api/v1/contacts/preview_employee_extraction
+      # Preview what would be extracted from specified email addresses
+      def preview_employee_extraction
+        email_patterns = params[:email_patterns] || []
 
-        # Find person contacts with accounts@ email
-        person_accounts = Contact.where('email ILIKE ?', 'accounts@%')
+        # Build query for email patterns
+        conditions = email_patterns.map { |pattern| "email ILIKE ?" }.join(' OR ')
+        person_accounts = Contact.where(conditions, *email_patterns)
                                 .where(entity_type: 'person')
                                 .where.not(full_name: ['Accounts Team', 'accounts team', '', nil])
 
-        person_accounts.each do |person|
-          # Extract company name from email domain
+        preview_data = person_accounts.map do |person|
           domain = person.email.split('@').last
           company_name = domain.split('.').first.titleize
 
-          # Find or create company contact
-          company = Contact.find_by(
+          # Check if company exists
+          existing_company = Contact.find_by(
             full_name: company_name,
             entity_type: ['company', 'trust', 'sole_trader']
           )
 
+          # Check if employment already exists
+          existing_employment = existing_company ?
+            ContactEmployment.find_by(employee_id: person.id, employer_id: existing_company.id) : nil
+
+          {
+            employee_id: person.id,
+            employee_name: person.full_name,
+            employee_email: person.email,
+            employee_phone: person.mobile_phone,
+            company_name: company_name,
+            company_id: existing_company&.id,
+            company_exists: existing_company.present?,
+            employment_exists: existing_employment.present?,
+            would_create_company: existing_company.nil?,
+            would_create_employment: existing_employment.nil?,
+            role: 'Accounts'
+          }
+        end
+
+        render json: {
+          success: true,
+          preview: preview_data,
+          total_found: preview_data.length,
+          companies_to_create: preview_data.count { |p| p[:would_create_company] },
+          employments_to_create: preview_data.count { |p| p[:would_create_employment] }
+        }
+      rescue => e
+        Rails.logger.error("Preview employee extraction error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contacts/extract_employees
+      # Execute employee extraction based on confirmation data
+      def extract_employees
+        confirmed_extractions = params[:extractions] || []
+        employments_created = 0
+        companies_created = 0
+
+        confirmed_extractions.each do |extraction|
+          person = Contact.find_by(id: extraction[:employee_id])
+          next unless person
+
+          # Find or create company
+          company = Contact.find_by(id: extraction[:company_id]) if extraction[:company_id]
+
           unless company
             company = Contact.create!(
-              full_name: company_name,
-              company_name_or_trust: company_name,
+              full_name: extraction[:company_name],
+              company_name_or_trust: extraction[:company_name],
               entity_type: 'company',
               is_active: true
             )
             companies_created += 1
           end
 
-          # Create employment record (with duplicate checking)
+          # Create employment record
           employment = ContactEmployment.find_or_initialize_by(
             employee_id: person.id,
             employer_id: company.id
@@ -2357,26 +2399,21 @@ module Api
 
           if employment.new_record?
             employment.assign_attributes(
-              role: 'Accounts',
+              role: extraction[:role] || 'Accounts',
               work_email: person.email,
               work_phone: person.mobile_phone,
               is_active: true,
-              is_primary: person.employers.empty? # Primary if this is their first employer
+              is_primary: person.employers.empty?
             )
             employment.save!
             employments_created += 1
           end
-
-          employees_processed << person.id unless employees_processed.include?(person.id)
-          employers_found << company.id unless employers_found.include?(company.id)
         end
 
         render json: {
           success: true,
           employments_created: employments_created,
-          companies_created: companies_created,
-          total_employees: employees_processed.length,
-          total_employers: employers_found.length
+          companies_created: companies_created
         }
       rescue => e
         Rails.logger.error("Extract employees error: #{e.message}")
