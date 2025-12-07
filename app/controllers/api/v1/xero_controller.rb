@@ -770,16 +770,7 @@ module Api
       # Returns all TEEEM contacts with their Xero sync status
       def contacts_sync_list
         begin
-          contacts = Contact.order(display_name: :asc).select(
-            :id,
-            :display_name,
-            :email,
-            :xero_id,
-            :last_synced_at,
-            :sync_with_xero,
-            :xero_sync_error,
-            :contact_type
-          )
+          contacts = Contact.includes(:primary_company).all
 
           contacts_data = contacts.map do |contact|
             {
@@ -794,7 +785,7 @@ module Api
               sync_error: contact.xero_sync_error,
               has_error: contact.xero_sync_error.present?
             }
-          end
+          end.sort_by { |c| c[:display_name]&.downcase || "" }
 
           render json: {
             success: true,
