@@ -578,6 +578,8 @@ class XeroApiClient
   def make_request(method, endpoint, data = {}, options = {})
     # Support specifying a specific tenant_id
     tenant_id = options[:tenant_id]
+    attempts = 0
+    max_attempts = 2  # Initial attempt + 1 retry after 401
 
     # First try to find a CompanyXeroConnection for this tenant_id (per-company connections)
     # Then fall back to XeroCredential (global job/invoice connections)
@@ -626,32 +628,51 @@ class XeroApiClient
 
     url = "#{BASE_URL}/#{endpoint}"
 
-    begin
-      headers = {
-        "Authorization" => "Bearer #{credential.access_token}",
-        "Xero-tenant-id" => request_tenant_id,
-        "Content-Type" => "application/json",
-        "Accept" => "application/json"
-      }
+    loop do
+      attempts += 1
 
-      response = case method
-      when :get
-        HTTParty.get(url, headers: headers, query: data, timeout: 30)
-      when :post
-        HTTParty.post(url, headers: headers, body: data.to_json, timeout: 30)
-      when :put
-        HTTParty.put(url, headers: headers, body: data.to_json, timeout: 30)
-      else
-        raise ArgumentError, "Unsupported HTTP method: #{method}"
+      begin
+        headers = {
+          "Authorization" => "Bearer #{credential.access_token}",
+          "Xero-tenant-id" => request_tenant_id,
+          "Content-Type" => "application/json",
+          "Accept" => "application/json"
+        }
+
+        response = case method
+        when :get
+          HTTParty.get(url, headers: headers, query: data, timeout: 30)
+        when :post
+          HTTParty.post(url, headers: headers, body: data.to_json, timeout: 30)
+        when :put
+          HTTParty.put(url, headers: headers, body: data.to_json, timeout: 30)
+        else
+          raise ArgumentError, "Unsupported HTTP method: #{method}"
+        end
+
+        # Handle 401 with retry
+        if response.code == 401 && attempts < max_attempts
+          Rails.logger.info("[Xero] Got 401, attempting token refresh and retry...")
+          if credential.is_a?(CompanyXeroConnection)
+            credential.refresh_tokens!
+          else
+            refresh_access_token_for(credential)
+          end
+          credential.reload
+          next  # Retry the loop
+        end
+
+        return handle_response(response)
+      rescue AuthenticationError => e
+        # Re-raise auth errors without retry (already tried in response handling)
+        raise e
+      rescue Net::ReadTimeout => e
+        Rails.logger.error("Xero API timeout: #{e.message}")
+        raise ApiError, "Request timeout"
+      rescue StandardError => e
+        Rails.logger.error("Xero API error: #{e.message}")
+        raise ApiError, e.message
       end
-
-      handle_response(response)
-    rescue Net::ReadTimeout => e
-      Rails.logger.error("Xero API timeout: #{e.message}")
-      raise ApiError, "Request timeout"
-    rescue StandardError => e
-      Rails.logger.error("Xero API error: #{e.message}")
-      raise ApiError, e.message
     end
   end
 
