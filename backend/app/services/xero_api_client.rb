@@ -28,7 +28,7 @@ class XeroApiClient
     client = oauth_client
     client.auth_code.authorize_url(
       redirect_uri: @redirect_uri,
-      scope: "offline_access accounting.transactions accounting.contacts accounting.settings"
+      scope: "offline_access accounting.transactions accounting.contacts accounting.settings accounting.attachments.read"
     )
   end
 
@@ -38,7 +38,7 @@ class XeroApiClient
     client = oauth_client
     client.auth_code.authorize_url(
       redirect_uri: @redirect_uri,
-      scope: "offline_access accounting.transactions accounting.contacts accounting.settings",
+      scope: "offline_access accounting.transactions accounting.contacts accounting.settings accounting.attachments.read",
       state: "company_#{company_id}"
     )
   end
