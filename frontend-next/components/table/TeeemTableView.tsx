@@ -3463,6 +3463,28 @@ export default function TeeemTableView({
       {/* Second row: Saved Views buttons - scrollable if overflow */}
       {savedViews.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto mt-3 pb-2">
+          {/* Expand/Collapse all button - only show when grouped */}
+          {groupByColumn && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (collapsedGroups.size === 0) {
+                  collapseAllGroups();
+                } else {
+                  expandAllGroups();
+                }
+              }}
+              className="h-7 w-7 p-0 shrink-0"
+            >
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  collapsedGroups.size === 0 ? "rotate-0" : "rotate-180"
+                )}
+              />
+            </Button>
+          )}
           {/* Show all views as individual buttons */}
           {savedViews.map((view) => (
             <TooltipProvider key={view.id}>

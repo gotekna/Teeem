@@ -118,13 +118,26 @@ When a table has `foundationIdNumeric` set, it automatically gets:
 
 ### Standard Toolbar Layout
 
+**Row 1 - Main Toolbar:**
 ```
-[+ Add]  [Search...]  [View Buttons]  [Custom Actions]  [Filters]  [⋮ Menu]
-   ↑          ↑            ↑               ↑               ↑          ↑
-leftActions  always    saved views    customActions    auto when   dropdown
-                                                      foundation
-                                                        ID set
+[+ Add]  [Search...]  [View: Inline/Panel]  [Custom Actions]  [Filters]  [⋮ Menu]
+   ↑          ↑              ↑                     ↑               ↑          ↑
+leftActions  always    grouped only         customActions    auto when   dropdown
+                                                              foundation
+                                                                ID set
 ```
+
+**Row 2 - Saved Views (when present):**
+```
+[⌄ Expand/Collapse]  [Type]  [XERO sorting]  [Person]  ...other saved views...
+         ↑              ↑          ↑             ↑
+    grouped only   saved view  saved view   saved view
+```
+
+**Notes:**
+- **Expand/Collapse button**: Single rotating chevron (⌄), only visible when table is grouped, appears left of saved view buttons
+- **View toggle**: "Inline/Panel" buttons, only visible when table is grouped, appears in main toolbar after search
+- **Saved views**: Second row only appears when saved views exist
 
 ### Minimal Implementation
 
@@ -220,15 +233,82 @@ Some tables display data where users cannot add, edit, or delete records. Use th
 
 ---
 
+## Grouped Tables
+
+### Grouping Behavior
+
+When a table is grouped (via GlobalViewsManager or `initialGroupByColumn` prop):
+
+**Visual Changes:**
+- Second toolbar row appears with Expand/Collapse chevron (if saved views exist)
+- View toggle appears in main toolbar (Inline/Panel modes)
+- Table header shows NO selection checkbox column
+- Group rows display with collapse/expand chevrons on the left
+
+**Selection in Grouped Tables:**
+- Selection bar appears ABOVE the table (not in header)
+- Selection bar includes:
+  - Dropdown with "Select All", "Select Expanded", "Clear Selection"
+  - "X rows visible" count
+  - Bulk action buttons (Bulk Update, Inline Edit, Merge)
+  - "X selected" count
+  - Clear button
+- Selection bar only visible when rows are selected
+
+**Expand/Collapse:**
+- **Single chevron button** (⌄) rotates:
+  - Points DOWN when all groups expanded
+  - Points UP when any groups collapsed
+- Located left of saved view buttons in second toolbar row
+- Only visible when table is grouped
+- Uses `requestAnimationFrame` for smooth performance
+
+**Performance Optimizations:**
+- Row selections batched via `requestAnimationFrame`
+- Reduces re-renders during multi-select
+- `SelectCheckbox` component memoized
+- Initial row limit: 100 rows
+
+---
+
+## Table Styling Standards
+
+### Cell Spacing
+```
+TableHead: px-1 (4px horizontal padding)
+TableCell: px-1 py-0.5 (4px horizontal, 2px vertical)
+```
+
+**Rationale:** Compact spacing maximizes data density while maintaining readability.
+
+### Typography
+- Cell text: `text-[11px]` (11px font size)
+- Monospace values: Font mono for codes, IDs, technical values
+- Date format: DD/MM/YYYY (Australian standard)
+
+### Colors
+- **System columns** (id, created_at, updated_at): `hsl(47, 100%, 96%)` (light yellow tint)
+- **Selection highlight**: Default theme accent
+- **Group rows**: Muted background with bold text
+
+---
+
 ## Code Locations (Must Match This Spec)
 
 | What | File | Must Match |
 |------|------|------------|
+| **Column Types & Validation** |
 | SQL Types | `backend/app/models/column.rb` → `COLUMN_SQL_TYPE_MAP` | Section: The 31 Column Types |
 | Validation | `backend/app/controllers/api/v1/column_types_controller.rb` | Section: The 31 Column Types |
 | Categories | `column_types_controller.rb` → `categorize_column_type()` | Section headers above |
 | Frontend Cache | `frontend-next/lib/column-types.ts` | Generated from API |
 | System Columns | `TeeemTableView.tsx` → `SYSTEM_GENERATED_TYPES` | Section: System-Generated |
+| **UI & Styling** |
+| Cell Spacing | `frontend-next/components/ui/table.tsx` → TableHead, TableCell | Section: Table Styling Standards |
+| Toolbar Layout | `frontend-next/components/table/TeeemTableView.tsx` (lines 3260-3520) | Section: Standard Toolbar Layout |
+| Grouped Tables | `frontend-next/components/table/TeeemTableView.tsx` → renderGroupedTable | Section: Grouped Tables |
+| Selection Bar | `frontend-next/components/table/TeeemTableView.tsx` (lines 2979-3088) | Section: Selection in Grouped Tables |
+| Expand/Collapse | `frontend-next/components/table/TeeemTableView.tsx` (lines 3466-3487) | Section: Expand/Collapse |
 
 **Architecture Note (2025-12-06):**
 

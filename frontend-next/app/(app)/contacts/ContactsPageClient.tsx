@@ -192,7 +192,7 @@ export default function ContactsPageClient({
     );
   }
 
-  // Left actions - Add Contact button and Get Info from Web
+  // Left actions - Add Contact button
   const leftActions = (
     <div className="flex gap-2">
       <Button asChild>
@@ -213,14 +213,6 @@ export default function ContactsPageClient({
           <p className="text-sm text-muted-foreground mt-1">
             {records.length.toLocaleString()} contacts
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button asChild>
-            <Link href="/contacts/new">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Contact
-            </Link>
-          </Button>
         </div>
       </div>
 
