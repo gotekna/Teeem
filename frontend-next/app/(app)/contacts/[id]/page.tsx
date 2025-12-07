@@ -1956,6 +1956,7 @@ export default function ContactDetailPage() {
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Auto-save on blur (debounced to avoid saving while user tabs between fields)
+  // Note: We always attempt to save - handleSave will check if there's anything to save
   const handleAutoSave = useCallback(() => {
     // Clear any existing timeout
     if (autoSaveTimeoutRef.current) {
@@ -1963,11 +1964,11 @@ export default function ContactDetailPage() {
     }
     // Set a short delay to allow user to tab to another field without triggering save
     autoSaveTimeoutRef.current = setTimeout(() => {
-      if (hasChanges && !saving) {
+      if (!saving) {
         handleSave();
       }
     }, 300);
-  }, [hasChanges, saving]);
+  }, [saving]);
 
   // Cleanup timeout on unmount
   useEffect(() => {

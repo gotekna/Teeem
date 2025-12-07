@@ -475,6 +475,11 @@ export default function XeroIntegrationPage() {
             </CardContent>
           </Card>
 
+          {/* PDF Sync Status - Above Health Check */}
+          {status?.connected && (
+            <XeroPdfSyncStatus />
+          )}
+
           {/* Validation Tests */}
           {status?.connected && (
             <Card>
@@ -584,11 +589,6 @@ export default function XeroIntegrationPage() {
                 )}
               </CardContent>
             </Card>
-          )}
-
-          {/* PDF Sync Status */}
-          {status?.connected && (
-            <XeroPdfSyncStatus />
           )}
 
           {/* Connected Organizations */}
