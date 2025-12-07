@@ -462,13 +462,21 @@ interface RelationshipsResponse {
 
 // Relationship types available for company relationships
 const COMPANY_RELATIONSHIP_TYPES: Option[] = [
+  // Employment
   { value: "employee_of", label: "Employee" },
   { value: "contractor_for", label: "Contractor" },
+  // Company roles
   { value: "director_of", label: "Director" },
   { value: "shareholder_of", label: "Shareholder" },
   { value: "authorized_signatory_of", label: "Authorized Signatory" },
   { value: "beneficial_owner_of", label: "Beneficial Owner" },
   { value: "partner_in", label: "Partner" },
+  // Trust roles
+  { value: "trustee_of", label: "Trustee" },
+  { value: "beneficiary_of", label: "Beneficiary" },
+  { value: "appointor_of", label: "Appointor" },
+  // Ownership
+  { value: "owner_of", label: "Owner" },
 ];
 
 // Sortable Employee Item Component
@@ -1063,9 +1071,10 @@ export default function ContactDetailPage() {
             if (!rolesMap[employeeId]) {
               rolesMap[employeeId] = [];
             }
-            // Only include company-related roles
+            // Only include company-related roles (must match COMPANY_RELATIONSHIP_TYPES)
             if (['employee_of', 'director_of', 'shareholder_of', 'contractor_for', 'partner_in',
-                 'authorized_signatory_of', 'beneficial_owner_of'].includes(rel.relationship_type)) {
+                 'authorized_signatory_of', 'beneficial_owner_of', 'trustee_of', 'beneficiary_of',
+                 'appointor_of', 'owner_of'].includes(rel.relationship_type)) {
               rolesMap[employeeId].push(rel.relationship_type);
             }
           });
