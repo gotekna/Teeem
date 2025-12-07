@@ -145,9 +145,14 @@ class Contact < ApplicationRecord
 
   # Entity-type specific name validations
   validate :validate_name_fields_for_entity_type
+  validate :validate_name_casing          # Block ALL CAPS and lowercase names
+  validate :validate_no_email_as_name     # Block email addresses used as names
+  validate :validate_team_contact_company # Team contacts must have a company
 
   # Callbacks
   before_validation :clear_roles_if_not_person  # Must run before validations
+  before_validation :auto_fix_name_casing       # Auto-fix ALL CAPS and lowercase names
+  before_validation :auto_fix_website_url       # Auto-fix website URLs without protocol
   before_save :update_xero_synced_status
   before_save :generate_full_name
   before_save :sync_company_name_or_trust
@@ -656,6 +661,49 @@ class Contact < ApplicationRecord
     end
   end
 
+  # Block ALL CAPS and all lowercase names for person contacts
+  # Note: auto_fix_name_casing runs before validation to auto-correct
+  # This validation only triggers if auto-fix couldn't run (e.g., Xero sync)
+  def validate_name_casing
+    return unless entity_type == "person"
+
+    # Check first_name (skip single letters - they're fine as caps)
+    if first_name.present? && first_name.length > 1
+      if first_name == first_name.upcase && first_name != first_name.downcase
+        errors.add(:first_name, "cannot be ALL CAPS. Use Title Case (e.g., 'John' not 'JOHN')")
+      elsif first_name == first_name.downcase && first_name =~ /[a-z]/
+        errors.add(:first_name, "cannot be all lowercase. Use Title Case (e.g., 'John' not 'john')")
+      end
+    end
+
+    # Check last_name (skip single letters)
+    if last_name.present? && last_name.length > 1
+      if last_name == last_name.upcase && last_name != last_name.downcase
+        errors.add(:last_name, "cannot be ALL CAPS. Use Title Case (e.g., 'Smith' not 'SMITH')")
+      elsif last_name == last_name.downcase && last_name =~ /[a-z]/
+        errors.add(:last_name, "cannot be all lowercase. Use Title Case (e.g., 'Smith' not 'smith')")
+      end
+    end
+  end
+
+  # Block email addresses used as first_name or last_name
+  def validate_no_email_as_name
+    if first_name.present? && first_name.include?("@")
+      errors.add(:first_name, "cannot be an email address. Use the person's actual first name.")
+    end
+
+    if last_name.present? && last_name.include?("@")
+      errors.add(:last_name, "cannot be an email address. Use the person's actual last name.")
+    end
+  end
+
+  # Team contacts (is_team_contact=true) must have a primary_company linked
+  def validate_team_contact_company
+    if is_team_contact && primary_company_id.blank?
+      errors.add(:primary_company, "must be selected for team contacts. A team contact represents a person at a specific company.")
+    end
+  end
+
   def update_xero_synced_status
     self.xero_synced = xero_id.present?
   end
@@ -687,5 +735,71 @@ class Contact < ApplicationRecord
     if entity_type_changed? && entity_type != "person"
       self.roles = []
     end
+  end
+
+  # Auto-fix name casing: convert ALL CAPS or all lowercase to Title Case
+  # Only applies to person entity types
+  # Skips single-letter names (initials are fine as uppercase)
+  def auto_fix_name_casing
+    return unless entity_type == "person"
+
+    # Fix first_name if ALL CAPS or all lowercase (skip single letters)
+    if first_name.present? && first_name.length > 1
+      if all_caps?(first_name) || all_lowercase?(first_name)
+        self.first_name = titleize_name(first_name)
+      end
+    end
+
+    # Fix middle_name if ALL CAPS or all lowercase (skip single letters)
+    if middle_name.present? && middle_name.length > 1
+      if all_caps?(middle_name) || all_lowercase?(middle_name)
+        self.middle_name = titleize_name(middle_name)
+      end
+    end
+
+    # Fix last_name if ALL CAPS or all lowercase (skip single letters)
+    if last_name.present? && last_name.length > 1
+      if all_caps?(last_name) || all_lowercase?(last_name)
+        self.last_name = titleize_name(last_name)
+      end
+    end
+  end
+
+  # Auto-fix website URL: add https:// if missing protocol
+  def auto_fix_website_url
+    return if website.blank?
+
+    # Skip if already has http:// or https://
+    return if website.start_with?("http://", "https://")
+
+    # Add https:// prefix
+    self.website = "https://#{website}"
+  end
+
+  private
+
+  # Check if string is ALL CAPS (contains letters and all uppercase)
+  def all_caps?(str)
+    return false if str.blank?
+    str == str.upcase && str != str.downcase
+  end
+
+  # Check if string is all lowercase (contains letters and all lowercase)
+  def all_lowercase?(str)
+    return false if str.blank?
+    str == str.downcase && str =~ /[a-z]/
+  end
+
+  # Convert name to Title Case, handling apostrophes (e.g., O'Brien)
+  def titleize_name(name)
+    return name if name.blank?
+
+    name.split(/\s+/).map do |word|
+      if word.include?("'")
+        word.split("'").map(&:capitalize).join("'")
+      else
+        word.capitalize
+      end
+    end.join(" ")
   end
 end
