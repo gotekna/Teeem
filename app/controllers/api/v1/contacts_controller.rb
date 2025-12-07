@@ -2442,43 +2442,46 @@ module Api
           domain_company_name = nil
 
           unless is_personal_domain
-            domain_company_name = domain.split('.').first.titleize
+            # For subdomains like "au.harveynorman.com", extract the main company name
+            # Split by dots and find the most meaningful part (not "au", "com", etc.)
+            domain_parts = domain.split('.')
+            tlds_and_country_codes = %w[com net org edu gov au uk nz us ca co]
+            meaningful_parts = domain_parts.reject { |p| tlds_and_country_codes.include?(p.downcase) || p.length <= 2 }
+            domain_company_name = (meaningful_parts.first || domain_parts.first).titleize
 
-            # First, check if any matching contact already has a company relationship
-            # This handles cases like "SVP" (domain) -> "SV Partners" (company name)
-            first_match = matching_contacts.first
-            if first_match&.primary_company_id
-              domain_company = Contact.find_by(id: first_match.primary_company_id)
-            end
+            # FIRST: Try to match by domain name (the email domain is the best indicator of employer)
+            # Try exact substring match on company name
+            domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+              .where("LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
+                     "%#{domain_company_name.downcase}%",
+                     "%#{domain_company_name.downcase}%")
+              .first
 
-            # If no company from contact relationship, also check for employee_of relationships
-            if domain_company.nil? && first_match
-              employee_rel = ContactRelationship.find_by(
-                source_contact_id: first_match.id,
-                relationship_type: 'employee_of'
-              )
-              domain_company = Contact.find_by(id: employee_rel&.related_contact_id)
-            end
-
-            # Fallback: try to match by domain name
-            if domain_company.nil?
-              # First try exact substring match
+            # If no match and domain looks like an abbreviation (2-4 uppercase letters like SVP),
+            # try matching the first letters of each word in company names
+            # e.g., "SVP" matches "SV Partners" (S-V from first two words)
+            if domain_company.nil? && domain_company_name.length <= 5
+              abbrev = domain_company_name.upcase
               domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
-                .where("LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
-                       "%#{domain_company_name.downcase}%",
-                       "%#{domain_company_name.downcase}%")
+                .where("UPPER(full_name) LIKE ?", "#{abbrev[0..1]}%")
                 .first
+            end
 
-              # If no match and domain looks like an abbreviation (2-4 uppercase letters like SVP),
-              # try matching the first letters of each word in company names
-              # e.g., "SVP" matches "SV Partners" (S-V from first two words)
-              if domain_company.nil? && domain_company_name.length <= 5
-                # Search for companies starting with "SV" from "SVP" domain
-                abbrev = domain_company_name.upcase
-                # Try matching as word start - "SV" matches "SV Partners"
-                domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
-                  .where("UPPER(full_name) LIKE ?", "#{abbrev[0..1]}%")
-                  .first
+            # FALLBACK: If no domain match, check if the matched contact has an existing company relationship
+            # This handles edge cases where the company name doesn't match the domain
+            if domain_company.nil?
+              first_match = matching_contacts.first
+              if first_match&.primary_company_id
+                domain_company = Contact.find_by(id: first_match.primary_company_id)
+              end
+
+              # Also check for employee_of relationships
+              if domain_company.nil? && first_match
+                employee_rel = ContactRelationship.find_by(
+                  source_contact_id: first_match.id,
+                  relationship_type: 'employee_of'
+                )
+                domain_company = Contact.find_by(id: employee_rel&.related_contact_id)
               end
             end
           end
