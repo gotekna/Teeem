@@ -339,6 +339,39 @@ module HealthChecks
       )
     end
 
+    # Orphaned relationships - relationships pointing to deleted or non-existent contacts
+    def check_orphaned_relationships
+      # Find relationships where the related contact doesn't exist
+      all_contact_ids = Contact.unscoped.pluck(:id)
+      orphaned = ContactRelationship
+                   .where.not(related_contact_id: all_contact_ids)
+                   .or(ContactRelationship.where.not(source_contact_id: all_contact_ids))
+                   .includes(:source_contact)
+                   .limit(50)
+
+      items = orphaned.map do |rel|
+        source_name = rel.source_contact&.full_name || "Contact ##{rel.source_contact_id} (deleted)"
+        {
+          id: rel.id,
+          display: "#{source_name} -> #{rel.relationship_type} -> Contact ##{rel.related_contact_id} (missing)",
+          relationship_id: rel.id,
+          source_contact_id: rel.source_contact_id,
+          related_contact_id: rel.related_contact_id,
+          relationship_type: rel.relationship_type
+        }
+      end
+
+      build_result(
+        name: "Orphaned Relationships",
+        description: "Contact relationships pointing to deleted or non-existent contacts. These should be cleaned up to prevent errors.",
+        severity: :critical,
+        items: items,
+        icon: "link-off",
+        action_path: nil,
+        check_name: "orphaned_relationships"
+      )
+    end
+
     protected
 
     def format_items(items)

@@ -76,7 +76,7 @@ import {
   COLUMN_WIDTH_OVERRIDES,
 } from "@/lib/corporate/config";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
-import { getEntityTypeLabel } from "@/lib/entity-types";
+import { getEntityTypeLabel, isPerson, isCompany, isTrust } from "@/lib/entity-types";
 
 // Use centralized table ID
 const COMPANIES_TABLE_ID = CORPORATE_TABLE_IDS.COMPANIES;
@@ -546,9 +546,9 @@ export default function CorporateDashboardPage() {
           const memberships = response.data || [];
           // Filter for people only (not company_entity or trust_entity)
           const peopleInGroup = memberships.filter(m =>
-            m.contact_entity_type === 'person' ||
+            isPerson(m.contact_entity_type) ||
             (!['company_entity', 'trust_entity'].includes(m.membership_type) &&
-             !['company', 'trust'].includes(m.contact_entity_type || ''))
+             !isCompany(m.contact_entity_type) && !isTrust(m.contact_entity_type))
           );
 
           for (const m of peopleInGroup) {
@@ -1886,9 +1886,9 @@ export default function CorporateDashboardPage() {
                     return (
                       <div key={entityType}>
                         <h3 className={`font-medium mb-2 flex items-center gap-2 ${
-                          entityType === "person" ? "text-teal-600" :
-                          entityType === "company" ? "text-blue-600" :
-                          entityType === "trust" ? "text-rose-500" : "text-gray-600"
+                          isPerson(entityType) ? "text-teal-600" :
+                          isCompany(entityType) ? "text-blue-600" :
+                          isTrust(entityType) ? "text-rose-500" : "text-gray-600"
                         }`}>
                           {entityTypeLabels[entityType]} ({contacts.length})
                         </h3>
@@ -2146,7 +2146,7 @@ export default function CorporateDashboardPage() {
                       customCellRenderer={(entry, columnKey) => {
                         if (columnKey === "display_name") {
                           const level = entry._level as number;
-                          const isTrust = (entry.entity_type as string)?.toLowerCase() === "trust";
+                          const entryIsTrust = isTrust(entry.entity_type as string);
                           const isTrustee = entry.is_trustee === "Yes";
                           return (
                             <div className="flex items-center gap-2">
@@ -2155,14 +2155,14 @@ export default function CorporateDashboardPage() {
                                   └─
                                 </span>
                               )}
-                              {isTrust ? (
+                              {entryIsTrust ? (
                                 <Network className="h-4 w-4 text-rose-500 flex-shrink-0" />
                               ) : isTrustee ? (
                                 <Building2 className="h-4 w-4 text-indigo-500 flex-shrink-0" />
                               ) : (
                                 <Building2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
                               )}
-                              <span className={isTrust ? "text-rose-700 dark:text-rose-400" : isTrustee ? "text-indigo-700 dark:text-indigo-400" : ""}>
+                              <span className={entryIsTrust ? "text-rose-700 dark:text-rose-400" : isTrustee ? "text-indigo-700 dark:text-indigo-400" : ""}>
                                 {entry.name as string}
                               </span>
                             </div>
@@ -2171,7 +2171,7 @@ export default function CorporateDashboardPage() {
                         if (columnKey === "entity_type") {
                           const type = entry.entity_type as string;
                           return (
-                            <Badge className={getEntityTypeBadgeColor(type?.toLowerCase() === "trust" ? "trust" : "company")}>
+                            <Badge className={getEntityTypeBadgeColor(isTrust(type) ? "trust" : "company")}>
                               {type || "Company"}
                             </Badge>
                           );

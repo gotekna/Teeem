@@ -17,6 +17,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { Building2, Network, User, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isTrust } from "@/lib/entity-types";
 
 // Types for structure data
 interface StructureShareholder {
@@ -608,7 +609,7 @@ export default function CorporateStructureChart({
           nodeColor={(node) => {
             const data = node.data as unknown as EntityNodeData;
             const entityType = data?.entityType?.toLowerCase();
-            if (entityType === "trust" || entityType === "superfund") return "#fda4af";
+            if (isTrust(entityType) || entityType === "superfund") return "#fda4af";
             if (data?.isTrustee) return "#a5b4fc";
             return "#93c5fd";
           }}

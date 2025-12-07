@@ -60,11 +60,15 @@ class XeroAttachmentSyncService
     )
 
     # Attach the PDF content
+    # Link to contact (for contact document tabs) AND to external_invoice (for warehouse queries)
     document.assign_attributes(
       title: filename,
       document_type: document_type_for_invoice,
-      documentable: external_invoice,
+      folder: folder_for_invoice_type,              # BILLS, INVOICES, etc. for contact tabs
+      contact_id: external_invoice.contact_id,      # Link to contact for document management
+      documentable: external_invoice,               # Also link to warehouse record
       job_id: external_invoice.job_id,
+      expected_onedrive_path: expected_document_path(filename), # Full OneDrive path
       file_size: pdf_result[:content_length] || pdf_result[:content].bytesize,
       file_name: filename,
       mime_type: "application/pdf",
@@ -139,13 +143,17 @@ class XeroAttachmentSyncService
     end
 
     # Create CompanyDocument
+    # Link to contact (for contact document tabs) AND to external_invoice (for warehouse queries)
     document = CompanyDocument.new(
       source: "xero",
       external_id: external_doc_id,
       title: filename,
       document_type: guess_document_type(filename),
-      documentable: external_invoice,
+      folder: folder_for_invoice_type,              # BILLS, INVOICES, etc. for contact tabs
+      contact_id: external_invoice.contact_id,      # Link to contact for document management
+      documentable: external_invoice,               # Also link to warehouse record
       job_id: external_invoice.job_id,
+      expected_onedrive_path: expected_document_path(filename), # Full OneDrive path
       file_size: download_result[:content_length] || download_result[:content].bytesize,
       file_name: filename,
       mime_type: download_result[:mime_type] || attachment_info[:mime_type],
@@ -171,17 +179,39 @@ class XeroAttachmentSyncService
   end
 
   def build_pdf_filename
-    # Format: INV-001234.pdf or BILL-001234.pdf
-    prefix = case external_invoice.invoice_type
-    when "sales_invoice" then "INV"
-    when "bill" then "BILL"
-    when "credit_note" then "CN"
-    when "quote" then "QUO"
-    else "DOC"
-    end
+    # If this bill matches a PO, use the PO number in the filename
+    # This prevents duplicates and links bills to their POs visually
+    # Format: 456-PO-000123.pdf (contact_id-po_number) for matched bills
+    # Format: 456-INV-001234.pdf (contact_id-invoice_number) for unmatched
+    contact_id = external_invoice.contact_id
+    matched_po = find_matching_purchase_order
 
-    invoice_num = external_invoice.invoice_number.presence || external_invoice.external_id[0..7]
-    "#{prefix}-#{invoice_num}.pdf"
+    if matched_po
+      # Use PO number when matched
+      po_num = matched_po.purchase_order_number # e.g., "PO-000123"
+      if contact_id.present?
+        "#{contact_id}-#{po_num}.pdf"
+      else
+        "#{po_num}.pdf"
+      end
+    else
+      # Fall back to invoice number
+      invoice_num = external_invoice.invoice_number.presence || external_invoice.external_id[0..7]
+      if contact_id.present?
+        "#{contact_id}-#{invoice_num}.pdf"
+      else
+        "#{invoice_num}.pdf"
+      end
+    end
+  end
+
+  # Find a PurchaseOrder that matches this external invoice
+  # Matches by xero_invoice_id (Xero GUID stored on PO when matched)
+  def find_matching_purchase_order
+    return nil unless external_invoice.bill? # Only match bills to POs
+    return nil unless external_invoice.external_id.present?
+
+    PurchaseOrder.find_by(xero_invoice_id: external_invoice.external_id)
   end
 
   def document_type_for_invoice
@@ -192,6 +222,39 @@ class XeroAttachmentSyncService
     when "quote" then "quote"
     else "other"
     end
+  end
+
+  # Folder name for contact document tabs
+  # These appear in the contact's document management interface
+  def folder_for_invoice_type
+    case external_invoice.invoice_type
+    when "bill" then "BILLS"
+    when "sales_invoice" then "INVOICES"
+    when "credit_note" then "CREDIT_NOTES"
+    when "quote" then "QUOTES"
+    else "XERO"
+    end
+  end
+
+  # Generate the expected OneDrive path for this document
+  # Uses CompanySetting.contact_documents_path + contact folder name + invoice type folder
+  # e.g., "Contacts/123 - ABC Supplies/BILLS/BILL-001234.pdf"
+  def expected_document_path(filename)
+    settings = CompanySetting.instance
+    base_path = settings.contact_documents_path || "Contacts"
+    contact_folder = contact_folder_name
+    type_folder = folder_for_invoice_type
+
+    [base_path, contact_folder, type_folder, filename].compact.join("/")
+  end
+
+  # Get the contact folder name using the configured format
+  # Delegates to Contact.document_folder_name if contact is linked
+  def contact_folder_name
+    contact = external_invoice.contact
+    return nil unless contact.present?
+
+    contact.document_folder_name
   end
 
   def guess_document_type(filename)

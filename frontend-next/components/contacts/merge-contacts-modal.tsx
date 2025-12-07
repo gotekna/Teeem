@@ -28,7 +28,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { isPerson, canHaveEmployees, getEntityTypeBadge } from "@/lib/entity-types";
+import { isPerson, isCompany, isTrust, canHaveEmployees, getEntityTypeBadge } from "@/lib/entity-types";
 
 interface Contact {
   id: number;
@@ -251,9 +251,9 @@ export function MergeContactsModal({
                           className={
                             isPerson(contact.entity_type)
                               ? "text-purple-600 border-purple-200 bg-purple-50"
-                              : contact.entity_type === 'company'
+                              : isCompany(contact.entity_type)
                               ? "text-blue-600 border-blue-200 bg-blue-50"
-                              : contact.entity_type === 'trust'
+                              : isTrust(contact.entity_type)
                               ? "text-amber-600 border-amber-200 bg-amber-50"
                               : "text-gray-600 border-gray-200"
                           }

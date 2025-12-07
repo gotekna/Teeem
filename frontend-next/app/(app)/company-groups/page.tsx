@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { isTrust } from "@/lib/entity-types";
 
 // Shape icons matching the family trust diagram
 const CompanyIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
@@ -554,12 +555,16 @@ export default function CompanyGroupsPage() {
               filteredCompanies.length > 0 || (structure?.people && structure.people.length > 0) ? (
                 (() => {
                   // Categorize companies into 4 sections
+                  // Helper to check if entity is trust or superfund (SMSF)
+                  const isTrustOrSuperfund = (entityType: string | null | undefined) =>
+                    isTrust(entityType) || entityType?.toLowerCase() === "superfund";
+
                   const tradingCompanies = filteredCompanies.filter(
-                    (c) => !c.is_trustee && c.entity_type?.toLowerCase() !== "trust" && c.entity_type?.toLowerCase() !== "superfund"
+                    (c) => !c.is_trustee && !isTrustOrSuperfund(c.entity_type)
                   );
                   const corporateTrustees = filteredCompanies.filter((c) => c.is_trustee);
                   const trusts = filteredCompanies.filter(
-                    (c) => c.entity_type?.toLowerCase() === "trust" || c.entity_type?.toLowerCase() === "superfund"
+                    (c) => isTrustOrSuperfund(c.entity_type)
                   );
 
                   return (

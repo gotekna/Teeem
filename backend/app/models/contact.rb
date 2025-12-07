@@ -158,6 +158,7 @@ class Contact < ApplicationRecord
   before_save :generate_full_name
   before_save :sync_company_name_or_trust
   before_save :clear_roles_if_not_person
+  after_save :cleanup_relationships_on_soft_delete, if: :soft_deleted?
 
   # Scopes
   scope :with_email, -> { where.not(email: [ nil, "" ]) }
@@ -613,6 +614,43 @@ class Contact < ApplicationRecord
     relationships
   end
 
+  # Generate folder name for this contact based on company settings
+  # Used for document storage in OneDrive/SharePoint
+  # @return [String] folder name (e.g., "123 - ABC Supplies" or "ABC Supplies" or "123")
+  def document_folder_name
+    format = CompanySetting.instance.contact_folder_format || "id_name"
+    sanitized_name = (display_name || "Unknown").gsub(/[<>:"\/\\|?*]/, "_") # Remove invalid filename chars
+
+    case format
+    when "id_name"
+      "#{id} - #{sanitized_name}"
+    when "name_only"
+      sanitized_name
+    when "id_only"
+      id.to_s
+    else
+      "#{id} - #{sanitized_name}"
+    end
+  end
+
+  # Class method to generate folder name for a contact
+  # Useful when you only have the ID and display_name
+  def self.generate_folder_name(contact_id:, display_name:, format: nil)
+    format ||= CompanySetting.instance.contact_folder_format || "id_name"
+    sanitized_name = (display_name || "Unknown").gsub(/[<>:"\/\\|?*]/, "_")
+
+    case format
+    when "id_name"
+      "#{contact_id} - #{sanitized_name}"
+    when "name_only"
+      sanitized_name
+    when "id_only"
+      contact_id.to_s
+    else
+      "#{contact_id} - #{sanitized_name}"
+    end
+  end
+
   private
 
   def roles_must_be_valid
@@ -725,9 +763,20 @@ class Contact < ApplicationRecord
   end
 
   # Auto-sync company_name_or_trust with full_name for company/trust entity types
+  # SSoT: company_name_or_trust is the source of truth for display_name
+  # This keeps both fields in sync for backwards compatibility
   def sync_company_name_or_trust
-    if %w[company trust].include?(entity_type) && full_name.present?
-      self.company_name_or_trust = full_name if company_name_or_trust.blank?
+    return unless %w[company trust].include?(entity_type)
+
+    # If company_name_or_trust was changed, update full_name to match
+    if company_name_or_trust_changed? && company_name_or_trust.present?
+      self.full_name = company_name_or_trust
+    # If only full_name was changed (legacy code path), sync to company_name_or_trust
+    elsif full_name_changed? && full_name.present? && !company_name_or_trust_changed?
+      self.company_name_or_trust = full_name
+    # Initial sync: if company_name_or_trust is blank but full_name exists
+    elsif company_name_or_trust.blank? && full_name.present?
+      self.company_name_or_trust = full_name
     end
   end
 
@@ -802,5 +851,20 @@ class Contact < ApplicationRecord
         word.capitalize
       end
     end.join(" ")
+  end
+
+  # Check if this contact was just soft-deleted
+  def soft_deleted?
+    saved_change_to_deleted? && deleted == true
+  end
+
+  # Clean up relationships when a contact is soft-deleted
+  # This prevents orphaned relationships that cause 500 errors
+  def cleanup_relationships_on_soft_delete
+    # Destroy all relationships where this contact is either the source or related contact
+    outgoing_relationships.destroy_all
+    incoming_relationships.destroy_all
+
+    Rails.logger.info("Cleaned up relationships for soft-deleted contact #{id}")
   end
 end

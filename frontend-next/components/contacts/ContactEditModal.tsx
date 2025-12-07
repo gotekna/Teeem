@@ -32,6 +32,7 @@ import { Loader2, Save, X, User, Building2, Phone, Globe, FileText, Plus, Star, 
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { isPerson as isPersonType, isCompany as isCompanyType } from "@/lib/entity-types";
 
 interface ContactPerson {
   id?: number;
@@ -368,8 +369,8 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
   if (!contact) return null;
 
   const isXeroSynced = !!contact.xero_contact_id;
-  const isPerson = formData.entity_type === "person";
-  const isCompany = formData.entity_type === "company";
+  const isPerson = isPersonType(formData.entity_type);
+  const isCompany = isCompanyType(formData.entity_type);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -393,12 +394,12 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
           <TabsContent value="basic" className="space-y-4 mt-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="first_name">{isPerson ? "First Name" : "Company Name"}</Label>
+                <Label htmlFor="first_name">{isPerson ? "First Name" : "Display Name"}</Label>
                 <Input
                   id="first_name"
                   value={formData.first_name}
                   onChange={(e) => handleInputChange("first_name", e.target.value)}
-                  placeholder={isPerson ? "First name" : "Company name"}
+                  placeholder={isPerson ? "First name" : "Display name"}
                 />
               </div>
               {isPerson && (

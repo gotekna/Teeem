@@ -1030,6 +1030,10 @@ Rails.application.routes.draw do
           post :trigger_sync
           post :push_pending
         end
+        member do
+          get :pdf          # GET /api/v1/external_invoices/:id/pdf - Download/fetch invoice PDF
+          get :attachments  # GET /api/v1/external_invoices/:id/attachments - List all attachments
+        end
       end
       get "external_invoices/by_job/:job_id", to: "external_invoices#by_job", as: :external_invoices_by_job
       get "external_invoices/by_contact/:contact_id", to: "external_invoices#by_contact", as: :external_invoices_by_contact

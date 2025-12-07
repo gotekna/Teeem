@@ -39,7 +39,15 @@ import {
   Users,
   FolderOpen,
   ArrowRight,
+  Settings2,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -66,7 +74,9 @@ export function ContactTypesTab() {
   const [saving, setSaving] = React.useState(false);
   const [deleting, setDeleting] = React.useState<number | null>(null);
   const [contactDocPath, setContactDocPath] = React.useState("");
+  const [contactFolderFormat, setContactFolderFormat] = React.useState("id_name");
   const [savingPath, setSavingPath] = React.useState(false);
+  const [savingFormat, setSavingFormat] = React.useState(false);
   const [showFolderPicker, setShowFolderPicker] = React.useState(false);
 
   const [formData, setFormData] = React.useState({
@@ -103,8 +113,47 @@ export function ContactTypesTab() {
     try {
       const settings = await api.get<any>("/api/v1/company_settings");
       setContactDocPath(settings.contact_documents_path || "");
+      setContactFolderFormat(settings.contact_folder_format || "id_name");
     } catch (error) {
       console.error("Failed to load settings:", error);
+    }
+  };
+
+  const handleSaveFolderFormat = async (format: string) => {
+    setSavingFormat(true);
+    setContactFolderFormat(format);
+    try {
+      await api.put("/api/v1/company_settings", {
+        company_setting: { contact_folder_format: format },
+      });
+      toast({
+        title: "Success",
+        description: "Folder naming format saved successfully",
+      });
+    } catch (error) {
+      console.error("Failed to save folder format:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save folder naming format",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingFormat(false);
+    }
+  };
+
+  // Generate folder name preview based on format
+  const getFolderNameExample = (format: string) => {
+    const exampleContact = { id: 456, name: "All Clear Electrical" };
+    switch (format) {
+      case "id_name":
+        return `${exampleContact.id} - ${exampleContact.name}`;
+      case "name_only":
+        return exampleContact.name;
+      case "id_only":
+        return `${exampleContact.id}`;
+      default:
+        return `${exampleContact.id} - ${exampleContact.name}`;
     }
   };
 
@@ -303,6 +352,40 @@ export function ContactTypesTab() {
               Current path: <span className="font-mono">{contactDocPath}</span>
             </div>
           )}
+        </div>
+      </Card>
+
+      {/* Contact Folder Naming Format */}
+      <Card className="p-6">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Settings2 className="h-5 w-5 text-muted-foreground" />
+            <h3 className="font-semibold">Contact Folder Naming</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Choose how contact folders are named. Using the Contact ID ensures all documents for a supplier
+            (e.g., All Clear Electrical) sort together and remain consistent even if the contact name changes.
+          </p>
+          <div className="space-y-3">
+            <Select
+              value={contactFolderFormat}
+              onValueChange={handleSaveFolderFormat}
+              disabled={savingFormat}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select folder naming format" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="id_name">ID + Name - Recommended (e.g., &quot;456 - All Clear Electrical&quot;)</SelectItem>
+                <SelectItem value="id_only">ID Only (e.g., &quot;456&quot;)</SelectItem>
+                <SelectItem value="name_only">Name Only (e.g., &quot;All Clear Electrical&quot;)</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="text-xs text-muted-foreground bg-muted px-3 py-2 rounded-md">
+              <span className="font-medium">Preview:</span>{" "}
+              <span className="font-mono">{contactDocPath || "Contacts"}/{getFolderNameExample(contactFolderFormat)}/BILLS/</span>
+            </div>
+          </div>
         </div>
       </Card>
 

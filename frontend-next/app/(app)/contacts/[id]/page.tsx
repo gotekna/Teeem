@@ -166,6 +166,7 @@ interface Contact {
   quotes_count: number;
   // Company/Business fields
   company_name: string | null;
+  company_name_or_trust: string | null; // SSoT for company/trust display names
   position: string | null;
   department: string | null;
   // Director details
@@ -858,6 +859,7 @@ export default function ContactDetailPage() {
     middle_name: "",
     last_name: "",
     full_name: "",
+    company_name_or_trust: "", // SSoT for company/trust names
     email: "",
     mobile_phone: "",
     office_phone: "",
@@ -1374,6 +1376,7 @@ export default function ContactDetailPage() {
         middle_name: contact.middle_name || "",
         last_name: contact.last_name || "",
         full_name: contact.full_name || "",
+        company_name_or_trust: contact.company_name_or_trust || "", // SSoT for company/trust names
         email: contact.email || "",
         mobile_phone: contact.mobile_phone || "",
         office_phone: contact.office_phone || "",
@@ -1400,8 +1403,8 @@ export default function ContactDetailPage() {
       if (field === 'entity_type') {
         const prevType = prev.entity_type;
         const newType = value as string;
-        const isPrevPersonType = prevType === 'person' || prevType === 'sole_trader';
-        const isNewPersonType = newType === 'person' || newType === 'sole_trader';
+        const isPrevPersonType = hasFirstLastName(prevType);
+        const isNewPersonType = hasFirstLastName(newType);
 
         // Switching from person/sole_trader to company/trust
         // Populate full_name from first/middle/last name
@@ -1829,10 +1832,13 @@ export default function ContactDetailPage() {
     setSaving(true);
     try {
       // For person/sole_trader: construct full_name from first/last name
-      // For company/trust: use the full_name field directly
+      // For company/trust: use company_name_or_trust (SSoT) - backend syncs this to display_name
+      // For price_only: use full_name directly
       const full_name = hasFirstLastName(formData.entity_type)
         ? [formData.first_name, formData.middle_name, formData.last_name].filter(Boolean).join(" ") || "Unknown"
-        : formData.full_name || "Unknown";
+        : hasCompanyName(formData.entity_type)
+          ? formData.company_name_or_trust || "Unknown"
+          : formData.full_name || "Unknown";
 
       // Prepare contact_emails_attributes (filtering out destroyed items for new records)
       const contact_emails_attributes = (contact.contact_emails || [])
@@ -2124,13 +2130,16 @@ export default function ContactDetailPage() {
                           </div>
                         </>
                       ) : (
-                        /* Company, Trust, and Price show single Name field */
+                        /* Company, Trust use company_name_or_trust (SSoT), Price Only uses full_name */
                         <div className="space-y-2">
-                          <Label htmlFor="full_name">
-                            {isTrust(formData.entity_type) ? "Trust Name" :
-                             isPriceOnly(formData.entity_type) ? "Name" : "Company Name"}
+                          <Label htmlFor={isPriceOnly(formData.entity_type) ? "full_name" : "company_name_or_trust"}>
+                            Display Name
                           </Label>
-                          <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange("full_name", e.target.value)} />
+                          {isPriceOnly(formData.entity_type) ? (
+                            <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange("full_name", e.target.value)} />
+                          ) : (
+                            <Input id="company_name_or_trust" value={formData.company_name_or_trust} onChange={(e) => handleInputChange("company_name_or_trust", e.target.value)} />
+                          )}
                         </div>
                       )}
                     </div>
@@ -2143,7 +2152,7 @@ export default function ContactDetailPage() {
                         ))}
                       </select>
                     </div>
-                    {/* Company multi-select - show for person and sole_trader entity types */}
+                    {/* Company multi-select - show for person entity type (employees can work for companies) */}
                     {canHaveEmployer(formData.entity_type) && (
                       <div className="space-y-3">
                         <div className="space-y-2">
@@ -2198,16 +2207,14 @@ export default function ContactDetailPage() {
                           />
 
                           <p className="text-xs text-muted-foreground">
-                            {formData.entity_type === 'sole_trader'
-                              ? 'Search above to add companies. Selected companies shown in blue boxes. View and edit roles in the Overview tab.'
-                              : 'Search above to add companies. Selected companies shown in blue boxes. View and edit roles in the Overview tab.'}
+                            Search above to add companies. Selected companies shown in blue boxes. View and edit roles in the Overview tab.
                           </p>
                         </div>
                       </div>
                     )}
                     {/* Linked Company - removed for companies (redundant to show company its own details) */}
                     {/* Employee multi-select - show for company/trust entity types */}
-                    {(formData.entity_type === 'company' || formData.entity_type === 'trust') && (
+                    {canHaveEmployees(formData.entity_type) && (
                       <div className="space-y-3">
                         <div className="space-y-2">
                           <Label>Employees</Label>
@@ -2225,12 +2232,12 @@ export default function ContactDetailPage() {
                             className="w-full"
                             hidePlaceholderWhenSelected
                           />
-                          <p className="text-xs text-muted-foreground">Add people who work for this {formData.entity_type === 'trust' ? 'trust' : 'company'}. View and edit roles in the Overview tab.</p>
+                          <p className="text-xs text-muted-foreground">Add people who work for this {isTrust(formData.entity_type) ? 'trust' : 'company'}. View and edit roles in the Overview tab.</p>
                         </div>
                       </div>
                     )}
                     {/* Primary Company - show for person entity type */}
-                    {formData.entity_type === 'person' && contact.primary_company && (
+                    {isPerson(formData.entity_type) && contact.primary_company && (
                       <div className="space-y-2">
                         <Label>Primary Company (Auto-synced)</Label>
                         <div className="p-3 rounded-md border bg-muted/30">
@@ -2255,13 +2262,13 @@ export default function ContactDetailPage() {
                       <div><Label>Active</Label><p className="text-xs text-muted-foreground">Is this contact active?</p></div>
                       <Switch checked={formData.is_active} onCheckedChange={(c) => handleInputChange("is_active", c)} />
                     </div>
-                    {formData.entity_type === "person" && (
+                    {isPerson(formData.entity_type) && (
                       <div className="flex items-center justify-between py-2">
                         <div><Label>Family Member</Label></div>
                         <Switch checked={formData.is_family_member} onCheckedChange={(c) => handleInputChange("is_family_member", c)} />
                       </div>
                     )}
-                    {formData.entity_type === "person" && (
+                    {isPerson(formData.entity_type) && (
                       <div className="flex items-center justify-between py-2">
                         <div>
                           <Label>Team Contact</Label>
@@ -2279,7 +2286,7 @@ export default function ContactDetailPage() {
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Phone className="h-5 w-5" />
                       Contact Details
-                      {formData.entity_type === 'person' && contact.primary_company && (
+                      {canHaveEmployer(formData.entity_type) && contact.primary_company && (
                         <Badge variant="outline" className="ml-2">
                           <Building2 className="h-3 w-3 mr-1" />
                           Company Details
@@ -2289,7 +2296,7 @@ export default function ContactDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {/* Direct/Personal Contact Details Section Header */}
-                    {formData.entity_type === 'person' && contact.primary_company && (
+                    {canHaveEmployer(formData.entity_type) && contact.primary_company && (
                       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                         <User className="h-4 w-4" />
                         Direct Contact (Personal)
@@ -2299,7 +2306,7 @@ export default function ContactDetailPage() {
                     {/* Emails Section */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label>{formData.entity_type === 'person' && contact.primary_company ? 'Direct Email Addresses' : 'Emails'}</Label>
+                        <Label>{canHaveEmployer(formData.entity_type) && contact.primary_company ? 'Direct Email Addresses' : 'Emails'}</Label>
                         <Button
                           type="button"
                           variant="outline"
@@ -2322,20 +2329,21 @@ export default function ContactDetailPage() {
                       </div>
                       <div className="space-y-2">
                         {(contact.contact_emails || [])
-                          .filter(e => !e._destroy)
+                          .map((email, originalIndex) => ({ email, originalIndex }))
+                          .filter(({ email }) => !email._destroy)
                           .sort((a, b) => {
-                            if (a.is_primary && !b.is_primary) return -1;
-                            if (!a.is_primary && b.is_primary) return 1;
-                            return a.position - b.position;
+                            if (a.email.is_primary && !b.email.is_primary) return -1;
+                            if (!a.email.is_primary && b.email.is_primary) return 1;
+                            return a.email.position - b.email.position;
                           })
-                          .map((email, index) => (
-                          <div key={index} className="flex items-center gap-2">
+                          .map(({ email, originalIndex }) => (
+                          <div key={email.id || `new-${originalIndex}`} className="flex items-center gap-2">
                             <Input
                               type="email"
                               value={email.email}
                               onChange={(e) => {
                                 const updated = [...(contact.contact_emails || [])];
-                                updated[index] = { ...updated[index], email: e.target.value };
+                                updated[originalIndex] = { ...updated[originalIndex], email: e.target.value };
                                 setContact({ ...contact, contact_emails: updated });
                                 setHasChanges(true);
                               }}
@@ -2349,7 +2357,7 @@ export default function ContactDetailPage() {
                               onClick={() => {
                                 const updated = (contact.contact_emails || []).map((e, i) => ({
                                   ...e,
-                                  is_primary: i === index
+                                  is_primary: i === originalIndex
                                 }));
                                 setContact({ ...contact, contact_emails: updated });
                                 setHasChanges(true);
@@ -2365,9 +2373,9 @@ export default function ContactDetailPage() {
                               onClick={() => {
                                 const updated = [...(contact.contact_emails || [])];
                                 if (email.id) {
-                                  updated[index] = { ...updated[index], _destroy: true };
+                                  updated[originalIndex] = { ...updated[originalIndex], _destroy: true };
                                 } else {
-                                  updated.splice(index, 1);
+                                  updated.splice(originalIndex, 1);
                                 }
                                 setContact({ ...contact, contact_emails: updated });
                                 setHasChanges(true);
@@ -2384,7 +2392,7 @@ export default function ContactDetailPage() {
                     <div className="space-y-2">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center justify-between">
-                          <Label>{formData.entity_type === 'person' && contact.primary_company ? 'Direct Phone Numbers' : 'Phones'}</Label>
+                          <Label>{canHaveEmployer(formData.entity_type) && contact.primary_company ? 'Direct Phone Numbers' : 'Phones'}</Label>
                           <Button
                             type="button"
                             variant="outline"
@@ -2406,25 +2414,26 @@ export default function ContactDetailPage() {
                             Add Phone
                           </Button>
                         </div>
-                        {formData.entity_type === 'person' && contact.primary_company && (
+                        {canHaveEmployer(formData.entity_type) && contact.primary_company && (
                           <p className="text-xs text-muted-foreground">Personal/direct line, mobile, or extension</p>
                         )}
                       </div>
                       <div className="space-y-2">
                         {(contact.contact_phones || [])
-                          .filter(p => !p._destroy)
+                          .map((phone, originalIndex) => ({ phone, originalIndex }))
+                          .filter(({ phone }) => !phone._destroy)
                           .sort((a, b) => {
-                            if (a.is_primary && !b.is_primary) return -1;
-                            if (!a.is_primary && b.is_primary) return 1;
-                            return a.position - b.position;
+                            if (a.phone.is_primary && !b.phone.is_primary) return -1;
+                            if (!a.phone.is_primary && b.phone.is_primary) return 1;
+                            return a.phone.position - b.phone.position;
                           })
-                          .map((phone, index) => (
-                          <div key={index} className="flex items-center gap-2">
+                          .map(({ phone, originalIndex }) => (
+                          <div key={phone.id || `new-${originalIndex}`} className="flex items-center gap-2">
                             <select
                               value={phone.phone_type}
                               onChange={(e) => {
                                 const updated = [...(contact.contact_phones || [])];
-                                updated[index] = { ...updated[index], phone_type: e.target.value as ContactPhone['phone_type'] };
+                                updated[originalIndex] = { ...updated[originalIndex], phone_type: e.target.value as ContactPhone['phone_type'] };
                                 setContact({ ...contact, contact_phones: updated });
                                 setHasChanges(true);
                               }}
@@ -2440,7 +2449,7 @@ export default function ContactDetailPage() {
                               value={phone.phone_number}
                               onChange={(e) => {
                                 const updated = [...(contact.contact_phones || [])];
-                                updated[index] = { ...updated[index], phone_number: e.target.value };
+                                updated[originalIndex] = { ...updated[originalIndex], phone_number: e.target.value };
                                 setContact({ ...contact, contact_phones: updated });
                                 setHasChanges(true);
                               }}
@@ -2454,7 +2463,7 @@ export default function ContactDetailPage() {
                               onClick={() => {
                                 const updated = (contact.contact_phones || []).map((p, i) => ({
                                   ...p,
-                                  is_primary: i === index
+                                  is_primary: i === originalIndex
                                 }));
                                 setContact({ ...contact, contact_phones: updated });
                                 setHasChanges(true);
@@ -2470,9 +2479,9 @@ export default function ContactDetailPage() {
                               onClick={() => {
                                 const updated = [...(contact.contact_phones || [])];
                                 if (phone.id) {
-                                  updated[index] = { ...updated[index], _destroy: true };
+                                  updated[originalIndex] = { ...updated[originalIndex], _destroy: true };
                                 } else {
-                                  updated.splice(index, 1);
+                                  updated.splice(originalIndex, 1);
                                 }
                                 setContact({ ...contact, contact_phones: updated });
                                 setHasChanges(true);
@@ -2486,7 +2495,7 @@ export default function ContactDetailPage() {
                     </div>
 
                     {/* Website and Address - only show if NOT part of a company */}
-                    {!(formData.entity_type === 'person' && contact.primary_company) && (
+                    {!(canHaveEmployer(formData.entity_type) && contact.primary_company) && (
                       <>
                         <div className="space-y-2">
                           <Label htmlFor="website">Website</Label>
@@ -2499,8 +2508,8 @@ export default function ContactDetailPage() {
                       </>
                     )}
 
-                    {/* Company Contact Details - Show when person has a primary company */}
-                    {formData.entity_type === 'person' && contact.primary_company && (
+                    {/* Company Contact Details - Show when person/sole_trader has a primary company */}
+                    {canHaveEmployer(formData.entity_type) && contact.primary_company && (
                       <div className="space-y-4 p-4 rounded-lg border bg-muted/30 mt-6">
                         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                           <Building2 className="h-4 w-4" />
@@ -2589,8 +2598,8 @@ export default function ContactDetailPage() {
                 </Card>
               </div>
 
-              {/* Associated People Card - for company/trust entity types */}
-              {(formData.entity_type === 'company' || formData.entity_type === 'trust') && contact.employees && contact.employees.length > 0 && (
+              {/* Associated People Card - for company/trust/sole_trader entity types */}
+              {canHaveEmployees(formData.entity_type) && contact.employees && contact.employees.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
@@ -2630,7 +2639,7 @@ export default function ContactDetailPage() {
               )}
 
               {/* Associated Companies Card - for person entity type */}
-              {formData.entity_type === 'person' && selectedCompanies.length > 0 && (
+              {canHaveEmployer(formData.entity_type) && selectedCompanies.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
@@ -2673,7 +2682,7 @@ export default function ContactDetailPage() {
               )}
 
               {/* Business & Tax Card - Hide for people with primary company */}
-              {!(formData.entity_type === 'person' && contact.primary_company) && (
+              {!(canHaveEmployer(formData.entity_type) && contact.primary_company) && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
@@ -2684,10 +2693,10 @@ export default function ContactDetailPage() {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="tax_number">
-                        {formData.entity_type === 'person' ? 'ABN (Sole Trader)' : 'ABN / Tax Number'}
+                        {isPerson(formData.entity_type) ? 'ABN (Sole Trader)' : 'ABN / Tax Number'}
                       </Label>
                       <Input id="tax_number" value={formData.tax_number} onChange={(e) => handleInputChange("tax_number", e.target.value)} placeholder="XX XXX XXX XXX" />
-                      {formData.entity_type === 'person' && (
+                      {isPerson(formData.entity_type) && (
                         <p className="text-xs text-muted-foreground">For sole traders/contractors only. ACN is company-only.</p>
                       )}
                     </div>

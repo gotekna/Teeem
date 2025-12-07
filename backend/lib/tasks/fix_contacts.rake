@@ -81,8 +81,33 @@ namespace :contacts do
     puts "Done! Fixed #{fixed_count} contacts, #{error_count} errors."
   end
 
-  desc "Fix all contact issues (name casing + website URLs + company enrichment + full_name + clear person fields)"
-  task fix_all: [:fix_name_casing, :fix_website_urls, :enrich_company_websites, :fix_full_names, :clear_person_fields_from_non_persons]
+  desc "Fix all contact issues (name casing + website URLs + company enrichment + full_name + clear person fields + orphaned relationships)"
+  task fix_all: [:fix_name_casing, :fix_website_urls, :enrich_company_websites, :fix_full_names, :clear_person_fields_from_non_persons, :fix_orphaned_relationships]
+
+  desc "Delete orphaned contact relationships (pointing to deleted/non-existent contacts)"
+  task fix_orphaned_relationships: :environment do
+    puts "Finding orphaned contact relationships..."
+    puts
+
+    # Get all contact IDs (including soft-deleted)
+    all_contact_ids = Contact.unscoped.pluck(:id)
+
+    # Find orphaned relationships
+    orphaned = ContactRelationship
+                 .where.not(related_contact_id: all_contact_ids)
+                 .or(ContactRelationship.where.not(source_contact_id: all_contact_ids))
+
+    count = orphaned.count
+    puts "Found #{count} orphaned relationships"
+
+    orphaned.find_each do |rel|
+      puts "  Deleting: #{rel.id} - #{rel.source_contact_id} -> #{rel.relationship_type} -> #{rel.related_contact_id}"
+      rel.destroy
+    end
+
+    puts
+    puts "Done! Deleted #{count} orphaned relationships."
+  end
 
   desc "Fix full_name field based on entity type rules"
   task fix_full_names: :environment do

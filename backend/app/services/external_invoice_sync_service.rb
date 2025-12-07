@@ -29,12 +29,19 @@ class ExternalInvoiceSyncService
   end
 
   # Main sync method - syncs all invoices
-  def sync
+  # @param fetch_details [Boolean] - If true, fetches full invoice details including line items
+  def sync(fetch_details: false)
+    @fetch_details = fetch_details
     if @tenant_id
       sync_tenant(@tenant_id)
     else
       sync_all_tenants
     end
+  end
+
+  # Full warehouse sync - fetches complete invoice details including line items
+  def sync_full
+    sync(fetch_details: true)
   end
 
   # Sync all connected tenants
@@ -70,10 +77,11 @@ class ExternalInvoiceSyncService
 
     begin
       # Fetch all invoices with pagination
-      all_invoices = fetch_all_invoices(tenant_id)
+      # If @fetch_details is true, also fetch full details including line items
+      all_invoices = fetch_all_invoices(tenant_id, fetch_details: @fetch_details)
       @stats[:total_invoices] = all_invoices.length
 
-      Rails.logger.info("Fetched #{all_invoices.length} invoices from #{@source}")
+      Rails.logger.info("Fetched #{all_invoices.length} invoices from #{@source}#{@fetch_details ? ' (with full details)' : ''}")
 
       # Process each invoice
       all_invoices.each do |invoice_data|
@@ -188,7 +196,10 @@ class ExternalInvoiceSyncService
 
   private
 
-  def fetch_all_invoices(tenant_id)
+  # Fetch all invoices - supports two modes:
+  # - Summary mode (default): Fast paginated fetch, no line items
+  # - Detail mode (fetch_details: true): Fetches full details including line items for each invoice
+  def fetch_all_invoices(tenant_id, fetch_details: false)
     all_invoices = []
     page = 1
     max_pages = 100 # Safety limit
@@ -220,7 +231,41 @@ class ExternalInvoiceSyncService
       sleep(RATE_LIMIT_SLEEP / 1000.0)
     end
 
+    # If we need full details (line items, payments, tracking), fetch each invoice individually
+    if fetch_details
+      Rails.logger.info("Fetching full details for #{all_invoices.length} invoices...")
+      @stats[:details_fetched] = 0
+
+      all_invoices = all_invoices.map do |summary|
+        detail = fetch_invoice_detail(summary["InvoiceID"], tenant_id)
+        @stats[:details_fetched] += 1 if detail
+        Rails.logger.info("Fetched details: #{@stats[:details_fetched]}/#{all_invoices.length}") if @stats[:details_fetched] % 50 == 0
+        detail || summary # Fall back to summary if detail fetch fails
+      end
+    end
+
     all_invoices
+  end
+
+  # Fetch full invoice details including line items, payments, and tracking
+  def fetch_invoice_detail(invoice_id, tenant_id)
+    result = @api_client.get("Invoices/#{invoice_id}", {
+      tenant_id: tenant_id,
+      unitdp: 4 # Full decimal precision
+    })
+
+    if result[:success]
+      result[:data]["Invoices"]&.first
+    else
+      Rails.logger.warn("Failed to fetch invoice #{invoice_id} details: #{result[:error]}")
+      nil
+    end
+  rescue StandardError => e
+    Rails.logger.warn("Error fetching invoice #{invoice_id} details: #{e.message}")
+    nil
+  ensure
+    # Rate limit protection
+    sleep(RATE_LIMIT_SLEEP / 1000.0)
   end
 
   def process_invoice(invoice_data, tenant_id)

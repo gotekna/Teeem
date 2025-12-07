@@ -26,7 +26,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
-import { hasFirstLastName, hasCompanyName, canHaveEmployees, canHaveEmployer, getEntityTypeIcon } from "@/lib/entity-types";
+import { hasFirstLastName, hasCompanyName, canHaveEmployees, canHaveEmployer, getEntityTypeIcon, isTrust } from "@/lib/entity-types";
 
 interface ContactSearchResult {
   id: number;
@@ -109,7 +109,8 @@ export default function NewContactPage() {
   const handleChange = (field: keyof ContactFormData, value: string | number | null) => {
     // Clear related fields when entity type changes
     if (field === "entity_type" && typeof value === "string") {
-      if (value === "company" || value === "trust") {
+      // Company/Trust use company_name_or_trust field, Person/Sole Trader use first/last name
+      if (hasCompanyName(value)) {
         setFormData(prev => ({
           ...prev,
           entity_type: value,
@@ -350,11 +351,11 @@ export default function NewContactPage() {
                 /* Company/Trust Name Field */
                 <div className="space-y-2">
                   <Label htmlFor="company_name_or_trust">
-                    {createFormTypes.find(t => t.value === formData.entity_type)?.label || "Entity"} Name *
+                    Display Name *
                   </Label>
                   <Input
                     id="company_name_or_trust"
-                    placeholder={formData.entity_type === "trust" ? "e.g., Smith Family Trust" : "e.g., Acme Corporation Pty Ltd"}
+                    placeholder={isTrust(formData.entity_type) ? "e.g., Smith Family Trust" : "e.g., Acme Corporation Pty Ltd"}
                     value={formData.company_name_or_trust}
                     onChange={(e) => handleChange("company_name_or_trust", e.target.value)}
                     required

@@ -203,6 +203,7 @@ export function canHaveEmployees(entityType: string | null | undefined): boolean
 
 /**
  * Check if entity type can have an employer (be linked to a company)
+ * Only persons (employees) can have an employer - sole traders trade/do business, they don't work FOR companies
  */
 export function canHaveEmployer(entityType: string | null | undefined): boolean {
   return entityType === "person";
