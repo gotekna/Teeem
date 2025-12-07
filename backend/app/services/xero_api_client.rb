@@ -141,21 +141,38 @@ class XeroApiClient
   end
 
   # Refresh the access token for a specific credential (multi-tenant support)
+  # Uses PostgreSQL advisory lock to prevent concurrent refreshes (refresh tokens are single-use)
   def refresh_access_token_for(credential)
     return { success: false, error: "No credentials provided" } unless credential
 
-    begin
-      # Try to access encrypted fields to check if decryption works
-      access_token = credential.access_token
-      refresh_token_value = credential.refresh_token
-    rescue ActiveRecord::Encryption::Errors::Decryption => e
-      Rails.logger.error("Xero credential decryption failed in refresh_access_token - deleting corrupted credentials: #{e.message}")
-      # Delete the corrupted credential
-      credential.destroy
-      raise AuthenticationError, "Xero credentials are corrupted. Please reconnect to Xero."
-    end
+    # Use advisory lock to prevent concurrent refresh attempts
+    # Lock ID is based on credential ID to allow different credentials to refresh concurrently
+    lock_id = 987654321 + credential.id # Unique lock ID per credential
+
+    # Try to get the lock - if another process is refreshing, wait for it
+    ActiveRecord::Base.connection.execute("SELECT pg_advisory_lock(#{lock_id})")
 
     begin
+      # After getting the lock, reload the credential to see if another process already refreshed it
+      credential.reload
+
+      # If token was just refreshed (not expired), skip the refresh
+      if credential.expires_at && credential.expires_at > Time.current + 1.minute
+        Rails.logger.info("[Xero] Token was refreshed by another process, using existing token")
+        return { success: true, expires_at: credential.expires_at }
+      end
+
+      # Try to access encrypted fields to check if decryption works
+      begin
+        access_token = credential.access_token
+        refresh_token_value = credential.refresh_token
+      rescue ActiveRecord::Encryption::Errors::Decryption => e
+        Rails.logger.error("Xero credential decryption failed in refresh_access_token - deleting corrupted credentials: #{e.message}")
+        # Delete the corrupted credential
+        credential.destroy
+        raise AuthenticationError, "Xero credentials are corrupted. Please reconnect to Xero."
+      end
+
       client = oauth_client
       old_token = OAuth2::AccessToken.new(
         client,
@@ -181,6 +198,9 @@ class XeroApiClient
     rescue OAuth2::Error => e
       Rails.logger.error("Xero token refresh error: #{e.message}")
       raise AuthenticationError, "Failed to refresh token: #{e.message}"
+    ensure
+      # Always release the lock
+      ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{lock_id})")
     end
   end
 
