@@ -1377,39 +1377,62 @@ module Api
       # Returns PDF sync progress and health status for the Xero integration dashboard
       def pdf_sync_status
         begin
-          # Get all invoices that should have PDFs (linked to contacts)
+          # ============================================
+          # STAGE 1: Invoice DATA Sync (Xero -> Database)
+          # ============================================
+          total_invoices_in_db = ExternalInvoice.count
           invoices_with_contacts = ExternalInvoice.where.not(contact_id: nil)
-          total_invoices = invoices_with_contacts.count
+          total_with_contacts = invoices_with_contacts.count
+          last_invoice_sync = ExternalInvoice.maximum(:last_synced_at)
 
-          # Count invoices that have PDFs synced (via CompanyDocument with source='xero' and documentable)
+          # Invoice breakdown by type
+          invoice_breakdown = {
+            bills: ExternalInvoice.bills.count,
+            sales_invoices: ExternalInvoice.sales_invoices.count,
+            credit_notes: ExternalInvoice.where(invoice_type: "credit_note").count,
+            quotes: ExternalInvoice.quotes.count
+          }
+
+          # ============================================
+          # STAGE 2: PDF Download (Xero -> Active Storage)
+          # ============================================
+          # Count invoices that have PDFs downloaded
           invoices_with_pdfs = CompanyDocument.where(source: "xero")
                                               .where("external_id LIKE ?", "xero:%:pdf")
                                               .where(documentable_type: "ExternalInvoice")
                                               .distinct
                                               .count(:documentable_id)
 
-          # Count SharePoint uploads (documents with expected_onedrive_path set)
-          sharepoint_uploads = CompanyDocument.where(source: "xero")
-                                              .where.not(expected_onedrive_path: nil)
-                                              .where(documentable_type: "ExternalInvoice")
-                                              .count
+          pdfs_pending = total_with_contacts - invoices_with_pdfs
+          pdf_progress = total_with_contacts.zero? ? 0 : ((invoices_with_pdfs.to_f / total_with_contacts) * 100).round(1)
 
-          # Get recent sync activity (last 24 hours)
-          recent_syncs = CompanyDocument.where(source: "xero")
-                                        .where(documentable_type: "ExternalInvoice")
-                                        .where("created_at > ?", 24.hours.ago)
-                                        .count
+          # Get last PDF sync time
+          last_pdf_sync = CompanyDocument.where(source: "xero")
+                                         .where(documentable_type: "ExternalInvoice")
+                                         .maximum(:created_at)
 
-          # Get errors (documents with sync issues - we can check for missing files)
-          # For now, count invoices without PDFs as "pending"
-          pending_count = total_invoices - invoices_with_pdfs
+          # Recent PDF activity (last 24 hours)
+          pdfs_last_24h = CompanyDocument.where(source: "xero")
+                                         .where(documentable_type: "ExternalInvoice")
+                                         .where("created_at > ?", 24.hours.ago)
+                                         .count
 
-          # Get last sync time
-          last_sync = CompanyDocument.where(source: "xero")
-                                     .where(documentable_type: "ExternalInvoice")
-                                     .maximum(:created_at)
+          # ============================================
+          # STAGE 3: SharePoint Upload (Active Storage -> OneDrive)
+          # ============================================
+          # Documents with expected_onedrive_path means they were uploaded to SharePoint
+          sharepoint_uploaded = CompanyDocument.where(source: "xero")
+                                               .where.not(expected_onedrive_path: nil)
+                                               .where(documentable_type: "ExternalInvoice")
+                                               .count
 
-          # Breakdown by invoice type
+          # PDFs downloaded but not yet on SharePoint
+          sharepoint_pending = invoices_with_pdfs - sharepoint_uploaded
+          sharepoint_progress = invoices_with_pdfs.zero? ? 0 : ((sharepoint_uploaded.to_f / invoices_with_pdfs) * 100).round(1)
+
+          # ============================================
+          # Breakdown by invoice type (for PDF stage)
+          # ============================================
           bills_total = invoices_with_contacts.bills.count
           bills_with_pdfs = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
                                            .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
@@ -1434,11 +1457,8 @@ module Api
                                             .distinct
                                             .count("company_documents.documentable_id")
 
-          # Calculate overall progress percentage
-          progress_percentage = total_invoices.zero? ? 0 : ((invoices_with_pdfs.to_f / total_invoices) * 100).round(1)
-
-          # Estimate time remaining (based on 10s per invoice)
-          estimated_remaining_seconds = pending_count * 10
+          # Estimate time remaining for PDF sync (based on 10s per invoice)
+          estimated_remaining_seconds = pdfs_pending * 10
           estimated_remaining_minutes = (estimated_remaining_seconds / 60.0).round(0)
 
           render json: {

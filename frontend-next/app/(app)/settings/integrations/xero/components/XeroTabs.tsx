@@ -44,6 +44,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 
 // Types
+type FilterStatus = "all" | "synced" | "not-synced" | "errors";
+
 interface FieldMapping {
   field: string;
   label: string;
@@ -475,7 +477,7 @@ export function XeroContactSync() {
   const [totalContacts, setTotalContacts] = React.useState(0);
   const [syncedCount, setSyncedCount] = React.useState(0);
   const [errorCount, setErrorCount] = React.useState(0);
-  const [filterStatus, setFilterStatus] = React.useState<"all" | "synced" | "not-synced" | "errors">("all");
+  const [filterStatus, setFilterStatus] = React.useState<FilterStatus>("all");
   const [xeroDataStats, setXeroDataStats] = React.useState<XeroDataStats | null>(null);
 
   React.useEffect(() => {
@@ -779,8 +781,8 @@ function ContactsGroupedTable({
   setFilterStatus,
 }: {
   contacts: ContactSyncItem[];
-  filterStatus: string;
-  setFilterStatus: (value: string) => void;
+  filterStatus: FilterStatus;
+  setFilterStatus: React.Dispatch<React.SetStateAction<FilterStatus>>;
 }) {
   const router = useRouter();
   const [normalOpen, setNormalOpen] = React.useState(true);
