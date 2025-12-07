@@ -232,6 +232,7 @@ namespace :xero do
   desc "Sync PDFs only (for invoices already in warehouse)"
   task sync_pdfs: :environment do
     puts "Syncing PDFs for existing invoices..."
+    puts "PDFs will be uploaded to SharePoint and stored in Active Storage."
     puts ""
 
     # Only sync PDFs for invoices linked to contacts
@@ -239,6 +240,7 @@ namespace :xero do
     total = invoices_with_contacts.count
     synced = 0
     pdf_count = 0
+    sharepoint_count = 0
     errors = []
     rate_limit_retries = 0
     max_rate_limit_retries = 3
@@ -250,6 +252,7 @@ namespace :xero do
       begin
         result = XeroAttachmentSyncService.new(invoice).sync!
         pdf_count += 1 if result[:pdf].present?
+        sharepoint_count += result[:sharepoint_uploads]&.count || 0
         errors.concat(result[:errors]) if result[:errors].any?
         rate_limit_retries = 0 # Reset on success
       rescue XeroApiClient::RateLimitError => e
@@ -275,7 +278,7 @@ namespace :xero do
 
       synced += 1
       if synced % 10 == 0
-        puts "Progress: #{synced}/#{total} | PDFs: #{pdf_count} | Errors: #{errors.count}"
+        puts "Progress: #{synced}/#{total} | PDFs: #{pdf_count} | SharePoint: #{sharepoint_count} | Errors: #{errors.count}"
       end
 
       # Xero has strict rate limits for PDF/attachment endpoints
@@ -287,7 +290,8 @@ namespace :xero do
     puts ""
     puts "PDF Sync Complete!"
     puts "  Invoices processed: #{synced}"
-    puts "  PDFs synced: #{pdf_count}"
+    puts "  PDFs synced to Active Storage: #{pdf_count}"
+    puts "  PDFs uploaded to SharePoint: #{sharepoint_count}"
     puts "  Errors: #{errors.count}"
     if errors.any?
       puts "\nFirst 10 errors:"
