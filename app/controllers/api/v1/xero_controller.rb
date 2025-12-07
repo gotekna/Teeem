@@ -1303,6 +1303,63 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/validate_contacts
+      # Validate all contacts that should be synced to Xero
+      def validate_contacts
+        begin
+          # Get all contacts that are enabled for Xero sync (or all if no flag exists)
+          contacts = Contact.where.not(entity_type: "price_only")
+                           .where(is_team_contact: false)
+                           .limit(1000) # Limit to prevent timeout
+
+          validation_results = {
+            total_contacts: contacts.count,
+            valid_contacts: 0,
+            invalid_contacts: 0,
+            errors_by_type: {},
+            sample_errors: []
+          }
+
+          contacts.each do |contact|
+            validator = XeroContactValidator.new(contact)
+
+            if validator.valid?
+              validation_results[:valid_contacts] += 1
+            else
+              validation_results[:invalid_contacts] += 1
+
+              # Group errors by field
+              validator.errors.each do |error|
+                field = error[:field].to_s
+                validation_results[:errors_by_type][field] ||= 0
+                validation_results[:errors_by_type][field] += 1
+              end
+
+              # Keep first 10 sample errors for display
+              if validation_results[:sample_errors].length < 10
+                validation_results[:sample_errors] << {
+                  contact_id: contact.id,
+                  contact_name: contact.full_name || "#{contact.first_name} #{contact.last_name}".strip,
+                  errors: validator.errors
+                }
+              end
+            end
+          end
+
+          render json: {
+            success: true,
+            data: validation_results
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero validate_contacts error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to validate contacts: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       private
 
       # Make a direct Xero API request using a specific credential
