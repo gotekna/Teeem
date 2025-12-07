@@ -399,8 +399,8 @@ export function ContactTypesTab() {
             <h3 className="font-semibold">Employee-Company Relationships</h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            Automatically extract employee data from contacts with accounts@ email addresses and link them to their companies.
-            This creates many-to-many employment relationships with role, work email, and work phone tracking.
+            Search your email warehouse to find people who have communicated with specific email addresses.
+            Creates contacts, companies, and employment relationships based on email correspondence.
           </p>
           <div className="flex gap-2">
             <Button
@@ -609,7 +609,7 @@ export function ContactTypesTab() {
             <div className="space-y-3">
               <h4 className="font-medium">Step 1: Select Email Addresses</h4>
               <p className="text-sm text-muted-foreground">
-                Enter the email addresses you want to search for (e.g., rachel@tekna.com.au, accounts@tekna.com.au)
+                Enter email addresses to search your email warehouse for people who have communicated with them (e.g., rachel@tekna.com.au, accounts@tekna.com.au)
               </p>
               <div className="space-y-2">
                 {emailPatterns.map((pattern, idx) => (
@@ -699,6 +699,9 @@ export function ContactTypesTab() {
                             <div className="text-xs space-y-1">
                               {item.employment_exists && (
                                 <Badge variant="secondary">Already linked</Badge>
+                              )}
+                              {item.would_create_contact && (
+                                <Badge variant="default" className="bg-purple-600">Will create contact</Badge>
                               )}
                               {item.would_create_company && (
                                 <Badge variant="outline">Will create company</Badge>
