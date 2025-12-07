@@ -101,7 +101,10 @@ export const ActionsButtons = memo(function ActionsButtons<T extends { id: strin
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() => onDelete(entry)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(entry);
+          }}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>

@@ -100,7 +100,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      next: { revalidate: 60 }, // Cache for 60 seconds
+      cache: 'no-store', // Disable caching - always fetch fresh data
     });
 
     if (!foundationRes.ok) {
@@ -118,7 +118,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        next: { revalidate: 30 }, // Cache records for 30 seconds
+        cache: 'no-store', // Disable caching - always fetch fresh data
       }
     );
 

@@ -28,9 +28,8 @@ export const SelectCheckbox = memo(function SelectCheckbox({
         checked={checked}
         onCheckedChange={onCheckedChange}
         onClick={(e) => {
+          // Stop propagation to prevent row click
           e.stopPropagation();
-          // Immediately toggle - don't wait for onCheckedChange event
-          onCheckedChange(!checked);
         }}
         onMouseDown={(e) => {
           // Stop mousedown from reaching parent to prevent drag detection

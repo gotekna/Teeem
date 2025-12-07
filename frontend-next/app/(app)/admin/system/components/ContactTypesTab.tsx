@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ import {
   GripVertical,
   Users,
   FolderOpen,
+  ArrowRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -54,6 +56,7 @@ interface ContactType {
 }
 
 export function ContactTypesTab() {
+  const router = useRouter();
   const { toast } = useToast();
 
   const [contactTypes, setContactTypes] = React.useState<ContactType[]>([]);
@@ -65,12 +68,6 @@ export function ContactTypesTab() {
   const [contactDocPath, setContactDocPath] = React.useState("");
   const [savingPath, setSavingPath] = React.useState(false);
   const [showFolderPicker, setShowFolderPicker] = React.useState(false);
-  const [extracting, setExtracting] = React.useState(false);
-  const [extractionResult, setExtractionResult] = React.useState<any>(null);
-  const [showExtractDialog, setShowExtractDialog] = React.useState(false);
-  const [emailPatterns, setEmailPatterns] = React.useState<string[]>([]);
-  const [previewData, setPreviewData] = React.useState<any[]>([]);
-  const [selectedExtractions, setSelectedExtractions] = React.useState<Set<number>>(new Set());
 
   const [formData, setFormData] = React.useState({
     name: "",
@@ -242,90 +239,8 @@ export function ContactTypesTab() {
     }
   };
 
-  const handleOpenExtractDialog = () => {
-    setShowExtractDialog(true);
-    setEmailPatterns([]);
-    setPreviewData([]);
-    setSelectedExtractions(new Set());
-  };
-
-  const handlePreviewExtractions = async () => {
-    if (emailPatterns.length === 0) {
-      toast({
-        title: "Error",
-        description: "Please add at least one email pattern",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setExtracting(true);
-    try {
-      const result = await api.get<any>("/api/v1/contacts/preview_employee_extraction", {
-        params: { email_patterns: emailPatterns.join(',') }
-      });
-      setPreviewData(result.preview || []);
-      // Select all by default
-      setSelectedExtractions(new Set(result.preview.map((_: any, idx: number) => idx)));
-      toast({
-        title: "Preview Ready",
-        description: `Found ${result.total_found} contacts to process`,
-      });
-    } catch (error: any) {
-      console.error("Failed to preview:", error);
-      toast({
-        title: "Error",
-        description: error?.response?.data?.error || "Failed to preview extractions",
-        variant: "destructive",
-      });
-    } finally {
-      setExtracting(false);
-    }
-  };
-
-  const handleExecuteExtractions = async () => {
-    const selected = previewData.filter((_, idx) => selectedExtractions.has(idx));
-
-    if (selected.length === 0) {
-      toast({
-        title: "Error",
-        description: "Please select at least one extraction to execute",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setExtracting(true);
-    try {
-      const result = await api.post<any>("/api/v1/contacts/extract_employees", {
-        extractions: selected
-      });
-      setExtractionResult(result);
-      toast({
-        title: "Success",
-        description: `Created ${result.employments_created} employment relationships`,
-      });
-      setShowExtractDialog(false);
-    } catch (error: any) {
-      console.error("Failed to extract employees:", error);
-      toast({
-        title: "Error",
-        description: error?.response?.data?.error || "Failed to extract employees",
-        variant: "destructive",
-      });
-    } finally {
-      setExtracting(false);
-    }
-  };
-
-  const toggleExtraction = (idx: number) => {
-    const newSelected = new Set(selectedExtractions);
-    if (newSelected.has(idx)) {
-      newSelected.delete(idx);
-    } else {
-      newSelected.add(idx);
-    }
-    setSelectedExtractions(newSelected);
+  const handleOpenExtractPage = () => {
+    router.push("/admin/system/extract-employees");
   };
 
   if (loading) {
@@ -403,24 +318,12 @@ export function ContactTypesTab() {
             Creates contacts, companies, and employment relationships based on email correspondence.
           </p>
           <div className="flex gap-2">
-            <Button
-              onClick={handleOpenExtractDialog}
-            >
+            <Button onClick={handleOpenExtractPage}>
               <Users className="h-4 w-4 mr-2" />
               Extract Employees
+              <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
           </div>
-          {extractionResult && (
-            <div className="bg-muted px-4 py-3 rounded-md space-y-2">
-              <div className="text-sm font-medium">Extraction Complete:</div>
-              <div className="text-xs text-muted-foreground space-y-1">
-                <div>✓ {extractionResult.employments_created} employment relationships created</div>
-                <div>✓ {extractionResult.companies_created} companies created</div>
-                <div>✓ {extractionResult.total_employees} employees processed</div>
-                <div>✓ {extractionResult.total_employers} employers found</div>
-              </div>
-            </div>
-          )}
         </div>
       </Card>
 
@@ -595,147 +498,6 @@ export function ContactTypesTab() {
             onSelect={handleFolderSelect}
             className="max-h-[400px]"
           />
-        </DialogContent>
-      </Dialog>
-
-      {/* Employee Extraction Wizard */}
-      <Dialog open={showExtractDialog} onOpenChange={setShowExtractDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Extract Employee-Company Relationships</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6">
-            {/* Step 1: Email Selection */}
-            <div className="space-y-3">
-              <h4 className="font-medium">Step 1: Select Email Addresses</h4>
-              <p className="text-sm text-muted-foreground">
-                Enter email addresses to search your email warehouse for people who have communicated with them (e.g., rachel@tekna.com.au, accounts@tekna.com.au)
-              </p>
-              <div className="space-y-2">
-                {emailPatterns.map((pattern, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <Input
-                      value={pattern}
-                      onChange={(e) => {
-                        const newPatterns = [...emailPatterns];
-                        newPatterns[idx] = e.target.value;
-                        setEmailPatterns(newPatterns);
-                      }}
-                      placeholder="email@domain.com"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEmailPatterns(emailPatterns.filter((_, i) => i !== idx))}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEmailPatterns([...emailPatterns, ""])}
-                >
-                  Add Email Address
-                </Button>
-              </div>
-              <Button onClick={handlePreviewExtractions} disabled={extracting || emailPatterns.length === 0}>
-                {extracting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Searching...
-                  </>
-                ) : (
-                  "Search & Preview"
-                )}
-              </Button>
-            </div>
-
-            {/* Step 2: Preview & Confirm */}
-            {previewData.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="font-medium">Step 2: Review & Confirm</h4>
-                <p className="text-sm text-muted-foreground">
-                  Select which employee relationships to create ({selectedExtractions.size} of {previewData.length} selected)
-                </p>
-                <div className="border rounded-lg max-h-96 overflow-y-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12">
-                          <input
-                            type="checkbox"
-                            checked={selectedExtractions.size === previewData.length}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedExtractions(new Set(previewData.map((_, idx) => idx)));
-                              } else {
-                                setSelectedExtractions(new Set());
-                              }
-                            }}
-                          />
-                        </TableHead>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Company</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {previewData.map((item, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell>
-                            <input
-                              type="checkbox"
-                              checked={selectedExtractions.has(idx)}
-                              onChange={() => toggleExtraction(idx)}
-                            />
-                          </TableCell>
-                          <TableCell>{item.employee_name}</TableCell>
-                          <TableCell className="font-mono text-xs">{item.employee_email}</TableCell>
-                          <TableCell>{item.company_name}</TableCell>
-                          <TableCell>
-                            <div className="text-xs space-y-1">
-                              {item.employment_exists && (
-                                <Badge variant="secondary">Already linked</Badge>
-                              )}
-                              {item.would_create_contact && (
-                                <Badge variant="default" className="bg-purple-600">Will create contact</Badge>
-                              )}
-                              {item.would_create_company && (
-                                <Badge variant="outline">Will create company</Badge>
-                              )}
-                              {item.would_create_employment && !item.employment_exists && (
-                                <Badge>Will create link</Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowExtractDialog(false)}>
-              Cancel
-            </Button>
-            {previewData.length > 0 && (
-              <Button onClick={handleExecuteExtractions} disabled={extracting || selectedExtractions.size === 0}>
-                {extracting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  `Create ${selectedExtractions.size} Relationships`
-                )}
-              </Button>
-            )}
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

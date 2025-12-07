@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { Plus, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
 
 interface Contact {
@@ -60,11 +61,22 @@ export default function ContactsPageClient({
   initialError,
 }: ContactsPageClientProps) {
   const router = useRouter();
+  const { toast } = useToast();
 
   // Use initial data from server - no loading state needed on first render!
   const [foundation] = useState(initialFoundation);
   const [columns] = useState(initialColumns);
-  const [records, setRecords] = useState(initialRecords);
+
+  // Initialize records only once, then ignore server props to prevent SSR overwrites
+  const initialRecordsRef = useRef(initialRecords);
+  const [records, setRecords] = useState(() => initialRecordsRef.current);
+
+  // CRITICAL: Don't update records from props after initial mount
+  // This prevents SSR from overwriting optimistic deletes
+  useEffect(() => {
+    // Only use the initial records on first mount
+    // After that, ignore any props changes from SSR
+  }, []);
 
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
@@ -83,27 +95,32 @@ export default function ContactsPageClient({
       console.log('[ContactsPageClient] Current records count:', records.length);
 
       // Small delay to ensure backend transaction commits
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const timestamp = Date.now();
+      console.log('[ContactsPageClient] Cache buster timestamp:', timestamp);
 
       const response = await api.get<{ records: TTableRow[] }>(
         `/api/v1/foundations/${foundation.id}/records`,
         {
           params: {
             per_page: 10000,  // Fetch all records (increased from 500)
-            _t: Date.now()     // Cache buster to ensure fresh data
+            _t: timestamp      // Cache buster to ensure fresh data
           },
           dedupe: false        // Disable request deduplication to force fresh data
         }
       );
       console.log('[ContactsPageClient] API response received');
       console.log('[ContactsPageClient] New records count:', response.records?.length || 0);
+      console.log('[ContactsPageClient] First 5 record IDs:', response.records?.slice(0, 5).map(r => r.id) || []);
       console.log('[ContactsPageClient] Setting records...');
       setRecords(response.records || []);
+      console.log('[ContactsPageClient] Records state updated');
       console.log('[ContactsPageClient] Refresh complete!');
     } catch (error) {
       console.error("[ContactsPageClient] Failed to refresh:", error);
     }
-  }, [foundation, records.length]);
+  }, [foundation]);
 
   const handleMergeComplete = () => {
     setSelectedForMerge([]);
@@ -152,21 +169,113 @@ export default function ContactsPageClient({
     }
   }, [refresh]);
 
-  // Handle single contact delete
+  // TEEEM Values to rotate through
+  const teeemValues = [
+    {
+      title: "Trust",
+      description: "We build trust through being HOT: Honest, Open, and Transparent. We say things straight, share what needs to be shared, and always act with integrity."
+    },
+    {
+      title: "Empower",
+      description: "We give everyone the authority, tools, and backing to make decisions and take action. When people feel trusted and supported, they deliver their best."
+    },
+    {
+      title: "Evolve",
+      description: "We are committed to constant growth. We learn fast, embrace change, turn challenges into opportunities, and keep getting better every day."
+    },
+    {
+      title: "Enjoy",
+      description: "We believe great results come when we genuinely enjoy what we do. We celebrate wins, look after each other, and keep the workplace positive and human."
+    },
+    {
+      title: "Measure",
+      description: "We set clear targets, track progress honestly, and use real data to improve. What we measure, we manage—and we always aim higher."
+    }
+  ];
+
+  // Handle delete - no confirmation, just soft delete (archive) immediately
+  // Backend sets deleted=true, record disappears from UI but can be recovered
   const handleDelete = useCallback(async (row: TTableRow) => {
     const contact = row as unknown as Contact;
-    if (!confirm(`Delete contact "${contact.full_name || contact.name}"?`)) {
-      return;
-    }
+    const contactName = contact.full_name || contact.name || 'Contact';
+
+    // Pick a random TEEEM value
+    const randomValue = teeemValues[Math.floor(Math.random() * teeemValues.length)];
 
     try {
+      // Optimistically remove from UI immediately
+      setRecords(prev => prev.filter(r => r.id !== contact.id));
+
+      // Show TEEEM value toast
+      toast({
+        title: randomValue.title,
+        description: randomValue.description,
+      });
+
+      // Soft delete via API (backend sets deleted=true)
       await api.delete(`/api/v1/foundations/contacts/records/${contact.id}`);
-      await refresh();
-    } catch (error) {
-      console.error("Failed to delete contact:", error);
-      alert("Failed to delete contact. Please try again.");
+
+      // Show success toast
+      toast({
+        title: "Contact archived",
+        description: `${contactName} has been removed`,
+      });
+    } catch (error: any) {
+      console.error("[ContactsPageClient] Failed to delete contact:", error);
+
+      // If delete failed, refresh to restore the contact
+      if (error?.status !== 404 && !error?.message?.includes('not found')) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        toast({
+          title: "Delete failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        await refresh();
+      }
     }
-  }, [refresh]);
+  }, [refresh, toast]);
+
+  // Handle bulk delete - no confirmation, just soft delete all immediately
+  const handleBulkDelete = useCallback(async (ids: (number | string)[]) => {
+    if (ids.length === 0) return;
+
+    // Pick a random TEEEM value
+    const randomValue = teeemValues[Math.floor(Math.random() * teeemValues.length)];
+
+    try {
+      // Optimistically remove from UI immediately
+      const idsSet = new Set(ids);
+      setRecords(prev => prev.filter(r => !idsSet.has(r.id)));
+
+      // Show TEEEM value toast
+      toast({
+        title: randomValue.title,
+        description: randomValue.description,
+      });
+
+      // Soft delete all via API (in parallel for speed)
+      await Promise.all(
+        ids.map(id => api.delete(`/api/v1/foundations/contacts/records/${id}`))
+      );
+
+      // Show success toast
+      toast({
+        title: "Contacts archived",
+        description: `${ids.length} contacts have been removed`,
+      });
+    } catch (error: any) {
+      console.error("[ContactsPageClient] Failed to delete contacts:", error);
+
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      toast({
+        title: "Delete failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      await refresh();
+    }
+  }, [refresh, toast]);
 
   // Handle data health issue click (e.g., fix duplicate emails)
   const handleDataHealthIssueClick = useCallback((item: unknown, check: unknown) => {
@@ -233,6 +342,7 @@ export default function ContactsPageClient({
         onRowDoubleClick={handleRowDoubleClick}
         onRowUpdate={handleRowUpdate}
         onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
         leftActions={leftActions}
       />
 

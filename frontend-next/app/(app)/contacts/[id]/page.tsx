@@ -1097,10 +1097,16 @@ export default function ContactDetailPage() {
       setError(null);
       const response = await api.get<{ contact: Contact }>(`/api/v1/contacts/${id}`);
       setContact(response.contact);
-    } catch (err) {
-      console.error("Failed to load contact:", err);
-      // Auto-redirect to contacts list if contact not found
-      router.push('/contacts');
+    } catch (err: any) {
+      // Silently redirect if contact not found (404) or forbidden (403)
+      if (err?.status === 404 || err?.status === 403 || err?.message?.includes('not found')) {
+        console.log("Contact not found, using client-side redirect");
+        // Use replace instead of push to avoid SSR and keep browser history clean
+        router.replace('/contacts');
+      } else {
+        console.error("Failed to load contact:", err);
+        setError(err?.message || "Failed to load contact");
+      }
     } finally {
       setLoading(false);
     }

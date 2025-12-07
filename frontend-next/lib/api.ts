@@ -199,10 +199,20 @@ export const api = {
     const requestKey = getRequestKey('GET', url);
 
     const doRequest = async () => {
+      const headers = {
+        ...getAuthHeaders(),
+        // Add cache control headers when dedupe is disabled
+        ...(dedupe === false && {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        })
+      };
+
       const response = await withRetry(
         () => fetchWithTimeout(url, {
           method: 'GET',
-          headers: getAuthHeaders(),
+          headers,
           credentials: 'include',
         }, timeout),
         retries
