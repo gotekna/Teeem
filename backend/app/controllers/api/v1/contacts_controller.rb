@@ -2342,6 +2342,7 @@ module Api
           unless company
             company = Contact.create!(
               full_name: company_name,
+              company_name_or_trust: company_name,
               entity_type: 'company',
               is_active: true
             )
