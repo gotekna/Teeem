@@ -145,7 +145,7 @@ module Api
         # If this contact is a supplier, include their supplier-specific data
         contact_json = @contact.as_json(
           only: [
-            :id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :fax_phone, :website,
+            :id, :full_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :fax_phone, :website,
             :tax_number, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :xero_sync_error,
             :sys_type_id, :deleted, :parent_id, :parent,
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
@@ -403,7 +403,7 @@ module Api
           render json: {
             success: true,
             contact: @contact.as_json(
-              only: [ :id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas ],
+              only: [ :id, :full_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas ],
               methods: [ :is_employee?, :is_sales?, :is_land_agent? ]
             )
           }
@@ -2552,6 +2552,21 @@ module Api
 
         # Filter to only show items where we have matching contacts
         preview_data = preview_data.select { |item| item[:matching_contacts].any? }
+
+        # Filter out "perfect matches" that have nothing to update
+        # A perfect match with nothing to update = single contact match + email matches + employer linked + no phone found
+        preview_data = preview_data.reject do |item|
+          next false if item[:matching_contacts].length != 1
+
+          contact = item[:matching_contacts].first
+          email_matches = contact[:email]&.downcase == item[:email].downcase
+          employer_linked = contact[:relationship_to_domain_company_exists]
+          no_phone_found = item[:phones].blank? || item[:phones][:mobile].blank?
+          contact_has_mobile = contact[:mobile_phone].present?
+
+          # Skip if: email matches AND employer linked AND (no phone found OR contact already has mobile)
+          email_matches && employer_linked && (no_phone_found || contact_has_mobile)
+        end
 
         render json: {
           success: true,

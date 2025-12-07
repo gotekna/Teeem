@@ -85,6 +85,7 @@ interface SelectionState {
   newContactName: string; // Name for the new contact (editable)
   addEmail: boolean;
   addMobile: boolean;
+  isPerfectMatch: boolean; // If true, this is a perfect match - no confirmation needed for mobile
   linkToDomainCompany: boolean;
   parentCompanyLinks: Record<number, boolean>; // company_id -> enabled
   mergeContacts: boolean; // If true, merge duplicate contacts into selected one
@@ -158,13 +159,21 @@ function ExtractEmployeesContent() {
         const isCustomer = firstContact?.xero_contact_type === "CUSTOMER" ||
           (firstContact?.xero_invoice_count && firstContact.xero_invoice_count > 0);
 
+        // Perfect match = single contact match + employer already linked + email matches (case-insensitive)
+        // For perfect matches, we auto-add mobile without asking
+        const isPerfectMatch = !hasNoMatches &&
+          item.matching_contacts.length === 1 &&
+          firstContact?.relationship_to_domain_company_exists &&
+          (firstContact?.email?.toLowerCase() === item.email.toLowerCase() || !firstContact?.email);
+
         defaultSelections[idx] = {
           selected: true,
           selectedContactId: firstContact?.id || null,
           createNewContact: hasNoMatches, // Create new if no matches found
           newContactName: item.person_name_from_email, // Default to extracted name
           addEmail: true, // Always add email for new contacts
-          addMobile: !!item.phones?.mobile,
+          addMobile: !!item.phones?.mobile, // Auto-add mobile if found
+          isPerfectMatch: isPerfectMatch,
           // Default to YES for new contacts (they're employees of the domain company)
           linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !firstContact?.relationship_to_domain_company_exists),
           parentCompanyLinks: hasNoMatches ? {} : (isCustomer ? {} : parentLinks),
@@ -254,13 +263,21 @@ function ExtractEmployeesContent() {
         const isCustomer = firstContact?.xero_contact_type === "CUSTOMER" ||
           (firstContact?.xero_invoice_count && firstContact.xero_invoice_count > 0);
 
+        // Perfect match = single contact match + employer already linked + email matches (case-insensitive)
+        // For perfect matches, we auto-add mobile without asking
+        const isPerfectMatch = !hasNoMatches &&
+          item.matching_contacts.length === 1 &&
+          firstContact?.relationship_to_domain_company_exists &&
+          (firstContact?.email?.toLowerCase() === item.email.toLowerCase() || !firstContact?.email);
+
         defaultSelections[idx] = {
           selected: true,
           selectedContactId: firstContact?.id || null,
           createNewContact: hasNoMatches, // Create new if no matches found
           newContactName: item.person_name_from_email, // Default to extracted name
           addEmail: true, // Always add email
-          addMobile: !!item.phones?.mobile,
+          addMobile: !!item.phones?.mobile, // Auto-add mobile if found
+          isPerfectMatch: isPerfectMatch,
           // Default to YES for new contacts (they're employees of the domain company)
           linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !firstContact?.relationship_to_domain_company_exists),
           parentCompanyLinks: hasNoMatches ? {} : (isCustomer ? {} : parentLinks),
@@ -381,6 +398,10 @@ function ExtractEmployeesContent() {
       .filter((c) => c.id !== contactId)
       .map((c) => c.id);
 
+    // Check if this is a perfect match (employer linked + email matches)
+    const isPerfectMatch = !!(contact?.relationship_to_domain_company_exists &&
+      (contact?.email?.toLowerCase() === item.email.toLowerCase() || !contact?.email));
+
     setSelections((prev) => ({
       ...prev,
       [idx]: {
@@ -388,6 +409,7 @@ function ExtractEmployeesContent() {
         selectedContactId: contactId,
         addEmail: !contact?.email || contact.email.toLowerCase() !== item.email.toLowerCase(), // Add email if contact doesn't have one or has different (case-insensitive)
         addMobile: !!item.phones?.mobile && !contact?.mobile_phone, // Add mobile if found and contact doesn't have one
+        isPerfectMatch: isPerfectMatch,
         linkToDomainCompany: !contact?.relationship_to_domain_company_exists,
         parentCompanyLinks: parentLinks,
         contactsToMerge: otherContactIds,
@@ -899,8 +921,14 @@ function ExtractEmployeesContent() {
                                 <div className="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-800 border">
                                   <User className="h-5 w-5 text-green-600" />
                                   <div className="flex-1">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                       <span className="font-semibold">{selectedContact?.full_name}</span>
+                                      {sel?.isPerfectMatch && (
+                                        <Badge className="bg-green-600 text-xs gap-1">
+                                          <CheckCircle2 className="h-3 w-3" />
+                                          Perfect Match
+                                        </Badge>
+                                      )}
                                       {(selectedContact?.xero_contact_type === "CUSTOMER" || (selectedContact?.xero_invoice_count != null && selectedContact.xero_invoice_count > 0)) && (
                                         <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
                                           Customer{selectedContact?.xero_invoice_count != null && selectedContact.xero_invoice_count > 0 ? ` (${selectedContact.xero_invoice_count} invoices)` : ""}
@@ -926,6 +954,19 @@ function ExtractEmployeesContent() {
 
                               {/* Actions: Add Email / Add Mobile */}
                               <div className="mt-4 space-y-2">
+                                {/* Show "Nothing to update" message for perfect matches with no changes needed */}
+                                {sel?.isPerfectMatch &&
+                                 selectedContact?.email?.toLowerCase() === item.email.toLowerCase() &&
+                                 !item.phones?.mobile &&
+                                 selectedContact?.relationship_to_domain_company_exists && (
+                                  <div className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 text-muted-foreground">
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                    <span className="text-sm">
+                                      Contact is already up to date — no phone found in email signature
+                                    </span>
+                                  </div>
+                                )}
+
                                 {/* Add Email Option - show if selected contact doesn't have an email OR has a different email (case-insensitive) */}
                                 {(!selectedContact?.email || selectedContact.email.toLowerCase() !== item.email.toLowerCase()) && (
                                   <div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200">
@@ -969,28 +1010,36 @@ function ExtractEmployeesContent() {
                                         Add mobile <span className="font-mono font-semibold">{item.phones.mobile}</span>
                                       </span>
                                     </div>
-                                    <div className="flex rounded-lg overflow-hidden border-2 border-green-400">
-                                      <button
-                                        onClick={() => toggleAddMobile(idx)}
-                                        className={`px-3 py-1.5 font-bold text-sm transition-colors ${
-                                          sel?.addMobile
-                                            ? "bg-green-500 text-white"
-                                            : "bg-white dark:bg-gray-800 text-gray-400"
-                                        }`}
-                                      >
-                                        Yes
-                                      </button>
-                                      <button
-                                        onClick={() => toggleAddMobile(idx)}
-                                        className={`px-3 py-1.5 font-bold text-sm transition-colors ${
-                                          !sel?.addMobile
-                                            ? "bg-gray-400 text-white"
-                                            : "bg-white dark:bg-gray-800 text-gray-400"
-                                        }`}
-                                      >
-                                        No
-                                      </button>
-                                    </div>
+                                    {/* For perfect matches, auto-add mobile without asking */}
+                                    {sel?.isPerfectMatch ? (
+                                      <Badge className="bg-green-600 gap-1">
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        Will Add
+                                      </Badge>
+                                    ) : (
+                                      <div className="flex rounded-lg overflow-hidden border-2 border-green-400">
+                                        <button
+                                          onClick={() => toggleAddMobile(idx)}
+                                          className={`px-3 py-1.5 font-bold text-sm transition-colors ${
+                                            sel?.addMobile
+                                              ? "bg-green-500 text-white"
+                                              : "bg-white dark:bg-gray-800 text-gray-400"
+                                          }`}
+                                        >
+                                          Yes
+                                        </button>
+                                        <button
+                                          onClick={() => toggleAddMobile(idx)}
+                                          className={`px-3 py-1.5 font-bold text-sm transition-colors ${
+                                            !sel?.addMobile
+                                              ? "bg-gray-400 text-white"
+                                              : "bg-white dark:bg-gray-800 text-gray-400"
+                                          }`}
+                                        >
+                                          No
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>
