@@ -8,7 +8,7 @@ namespace :xero do
     puts "Expired: #{cred.expired?}"
 
     api = XeroApiClient.new
-    result = api.get("Organisation", {}, tenant_id: cred.tenant_id)
+    result = api.get("Organisation", { tenant_id: cred.tenant_id })
 
     if result[:success]
       org_name = result[:data].dig("Organisations", 0, "Name")
