@@ -1933,8 +1933,10 @@ export default function TeeemTableView({
 
   // Drag-to-select handlers (must be after filteredAndSortedEntries)
   const handleSelectMouseDown = useCallback((rowId: number | string, rowIndex: number, e: React.MouseEvent) => {
+    // Don't start drag immediately - wait to see if mouse moves
+    // This allows single clicks to work normally
     dragStateRef.current = {
-      isDragging: true,
+      isDragging: false, // Will become true only if mouse moves
       startRowId: rowId,
       startRowIndex: rowIndex,
       currentRowId: rowId,
@@ -1943,8 +1945,18 @@ export default function TeeemTableView({
     };
   }, []);
 
-  const handleMouseMove = useCallback((_e: MouseEvent) => {
-    // No longer needed - drag starts immediately on mouse down
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragStateRef.current || dragStateRef.current.isDragging) return;
+
+    // Check if mouse has moved enough to start dragging
+    const deltaX = Math.abs(e.clientX - dragStateRef.current.startX);
+    const deltaY = Math.abs(e.clientY - dragStateRef.current.startY);
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // Start dragging if moved more than 5 pixels
+    if (distance > 5) {
+      dragStateRef.current.isDragging = true;
+    }
   }, []);
 
   // Store reference to the actual handler that will be set up later
@@ -3593,29 +3605,79 @@ export default function TeeemTableView({
       {/* Second row: Saved Views OR Selection Controls (for grouped tables) */}
       {savedViews.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto mt-3 pb-2">
-          {/* When grouped table has selections, show selection controls here instead of saved views */}
-          {groupByColumn && selectedRows.size > 0 ? (
+          {/* Expand/Collapse all button - always visible when grouped to prevent layout shift */}
+          {groupByColumn && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (collapsedGroups.size === 0) {
+                  collapseAllGroups();
+                } else {
+                  expandAllGroups();
+                }
+              }}
+              className="h-7 w-7 p-0 shrink-0"
+            >
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  collapsedGroups.size === 0 ? "rotate-0" : "-rotate-90"
+                )}
+              />
+            </Button>
+          )}
+
+          {/* When editing rows, show editing controls instead of saved views */}
+          {editingRowIds.size > 0 ? (
+            (() => {
+              const errorCount = Object.values(validationErrors).reduce(
+                (count, rowErrors) => count + Object.keys(rowErrors).length,
+                0
+              );
+              return (
+                <>
+                  <span className={cn(
+                    "text-sm font-medium",
+                    errorCount > 0 ? "text-red-700 dark:text-red-300" : "text-blue-700 dark:text-blue-300"
+                  )}>
+                    Editing {editingRowIds.size} row{editingRowIds.size !== 1 ? "s" : ""}
+                    {errorCount > 0 && (
+                      <span className="ml-2 text-red-600">
+                        ({errorCount} error{errorCount !== 1 ? "s" : ""})
+                      </span>
+                    )}
+                  </span>
+                  <div className="flex-1" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={cancelEditing}
+                    className="h-7 px-2"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={saveEditing}
+                    className={cn(
+                      "h-7 px-2",
+                      errorCount > 0
+                        ? "bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
+                        : "bg-green-600 hover:bg-green-700"
+                    )}
+                    disabled={errorCount > 0}
+                  >
+                    <Check className="h-4 w-4 mr-1" />
+                    Save All
+                  </Button>
+                </>
+              );
+            })()
+          ) : groupByColumn && selectedRows.size > 0 ? (
             <>
-              {/* Expand/Collapse all button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (collapsedGroups.size === 0) {
-                    collapseAllGroups();
-                  } else {
-                    expandAllGroups();
-                  }
-                }}
-                className="h-7 w-7 p-0 shrink-0"
-              >
-                <ChevronDown
-                  className={cn(
-                    "h-4 w-4 transition-transform",
-                    collapsedGroups.size === 0 ? "rotate-0" : "-rotate-90"
-                  )}
-                />
-              </Button>
 
               {/* Selection dropdown */}
               <DropdownMenu>
@@ -3690,28 +3752,6 @@ export default function TeeemTableView({
             </>
           ) : (
             <>
-              {/* Expand/Collapse all button - only show when grouped */}
-              {groupByColumn && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (collapsedGroups.size === 0) {
-                      collapseAllGroups();
-                    } else {
-                      expandAllGroups();
-                    }
-                  }}
-                  className="h-7 w-7 p-0 shrink-0"
-                >
-                  <ChevronDown
-                    className={cn(
-                      "h-4 w-4 transition-transform",
-                      collapsedGroups.size === 0 ? "rotate-0" : "rotate-180"
-                    )}
-                  />
-                </Button>
-              )}
               {/* Show all views as individual buttons */}
               {savedViews.map((view) => (
                 <TooltipProvider key={view.id}>
@@ -3856,56 +3896,6 @@ export default function TeeemTableView({
         </div>
       )}
 
-      {/* Multi-row editing toolbar */}
-      {editingRowIds.size > 0 && (() => {
-        const errorCount = Object.values(validationErrors).reduce(
-          (count, rowErrors) => count + Object.keys(rowErrors).length,
-          0
-        );
-        return (
-          <div className={cn(
-            "flex items-center gap-2 p-2 rounded-lg",
-            errorCount > 0
-              ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800"
-              : "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800"
-          )}>
-            <span className={cn(
-              "text-sm font-medium",
-              errorCount > 0 ? "text-red-700 dark:text-red-300" : "text-blue-700 dark:text-blue-300"
-            )}>
-              Editing {editingRowIds.size} row{editingRowIds.size !== 1 ? "s" : ""}
-              {errorCount > 0 && (
-                <span className="ml-2 text-red-600">
-                  ({errorCount} error{errorCount !== 1 ? "s" : ""})
-                </span>
-              )}
-            </span>
-            <div className="flex-1" />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={cancelEditing}
-            >
-              <X className="h-4 w-4 mr-1" />
-              Cancel
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={saveEditing}
-              className={cn(
-                errorCount > 0
-                  ? "bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
-                  : "bg-green-600 hover:bg-green-700"
-              )}
-              disabled={errorCount > 0}
-            >
-              <Check className="h-4 w-4 mr-1" />
-              Save All
-            </Button>
-          </div>
-        );
-      })()}
 
       {/* Sort controls - indicators hidden but functionality preserved */}
       {false && sortColumns.length > 0 && (

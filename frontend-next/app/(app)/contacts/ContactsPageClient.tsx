@@ -91,7 +91,8 @@ export default function ContactsPageClient({
           params: {
             per_page: 10000,  // Fetch all records (increased from 500)
             _t: Date.now()     // Cache buster to ensure fresh data
-          }
+          },
+          dedupe: false        // Disable request deduplication to force fresh data
         }
       );
       console.log('[ContactsPageClient] API response received');
@@ -160,7 +161,7 @@ export default function ContactsPageClient({
 
     try {
       await api.delete(`/api/v1/foundations/contacts/records/${contact.id}`);
-      refresh();
+      await refresh();
     } catch (error) {
       console.error("Failed to delete contact:", error);
       alert("Failed to delete contact. Please try again.");
