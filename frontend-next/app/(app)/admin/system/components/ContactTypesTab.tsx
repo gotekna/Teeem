@@ -63,7 +63,7 @@ const ENTITY_TYPE_FIELDS = [
   { field: "middle_name", label: "Middle Name", description: "Person's middle name" },
   { field: "last_name", label: "Last Name", description: "Person's last name" },
   { field: "company_name_or_trust", label: "Company/Trust Name", description: "Business entity name - updates full_name on save" },
-  { field: "full_name", label: "Full Name", description: "Display name (auto-synced from name fields)" },
+  { field: "full_name", label: "Display Name", description: "Display name (auto-synced from name fields)" },
   { field: "email", label: "Email", description: "Primary email address" },
   { field: "phone", label: "Phone", description: "Primary phone number" },
   { field: "website", label: "Website", description: "Website URL" },

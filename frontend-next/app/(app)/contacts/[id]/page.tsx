@@ -2304,7 +2304,7 @@ export default function ContactDetailPage() {
                           </div>
                           {/* Show full_name from database as read-only (SSoT) */}
                           <div className="space-y-2">
-                            <Label htmlFor="full_name_display">Full Name (SSoT)</Label>
+                            <Label htmlFor="full_name_display">Display Name (SSoT)</Label>
                             <Input
                               id="full_name_display"
                               value={contact.full_name || ""}
@@ -2339,17 +2339,17 @@ export default function ContactDetailPage() {
                               <p className="text-xs text-muted-foreground">Will be saved in CAPITALS automatically</p>
                             )}
                           </div>
-                          {/* Show computed full_name as read-only for Company/Trust */}
+                          {/* Show full_name from database as read-only (SSoT) for Company/Trust */}
                           {!isPriceOnly(formData.entity_type) && (
                             <div className="space-y-2">
-                              <Label htmlFor="full_name_display">Full Name (auto-synced)</Label>
+                              <Label htmlFor="full_name_display">Display Name (SSoT)</Label>
                               <Input
                                 id="full_name_display"
-                                value={formData.full_name}
+                                value={contact.full_name || ""}
                                 disabled
                                 className="bg-muted"
                               />
-                              <p className="text-xs text-muted-foreground">Automatically synced from Company/Trust Name</p>
+                              <p className="text-xs text-muted-foreground">Database value - updated on save from Company/Trust Name</p>
                             </div>
                           )}
                         </>

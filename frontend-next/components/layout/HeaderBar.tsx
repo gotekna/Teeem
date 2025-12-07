@@ -80,15 +80,22 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     const fetchIntegrationStatus = async () => {
       // Check Xero connection
       try {
-        const xeroResponse = await api.get<{ connected?: boolean; data?: { connected?: boolean; message?: string }; message?: string }>("/api/v1/xero/status");
+        const xeroResponse = await api.get<{
+          connected?: boolean;
+          data?: { connected?: boolean; expired?: boolean; message?: string; tenant_name?: string };
+          message?: string
+        }>("/api/v1/xero/status");
         const xeroData = xeroResponse?.data || xeroResponse;
 
-        if (xeroData?.connected === true) {
+        if (xeroData?.connected === true && xeroData?.expired !== true) {
           setXeroStatus('connected');
-          setXeroTooltip('Xero: Connected');
-        } else if (xeroData?.message?.toLowerCase().includes('expired') || xeroData?.message?.toLowerCase().includes('reconnect')) {
+          setXeroTooltip(`Xero: Connected${xeroData.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
+        } else if (xeroData?.expired === true || xeroData?.message?.toLowerCase().includes('expired') || xeroData?.message?.toLowerCase().includes('reconnect')) {
           setXeroStatus('error');
-          setXeroTooltip(`Xero: ${xeroData.message || 'Connection Lost'}`);
+          setXeroTooltip(`Xero: Token Expired - Reconnect Required`);
+        } else if (xeroData?.connected === false && xeroData?.message) {
+          setXeroStatus('error');
+          setXeroTooltip(`Xero: ${xeroData.message}`);
         } else {
           setXeroStatus('disconnected');
           setXeroTooltip('Xero: Not Connected');
