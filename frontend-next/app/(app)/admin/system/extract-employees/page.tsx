@@ -38,6 +38,7 @@ interface MatchingContact {
   email: string | null;
   mobile_phone: string | null;
   entity_type: string;
+  xero_contact_type: string | null; // CUSTOMER, SUPPLIER, or null
   relationship_to_domain_company_exists: boolean;
   relationships_to_parent_companies: {
     company_id: number;
@@ -147,13 +148,17 @@ function ExtractEmployeesContent() {
           .filter((c) => c.id !== firstContact?.id)
           .map((c) => c.id);
 
+        // Don't suggest employee relationships for customers - they are clients, not employees
+        const isCustomer = firstContact?.xero_contact_type === "CUSTOMER";
+
         defaultSelections[idx] = {
           selected: true,
           selectedContactId: firstContact?.id || null,
           addEmail: !firstContact?.email || firstContact.email !== item.email,
           addMobile: !!item.phones?.mobile && !firstContact?.mobile_phone,
-          linkToDomainCompany: !firstContact?.relationship_to_domain_company_exists,
-          parentCompanyLinks: parentLinks,
+          // Default to NO for customers (they're clients, not employees)
+          linkToDomainCompany: isCustomer ? false : !firstContact?.relationship_to_domain_company_exists,
+          parentCompanyLinks: isCustomer ? {} : parentLinks,
           mergeContacts: otherContactIds.length > 0, // Default to merge if duplicates found
           contactsToMerge: otherContactIds,
         };
@@ -233,13 +238,17 @@ function ExtractEmployeesContent() {
           .filter((c) => c.id !== firstContact?.id)
           .map((c) => c.id);
 
+        // Don't suggest employee relationships for customers - they are clients, not employees
+        const isCustomer = firstContact?.xero_contact_type === "CUSTOMER";
+
         defaultSelections[idx] = {
           selected: true,
           selectedContactId: firstContact?.id || null,
           addEmail: !firstContact?.email || firstContact.email !== item.email, // Add email if contact doesn't have one or has different
           addMobile: !!item.phones?.mobile && !firstContact?.mobile_phone, // Add mobile if found and contact doesn't have one
-          linkToDomainCompany: !firstContact?.relationship_to_domain_company_exists,
-          parentCompanyLinks: parentLinks,
+          // Default to NO for customers (they're clients, not employees)
+          linkToDomainCompany: isCustomer ? false : !firstContact?.relationship_to_domain_company_exists,
+          parentCompanyLinks: isCustomer ? {} : parentLinks,
           mergeContacts: otherContactIds.length > 0, // Default to merge if duplicates found
           contactsToMerge: otherContactIds,
         };
@@ -756,7 +765,15 @@ function ExtractEmployeesContent() {
                                         <div className="flex items-center gap-3">
                                           <User className="h-5 w-5 text-green-600" />
                                           <div className="flex-1">
-                                            <div className="font-semibold">{contact.full_name}</div>
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-semibold">{contact.full_name}</span>
+                                              {contact.xero_contact_type === "CUSTOMER" && (
+                                                <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">Customer</Badge>
+                                              )}
+                                              {contact.xero_contact_type === "SUPPLIER" && (
+                                                <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">Supplier</Badge>
+                                              )}
+                                            </div>
                                             {contact.email && (
                                               <div className="text-xs text-muted-foreground font-mono">{contact.email}</div>
                                             )}
@@ -816,8 +833,16 @@ function ExtractEmployeesContent() {
                               ) : (
                                 <div className="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-800 border">
                                   <User className="h-5 w-5 text-green-600" />
-                                  <div>
-                                    <div className="font-semibold">{selectedContact?.full_name}</div>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold">{selectedContact?.full_name}</span>
+                                      {selectedContact?.xero_contact_type === "CUSTOMER" && (
+                                        <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">Customer</Badge>
+                                      )}
+                                      {selectedContact?.xero_contact_type === "SUPPLIER" && (
+                                        <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">Supplier</Badge>
+                                      )}
+                                    </div>
                                     {selectedContact?.email && (
                                       <div className="text-xs text-muted-foreground font-mono">{selectedContact.email}</div>
                                     )}

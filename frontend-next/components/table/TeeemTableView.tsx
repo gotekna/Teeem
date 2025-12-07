@@ -407,6 +407,7 @@ interface VirtualizedGroupTableProps {
   onRowDoubleClick?: (row: any) => void;
   renderCellValue: (row: any, column: any) => React.ReactNode;
   renderTableHeader: () => React.ReactNode;
+  isEditMode: boolean;
 }
 
 const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
@@ -427,6 +428,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
   onRowDoubleClick,
   renderCellValue,
   renderTableHeader,
+  isEditMode,
 }: VirtualizedGroupTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -2643,13 +2645,21 @@ export default function TeeemTableView({
       const isSystemColumn = NON_EDITABLE_COLUMNS.includes(column.key) || column.system === true;
       const isColumnEditable = column.editable !== false && !isSystemColumn && !isComputed;
 
-      // Row-level editing - use RowEditingCell component
-      if (isEditing && isColumnEditable) {
+      // Check if we're in any editing state (row-level OR global edit mode)
+      const shouldShowEditor = isEditing || isEditMode;
+
+      // Row-level editing OR global edit mode - use RowEditingCell component
+      if (shouldShowEditor && isColumnEditable) {
+        // For global edit mode, initialize editing data if not present
+        const cellEditingData = rowEditingData[column.key] !== undefined
+          ? rowEditingData
+          : { ...entry };
+
         return (
           <RowEditingCell
             entry={entry}
             column={column}
-            rowEditingData={rowEditingData}
+            rowEditingData={cellEditingData}
             setEditingData={setEditingData}
             validationError={validationErrors[entry.id]?.[column.key]}
             handleCellBlur={handleCellBlur}
@@ -2660,7 +2670,7 @@ export default function TeeemTableView({
       }
 
       // Show read-only indicator for non-editable columns when in edit mode
-      if (isEditing && !isColumnEditable) {
+      if (shouldShowEditor && !isColumnEditable) {
         // Don't show indicator for select/actions columns
         if (column.key === 'select' || column.key === 'actions') {
           // Fall through to normal rendering
@@ -2948,6 +2958,7 @@ export default function TeeemTableView({
               onRowDoubleClick={onRowDoubleClick}
               renderCellValue={renderCellValue}
               renderTableHeader={renderTableHeader}
+              isEditMode={isEditMode}
             />
           );
         }
