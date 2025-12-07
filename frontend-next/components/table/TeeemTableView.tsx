@@ -1934,20 +1934,13 @@ export default function TeeemTableView({
   // Drag-to-select handlers (must be after filteredAndSortedEntries)
   const handleSelectMouseDown = useCallback((rowId: number | string, rowIndex: number, e: React.MouseEvent) => {
     dragStateRef.current = {
-      isDragging: true, // Start dragging immediately for instant feedback
+      isDragging: true,
       startRowId: rowId,
       startRowIndex: rowIndex,
-      currentRowId: rowId, // Track current end of range
+      currentRowId: rowId,
       startX: e.clientX,
       startY: e.clientY,
     };
-
-    // Select the starting row immediately
-    setSelectedRows((prev) => {
-      const next = new Set(prev);
-      next.add(rowId);
-      return next;
-    });
   }, []);
 
   const handleMouseMove = useCallback((_e: MouseEvent) => {
@@ -1974,6 +1967,7 @@ export default function TeeemTableView({
 
     // Process the drag selection now that drag is complete
     const { startRowId, currentRowId } = dragStateRef.current;
+
     if (startRowId && currentRowId && getVisibleRowIdsRef.current) {
       const visibleRowIds = getVisibleRowIdsRef.current();
       const startIndex = visibleRowIds.indexOf(startRowId);
@@ -2066,9 +2060,26 @@ export default function TeeemTableView({
 
   // Expand/collapse all group handlers (must be after groupedEntries)
   const expandAllGroups = useCallback(() => {
-    setCollapsedGroups(new Set());
+    if (groupedEntries && collapsedGroups.size > 0) {
+      // Get all group keys
+      const allKeys = getAllGroupKeys(groupedEntries);
+      const firstKey = allKeys[0];
+
+      // Expand first group immediately for instant feedback
+      const newCollapsed = new Set(collapsedGroups);
+      newCollapsed.delete(firstKey);
+      setCollapsedGroups(newCollapsed);
+
+      // Then expand the rest off-screen
+      requestAnimationFrame(() => {
+        setCollapsedGroups(new Set());
+      });
+    } else {
+      // Already expanded, just clear
+      setCollapsedGroups(new Set());
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setCollapsedGroups is setState function (stable)
-  }, []);
+  }, [groupedEntries, collapsedGroups, getAllGroupKeys]);
 
   const collapseAllGroups = useCallback(() => {
     if (groupedEntries) {
@@ -3601,7 +3612,7 @@ export default function TeeemTableView({
                 <ChevronDown
                   className={cn(
                     "h-4 w-4 transition-transform",
-                    collapsedGroups.size === 0 ? "rotate-0" : "rotate-180"
+                    collapsedGroups.size === 0 ? "rotate-0" : "-rotate-90"
                   )}
                 />
               </Button>

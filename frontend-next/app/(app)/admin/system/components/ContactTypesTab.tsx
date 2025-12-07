@@ -262,7 +262,7 @@ export function ContactTypesTab() {
     setExtracting(true);
     try {
       const result = await api.get<any>("/api/v1/contacts/preview_employee_extraction", {
-        params: { email_patterns: emailPatterns }
+        params: { email_patterns: emailPatterns.join(',') }
       });
       setPreviewData(result.preview || []);
       // Select all by default
