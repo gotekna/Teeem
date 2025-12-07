@@ -705,7 +705,8 @@ export function XeroContactSync() {
                 <TableRow>
                   <TableHead>Contact Name</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Type</TableHead>
+                  <TableHead>Entity Type</TableHead>
+                  <TableHead>Company</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Last Synced</TableHead>
                 </TableRow>
@@ -713,7 +714,7 @@ export function XeroContactSync() {
               <TableBody>
                 {filteredContacts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No contacts found
                     </TableCell>
                   </TableRow>
@@ -733,24 +734,17 @@ export function XeroContactSync() {
                       >
                         <TableCell className="font-medium">
                           {contact.display_name}
-                          {isPersonWithCompany && contact.primary_company_name && (
-                            <span className="text-xs text-muted-foreground ml-2">
-                              ({contact.primary_company_name})
-                            </span>
-                          )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {contact.email || "-"}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={isPriceOnly ? "bg-red-100 text-red-700 border-red-300" : ""}>
-                            {contact.contact_type || "Unknown"}
+                            {contact.entity_type || "Unknown"}
                           </Badge>
-                          {isPersonWithCompany && (
-                            <Badge variant="outline" className="ml-1 bg-red-100 text-red-700 border-red-300">
-                              Has Company
-                            </Badge>
-                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {contact.primary_company_name || "-"}
                         </TableCell>
                         <TableCell>
                           {contact.has_error ? (

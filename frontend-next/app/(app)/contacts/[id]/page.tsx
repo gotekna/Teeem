@@ -1891,6 +1891,32 @@ export default function ContactDetailPage() {
     }
   };
 
+  // Auto-save ref to track timeout
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-save on blur (debounced to avoid saving while user tabs between fields)
+  const handleAutoSave = useCallback(() => {
+    // Clear any existing timeout
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+    // Set a short delay to allow user to tab to another field without triggering save
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      if (hasChanges && !saving) {
+        handleSave();
+      }
+    }, 300);
+  }, [hasChanges, saving]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // SSoT: Load tab-specific data when tab changes
   useEffect(() => {
     if (!contact?.id) return;
@@ -2347,6 +2373,7 @@ export default function ContactDetailPage() {
                                 setContact({ ...contact, contact_emails: updated });
                                 setHasChanges(true);
                               }}
+                              onBlur={handleAutoSave}
                               placeholder="email@example.com"
                               className={email.is_primary ? 'border-primary' : ''}
                             />
@@ -2361,6 +2388,7 @@ export default function ContactDetailPage() {
                                 }));
                                 setContact({ ...contact, contact_emails: updated });
                                 setHasChanges(true);
+                                handleAutoSave();
                               }}
                               title="Set as primary"
                             >
@@ -2379,6 +2407,7 @@ export default function ContactDetailPage() {
                                 }
                                 setContact({ ...contact, contact_emails: updated });
                                 setHasChanges(true);
+                                handleAutoSave();
                               }}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -2437,6 +2466,7 @@ export default function ContactDetailPage() {
                                 setContact({ ...contact, contact_phones: updated });
                                 setHasChanges(true);
                               }}
+                              onBlur={handleAutoSave}
                               className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                             >
                               <option value="mobile">Mobile</option>
@@ -2453,6 +2483,7 @@ export default function ContactDetailPage() {
                                 setContact({ ...contact, contact_phones: updated });
                                 setHasChanges(true);
                               }}
+                              onBlur={handleAutoSave}
                               placeholder="0400 000 000"
                               className={phone.is_primary ? 'border-primary' : ''}
                             />
@@ -2467,6 +2498,7 @@ export default function ContactDetailPage() {
                                 }));
                                 setContact({ ...contact, contact_phones: updated });
                                 setHasChanges(true);
+                                handleAutoSave();
                               }}
                               title="Set as primary"
                             >
@@ -2485,6 +2517,7 @@ export default function ContactDetailPage() {
                                 }
                                 setContact({ ...contact, contact_phones: updated });
                                 setHasChanges(true);
+                                handleAutoSave();
                               }}
                             >
                               <Trash2 className="h-4 w-4" />
