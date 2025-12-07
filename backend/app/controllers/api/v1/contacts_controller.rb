@@ -2315,6 +2315,73 @@ module Api
         end
       end
 
+      # POST /api/v1/contacts/extract_employees
+      # Extract employees from contacts with accounts@ email addresses
+      def extract_employees
+        employments_created = 0
+        companies_created = 0
+        employees_processed = []
+        employers_found = []
+
+        # Find person contacts with accounts@ email
+        person_accounts = Contact.where('email ILIKE ?', 'accounts@%')
+                                .where(entity_type: 'person')
+                                .where.not(full_name: ['Accounts Team', 'accounts team', '', nil])
+
+        person_accounts.each do |person|
+          # Extract company name from email domain
+          domain = person.email.split('@').last
+          company_name = domain.split('.').first.titleize
+
+          # Find or create company contact
+          company = Contact.find_by(
+            full_name: company_name,
+            entity_type: ['company', 'trust', 'sole_trader']
+          )
+
+          unless company
+            company = Contact.create!(
+              full_name: company_name,
+              entity_type: 'company',
+              is_active: true
+            )
+            companies_created += 1
+          end
+
+          # Create employment record (with duplicate checking)
+          employment = ContactEmployment.find_or_initialize_by(
+            employee_id: person.id,
+            employer_id: company.id
+          )
+
+          if employment.new_record?
+            employment.assign_attributes(
+              role: 'Accounts',
+              work_email: person.email,
+              work_phone: person.mobile_phone,
+              is_active: true,
+              is_primary: person.employers.empty? # Primary if this is their first employer
+            )
+            employment.save!
+            employments_created += 1
+          end
+
+          employees_processed << person.id unless employees_processed.include?(person.id)
+          employers_found << company.id unless employers_found.include?(company.id)
+        end
+
+        render json: {
+          success: true,
+          employments_created: employments_created,
+          companies_created: companies_created,
+          total_employees: employees_processed.length,
+          total_employers: employers_found.length
+        }
+      rescue => e
+        Rails.logger.error("Extract employees error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       # GET /api/v1/contacts/:id/case_relationships
       # Returns all cases this contact has been involved in with relationship details
       def case_relationships
