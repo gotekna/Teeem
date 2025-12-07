@@ -659,6 +659,7 @@ class XeroApiClient
   def make_binary_request(method, endpoint, options = {})
     tenant_id = options[:tenant_id]
     accept_type = options[:accept] || "application/octet-stream"
+    retried_401 = false
 
     # Find credential (same logic as make_request)
     credential = nil
@@ -686,38 +687,53 @@ class XeroApiClient
     request_tenant_id = credential.respond_to?(:xero_tenant_id) ? credential.xero_tenant_id : credential.tenant_id
     url = "#{BASE_URL}/#{endpoint}"
 
-    headers = {
-      "Authorization" => "Bearer #{credential.access_token}",
-      "Xero-tenant-id" => request_tenant_id,
-      "Accept" => accept_type
-    }
-
-    response = HTTParty.get(url, headers: headers, timeout: 60)
-
-    case response.code
-    when 200..299
-      content_disposition = response.headers["content-disposition"]
-      filename = nil
-      if content_disposition.present?
-        match = content_disposition.match(/filename="?([^";\s]+)"?/)
-        filename = match[1] if match
-      end
-
-      {
-        success: true,
-        content: response.body,
-        filename: filename,
-        mime_type: response.headers["content-type"],
-        content_length: response.headers["content-length"]&.to_i
+    begin
+      headers = {
+        "Authorization" => "Bearer #{credential.access_token}",
+        "Xero-tenant-id" => request_tenant_id,
+        "Accept" => accept_type
       }
-    when 401
-      raise AuthenticationError, "Authentication failed"
-    when 404
-      { success: false, error: "Not found" }
-    when 429
-      raise RateLimitError, "Rate limit exceeded"
-    else
-      { success: false, error: "Request failed with status #{response.code}" }
+
+      response = HTTParty.get(url, headers: headers, timeout: 60)
+
+      case response.code
+      when 200..299
+        content_disposition = response.headers["content-disposition"]
+        filename = nil
+        if content_disposition.present?
+          match = content_disposition.match(/filename="?([^";\s]+)"?/)
+          filename = match[1] if match
+        end
+
+        {
+          success: true,
+          content: response.body,
+          filename: filename,
+          mime_type: response.headers["content-type"],
+          content_length: response.headers["content-length"]&.to_i
+        }
+      when 401
+        # Try refreshing token once and retry
+        if !retried_401
+          retried_401 = true
+          Rails.logger.info("[Xero] Got 401, attempting token refresh and retry...")
+          if credential.is_a?(CompanyXeroConnection)
+            credential.refresh_tokens!
+          else
+            refresh_access_token_for(credential)
+          end
+          credential.reload
+          retry
+        else
+          raise AuthenticationError, "Authentication failed after token refresh"
+        end
+      when 404
+        { success: false, error: "Not found" }
+      when 429
+        raise RateLimitError, "Rate limit exceeded"
+      else
+        { success: false, error: "Request failed with status #{response.code}" }
+      end
     end
   end
 
