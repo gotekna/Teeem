@@ -2412,14 +2412,26 @@ module Api
             Contact.none
           end
 
-          # Get email domain company
+          # Get email domain company (skip personal email providers)
           domain = email_addr.split('@').last
-          domain_company_name = domain.split('.').first.titleize
-          domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
-            .where("LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
-                   "%#{domain_company_name.downcase}%",
-                   "%#{domain_company_name.downcase}%")
-            .first
+          personal_email_domains = %w[
+            gmail.com googlemail.com hotmail.com outlook.com live.com msn.com
+            yahoo.com yahoo.com.au ymail.com icloud.com me.com mac.com
+            aol.com protonmail.com zoho.com mail.com inbox.com
+            bigpond.com bigpond.net.au optusnet.com.au
+          ]
+
+          domain_company = nil
+          domain_company_name = nil
+
+          unless personal_email_domains.include?(domain.downcase)
+            domain_company_name = domain.split('.').first.titleize
+            domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+              .where("LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
+                     "%#{domain_company_name.downcase}%",
+                     "%#{domain_company_name.downcase}%")
+              .first
+          end
 
           # Get parent companies this email was found communicating with
           parent_companies = email_to_parent_companies[email_addr].to_a
@@ -2458,6 +2470,7 @@ module Api
                 email: c.email,
                 mobile_phone: c.mobile_phone,
                 entity_type: c.entity_type,
+                xero_contact_type: c.xero_contact_type, # CUSTOMER, SUPPLIER, or nil - helps determine if this is an employee or client
                 # Check if relationships already exist
                 relationship_to_domain_company_exists: domain_company ? check_relationship_exists.call(c.id, domain_company.id) : false,
                 relationships_to_parent_companies: parent_companies.map { |pc|
