@@ -37,13 +37,25 @@ import { cn } from "@/lib/utils";
 
 // Types
 interface FieldMapping {
-  id: string;
+  field: string;
+  label: string;
   xero_field: string;
-  teeem_field: string;
-  sync_direction: "both" | "xero-to-teeem" | "teeem-to-xero";
-  enabled: boolean;
+  group: string;
+  description: string;
+  default_direction: string;
   read_only?: boolean;
-  section: string;
+}
+
+interface FieldGroup {
+  label: string;
+  description: string;
+  order: number;
+}
+
+interface SyncDirection {
+  value: string;
+  label: string;
+  description: string;
 }
 
 interface XeroTenant {
@@ -66,45 +78,18 @@ interface ContactSyncItem {
   has_error: boolean;
 }
 
-// Default field mappings
-const DEFAULT_FIELD_MAPPINGS: FieldMapping[] = [
-  // Basic Info
-  { id: "1", xero_field: "Name", teeem_field: "display_name", sync_direction: "both", enabled: true, section: "basic" },
-  { id: "2", xero_field: "FirstName", teeem_field: "first_name", sync_direction: "both", enabled: true, section: "basic" },
-  { id: "3", xero_field: "LastName", teeem_field: "last_name", sync_direction: "both", enabled: true, section: "basic" },
-  { id: "4", xero_field: "EmailAddress", teeem_field: "email", sync_direction: "both", enabled: true, section: "basic" },
-
-  // Contact Details
-  { id: "5", xero_field: "PhoneNumber", teeem_field: "phone", sync_direction: "both", enabled: true, section: "contact" },
-  { id: "6", xero_field: "MobilePhone", teeem_field: "mobile_phone", sync_direction: "both", enabled: true, section: "contact" },
-  { id: "7", xero_field: "Website", teeem_field: "website", sync_direction: "both", enabled: true, section: "contact" },
-
-  // Address
-  { id: "8", xero_field: "AddressLine1", teeem_field: "address", sync_direction: "both", enabled: true, section: "address" },
-  { id: "9", xero_field: "City", teeem_field: "city", sync_direction: "both", enabled: true, section: "address" },
-  { id: "10", xero_field: "PostalCode", teeem_field: "postcode", sync_direction: "both", enabled: true, section: "address" },
-
-  // Financial
-  { id: "11", xero_field: "TaxNumber", teeem_field: "tax_number", sync_direction: "both", enabled: true, section: "financial" },
-  { id: "12", xero_field: "AccountNumber", teeem_field: "xero_account_number", sync_direction: "xero-to-teeem", enabled: true, read_only: true, section: "financial" },
-  { id: "13", xero_field: "AccountsReceivableOutstanding", teeem_field: "accounts_receivable_outstanding", sync_direction: "xero-to-teeem", enabled: true, read_only: true, section: "financial" },
-  { id: "14", xero_field: "AccountsPayableOutstanding", teeem_field: "accounts_payable_outstanding", sync_direction: "xero-to-teeem", enabled: true, read_only: true, section: "financial" },
-];
-
-const SECTION_LABELS: Record<string, { title: string; description?: string }> = {
-  basic: { title: "Basic Information", description: "Name and core details" },
-  contact: { title: "Contact Details", description: "Phone, email, website" },
-  address: { title: "Address Information", description: "Physical address" },
-  financial: { title: "Financial Data", description: "Tax numbers and balances" },
-};
 
 // Field Mapping Component
 export function XeroFieldMapping() {
   const { toast } = useToast();
-  const [mappings, setMappings] = React.useState<FieldMapping[]>(DEFAULT_FIELD_MAPPINGS);
+  const [availableFields, setAvailableFields] = React.useState<FieldMapping[]>([]);
+  const [fieldGroups, setFieldGroups] = React.useState<Record<string, FieldGroup>>({});
+  const [directions, setDirections] = React.useState<SyncDirection[]>([]);
+  const [fieldMappings, setFieldMappings] = React.useState<Record<string, { direction: string }>>({});
   const [tenants, setTenants] = React.useState<XeroTenant[]>([]);
   const [selectedTenant, setSelectedTenant] = React.useState<string>("");
   const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
   const [lastSyncAt, setLastSyncAt] = React.useState<string | null>(null);
   const [validationRules, setValidationRules] = React.useState({
     skip_sync_employees: false,
@@ -115,9 +100,29 @@ export function XeroFieldMapping() {
     loadData();
   }, []);
 
+  React.useEffect(() => {
+    if (selectedTenant) {
+      loadTenantConfig(selectedTenant);
+    }
+  }, [selectedTenant]);
+
   const loadData = async () => {
     setLoading(true);
     try {
+      // Load available field mappings from API
+      const fieldMappingsResponse = await api.get<{
+        success: boolean;
+        available_fields: FieldMapping[];
+        field_groups: Record<string, FieldGroup>;
+        directions: SyncDirection[];
+      }>("/api/v1/sync_configurations/field_mappings");
+
+      if (fieldMappingsResponse.success) {
+        setAvailableFields(fieldMappingsResponse.available_fields);
+        setFieldGroups(fieldMappingsResponse.field_groups);
+        setDirections(fieldMappingsResponse.directions);
+      }
+
       // Load tenants
       const tenantsResponse = await api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants");
       if (tenantsResponse.tenants && tenantsResponse.tenants.length > 0) {
@@ -128,15 +133,6 @@ export function XeroFieldMapping() {
       // Load sync status for last sync time
       const statusResponse = await api.get<{ success: boolean; data: { last_sync_at: string | null } }>("/api/v1/xero/sync_status");
       setLastSyncAt(statusResponse.data?.last_sync_at || null);
-
-      // Load validation rules for selected tenant
-      if (tenantsResponse.tenants && tenantsResponse.tenants.length > 0) {
-        const tenantId = tenantsResponse.tenants[0].tenant_id;
-        const configResponse = await api.get<{ success: boolean; sync_configuration: { validation_rules?: { skip_sync_employees: boolean; skip_sync_default_suppliers: boolean } } }>(`/api/v1/sync_configurations/${tenantId}`);
-        if (configResponse.sync_configuration?.validation_rules) {
-          setValidationRules(configResponse.sync_configuration.validation_rules);
-        }
-      }
     } catch (error) {
       console.error("Failed to load data:", error);
     } finally {
@@ -144,8 +140,31 @@ export function XeroFieldMapping() {
     }
   };
 
-  const handleSyncDirectionChange = (id: string, direction: "both" | "xero-to-teeem" | "teeem-to-xero") => {
-    const mapping = mappings.find(m => m.id === id);
+  const loadTenantConfig = async (tenantId: string) => {
+    try {
+      const configResponse = await api.get<{
+        success: boolean;
+        sync_configuration: {
+          field_mappings: Record<string, { direction: string }>;
+          validation_rules?: { skip_sync_employees: boolean; skip_sync_default_suppliers: boolean };
+        };
+      }>(`/api/v1/sync_configurations/${tenantId}`);
+
+      if (configResponse.sync_configuration?.field_mappings) {
+        setFieldMappings(configResponse.sync_configuration.field_mappings);
+      }
+      if (configResponse.sync_configuration?.validation_rules) {
+        setValidationRules(configResponse.sync_configuration.validation_rules);
+      }
+    } catch (error) {
+      console.error("Failed to load tenant config:", error);
+    }
+  };
+
+  const handleSyncDirectionChange = async (field: string, direction: string) => {
+    if (!selectedTenant) return;
+
+    const mapping = availableFields.find(m => m.field === field);
     if (mapping?.read_only) {
       toast({
         title: "Read Only",
@@ -154,17 +173,23 @@ export function XeroFieldMapping() {
       });
       return;
     }
-    setMappings(mappings.map(m =>
-      m.id === id ? { ...m, sync_direction: direction } : m
-    ));
-  };
 
-  const getSyncDirectionLabel = (direction: string) => {
-    switch (direction) {
-      case "both": return "Both Ways";
-      case "xero-to-teeem": return "Xero → TEEEM";
-      case "teeem-to-xero": return "TEEEM → Xero";
-      default: return direction;
+    // Update local state immediately
+    const newMappings = {
+      ...fieldMappings,
+      [field]: { ...fieldMappings[field], direction }
+    };
+    setFieldMappings(newMappings);
+
+    // Save to backend
+    try {
+      await api.put(`/api/v1/sync_configurations/${selectedTenant}`, {
+        sync_configuration: {
+          field_mappings: newMappings
+        }
+      });
+    } catch {
+      toast({ title: "Error", description: "Failed to save field mapping", variant: "destructive" });
     }
   };
 
@@ -189,17 +214,30 @@ export function XeroFieldMapping() {
     }
   };
 
-  // Group mappings by section
+  // Group mappings by group, sorted by group order
   const groupedMappings = React.useMemo(() => {
     const groups: Record<string, FieldMapping[]> = {};
-    mappings.forEach(mapping => {
-      if (!groups[mapping.section]) {
-        groups[mapping.section] = [];
+    availableFields.forEach(mapping => {
+      if (!groups[mapping.group]) {
+        groups[mapping.group] = [];
       }
-      groups[mapping.section].push(mapping);
+      groups[mapping.group].push(mapping);
     });
     return groups;
-  }, [mappings]);
+  }, [availableFields]);
+
+  // Sort groups by order
+  const sortedGroups = React.useMemo(() => {
+    return Object.entries(fieldGroups)
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([key]) => key);
+  }, [fieldGroups]);
+
+  const getFieldDirection = (field: string) => {
+    return fieldMappings[field]?.direction ||
+      availableFields.find(f => f.field === field)?.default_direction ||
+      "none";
+  };
 
   if (loading) {
     return (
@@ -262,7 +300,7 @@ export function XeroFieldMapping() {
         <CardHeader>
           <CardTitle className="text-base">Field Mappings</CardTitle>
           <CardDescription>
-            Configure sync direction for each field. Read-only fields can only sync from Xero.
+            Configure sync direction for each field. {availableFields.length} fields available from Xero API.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -274,70 +312,81 @@ export function XeroFieldMapping() {
             <div>SYNC</div>
           </div>
 
-          {/* Sections */}
-          {Object.entries(SECTION_LABELS).map(([sectionKey, sectionInfo]) => {
-            const sectionMappings = groupedMappings[sectionKey] || [];
-            if (sectionMappings.length === 0) return null;
+          {/* Sections - sorted by group order */}
+          {sortedGroups.map((groupKey) => {
+            const groupInfo = fieldGroups[groupKey];
+            const groupMappings = groupedMappings[groupKey] || [];
+            if (groupMappings.length === 0) return null;
 
             return (
-              <div key={sectionKey}>
+              <div key={groupKey}>
                 {/* Section Header */}
                 <div className="px-6 py-2 bg-muted/30 border-b">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wide">
-                    {sectionInfo.title}
+                    {groupInfo?.label || groupKey}
                   </span>
-                  {sectionInfo.description && (
+                  {groupInfo?.description && (
                     <span className="text-xs text-muted-foreground ml-2">
-                      ({sectionInfo.description})
+                      ({groupInfo.description})
                     </span>
                   )}
                 </div>
 
                 {/* Section Rows */}
-                {sectionMappings.map((mapping) => (
-                  <div
-                    key={mapping.id}
-                    className={cn(
-                      "grid grid-cols-4 gap-4 px-6 py-3 border-b items-center hover:bg-muted/20 transition-colors",
-                      !mapping.enabled && "opacity-50"
-                    )}
-                  >
-                    <div className="font-mono text-sm">{mapping.xero_field}</div>
-                    <div className="font-mono text-sm">{mapping.teeem_field}</div>
-                    <div>
-                      {mapping.enabled ? (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                          <Check className="h-3 w-3 mr-1" />
-                          Enabled
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-                          <X className="h-3 w-3 mr-1" />
-                          Disabled
-                        </Badge>
+                {groupMappings.map((mapping) => {
+                  const direction = getFieldDirection(mapping.field);
+                  const isEnabled = direction !== "none";
+
+                  return (
+                    <div
+                      key={mapping.field}
+                      className={cn(
+                        "grid grid-cols-4 gap-4 px-6 py-3 border-b items-center hover:bg-muted/20 transition-colors",
+                        !isEnabled && "opacity-50"
                       )}
+                    >
+                      <div>
+                        <div className="font-mono text-sm">{mapping.xero_field}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{mapping.description}</div>
+                      </div>
+                      <div className="font-mono text-sm">{mapping.field}</div>
+                      <div>
+                        {isEnabled ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            <Check className="h-3 w-3 mr-1" />
+                            Enabled
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                            <X className="h-3 w-3 mr-1" />
+                            Disabled
+                          </Badge>
+                        )}
+                      </div>
+                      <div>
+                        <Select
+                          value={direction}
+                          onValueChange={(value) => handleSyncDirectionChange(mapping.field, value)}
+                          disabled={mapping.read_only}
+                        >
+                          <SelectTrigger className="w-[180px] h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {directions.map(dir => (
+                              <SelectItem key={dir.value} value={dir.value}>
+                                {dir.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {mapping.read_only && (
+                          <p className="text-xs text-muted-foreground mt-1">Read-only field</p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <Select
-                        value={mapping.sync_direction}
-                        onValueChange={(value) => handleSyncDirectionChange(mapping.id, value as any)}
-                        disabled={mapping.read_only}
-                      >
-                        <SelectTrigger className="w-[180px] h-9">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="both">Both Ways ↔</SelectItem>
-                          <SelectItem value="xero-to-teeem">Xero → TEEEM</SelectItem>
-                          <SelectItem value="teeem-to-xero">TEEEM → Xero</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {mapping.read_only && (
-                        <p className="text-xs text-muted-foreground mt-1">Read-only field</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             );
           })}

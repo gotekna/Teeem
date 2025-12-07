@@ -396,7 +396,7 @@ interface VirtualizedGroupTableProps {
   selectedRows: Set<number | string>;
   visibleColumnsInOrder: any[];
   columnWidths: Record<string, number>;
-  filteredAndSortedEntries: any[];
+  rowIdToGlobalIndex: Map<number | string, number>;  // Pre-computed map for O(1) lookup
   getStickyColumnStyles: (key: string, isHeader: boolean) => React.CSSProperties;
   isSystemGeneratedColumn: (column: any) => boolean;
   SYSTEM_COLUMN_BG: string;
@@ -416,7 +416,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
   selectedRows,
   visibleColumnsInOrder,
   columnWidths,
-  filteredAndSortedEntries,
+  rowIdToGlobalIndex,
   getStickyColumnStyles,
   isSystemGeneratedColumn,
   SYSTEM_COLUMN_BG,
@@ -466,7 +466,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                   {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                     const row = rows[virtualRow.index];
                     const rowIndex = virtualRow.index;
-                    const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === row.id);
+                    const globalIndex = rowIdToGlobalIndex.get(row.id) ?? rowIndex;
 
                     return (
                       <div
@@ -487,8 +487,8 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                                 selectedRows.has(row.id) && "bg-muted/50",
                                 "hover:bg-muted/30 cursor-pointer"
                               )}
-                              onClick={() => onRowClick?.(row)}
-                              onDoubleClick={() => onRowDoubleClick?.(row)}
+                              onClick={() => !isEditMode && onRowClick?.(row)}
+                              onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
                               onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
                             >
                               {visibleColumnsInOrder.map((column, colIndex) => {
@@ -2874,6 +2874,15 @@ export default function TeeemTableView({
     />
   );
 
+  // Pre-compute row ID to global index map for O(1) lookups (avoids expensive findIndex calls)
+  const rowIdToGlobalIndex = useMemo(() => {
+    const map = new Map<number | string, number>();
+    filteredAndSortedEntries.forEach((entry, index) => {
+      map.set(entry.id, index);
+    });
+    return map;
+  }, [filteredAndSortedEntries]);
+
   // Render group navigation with nested data tables (Panel mode)
   const renderGroupNavigation = (
     groups: Record<string, { rows: TableRowType[]; subgroups?: Record<string, { rows: TableRowType[]; subgroups?: Record<string, unknown> }> }>,
@@ -2928,7 +2937,7 @@ export default function TeeemTableView({
               selectedRows={selectedRows}
               visibleColumnsInOrder={visibleColumnsInOrder}
               columnWidths={columnWidths}
-              filteredAndSortedEntries={filteredAndSortedEntries}
+              rowIdToGlobalIndex={rowIdToGlobalIndex}
               getStickyColumnStyles={getStickyColumnStyles}
               isSystemGeneratedColumn={isSystemGeneratedColumn}
               SYSTEM_COLUMN_BG={SYSTEM_COLUMN_BG}
@@ -3002,8 +3011,8 @@ export default function TeeemTableView({
           selectedRows.has(row.id) && "bg-muted/50",
           "hover:bg-muted/30 cursor-pointer"
         )}
-        onClick={() => onRowClick?.(row)}
-        onDoubleClick={() => onRowDoubleClick?.(row)}
+        onClick={() => !isEditMode && onRowClick?.(row)}
+        onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
         onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
       >
         {visibleColumnsInOrder.map((column, colIndex) => {
@@ -3116,8 +3125,8 @@ export default function TeeemTableView({
                   selectedRows.has(row.id) && "bg-muted/50",
                   "hover:bg-muted/30 cursor-pointer"
                 )}
-                onClick={() => onRowClick?.(row)}
-                onDoubleClick={() => onRowDoubleClick?.(row)}
+                onClick={() => !isEditMode && onRowClick?.(row)}
+                onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -3259,12 +3268,12 @@ export default function TeeemTableView({
                     "hover:bg-muted/30 cursor-pointer"
                   )}
                   onClick={(e) => {
-                    if (!editingRowIds.has(row.id) && onRowClick) {
+                    if (!isEditMode && !editingRowIds.has(row.id) && onRowClick) {
                       onRowClick(row);
                     }
                   }}
                   onDoubleClick={() =>
-                    !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
+                    !isEditMode && !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
                   }
                   onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
                 >

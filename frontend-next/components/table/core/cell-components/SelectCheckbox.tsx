@@ -31,10 +31,8 @@ export const SelectCheckbox = memo(function SelectCheckbox({
           // Stop propagation to prevent row click
           e.stopPropagation();
         }}
-        onMouseDown={(e) => {
-          // Stop mousedown from reaching parent to prevent drag detection
-          e.stopPropagation();
-        }}
+        // NOTE: Do NOT stopPropagation on mousedown - we need it to bubble up
+        // to the parent div for drag-to-select functionality
       />
     </div>
   );

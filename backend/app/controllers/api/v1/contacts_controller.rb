@@ -2394,11 +2394,23 @@ module Api
           # Check if this email already exists on any contact
           contact_with_email = Contact.find_by(email: email_addr)
 
-          # Search for potential matching contacts by fuzzy name match
+          # Search for potential matching contacts by name match
+          # STRICT matching: require ALL name parts to be present
+          # Single name (e.g., "andrew") won't match anyone - too ambiguous
           name_parts = person_name_from_email.downcase.split(' ')
-          matching_contacts = Contact.where(entity_type: 'person')
-            .where(name_parts.map { "LOWER(full_name) ILIKE ?" }.join(' OR '), *name_parts.map { |p| "%#{p}%" })
-            .limit(5)
+
+          matching_contacts = if name_parts.length >= 2
+            # Multiple name parts: require ALL parts to be present (AND logic)
+            # e.g., "Sophie Harder" matches "Sophie Harder" and "Sophie Mee-jeong Harder"
+            Contact.where(entity_type: 'person')
+              .where(name_parts.map { "LOWER(full_name) ILIKE ?" }.join(' AND '), *name_parts.map { |p| "%#{p}%" })
+              .limit(5)
+          else
+            # Single name part only (e.g., "andrew@tekna.com.au")
+            # Don't match - too ambiguous. Can't determine which "Andrew" is correct.
+            # User will need to find this contact manually or use a more specific email.
+            Contact.none
+          end
 
           # Get email domain company
           domain = email_addr.split('@').last
@@ -2518,11 +2530,24 @@ module Api
         companies_created = 0
         emails_added = 0
         mobiles_added = 0
+        contacts_merged = 0
 
         confirmed_extractions.each do |extraction|
           # Find the contact to update
           contact = Contact.find_by(id: extraction[:contact_id])
           next unless contact
+
+          # Merge duplicate contacts if requested
+          if extraction[:merge_contacts] && extraction[:contacts_to_merge].present?
+            extraction[:contacts_to_merge].each do |merge_id|
+              merge_contact = Contact.find_by(id: merge_id)
+              next unless merge_contact
+
+              # Merge the duplicate contact into the primary contact
+              merge_contact_into(contact, merge_contact)
+              contacts_merged += 1
+            end
+          end
 
           # Add email to contact if requested and not already present
           if extraction[:add_email] && extraction[:email].present?
@@ -2596,7 +2621,8 @@ module Api
           relationships_created: relationships_created,
           companies_created: companies_created,
           emails_added: emails_added,
-          mobiles_added: mobiles_added
+          mobiles_added: mobiles_added,
+          contacts_merged: contacts_merged
         }
       rescue => e
         Rails.logger.error("Extract employees error: #{e.message}")
@@ -2623,6 +2649,55 @@ module Api
       end
 
       private
+
+      # Merge a duplicate contact into the primary contact
+      # - Moves relationships from duplicate to primary
+      # - Copies any missing data (email, mobile, etc.)
+      # - Soft deletes the duplicate
+      def merge_contact_into(primary, duplicate)
+        return if primary.id == duplicate.id
+
+        Rails.logger.info("Merging contact #{duplicate.id} (#{duplicate.full_name}) into #{primary.id} (#{primary.full_name})")
+
+        # Copy missing contact info from duplicate to primary
+        primary.email ||= duplicate.email
+        primary.mobile_phone ||= duplicate.mobile_phone
+        primary.office_phone ||= duplicate.office_phone
+        primary.first_name ||= duplicate.first_name
+        primary.last_name ||= duplicate.last_name
+        primary.title ||= duplicate.title
+        primary.notes = [primary.notes, duplicate.notes].compact.reject(&:blank?).join("\n\n---\nMerged from #{duplicate.full_name}:\n") if duplicate.notes.present? && duplicate.notes != primary.notes
+        primary.save! if primary.changed?
+
+        # Move outgoing relationships (where duplicate is source)
+        duplicate.outgoing_relationships.each do |rel|
+          # Skip if primary already has this relationship
+          next if ContactRelationship.exists?(
+            source_contact_id: primary.id,
+            related_contact_id: rel.related_contact_id
+          )
+
+          # Update the relationship to point to primary
+          rel.update!(source_contact_id: primary.id)
+        end
+
+        # Move incoming relationships (where duplicate is target)
+        duplicate.incoming_relationships.each do |rel|
+          # Skip if primary already has this relationship
+          next if ContactRelationship.exists?(
+            source_contact_id: rel.source_contact_id,
+            related_contact_id: primary.id
+          )
+
+          # Update the relationship to point to primary
+          rel.update!(related_contact_id: primary.id)
+        end
+
+        # Soft delete the duplicate contact
+        duplicate.update!(deleted: true, deleted_at: Time.current)
+
+        Rails.logger.info("Merged and deleted duplicate contact #{duplicate.id}")
+      end
 
       # Extract phone numbers from email signature text
       # Returns { mobile:, office:, direct: } hash

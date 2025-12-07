@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,8 @@ import {
   Phone,
   Globe,
   ExternalLink,
+  Merge,
+  AlertTriangle,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -80,9 +83,11 @@ interface SelectionState {
   addMobile: boolean;
   linkToDomainCompany: boolean;
   parentCompanyLinks: Record<number, boolean>; // company_id -> enabled
+  mergeContacts: boolean; // If true, merge duplicate contacts into selected one
+  contactsToMerge: number[]; // IDs of contacts to merge into selected contact
 }
 
-export default function ExtractEmployeesPage() {
+function ExtractEmployeesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -96,14 +101,17 @@ export default function ExtractEmployeesPage() {
   const [executing, setExecuting] = React.useState(false);
   const [previewData, setPreviewData] = React.useState<PreviewItem[]>([]);
   const [selections, setSelections] = React.useState<Record<number, SelectionState>>({});
-  const [currentStep, setCurrentStep] = React.useState<1 | 2>(emailsFromUrl ? 2 : 1);
+  const [currentStep, setCurrentStep] = React.useState<1 | 2>(1); // Always start at step 1, auto-search will move to step 2
   const [initialLoadDone, setInitialLoadDone] = React.useState(false);
 
   // Auto-search on load if emails are in URL
   React.useEffect(() => {
     if (emailsFromUrl && !initialLoadDone) {
       setInitialLoadDone(true);
-      handleSearchWithEmails(initialEmails.filter((e) => e.trim().length > 0));
+      const validEmails = initialEmails.filter((e) => e.trim().length > 0);
+      if (validEmails.length > 0) {
+        handleSearchWithEmails(validEmails);
+      }
     }
   }, [emailsFromUrl, initialLoadDone]);
 
@@ -134,6 +142,11 @@ export default function ExtractEmployeesPage() {
           }
         });
 
+        // If multiple contacts found, suggest merging them (they're likely duplicates)
+        const otherContactIds = item.matching_contacts
+          .filter((c) => c.id !== firstContact?.id)
+          .map((c) => c.id);
+
         defaultSelections[idx] = {
           selected: true,
           selectedContactId: firstContact?.id || null,
@@ -141,6 +154,8 @@ export default function ExtractEmployeesPage() {
           addMobile: !!item.phones?.mobile && !firstContact?.mobile_phone,
           linkToDomainCompany: !firstContact?.relationship_to_domain_company_exists,
           parentCompanyLinks: parentLinks,
+          mergeContacts: otherContactIds.length > 0, // Default to merge if duplicates found
+          contactsToMerge: otherContactIds,
         };
       });
       setSelections(defaultSelections);
@@ -213,6 +228,11 @@ export default function ExtractEmployeesPage() {
           }
         });
 
+        // If multiple contacts found, suggest merging them (they're likely duplicates)
+        const otherContactIds = item.matching_contacts
+          .filter((c) => c.id !== firstContact?.id)
+          .map((c) => c.id);
+
         defaultSelections[idx] = {
           selected: true,
           selectedContactId: firstContact?.id || null,
@@ -220,6 +240,8 @@ export default function ExtractEmployeesPage() {
           addMobile: !!item.phones?.mobile && !firstContact?.mobile_phone, // Add mobile if found and contact doesn't have one
           linkToDomainCompany: !firstContact?.relationship_to_domain_company_exists,
           parentCompanyLinks: parentLinks,
+          mergeContacts: otherContactIds.length > 0, // Default to merge if duplicates found
+          contactsToMerge: otherContactIds,
         };
       });
       setSelections(defaultSelections);
@@ -258,6 +280,8 @@ export default function ExtractEmployeesPage() {
           parent_company_ids: Object.entries(sel.parentCompanyLinks)
             .filter(([_, enabled]) => enabled)
             .map(([id, _]) => parseInt(id)),
+          merge_contacts: sel.mergeContacts,
+          contacts_to_merge: sel.mergeContacts ? sel.contactsToMerge : [],
         };
       })
       .filter(Boolean);
@@ -280,6 +304,7 @@ export default function ExtractEmployeesPage() {
       if (result.relationships_created > 0) parts.push(`${result.relationships_created} relationships`);
       if (result.emails_added > 0) parts.push(`${result.emails_added} emails`);
       if (result.mobiles_added > 0) parts.push(`${result.mobiles_added} mobiles`);
+      if (result.contacts_merged > 0) parts.push(`${result.contacts_merged} contacts merged`);
       toast({
         title: "Success!",
         description: parts.length > 0 ? `Added: ${parts.join(", ")}` : "No changes made",
@@ -322,6 +347,11 @@ export default function ExtractEmployeesPage() {
       }
     });
 
+    // Recalculate which contacts to merge (all except newly selected)
+    const otherContactIds = item.matching_contacts
+      .filter((c) => c.id !== contactId)
+      .map((c) => c.id);
+
     setSelections((prev) => ({
       ...prev,
       [idx]: {
@@ -331,6 +361,17 @@ export default function ExtractEmployeesPage() {
         addMobile: !!item.phones?.mobile && !contact?.mobile_phone, // Add mobile if found and contact doesn't have one
         linkToDomainCompany: !contact?.relationship_to_domain_company_exists,
         parentCompanyLinks: parentLinks,
+        contactsToMerge: otherContactIds,
+      },
+    }));
+  };
+
+  const toggleMergeContacts = (idx: number) => {
+    setSelections((prev) => ({
+      ...prev,
+      [idx]: {
+        ...prev[idx],
+        mergeContacts: !prev[idx]?.mergeContacts,
       },
     }));
   };
@@ -403,6 +444,11 @@ export default function ExtractEmployeesPage() {
     if (sel.linkToDomainCompany) c++;
     c += Object.values(sel.parentCompanyLinks).filter(Boolean).length;
     return count + c;
+  }, 0);
+  const contactsToMerge = previewData.reduce((count, _, idx) => {
+    const sel = selections[idx];
+    if (!sel?.selected || !sel.mergeContacts) return count;
+    return count + sel.contactsToMerge.length;
   }, 0);
 
   return (
@@ -534,7 +580,7 @@ export default function ExtractEmployeesPage() {
           /* Step 2: Review & Create */
           <div className="space-y-6">
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-3">
@@ -571,11 +617,27 @@ export default function ExtractEmployeesPage() {
                     </div>
                     <div>
                       <div className="text-2xl font-bold">{relationshipsToCreate}</div>
-                      <div className="text-xs text-muted-foreground">Relationships to Create</div>
+                      <div className="text-xs text-muted-foreground">Relationships</div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
+
+              {contactsToMerge > 0 && (
+                <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                        <Merge className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold">{contactsToMerge}</div>
+                        <div className="text-xs text-muted-foreground">Duplicates to Merge</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Results */}
@@ -663,38 +725,94 @@ export default function ExtractEmployeesPage() {
                               </div>
 
                               {item.matching_contacts.length > 1 ? (
-                                <div className="space-y-2">
-                                  {item.matching_contacts.map((contact) => (
-                                    <button
-                                      key={contact.id}
-                                      onClick={() => selectContact(idx, contact.id)}
-                                      className={`w-full p-3 rounded-lg border-2 text-left transition-all ${
-                                        sel?.selectedContactId === contact.id
-                                          ? "border-green-500 bg-green-100 dark:bg-green-900/50"
-                                          : "border-transparent bg-white dark:bg-gray-800 hover:border-green-300"
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        <User className="h-5 w-5 text-green-600" />
-                                        <div>
-                                          <div className="font-semibold">{contact.full_name}</div>
-                                          {contact.email && (
-                                            <div className="text-xs text-muted-foreground font-mono">{contact.email}</div>
-                                          )}
-                                          {contact.mobile_phone && (
-                                            <div className="text-xs text-muted-foreground flex items-center gap-1">
-                                              <Phone className="h-3 w-3" />
-                                              {contact.mobile_phone}
-                                            </div>
-                                          )}
+                                <>
+                                  {/* Warning about duplicate contacts */}
+                                  <div className="mb-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700">
+                                    <div className="flex items-start gap-2">
+                                      <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                                      <div>
+                                        <div className="font-semibold text-amber-800 dark:text-amber-300">
+                                          Duplicate Contacts Found
                                         </div>
-                                        {sel?.selectedContactId === contact.id && (
-                                          <CheckCircle2 className="h-5 w-5 text-green-600 ml-auto" />
-                                        )}
+                                        <div className="text-sm text-amber-700 dark:text-amber-400">
+                                          These {item.matching_contacts.length} contacts appear to be the same person.
+                                          Select one to keep and merge the others into it.
+                                        </div>
                                       </div>
-                                    </button>
-                                  ))}
-                                </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    {item.matching_contacts.map((contact) => (
+                                      <button
+                                        key={contact.id}
+                                        onClick={() => selectContact(idx, contact.id)}
+                                        className={`w-full p-3 rounded-lg border-2 text-left transition-all ${
+                                          sel?.selectedContactId === contact.id
+                                            ? "border-green-500 bg-green-100 dark:bg-green-900/50"
+                                            : "border-transparent bg-white dark:bg-gray-800 hover:border-green-300"
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <User className="h-5 w-5 text-green-600" />
+                                          <div className="flex-1">
+                                            <div className="font-semibold">{contact.full_name}</div>
+                                            {contact.email && (
+                                              <div className="text-xs text-muted-foreground font-mono">{contact.email}</div>
+                                            )}
+                                            {contact.mobile_phone && (
+                                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                                <Phone className="h-3 w-3" />
+                                                {contact.mobile_phone}
+                                              </div>
+                                            )}
+                                          </div>
+                                          {sel?.selectedContactId === contact.id ? (
+                                            <Badge className="bg-green-600">Keep This One</Badge>
+                                          ) : sel?.mergeContacts ? (
+                                            <Badge variant="outline" className="text-amber-600 border-amber-400">
+                                              <Merge className="h-3 w-3 mr-1" />
+                                              Will Merge
+                                            </Badge>
+                                          ) : null}
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  {/* Merge toggle */}
+                                  <div className="mt-3 flex items-center justify-between p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-300">
+                                    <div className="flex items-center gap-2">
+                                      <Merge className="h-4 w-4 text-amber-600" />
+                                      <span className="text-sm font-medium">
+                                        Merge {sel?.contactsToMerge.length} duplicate{sel?.contactsToMerge.length !== 1 ? "s" : ""} into{" "}
+                                        <span className="font-semibold">{selectedContact?.full_name}</span>
+                                      </span>
+                                    </div>
+                                    <div className="flex rounded-lg overflow-hidden border-2 border-amber-400">
+                                      <button
+                                        onClick={() => toggleMergeContacts(idx)}
+                                        className={`px-3 py-1.5 font-bold text-sm transition-colors ${
+                                          sel?.mergeContacts
+                                            ? "bg-amber-500 text-white"
+                                            : "bg-white dark:bg-gray-800 text-gray-400"
+                                        }`}
+                                      >
+                                        Yes
+                                      </button>
+                                      <button
+                                        onClick={() => toggleMergeContacts(idx)}
+                                        className={`px-3 py-1.5 font-bold text-sm transition-colors ${
+                                          !sel?.mergeContacts
+                                            ? "bg-gray-400 text-white"
+                                            : "bg-white dark:bg-gray-800 text-gray-400"
+                                        }`}
+                                      >
+                                        No
+                                      </button>
+                                    </div>
+                                  </div>
+                                </>
                               ) : (
                                 <div className="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-800 border">
                                   <User className="h-5 w-5 text-green-600" />
@@ -987,5 +1105,38 @@ export default function ExtractEmployeesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function ExtractEmployeesLoading() {
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="border-b bg-card">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold">Extract Relationships from Email</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Loading...
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="container mx-auto px-6 py-8">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ExtractEmployeesPage() {
+  return (
+    <Suspense fallback={<ExtractEmployeesLoading />}>
+      <ExtractEmployeesContent />
+    </Suspense>
   );
 }
