@@ -778,6 +778,10 @@ module Api
               display_name: contact.display_name,
               email: contact.email,
               contact_type: contact.entity_type,
+              entity_type: contact.entity_type,
+              primary_company_id: contact.primary_company_id,
+              primary_company_name: contact.primary_company&.display_name,
+              is_team_contact: contact.is_team_contact,
               xero_id: contact.xero_id,
               synced: contact.xero_id.present?,
               last_synced_at: contact.last_synced_at,
@@ -1344,6 +1348,114 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/pdf_sync_status
+      # Returns PDF sync progress and health status for the Xero integration dashboard
+      def pdf_sync_status
+        begin
+          # Get all invoices that should have PDFs (linked to contacts)
+          invoices_with_contacts = ExternalInvoice.where.not(contact_id: nil)
+          total_invoices = invoices_with_contacts.count
+
+          # Count invoices that have PDFs synced (via CompanyDocument with source='xero' and documentable)
+          invoices_with_pdfs = CompanyDocument.where(source: "xero")
+                                              .where("external_id LIKE ?", "xero:%:pdf")
+                                              .where(documentable_type: "ExternalInvoice")
+                                              .distinct
+                                              .count(:documentable_id)
+
+          # Count SharePoint uploads (documents with expected_onedrive_path set)
+          sharepoint_uploads = CompanyDocument.where(source: "xero")
+                                              .where.not(expected_onedrive_path: nil)
+                                              .where(documentable_type: "ExternalInvoice")
+                                              .count
+
+          # Get recent sync activity (last 24 hours)
+          recent_syncs = CompanyDocument.where(source: "xero")
+                                        .where(documentable_type: "ExternalInvoice")
+                                        .where("created_at > ?", 24.hours.ago)
+                                        .count
+
+          # Get errors (documents with sync issues - we can check for missing files)
+          # For now, count invoices without PDFs as "pending"
+          pending_count = total_invoices - invoices_with_pdfs
+
+          # Get last sync time
+          last_sync = CompanyDocument.where(source: "xero")
+                                     .where(documentable_type: "ExternalInvoice")
+                                     .maximum(:created_at)
+
+          # Breakdown by invoice type
+          bills_total = invoices_with_contacts.bills.count
+          bills_with_pdfs = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
+                                           .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                           .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+                                           .where(external_invoices: { invoice_type: "bill" })
+                                           .distinct
+                                           .count("company_documents.documentable_id")
+
+          sales_total = invoices_with_contacts.sales_invoices.count
+          sales_with_pdfs = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
+                                           .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                           .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+                                           .where(external_invoices: { invoice_type: "sales_invoice" })
+                                           .distinct
+                                           .count("company_documents.documentable_id")
+
+          quotes_total = invoices_with_contacts.quotes.count
+          quotes_with_pdfs = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
+                                            .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                            .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+                                            .where(external_invoices: { invoice_type: "quote" })
+                                            .distinct
+                                            .count("company_documents.documentable_id")
+
+          # Calculate overall progress percentage
+          progress_percentage = total_invoices.zero? ? 0 : ((invoices_with_pdfs.to_f / total_invoices) * 100).round(1)
+
+          # Estimate time remaining (based on 10s per invoice)
+          estimated_remaining_seconds = pending_count * 10
+          estimated_remaining_minutes = (estimated_remaining_seconds / 60.0).round(0)
+
+          render json: {
+            success: true,
+            data: {
+              # Overall progress
+              total_invoices: total_invoices,
+              pdfs_synced: invoices_with_pdfs,
+              pending: pending_count,
+              progress_percentage: progress_percentage,
+
+              # SharePoint status
+              sharepoint_uploads: sharepoint_uploads,
+
+              # Activity
+              synced_last_24h: recent_syncs,
+              last_sync_at: last_sync,
+
+              # Breakdown by type
+              breakdown: {
+                bills: { total: bills_total, synced: bills_with_pdfs },
+                sales_invoices: { total: sales_total, synced: sales_with_pdfs },
+                quotes: { total: quotes_total, synced: quotes_with_pdfs }
+              },
+
+              # Estimates
+              estimated_remaining_minutes: estimated_remaining_minutes,
+
+              # Health status
+              health: determine_pdf_sync_health(progress_percentage, pending_count, last_sync)
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero pdf_sync_status error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to get PDF sync status: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/xero/validate_contacts
       # Validate all contacts that should be synced to Xero
       def validate_contacts
@@ -1520,6 +1632,42 @@ module Api
           "Created from Xero"
         else
           "Synced to Xero"
+        end
+      end
+
+      # Determine PDF sync health status based on progress and activity
+      def determine_pdf_sync_health(progress_percentage, pending_count, last_sync)
+        # Health status: healthy, warning, error, not_started
+        if progress_percentage == 0 && pending_count > 0
+          {
+            status: "not_started",
+            message: "PDF sync has not started yet",
+            color: "gray"
+          }
+        elsif progress_percentage >= 95
+          {
+            status: "healthy",
+            message: "PDF sync is up to date",
+            color: "green"
+          }
+        elsif progress_percentage >= 50
+          {
+            status: "in_progress",
+            message: "PDF sync is in progress",
+            color: "blue"
+          }
+        elsif last_sync.present? && last_sync < 7.days.ago
+          {
+            status: "warning",
+            message: "PDF sync hasn't run recently",
+            color: "yellow"
+          }
+        else
+          {
+            status: "in_progress",
+            message: "PDF sync is running",
+            color: "blue"
+          }
         end
       end
 
