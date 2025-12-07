@@ -130,4 +130,138 @@ namespace :xero do
 
     puts "Linked #{linked} invoices to contacts"
   end
+
+  desc "Full warehouse sync: invoices with line items + PDFs stored against contacts"
+  task full_warehouse: :environment do
+    puts "=" * 70
+    puts "FULL XERO WAREHOUSE SYNC"
+    puts "=" * 70
+    puts ""
+    puts "This will:"
+    puts "  1. Fetch ALL invoices with FULL details (line items, payments, tracking)"
+    puts "  2. Download PDFs and store against contacts in folder structure"
+    puts ""
+    puts "WARNING: This may take 60+ minutes due to Xero API rate limits."
+    puts "         (~1.2 seconds per invoice for full details)"
+    puts ""
+
+    # Phase 1: Sync invoices with full details
+    puts "=" * 70
+    puts "PHASE 1: Syncing invoices with full details (line items)"
+    puts "=" * 70
+    puts ""
+
+    service = ExternalInvoiceSyncService.new(source: "xero")
+    result = service.sync_full
+
+    puts ""
+    puts "Invoice Sync Complete!"
+    puts "  Total invoices: #{result[:stats][:total_invoices]}"
+    puts "  Details fetched: #{result[:stats][:details_fetched] || 'N/A'}"
+    puts "  Created: #{result[:stats][:created]}"
+    puts "  Updated: #{result[:stats][:updated]}"
+    puts "  Linked to jobs: #{result[:stats][:linked_to_jobs]}"
+    puts "  Linked to contacts: #{result[:stats][:linked_to_contacts]}"
+    puts ""
+
+    if result[:stats][:errors].any?
+      puts "Errors (#{result[:stats][:errors].count}):"
+      result[:stats][:errors].first(5).each { |e| puts "  - #{e}" }
+    end
+
+    # Phase 2: Sync PDFs to contact folders
+    puts ""
+    puts "=" * 70
+    puts "PHASE 2: Syncing PDFs to contact folders"
+    puts "=" * 70
+    puts ""
+
+    # Only sync PDFs for invoices linked to contacts
+    invoices_with_contacts = ExternalInvoice.where.not(contact_id: nil)
+    total = invoices_with_contacts.count
+    synced = 0
+    pdf_count = 0
+    attachment_count = 0
+    errors = []
+
+    puts "Found #{total} invoices linked to contacts"
+    puts ""
+
+    invoices_with_contacts.find_each.with_index do |invoice, index|
+      begin
+        result = XeroAttachmentSyncService.new(invoice).sync!
+        pdf_count += 1 if result[:pdf].present?
+        attachment_count += result[:attachments].count
+        errors.concat(result[:errors]) if result[:errors].any?
+      rescue StandardError => e
+        errors << "Invoice #{invoice.invoice_number}: #{e.message}"
+      end
+
+      synced += 1
+      if synced % 25 == 0 || synced == total
+        puts "  Progress: #{synced}/#{total} invoices processed (#{pdf_count} PDFs, #{attachment_count} attachments)"
+      end
+
+      # Small delay between API calls
+      sleep(0.5)
+    end
+
+    puts ""
+    puts "=" * 70
+    puts "FULL WAREHOUSE SYNC COMPLETE!"
+    puts "=" * 70
+    puts ""
+    puts "Summary:"
+    puts "  Invoices processed: #{synced}"
+    puts "  PDFs synced: #{pdf_count}"
+    puts "  Attachments synced: #{attachment_count}"
+    puts ""
+
+    if errors.any?
+      puts "Errors (#{errors.count}):"
+      errors.first(10).each { |e| puts "  - #{e}" }
+      puts "  ... and #{errors.count - 10} more" if errors.count > 10
+    else
+      puts "No errors!"
+    end
+
+    puts ""
+    puts "Documents are now available in contact tabs under BILLS/INVOICES folders."
+  end
+
+  desc "Sync PDFs only (for invoices already in warehouse)"
+  task sync_pdfs: :environment do
+    puts "Syncing PDFs for existing invoices..."
+    puts ""
+
+    # Only sync PDFs for invoices linked to contacts
+    invoices_with_contacts = ExternalInvoice.where.not(contact_id: nil)
+    total = invoices_with_contacts.count
+    synced = 0
+    pdf_count = 0
+    errors = []
+
+    puts "Found #{total} invoices linked to contacts"
+
+    invoices_with_contacts.find_each do |invoice|
+      begin
+        result = XeroAttachmentSyncService.new(invoice).sync!
+        pdf_count += 1 if result[:pdf].present?
+        errors.concat(result[:errors]) if result[:errors].any?
+      rescue StandardError => e
+        errors << "Invoice #{invoice.invoice_number}: #{e.message}"
+      end
+
+      synced += 1
+      print "\rProgress: #{synced}/#{total}" if synced % 10 == 0
+      sleep(0.5)
+    end
+
+    puts ""
+    puts ""
+    puts "PDF Sync Complete!"
+    puts "  Invoices processed: #{synced}"
+    puts "  PDFs synced: #{pdf_count}"
+    puts "  Errors: #{errors.count}"
+  end
 end

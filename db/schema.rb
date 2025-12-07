@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_07_015011) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_07_100115) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -835,6 +835,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_07_015011) do
     t.jsonb "job_cascade_sort"
     t.jsonb "job_folder_name_format"
     t.string "contact_documents_path"
+    t.string "contact_folder_format", default: "id_name"
   end
 
   create_table "company_shareholdings", force: :cascade do |t|

@@ -363,6 +363,69 @@ module Api
         }, status: :unprocessable_entity
       end
 
+      # GET /api/v1/external_invoices/:id/pdf
+      # Returns or fetches the PDF for this invoice
+      def pdf
+        invoice = ExternalInvoice.find(params[:id])
+
+        # Check warehouse first (SSoT) - look for PDF linked to this invoice
+        existing_pdf = invoice.company_documents.find_by(document_type: invoice.invoice_type)
+
+        if existing_pdf&.file&.attached?
+          # Return existing PDF from warehouse
+          redirect_to rails_blob_url(existing_pdf.file, disposition: "inline"), allow_other_host: true
+        else
+          # Fetch from Xero on-demand and store in warehouse
+          service = XeroAttachmentSyncService.new(invoice)
+          result = service.sync!
+
+          if result[:pdf]&.file&.attached?
+            redirect_to rails_blob_url(result[:pdf].file, disposition: "inline"), allow_other_host: true
+          else
+            error_msg = result[:errors].first || "PDF not available from Xero"
+            render json: { success: false, error: error_msg }, status: :not_found
+          end
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Invoice not found" }, status: :not_found
+      rescue StandardError => e
+        Rails.logger.error("PDF fetch failed: #{e.message}")
+        render json: { success: false, error: "Failed to fetch PDF: #{e.message}" }, status: :internal_server_error
+      end
+
+      # GET /api/v1/external_invoices/:id/attachments
+      # List all attachments for this invoice
+      def attachments
+        invoice = ExternalInvoice.find(params[:id])
+
+        # Return documents linked to this invoice
+        documents = invoice.company_documents.map do |doc|
+          {
+            id: doc.id,
+            title: doc.title,
+            file_name: doc.file_name,
+            document_type: doc.document_type,
+            folder: doc.folder,
+            file_size: doc.file_size,
+            mime_type: doc.mime_type,
+            url: doc.file.attached? ? rails_blob_url(doc.file) : nil,
+            created_at: doc.created_at.iso8601
+          }
+        end
+
+        render json: {
+          success: true,
+          data: documents,
+          meta: {
+            invoice_id: invoice.id,
+            invoice_number: invoice.invoice_number,
+            count: documents.count
+          }
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Invoice not found" }, status: :not_found
+      end
+
       private
 
       def serialize_invoice(invoice, include_details: false)

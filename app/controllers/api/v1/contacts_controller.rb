@@ -150,7 +150,7 @@ module Api
             :sys_type_id, :deleted, :parent_id, :parent,
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
             :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
-            :entity_type, :primary_role, :employment_status, :primary_company_id,
+            :entity_type, :primary_role, :employment_status, :primary_company_id, :company_name_or_trust,
             # Family/Director flags
             :is_family_member, :is_potential_director, :company_group_id, :is_team_contact,
             # Xero fields
@@ -289,7 +289,10 @@ module Api
           .active
           .where(relationship_type: [ "director_of", "shareholder_of", "trustee_of", "employee_of", "partner_in", "authorized_signatory_of", "beneficial_owner_of" ])
           .includes(:related_contact)
-          .map do |rel|
+          .filter_map do |rel|
+            # Skip orphaned relationships where related_contact no longer exists
+            next unless rel.related_contact
+
             {
               id: rel.related_contact.id,
               name: rel.related_contact.display_name,
@@ -3575,6 +3578,7 @@ module Api
           :address,
           :notes,
           :entity_type,
+          :company_name_or_trust, # SSoT for company/trust names
           # Family/Director fields
           :is_family_member,
           :is_potential_director,

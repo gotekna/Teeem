@@ -53,6 +53,7 @@ module Api
           :twilio_enabled,
           :timezone,
           :contact_documents_path,
+          :contact_folder_format,
           working_days: [
             :monday,
             :tuesday,
