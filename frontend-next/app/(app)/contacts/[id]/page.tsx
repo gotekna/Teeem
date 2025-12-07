@@ -141,6 +141,7 @@ interface Contact {
   "is_customer?": boolean;
   "is_director?": boolean;
   is_family_member: boolean;
+  is_team_contact: boolean;
   xero_contact_id: string | null;
   xero_contact_types: string[];
   sync_with_xero: boolean;
@@ -843,6 +844,7 @@ export default function ContactDetailPage() {
     notes: "",
     is_active: true,
     is_family_member: false,
+    is_team_contact: false,
     entity_type: "person",
     sync_with_xero: false,
   });
@@ -1357,6 +1359,7 @@ export default function ContactDetailPage() {
         notes: contact.notes || "",
         is_active: contact.is_active ?? true,
         is_family_member: contact.is_family_member ?? false,
+        is_team_contact: contact.is_team_contact ?? false,
         entity_type: contact.entity_type || "person",
         sync_with_xero: contact.sync_with_xero ?? false,
       });
@@ -2164,6 +2167,15 @@ export default function ContactDetailPage() {
                       <div className="flex items-center justify-between py-2">
                         <div><Label>Family Member</Label></div>
                         <Switch checked={formData.is_family_member} onCheckedChange={(c) => handleInputChange("is_family_member", c)} />
+                      </div>
+                    )}
+                    {formData.entity_type === "person" && (
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <Label>Team Contact</Label>
+                          <p className="text-xs text-muted-foreground">Append company name to avoid duplicates (e.g., "Accounts Team - Buildcraft")</p>
+                        </div>
+                        <Switch checked={formData.is_team_contact} onCheckedChange={(c) => handleInputChange("is_team_contact", c)} />
                       </div>
                     )}
                   </CardContent>

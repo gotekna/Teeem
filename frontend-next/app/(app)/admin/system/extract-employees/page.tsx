@@ -74,7 +74,7 @@ interface PreviewItem {
     entity_type: string;
   } | null;
   matching_contacts: MatchingContact[];
-  domain_company: Company;
+  domain_company: Company | null; // null for personal email domains (gmail, hotmail, etc.)
   parent_companies: Company[];
   phones: Phones;
 }
@@ -177,7 +177,7 @@ function ExtractEmployeesContent() {
           addEmail: true, // Always add email for new contacts
           addMobile: !!item.phones?.mobile, // Auto-add mobile if found
           addDirect: !!item.phones?.direct && !firstContact?.office_phone, // Add direct if found and contact doesn't have one
-          addOfficeToCompany: !!item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone, // Add office to company if found and company doesn't have one
+          addOfficeToCompany: !!(item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone), // Add office to company if found and company doesn't have one
           isPerfectMatch: isPerfectMatch,
           // Default to YES for new contacts (they're employees of the domain company)
           linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !firstContact?.relationship_to_domain_company_exists),
@@ -283,7 +283,7 @@ function ExtractEmployeesContent() {
           addEmail: true, // Always add email
           addMobile: !!item.phones?.mobile, // Auto-add mobile if found
           addDirect: !!item.phones?.direct && !firstContact?.office_phone, // Add direct if found and contact doesn't have one
-          addOfficeToCompany: !!item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone, // Add office to company if found and company doesn't have one
+          addOfficeToCompany: !!(item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone), // Add office to company if found and company doesn't have one
           isPerfectMatch: isPerfectMatch,
           // Default to YES for new contacts (they're employees of the domain company)
           linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !firstContact?.relationship_to_domain_company_exists),
@@ -330,9 +330,9 @@ function ExtractEmployeesContent() {
           add_direct: sel.addDirect,
           office: item.phones?.office,
           add_office_to_company: sel.addOfficeToCompany,
-          link_to_domain_company: sel.linkToDomainCompany,
-          domain_company_id: item.domain_company.id,
-          domain_company_name: item.domain_company.name,
+          link_to_domain_company: sel.linkToDomainCompany && item.domain_company != null,
+          domain_company_id: item.domain_company?.id || null,
+          domain_company_name: item.domain_company?.name || null,
           parent_company_ids: Object.entries(sel.parentCompanyLinks)
             .filter(([_, enabled]) => enabled)
             .map(([id, _]) => parseInt(id)),
@@ -423,7 +423,7 @@ function ExtractEmployeesContent() {
         addEmail: !contact?.email || contact.email.toLowerCase() !== item.email.toLowerCase(), // Add email if contact doesn't have one or has different (case-insensitive)
         addMobile: !!item.phones?.mobile && !contact?.mobile_phone, // Add mobile if found and contact doesn't have one
         addDirect: !!item.phones?.direct && !contact?.office_phone, // Add direct if found and contact doesn't have one
-        addOfficeToCompany: !!item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone, // Add office to company
+        addOfficeToCompany: !!(item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone), // Add office to company
         isPerfectMatch: isPerfectMatch,
         linkToDomainCompany: !contact?.relationship_to_domain_company_exists,
         parentCompanyLinks: parentLinks,
@@ -1155,13 +1155,15 @@ function ExtractEmployeesContent() {
                               </div>
                             </div>
 
-                            {/* Relationships to Create */}
+                            {/* Relationships to Create - only show if there's a domain company OR parent companies */}
+                            {(item.domain_company || item.parent_companies.length > 0) && (
                             <div className="space-y-3">
                               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                                 Create Relationships
                               </div>
 
-                              {/* Domain Company Relationship */}
+                              {/* Domain Company Relationship - only show for business email domains */}
+                              {item.domain_company && (
                               <div className="p-3 rounded-lg border bg-card space-y-2">
                                 <div className="flex items-center gap-3">
                                   <Building2 className="h-5 w-5 text-orange-600" />
@@ -1233,10 +1235,11 @@ function ExtractEmployeesContent() {
                                   </div>
                                 )}
                               </div>
+                              )}
 
-                              {/* Parent Company Relationships - only show if person doesn't already have an employer */}
+                              {/* Parent Company Relationships - only show if person doesn't already have an employer (domain company) */}
                               {/* If they work for SV Partners (domain_company), don't suggest Tekna as employer just because they communicated */}
-                              {!item.domain_company.exists && item.parent_companies.map((pc) => {
+                              {(!item.domain_company || !item.domain_company.exists) && item.parent_companies.map((pc) => {
                                 const existingRel = selectedContact?.relationships_to_parent_companies.find(
                                   (r) => r.company_id === pc.id
                                 );
@@ -1310,6 +1313,7 @@ function ExtractEmployeesContent() {
                                 );
                               })}
                             </div>
+                            )}
                           </div>
                         </div>
                       </div>

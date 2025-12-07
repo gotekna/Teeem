@@ -746,11 +746,13 @@ class EmailToContactExtractionService
       /(0\d\s?\d{4}\s?\d{4})/
     ]
 
-    # Direct line pattern
+    # Direct line pattern (including 1800 numbers)
     direct_patterns = [
       /(?:Direct|Dir|D)[:\s]*(\+61\s?\d{1}\s?\d{4}\s?\d{4})/i,
       /(?:Direct|Dir|D)[:\s]*(\(0\d\)\s?\d{4}\s?\d{4})/i,
-      /(?:Direct|Dir|D)[:\s]*(0\d\s?\d{4}\s?\d{4})/i
+      /(?:Direct|Dir|D)[:\s]*(0\d\s?\d{4}\s?\d{4})/i,
+      /(?:Direct|Dir|D)[:\s]*(1800\s?\d{3}\s?\d{3})/i,
+      /(?:Direct|Dir|D)[:\s]*(1300\s?\d{3}\s?\d{3})/i
     ]
 
     # Try to extract mobile first
