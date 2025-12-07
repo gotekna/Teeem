@@ -2947,7 +2947,7 @@ module Api
         primary.office_phone ||= duplicate.office_phone
         primary.first_name ||= duplicate.first_name
         primary.last_name ||= duplicate.last_name
-        primary.title ||= duplicate.title
+        primary.primary_role ||= duplicate.primary_role
         primary.notes = [primary.notes, duplicate.notes].compact.reject(&:blank?).join("\n\n---\nMerged from #{duplicate.full_name}:\n") if duplicate.notes.present? && duplicate.notes != primary.notes
         primary.save! if primary.changed?
 

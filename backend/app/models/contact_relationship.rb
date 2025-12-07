@@ -62,11 +62,12 @@ class ContactRelationship < ApplicationRecord
   # Callback to sync primary_company_id when employee_of relationships change
   after_commit :sync_primary_company_id, if: :should_sync_primary_company?
 
-  # Find the reverse relationship
+  # Find the reverse relationship (must match relationship_type too)
   def reverse_relationship
     ContactRelationship.find_by(
       source_contact_id: related_contact_id,
-      related_contact_id: source_contact_id
+      related_contact_id: source_contact_id,
+      relationship_type: relationship_type
     )
   end
 
@@ -82,14 +83,17 @@ class ContactRelationship < ApplicationRecord
   end
 
   def unique_relationship_pair
-    # Check if this relationship already exists
+    # Check if this exact relationship (same type) already exists
+    # Allows multiple relationships between same contacts with different types
+    # e.g., someone can be both employee_of AND director_of the same company
     existing = ContactRelationship.where(
       source_contact_id: source_contact_id,
-      related_contact_id: related_contact_id
+      related_contact_id: related_contact_id,
+      relationship_type: relationship_type
     ).where.not(id: id)
 
     if existing.exists?
-      errors.add(:base, "Relationship already exists between these contacts")
+      errors.add(:base, "This relationship type already exists between these contacts")
     end
   end
 
