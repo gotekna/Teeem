@@ -1,12 +1,14 @@
 # Service to sync attachments from Xero invoices/bills to CompanyDocuments
 # Links downloaded documents to ExternalInvoice via polymorphic documentable
+# Also uploads PDFs to SharePoint folder structure: Contacts/{contact_folder}/BILLS|INVOICES/
 class XeroAttachmentSyncService
   attr_reader :external_invoice, :xero_client, :results
 
-  def initialize(external_invoice)
+  def initialize(external_invoice, skip_sharepoint: false)
     @external_invoice = external_invoice
     @xero_client = XeroApiClient.new
-    @results = { pdf: nil, attachments: [], errors: [] }
+    @skip_sharepoint = skip_sharepoint
+    @results = { pdf: nil, attachments: [], errors: [], sharepoint_uploads: [] }
   end
 
   # Sync all attachments for this invoice
@@ -85,6 +87,9 @@ class XeroAttachmentSyncService
     if document.save
       results[:pdf] = document
       Rails.logger.info("[XeroAttachmentSync] Saved PDF: #{filename}")
+
+      # Also upload to SharePoint
+      upload_to_sharepoint(pdf_result[:content], filename)
     else
       results[:errors] << "Failed to save PDF: #{document.errors.full_messages.join(', ')}"
     end
@@ -173,6 +178,9 @@ class XeroAttachmentSyncService
     if document.save
       results[:attachments] << document
       Rails.logger.info("[XeroAttachmentSync] Saved attachment: #{filename}")
+
+      # Also upload to SharePoint
+      upload_to_sharepoint(download_result[:content], filename)
     else
       results[:errors] << "Failed to save #{filename}: #{document.errors.full_messages.join(', ')}"
     end
@@ -281,6 +289,72 @@ class XeroAttachmentSyncService
     when ".xls", ".xlsx" then "General"
     when ".jpg", ".jpeg", ".png" then "General"
     else "other"
+    end
+  end
+
+  # Upload file content to SharePoint using folder structure:
+  # Contacts/{contact_folder}/BILLS|INVOICES/{filename}
+  def upload_to_sharepoint(content, filename)
+    return nil if @skip_sharepoint
+    return nil unless external_invoice.contact.present?
+
+    begin
+      credential = OrganizationOneDriveCredential.active_credential
+      return nil unless credential.present?
+
+      graph_client = MicrosoftGraphClient.new(credential)
+
+      # Get or create Contacts folder at root
+      settings = CompanySetting.instance
+      base_folder_name = settings.contact_documents_path || "Contacts"
+
+      # Find or create the base Contacts folder
+      contacts_folder = graph_client.find_folder_in_drive_root(base_folder_name)
+      unless contacts_folder
+        contacts_folder = graph_client.create_folder(base_folder_name)
+        Rails.logger.info("[XeroAttachmentSync] Created SharePoint folder: #{base_folder_name}")
+      end
+
+      # Get or create contact subfolder (e.g., "456 - ABC Supplies")
+      contact_folder_name = contact_folder_name()
+      return nil unless contact_folder_name.present?
+
+      contact_folder = graph_client.get_or_create_subfolder(contacts_folder["id"] || contacts_folder[:id], contact_folder_name)
+      Rails.logger.info("[XeroAttachmentSync] Using contact folder: #{contact_folder_name}")
+
+      # Get or create type subfolder (BILLS, INVOICES, etc.)
+      type_folder_name = folder_for_invoice_type
+      type_folder = graph_client.get_or_create_subfolder(contact_folder[:id] || contact_folder["id"], type_folder_name)
+      Rails.logger.info("[XeroAttachmentSync] Using type folder: #{type_folder_name}")
+
+      # Upload the file
+      upload_result = graph_client.upload_file_content(
+        type_folder[:id] || type_folder["id"],
+        filename,
+        content
+      )
+
+      Rails.logger.info("[XeroAttachmentSync] Uploaded to SharePoint: #{filename} -> #{upload_result[:web_url]}")
+
+      results[:sharepoint_uploads] << {
+        filename: filename,
+        folder: "#{base_folder_name}/#{contact_folder_name}/#{type_folder_name}",
+        web_url: upload_result[:web_url]
+      }
+
+      upload_result
+    rescue MicrosoftGraphClient::AuthenticationError => e
+      results[:errors] << "SharePoint auth error: #{e.message}"
+      Rails.logger.error("[XeroAttachmentSync] SharePoint auth error: #{e.message}")
+      nil
+    rescue MicrosoftGraphClient::APIError => e
+      results[:errors] << "SharePoint API error: #{e.message}"
+      Rails.logger.error("[XeroAttachmentSync] SharePoint API error: #{e.message}")
+      nil
+    rescue StandardError => e
+      results[:errors] << "SharePoint upload error: #{e.message}"
+      Rails.logger.error("[XeroAttachmentSync] SharePoint upload error: #{e.message}")
+      nil
     end
   end
 end
