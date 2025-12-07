@@ -770,9 +770,30 @@ module Api
       # Returns all TEEEM contacts with their Xero sync status
       def contacts_sync_list
         begin
-          contacts = Contact.includes(:primary_company).all
+          contacts = Contact.includes(:primary_company, :external_invoices).all
+
+          # Pre-calculate invoice/bill counts and PDF sync stats per contact
+          invoice_counts = ExternalInvoice.where.not(contact_id: nil)
+                                          .group(:contact_id, :invoice_type)
+                                          .count
+
+          # Count PDFs per contact (documents linked to their invoices)
+          pdf_counts_by_contact = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
+                                                  .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                                  .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+                                                  .group("external_invoices.contact_id")
+                                                  .count
 
           contacts_data = contacts.map do |contact|
+            # Get invoice/bill counts for this contact
+            invoices_count = invoice_counts[[contact.id, "sales_invoice"]] || 0
+            bills_count = invoice_counts[[contact.id, "bill"]] || 0
+            total_docs = invoices_count + bills_count
+
+            # Get PDF sync count
+            pdfs_synced = pdf_counts_by_contact[contact.id] || 0
+            pdf_sync_percent = total_docs > 0 ? ((pdfs_synced.to_f / total_docs) * 100).round(0) : nil
+
             {
               id: contact.id,
               display_name: contact.display_name,
@@ -787,7 +808,11 @@ module Api
               last_synced_at: contact.last_synced_at,
               sync_enabled: contact.sync_with_xero,
               sync_error: contact.xero_sync_error,
-              has_error: contact.xero_sync_error.present?
+              has_error: contact.xero_sync_error.present?,
+              invoices_count: invoices_count,
+              bills_count: bills_count,
+              pdfs_synced: pdfs_synced,
+              pdf_sync_percent: pdf_sync_percent
             }
           end.sort_by { |c| c[:display_name]&.downcase || "" }
 

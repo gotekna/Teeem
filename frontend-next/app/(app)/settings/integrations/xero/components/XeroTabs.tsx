@@ -80,6 +80,10 @@ interface ContactSyncItem {
   sync_enabled: boolean;
   sync_error: string | null;
   has_error: boolean;
+  invoices_count: number;
+  bills_count: number;
+  pdfs_synced: number;
+  pdf_sync_percent: number | null;
 }
 
 
@@ -704,17 +708,18 @@ export function XeroContactSync() {
               <TableHeader className="sticky top-0 bg-background">
                 <TableRow>
                   <TableHead>Contact Name</TableHead>
-                  <TableHead>Email</TableHead>
                   <TableHead>Entity Type</TableHead>
                   <TableHead>Company</TableHead>
+                  <TableHead className="text-center">Invoices</TableHead>
+                  <TableHead className="text-center">Bills</TableHead>
+                  <TableHead className="text-center">PDF %</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Last Synced</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredContacts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No contacts found
                     </TableCell>
                   </TableRow>
@@ -727,6 +732,14 @@ export function XeroContactSync() {
                     const isPersonWithCompany = contact.entity_type === "person" && contact.primary_company_id != null;
                     const shouldHighlight = isPriceOnly || isPersonWithCompany;
 
+                    // PDF sync status coloring - only green if 100%
+                    const getPdfSyncColor = (percent: number | null) => {
+                      if (percent === null) return "";
+                      if (percent === 100) return "text-green-600";
+                      if (percent >= 50) return "text-amber-600";
+                      return "text-red-600";
+                    };
+
                     return (
                       <TableRow
                         key={contact.id}
@@ -735,9 +748,6 @@ export function XeroContactSync() {
                         <TableCell className="font-medium">
                           {contact.display_name}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {contact.email || "-"}
-                        </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={isPriceOnly ? "bg-red-100 text-red-700 border-red-300" : ""}>
                             {contact.entity_type || "Unknown"}
@@ -745,6 +755,29 @@ export function XeroContactSync() {
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {contact.primary_company_name || "-"}
+                        </TableCell>
+                        <TableCell className="text-center text-sm">
+                          {contact.invoices_count > 0 ? (
+                            <span className="font-medium">{contact.invoices_count}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center text-sm">
+                          {contact.bills_count > 0 ? (
+                            <span className="font-medium">{contact.bills_count}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center text-sm">
+                          {contact.pdf_sync_percent !== null ? (
+                            <span className={cn("font-medium", getPdfSyncColor(contact.pdf_sync_percent))}>
+                              {contact.pdf_sync_percent}%
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {contact.has_error ? (
@@ -763,11 +796,6 @@ export function XeroContactSync() {
                               Not Synced
                             </Badge>
                           )}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {contact.last_synced_at
-                            ? new Date(contact.last_synced_at).toLocaleString()
-                            : "Never"}
                         </TableCell>
                       </TableRow>
                     );

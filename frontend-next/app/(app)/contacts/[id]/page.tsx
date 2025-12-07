@@ -44,6 +44,7 @@ import {
   Loader2,
   Save,
   X,
+  Plus,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -881,6 +882,11 @@ export default function ContactDetailPage() {
   const [selectedCompanies, setSelectedCompanies] = useState<Option[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
 
+  // Add Company state
+  const [showAddCompany, setShowAddCompany] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState("");
+  const [creatingCompany, setCreatingCompany] = useState(false);
+
   // Track roles for each company (companyId -> roleTypes[])
   const [companyRoles, setCompanyRoles] = useState<Record<string, string[]>>({});
 
@@ -891,6 +897,12 @@ export default function ContactDetailPage() {
 
   // Track roles for each employee (employeeId -> roleTypes[])
   const [employeeRoles, setEmployeeRoles] = useState<Record<string, string[]>>({});
+
+  // Add Employee state (for company contacts)
+  const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [newEmployeeFirstName, setNewEmployeeFirstName] = useState("");
+  const [newEmployeeLastName, setNewEmployeeLastName] = useState("");
+  const [creatingEmployee, setCreatingEmployee] = useState(false);
 
   // Drag and drop sensors for employee ordering
   const sensors = useSensors(
