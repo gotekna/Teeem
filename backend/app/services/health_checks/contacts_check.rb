@@ -149,8 +149,10 @@ module HealthChecks
       groups = []
       seen_ids = Set.new
 
+      # Include all fields needed by the merge modal
       contacts = Contact.where(deleted: [ false, nil ])
-                       .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id)
+                       .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :entity_type, :completeness_score)
+                       .includes(:jobs, :purchase_orders)
 
       case type
       when :name
@@ -195,10 +197,21 @@ module HealthChecks
         contacts: contacts.map do |c|
           {
             id: c.id,
+            # Modal expects 'name' field for display
+            name: c.full_name,
             full_name: c.full_name,
             email: c.email,
+            # Modal expects 'phone' field
+            phone: c.mobile_phone || c.office_phone,
             mobile_phone: c.mobile_phone,
-            has_xero: c.xero_id.present?
+            entity_type: c.entity_type,
+            # Modal expects 'xero_contact_id' for Xero badge
+            xero_contact_id: c.xero_id,
+            xero_id: c.xero_id,
+            # Modal needs these counts for merge preview
+            jobs_count: c.respond_to?(:jobs) ? c.jobs.size : 0,
+            purchase_orders_count: c.respond_to?(:purchase_orders) ? c.purchase_orders.size : 0,
+            completeness_score: c.try(:completeness_score) || 0
           }
         end
       }
