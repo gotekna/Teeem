@@ -81,14 +81,14 @@ class PricebookItem < ApplicationRecord
     # 1. Full-text search via tsvector (for complete word matches)
     # 2. ILIKE on item_code (for partial code matches like "AIRSI" → "AIRSI25")
     # 3. ILIKE on item_name (for partial name matches)
-    # 4. ILIKE on supplier name (joined contact full_name)
+    # 4. ILIKE on supplier name (joined contact display_name)
     # Note: Using distinct is important because left_joins can create duplicates if multiple suppliers match
     left_joins(:supplier)
       .where(
         "pricebook.searchable_text @@ plainto_tsquery('english', :query) " \
         "OR pricebook.item_code ILIKE :like_query " \
         "OR pricebook.item_name ILIKE :like_query " \
-        "OR contacts.full_name ILIKE :like_query",
+        "OR contacts.display_name ILIKE :like_query",
         query: query,
         like_query: "%#{sanitized_query}%"
       )

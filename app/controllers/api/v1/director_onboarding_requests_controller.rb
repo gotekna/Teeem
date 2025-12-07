@@ -164,7 +164,7 @@ module Api
         render json: {
           message: "Director onboarding approved",
           request: serialize_request(@request, full: true),
-          contact: @request.contact.as_json(only: [ :id, :full_name, :email ])
+          contact: @request.contact.as_json(only: [ :id, :display_name, :email ])
         }
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
@@ -229,7 +229,7 @@ module Api
         begin
           service = DirectorDocumentUploadService.new
           result = service.upload_document(
-            director_name: @request.full_name,
+            director_name: @request.display_name,
             document_type: params[:document_type],
             file: params[:file]
           )
@@ -318,7 +318,7 @@ module Api
           status: request.status,
           first_name: request.first_name,
           last_name: request.last_name,
-          full_name: request.full_name,
+          display_name: request.display_name,
           email: request.email,
           mobile_phone: request.mobile_phone,
           company_id: request.company_id,

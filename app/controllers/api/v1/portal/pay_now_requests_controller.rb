@@ -258,7 +258,7 @@ module Api
             supplier_notes: request.supplier_notes,
             requested_payment_date: request.requested_payment_date,
             requested_at: request.created_at,
-            reviewed_by: request.reviewed_by_supervisor&.full_name,
+            reviewed_by: request.reviewed_by_supervisor&.display_name,
             reviewed_at: request.supervisor_reviewed_at,
             supervisor_notes: request.supervisor_notes,
             rejection_reason: request.rejection_reason,

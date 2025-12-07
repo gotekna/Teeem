@@ -35,7 +35,7 @@ module Api
           success: true,
           companies: @companies.as_json(
             include: {
-              current_directors: { only: [ :id, :full_name, :email ] },
+              current_directors: { only: [ :id, :display_name, :email ] },
               company_xero_connection: { only: [ :id, :connection_status, :xero_tenant_name ] }
             },
             methods: [ :formatted_acn, :formatted_abn, :has_xero_connection? ]
@@ -61,7 +61,7 @@ module Api
         # Serialize current directors separately (company_directors.current returns CompanyDirector objects)
         company_json["current_directors"] = @company.company_directors.current.includes(:contact).map do |director|
           director.as_json(
-            include: { contact: { only: [ :id, :full_name, :email, :mobile_phone ] } },
+            include: { contact: { only: [ :id, :display_name, :email, :mobile_phone ] } },
             methods: [ :formatted_position ]
           )
         end
@@ -121,7 +121,7 @@ module Api
           directors: directors.as_json(
             include: {
               contact: {
-                only: [ :id, :full_name, :email, :mobile_phone, :director_id, :date_of_birth ],
+                only: [ :id, :display_name, :email, :mobile_phone, :director_id, :date_of_birth ],
                 methods: [ :display_name ]
               }
             },
@@ -146,7 +146,7 @@ module Api
             success: true,
             message: "Director added successfully",
             director: director.as_json(
-              include: { contact: { only: [ :id, :full_name, :email ] } },
+              include: { contact: { only: [ :id, :display_name, :email ] } },
               methods: [ :formatted_position ]
             )
           }, status: :created
@@ -167,7 +167,7 @@ module Api
             success: true,
             message: "Director updated successfully",
             director: director.as_json(
-              include: { contact: { only: [ :id, :full_name, :email ] } },
+              include: { contact: { only: [ :id, :display_name, :email ] } },
               methods: [ :formatted_position ]
             )
           }
@@ -617,7 +617,7 @@ module Api
         {
           membership_id: membership.id,
           contact_id: membership.contact_id,
-          contact_name: membership.contact&.full_name,
+          contact_name: membership.contact&.display_name,
           contact_email: membership.contact&.email,
           contact_entity_type: membership.contact&.entity_type,
           membership_type: membership.membership_type,
@@ -630,9 +630,9 @@ module Api
         {
           id: relationship.id,
           contact_id: relationship.contact_id,
-          contact_name: relationship.contact&.full_name,
+          contact_name: relationship.contact&.display_name,
           related_contact_id: relationship.related_contact_id,
-          related_contact_name: relationship.related_contact&.full_name,
+          related_contact_name: relationship.related_contact&.display_name,
           relationship_type: relationship.relationship_type,
           ownership_percentage: relationship.ownership_percentage,
           start_date: relationship.start_date,

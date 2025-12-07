@@ -11,7 +11,7 @@ class PayNowMailer < ApplicationMailer
 
     mail(
       to: supervisor.email,
-      subject: "New Pay Now Request - #{@supplier.full_name} - PO ##{@purchase_order.purchase_order_number}"
+      subject: "New Pay Now Request - #{@supplier.display_name} - PO ##{@purchase_order.purchase_order_number}"
     )
   end
 

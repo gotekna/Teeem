@@ -124,14 +124,14 @@ class JobEstimatorService
     primary_client = @job.job_contacts.find_by(role: "client", primary: true)
     if primary_client&.contact
       contact = primary_client.contact
-      return "#{contact.full_name} (#{contact.email})"
+      return "#{contact.display_name} (#{contact.email})"
     end
 
     # Fallback to any client
     any_client = @job.job_contacts.find_by(role: "client")
     if any_client&.contact
       contact = any_client.contact
-      return "#{contact.full_name}"
+      return "#{contact.display_name}"
     end
 
     "Client not specified"

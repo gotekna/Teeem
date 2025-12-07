@@ -160,7 +160,7 @@ class EmailToJobService
           role: "external_sales",
           primary: false
         )
-        Rails.logger.info "Linked #{customer.full_name} as external_sales (detected as sales agent)"
+        Rails.logger.info "Linked #{customer.display_name} as external_sales (detected as sales agent)"
       else
         # Normal customer - link as client
         job.job_contacts.create!(
@@ -404,7 +404,7 @@ class EmailToJobService
     # Create new contact
     Contact.create!(
       email: email,
-      full_name: customer_data["name"],
+      display_name: customer_data["name"],
       mobile_phone: normalize_phone(customer_data["phone"]),
       company_name_or_trust: customer_data["company"],
       entity_type: customer_data["entity_type"] || "person",
@@ -518,7 +518,7 @@ class EmailToJobService
             role: "external_sales",
             primary: false
           )
-          Rails.logger.info "Linked external sales rep #{contact.full_name} to job #{job.id}"
+          Rails.logger.info "Linked external sales rep #{contact.display_name} to job #{job.id}"
         end
       end
     end
@@ -538,7 +538,7 @@ class EmailToJobService
         role: "external_sales",
         primary: false
       )
-      Rails.logger.info "Linked external sales #{contact.full_name} to job #{job.id} (user selected)"
+      Rails.logger.info "Linked external sales #{contact.display_name} to job #{job.id} (user selected)"
     end
   rescue StandardError => e
     Rails.logger.error "Failed to link external sales contact: #{e.message}"
@@ -559,7 +559,7 @@ class EmailToJobService
         role: "referral",
         primary: false
       )
-      Rails.logger.info "Linked referral #{contact.full_name} to job #{job.id}"
+      Rails.logger.info "Linked referral #{contact.display_name} to job #{job.id}"
     end
   rescue StandardError => e
     Rails.logger.error "Failed to link referral contact: #{e.message}"
@@ -577,7 +577,7 @@ class EmailToJobService
         role: "referral",
         primary: false
       )
-      Rails.logger.info "Linked referral #{contact.full_name} to job #{job.id} (user selected)"
+      Rails.logger.info "Linked referral #{contact.display_name} to job #{job.id} (user selected)"
     end
   rescue StandardError => e
     Rails.logger.error "Failed to link referral contact: #{e.message}"
@@ -625,7 +625,7 @@ class EmailToJobService
       if is_sales_agent || is_likely_sales
         external_sales << {
           "email" => participant_email,
-          "name" => contact&.full_name || extract_name_from_email(participant_email),
+          "name" => contact&.display_name || extract_name_from_email(participant_email),
           "contact_exists" => contact.present?,
           "contact_id" => contact&.id,
           "needs_contact_creation" => contact.nil?,
@@ -649,7 +649,7 @@ class EmailToJobService
 
       # If no email or no contact found, try searching by name
       if referral_contact.nil? && referral_data["name"].present?
-        referral_contact = Contact.where("LOWER(full_name) LIKE ?", "%#{referral_data['name'].downcase}%").first
+        referral_contact = Contact.where("LOWER(display_name) LIKE ?", "%#{referral_data['name'].downcase}%").first
       end
 
       extracted_data["referral_contact"] = {

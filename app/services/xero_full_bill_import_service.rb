@@ -275,7 +275,7 @@ class XeroFullBillImportService
 
     # Try to find by name
     contact_name = xero_contact["Name"]
-    contact = Contact.find_by("LOWER(full_name) = ?", contact_name.downcase) if contact_name
+    contact = Contact.find_by("LOWER(display_name) = ?", contact_name.downcase) if contact_name
     return contact if contact
 
     # No match found - could create here but let's just return nil

@@ -91,7 +91,7 @@ module Api
                        .first(5)
                        .map do |user_id, count|
                          user = User.find_by(id: user_id)
-                         { user_id: user_id, name: user&.full_name, count: count }
+                         { user_id: user_id, name: user&.display_name, count: count }
                        end
 
         render json: {

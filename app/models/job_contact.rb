@@ -27,7 +27,7 @@ class JobContact < ApplicationRecord
     if user.present?
       user.name || user.email
     elsif contact.present?
-      contact.full_name || contact.company_name
+      contact.display_name || contact.company_name
     else
       "Unknown"
     end

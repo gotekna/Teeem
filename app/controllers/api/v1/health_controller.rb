@@ -32,7 +32,7 @@ module Api
               {
                 id: item[:id] || SecureRandom.uuid,
                 record_id: item[:id],
-                record_name: item[:display] || item[:full_name] || "Unknown",
+                record_name: item[:display] || item[:display_name] || "Unknown",
                 issue_type: check[:name].parameterize.underscore,
                 issue_description: check[:description] || check[:name],
                 severity: check[:severity],
@@ -198,7 +198,7 @@ module Api
               results << {
                 supplier: {
                   id: supplier.id,
-                  name: supplier.full_name
+                  name: supplier.display_name
                 },
                 category: category,
                 items_with_pricing: supplier_items,
@@ -241,7 +241,7 @@ module Api
               current_price: item.current_price,
               default_supplier: {
                 id: item.default_supplier&.id,
-                name: item.default_supplier&.full_name
+                name: item.default_supplier&.display_name
               }
             }
           end

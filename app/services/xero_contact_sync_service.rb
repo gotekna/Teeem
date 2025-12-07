@@ -455,7 +455,7 @@ class XeroContactSyncService
 
     # Apply field mappings
     if importable_fields.include?("name")
-      updates[:full_name] = xero_contact["Name"] if xero_contact["Name"].present?
+      updates[:display_name] = xero_contact["Name"] if xero_contact["Name"].present?
       updates[:entity_type] = is_company ? "company" : "person"
 
       if is_company
@@ -619,7 +619,7 @@ class XeroContactSyncService
 
     contact_data = {
       xero_id: xero_contact["ContactID"],  # Legacy field
-      full_name: xero_contact["Name"],
+      display_name: xero_contact["Name"],
       first_name: is_company ? nil : xero_contact["FirstName"],
       last_name: is_company ? nil : xero_contact["LastName"],
       company_name_or_trust: is_company ? xero_contact["Name"] : nil,
@@ -859,7 +859,7 @@ class XeroContactSyncService
 
   def build_xero_contact_payload(teeem_contact)
     payload = {
-      Name: teeem_contact.full_name || "#{teeem_contact.first_name} #{teeem_contact.last_name}".strip
+      Name: teeem_contact.display_name || "#{teeem_contact.first_name} #{teeem_contact.last_name}".strip
     }
 
     payload[:FirstName] = teeem_contact.first_name if teeem_contact.first_name.present?
@@ -1028,9 +1028,9 @@ class XeroContactSyncService
     first_name = xero_person["FirstName"].to_s.strip
     last_name = xero_person["LastName"].to_s.strip
     email = xero_person["EmailAddress"].to_s.strip.downcase
-    full_name = "#{first_name} #{last_name}".strip
+    display_name = "#{first_name} #{last_name}".strip
 
-    return if full_name.blank?
+    return if display_name.blank?
 
     person_contact = nil
 
@@ -1050,25 +1050,25 @@ class XeroContactSyncService
       person_contact.update!(
         first_name: first_name,
         last_name: last_name,
-        full_name: full_name,
+        display_name: display_name,
         email: email.presence,
         primary_company_id: company_contact.id,
         entity_type: "person",
         last_synced_at: @sync_timestamp
       )
-      Rails.logger.info("Updated person contact: #{full_name} (linked to #{company_contact.display_name})")
+      Rails.logger.info("Updated person contact: #{display_name} (linked to #{company_contact.display_name})")
     else
       person_contact = Contact.create!(
         first_name: first_name,
         last_name: last_name,
-        full_name: full_name,
+        display_name: display_name,
         email: email.presence,
         primary_company_id: company_contact.id,
         entity_type: "person",
         sync_with_xero: false,
         last_synced_at: @sync_timestamp
       )
-      Rails.logger.info("Created person contact: #{full_name} (linked to #{company_contact.display_name})")
+      Rails.logger.info("Created person contact: #{display_name} (linked to #{company_contact.display_name})")
       @stats[:created_in_teeem] += 1
     end
 
@@ -1078,7 +1078,7 @@ class XeroContactSyncService
 
     person_contact
   rescue StandardError => e
-    Rails.logger.error("Error creating person contact for #{full_name}: #{e.message}")
+    Rails.logger.error("Error creating person contact for #{display_name}: #{e.message}")
     nil
   end
 

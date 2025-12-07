@@ -91,8 +91,8 @@ class EmailToContactExtractionService
         display_name: entry[:display_name],
         is_existing_contact: is_existing,
         existing_contact_id: existing_contact&.id,
-        existing_contact_name: existing_contact&.full_name,
-        existing_contact_company_name: existing_contact&.primary_company&.full_name,
+        existing_contact_name: existing_contact&.display_name,
+        existing_contact_company_name: existing_contact&.primary_company&.display_name,
         existing_contact_company_id: existing_contact&.primary_company_id,
         domain: extract_domain(email),
         is_generic_domain: generic_domain?(email),
@@ -189,7 +189,7 @@ class EmailToContactExtractionService
 
             added_emails << {
               contact_id: contact.id,
-              contact_name: contact.full_name,
+              contact_name: contact.display_name,
               email: new_email,
               is_primary: selection[:set_as_primary] || false
             }
@@ -209,7 +209,7 @@ class EmailToContactExtractionService
                 linked_to_companies << {
                   contact_id: contact.id,
                   company_id: company_id,
-                  company_name: Company.find(company_id).contact&.full_name || Company.find(company_id).name
+                  company_name: Company.find(company_id).contact&.display_name || Company.find(company_id).name
                 }
               end
             end
@@ -252,7 +252,7 @@ class EmailToContactExtractionService
 
           created_contacts << {
             id: contact.id,
-            full_name: contact.full_name,
+            display_name: contact.display_name,
             email: contact.email,
             entity_type: contact.entity_type
           }
@@ -272,7 +272,7 @@ class EmailToContactExtractionService
 
             linked_to_cases << {
               contact_id: contact.id,
-              contact_name: contact.full_name,
+              contact_name: contact.display_name,
               case_id: case_id,
               relationship_type: relationship_type,
               reason: reason
@@ -284,7 +284,7 @@ class EmailToContactExtractionService
             linked_to_companies << {
               contact_id: contact.id,
               company_id: company_id,
-              company_name: company.contact&.full_name || company.name
+              company_name: company.contact&.display_name || company.name
             }
           end
         rescue ActiveRecord::RecordInvalid => e
@@ -439,7 +439,7 @@ class EmailToContactExtractionService
             multiple_matches: true,
             matches: existing_companies.map { |company| {
               id: company.contact_id,
-              name: company.contact&.full_name || company.name
+              name: company.contact&.display_name || company.name
             }},
             action: "link"
           }
@@ -447,7 +447,7 @@ class EmailToContactExtractionService
           # Single match
           existing_company = existing_companies.first
           {
-            name: existing_company.contact&.full_name || existing_company.name || suggested_name,
+            name: existing_company.contact&.display_name || existing_company.name || suggested_name,
             exists: true,
             existing_company_id: existing_company.contact_id,
             action: "link"
@@ -523,7 +523,7 @@ class EmailToContactExtractionService
       if html =~ /<title[^>]*>(.*?)<\/title>/im
         title = Regexp.last_match(1).strip
         # Clean up title (remove common suffixes)
-        details[:full_name] = title.gsub(/\s*[-|]\s*(Home|Welcome|About).*$/i, "").strip
+        details[:display_name] = title.gsub(/\s*[-|]\s*(Home|Welcome|About).*$/i, "").strip
       end
 
       # Extract ABN (Australian Business Number - 11 digits)
@@ -569,11 +569,11 @@ class EmailToContactExtractionService
       end
 
       # If we didn't get a company name from title, try to find it in the content
-      if details[:full_name].blank?
+      if details[:display_name].blank?
         # Look for company name in common heading patterns
         if html =~ /<h1[^>]*>(.*?)<\/h1>/im
           h1_text = Regexp.last_match(1).gsub(/<[^>]+>/, "").strip
-          details[:full_name] = h1_text unless h1_text.blank?
+          details[:display_name] = h1_text unless h1_text.blank?
         end
       end
 
@@ -634,14 +634,14 @@ class EmailToContactExtractionService
           multiple_matches: true,
           matches: existing_companies.map { |company| {
             id: company.contact_id,
-            name: company.contact&.full_name || company.name
+            name: company.contact&.display_name || company.name
           }},
           action: "link",
           source: "signature"
         }
       else
         {
-          name: existing_companies.first.contact&.full_name || company_name,
+          name: existing_companies.first.contact&.display_name || company_name,
           exists: true,
           existing_company_id: existing_companies.first.contact_id,
           action: "link",
@@ -823,7 +823,7 @@ class EmailToContactExtractionService
 
     # Look for name matches
     contacts_at_company.each do |contact|
-      contact_name_parts = contact.full_name.downcase.split(/\s+/)
+      contact_name_parts = contact.display_name.downcase.split(/\s+/)
 
       # Check if any part of the email matches the contact's name
       matching_parts = name_parts & contact_name_parts
@@ -831,7 +831,7 @@ class EmailToContactExtractionService
       if matching_parts.any?
         return {
           id: contact.id,
-          name: contact.full_name,
+          name: contact.display_name,
           email: contact.email,
           match_confidence: (matching_parts.length.to_f / [ name_parts.length, contact_name_parts.length ].min * 100).round
         }
@@ -853,7 +853,7 @@ class EmailToContactExtractionService
     if contact_with_company&.primary_company
       {
         id: contact_with_company.primary_company_id,
-        name: contact_with_company.primary_company.full_name
+        name: contact_with_company.primary_company.display_name
       }
     else
       nil
@@ -866,7 +866,7 @@ class EmailToContactExtractionService
 
     # Try exact match first (through contact)
     exact_matches = Company.joins(:contact)
-                           .where("LOWER(contacts.full_name) = ?", suggested_name.downcase)
+                           .where("LOWER(contacts.display_name) = ?", suggested_name.downcase)
                            .limit(10)
 
     matches.concat(exact_matches) if exact_matches.any?
@@ -874,9 +874,9 @@ class EmailToContactExtractionService
     # Try partial match - find companies where the name starts with the suggested name
     # This will match "Tekna" to "Tekna Homes", "Tekna Admin", etc.
     partial_matches = Company.joins(:contact)
-                             .where("LOWER(contacts.full_name) LIKE ?", "#{suggested_name.downcase}%")
+                             .where("LOWER(contacts.display_name) LIKE ?", "#{suggested_name.downcase}%")
                              .where.not(id: matches.map(&:id))  # Exclude already found
-                             .order("LENGTH(contacts.full_name)")
+                             .order("LENGTH(contacts.display_name)")
                              .limit(10)
 
     matches.concat(partial_matches) if partial_matches.any?
@@ -888,8 +888,8 @@ class EmailToContactExtractionService
       # Try matching as a word boundary (e.g., "SVP" matches "SV Partners", "SVP Group")
       # Use PostgreSQL regex with ~* (case-insensitive) and \y for word boundaries
       abbreviation_matches = Company.joins(:contact)
-                                    .where("contacts.full_name ~* ?", "\\y#{suggested_name}\\y")
-                                    .order("LENGTH(contacts.full_name)")
+                                    .where("contacts.display_name ~* ?", "\\y#{suggested_name}\\y")
+                                    .order("LENGTH(contacts.display_name)")
                                     .limit(10)
 
       # Also try matching first letters of words (e.g., "SVP" matches "SV Partners", "St Vincent Partners")
@@ -897,8 +897,8 @@ class EmailToContactExtractionService
         # Build regex pattern: "SVP" -> match names where words start with S, V, P
         # This is complex, so let's try a simpler approach: match names containing the abbreviation
         word_match = Company.joins(:contact)
-                           .where("contacts.full_name ILIKE ?", "%#{suggested_name}%")
-                           .order("LENGTH(contacts.full_name)")
+                           .where("contacts.display_name ILIKE ?", "%#{suggested_name}%")
+                           .order("LENGTH(contacts.display_name)")
                            .limit(10)
 
         matches.concat(word_match) if word_match.any?
@@ -910,8 +910,8 @@ class EmailToContactExtractionService
     # Also try reverse - if suggested name contains an existing company name
     if matches.empty?
       contained_matches = Company.joins(:contact)
-                                 .where("LOWER(?) LIKE CONCAT('%', LOWER(contacts.full_name), '%')", suggested_name)
-                                 .order("LENGTH(contacts.full_name) DESC")
+                                 .where("LOWER(?) LIKE CONCAT('%', LOWER(contacts.display_name), '%')", suggested_name)
+                                 .order("LENGTH(contacts.display_name) DESC")
                                  .limit(10)
 
       matches.concat(contained_matches) if contained_matches.any?
@@ -926,12 +926,12 @@ class EmailToContactExtractionService
     when "link"
       company_id.to_i if company_id.present?
     when "create"
-      # Use full_name from website details if available, otherwise use company_name
-      full_company_name = website_details[:full_name].presence || company_name
+      # Use display_name from website details if available, otherwise use company_name
+      full_company_name = website_details[:display_name].presence || company_name
 
       # Create company contact first with website details
       company_contact = Contact.create!(
-        full_name: full_company_name,
+        display_name: full_company_name,
         entity_type: "company",
         is_active: true,
         website: website_details[:website],

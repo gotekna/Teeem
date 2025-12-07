@@ -312,7 +312,7 @@ class CaseRelationshipService
   def build_company_group_node(company_name, company_contacts, position, group_alignment, quadrant = nil)
     employees = company_contacts.map do |case_contact|
       contact = case_contact.contact
-      display_name = contact.full_name.presence || [ contact.first_name, contact.last_name ].compact.join(" ").presence || "Contact"
+      display_name = contact.display_name.presence || [ contact.first_name, contact.last_name ].compact.join(" ").presence || "Contact"
       {
         id: contact.id,
         name: display_name,
@@ -358,7 +358,7 @@ class CaseRelationshipService
   end
 
   def build_contact_node(contact, case_contact, position)
-    display_name = contact.full_name.presence || [ contact.first_name, contact.last_name ].compact.join(" ").presence || "Contact"
+    display_name = contact.display_name.presence || [ contact.first_name, contact.last_name ].compact.join(" ").presence || "Contact"
     {
       id: "contact-#{contact.id}",
       type: "contact",
@@ -431,7 +431,7 @@ class CaseRelationshipService
         position: position,
         data: {
           id: contact.id,
-          name: contact.full_name,
+          name: contact.display_name,
           email: contact.email,
           phone: contact.mobile_phone || contact.office_phone,
           company: contact.company_name_or_trust,

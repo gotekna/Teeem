@@ -170,7 +170,7 @@ module Api
           # Include shareholder object for frontend compatibility
           shareholder: shareholder ? {
             id: shareholder.id,
-            full_name: shareholder.respond_to?(:full_name) ? shareholder.full_name : nil,
+            display_name: shareholder.respond_to?(:display_name) ? shareholder.display_name : nil,
             name: shareholder.respond_to?(:name) ? shareholder.name : nil,
             entity_type: shareholder.respond_to?(:entity_type) ? shareholder.entity_type : nil
           } : nil

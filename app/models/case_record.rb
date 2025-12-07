@@ -190,7 +190,7 @@ class CaseRecord < ApplicationRecord
   end
 
   def primary_entity_name
-    primary_entity&.respond_to?(:full_name) ? primary_entity.full_name : primary_entity&.name
+    primary_entity&.respond_to?(:display_name) ? primary_entity.display_name : primary_entity&.name
   end
 
   # Investigation date range

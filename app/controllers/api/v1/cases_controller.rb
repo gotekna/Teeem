@@ -1065,7 +1065,7 @@ module Api
         serialize_case_list(c).merge(
           description: c.description,
           contact_id: c.contact_id,
-          contact_name: c.contact&.full_name,
+          contact_name: c.contact&.display_name,
           company_id: c.company_id,
           company_name: c.company&.name,
           company_group_id: c.company_group_id,
@@ -1213,7 +1213,7 @@ module Api
         {
           id: cc.id,
           contact_id: cc.contact_id,
-          contact_name: cc.contact.full_name,
+          contact_name: cc.contact.display_name,
           contact_email: cc.contact.email,
           contact_phone: cc.contact.mobile_phone || cc.contact.office_phone,
           contact_company: cc.contact.company_name_or_trust,

@@ -144,7 +144,7 @@ module HealthChecks
             {
               service: service_class.check_type,
               method: method.to_s,
-              full_name: "#{service_class.check_type}.#{method}"
+              display_name: "#{service_class.check_type}.#{method}"
             }
           end
         end

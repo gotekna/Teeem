@@ -155,7 +155,7 @@ class Contact < ApplicationRecord
   before_validation :clear_roles_if_not_person  # Must run before validations
   before_validation :auto_fix_name_casing       # Auto-fix ALL CAPS and lowercase names
   before_save :update_xero_synced_status
-  before_save :generate_full_name
+  before_save :generate_display_name
   before_save :sync_company_name_or_trust
   before_save :clear_roles_if_not_person
   after_save :cleanup_relationships_on_soft_delete, if: :soft_deleted?
@@ -179,20 +179,22 @@ class Contact < ApplicationRecord
   scope :individual_contacts, -> { where(is_team_contact: false) }
 
   # Instance methods
-  def display_name
+  # computed_display_name: Generates a display-friendly name based on entity type
+  # Note: display_name is now a database column (SSoT), this method computes the value
+  def computed_display_name
     case entity_type
     when "person"
       # Team contact: append company name for clarity
       if is_team_contact && primary_company.present?
         person_name = [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence ||
-                      full_name.presence ||
+                      display_name.presence ||
                       email
-        company_name = primary_company.company_name_or_trust.presence || primary_company.full_name
+        company_name = primary_company.company_name_or_trust.presence || primary_company.display_name
         "#{person_name} - #{company_name}"
       else
-        # Person: prefer first + middle + last, fall back to full_name
+        # Person: prefer first + middle + last, fall back to display_name
         [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence ||
-          full_name.presence ||
+          display_name.presence ||
           email ||
           "Contact ##{id}"
       end
@@ -200,20 +202,20 @@ class Contact < ApplicationRecord
       # Sole Trader: prefer business name, fall back to person name
       company_name_or_trust.presence ||
         [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence ||
-        full_name.presence ||
+        display_name.presence ||
         "Contact ##{id}"
     when "company", "trust"
-      # Company/Trust: prefer company_name_or_trust, fall back to full_name
+      # Company/Trust: prefer company_name_or_trust, fall back to display_name
       company_name_or_trust.presence ||
-        full_name.presence ||
+        display_name.presence ||
         "Contact ##{id}"
     when "price_only"
       # Price Only: Contact used only for pricebook pricing (e.g., web scraping, legacy data)
-      full_name.presence ||
+      display_name.presence ||
         "Contact ##{id}"
     else
       # NULL or unknown entity_type: basic fallback
-      full_name.presence ||
+      display_name.presence ||
         "Contact ##{id}"
     end
   end
@@ -381,7 +383,7 @@ class Contact < ApplicationRecord
 
   # Supplier-specific helper methods
   def supplier_name
-    full_name
+    display_name
   end
 
   def active_pricebook_items_count
@@ -694,8 +696,8 @@ class Contact < ApplicationRecord
         errors.add(:company_name_or_trust, "is required for #{entity_type} contacts")
       end
     when "price_only"
-      if full_name.blank?
-        errors.add(:full_name, "is required for price-only contacts")
+      if display_name.blank?
+        errors.add(:display_name, "is required for price-only contacts")
       end
     end
   end
@@ -747,36 +749,36 @@ class Contact < ApplicationRecord
     self.xero_synced = xero_id.present?
   end
 
-  # Auto-generate full_name from first_name + last_name for person contacts
-  # For company/trust, full_name is typically set directly
-  def generate_full_name
+  # Auto-generate display_name from first_name + last_name for person contacts
+  # For company/trust, display_name is typically set directly
+  def generate_display_name
     # Only auto-generate for person entity type when first/last name are present
     if entity_type == "person" && (first_name.present? || last_name.present?)
       generated = [ first_name, last_name ].map(&:presence).compact.join(" ")
-      self.full_name = generated if generated.present? && full_name.blank?
+      self.display_name = generated if generated.present? && display_name.blank?
     end
 
-    # Also update if full_name is explicitly blank/nil but we have name components
-    if full_name.blank? && (first_name.present? || last_name.present?)
-      self.full_name = [ first_name, last_name ].map(&:presence).compact.join(" ")
+    # Also update if display_name is explicitly blank/nil but we have name components
+    if display_name.blank? && (first_name.present? || last_name.present?)
+      self.display_name = [ first_name, last_name ].map(&:presence).compact.join(" ")
     end
   end
 
-  # Auto-sync company_name_or_trust with full_name for company/trust entity types
+  # Auto-sync company_name_or_trust with display_name for company/trust entity types
   # SSoT: company_name_or_trust is the source of truth for display_name
   # This keeps both fields in sync for backwards compatibility
   def sync_company_name_or_trust
     return unless %w[company trust].include?(entity_type)
 
-    # If company_name_or_trust was changed, update full_name to match
+    # If company_name_or_trust was changed, update display_name to match
     if company_name_or_trust_changed? && company_name_or_trust.present?
-      self.full_name = company_name_or_trust
-    # If only full_name was changed (legacy code path), sync to company_name_or_trust
-    elsif full_name_changed? && full_name.present? && !company_name_or_trust_changed?
-      self.company_name_or_trust = full_name
-    # Initial sync: if company_name_or_trust is blank but full_name exists
-    elsif company_name_or_trust.blank? && full_name.present?
-      self.company_name_or_trust = full_name
+      self.display_name = company_name_or_trust
+    # If only display_name was changed (legacy code path), sync to company_name_or_trust
+    elsif display_name_changed? && display_name.present? && !company_name_or_trust_changed?
+      self.company_name_or_trust = display_name
+    # Initial sync: if company_name_or_trust is blank but display_name exists
+    elsif company_name_or_trust.blank? && display_name.present?
+      self.company_name_or_trust = display_name
     end
   end
 

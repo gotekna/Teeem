@@ -38,7 +38,7 @@ module Api
             methods: [ :payment_percentage, :outstanding_amount ],
             include: {
               job: { only: [ :id, :title ] },
-              contact: { only: [ :id, :full_name, :email ] }
+              contact: { only: [ :id, :display_name, :email ] }
             }
           )
         }

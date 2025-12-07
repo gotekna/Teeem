@@ -219,7 +219,7 @@ module Api
           },
           supplier: {
             id: request.contact.id,
-            name: request.contact.full_name,
+            name: request.contact.display_name,
             email: request.contact.email
           },
           original_amount: request.formatted_original_amount,
@@ -251,7 +251,7 @@ module Api
           },
           supplier: {
             id: request.contact.id,
-            name: request.contact.full_name,
+            name: request.contact.display_name,
             email: request.contact.email,
             phone: request.contact.mobile_phone,
             teeem_rating: request.contact.teeem_rating
@@ -276,7 +276,7 @@ module Api
           review_details: {
             reviewed_by: request.reviewed_by_supervisor ? {
               id: request.reviewed_by_supervisor.id,
-              name: request.reviewed_by_supervisor.full_name,
+              name: request.reviewed_by_supervisor.display_name,
               email: request.reviewed_by_supervisor.email
             } : nil,
             reviewed_at: request.supervisor_reviewed_at,

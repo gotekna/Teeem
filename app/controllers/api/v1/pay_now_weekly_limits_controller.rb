@@ -89,7 +89,7 @@ module Api
           contact = Contact.find(contact_id)
           {
             supplier_id: contact.id,
-            supplier_name: contact.full_name,
+            supplier_name: contact.display_name,
             total_amount: "$#{total_amount.round(2)}",
             request_count: week_requests.paid.where(contact_id: contact_id).count
           }
@@ -133,7 +133,7 @@ module Api
           active: limit.active,
           set_by: limit.set_by ? {
             id: limit.set_by.id,
-            name: limit.set_by.full_name,
+            name: limit.set_by.display_name,
             email: limit.set_by.email
           } : nil,
           previous_limit: limit.previous_limit,

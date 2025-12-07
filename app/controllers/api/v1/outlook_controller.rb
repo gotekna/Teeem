@@ -238,7 +238,7 @@ class Api::V1::OutlookController < ApplicationController
     # Add client/contact emails
     job.contacts.each do |contact|
       if contact.email.present?
-        suggestions << { type: "email", value: contact.email, label: "Contact: #{contact.full_name || contact.email}" }
+        suggestions << { type: "email", value: contact.email, label: "Contact: #{contact.display_name || contact.email}" }
       end
     end
 

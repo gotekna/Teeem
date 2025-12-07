@@ -435,7 +435,7 @@ class Company < ApplicationRecord
   def ensure_ssot_contact_and_membership
     # 1. Create Contact for this company (SSoT identity)
     entity_type = trust_name.present? ? "trust" : "company"
-    ssot_contact = Contact.find_or_create_by!(entity_type: entity_type, full_name: name) do |c|
+    ssot_contact = Contact.find_or_create_by!(entity_type: entity_type, display_name: name) do |c|
       c.tax_number = abn
       c.company_group_id = company_group_id
       c.is_active = status == "active"

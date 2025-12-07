@@ -324,7 +324,7 @@ module Api
         {
           id: comment.id,
           body: comment.body,
-          author_name: comment.author&.full_name || "Supplier",
+          author_name: comment.author&.display_name || "Supplier",
           created_at: comment.created_at
         }
       end

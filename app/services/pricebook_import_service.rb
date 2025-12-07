@@ -187,7 +187,7 @@ class PricebookImportService
   def find_or_create_supplier(supplier_name)
     return nil unless @options[:create_suppliers]
 
-    supplier = Contact.find_or_create_by(full_name: supplier_name.strip) do |c|
+    supplier = Contact.find_or_create_by(display_name: supplier_name.strip) do |c|
       c.entity_type = "company" # Default to company for suppliers
       c.is_active = true
     end

@@ -22,10 +22,10 @@ class ShareTransfer < ApplicationRecord
   end
 
   def from_shareholder_name
-    from_shareholder&.full_name || "New Issue"
+    from_shareholder&.display_name || "New Issue"
   end
 
   def to_shareholder_name
-    to_shareholder&.full_name
+    to_shareholder&.display_name
   end
 end

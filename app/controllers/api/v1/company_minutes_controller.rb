@@ -126,8 +126,8 @@ module Api
 
         # Add director info
         if @company.current_directors.any?
-          company_variables["director_name"] = @company.current_directors.first.full_name
-          company_variables["director_names"] = @company.current_directors.map(&:full_name).join(", ")
+          company_variables["director_name"] = @company.current_directors.first.display_name
+          company_variables["director_names"] = @company.current_directors.map(&:display_name).join(", ")
         end
 
         # Merge with provided variables
@@ -165,8 +165,8 @@ module Api
 
         # Add director info
         if @company.current_directors.any?
-          company_variables["director_name"] = @company.current_directors.first.full_name
-          company_variables["director_names"] = @company.current_directors.map(&:full_name).join(", ")
+          company_variables["director_name"] = @company.current_directors.first.display_name
+          company_variables["director_names"] = @company.current_directors.map(&:display_name).join(", ")
         end
 
         # Merge with provided variables

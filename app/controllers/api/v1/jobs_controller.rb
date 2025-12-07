@@ -186,7 +186,7 @@ module Api
             primary: cc.primary,
             role: cc.role,
             contact: cc.contact.as_json(
-              only: [ :id, :first_name, :last_name, :full_name, :company_name, :email, :mobile_phone, :office_phone ]
+              only: [ :id, :first_name, :last_name, :display_name, :company_name, :email, :mobile_phone, :office_phone ]
             ),
             relationships_count: cc.contact.outgoing_relationships.count
           }
@@ -300,7 +300,7 @@ module Api
         render json: {
           sms_messages: messages.as_json(
             include: {
-              contact: { only: [ :id, :full_name, :mobile_phone ] },
+              contact: { only: [ :id, :display_name, :mobile_phone ] },
               user: { only: [ :id, :name, :email ] }
             }
           )
@@ -610,7 +610,7 @@ module Api
           job_status: job.job_status&.name,
           job_stage: job.job_stage&.name,
           job_stage_id: job.job_stage_id,
-          client_name: client_contact&.full_name,
+          client_name: client_contact&.display_name,
           client_email: client_contact&.email,
           client_company: client_contact&.company_name_or_trust,
           created_at: job.created_at,

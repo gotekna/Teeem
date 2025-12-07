@@ -76,7 +76,7 @@ class PriceHistoryExportService
       # Add data rows - one row per item with current price only
       items.each do |item|
         # Use default_supplier (Contact with supplier type)
-        supplier_name = item.default_supplier&.full_name
+        supplier_name = item.default_supplier&.display_name
 
         sheet.add_row([
           item.id,
@@ -106,7 +106,7 @@ class PriceHistoryExportService
       if @supplier_id.present?
         # Find Contact with supplier type
         supplier = Contact.find_by(id: @supplier_id)
-        parts << sanitize_filename(supplier.full_name) if supplier
+        parts << sanitize_filename(supplier.display_name) if supplier
       end
 
       if @category.present?
