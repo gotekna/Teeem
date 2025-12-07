@@ -240,21 +240,45 @@ namespace :xero do
     synced = 0
     pdf_count = 0
     errors = []
+    rate_limit_retries = 0
+    max_rate_limit_retries = 3
 
     puts "Found #{total} invoices linked to contacts"
 
     invoices_with_contacts.find_each do |invoice|
+      retries = 0
       begin
         result = XeroAttachmentSyncService.new(invoice).sync!
         pdf_count += 1 if result[:pdf].present?
         errors.concat(result[:errors]) if result[:errors].any?
+        rate_limit_retries = 0 # Reset on success
+      rescue XeroApiClient::RateLimitError => e
+        retries += 1
+        rate_limit_retries += 1
+        if retries <= 3
+          wait_time = 60 * retries # Exponential backoff: 60s, 120s, 180s
+          puts "\n[Rate Limit] Waiting #{wait_time}s before retry #{retries}/3 for invoice #{invoice.invoice_number}..."
+          sleep(wait_time)
+          retry
+        else
+          errors << "Invoice #{invoice.invoice_number}: Rate limit exceeded after 3 retries"
+        end
+
+        # If we hit rate limits too many times in a row, abort
+        if rate_limit_retries >= max_rate_limit_retries
+          puts "\n[ABORT] Hit rate limit #{max_rate_limit_retries} times in a row. Stopping sync."
+          break
+        end
       rescue StandardError => e
         errors << "Invoice #{invoice.invoice_number}: #{e.message}"
       end
 
       synced += 1
-      print "\rProgress: #{synced}/#{total}" if synced % 10 == 0
-      sleep(0.5)
+      print "\rProgress: #{synced}/#{total} | PDFs: #{pdf_count}" if synced % 10 == 0
+
+      # Xero has a rate limit of ~60 requests/minute for PDF endpoints
+      # Use 1.5s delay to stay safely under limit
+      sleep(1.5)
     end
 
     puts ""
@@ -263,5 +287,9 @@ namespace :xero do
     puts "  Invoices processed: #{synced}"
     puts "  PDFs synced: #{pdf_count}"
     puts "  Errors: #{errors.count}"
+    if errors.any?
+      puts "\nFirst 10 errors:"
+      errors.first(10).each { |e| puts "  - #{e}" }
+    end
   end
 end
