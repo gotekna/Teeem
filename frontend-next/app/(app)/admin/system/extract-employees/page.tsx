@@ -386,7 +386,7 @@ function ExtractEmployeesContent() {
       [idx]: {
         ...prev[idx],
         selectedContactId: contactId,
-        addEmail: !contact?.email || contact.email !== item.email, // Add email if contact doesn't have one or has different
+        addEmail: !contact?.email || contact.email.toLowerCase() !== item.email.toLowerCase(), // Add email if contact doesn't have one or has different (case-insensitive)
         addMobile: !!item.phones?.mobile && !contact?.mobile_phone, // Add mobile if found and contact doesn't have one
         linkToDomainCompany: !contact?.relationship_to_domain_company_exists,
         parentCompanyLinks: parentLinks,
@@ -830,9 +830,9 @@ function ExtractEmployeesContent() {
                                           <div className="flex-1">
                                             <div className="flex items-center gap-2">
                                               <span className="font-semibold">{contact.full_name}</span>
-                                              {(contact.xero_contact_type === "CUSTOMER" || (contact.xero_invoice_count && contact.xero_invoice_count > 0)) && (
+                                              {(contact.xero_contact_type === "CUSTOMER" || (contact.xero_invoice_count != null && contact.xero_invoice_count > 0)) && (
                                                 <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
-                                                  Customer{contact.xero_invoice_count ? ` (${contact.xero_invoice_count} invoices)` : ""}
+                                                  Customer{contact.xero_invoice_count != null && contact.xero_invoice_count > 0 ? ` (${contact.xero_invoice_count} invoices)` : ""}
                                                 </Badge>
                                               )}
                                               {contact.xero_contact_type === "SUPPLIER" && (
@@ -901,9 +901,9 @@ function ExtractEmployeesContent() {
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold">{selectedContact?.full_name}</span>
-                                      {(selectedContact?.xero_contact_type === "CUSTOMER" || (selectedContact?.xero_invoice_count && selectedContact.xero_invoice_count > 0)) && (
+                                      {(selectedContact?.xero_contact_type === "CUSTOMER" || (selectedContact?.xero_invoice_count != null && selectedContact.xero_invoice_count > 0)) && (
                                         <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
-                                          Customer{selectedContact?.xero_invoice_count ? ` (${selectedContact.xero_invoice_count} invoices)` : ""}
+                                          Customer{selectedContact?.xero_invoice_count != null && selectedContact.xero_invoice_count > 0 ? ` (${selectedContact.xero_invoice_count} invoices)` : ""}
                                         </Badge>
                                       )}
                                       {selectedContact?.xero_contact_type === "SUPPLIER" && (
@@ -926,8 +926,8 @@ function ExtractEmployeesContent() {
 
                               {/* Actions: Add Email / Add Mobile */}
                               <div className="mt-4 space-y-2">
-                                {/* Add Email Option - show if selected contact doesn't have an email OR has a different email */}
-                                {(!selectedContact?.email || selectedContact.email !== item.email) && (
+                                {/* Add Email Option - show if selected contact doesn't have an email OR has a different email (case-insensitive) */}
+                                {(!selectedContact?.email || selectedContact.email.toLowerCase() !== item.email.toLowerCase()) && (
                                   <div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200">
                                     <div className="flex items-center gap-2">
                                       <Mail className="h-4 w-4 text-purple-600" />
@@ -1075,8 +1075,9 @@ function ExtractEmployeesContent() {
                                 )}
                               </div>
 
-                              {/* Parent Company Relationships */}
-                              {item.parent_companies.map((pc) => {
+                              {/* Parent Company Relationships - only show if person doesn't already have an employer */}
+                              {/* If they work for SV Partners (domain_company), don't suggest Tekna as employer just because they communicated */}
+                              {!item.domain_company.exists && item.parent_companies.map((pc) => {
                                 const existingRel = selectedContact?.relationships_to_parent_companies.find(
                                   (r) => r.company_id === pc.id
                                 );

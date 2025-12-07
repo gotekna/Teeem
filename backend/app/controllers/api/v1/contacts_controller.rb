@@ -2437,11 +2437,31 @@ module Api
 
           unless personal_email_domains.include?(domain.downcase)
             domain_company_name = domain.split('.').first.titleize
-            domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
-              .where("LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
-                     "%#{domain_company_name.downcase}%",
-                     "%#{domain_company_name.downcase}%")
-              .first
+
+            # First, check if any matching contact already has a company relationship
+            # This handles cases like "SVP" (domain) -> "SV Partners" (company name)
+            first_match = matching_contacts.first
+            if first_match&.primary_company_id
+              domain_company = Contact.find_by(id: first_match.primary_company_id)
+            end
+
+            # If no company from contact relationship, also check for employee_of relationships
+            if domain_company.nil? && first_match
+              employee_rel = ContactRelationship.find_by(
+                source_contact_id: first_match.id,
+                relationship_type: 'employee_of'
+              )
+              domain_company = Contact.find_by(id: employee_rel&.related_contact_id)
+            end
+
+            # Fallback: try to match by domain name
+            if domain_company.nil?
+              domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+                .where("LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
+                       "%#{domain_company_name.downcase}%",
+                       "%#{domain_company_name.downcase}%")
+                .first
+            end
           end
 
           # Get parent companies this email was found communicating with
