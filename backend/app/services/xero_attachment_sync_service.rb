@@ -218,11 +218,13 @@ class XeroAttachmentSyncService
   end
 
   def document_type_for_invoice
+    # Map invoice types to valid CompanyDocument document_types
+    # These must match DocumentType.pluck(:name) or LEGACY_DOCUMENT_TYPES
     case external_invoice.invoice_type
-    when "sales_invoice" then "invoice"
-    when "bill" then "bill"
-    when "credit_note" then "credit_note"
-    when "quote" then "quote"
+    when "sales_invoice" then "Sales Document"
+    when "bill" then "Purchases"
+    when "credit_note" then "other"
+    when "quote" then "Estimation"
     else "other"
     end
   end
