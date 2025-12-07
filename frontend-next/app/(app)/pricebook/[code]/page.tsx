@@ -74,7 +74,6 @@ interface PriceHistorySupplier {
   id: number;
   name: string;
   display_name?: string;
-  display_name?: string;
 }
 
 interface PriceHistory {
