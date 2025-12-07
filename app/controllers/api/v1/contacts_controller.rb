@@ -2359,12 +2359,13 @@ module Api
               "%#{parent_company_name.downcase}%"
             )
 
-            # Collect all other emails in this thread
+            # Collect all other emails in this thread (normalize to lowercase for deduplication)
             [email.from_email, *email.to_emails, *email.cc_emails].compact.each do |addr|
-              next if email_patterns.include?(addr)
-              unique_emails.add(addr)
+              addr_normalized = addr.downcase
+              next if email_patterns.any? { |p| p.downcase == addr_normalized }
+              unique_emails.add(addr_normalized)
               if parent_company
-                email_to_parent_companies[addr].add({
+                email_to_parent_companies[addr_normalized].add({
                   id: parent_company.id,
                   name: parent_company.full_name,
                   entity_type: parent_company.entity_type
@@ -2372,9 +2373,9 @@ module Api
               end
             end
 
-            # Store email body for signature extraction (only for from_email)
+            # Store email body for signature extraction (only for from_email, normalized)
             if email.from_email.present? && email.body_text.present?
-              email_bodies[email.from_email] << email.body_text
+              email_bodies[email.from_email.downcase] << email.body_text
             end
           end
         end
@@ -2496,8 +2497,10 @@ module Api
           end
 
           # Get parent companies this email was found communicating with
-          # BUT only show these if we didn't find a domain company (they work FOR the domain company, not these)
-          parent_companies = domain_company ? [] : email_to_parent_companies[email_addr].to_a
+          # BUT only show these if:
+          # 1. We didn't find a domain company (they work FOR the domain company, not these)
+          # 2. It's not a personal email domain (gmail users aren't employees just because they emailed a company)
+          parent_companies = (domain_company || is_personal_domain) ? [] : email_to_parent_companies[email_addr].to_a
 
           # Extract phone numbers from email signatures
           phones = extract_phones_from_signatures(email_bodies[email_addr])
