@@ -828,10 +828,10 @@ export default function TeeemTableView({
     isDragging: boolean;
     startRowId: number | string | null;
     startRowIndex: number | null;
+    currentRowId?: number | string; // Track the end of the drag range
     startX: number;
     startY: number;
   } | null>(null);
-  const DRAG_THRESHOLD = 5;
 
   // Ref for table container
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -1934,48 +1934,65 @@ export default function TeeemTableView({
   // Drag-to-select handlers (must be after filteredAndSortedEntries)
   const handleSelectMouseDown = useCallback((rowId: number | string, rowIndex: number, e: React.MouseEvent) => {
     dragStateRef.current = {
-      isDragging: false,
+      isDragging: true, // Start dragging immediately for instant feedback
       startRowId: rowId,
       startRowIndex: rowIndex,
+      currentRowId: rowId, // Track current end of range
       startX: e.clientX,
       startY: e.clientY,
     };
-  }, []);
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragStateRef.current) return;
-
-    const { isDragging, startX, startY } = dragStateRef.current;
-
-    if (!isDragging) {
-      // Check if we've moved enough to start dragging
-      const deltaX = Math.abs(e.clientX - startX);
-      const deltaY = Math.abs(e.clientY - startY);
-      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-      if (distance > DRAG_THRESHOLD) {
-        dragStateRef.current.isDragging = true;
-      }
-    }
-  }, [DRAG_THRESHOLD]);
-
-  const handleRowMouseEnter = useCallback((rowId: number | string, rowIndex: number) => {
-    if (!dragStateRef.current?.isDragging) return;
-
-    const startRowId = dragStateRef.current.startRowId!;
-
-    // For now, just select the single row being hovered
-    // TODO: Implement proper range selection that respects collapsed groups
-    // This requires access to groupedEntries which is defined later
+    // Select the starting row immediately
     setSelectedRows((prev) => {
       const next = new Set(prev);
-      next.add(startRowId);
       next.add(rowId);
       return next;
     });
   }, []);
 
+  const handleMouseMove = useCallback((_e: MouseEvent) => {
+    // No longer needed - drag starts immediately on mouse down
+  }, []);
+
+  // Store reference to the actual handler that will be set up later
+  const handleRowMouseEnterRef = useRef<((rowId: number | string, rowIndex: number) => void) | null>(null);
+
+  const handleRowMouseEnter = useCallback((rowId: number | string, rowIndex: number) => {
+    if (handleRowMouseEnterRef.current) {
+      handleRowMouseEnterRef.current(rowId, rowIndex);
+    }
+  }, []);
+
+  // Store getVisibleRowIds function in a ref so handleMouseUp can access it
+  const getVisibleRowIdsRef = useRef<(() => (number | string)[]) | null>(null);
+
   const handleMouseUp = useCallback(() => {
+    if (!dragStateRef.current?.isDragging) {
+      dragStateRef.current = null;
+      return;
+    }
+
+    // Process the drag selection now that drag is complete
+    const { startRowId, currentRowId } = dragStateRef.current;
+    if (startRowId && currentRowId && getVisibleRowIdsRef.current) {
+      const visibleRowIds = getVisibleRowIdsRef.current();
+      const startIndex = visibleRowIds.indexOf(startRowId);
+      const endIndex = visibleRowIds.indexOf(currentRowId);
+
+      if (startIndex !== -1 && endIndex !== -1) {
+        // Select ALL rows in the range
+        const minIndex = Math.min(startIndex, endIndex);
+        const maxIndex = Math.max(startIndex, endIndex);
+        const rowsInRange = visibleRowIds.slice(minIndex, maxIndex + 1);
+
+        setSelectedRows((prev) => {
+          const next = new Set(prev);
+          rowsInRange.forEach((id) => next.add(id));
+          return next;
+        });
+      }
+    }
+
     dragStateRef.current = null;
   }, []);
 
@@ -2090,6 +2107,21 @@ export default function TeeemTableView({
 
     return visibleRowIds;
   }, [groupedEntries, collapsedGroups, filteredAndSortedEntries]);
+
+  // Set up the drag-to-select handlers now that getVisibleRowIds is available
+  useEffect(() => {
+    // Store the getVisibleRowIds function so handleMouseUp can access it
+    getVisibleRowIdsRef.current = getVisibleRowIds;
+
+    // Set up the mouse enter handler
+    handleRowMouseEnterRef.current = (rowId: number | string, _rowIndex: number) => {
+      if (!dragStateRef.current?.isDragging) return;
+
+      // Just store the current row ID - don't update selection state yet
+      // This prevents multiple expensive re-renders during drag
+      dragStateRef.current.currentRowId = rowId;
+    };
+  }, [getVisibleRowIds]);
 
   // Auto-expand all groups when searching/filtering
   useEffect(() => {

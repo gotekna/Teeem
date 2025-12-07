@@ -799,9 +799,9 @@ module Api
           render json: {
             success: true,
             contacts: contacts_data,
-            total: contacts.count,
-            synced_count: contacts.count { |c| c.xero_id.present? },
-            error_count: contacts.count { |c| c.xero_sync_error.present? }
+            total: contacts_data.count,
+            synced_count: contacts_data.count { |c| c[:synced] },
+            error_count: contacts_data.count { |c| c[:has_error] }
           }
         rescue StandardError => e
           Rails.logger.error("Xero contacts_sync_list error: #{e.message}")

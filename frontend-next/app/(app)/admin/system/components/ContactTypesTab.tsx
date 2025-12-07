@@ -41,7 +41,7 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { OneDriveFolderPicker } from "@/components/onedrive/OneDriveFolderPicker";
+import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 
 interface ContactType {
   id: number;
@@ -67,6 +67,10 @@ export function ContactTypesTab() {
   const [showFolderPicker, setShowFolderPicker] = React.useState(false);
   const [extracting, setExtracting] = React.useState(false);
   const [extractionResult, setExtractionResult] = React.useState<any>(null);
+  const [showExtractDialog, setShowExtractDialog] = React.useState(false);
+  const [emailPatterns, setEmailPatterns] = React.useState<string[]>([]);
+  const [previewData, setPreviewData] = React.useState<any[]>([]);
+  const [selectedExtractions, setSelectedExtractions] = React.useState<Set<number>>(new Set());
 
   const [formData, setFormData] = React.useState({
     name: "",
@@ -130,10 +134,11 @@ export function ContactTypesTab() {
     }
   };
 
-  const handleFolderSelect = (folder: { id: string | null; name: string; path: string }) => {
-    const fullPath = folder.path || folder.name;
+  const handleFolderSelect = (folder: any, path: string) => {
+    const fullPath = path || "";
     setContactDocPath(fullPath);
     handleSaveDocPath(fullPath);
+    setShowFolderPicker(false);
   };
 
   const handleOpenAddDialog = () => {
@@ -237,18 +242,70 @@ export function ContactTypesTab() {
     }
   };
 
-  const handleExtractEmployees = async () => {
-    if (!confirm("Extract employees from accounts@ email addresses and link them to companies?")) return;
+  const handleOpenExtractDialog = () => {
+    setShowExtractDialog(true);
+    setEmailPatterns([]);
+    setPreviewData([]);
+    setSelectedExtractions(new Set());
+  };
+
+  const handlePreviewExtractions = async () => {
+    if (emailPatterns.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please add at least one email pattern",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setExtracting(true);
-    setExtractionResult(null);
     try {
-      const result = await api.post<any>("/api/v1/contacts/extract_employees");
+      const result = await api.get<any>("/api/v1/contacts/preview_employee_extraction", {
+        params: { email_patterns: emailPatterns }
+      });
+      setPreviewData(result.preview || []);
+      // Select all by default
+      setSelectedExtractions(new Set(result.preview.map((_: any, idx: number) => idx)));
+      toast({
+        title: "Preview Ready",
+        description: `Found ${result.total_found} contacts to process`,
+      });
+    } catch (error: any) {
+      console.error("Failed to preview:", error);
+      toast({
+        title: "Error",
+        description: error?.response?.data?.error || "Failed to preview extractions",
+        variant: "destructive",
+      });
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const handleExecuteExtractions = async () => {
+    const selected = previewData.filter((_, idx) => selectedExtractions.has(idx));
+
+    if (selected.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one extraction to execute",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setExtracting(true);
+    try {
+      const result = await api.post<any>("/api/v1/contacts/extract_employees", {
+        extractions: selected
+      });
       setExtractionResult(result);
       toast({
         title: "Success",
-        description: `Extracted ${result.employments_created} employment relationships`,
+        description: `Created ${result.employments_created} employment relationships`,
       });
+      setShowExtractDialog(false);
     } catch (error: any) {
       console.error("Failed to extract employees:", error);
       toast({
@@ -259,6 +316,16 @@ export function ContactTypesTab() {
     } finally {
       setExtracting(false);
     }
+  };
+
+  const toggleExtraction = (idx: number) => {
+    const newSelected = new Set(selectedExtractions);
+    if (newSelected.has(idx)) {
+      newSelected.delete(idx);
+    } else {
+      newSelected.add(idx);
+    }
+    setSelectedExtractions(newSelected);
   };
 
   if (loading) {
@@ -337,20 +404,10 @@ export function ContactTypesTab() {
           </p>
           <div className="flex gap-2">
             <Button
-              onClick={handleExtractEmployees}
-              disabled={extracting}
+              onClick={handleOpenExtractDialog}
             >
-              {extracting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Extracting...
-                </>
-              ) : (
-                <>
-                  <Users className="h-4 w-4 mr-2" />
-                  Extract Employees
-                </>
-              )}
+              <Users className="h-4 w-4 mr-2" />
+              Extract Employees
             </Button>
           </div>
           {extractionResult && (
@@ -529,12 +586,17 @@ export function ContactTypesTab() {
         </DialogContent>
       </Dialog>
 
-      <OneDriveFolderPicker
-        open={showFolderPicker}
-        onOpenChange={setShowFolderPicker}
-        onSelect={handleFolderSelect}
-        title="Select Contact Documents Folder"
-      />
+      <Dialog open={showFolderPicker} onOpenChange={setShowFolderPicker}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Select Contact Documents Folder</DialogTitle>
+          </DialogHeader>
+          <SharePointFolderBrowser
+            onSelect={handleFolderSelect}
+            className="max-h-[400px]"
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
