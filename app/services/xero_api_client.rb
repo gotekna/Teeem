@@ -513,6 +513,9 @@ class XeroApiClient
     end
 
     result
+  rescue RateLimitError => e
+    # Re-raise rate limit errors so caller can implement backoff
+    raise e
   rescue StandardError => e
     Rails.logger.error("[Xero] Error fetching PDF for invoice #{invoice_id}: #{e.message}")
     { success: false, error: e.message }
@@ -532,6 +535,9 @@ class XeroApiClient
     end
 
     result
+  rescue RateLimitError => e
+    # Re-raise rate limit errors so caller can implement backoff
+    raise e
   rescue StandardError => e
     Rails.logger.error("[Xero] Error fetching PDF for quote #{quote_id}: #{e.message}")
     { success: false, error: e.message }

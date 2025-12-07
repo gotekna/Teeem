@@ -88,6 +88,9 @@ class XeroAttachmentSyncService
     else
       results[:errors] << "Failed to save PDF: #{document.errors.full_messages.join(', ')}"
     end
+  rescue XeroApiClient::RateLimitError => e
+    # Re-raise rate limit errors so the caller can handle with backoff
+    raise e
   rescue StandardError => e
     results[:errors] << "PDF sync error: #{e.message}"
     Rails.logger.error("[XeroAttachmentSync] PDF sync error: #{e.message}")
