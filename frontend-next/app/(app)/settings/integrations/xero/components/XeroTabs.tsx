@@ -852,35 +852,37 @@ function ContactsGroupedTable({
         ) : (
           <div className="max-h-[700px] overflow-y-auto">
             {/* Normal Contacts Group */}
-            <Collapsible open={normalOpen} onOpenChange={setNormalOpen}>
-              <CollapsibleTrigger asChild>
-                <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b cursor-pointer hover:bg-muted/70 transition-colors">
-                  {normalOpen ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                  <span className="font-medium">Active Contacts</span>
-                  <Badge variant="secondary" className="ml-2">
-                    {normalContacts.length}
-                  </Badge>
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <Table>
-                  <TableHeaders />
-                  <TableBody>
-                    {normalContacts.map((contact) => (
-                      <ContactRow
-                        key={contact.id}
-                        contact={contact}
-                        onClick={() => handleContactClick(contact.id)}
-                      />
-                    ))}
-                  </TableBody>
-                </Table>
-              </CollapsibleContent>
-            </Collapsible>
+            {normalContacts.length > 0 && (
+              <Collapsible open={normalOpen} onOpenChange={setNormalOpen}>
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b cursor-pointer hover:bg-muted/70 transition-colors">
+                    {normalOpen ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                    <span className="font-medium">Active Contacts</span>
+                    <Badge variant="secondary" className="ml-2">
+                      {normalContacts.length}
+                    </Badge>
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <Table>
+                    <TableHeaders />
+                    <TableBody>
+                      {normalContacts.map((contact) => (
+                        <ContactRow
+                          key={contact.id}
+                          contact={contact}
+                          onClick={() => handleContactClick(contact.id)}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
 
             {/* Flagged Contacts Group (Price Only + Person with Company) */}
             {flaggedContacts.length > 0 && (

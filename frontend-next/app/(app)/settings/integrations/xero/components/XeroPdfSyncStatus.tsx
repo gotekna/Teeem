@@ -18,9 +18,20 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 
+interface Blocker {
+  reason: string;
+  detail: string;
+  unlinked_count?: number;
+  pending_count?: number;
+  estimated_hours?: number;
+  estimated_days?: number | null;
+  sample_unlinked?: { xero_id: string; contact_name: string }[];
+}
+
 interface Stage1DataSync {
   total_in_database: number;
   linked_to_contacts: number;
+  unlinked_count: number;
   last_sync_at: string | null;
   next_sync_at: string | null;
   schedule: string;
@@ -30,6 +41,7 @@ interface Stage1DataSync {
     credit_notes: number;
     quotes: number;
   };
+  blocker: Blocker | null;
 }
 
 interface Stage2PdfDownload {
@@ -46,6 +58,7 @@ interface Stage2PdfDownload {
     sales_invoices: { total: number; synced: number };
     quotes: { total: number; synced: number };
   };
+  blocker: Blocker | null;
 }
 
 interface Stage3Sharepoint {
@@ -53,6 +66,7 @@ interface Stage3Sharepoint {
   uploaded: number;
   pending: number;
   progress_percentage: number;
+  blocker: Blocker | null;
 }
 
 interface PdfSyncStatus {
@@ -223,6 +237,7 @@ export function XeroPdfSyncStatus() {
     nextSync,
     schedule,
     color,
+    blocker,
   }: {
     stage: number;
     title: string;
@@ -234,6 +249,7 @@ export function XeroPdfSyncStatus() {
     nextSync?: string | null;
     schedule?: string;
     color: string;
+    blocker?: Blocker | null;
   }) => (
     <div className="p-3 border rounded-lg space-y-2">
       <div className="flex items-center justify-between">
@@ -265,6 +281,21 @@ export function XeroPdfSyncStatus() {
       {schedule && (
         <div className="text-xs text-muted-foreground/70 italic">
           {schedule}
+        </div>
+      )}
+      {blocker && (
+        <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs">
+          <div className="flex items-start gap-1.5">
+            <AlertTriangle className="h-3 w-3 text-amber-600 mt-0.5 shrink-0" />
+            <div>
+              <div className="font-medium text-amber-800">{blocker.reason}</div>
+              {blocker.estimated_days && blocker.estimated_days > 1 && (
+                <div className="text-amber-700 mt-0.5">
+                  ~{blocker.estimated_days} days to complete
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -311,6 +342,7 @@ export function XeroPdfSyncStatus() {
             nextSync={data.stage1_data_sync?.next_sync_at}
             schedule={data.stage1_data_sync?.schedule}
             color="bg-purple-100 text-purple-600"
+            blocker={data.stage1_data_sync?.blocker}
           />
 
           {/* Stage 2: PDF Download */}
@@ -325,6 +357,7 @@ export function XeroPdfSyncStatus() {
             nextSync={data.stage2_pdf_download?.next_sync_at}
             schedule={data.stage2_pdf_download?.schedule}
             color="bg-blue-100 text-blue-600"
+            blocker={data.stage2_pdf_download?.blocker}
           />
 
           {/* Stage 3: SharePoint Upload */}
@@ -338,6 +371,7 @@ export function XeroPdfSyncStatus() {
             lastSync={null}
             schedule="Uploads with PDF sync"
             color="bg-green-100 text-green-600"
+            blocker={data.stage3_sharepoint?.blocker}
           />
         </div>
 
