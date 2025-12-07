@@ -1515,6 +1515,20 @@ module Api
             nil
           end
 
+          # Get SharePoint URL for Contacts folder
+          sharepoint_contacts_url = nil
+          begin
+            credential = OrganizationOneDriveCredential.active_credential
+            if credential&.metadata&.dig("site_web_url")
+              settings = CompanySetting.first
+              contacts_folder = settings&.contact_documents_path || "Contacts"
+              encoded_folder = ERB::Util.url_encode(contacts_folder)
+              sharepoint_contacts_url = "#{credential.metadata["site_web_url"]}/Shared%20Documents/#{encoded_folder}"
+            end
+          rescue => e
+            Rails.logger.warn("[pdf_sync_status] Could not get SharePoint URL: #{e.message}")
+          end
+
           render json: {
             success: true,
             data: {
@@ -1554,7 +1568,8 @@ module Api
                 uploaded: sharepoint_pdfs_uploaded,
                 pending: sharepoint_pending,
                 progress_percentage: sharepoint_progress,
-                blocker: stage3_blocker
+                blocker: stage3_blocker,
+                sharepoint_url: sharepoint_contacts_url
               },
 
               # Overall metrics (for backwards compatibility)
