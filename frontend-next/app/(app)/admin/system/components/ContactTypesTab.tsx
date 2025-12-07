@@ -597,6 +597,144 @@ export function ContactTypesTab() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Employee Extraction Wizard */}
+      <Dialog open={showExtractDialog} onOpenChange={setShowExtractDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Extract Employee-Company Relationships</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            {/* Step 1: Email Selection */}
+            <div className="space-y-3">
+              <h4 className="font-medium">Step 1: Select Email Addresses</h4>
+              <p className="text-sm text-muted-foreground">
+                Enter the email addresses you want to search for (e.g., rachel@tekna.com.au, accounts@tekna.com.au)
+              </p>
+              <div className="space-y-2">
+                {emailPatterns.map((pattern, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <Input
+                      value={pattern}
+                      onChange={(e) => {
+                        const newPatterns = [...emailPatterns];
+                        newPatterns[idx] = e.target.value;
+                        setEmailPatterns(newPatterns);
+                      }}
+                      placeholder="email@domain.com"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEmailPatterns(emailPatterns.filter((_, i) => i !== idx))}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEmailPatterns([...emailPatterns, ""])}
+                >
+                  Add Email Address
+                </Button>
+              </div>
+              <Button onClick={handlePreviewExtractions} disabled={extracting || emailPatterns.length === 0}>
+                {extracting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Searching...
+                  </>
+                ) : (
+                  "Search & Preview"
+                )}
+              </Button>
+            </div>
+
+            {/* Step 2: Preview & Confirm */}
+            {previewData.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-medium">Step 2: Review & Confirm</h4>
+                <p className="text-sm text-muted-foreground">
+                  Select which employee relationships to create ({selectedExtractions.size} of {previewData.length} selected)
+                </p>
+                <div className="border rounded-lg max-h-96 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">
+                          <input
+                            type="checkbox"
+                            checked={selectedExtractions.size === previewData.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedExtractions(new Set(previewData.map((_, idx) => idx)));
+                              } else {
+                                setSelectedExtractions(new Set());
+                              }
+                            }}
+                          />
+                        </TableHead>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Company</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {previewData.map((item, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              checked={selectedExtractions.has(idx)}
+                              onChange={() => toggleExtraction(idx)}
+                            />
+                          </TableCell>
+                          <TableCell>{item.employee_name}</TableCell>
+                          <TableCell className="font-mono text-xs">{item.employee_email}</TableCell>
+                          <TableCell>{item.company_name}</TableCell>
+                          <TableCell>
+                            <div className="text-xs space-y-1">
+                              {item.employment_exists && (
+                                <Badge variant="secondary">Already linked</Badge>
+                              )}
+                              {item.would_create_company && (
+                                <Badge variant="outline">Will create company</Badge>
+                              )}
+                              {item.would_create_employment && !item.employment_exists && (
+                                <Badge>Will create link</Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExtractDialog(false)}>
+              Cancel
+            </Button>
+            {previewData.length > 0 && (
+              <Button onClick={handleExecuteExtractions} disabled={extracting || selectedExtractions.size === 0}>
+                {extracting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  `Create ${selectedExtractions.size} Relationships`
+                )}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
