@@ -70,6 +70,10 @@ interface ContactSyncItem {
   display_name: string;
   email: string | null;
   contact_type: string;
+  entity_type: string | null;
+  primary_company_id: number | null;
+  primary_company_name: string | null;
+  is_team_contact: boolean;
   xero_id: string | null;
   synced: boolean;
   last_synced_at: string | null;
@@ -714,40 +718,66 @@ export function XeroContactSync() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredContacts.map((contact) => (
-                    <TableRow key={contact.id}>
-                      <TableCell className="font-medium">{contact.display_name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {contact.email || "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{contact.contact_type || "Unknown"}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {contact.has_error ? (
-                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                            Error
+                  filteredContacts.map((contact) => {
+                    // Highlight in light red if:
+                    // 1. Entity is "price_only"
+                    // 2. Person entity with a primary_company (person-to-company relationship)
+                    const isPriceOnly = contact.entity_type === "price_only";
+                    const isPersonWithCompany = contact.entity_type === "person" && contact.primary_company_id != null;
+                    const shouldHighlight = isPriceOnly || isPersonWithCompany;
+
+                    return (
+                      <TableRow
+                        key={contact.id}
+                        className={shouldHighlight ? "bg-red-50 dark:bg-red-900/20" : ""}
+                      >
+                        <TableCell className="font-medium">
+                          {contact.display_name}
+                          {isPersonWithCompany && contact.primary_company_name && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              ({contact.primary_company_name})
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {contact.email || "-"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={isPriceOnly ? "bg-red-100 text-red-700 border-red-300" : ""}>
+                            {contact.contact_type || "Unknown"}
                           </Badge>
-                        ) : contact.synced ? (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                            <Check className="h-3 w-3 mr-1" />
-                            Synced
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                            <X className="h-3 w-3 mr-1" />
-                            Not Synced
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {contact.last_synced_at
-                          ? new Date(contact.last_synced_at).toLocaleString()
-                          : "Never"}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                          {isPersonWithCompany && (
+                            <Badge variant="outline" className="ml-1 bg-red-100 text-red-700 border-red-300">
+                              Has Company
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {contact.has_error ? (
+                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Error
+                            </Badge>
+                          ) : contact.synced ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                              <Check className="h-3 w-3 mr-1" />
+                              Synced
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                              <X className="h-3 w-3 mr-1" />
+                              Not Synced
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {contact.last_synced_at
+                            ? new Date(contact.last_synced_at).toLocaleString()
+                            : "Never"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

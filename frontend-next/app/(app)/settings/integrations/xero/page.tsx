@@ -22,6 +22,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { XeroFieldMapping, XeroContactSync } from "./components/XeroTabs";
+import { XeroPdfSyncStatus } from "./components/XeroPdfSyncStatus";
 
 interface XeroStatus {
   connected: boolean;
@@ -575,6 +576,11 @@ export default function XeroIntegrationPage() {
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {/* PDF Sync Status */}
+          {status?.connected && (
+            <XeroPdfSyncStatus />
           )}
 
           {/* Connected Organizations */}
