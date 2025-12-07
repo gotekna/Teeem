@@ -150,8 +150,9 @@ module HealthChecks
       seen_ids = Set.new
 
       # Include all fields needed by the merge modal
+      # Note: completeness_score is calculated, not a column - don't select it
       contacts = Contact.where(deleted: [ false, nil ])
-                       .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :entity_type, :completeness_score)
+                       .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :entity_type)
                        .includes(:jobs, :purchase_orders)
 
       case type
@@ -211,7 +212,8 @@ module HealthChecks
             # Modal needs these counts for merge preview
             jobs_count: c.respond_to?(:jobs) ? c.jobs.size : 0,
             purchase_orders_count: c.respond_to?(:purchase_orders) ? c.purchase_orders.size : 0,
-            completeness_score: c.try(:completeness_score) || 0
+            # completeness_score is calculated - would need to load full record
+            completeness_score: 0
           }
         end
       }
