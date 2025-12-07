@@ -40,6 +40,9 @@ import {
   FolderOpen,
   ArrowRight,
   Settings2,
+  Check,
+  X,
+  Info,
 } from "lucide-react";
 import {
   Select,
@@ -52,6 +55,259 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { fetchEntityTypes, EntityTypeMetadata } from "@/lib/entity-types";
+
+// Entity type field configuration - defines which fields are used/required for each type
+const ENTITY_TYPE_FIELDS = [
+  { field: "first_name", label: "First Name", description: "Person's first name" },
+  { field: "middle_name", label: "Middle Name", description: "Person's middle name" },
+  { field: "last_name", label: "Last Name", description: "Person's last name" },
+  { field: "company_name_or_trust", label: "Company/Trust Name", description: "Business entity name - updates full_name on save" },
+  { field: "full_name", label: "Full Name", description: "Display name (auto-synced from name fields)" },
+  { field: "email", label: "Email", description: "Primary email address" },
+  { field: "phone", label: "Phone", description: "Primary phone number" },
+  { field: "website", label: "Website", description: "Website URL" },
+  { field: "address", label: "Address", description: "Physical address" },
+  { field: "tax_number", label: "ABN/Tax Number", description: "Australian Business Number (11 digits)" },
+  { field: "employees", label: "Can Have Employees", description: "Can have people linked as employees" },
+  { field: "employer", label: "Can Have Employer", description: "Can be linked to a company as employee" },
+];
+
+// Field applicability matrix - which fields apply to which entity types
+const FIELD_MATRIX: Record<string, Record<string, "required" | "optional" | "computed" | "na">> = {
+  person: {
+    first_name: "required",
+    middle_name: "optional",
+    last_name: "required",
+    company_name_or_trust: "na",
+    full_name: "computed", // computed from first + middle + last
+    email: "optional",
+    phone: "optional",
+    website: "optional",
+    address: "optional",
+    tax_number: "optional", // only if sole trader with ABN
+    employees: "na",
+    employer: "optional",
+  },
+  sole_trader: {
+    first_name: "required",
+    middle_name: "optional",
+    last_name: "required",
+    company_name_or_trust: "na",
+    full_name: "computed",
+    email: "optional",
+    phone: "optional",
+    website: "optional",
+    address: "optional",
+    tax_number: "optional",
+    employees: "optional",
+    employer: "na",
+  },
+  company: {
+    first_name: "na",
+    middle_name: "na",
+    last_name: "na",
+    company_name_or_trust: "required",
+    full_name: "required", // SSoT: company_name_or_trust syncs TO full_name
+    email: "optional",
+    phone: "optional",
+    website: "optional",
+    address: "optional",
+    tax_number: "optional",
+    employees: "optional",
+    employer: "na",
+  },
+  trust: {
+    first_name: "na",
+    middle_name: "na",
+    last_name: "na",
+    company_name_or_trust: "required",
+    full_name: "required", // SSoT: company_name_or_trust syncs TO full_name
+    email: "optional",
+    phone: "optional",
+    website: "optional",
+    address: "optional",
+    tax_number: "optional",
+    employees: "optional",
+    employer: "na",
+  },
+  price_only: {
+    first_name: "na",
+    middle_name: "na",
+    last_name: "na",
+    company_name_or_trust: "na",
+    full_name: "required", // only field used
+    email: "na",
+    phone: "na",
+    website: "na",
+    address: "na",
+    tax_number: "na",
+    employees: "na",
+    employer: "na",
+  },
+};
+
+function FieldStatusBadge({ status }: { status: "required" | "optional" | "computed" | "na" }) {
+  switch (status) {
+    case "required":
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">Required</Badge>;
+    case "optional":
+      return <Badge variant="outline" className="text-blue-600 border-blue-300">Optional</Badge>;
+    case "computed":
+      return <Badge variant="outline" className="text-purple-600 border-purple-300">Auto</Badge>;
+    case "na":
+      return <span className="text-muted-foreground text-xs">—</span>;
+  }
+}
+
+function EntityTypesReferenceCard() {
+  const [entityTypes, setEntityTypes] = React.useState<EntityTypeMetadata[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetchEntityTypes()
+      .then((response) => {
+        setEntityTypes(response.metadata);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-6">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Info className="h-5 w-5 text-muted-foreground" />
+          <h3 className="font-semibold">Entity Types Reference</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          This table shows which fields are used for each entity type. The database column updated depends on the entity type.
+          <strong className="text-foreground"> SSoT:</strong> Backend <code className="text-xs bg-muted px-1 rounded">Contact::ENTITY_TYPES</code>
+        </p>
+
+        {/* Legend */}
+        <div className="flex flex-wrap gap-4 text-sm border-b pb-3">
+          <div className="flex items-center gap-1.5">
+            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 text-xs">Required</Badge>
+            <span className="text-muted-foreground">Must be filled</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Optional</Badge>
+            <span className="text-muted-foreground">Can be filled</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Badge variant="outline" className="text-purple-600 border-purple-300 text-xs">Auto</Badge>
+            <span className="text-muted-foreground">Computed automatically</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">—</span>
+            <span className="text-muted-foreground">Not applicable (ignored)</span>
+          </div>
+        </div>
+
+        {/* Entity Type Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {entityTypes.map((entityType) => {
+            const fieldMatrix = FIELD_MATRIX[entityType.value] || {};
+            return (
+              <div key={entityType.value} className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium">{entityType.label}</h4>
+                    <p className="text-xs text-muted-foreground">{entityType.description}</p>
+                  </div>
+                  <Badge variant="outline" className="text-xs">
+                    {entityType.value}
+                  </Badge>
+                </div>
+
+                <div className="space-y-1.5">
+                  {ENTITY_TYPE_FIELDS.map((field) => {
+                    const status = fieldMatrix[field.field] || "na";
+                    if (status === "na") return null; // Don't show N/A fields
+                    return (
+                      <div key={field.field} className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">{field.label}</span>
+                        <FieldStatusBadge status={status} />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Capabilities */}
+                <div className="pt-2 border-t space-y-1">
+                  <div className="flex items-center gap-2 text-xs">
+                    {entityType.can_have_employees ? (
+                      <span className="flex items-center gap-1 text-green-600"><Check className="h-3 w-3" /> Can have employees</span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-muted-foreground"><X className="h-3 w-3" /> No employees</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    {entityType.can_have_employer ? (
+                      <span className="flex items-center gap-1 text-green-600"><Check className="h-3 w-3" /> Can have employer</span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-muted-foreground"><X className="h-3 w-3" /> No employer</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Full Matrix Table */}
+        <div className="pt-4 border-t">
+          <h4 className="font-medium mb-3">Full Field Matrix</h4>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="sticky left-0 bg-background">Field</TableHead>
+                  {entityTypes.map((et) => (
+                    <TableHead key={et.value} className="text-center whitespace-nowrap">
+                      {et.label}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ENTITY_TYPE_FIELDS.map((field) => (
+                  <TableRow key={field.field}>
+                    <TableCell className="sticky left-0 bg-background font-medium">
+                      <div>
+                        {field.label}
+                        <p className="text-xs text-muted-foreground font-normal">{field.description}</p>
+                      </div>
+                    </TableCell>
+                    {entityTypes.map((et) => {
+                      const matrix = FIELD_MATRIX[et.value] || {};
+                      const status = matrix[field.field] || "na";
+                      return (
+                        <TableCell key={et.value} className="text-center">
+                          <FieldStatusBadge status={status} />
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 interface ContactType {
   id: number;
@@ -306,7 +562,7 @@ export function ContactTypesTab() {
         <div>
           <h2 className="text-lg font-semibold">Contacts Settings</h2>
           <p className="text-sm text-muted-foreground">
-            Manage contact types and configure where contact documents are stored.
+            Manage contact types, entity types, and configure where contact documents are stored.
           </p>
         </div>
         <Button onClick={handleOpenAddDialog}>
@@ -409,6 +665,9 @@ export function ContactTypesTab() {
           </div>
         </div>
       </Card>
+
+      {/* Entity Types Reference */}
+      <EntityTypesReferenceCard />
 
       <Card>
         <Table>

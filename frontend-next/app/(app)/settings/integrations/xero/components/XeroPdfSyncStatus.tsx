@@ -12,11 +12,53 @@ import {
   AlertTriangle,
   RefreshCw,
   Loader2,
+  Database,
+  Download,
+  Upload,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
+
+interface Stage1DataSync {
+  total_in_database: number;
+  linked_to_contacts: number;
+  last_sync_at: string | null;
+  next_sync_at: string | null;
+  schedule: string;
+  breakdown: {
+    bills: number;
+    sales_invoices: number;
+    credit_notes: number;
+    quotes: number;
+  };
+}
+
+interface Stage2PdfDownload {
+  total_to_sync: number;
+  downloaded: number;
+  pending: number;
+  progress_percentage: number;
+  last_sync_at: string | null;
+  next_sync_at: string | null;
+  schedule: string;
+  synced_last_24h: number;
+  breakdown: {
+    bills: { total: number; synced: number };
+    sales_invoices: { total: number; synced: number };
+    quotes: { total: number; synced: number };
+  };
+}
+
+interface Stage3Sharepoint {
+  total_to_upload: number;
+  uploaded: number;
+  pending: number;
+  progress_percentage: number;
+}
 
 interface PdfSyncStatus {
+  stage1_data_sync: Stage1DataSync;
+  stage2_pdf_download: Stage2PdfDownload;
+  stage3_sharepoint: Stage3Sharepoint;
   total_invoices: number;
   pdfs_synced: number;
   pending: number;
@@ -31,7 +73,7 @@ interface PdfSyncStatus {
   };
   estimated_remaining_minutes: number;
   health: {
-    status: "healthy" | "in_progress" | "warning" | "not_started";
+    status: "healthy" | "in_progress" | "warning" | "not_started" | "partial";
     message: string;
     color: string;
   };
@@ -99,14 +141,21 @@ export function XeroPdfSyncStatus() {
         return (
           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
             <CheckCircle2 className="h-3 w-3 mr-1" />
-            Synced
+            Up to Date
           </Badge>
         );
       case "in_progress":
         return (
           <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
             <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-            Syncing
+            Recently Active
+          </Badge>
+        );
+      case "partial":
+        return (
+          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+            <Clock className="h-3 w-3 mr-1" />
+            Partial
           </Badge>
         );
       case "warning":
@@ -133,6 +182,94 @@ export function XeroPdfSyncStatus() {
     return `~${hours}h ${mins}m`;
   };
 
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "Never";
+    return new Date(dateString).toLocaleString("en-AU", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  // Format time for next sync display (Brisbane time)
+  const formatNextSync = (dateString: string | null) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = date.getTime() - now.getTime();
+    const diffMins = Math.round(diffMs / 60000);
+
+    if (diffMins <= 0) return "Starting soon";
+    if (diffMins < 60) return `in ${diffMins} min`;
+
+    // Show time in Brisbane format
+    return date.toLocaleString("en-AU", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Australia/Brisbane",
+    }) + " AEST";
+  };
+
+  // Stage progress component
+  const StageProgress = ({
+    stage,
+    title,
+    icon: Icon,
+    completed,
+    total,
+    percentage,
+    lastSync,
+    nextSync,
+    schedule,
+    color,
+  }: {
+    stage: number;
+    title: string;
+    icon: React.ElementType;
+    completed: number;
+    total: number;
+    percentage: number;
+    lastSync: string | null;
+    nextSync?: string | null;
+    schedule?: string;
+    color: string;
+  }) => (
+    <div className="p-3 border rounded-lg space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className={`p-1.5 rounded ${color}`}>
+            <Icon className="h-3.5 w-3.5" />
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Stage {stage}</div>
+            <div className="text-sm font-medium">{title}</div>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-sm font-semibold">{percentage}%</div>
+          <div className="text-xs text-muted-foreground">
+            {completed.toLocaleString()} / {total.toLocaleString()}
+          </div>
+        </div>
+      </div>
+      <Progress value={percentage} className="h-1.5" />
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>Last: {formatDate(lastSync)}</span>
+        {nextSync && (
+          <span className="text-blue-600 font-medium">
+            Next: {formatNextSync(nextSync)}
+          </span>
+        )}
+      </div>
+      {schedule && (
+        <div className="text-xs text-muted-foreground/70 italic">
+          {schedule}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -142,9 +279,9 @@ export function XeroPdfSyncStatus() {
               <FileText className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <CardTitle className="text-base">PDF Sync to SharePoint</CardTitle>
+              <CardTitle className="text-base">Xero Document Sync</CardTitle>
               <CardDescription>
-                Xero invoice PDFs synced to contact folders
+                Invoice data, PDFs, and SharePoint uploads
               </CardDescription>
             </div>
           </div>
@@ -152,38 +289,84 @@ export function XeroPdfSyncStatus() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Progress Bar */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Progress</span>
-            <span className="font-medium">{data.progress_percentage}%</span>
-          </div>
-          <Progress value={data.progress_percentage} className="h-2" />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{data.pdfs_synced.toLocaleString()} of {data.total_invoices.toLocaleString()} PDFs</span>
-            {data.pending > 0 && (
-              <span>{formatTime(data.estimated_remaining_minutes)} remaining</span>
-            )}
-          </div>
+        {/* 3-Stage Progress */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Stage 1: Invoice Data Sync */}
+          <StageProgress
+            stage={1}
+            title="Invoice Data"
+            icon={Database}
+            completed={data.stage1_data_sync?.linked_to_contacts || 0}
+            total={data.stage1_data_sync?.total_in_database || 0}
+            percentage={
+              data.stage1_data_sync?.total_in_database
+                ? Math.round(
+                    (data.stage1_data_sync.linked_to_contacts /
+                      data.stage1_data_sync.total_in_database) *
+                      100
+                  )
+                : 0
+            }
+            lastSync={data.stage1_data_sync?.last_sync_at || null}
+            nextSync={data.stage1_data_sync?.next_sync_at}
+            schedule={data.stage1_data_sync?.schedule}
+            color="bg-purple-100 text-purple-600"
+          />
+
+          {/* Stage 2: PDF Download */}
+          <StageProgress
+            stage={2}
+            title="PDF Download"
+            icon={Download}
+            completed={data.stage2_pdf_download?.downloaded || data.pdfs_synced}
+            total={data.stage2_pdf_download?.total_to_sync || data.total_invoices}
+            percentage={data.stage2_pdf_download?.progress_percentage || data.progress_percentage}
+            lastSync={data.stage2_pdf_download?.last_sync_at || data.last_sync_at}
+            nextSync={data.stage2_pdf_download?.next_sync_at}
+            schedule={data.stage2_pdf_download?.schedule}
+            color="bg-blue-100 text-blue-600"
+          />
+
+          {/* Stage 3: SharePoint Upload */}
+          <StageProgress
+            stage={3}
+            title="SharePoint"
+            icon={Upload}
+            completed={data.stage3_sharepoint?.uploaded || data.sharepoint_uploads}
+            total={data.stage3_sharepoint?.total_to_upload || data.pdfs_synced}
+            percentage={data.stage3_sharepoint?.progress_percentage || 0}
+            lastSync={null}
+            schedule="Uploads with PDF sync"
+            color="bg-green-100 text-green-600"
+          />
         </div>
 
-        {/* Stats Grid */}
+        {/* Summary Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="p-3 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-              <FileText className="h-3 w-3" />
-              PDFs Synced
+              <Database className="h-3 w-3" />
+              Total Invoices
             </div>
-            <div className="text-lg font-semibold text-green-600">
+            <div className="text-lg font-semibold">
+              {data.stage1_data_sync?.total_in_database?.toLocaleString() || data.total_invoices.toLocaleString()}
+            </div>
+          </div>
+          <div className="p-3 bg-muted/50 rounded-lg">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+              <FileText className="h-3 w-3" />
+              PDFs Downloaded
+            </div>
+            <div className="text-lg font-semibold text-blue-600">
               {data.pdfs_synced.toLocaleString()}
             </div>
           </div>
           <div className="p-3 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <Cloud className="h-3 w-3" />
-              SharePoint
+              On SharePoint
             </div>
-            <div className="text-lg font-semibold text-blue-600">
+            <div className="text-lg font-semibold text-green-600">
               {data.sharepoint_uploads.toLocaleString()}
             </div>
           </div>
@@ -196,20 +379,11 @@ export function XeroPdfSyncStatus() {
               {data.pending.toLocaleString()}
             </div>
           </div>
-          <div className="p-3 bg-muted/50 rounded-lg">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-              <RefreshCw className="h-3 w-3" />
-              Last 24h
-            </div>
-            <div className="text-lg font-semibold">
-              {data.synced_last_24h.toLocaleString()}
-            </div>
-          </div>
         </div>
 
         {/* Breakdown by Type */}
         <div className="space-y-2">
-          <div className="text-sm font-medium text-muted-foreground">By Document Type</div>
+          <div className="text-sm font-medium text-muted-foreground">PDF Progress by Type</div>
           <div className="grid grid-cols-3 gap-2">
             <div className="p-2 border rounded-lg">
               <div className="text-xs text-muted-foreground">Bills</div>
@@ -247,20 +421,26 @@ export function XeroPdfSyncStatus() {
           </div>
         </div>
 
-        {/* Last Sync Time */}
-        {data.last_sync_at && (
-          <div className="flex items-center justify-between text-sm border-t pt-3">
-            <span className="text-muted-foreground">Last synced</span>
-            <span className="font-medium">
-              {new Date(data.last_sync_at).toLocaleString("en-AU", {
-                day: "numeric",
-                month: "short",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+        {/* Time Estimate & Activity */}
+        <div className="flex items-center justify-between text-sm border-t pt-3">
+          <div className="flex items-center gap-4 text-muted-foreground">
+            <span>
+              <RefreshCw className="h-3 w-3 inline mr-1" />
+              {data.synced_last_24h} synced in 24h
             </span>
+            {data.pending > 0 && (
+              <span>
+                <Clock className="h-3 w-3 inline mr-1" />
+                {formatTime(data.estimated_remaining_minutes)} remaining
+              </span>
+            )}
           </div>
-        )}
+          {data.last_sync_at && (
+            <span className="text-muted-foreground">
+              Last: {formatDate(data.last_sync_at)}
+            </span>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
