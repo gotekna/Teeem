@@ -2450,12 +2450,21 @@ module Api
             domain_company_name = (meaningful_parts.first || domain_parts.first).titleize
 
             # FIRST: Try to match by domain name (the email domain is the best indicator of employer)
-            # Try exact substring match on company name
+            # Try substring match on company name
             domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
               .where("LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
                      "%#{domain_company_name.downcase}%",
                      "%#{domain_company_name.downcase}%")
               .first
+
+            # If no match, try matching with spaces removed (e.g., "harveynorman" -> "Harvey Norman")
+            if domain_company.nil?
+              domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+                .where("LOWER(REPLACE(full_name, ' ', '')) LIKE ? OR LOWER(REPLACE(company_name_or_trust, ' ', '')) LIKE ?",
+                       "%#{domain_company_name.downcase.gsub(' ', '')}%",
+                       "%#{domain_company_name.downcase.gsub(' ', '')}%")
+                .first
+            end
 
             # If no match and domain looks like an abbreviation (2-4 uppercase letters like SVP),
             # try matching the first letters of each word in company names
@@ -2487,7 +2496,8 @@ module Api
           end
 
           # Get parent companies this email was found communicating with
-          parent_companies = email_to_parent_companies[email_addr].to_a
+          # BUT only show these if we didn't find a domain company (they work FOR the domain company, not these)
+          parent_companies = domain_company ? [] : email_to_parent_companies[email_addr].to_a
 
           # Extract phone numbers from email signatures
           phones = extract_phones_from_signatures(email_bodies[email_addr])
