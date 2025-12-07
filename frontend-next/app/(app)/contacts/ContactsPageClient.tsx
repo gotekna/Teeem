@@ -122,6 +122,15 @@ export default function ContactsPageClient({
     }
   }, [foundation]);
 
+  // Check if we need to refresh after returning from detail page
+  useEffect(() => {
+    const needsRefresh = sessionStorage.getItem('contacts_needs_refresh');
+    if (needsRefresh === 'true') {
+      sessionStorage.removeItem('contacts_needs_refresh');
+      refresh();
+    }
+  }, [refresh]);
+
   const handleMergeComplete = () => {
     setSelectedForMerge([]);
     refresh();

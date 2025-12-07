@@ -181,7 +181,6 @@ interface ContactPhone {
 interface Contact {
   id: number;
   display_name: string;
-  display_name: string;
   first_name: string | null;
   middle_name: string | null;
   last_name: string | null;
@@ -1949,6 +1948,8 @@ export default function ContactDetailPage() {
         },
       });
       setHasChanges(false);
+      // Signal that contacts list needs refresh when navigating back
+      sessionStorage.setItem('contacts_needs_refresh', 'true');
       loadContact();
     } catch (err) {
       console.error("Failed to save contact:", err);
@@ -1995,7 +1996,6 @@ export default function ContactDetailPage() {
           entity_type: "company",
           company_name_or_trust: newCompanyName.trim(),
           display_name: newCompanyName.trim(),
-          display_name: newCompanyName.trim(),
         },
       });
       const newCompanyId = response?.contact?.id || (response as { id?: number })?.id;
@@ -2035,7 +2035,6 @@ export default function ContactDetailPage() {
           entity_type: "person",
           first_name: newEmployeeFirstName.trim(),
           last_name: newEmployeeLastName.trim(),
-          display_name: fullName,
           display_name: fullName,
         },
       });
