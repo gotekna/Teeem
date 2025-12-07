@@ -82,10 +82,12 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       try {
         const xeroResponse = await api.get<{
           connected?: boolean;
+          expired?: boolean;
+          tenant_name?: string;
           data?: { connected?: boolean; expired?: boolean; message?: string; tenant_name?: string };
           message?: string
         }>("/api/v1/xero/status");
-        const xeroData = xeroResponse?.data || xeroResponse;
+        const xeroData = xeroResponse?.data || xeroResponse as { connected?: boolean; expired?: boolean; tenant_name?: string; message?: string };
 
         if (xeroData?.connected === true && xeroData?.expired !== true) {
           setXeroStatus('connected');
