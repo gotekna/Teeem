@@ -154,19 +154,25 @@ export default function XeroPage() {
         const statusRes = await api.get<XeroStatus>("/api/v1/xero/status");
         setStatus(statusRes);
 
-        // Load invoices and bills from warehouse (10-100x faster than Xero API)
-        const [invoicesRes, billsRes] = await Promise.all([
-          api.get<WarehouseResponse>("/api/v1/external_invoices?type=invoice&per_page=200"),
-          api.get<WarehouseResponse>("/api/v1/external_invoices?type=bill&per_page=200"),
-        ]);
+        // Only load invoices if connected
+        if (statusRes.connected) {
+          // Load invoices and bills from warehouse (10-100x faster than Xero API)
+          const [invoicesRes, billsRes] = await Promise.all([
+            api.get<WarehouseResponse>("/api/v1/external_invoices?type=invoice&per_page=200"),
+            api.get<WarehouseResponse>("/api/v1/external_invoices?type=bill&per_page=200"),
+          ]);
 
-        setInvoices(invoicesRes.data || []);
-        setBills(billsRes.data || []);
-        setCacheMetadata(invoicesRes.meta);
+          setInvoices(invoicesRes.data || []);
+          setBills(billsRes.data || []);
+          setCacheMetadata(invoicesRes.meta);
+        }
       } catch (error) {
         console.error("Failed to load Xero data:", error);
+        // Set status as disconnected on error so the connect UI shows
+        setStatus({ connected: false, tenant_name: null, last_sync: null, sync_in_progress: false });
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     loadData();
   }, []);
