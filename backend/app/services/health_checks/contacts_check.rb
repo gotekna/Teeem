@@ -154,10 +154,11 @@ module HealthChecks
     # ============================================
 
     # Person contacts with names in ALL CAPS (should be Title Case)
+    # Excludes single-letter names (initials like "V" or "M" are fine as uppercase)
     def check_all_caps_names
       contacts = Contact.where(deleted: [ false, nil ])
                        .where(entity_type: "person")
-                       .where("(first_name IS NOT NULL AND first_name != '' AND first_name = UPPER(first_name) AND first_name != LOWER(first_name)) OR (last_name IS NOT NULL AND last_name != '' AND last_name = UPPER(last_name) AND last_name != LOWER(last_name))")
+                       .where("(first_name IS NOT NULL AND LENGTH(first_name) > 1 AND first_name = UPPER(first_name) AND first_name != LOWER(first_name)) OR (last_name IS NOT NULL AND LENGTH(last_name) > 1 AND last_name = UPPER(last_name) AND last_name != LOWER(last_name))")
                        .select(:id, :full_name, :first_name, :last_name, :entity_type)
 
       build_result(

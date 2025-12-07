@@ -1370,7 +1370,42 @@ export default function ContactDetailPage() {
 
   // Handle inline form field changes
   const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const updated = { ...prev, [field]: value };
+
+      // Handle entity_type changes - transfer name data between fields
+      if (field === 'entity_type') {
+        const prevType = prev.entity_type;
+        const newType = value as string;
+        const isPrevPersonType = prevType === 'person' || prevType === 'sole_trader';
+        const isNewPersonType = newType === 'person' || newType === 'sole_trader';
+
+        // Switching from person/sole_trader to company/trust
+        // Populate full_name from first/middle/last name
+        if (isPrevPersonType && !isNewPersonType) {
+          const constructedName = [prev.first_name, prev.middle_name, prev.last_name].filter(Boolean).join(" ");
+          if (constructedName && (!updated.full_name || updated.full_name === 'Unknown')) {
+            updated.full_name = constructedName;
+          }
+        }
+
+        // Switching from company/trust to person/sole_trader
+        // Try to parse full_name into first/last name if they're empty
+        if (!isPrevPersonType && isNewPersonType) {
+          if (prev.full_name && (!prev.first_name && !prev.last_name)) {
+            const nameParts = prev.full_name.trim().split(/\s+/);
+            if (nameParts.length >= 2) {
+              updated.first_name = nameParts[0];
+              updated.last_name = nameParts.slice(1).join(" ");
+            } else if (nameParts.length === 1) {
+              updated.first_name = nameParts[0];
+            }
+          }
+        }
+      }
+
+      return updated;
+    });
     setHasChanges(true);
   };
 
@@ -1746,7 +1781,11 @@ export default function ContactDetailPage() {
     if (!contact) return;
     setSaving(true);
     try {
-      const full_name = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || "Unknown";
+      // For person/sole_trader: construct full_name from first/last name
+      // For company/trust: use the full_name field directly
+      const full_name = (formData.entity_type === 'person' || formData.entity_type === 'sole_trader')
+        ? [formData.first_name, formData.middle_name, formData.last_name].filter(Boolean).join(" ") || "Unknown"
+        : formData.full_name || "Unknown";
 
       // Prepare contact_emails_attributes (filtering out destroyed items for new records)
       const contact_emails_attributes = (contact.contact_emails || [])
@@ -2021,7 +2060,8 @@ export default function ContactDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-4">
-                      {formData.entity_type === "person" ? (
+                      {/* Person and Sole Trader show first/middle/last name fields */}
+                      {(formData.entity_type === "person" || formData.entity_type === "sole_trader") ? (
                         <>
                           <div className="space-y-2">
                             <Label htmlFor="first_name">First Name</Label>
@@ -2037,8 +2077,9 @@ export default function ContactDetailPage() {
                           </div>
                         </>
                       ) : (
+                        /* Company and Trust show single Name field */
                         <div className="space-y-2">
-                          <Label htmlFor="full_name">Name</Label>
+                          <Label htmlFor="full_name">{formData.entity_type === "trust" ? "Trust Name" : "Company Name"}</Label>
                           <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange("full_name", e.target.value)} />
                         </div>
                       )}
