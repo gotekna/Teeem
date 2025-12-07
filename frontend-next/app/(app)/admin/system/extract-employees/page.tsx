@@ -181,7 +181,7 @@ function ExtractEmployeesContent() {
         // For perfect matches, we auto-add mobile without asking
         const isPerfectMatch = !hasNoMatches &&
           item.matching_contacts.length === 1 &&
-          primaryContact?.relationship_to_domain_company_exists &&
+          !!primaryContact?.relationship_to_domain_company_exists &&
           (primaryContact?.email?.toLowerCase() === item.email.toLowerCase() || !primaryContact?.email);
 
         defaultSelections[idx] = {
@@ -193,7 +193,7 @@ function ExtractEmployeesContent() {
           addMobile: !!item.phones?.mobile, // Auto-add mobile if found
           addDirect: !!(item.phones?.direct && !primaryContact?.office_phone), // Add direct if found and contact doesn't have one
           addOfficeToCompany: !!(item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone), // Add office to company if found and company doesn't have one
-          isPerfectMatch: isPerfectMatch,
+          isPerfectMatch: !!isPerfectMatch,
           // Default to YES for new contacts (they're employees of the domain company)
           linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !!primaryContact && !primaryContact.relationship_to_domain_company_exists),
           parentCompanyLinks: hasNoMatches ? {} : (isCustomer ? {} : parentLinks),
@@ -302,7 +302,7 @@ function ExtractEmployeesContent() {
         // For perfect matches, we auto-add mobile without asking
         const isPerfectMatch = !hasNoMatches &&
           item.matching_contacts.length === 1 &&
-          primaryContact?.relationship_to_domain_company_exists &&
+          !!primaryContact?.relationship_to_domain_company_exists &&
           (primaryContact?.email?.toLowerCase() === item.email.toLowerCase() || !primaryContact?.email);
 
         defaultSelections[idx] = {
@@ -314,7 +314,7 @@ function ExtractEmployeesContent() {
           addMobile: !!item.phones?.mobile, // Auto-add mobile if found
           addDirect: !!(item.phones?.direct && !primaryContact?.office_phone), // Add direct if found and contact doesn't have one
           addOfficeToCompany: !!(item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone), // Add office to company if found and company doesn't have one
-          isPerfectMatch: isPerfectMatch,
+          isPerfectMatch: !!isPerfectMatch,
           // Default to YES for new contacts (they're employees of the domain company)
           linkToDomainCompany: hasNoMatches ? true : (isCustomer ? false : !!primaryContact && !primaryContact.relationship_to_domain_company_exists),
           parentCompanyLinks: hasNoMatches ? {} : (isCustomer ? {} : parentLinks),
@@ -454,7 +454,7 @@ function ExtractEmployeesContent() {
         addMobile: !!item.phones?.mobile && !contact?.mobile_phone, // Add mobile if found and contact doesn't have one
         addDirect: !!item.phones?.direct && !contact?.office_phone, // Add direct if found and contact doesn't have one
         addOfficeToCompany: !!(item.phones?.office && item.domain_company?.exists && !item.domain_company?.office_phone), // Add office to company
-        isPerfectMatch: isPerfectMatch,
+        isPerfectMatch: !!isPerfectMatch,
         linkToDomainCompany: !contact?.relationship_to_domain_company_exists,
         parentCompanyLinks: parentLinks,
         contactsToMerge: otherContactIds,
