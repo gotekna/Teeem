@@ -787,12 +787,16 @@ module Api
             }
           end.sort_by { |c| c[:display_name]&.downcase || "" }
 
+          # Get Xero data stats (invoices, bills, quotes synced from Xero)
+          xero_data_stats = calculate_xero_data_stats
+
           render json: {
             success: true,
             contacts: contacts_data,
             total: contacts_data.count,
             synced_count: contacts_data.count { |c| c[:synced] },
-            error_count: contacts_data.count { |c| c[:has_error] }
+            error_count: contacts_data.count { |c| c[:has_error] },
+            xero_data: xero_data_stats
           }
         rescue StandardError => e
           Rails.logger.error("Xero contacts_sync_list error: #{e.message}")
@@ -1398,6 +1402,72 @@ module Api
       end
 
       private
+
+      # Calculate Xero data statistics for sync dashboard
+      def calculate_xero_data_stats
+        # Get Xero invoices data
+        xero_invoices = ExternalInvoice.xero
+
+        # Sales invoices (ACCREC)
+        sales_invoices_count = xero_invoices.sales_invoices.count
+        sales_invoices_total = xero_invoices.sales_invoices.sum(:total) || 0
+
+        # Bills (ACCPAY)
+        bills_count = xero_invoices.bills.count
+        bills_total = xero_invoices.bills.sum(:total) || 0
+
+        # Quotes
+        quotes_count = xero_invoices.quotes.count
+        quotes_total = xero_invoices.quotes.sum(:total) || 0
+
+        # Credit notes
+        credit_notes_count = xero_invoices.credit_notes.count
+
+        # Contacts with Xero data (have at least one invoice/bill/quote)
+        contacts_with_xero_data = ExternalInvoice.xero.where.not(contact_id: nil).distinct.count(:contact_id)
+
+        # Last synced
+        last_data_sync = xero_invoices.maximum(:last_synced_at)
+
+        # Unpaid invoices
+        unpaid_invoices = xero_invoices.invoices_and_bills.unpaid.count
+
+        # Synced today
+        synced_today = xero_invoices.where("last_synced_at > ?", 24.hours.ago).count
+
+        {
+          sales_invoices: {
+            count: sales_invoices_count,
+            total: sales_invoices_total.to_f.round(2)
+          },
+          bills: {
+            count: bills_count,
+            total: bills_total.to_f.round(2)
+          },
+          quotes: {
+            count: quotes_count,
+            total: quotes_total.to_f.round(2)
+          },
+          credit_notes: credit_notes_count,
+          contacts_with_data: contacts_with_xero_data,
+          unpaid_count: unpaid_invoices,
+          synced_today: synced_today,
+          last_sync_at: last_data_sync
+        }
+      rescue StandardError => e
+        Rails.logger.error("Xero data stats error: #{e.message}")
+        {
+          sales_invoices: { count: 0, total: 0 },
+          bills: { count: 0, total: 0 },
+          quotes: { count: 0, total: 0 },
+          credit_notes: 0,
+          contacts_with_data: 0,
+          unpaid_count: 0,
+          synced_today: 0,
+          last_sync_at: nil,
+          error: e.message
+        }
+      end
 
       # Make a direct Xero API request using a specific credential
       # This allows us to support multi-tenant (multi-org) requests
