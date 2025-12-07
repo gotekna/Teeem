@@ -435,10 +435,11 @@ export default function XeroIntegrationPage() {
                   <Button
                     onClick={runValidationTests}
                     disabled={runningTests}
-                    variant={
+                    variant="outline"
+                    className={
                       validationTests.length > 0 && validationTests.every(t => t.status === "passed")
-                        ? "default"
-                        : "outline"
+                        ? "bg-green-600 hover:bg-green-700 text-white border-green-600"
+                        : ""
                     }
                   >
                     {runningTests ? (
