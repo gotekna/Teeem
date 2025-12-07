@@ -30,7 +30,6 @@ import {
   ArrowRightLeft,
   Users,
   Filter,
-  Mail,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -605,43 +604,69 @@ export function XeroContactSync() {
         </CardContent>
       </Card>
 
-      {/* Email Warehouse Stats Card */}
-      {emailWarehouseStats && (
+      {/* Xero Data Stats Card */}
+      {xeroDataStats && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Mail className="h-5 w-5" />
-              Email Warehouse
+              <ArrowRightLeft className="h-5 w-5" />
+              Xero Data Synced
             </CardTitle>
             <CardDescription>
-              Emails synced from Microsoft 365 and their relationship to contacts
+              Financial data synced from Xero for these contacts
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-4 mb-4">
               <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
-                <div className="text-sm text-muted-foreground">Total Emails</div>
+                <div className="text-sm text-muted-foreground">Sales Invoices</div>
                 <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
-                  {emailWarehouseStats.total_emails.toLocaleString()}
+                  {xeroDataStats.sales_invoices.count.toLocaleString()}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  ${xeroDataStats.sales_invoices.total.toLocaleString()}
                 </div>
               </div>
               <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg">
-                <div className="text-sm text-muted-foreground">With Xero Contacts</div>
+                <div className="text-sm text-muted-foreground">Bills</div>
                 <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
-                  {emailWarehouseStats.emails_with_xero_contacts.toLocaleString()}
+                  {xeroDataStats.bills.count.toLocaleString()}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  ${xeroDataStats.bills.total.toLocaleString()}
                 </div>
               </div>
               <div className="p-4 bg-cyan-50 dark:bg-cyan-900/10 rounded-lg">
-                <div className="text-sm text-muted-foreground">Linked to Jobs</div>
+                <div className="text-sm text-muted-foreground">Quotes</div>
                 <div className="text-2xl font-bold text-cyan-700 dark:text-cyan-400">
-                  {emailWarehouseStats.emails_linked_to_jobs.toLocaleString()}
+                  {xeroDataStats.quotes.count.toLocaleString()}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  ${xeroDataStats.quotes.total.toLocaleString()}
                 </div>
               </div>
-              <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 rounded-lg">
-                <div className="text-sm text-muted-foreground">Synced Today</div>
-                <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-                  {emailWarehouseStats.emails_synced_today.toLocaleString()}
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-lg">
+                <div className="text-sm text-muted-foreground">Unpaid</div>
+                <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
+                  {xeroDataStats.unpaid_count.toLocaleString()}
                 </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  invoices &amp; bills
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="text-xs text-muted-foreground">Credit Notes</div>
+                <div className="text-lg font-semibold">{xeroDataStats.credit_notes}</div>
+              </div>
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="text-xs text-muted-foreground">Contacts with Data</div>
+                <div className="text-lg font-semibold">{xeroDataStats.contacts_with_data}</div>
+              </div>
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="text-xs text-muted-foreground">Synced Today</div>
+                <div className="text-lg font-semibold">{xeroDataStats.synced_today}</div>
               </div>
             </div>
           </CardContent>
