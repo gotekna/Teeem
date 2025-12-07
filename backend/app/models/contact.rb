@@ -150,9 +150,10 @@ class Contact < ApplicationRecord
   validate :validate_team_contact_company # Team contacts must have a company
 
   # Callbacks
+  # prepend: true ensures these run BEFORE AutoColumnValidation's validate_column_types
+  before_validation :auto_fix_website_url, prepend: true  # Auto-fix website URLs without protocol (MUST run before column type validation)
   before_validation :clear_roles_if_not_person  # Must run before validations
   before_validation :auto_fix_name_casing       # Auto-fix ALL CAPS and lowercase names
-  before_validation :auto_fix_website_url       # Auto-fix website URLs without protocol
   before_save :update_xero_synced_status
   before_save :generate_full_name
   before_save :sync_company_name_or_trust
