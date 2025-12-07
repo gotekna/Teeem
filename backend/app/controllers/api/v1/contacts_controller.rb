@@ -959,6 +959,98 @@ module Api
         }, status: :internal_server_error
       end
 
+      # POST /api/v1/contacts/fix_email_assignment
+      # Fix mixed entity type duplicate emails:
+      # - Keep email on the person contact
+      # - Clear email from company/trust contacts
+      # - Create employment relationships linking person to companies
+      def fix_email_assignment
+        person_id = params[:person_id]
+        company_ids = params[:company_ids]
+
+        if person_id.blank? || company_ids.blank? || !company_ids.is_a?(Array)
+          return render json: {
+            success: false,
+            error: "person_id and company_ids (array) are required"
+          }, status: :unprocessable_entity
+        end
+
+        person = Contact.find(person_id)
+        companies = Contact.where(id: company_ids)
+
+        # Validate person is actually a person
+        unless person.entity_type == "person"
+          return render json: {
+            success: false,
+            error: "Contact #{person_id} is not a person (entity_type: #{person.entity_type})"
+          }, status: :unprocessable_entity
+        end
+
+        # Validate companies are actually companies/trusts
+        invalid_companies = companies.reject { |c| %w[company trust sole_trader].include?(c.entity_type) }
+        if invalid_companies.any?
+          return render json: {
+            success: false,
+            error: "Some contacts are not companies/trusts: #{invalid_companies.map(&:id).join(', ')}"
+          }, status: :unprocessable_entity
+        end
+
+        results = {
+          email_cleared: [],
+          employments_created: [],
+          errors: []
+        }
+
+        ActiveRecord::Base.transaction do
+          companies.each do |company|
+            begin
+              # Clear email from company
+              old_email = company.email
+              company.update!(email: nil)
+              results[:email_cleared] << { id: company.id, name: company.full_name, old_email: old_email }
+
+              # Create employment relationship if it doesn't exist
+              unless ContactEmployment.exists?(employee_id: person.id, employer_id: company.id)
+                ContactEmployment.create!(
+                  employee_id: person.id,
+                  employer_id: company.id,
+                  is_active: true,
+                  is_primary: results[:employments_created].empty? # First one is primary
+                )
+                results[:employments_created] << { person_id: person.id, company_id: company.id, company_name: company.full_name }
+              end
+            rescue => e
+              results[:errors] << { company_id: company.id, error: e.message }
+              raise ActiveRecord::Rollback
+            end
+          end
+        end
+
+        if results[:errors].any?
+          render json: {
+            success: false,
+            error: "Failed to fix email assignment",
+            details: results[:errors]
+          }, status: :unprocessable_entity
+        else
+          render json: {
+            success: true,
+            message: "Fixed email assignment: cleared email from #{results[:email_cleared].size} companies, created #{results[:employments_created].size} employment relationships",
+            results: results
+          }
+        end
+      rescue ActiveRecord::RecordNotFound => e
+        render json: {
+          success: false,
+          error: "Contact not found: #{e.message}"
+        }, status: :not_found
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to fix email assignment: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       # POST /api/v1/contacts/match_supplier
       # DEPRECATED: This endpoint was for migrating suppliers table to contacts.
       # The suppliers table has been removed - all suppliers are now contacts with type='supplier'.
@@ -2441,61 +2533,92 @@ module Api
           Array(params[:email_patterns]).reject(&:blank?)
         end
 
-        # Query email warehouse for emails involving the specified addresses
-        emails = EmailWarehouse.involving_email(email_patterns)
+        # OPTIMIZED: Use database queries to extract unique emails instead of loading all records
+        # This prevents memory issues with large email warehouses (20K+ emails would crash the dyno)
 
         # Track which parent companies each email is associated with
         # Key: email address, Value: Set of parent company info
         email_to_parent_companies = Hash.new { |h, k| h[k] = Set.new }
 
-        # Track email bodies for signature extraction
-        email_bodies = Hash.new { |h, k| h[k] = [] }
+        # Step 1: Get unique from_email addresses using pluck (memory efficient)
+        base_query = EmailWarehouse.involving_email(email_patterns)
 
-        # Extract unique email addresses and track their parent company context
-        unique_emails = Set.new
-        emails.each do |email|
-          # Find the parent company context (the company that owns the searched email)
-          parent_email = email_patterns.find { |pattern|
-            email.from_email == pattern ||
-            email.to_emails&.include?(pattern) ||
-            email.cc_emails&.include?(pattern)
-          }
+        from_emails = base_query
+          .where.not(from_email: nil)
+          .distinct
+          .pluck(:from_email)
+          .map(&:downcase)
+          .uniq
 
-          if parent_email
-            parent_domain = parent_email.split('@').last
-            parent_company_name = parent_domain.split('.').first.titleize
-            parent_company = Contact.find_by(
-              "LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
-              "%#{parent_company_name.downcase}%",
-              "%#{parent_company_name.downcase}%"
-            )
+        # Query for unique to_emails (stored as arrays)
+        to_emails_raw = base_query
+          .where.not(to_emails: nil)
+          .pluck(:to_emails)
+          .flatten
+          .compact
+          .map(&:downcase)
+          .uniq
 
-            # Collect all other emails in this thread (normalize to lowercase for deduplication)
-            # But ONLY associate parent company with emails that DIRECTLY communicated
-            # with the parent (from/to), not everyone CC'd on the same thread
-            all_emails_in_thread = [email.from_email, *email.to_emails, *email.cc_emails].compact
-            direct_communicators = [email.from_email, *email.to_emails].compact # Only from/to, not CC
+        # Query for unique cc_emails (stored as arrays)
+        cc_emails_raw = base_query
+          .where.not(cc_emails: nil)
+          .pluck(:cc_emails)
+          .flatten
+          .compact
+          .map(&:downcase)
+          .uniq
 
-            all_emails_in_thread.each do |addr|
-              addr_normalized = addr.downcase
-              next if email_patterns.any? { |p| p.downcase == addr_normalized }
-              unique_emails.add(addr_normalized)
+        # Combine all unique emails
+        all_emails = (from_emails + to_emails_raw + cc_emails_raw).uniq
 
-              # Only link to parent company if this email was a DIRECT communicator (from/to)
-              # Don't link CC'd parties - they may just be observers on unrelated threads
-              if parent_company && direct_communicators.any? { |dc| dc&.downcase == addr_normalized }
-                email_to_parent_companies[addr_normalized].add({
+        # Filter out the search patterns (we don't want to include those)
+        patterns_lower = email_patterns.map(&:downcase)
+        unique_emails = all_emails.reject { |e| patterns_lower.include?(e) }.to_set
+
+        # Step 2: Determine parent company context (use first pattern's domain)
+        first_pattern = email_patterns.first
+        if first_pattern
+          parent_domain = first_pattern.split('@').last
+          parent_company_name = parent_domain.split('.').first.titleize
+          parent_company = Contact.find_by(
+            "LOWER(full_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
+            "%#{parent_company_name.downcase}%",
+            "%#{parent_company_name.downcase}%"
+          )
+
+          # For parent company relationships, mark direct communicators (from/to, not CC)
+          if parent_company
+            direct_from = from_emails.to_set
+            direct_to = to_emails_raw.to_set
+
+            unique_emails.each do |addr|
+              if direct_from.include?(addr) || direct_to.include?(addr)
+                email_to_parent_companies[addr].add({
                   id: parent_company.id,
                   name: parent_company.full_name,
                   entity_type: parent_company.entity_type
                 })
               end
             end
+          end
+        end
 
-            # Store email body for signature extraction (only for from_email, normalized)
-            if email.from_email.present? && email.body_text.present?
-              email_bodies[email.from_email.downcase] << email.body_text
-            end
+        # Step 3: Build email_bodies lookup for signature extraction
+        # Only fetch bodies for the unique senders (not all emails)
+        email_bodies = Hash.new { |h, k| h[k] = [] }
+        unique_senders = unique_emails & from_emails.to_set
+
+        # Fetch bodies in batches - only need a few emails per sender for signature extraction
+        unique_senders.each_slice(50) do |sender_batch|
+          # For each sender, get up to 3 recent emails with body_text
+          sender_batch.each do |sender|
+            bodies = EmailWarehouse.where("LOWER(from_email) = ?", sender)
+              .where.not(body_text: nil)
+              .order(received_at: :desc)
+              .limit(3)
+              .pluck(:body_text)
+
+            email_bodies[sender] = bodies if bodies.any?
           end
         end
 
