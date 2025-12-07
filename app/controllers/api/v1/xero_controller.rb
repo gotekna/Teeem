@@ -803,6 +803,8 @@ module Api
               primary_company_id: contact.primary_company_id,
               primary_company_name: contact.primary_company&.display_name,
               is_team_contact: contact.is_team_contact,
+              is_customer: contact.is_customer?,
+              is_supplier: contact.is_supplier?,
               xero_id: contact.xero_id,
               synced: contact.xero_id.present?,
               last_synced_at: contact.last_synced_at,
