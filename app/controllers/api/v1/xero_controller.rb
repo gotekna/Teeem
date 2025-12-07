@@ -1383,6 +1383,7 @@ module Api
           total_invoices_in_db = ExternalInvoice.count
           invoices_with_contacts = ExternalInvoice.where.not(contact_id: nil)
           total_with_contacts = invoices_with_contacts.count
+          invoices_without_contacts = total_invoices_in_db - total_with_contacts
           last_invoice_sync = ExternalInvoice.maximum(:last_synced_at)
 
           # Invoice breakdown by type
@@ -1392,6 +1393,20 @@ module Api
             credit_notes: ExternalInvoice.where(invoice_type: "credit_note").count,
             quotes: ExternalInvoice.quotes.count
           }
+
+          # Stage 1 blocker info - why aren't all invoices linked?
+          stage1_blocker = if invoices_without_contacts > 0
+            # Find example unlinked invoices to help diagnose
+            unlinked_sample = ExternalInvoice.where(contact_id: nil).limit(5).pluck(:external_id, :contact_name)
+            {
+              reason: "#{invoices_without_contacts} invoices not linked to TEEEM contacts",
+              detail: "Xero contacts need to be matched to TEEEM contacts first",
+              unlinked_count: invoices_without_contacts,
+              sample_unlinked: unlinked_sample.map { |ext_id, name| { xero_id: ext_id, contact_name: name } }
+            }
+          else
+            nil
+          end
 
           # ============================================
           # STAGE 2: PDF Download (Xero -> Active Storage)
@@ -1474,6 +1489,32 @@ module Api
           # PDF sync runs every 2 hours at minute 45
           next_pdf_sync = calculate_next_run(now_brisbane, 120, 45)
 
+          # Stage 2 blocker info - why isn't PDF sync faster?
+          stage2_blocker = if pdfs_pending > 0
+            hours_remaining = (estimated_remaining_minutes / 60.0).round(1)
+            days_remaining = (hours_remaining / 24.0).round(1)
+            {
+              reason: "Rate limited: 50 PDFs every 2 hours",
+              detail: "Xero API limits prevent faster syncing. #{pdfs_pending} PDFs pending.",
+              pending_count: pdfs_pending,
+              estimated_hours: hours_remaining,
+              estimated_days: days_remaining > 1 ? days_remaining : nil
+            }
+          else
+            nil
+          end
+
+          # Stage 3 blocker info
+          stage3_blocker = if sharepoint_pending > 0
+            {
+              reason: "Waiting for PDF downloads",
+              detail: "SharePoint uploads happen automatically when PDFs are downloaded",
+              pending_count: sharepoint_pending
+            }
+          else
+            nil
+          end
+
           render json: {
             success: true,
             data: {
@@ -1481,10 +1522,12 @@ module Api
               stage1_data_sync: {
                 total_in_database: total_invoices_in_db,
                 linked_to_contacts: total_with_contacts,
+                unlinked_count: invoices_without_contacts,
                 last_sync_at: last_invoice_sync,
                 next_sync_at: next_invoice_sync,
                 schedule: "Every 30 minutes",
-                breakdown: invoice_breakdown
+                breakdown: invoice_breakdown,
+                blocker: stage1_blocker
               },
 
               # Stage 2: PDF Download (Xero -> Active Storage)
@@ -1501,7 +1544,8 @@ module Api
                   bills: { total: bills_total, synced: bills_with_pdfs },
                   sales_invoices: { total: sales_total, synced: sales_with_pdfs },
                   quotes: { total: quotes_total, synced: quotes_with_pdfs }
-                }
+                },
+                blocker: stage2_blocker
               },
 
               # Stage 3: SharePoint Upload (Active Storage -> OneDrive)
@@ -1509,7 +1553,8 @@ module Api
                 total_to_upload: invoices_with_pdfs,
                 uploaded: sharepoint_pdfs_uploaded,
                 pending: sharepoint_pending,
-                progress_percentage: sharepoint_progress
+                progress_percentage: sharepoint_progress,
+                blocker: stage3_blocker
               },
 
               # Overall metrics (for backwards compatibility)
