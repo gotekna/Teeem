@@ -152,7 +152,7 @@ module Api
             :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
             :entity_type, :primary_role, :employment_status, :primary_company_id,
             # Family/Director flags
-            :is_family_member, :is_potential_director, :company_group_id,
+            :is_family_member, :is_potential_director, :company_group_id, :is_team_contact,
             # Xero fields
             :bank_bsb, :bank_account_number, :bank_account_name,
             :default_purchase_account, :default_sales_account,
@@ -403,7 +403,7 @@ module Api
           render json: {
             success: true,
             contact: @contact.as_json(
-              only: [ :id, :full_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas ],
+              only: [ :id, :full_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :is_team_contact, :is_family_member ],
               methods: [ :is_employee?, :is_sales?, :is_land_agent? ]
             )
           }
@@ -2517,21 +2517,30 @@ module Api
             },
 
             # The company derived from email domain (e.g., Tekna from @tekna.com.au)
-            domain_company: domain_company ? {
-              id: domain_company.id,
-              name: domain_company.full_name,
-              entity_type: domain_company.entity_type,
-              office_phone: domain_company.office_phone,
-              website: domain_company.website,
-              exists: true
-            } : {
-              id: nil,
-              name: domain_company_name,
-              entity_type: 'company',
-              office_phone: nil,
-              website: nil,
-              exists: false
-            },
+            # For personal email domains (gmail, hotmail, etc.), don't suggest any company
+            domain_company: if domain_company
+              {
+                id: domain_company.id,
+                name: domain_company.full_name,
+                entity_type: domain_company.entity_type,
+                office_phone: domain_company.office_phone,
+                website: domain_company.website,
+                exists: true
+              }
+            elsif domain_company_name.present? && !personal_email_domains.include?(domain.downcase)
+              # Only suggest creating a company for non-personal domains
+              {
+                id: nil,
+                name: domain_company_name,
+                entity_type: 'company',
+                office_phone: nil,
+                website: nil,
+                exists: false
+              }
+            else
+              # Personal email domain - don't suggest any company
+              nil
+            end,
 
             # Parent companies this person was communicating with
             parent_companies: parent_companies.map { |pc|
@@ -2841,11 +2850,13 @@ module Api
             /(0\d\s?\d{4}\s?\d{4})/
           ]
 
-          # Direct line pattern
+          # Direct line pattern (including 1800/1300 numbers)
           direct_patterns = [
             /(?:Direct|Dir|D)[:\s]*(\+61\s?\d{1}\s?\d{4}\s?\d{4})/i,
             /(?:Direct|Dir|D)[:\s]*(\(0\d\)\s?\d{4}\s?\d{4})/i,
-            /(?:Direct|Dir|D)[:\s]*(0\d\s?\d{4}\s?\d{4})/i
+            /(?:Direct|Dir|D)[:\s]*(0\d\s?\d{4}\s?\d{4})/i,
+            /(?:Direct|Dir|D)[:\s]*(1800\s?\d{3}\s?\d{3})/i,
+            /(?:Direct|Dir|D)[:\s]*(1300\s?\d{3}\s?\d{3})/i
           ]
 
           # Try to extract mobile first
@@ -3194,6 +3205,7 @@ module Api
           :is_family_member,
           :is_potential_director,
           :company_group_id,
+          :is_team_contact,
           # NOTE: primary_company_id is now READ-ONLY (auto-synced from ContactRelationship)
           # NOTE: Xero accounting fields (bank details, payment terms, balances) are READ-ONLY
           # They are synced from Xero and cannot be edited in TEEEM
