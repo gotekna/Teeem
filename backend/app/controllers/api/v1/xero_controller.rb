@@ -1420,15 +1420,18 @@ module Api
           # ============================================
           # STAGE 3: SharePoint Upload (Active Storage -> OneDrive)
           # ============================================
-          # Documents with expected_onedrive_path means they were uploaded to SharePoint
-          sharepoint_uploaded = CompanyDocument.where(source: "xero")
-                                               .where.not(expected_onedrive_path: nil)
-                                               .where(documentable_type: "ExternalInvoice")
-                                               .count
+          # Count PDFs that have been uploaded to SharePoint (have expected_onedrive_path set)
+          # Only count PDFs (not attachments) to match Stage 2's count
+          sharepoint_pdfs_uploaded = CompanyDocument.where(source: "xero")
+                                                    .where("external_id LIKE ?", "xero:%:pdf")
+                                                    .where.not(expected_onedrive_path: nil)
+                                                    .where(documentable_type: "ExternalInvoice")
+                                                    .count
 
           # PDFs downloaded but not yet on SharePoint
-          sharepoint_pending = invoices_with_pdfs - sharepoint_uploaded
-          sharepoint_progress = invoices_with_pdfs.zero? ? 0 : ((sharepoint_uploaded.to_f / invoices_with_pdfs) * 100).round(1)
+          sharepoint_pending = [invoices_with_pdfs - sharepoint_pdfs_uploaded, 0].max
+          sharepoint_progress = invoices_with_pdfs.zero? ? 0 : ((sharepoint_pdfs_uploaded.to_f / invoices_with_pdfs) * 100).round(1)
+          sharepoint_progress = [sharepoint_progress, 100].min # Cap at 100%
 
           # ============================================
           # Breakdown by invoice type (for PDF stage)
@@ -1504,7 +1507,7 @@ module Api
               # Stage 3: SharePoint Upload (Active Storage -> OneDrive)
               stage3_sharepoint: {
                 total_to_upload: invoices_with_pdfs,
-                uploaded: sharepoint_uploaded,
+                uploaded: sharepoint_pdfs_uploaded,
                 pending: sharepoint_pending,
                 progress_percentage: sharepoint_progress
               },
@@ -1514,7 +1517,7 @@ module Api
               pdfs_synced: invoices_with_pdfs,
               pending: pdfs_pending,
               progress_percentage: pdf_progress,
-              sharepoint_uploads: sharepoint_uploaded,
+              sharepoint_uploads: sharepoint_pdfs_uploaded,
               synced_last_24h: pdfs_last_24h,
               last_sync_at: last_pdf_sync,
               next_sync_at: next_pdf_sync,

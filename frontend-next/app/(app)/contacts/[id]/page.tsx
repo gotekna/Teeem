@@ -1894,12 +1894,17 @@ export default function ContactDetailPage() {
     try {
       // For person/sole_trader: construct full_name from first/last name
       // For company/trust: use company_name_or_trust (SSoT) - backend syncs this to display_name
-      // For price_only: use full_name directly
-      const full_name = hasFirstLastName(formData.entity_type)
+      // For price_only: use full_name directly (AUTO-UPPERCASE)
+      let full_name = hasFirstLastName(formData.entity_type)
         ? [formData.first_name, formData.middle_name, formData.last_name].filter(Boolean).join(" ") || "Unknown"
         : hasCompanyName(formData.entity_type)
           ? formData.company_name_or_trust || "Unknown"
           : formData.full_name || "Unknown";
+
+      // Price Only contacts are always saved in CAPITALS
+      if (isPriceOnly(formData.entity_type)) {
+        full_name = full_name.toUpperCase();
+      }
 
       // Prepare contact_emails_attributes (filtering out destroyed items for new records)
       const contact_emails_attributes = (contact.contact_emails || [])
@@ -2297,19 +2302,57 @@ export default function ContactDetailPage() {
                             <Label htmlFor="last_name">Last Name</Label>
                             <Input id="last_name" value={formData.last_name} onChange={(e) => handleInputChange("last_name", e.target.value)} onBlur={handleAutoSave} />
                           </div>
+                          {/* Show full_name from database as read-only (SSoT) */}
+                          <div className="space-y-2">
+                            <Label htmlFor="full_name_display">Full Name (SSoT)</Label>
+                            <Input
+                              id="full_name_display"
+                              value={contact.full_name || ""}
+                              disabled
+                              className="bg-muted"
+                            />
+                            <p className="text-xs text-muted-foreground">Database value - updated on save from First + Middle + Last name</p>
+                          </div>
                         </>
                       ) : (
-                        /* Company, Trust use company_name_or_trust (SSoT), Price Only uses full_name */
-                        <div className="space-y-2">
-                          <Label htmlFor={isPriceOnly(formData.entity_type) ? "full_name" : "company_name_or_trust"}>
-                            Display Name
-                          </Label>
-                          {isPriceOnly(formData.entity_type) ? (
-                            <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange("full_name", e.target.value)} onBlur={handleAutoSave} />
-                          ) : (
-                            <Input id="company_name_or_trust" value={formData.company_name_or_trust} onChange={(e) => handleInputChange("company_name_or_trust", e.target.value)} onBlur={handleAutoSave} />
+                        /* Company, Trust use company_name_or_trust (SSoT), Price Only shows full_name read-only */
+                        <>
+                          <div className="space-y-2">
+                            <Label htmlFor="company_name_or_trust">
+                              {isPriceOnly(formData.entity_type) ? "Display Name" : "Company/Trust Name"}
+                            </Label>
+                            <Input
+                              id="company_name_or_trust"
+                              value={isPriceOnly(formData.entity_type) ? formData.full_name : formData.company_name_or_trust}
+                              onChange={(e) => {
+                                if (isPriceOnly(formData.entity_type)) {
+                                  // For Price Only, update full_name directly
+                                  handleInputChange("full_name", e.target.value);
+                                } else {
+                                  handleInputChange("company_name_or_trust", e.target.value);
+                                }
+                              }}
+                              onBlur={handleAutoSave}
+                              placeholder={isPriceOnly(formData.entity_type) ? "e.g. INTERNAL STAIRS" : "e.g. ABC Pty Ltd"}
+                            />
+                            {isPriceOnly(formData.entity_type) && (
+                              <p className="text-xs text-muted-foreground">Will be saved in CAPITALS automatically</p>
+                            )}
+                          </div>
+                          {/* Show computed full_name as read-only for Company/Trust */}
+                          {!isPriceOnly(formData.entity_type) && (
+                            <div className="space-y-2">
+                              <Label htmlFor="full_name_display">Full Name (auto-synced)</Label>
+                              <Input
+                                id="full_name_display"
+                                value={formData.full_name}
+                                disabled
+                                className="bg-muted"
+                              />
+                              <p className="text-xs text-muted-foreground">Automatically synced from Company/Trust Name</p>
+                            </div>
                           )}
-                        </div>
+                        </>
                       )}
                     </div>
                     <div className="space-y-2">

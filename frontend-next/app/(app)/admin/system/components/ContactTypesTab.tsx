@@ -136,7 +136,7 @@ const FIELD_MATRIX: Record<string, Record<string, "required" | "optional" | "com
     middle_name: "na",
     last_name: "na",
     company_name_or_trust: "na",
-    full_name: "required", // only field used
+    full_name: "required", // only field used - AUTO UPPERCASE on save
     email: "na",
     phone: "na",
     website: "na",
@@ -242,6 +242,13 @@ function EntityTypesReferenceCard() {
                     );
                   })}
                 </div>
+
+                {/* Special notes for entity type */}
+                {entityType.value === "price_only" && (
+                  <div className="text-xs bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-200 px-2 py-1.5 rounded border border-amber-200 dark:border-amber-800">
+                    <strong>Auto-uppercase:</strong> Name is automatically converted to CAPITALS on save
+                  </div>
+                )}
 
                 {/* Capabilities */}
                 <div className="pt-2 border-t space-y-1">
