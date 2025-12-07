@@ -2,22 +2,107 @@ class SyncConfiguration < ApplicationRecord
   ACCOUNTING_SYSTEMS = %w[xero quickbooks myob].freeze
 
   # Default field mappings - direction can be: import, export, bidirectional, none
+  # Based on Xero API Contact object: https://developer.xero.com/documentation/api/accounting/contacts
   DEFAULT_FIELD_MAPPINGS = {
-    "name" => { "direction" => "bidirectional", "xero_field" => "Name" },
-    "first_name" => { "direction" => "bidirectional", "xero_field" => "FirstName" },
-    "last_name" => { "direction" => "bidirectional", "xero_field" => "LastName" },
-    "email" => { "direction" => "bidirectional", "xero_field" => "EmailAddress" },
-    "mobile_phone" => { "direction" => "bidirectional", "xero_field" => "Phones.MOBILE" },
-    "office_phone" => { "direction" => "bidirectional", "xero_field" => "Phones.DEFAULT" },
-    "tax_number" => { "direction" => "bidirectional", "xero_field" => "TaxNumber" },
-    "bank_bsb" => { "direction" => "export", "xero_field" => "BankAccountDetails.BSB" },
-    "bank_account_number" => { "direction" => "export", "xero_field" => "BankAccountDetails.AccountNumber" },
-    "bank_account_name" => { "direction" => "export", "xero_field" => "BankAccountDetails.AccountName" },
-    "bill_due_day" => { "direction" => "bidirectional", "xero_field" => "PaymentTerms.Bills.Day" },
-    "bill_due_type" => { "direction" => "bidirectional", "xero_field" => "PaymentTerms.Bills.Type" },
-    "sales_due_day" => { "direction" => "bidirectional", "xero_field" => "PaymentTerms.Sales.Day" },
-    "sales_due_type" => { "direction" => "bidirectional", "xero_field" => "PaymentTerms.Sales.Type" },
-    "contact_persons" => { "direction" => "import", "xero_field" => "ContactPersons" }
+    # Basic Information (Name and core details)
+    "name" => { "direction" => "bidirectional", "xero_field" => "Name", "group" => "basic", "label" => "Name", "description" => "Full name of contact/organisation (max 255 chars)" },
+    "first_name" => { "direction" => "bidirectional", "xero_field" => "FirstName", "group" => "basic", "label" => "First Name", "description" => "First name of contact person (max 255 chars)" },
+    "last_name" => { "direction" => "bidirectional", "xero_field" => "LastName", "group" => "basic", "label" => "Last Name", "description" => "Last name of contact person (max 255 chars)" },
+    "email" => { "direction" => "bidirectional", "xero_field" => "EmailAddress", "group" => "basic", "label" => "Email", "description" => "Email address of contact person (max 255 chars)" },
+    "tax_number" => { "direction" => "bidirectional", "xero_field" => "TaxNumber", "group" => "basic", "label" => "ABN/Tax Number", "description" => "Tax number (ABN in Australia)" },
+    "company_number" => { "direction" => "bidirectional", "xero_field" => "CompanyNumber", "group" => "basic", "label" => "Company Number", "description" => "Company registration number (ACN in Australia)" },
+
+    # Contact Numbers (Xero-specific identifiers)
+    "xero_contact_number" => { "direction" => "import", "xero_field" => "ContactNumber", "group" => "xero_ids", "label" => "Contact Number", "description" => "External identifier for contacts (read-only in Xero UI)" },
+    "xero_account_number" => { "direction" => "import", "xero_field" => "AccountNumber", "group" => "xero_ids", "label" => "Account Number", "description" => "Unique account number for identification" },
+    "xero_contact_status" => { "direction" => "import", "xero_field" => "ContactStatus", "group" => "xero_ids", "label" => "Status", "description" => "ACTIVE, ARCHIVED, or GDPRREQUEST" },
+
+    # Phone Numbers
+    "mobile_phone" => { "direction" => "bidirectional", "xero_field" => "Phones.MOBILE", "group" => "phones", "label" => "Mobile Phone", "description" => "Mobile phone number" },
+    "office_phone" => { "direction" => "bidirectional", "xero_field" => "Phones.DEFAULT", "group" => "phones", "label" => "Office Phone", "description" => "Default/office phone number" },
+    "fax_phone" => { "direction" => "bidirectional", "xero_field" => "Phones.FAX", "group" => "phones", "label" => "Fax", "description" => "Fax number" },
+    "direct_dial" => { "direction" => "bidirectional", "xero_field" => "Phones.DDI", "group" => "phones", "label" => "Direct Dial", "description" => "Direct dial number" },
+
+    # Address (Street address)
+    "address_street" => { "direction" => "bidirectional", "xero_field" => "Addresses.STREET", "group" => "address", "label" => "Street Address", "description" => "Physical/street address" },
+    "address_pobox" => { "direction" => "bidirectional", "xero_field" => "Addresses.POBOX", "group" => "address", "label" => "Postal Address", "description" => "PO Box/postal address" },
+
+    # Banking & Payment
+    "bank_bsb" => { "direction" => "export", "xero_field" => "BankAccountDetails.BSB", "group" => "banking", "label" => "Bank BSB", "description" => "Bank BSB number (export only - security)" },
+    "bank_account_number" => { "direction" => "export", "xero_field" => "BankAccountDetails.AccountNumber", "group" => "banking", "label" => "Account Number", "description" => "Bank account number (export only - security)" },
+    "bank_account_name" => { "direction" => "export", "xero_field" => "BankAccountDetails.AccountName", "group" => "banking", "label" => "Account Name", "description" => "Bank account name (export only - security)" },
+
+    # Payment Terms - Bills (Payables)
+    "bill_due_day" => { "direction" => "bidirectional", "xero_field" => "PaymentTerms.Bills.Day", "group" => "payment_terms", "label" => "Bill Due Day", "description" => "Day of month for bill payments" },
+    "bill_due_type" => { "direction" => "bidirectional", "xero_field" => "PaymentTerms.Bills.Type", "group" => "payment_terms", "label" => "Bill Due Type", "description" => "DAYSAFTERBILLDATE, DAYSAFTERBILLMONTH, OFCURRENTMONTH, OFFOLLOWINGMONTH" },
+
+    # Payment Terms - Sales (Receivables)
+    "sales_due_day" => { "direction" => "bidirectional", "xero_field" => "PaymentTerms.Sales.Day", "group" => "payment_terms", "label" => "Sales Due Day", "description" => "Day of month for sales invoices" },
+    "sales_due_type" => { "direction" => "bidirectional", "xero_field" => "PaymentTerms.Sales.Type", "group" => "payment_terms", "label" => "Sales Due Type", "description" => "DAYSAFTERBILLDATE, DAYSAFTERBILLMONTH, OFCURRENTMONTH, OFFOLLOWINGMONTH" },
+
+    # Default Accounts
+    "default_purchase_account" => { "direction" => "bidirectional", "xero_field" => "PurchasesDefaultAccountCode", "group" => "accounts", "label" => "Purchases Account", "description" => "Default account code for purchases" },
+    "default_sales_account" => { "direction" => "bidirectional", "xero_field" => "SalesDefaultAccountCode", "group" => "accounts", "label" => "Sales Account", "description" => "Default account code for sales" },
+
+    # Tracking Categories
+    "sales_tracking" => { "direction" => "import", "xero_field" => "SalesTrackingCategories", "group" => "tracking", "label" => "Sales Tracking", "description" => "Default tracking categories for sales" },
+    "purchases_tracking" => { "direction" => "import", "xero_field" => "PurchasesTrackingCategories", "group" => "tracking", "label" => "Purchases Tracking", "description" => "Default tracking categories for purchases" },
+
+    # Currency & Discount
+    "default_currency" => { "direction" => "import", "xero_field" => "DefaultCurrency", "group" => "finance", "label" => "Currency", "description" => "Default currency for invoices" },
+    "default_discount" => { "direction" => "bidirectional", "xero_field" => "Discount", "group" => "finance", "label" => "Discount %", "description" => "Default discount percentage for the contact" },
+
+    # Balances (Read-only from Xero)
+    "accounts_receivable_outstanding" => { "direction" => "import", "xero_field" => "Balances.AccountsReceivable.Outstanding", "group" => "balances", "label" => "AR Outstanding", "description" => "Outstanding receivables balance" },
+    "accounts_receivable_overdue" => { "direction" => "import", "xero_field" => "Balances.AccountsReceivable.Overdue", "group" => "balances", "label" => "AR Overdue", "description" => "Overdue receivables balance" },
+    "accounts_payable_outstanding" => { "direction" => "import", "xero_field" => "Balances.AccountsPayable.Outstanding", "group" => "balances", "label" => "AP Outstanding", "description" => "Outstanding payables balance" },
+    "accounts_payable_overdue" => { "direction" => "import", "xero_field" => "Balances.AccountsPayable.Overdue", "group" => "balances", "label" => "AP Overdue", "description" => "Overdue payables balance" },
+
+    # Contact Persons
+    "contact_persons" => { "direction" => "import", "xero_field" => "ContactPersons", "group" => "people", "label" => "Contact Persons", "description" => "Additional contact people (max 5)" },
+
+    # Contact Groups
+    "contact_groups" => { "direction" => "import", "xero_field" => "ContactGroups", "group" => "groups", "label" => "Contact Groups", "description" => "Groups this contact belongs to" },
+
+    # Customer/Supplier Flags
+    "is_customer" => { "direction" => "import", "xero_field" => "IsCustomer", "group" => "type", "label" => "Is Customer", "description" => "Boolean - contact is a customer" },
+    "is_supplier" => { "direction" => "import", "xero_field" => "IsSupplier", "group" => "type", "label" => "Is Supplier", "description" => "Boolean - contact is a supplier" },
+
+    # Branding
+    "branding_theme" => { "direction" => "import", "xero_field" => "BrandingTheme", "group" => "branding", "label" => "Branding Theme", "description" => "Default branding theme for documents" },
+
+    # Batches (Payment services)
+    "batch_payments" => { "direction" => "import", "xero_field" => "BatchPayments", "group" => "payments", "label" => "Batch Payments", "description" => "Bank details for batch payments" },
+
+    # Other
+    "website" => { "direction" => "import", "xero_field" => "Website", "group" => "basic", "label" => "Website", "description" => "Website URL (read-only via API)" },
+    "skype" => { "direction" => "import", "xero_field" => "SkypeUserName", "group" => "basic", "label" => "Skype", "description" => "Skype username" },
+
+    # Attachments (Read-only)
+    "has_attachments" => { "direction" => "import", "xero_field" => "HasAttachments", "group" => "meta", "label" => "Has Attachments", "description" => "Boolean - contact has file attachments" },
+
+    # Validation Status
+    "has_validation_errors" => { "direction" => "import", "xero_field" => "HasValidationErrors", "group" => "meta", "label" => "Validation Errors", "description" => "Boolean - contact has validation errors in Xero" }
+  }.freeze
+
+  # Field groups for UI organization
+  FIELD_GROUPS = {
+    "basic" => { "label" => "Basic Information", "description" => "Name and core details", "order" => 1 },
+    "xero_ids" => { "label" => "Xero Identifiers", "description" => "Xero-specific identification fields", "order" => 2 },
+    "phones" => { "label" => "Phone Numbers", "description" => "Contact phone numbers", "order" => 3 },
+    "address" => { "label" => "Addresses", "description" => "Physical and postal addresses", "order" => 4 },
+    "banking" => { "label" => "Banking Details", "description" => "Bank account information", "order" => 5 },
+    "payment_terms" => { "label" => "Payment Terms", "description" => "Default payment terms for bills and invoices", "order" => 6 },
+    "accounts" => { "label" => "Default Accounts", "description" => "Default ledger accounts", "order" => 7 },
+    "tracking" => { "label" => "Tracking Categories", "description" => "Default tracking for reporting", "order" => 8 },
+    "finance" => { "label" => "Financial Settings", "description" => "Currency and discount settings", "order" => 9 },
+    "balances" => { "label" => "Account Balances", "description" => "Outstanding and overdue amounts (read-only)", "order" => 10 },
+    "people" => { "label" => "Contact Persons", "description" => "Additional people linked to contact", "order" => 11 },
+    "groups" => { "label" => "Contact Groups", "description" => "Xero contact groups membership", "order" => 12 },
+    "type" => { "label" => "Contact Type", "description" => "Customer/Supplier classification", "order" => 13 },
+    "branding" => { "label" => "Branding", "description" => "Default branding themes", "order" => 14 },
+    "payments" => { "label" => "Payment Services", "description" => "Batch payment settings", "order" => 15 },
+    "meta" => { "label" => "Metadata", "description" => "System status fields", "order" => 16 }
   }.freeze
 
   DEFAULT_CLEANUP_OPTIONS = {
