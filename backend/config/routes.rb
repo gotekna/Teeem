@@ -331,6 +331,7 @@ Rails.application.routes.draw do
           get :company_with_first_name
           get :person_without_name
           get :missing_contact_info
+          get :connected_mailboxes
           get :preview_employee_extraction
           post :extract_employees
         end

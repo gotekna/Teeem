@@ -95,6 +95,12 @@ interface SelectionState {
   contactsToMerge: number[]; // IDs of contacts to merge into selected contact
 }
 
+interface Mailbox {
+  user_id: number;
+  user_name: string;
+  email: string;
+}
+
 function ExtractEmployeesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -112,6 +118,33 @@ function ExtractEmployeesContent() {
   const [currentStep, setCurrentStep] = React.useState<1 | 2>(1); // Always start at step 1, auto-search will move to step 2
   const [initialLoadDone, setInitialLoadDone] = React.useState(false);
 
+  // Mailbox selection state
+  const [mailboxes, setMailboxes] = React.useState<Mailbox[]>([]);
+  const [selectedMailboxes, setSelectedMailboxes] = React.useState<Set<string>>(new Set());
+  const [loadingMailboxes, setLoadingMailboxes] = React.useState(true);
+
+  // Fetch connected mailboxes on mount
+  React.useEffect(() => {
+    const fetchMailboxes = async () => {
+      try {
+        const result = await api.get<{ success: boolean; mailboxes: Mailbox[] }>(
+          "/api/v1/contacts/connected_mailboxes"
+        );
+        setMailboxes(result.mailboxes || []);
+      } catch (error) {
+        console.error("Failed to fetch mailboxes:", error);
+        toast({
+          title: "Warning",
+          description: "Could not load connected mailboxes",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingMailboxes(false);
+      }
+    };
+    fetchMailboxes();
+  }, []);
+
   // Auto-search on load if emails are in URL
   React.useEffect(() => {
     if (emailsFromUrl && !initialLoadDone) {
@@ -122,6 +155,26 @@ function ExtractEmployeesContent() {
       }
     }
   }, [emailsFromUrl, initialLoadDone]);
+
+  const toggleMailbox = (email: string) => {
+    setSelectedMailboxes((prev) => {
+      const next = new Set(prev);
+      if (next.has(email)) {
+        next.delete(email);
+      } else {
+        next.add(email);
+      }
+      return next;
+    });
+  };
+
+  const selectAllMailboxes = () => {
+    setSelectedMailboxes(new Set(mailboxes.map((m) => m.email)));
+  };
+
+  const deselectAllMailboxes = () => {
+    setSelectedMailboxes(new Set());
+  };
 
   const handleSearchWithEmails = async (emails: string[]) => {
     if (emails.length === 0) return;
@@ -231,19 +284,22 @@ function ExtractEmployeesContent() {
   };
 
   const handleSearch = async () => {
-    const validPatterns = emailPatterns.filter((p) => p.trim().length > 0);
+    // Combine mailbox selections with manual email patterns
+    const mailboxEmails = Array.from(selectedMailboxes);
+    const manualEmails = emailPatterns.filter((p) => p.trim().length > 0);
+    const allEmails = [...new Set([...mailboxEmails, ...manualEmails])]; // Dedupe
 
-    if (validPatterns.length === 0) {
+    if (allEmails.length === 0) {
       toast({
         title: "Error",
-        description: "Please add at least one email address",
+        description: "Please select at least one mailbox or enter an email address",
         variant: "destructive",
       });
       return;
     }
 
     // Update URL with email patterns so refresh works
-    const newUrl = `/admin/system/extract-employees?emails=${encodeURIComponent(validPatterns.join(","))}`;
+    const newUrl = `/admin/system/extract-employees?emails=${encodeURIComponent(allEmails.join(","))}`;
     window.history.replaceState({}, "", newUrl);
 
     setSearching(true);
@@ -251,7 +307,7 @@ function ExtractEmployeesContent() {
       const result = await api.get<{ preview: PreviewItem[]; total_found: number }>(
         "/api/v1/contacts/preview_employee_extraction",
         {
-          params: { email_patterns: validPatterns.join(",") },
+          params: { email_patterns: allEmails.join(",") },
         }
       );
       setPreviewData(result.preview || []);
@@ -631,13 +687,81 @@ function ExtractEmployeesContent() {
                   <CardTitle>Email Warehouse Search</CardTitle>
                 </div>
                 <CardDescription>
-                  Enter email addresses to search for people who have communicated with them.
-                  The system will match email senders/recipients to existing contacts.
+                  Select which mailboxes to search for external contacts.
+                  The system will find people who have emailed these addresses and match them to existing contacts.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
+                {/* Connected Mailboxes */}
                 <div className="space-y-3">
-                  <label className="text-sm font-medium">Email Addresses to Search</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">Connected Mailboxes</label>
+                    {mailboxes.length > 0 && (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={selectAllMailboxes}
+                          disabled={selectedMailboxes.size === mailboxes.length}
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={deselectAllMailboxes}
+                          disabled={selectedMailboxes.size === 0}
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {loadingMailboxes ? (
+                    <div className="flex items-center justify-center py-8 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                      Loading mailboxes...
+                    </div>
+                  ) : mailboxes.length === 0 ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        No connected mailboxes found. Connect Outlook in Settings to enable mailbox selection.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {mailboxes.map((mailbox) => (
+                        <div
+                          key={mailbox.email}
+                          className={`flex items-center gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                            selectedMailboxes.has(mailbox.email)
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/50"
+                          }`}
+                          onClick={() => toggleMailbox(mailbox.email)}
+                        >
+                          <Checkbox
+                            checked={selectedMailboxes.has(mailbox.email)}
+                            onCheckedChange={() => toggleMailbox(mailbox.email)}
+                          />
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <div className="min-w-0">
+                              <div className="font-medium truncate">{mailbox.user_name}</div>
+                              <div className="text-sm text-muted-foreground truncate">{mailbox.email}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Additional Email (optional) */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-muted-foreground">Or add an additional email address</label>
                   {emailPatterns.map((pattern, idx) => (
                     <div key={idx} className="flex gap-2">
                       <div className="relative flex-1">
@@ -645,7 +769,7 @@ function ExtractEmployeesContent() {
                         <Input
                           value={pattern}
                           onChange={(e) => handleEmailChange(idx, e.target.value)}
-                          placeholder="e.g., rachel@tekna.com.au"
+                          placeholder="e.g., accounts@company.com.au"
                           className="pl-10"
                         />
                       </div>
@@ -666,14 +790,14 @@ function ExtractEmployeesContent() {
                   <Database className="h-4 w-4" />
                   <AlertDescription>
                     <strong>How it works:</strong> The system searches your email warehouse for anyone who has sent or
-                    received emails to/from these addresses. It then matches them to existing contacts by name and lets
+                    received emails to/from the selected mailboxes. It then matches them to existing contacts by name and lets
                     you add email addresses and create relationships.
                   </AlertDescription>
                 </Alert>
 
                 <Button
                   onClick={handleSearch}
-                  disabled={searching || emailPatterns.every((p) => !p.trim())}
+                  disabled={searching || (selectedMailboxes.size === 0 && emailPatterns.every((p) => !p.trim()))}
                   className="w-full"
                   size="lg"
                 >
