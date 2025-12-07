@@ -233,6 +233,91 @@ function escapeCSVValue(value: unknown): string {
 }
 
 /**
+ * Fuzzy search using trigram similarity (matches PostgreSQL pg_trgm behavior)
+ *
+ * Compares the search term against words in the text to find fuzzy matches.
+ * This allows users to find "Coastal" by typing "coasal" (typo).
+ *
+ * @param search - The search term (user input, may contain typos)
+ * @param text - The text to search within
+ * @param threshold - Minimum similarity score (0-1). Default 0.4 matches pg_trgm word_similarity
+ * @returns true if the text fuzzy-matches the search term
+ */
+export function fuzzyMatch(search: string, text: string, threshold: number = 0.4): boolean {
+  if (!search || !text) return false;
+
+  const searchLower = search.toLowerCase();
+  const textLower = text.toLowerCase();
+
+  // First check exact substring match (fast path)
+  if (textLower.includes(searchLower)) {
+    return true;
+  }
+
+  // Calculate trigram similarity for fuzzy matching
+  // Split text into words and check each word against search term
+  const words = textLower.split(/\s+/);
+
+  for (const word of words) {
+    const similarity = trigramSimilarity(searchLower, word);
+    if (similarity >= threshold) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Calculate trigram similarity between two strings (Dice coefficient)
+ * Mimics PostgreSQL's pg_trgm similarity function
+ *
+ * @param a - First string
+ * @param b - Second string
+ * @returns Similarity score between 0 and 1
+ */
+function trigramSimilarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+
+  const trigramsA = getTrigrams(a);
+  const trigramsB = getTrigrams(b);
+
+  if (trigramsA.size === 0 || trigramsB.size === 0) return 0;
+
+  // Count matching trigrams
+  let matches = 0;
+  for (const trigram of trigramsA) {
+    if (trigramsB.has(trigram)) {
+      matches++;
+    }
+  }
+
+  // Dice coefficient: 2 * |A ∩ B| / (|A| + |B|)
+  return (2 * matches) / (trigramsA.size + trigramsB.size);
+}
+
+/**
+ * Extract trigrams from a string
+ * Pads with spaces like PostgreSQL's pg_trgm
+ *
+ * @param s - Input string
+ * @returns Set of trigrams
+ */
+function getTrigrams(s: string): Set<string> {
+  const trigrams = new Set<string>();
+
+  // Pad string with spaces (like pg_trgm)
+  const padded = `  ${s} `;
+
+  for (let i = 0; i < padded.length - 2; i++) {
+    trigrams.add(padded.slice(i, i + 3));
+  }
+
+  return trigrams;
+}
+
+/**
  * Calculate column statistics
  *
  * @param data - Array of records

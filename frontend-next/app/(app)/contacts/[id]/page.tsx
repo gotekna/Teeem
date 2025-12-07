@@ -2188,7 +2188,7 @@ export default function ContactDetailPage() {
           <Button
             variant="outline"
             onClick={handleEnrichFromWeb}
-            disabled={enrichingFromWeb || !contact?.email}
+            disabled={enrichingFromWeb || (!contact?.email && !contact?.website)}
           >
             {enrichingFromWeb ? (
               <>

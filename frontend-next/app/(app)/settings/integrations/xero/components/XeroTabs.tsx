@@ -854,18 +854,19 @@ function ContactsGroupedTable({
             {/* Normal Contacts Group */}
             {normalContacts.length > 0 && (
               <Collapsible open={normalOpen} onOpenChange={setNormalOpen}>
-                <CollapsibleTrigger asChild>
-                  <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b cursor-pointer hover:bg-muted/70 transition-colors">
-                    {normalOpen ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                    <span className="font-medium">Active Contacts</span>
-                    <Badge variant="secondary" className="ml-2">
-                      {normalContacts.length}
-                    </Badge>
-                  </div>
+                <CollapsibleTrigger
+                  showIcon={false}
+                  className="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b cursor-pointer hover:bg-muted/70 transition-colors"
+                >
+                  {normalOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <span className="font-medium">Active Contacts</span>
+                  <Badge variant="secondary" className="ml-2">
+                    {normalContacts.length}
+                  </Badge>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <Table>
@@ -887,20 +888,21 @@ function ContactsGroupedTable({
             {/* Flagged Contacts Group (Price Only + Person with Company) */}
             {flaggedContacts.length > 0 && (
               <Collapsible open={flaggedOpen} onOpenChange={setFlaggedOpen}>
-                <CollapsibleTrigger asChild>
-                  <div className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
-                    {flaggedOpen ? (
-                      <ChevronDown className="h-4 w-4 text-red-600" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-red-600" />
-                    )}
-                    <span className="font-medium text-red-700 dark:text-red-400">
-                      Flagged Contacts (Price Only / Person with Company)
-                    </span>
-                    <Badge variant="outline" className="ml-2 bg-red-100 text-red-700 border-red-300">
-                      {flaggedContacts.length}
-                    </Badge>
-                  </div>
+                <CollapsibleTrigger
+                  showIcon={false}
+                  className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                >
+                  {flaggedOpen ? (
+                    <ChevronDown className="h-4 w-4 text-red-600" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-red-600" />
+                  )}
+                  <span className="font-medium text-red-700 dark:text-red-400">
+                    Flagged Contacts (Price Only / Person with Company)
+                  </span>
+                  <Badge variant="outline" className="ml-2 bg-red-100 text-red-700 border-red-300">
+                    {flaggedContacts.length}
+                  </Badge>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <Table>

@@ -224,7 +224,7 @@ import { useSchemaHandlers } from "./core/hooks/useSchemaHandlers";
 import { useTableHandlers } from "./core/hooks/useTableHandlers";
 
 // Extracted utilities (Phase 1 refactoring)
-import { extractSelectedIds, formatCellValue, truncateText } from "./utils/table-utils";
+import { extractSelectedIds, formatCellValue, truncateText, fuzzyMatch } from "./utils/table-utils";
 import { getLookupOptions, fetchLookupOptionsForTable, invalidateLookupCache, lookupCache, lookupFetchPromises } from "./utils/lookup-cache";
 
 // Jotai atoms for centralized state management (SSoT)
@@ -1809,14 +1809,15 @@ export default function TeeemTableView({
     let result = [...entries];
 
     // Apply search filter (client-side if no server search)
+    // Uses fuzzy matching to handle typos like "coasal" -> "coastal"
     if (search && !onServerSearch) {
-      const searchLower = search.toLowerCase();
       result = result.filter((entry) => {
         return COLUMNS.some((col) => {
           if (col.key === "select" || col.key === "actions") return false;
           const value = entry[col.key];
           if (value == null) return false;
-          return String(value).toLowerCase().includes(searchLower);
+          // Use fuzzy match for typo tolerance
+          return fuzzyMatch(search, String(value));
         });
       });
     }
