@@ -48,13 +48,15 @@ module HealthChecks
 
     # Contacts missing both email and phone
     def check_missing_contact_info
+      # Exclude price_only contacts - they don't need contact info (just pricing references)
       contacts = Contact.where(deleted: [ false, nil ])
+                       .where.not(entity_type: "price_only")
                        .where("(email IS NULL OR email = '') AND (mobile_phone IS NULL OR mobile_phone = '') AND (office_phone IS NULL OR office_phone = '')")
-                       .select(:id, :full_name)
+                       .select(:id, :full_name, :entity_type)
 
       build_result(
         name: "Contacts Missing Contact Info",
-        description: "Contacts without email or phone number - difficult to reach.",
+        description: "Contacts (excluding price_only) without email or phone number - difficult to reach.",
         severity: :info,
         items: contacts,
         icon: "phone-x-mark",
