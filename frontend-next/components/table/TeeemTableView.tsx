@@ -2645,21 +2645,13 @@ export default function TeeemTableView({
       const isSystemColumn = NON_EDITABLE_COLUMNS.includes(column.key) || column.system === true;
       const isColumnEditable = column.editable !== false && !isSystemColumn && !isComputed;
 
-      // Check if we're in any editing state (row-level OR global edit mode)
-      const shouldShowEditor = isEditing || isEditMode;
-
-      // Row-level editing OR global edit mode - use RowEditingCell component
-      if (shouldShowEditor && isColumnEditable) {
-        // For global edit mode, initialize editing data if not present
-        const cellEditingData = rowEditingData[column.key] !== undefined
-          ? rowEditingData
-          : { ...entry };
-
+      // Row-level editing (pencil icon clicked) - show editor for entire row
+      if (isEditing && isColumnEditable) {
         return (
           <RowEditingCell
             entry={entry}
             column={column}
-            rowEditingData={cellEditingData}
+            rowEditingData={rowEditingData}
             setEditingData={setEditingData}
             validationError={validationErrors[entry.id]?.[column.key]}
             handleCellBlur={handleCellBlur}
@@ -2669,8 +2661,8 @@ export default function TeeemTableView({
         );
       }
 
-      // Show read-only indicator for non-editable columns when in edit mode
-      if (shouldShowEditor && !isColumnEditable) {
+      // Show read-only indicator for non-editable columns when in row edit mode
+      if (isEditing && !isColumnEditable) {
         // Don't show indicator for select/actions columns
         if (column.key === 'select' || column.key === 'actions') {
           // Fall through to normal rendering
@@ -2683,6 +2675,25 @@ export default function TeeemTableView({
             </span>
           );
         }
+      }
+
+      // Global edit mode - show clickable cells that start row editing on click
+      // Cells stay as lightweight text until clicked
+      if (isEditMode && isColumnEditable) {
+        const displayValue = value == null || value === "" ? "-" : String(value);
+        return (
+          <div
+            className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
+            onClick={(e) => {
+              e.stopPropagation();
+              // Start editing this row when cell is clicked
+              startEditing(entry);
+            }}
+            title="Click to edit"
+          >
+            {displayValue}
+          </div>
+        );
       }
 
       // Handle searchable_text - read-only search terms display

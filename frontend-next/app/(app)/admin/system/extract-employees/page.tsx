@@ -39,6 +39,7 @@ interface MatchingContact {
   mobile_phone: string | null;
   entity_type: string;
   xero_contact_type: string | null; // CUSTOMER, SUPPLIER, or null
+  xero_invoice_count: number | null; // If > 0, likely a customer
   relationship_to_domain_company_exists: boolean;
   relationships_to_parent_companies: {
     company_id: number;
@@ -149,7 +150,9 @@ function ExtractEmployeesContent() {
           .map((c) => c.id);
 
         // Don't suggest employee relationships for customers - they are clients, not employees
-        const isCustomer = firstContact?.xero_contact_type === "CUSTOMER";
+        // Check xero_contact_type or fallback to xero_invoice_count (if they have invoices, they're likely a customer)
+        const isCustomer = firstContact?.xero_contact_type === "CUSTOMER" ||
+          (firstContact?.xero_invoice_count && firstContact.xero_invoice_count > 0);
 
         defaultSelections[idx] = {
           selected: true,
@@ -239,7 +242,9 @@ function ExtractEmployeesContent() {
           .map((c) => c.id);
 
         // Don't suggest employee relationships for customers - they are clients, not employees
-        const isCustomer = firstContact?.xero_contact_type === "CUSTOMER";
+        // Check xero_contact_type or fallback to xero_invoice_count (if they have invoices, they're likely a customer)
+        const isCustomer = firstContact?.xero_contact_type === "CUSTOMER" ||
+          (firstContact?.xero_invoice_count && firstContact.xero_invoice_count > 0);
 
         defaultSelections[idx] = {
           selected: true,
@@ -767,8 +772,10 @@ function ExtractEmployeesContent() {
                                           <div className="flex-1">
                                             <div className="flex items-center gap-2">
                                               <span className="font-semibold">{contact.full_name}</span>
-                                              {contact.xero_contact_type === "CUSTOMER" && (
-                                                <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">Customer</Badge>
+                                              {(contact.xero_contact_type === "CUSTOMER" || (contact.xero_invoice_count && contact.xero_invoice_count > 0)) && (
+                                                <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
+                                                  Customer{contact.xero_invoice_count ? ` (${contact.xero_invoice_count} invoices)` : ""}
+                                                </Badge>
                                               )}
                                               {contact.xero_contact_type === "SUPPLIER" && (
                                                 <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">Supplier</Badge>
@@ -836,8 +843,10 @@ function ExtractEmployeesContent() {
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold">{selectedContact?.full_name}</span>
-                                      {selectedContact?.xero_contact_type === "CUSTOMER" && (
-                                        <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">Customer</Badge>
+                                      {(selectedContact?.xero_contact_type === "CUSTOMER" || (selectedContact?.xero_invoice_count && selectedContact.xero_invoice_count > 0)) && (
+                                        <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
+                                          Customer{selectedContact?.xero_invoice_count ? ` (${selectedContact.xero_invoice_count} invoices)` : ""}
+                                        </Badge>
                                       )}
                                       {selectedContact?.xero_contact_type === "SUPPLIER" && (
                                         <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">Supplier</Badge>

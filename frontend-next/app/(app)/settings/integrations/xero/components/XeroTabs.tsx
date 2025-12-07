@@ -416,9 +416,9 @@ export function XeroFieldMapping() {
           </div>
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <div className="text-sm font-medium">Skip Default Suppliers</div>
+              <div className="text-sm font-medium">Skip Price-Only Contacts</div>
               <div className="text-sm text-muted-foreground">
-                Don't sync Xero's default suppliers
+                Don't sync contacts marked as price_only in Xero
               </div>
             </div>
             <Switch
