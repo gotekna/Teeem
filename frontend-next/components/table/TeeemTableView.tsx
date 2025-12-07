@@ -3050,8 +3050,50 @@ export default function TeeemTableView({
             <ChevronsDownUp className="h-3 w-3 mr-1" />
             Collapse All
           </Button>
+
+          {/* Spacer to push content to the right */}
+          <div className="flex-1" />
+
+          {/* Bulk action buttons and selection count - only show when rows selected */}
           {selectedRows.size > 0 && (
             <>
+              <div className="h-4 w-px bg-border mx-2" />
+              {/* Bulk Update - column-based update modal */}
+              {onRowUpdate && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBulkUpdateModal(true)}
+                  className="h-7 px-2 text-xs"
+                >
+                  <Pencil className="h-3 w-3 mr-1" />
+                  Bulk Update
+                </Button>
+              )}
+              {/* Inline Edit - edit all selected rows inline like a spreadsheet */}
+              {onRowUpdate && !viewOnly && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => startMultiEditing(Array.from(selectedRows))}
+                  className="h-7 px-2 text-xs"
+                >
+                  <Pencil className="h-3 w-3 mr-1" />
+                  Inline Edit
+                </Button>
+              )}
+              {/* Merge button - combine rows into one */}
+              {(onBulkMerge || (enableMerge !== false && foundationIdNumeric)) && !viewOnly && selectedRows.size >= 2 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleMergeClick(Array.from(selectedRows))}
+                  className="h-7 px-2 text-xs"
+                >
+                  <GitMerge className="h-3 w-3 mr-1" />
+                  Merge
+                </Button>
+              )}
               <div className="h-4 w-px bg-border mx-2" />
               <span className="text-sm font-medium">{selectedRows.size} selected</span>
               <Button
@@ -3064,9 +3106,6 @@ export default function TeeemTableView({
               </Button>
             </>
           )}
-          <span className="text-xs text-muted-foreground ml-auto">
-            {visibleRows.length} rows visible
-          </span>
         </div>
 
         {groupViewMode === "inline" ? (
@@ -3277,6 +3316,46 @@ export default function TeeemTableView({
           />
           </div>
 
+          {/* Bulk action buttons - show when rows selected (flat table only, grouped has inline) */}
+          {selectedRows.size > 0 && !groupByColumn && (
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="h-4 w-px bg-border mx-1" />
+              {/* Bulk Update - column-based update modal */}
+              {onRowUpdate && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBulkUpdateModal(true)}
+                >
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Bulk Update
+                </Button>
+              )}
+              {/* Inline Edit - edit all selected rows inline like a spreadsheet */}
+              {onRowUpdate && !viewOnly && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => startMultiEditing(Array.from(selectedRows))}
+                >
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Inline Edit
+                </Button>
+              )}
+              {/* Merge button - combine rows into one */}
+              {(onBulkMerge || (enableMerge !== false && foundationIdNumeric)) && !viewOnly && selectedRows.size >= 2 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleMergeClick(Array.from(selectedRows))}
+                >
+                  <GitMerge className="h-4 w-4 mr-1" />
+                  Merge
+                </Button>
+              )}
+            </div>
+          )}
+
           {/* Actions - right side with buttons */}
           <div className="toolbar-right flex items-center gap-2 shrink-0">
             {/* Custom actions */}
@@ -3464,8 +3543,8 @@ export default function TeeemTableView({
         </div>
       )}
 
-      {/* Bulk actions */}
-      {selectedRows.size > 0 && (
+      {/* Bulk actions - HIDDEN - now shown inline in toolbar */}
+      {false && selectedRows.size > 0 && (
         <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
           {/* Only show selection count/clear when NOT in grouped view (grouped view has it inline) */}
           {!groupByColumn && (
@@ -3487,7 +3566,7 @@ export default function TeeemTableView({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onBulkEdit(Array.from(selectedRows))}
+              onClick={() => onBulkEdit?.(Array.from(selectedRows))}
             >
               <Pencil className="h-4 w-4 mr-1" />
               Edit
@@ -3532,14 +3611,14 @@ export default function TeeemTableView({
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => onBulkDelete(Array.from(selectedRows))}
+              onClick={() => onBulkDelete?.(Array.from(selectedRows))}
             >
               <Trash2 className="h-4 w-4 mr-1" />
               Delete
             </Button>
           )}
           {/* Custom bulk actions - rendered via callback */}
-          {customBulkActions && customBulkActions(
+          {customBulkActions?.(
             Array.from(selectedRows),
             () => setSelectedRows(new Set<string | number>())
           )}
