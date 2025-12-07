@@ -38,16 +38,26 @@ class XeroAttachmentSyncJob < ApplicationJob
     tenant_id = options[:tenant_id]
     invoice_type = options[:invoice_type] # 'sales_invoice', 'bill', etc.
 
-    # Find invoices that have an external_id but no documents linked
+    # Find invoices that DON'T already have PDF synced
+    # More efficient than checking for ANY documents - specifically looks for PDFs
+    already_synced_ids = CompanyDocument
+      .where(source: "xero")
+      .where("external_id LIKE ?", "xero:%:pdf")
+      .where(documentable_type: "ExternalInvoice")
+      .pluck(:documentable_id)
+
     query = ExternalInvoice
       .where.not(external_id: nil)
       .where.not(tenant_id: nil)
-      .left_joins(:company_documents)
-      .where(company_documents: { id: nil }) # No documents yet
+      .where.not(contact_id: nil) # Only invoices linked to contacts
+      .where.not(id: already_synced_ids) # Skip already synced
       .limit(limit)
 
     query = query.where(tenant_id: tenant_id) if tenant_id.present?
     query = query.where(invoice_type: invoice_type) if invoice_type.present?
+
+    remaining_count = query.except(:limit).count
+    Rails.logger.info("[XeroAttachmentSyncJob] Found #{remaining_count} invoices needing PDFs (processing #{limit})")
 
     results = {
       processed: 0,
@@ -75,8 +85,9 @@ class XeroAttachmentSyncJob < ApplicationJob
         Rails.logger.error("[XeroAttachmentSyncJob] Error processing invoice #{invoice.id}: #{e.message}")
       end
 
-      # Rate limiting - don't overwhelm Xero API
-      sleep(0.5) if results[:processed] % 5 == 0
+      # Rate limiting - Xero PDF endpoints have strict limits
+      # 10s delay to stay safely under limit
+      sleep(10)
     end
 
     Rails.logger.info("[XeroAttachmentSyncJob] Batch complete: #{results.slice(:processed, :success, :failed)}")
