@@ -25,6 +25,7 @@ import {
   Building2,
   ExternalLink,
   Trash2,
+  UserPlus,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -78,6 +79,7 @@ export function MergeContactsModal({
 }: MergeContactsModalProps) {
   const [primaryContactId, setPrimaryContactId] = React.useState<number | null>(null);
   const [merging, setMerging] = React.useState(false);
+  const [fixingEmail, setFixingEmail] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   // Auto-select the best contact (highest completeness score, has Xero connection)
@@ -120,6 +122,37 @@ export function MergeContactsModal({
     }
   };
 
+  // Handle fix email assignment: keep email on person, clear from companies, create employment links
+  const handleFixEmailAssignment = async () => {
+    // Find the person contact
+    const personContact = contacts.find(c => c.entity_type === 'person');
+    // Find all company/trust contacts
+    const companyContacts = contacts.filter(c =>
+      c.entity_type === 'company' || c.entity_type === 'trust' || c.entity_type === 'sole_trader'
+    );
+
+    if (!personContact || companyContacts.length === 0) {
+      setError("Could not identify person and company contacts");
+      return;
+    }
+
+    setFixingEmail(true);
+    setError(null);
+
+    try {
+      await api.post("/api/v1/contacts/fix_email_assignment", {
+        person_id: personContact.id,
+        company_ids: companyContacts.map(c => c.id),
+      });
+      onMergeComplete();
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fix email assignment");
+    } finally {
+      setFixingEmail(false);
+    }
+  };
+
   const primaryContact = contacts.find((c) => c.id === primaryContactId);
   const secondaryContacts = contacts.filter((c) => c.id !== primaryContactId);
 
@@ -143,18 +176,31 @@ export function MergeContactsModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Mixed Entity Types Warning */}
+          {/* Mixed Entity Types Warning with Fix Button */}
           {hasPersonAndCompany && (
             <Alert className="border-amber-200 bg-amber-50">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
               <AlertDescription className="text-amber-800">
                 <strong>⚠️ Different entity types detected!</strong> These contacts include both
-                people and companies sharing the same email. Instead of merging, consider:
-                <ul className="list-disc ml-5 mt-2 space-y-1">
-                  <li>Keep the person contact with this email</li>
-                  <li>Remove/change the email on company contacts</li>
-                  <li>Link the person as an employee of the company</li>
-                </ul>
+                people and companies sharing the same email.
+                <div className="mt-3 p-3 bg-white rounded-md border border-amber-200">
+                  <p className="font-medium text-amber-900 mb-2">Recommended: Fix Email Assignment</p>
+                  <ul className="list-disc ml-5 space-y-1 text-sm">
+                    <li>Keep the email on the person contact</li>
+                    <li>Clear the email from company contacts</li>
+                    <li>Link the person as an employee of each company</li>
+                  </ul>
+                  <Button
+                    className="mt-3 bg-amber-600 hover:bg-amber-700"
+                    size="sm"
+                    onClick={handleFixEmailAssignment}
+                    disabled={fixingEmail}
+                  >
+                    {fixingEmail && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Fix Email Assignment
+                  </Button>
+                </div>
               </AlertDescription>
             </Alert>
           )}
@@ -298,14 +344,21 @@ export function MergeContactsModal({
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={merging}>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={merging || fixingEmail}>
             Cancel
           </Button>
-          <Button onClick={handleMerge} disabled={!primaryContactId || merging}>
-            {merging && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Merge Contacts
-          </Button>
+          {hasPersonAndCompany ? (
+            <Button onClick={handleMerge} disabled={!primaryContactId || merging} variant="secondary">
+              {merging && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Merge Anyway
+            </Button>
+          ) : (
+            <Button onClick={handleMerge} disabled={!primaryContactId || merging}>
+              {merging && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Merge Contacts
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -320,6 +320,7 @@ Rails.application.routes.draw do
           post :bulk_delete
           post :merge
           post :fix_name_casing
+          post :fix_email_assignment
           post :match_supplier
           get :validate_abn
           get :possible_duplicates

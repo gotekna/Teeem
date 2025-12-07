@@ -1418,6 +1418,30 @@ export default function ContactDetailPage() {
     setHasChanges(true);
   };
 
+  // Handle team contact toggle with auto-save
+  const handleTeamContactToggle = async (checked: boolean) => {
+    if (!contact) return;
+
+    // Update local state immediately for responsive UI
+    setFormData(prev => ({ ...prev, is_team_contact: checked }));
+
+    // Auto-save the change
+    setSaving(true);
+    try {
+      await api.patch(`/api/v1/contacts/${contact.id}`, {
+        contact: { is_team_contact: checked }
+      });
+      // Reload to get updated display_name from server
+      loadContact();
+    } catch (err) {
+      console.error("Failed to save team contact setting:", err);
+      // Revert on error
+      setFormData(prev => ({ ...prev, is_team_contact: !checked }));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Handle company selection changes
   const handleCompanyChange = async (newSelectedCompanies: Option[]) => {
     if (!contact) return;
@@ -2230,7 +2254,7 @@ export default function ContactDetailPage() {
                           <Label>Team Contact</Label>
                           <p className="text-xs text-muted-foreground">Append company name to avoid duplicates (e.g., "Accounts Team - Buildcraft")</p>
                         </div>
-                        <Switch checked={formData.is_team_contact} onCheckedChange={(c) => handleInputChange("is_team_contact", c)} />
+                        <Switch checked={formData.is_team_contact} onCheckedChange={handleTeamContactToggle} disabled={saving} />
                       </div>
                     )}
                   </CardContent>
