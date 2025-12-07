@@ -2405,6 +2405,27 @@ module Api
         end
       end
 
+      # GET /api/v1/contacts/connected_mailboxes
+      # Returns list of users with connected Outlook mailboxes for employee extraction
+      def connected_mailboxes
+        users_with_outlook = User.joins(:outlook_credential)
+          .select("users.id, users.name, users.email, user_outlook_credentials.email as outlook_email")
+
+        render json: {
+          success: true,
+          mailboxes: users_with_outlook.map { |u|
+            {
+              user_id: u.id,
+              user_name: u.name,
+              email: u.outlook_email || u.email
+            }
+          }
+        }
+      rescue => e
+        Rails.logger.error("Connected mailboxes error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       # GET /api/v1/contacts/preview_employee_extraction
       # Preview what would be extracted from email warehouse for specified email addresses
       # New flow:
