@@ -128,6 +128,12 @@ export default function XeroIntegrationPage() {
         description: "Verify job tracking categories are accessible",
         status: "pending",
       },
+      {
+        id: "contact_validation",
+        name: "Contact Data Validation",
+        description: "Check contacts for Xero sync compatibility",
+        status: "pending",
+      },
     ];
 
     setValidationTests(tests);
@@ -204,6 +210,45 @@ export default function XeroIntegrationPage() {
               const trackingRes = await api.get<{ success: boolean; data: any }>("/api/v1/xero/tracking_categories");
               passed = trackingRes.success;
               if (!passed) errorMsg = "Could not fetch tracking categories";
+            } catch (err: any) {
+              errorMsg = err.message || "API call failed";
+            }
+            break;
+          }
+
+          case "contact_validation": {
+            try {
+              const validationRes = await api.get<{
+                success: boolean;
+                data: {
+                  total_contacts: number;
+                  valid_contacts: number;
+                  invalid_contacts: number;
+                  errors_by_type: Record<string, number>;
+                  sample_errors: Array<{
+                    contact_id: number;
+                    contact_name: string;
+                    errors: Array<{ field: string; message: string }>;
+                  }>;
+                }
+              }>("/api/v1/xero/validate_contacts");
+
+              if (validationRes.success) {
+                const { invalid_contacts, total_contacts, errors_by_type } = validationRes.data;
+
+                if (invalid_contacts === 0) {
+                  passed = true;
+                } else {
+                  // Show summary of issues
+                  const errorTypes = Object.entries(errors_by_type)
+                    .map(([field, count]) => `${field}: ${count}`)
+                    .join(", ");
+                  errorMsg = `${invalid_contacts}/${total_contacts} contacts have issues (${errorTypes})`;
+                  passed = false;
+                }
+              } else {
+                errorMsg = "Could not validate contacts";
+              }
             } catch (err: any) {
               errorMsg = err.message || "API call failed";
             }
