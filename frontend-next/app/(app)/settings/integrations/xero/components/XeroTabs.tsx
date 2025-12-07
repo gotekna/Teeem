@@ -84,6 +84,8 @@ interface ContactSyncItem {
   primary_company_id: number | null;
   primary_company_name: string | null;
   is_team_contact: boolean;
+  is_customer: boolean;
+  is_supplier: boolean;
   xero_id: string | null;
   synced: boolean;
   last_synced_at: string | null;
@@ -704,18 +706,35 @@ function formatLastSync(dateString: string | null): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const time = date.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" });
 
   if (diffDays === 0) {
-    // Today - show time
-    return date.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" });
+    // Today - show time only
+    return time;
   } else if (diffDays === 1) {
-    return "Yesterday";
+    return `Yest ${time}`;
   } else if (diffDays < 7) {
-    return `${diffDays}d ago`;
+    return `${diffDays}d ${time}`;
   } else {
-    // Show date
-    return date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+    // Show date and time
+    const dateStr = date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+    return `${dateStr} ${time}`;
   }
+}
+
+// Helper to get role display
+function getRoleDisplay(contact: ContactSyncItem): { text: string; color: string } {
+  const isCustomer = contact.is_customer;
+  const isSupplier = contact.is_supplier;
+
+  if (isCustomer && isSupplier) {
+    return { text: "Both", color: "bg-purple-100 text-purple-700 border-purple-300" };
+  } else if (isCustomer) {
+    return { text: "Customer", color: "bg-blue-100 text-blue-700 border-blue-300" };
+  } else if (isSupplier) {
+    return { text: "Supplier", color: "bg-orange-100 text-orange-700 border-orange-300" };
+  }
+  return { text: "-", color: "" };
 }
 
 // Helper component for rendering contact rows
@@ -731,6 +750,8 @@ function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: (
     return "text-red-600";
   };
 
+  const role = getRoleDisplay(contact);
+
   return (
     <TableRow
       className={cn(
@@ -740,11 +761,11 @@ function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: (
       onClick={onClick}
     >
       <TableCell className="font-medium py-2">
-        <div className="truncate max-w-[200px]" title={contact.display_name}>
+        <div className="truncate max-w-[180px]" title={contact.display_name}>
           {contact.display_name}
         </div>
         {contact.primary_company_name && (
-          <div className="text-xs text-muted-foreground truncate max-w-[200px]">
+          <div className="text-xs text-muted-foreground truncate max-w-[180px]">
             {contact.primary_company_name}
           </div>
         )}
@@ -753,6 +774,15 @@ function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: (
         <Badge variant="outline" className={cn("text-xs", isPriceOnly ? "bg-red-100 text-red-700 border-red-300" : "")}>
           {contact.entity_type || "?"}
         </Badge>
+      </TableCell>
+      <TableCell className="py-2">
+        {role.text !== "-" ? (
+          <Badge variant="outline" className={cn("text-xs", role.color)}>
+            {role.text}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-xs">-</span>
+        )}
       </TableCell>
       <TableCell className="text-center text-sm py-2">
         {contact.invoices_count > 0 ? (
@@ -842,11 +872,12 @@ function ContactsGroupedTable({
       <TableRow>
         <TableHead>Contact</TableHead>
         <TableHead>Type</TableHead>
-        <TableHead className="text-center w-16">Inv</TableHead>
-        <TableHead className="text-center w-16">Bills</TableHead>
-        <TableHead className="text-center w-16">PDF</TableHead>
-        <TableHead className="w-24">Last Sync</TableHead>
-        <TableHead className="w-20">Status</TableHead>
+        <TableHead className="w-20">Role</TableHead>
+        <TableHead className="text-center w-12">Inv</TableHead>
+        <TableHead className="text-center w-12">Bills</TableHead>
+        <TableHead className="text-center w-12">PDF</TableHead>
+        <TableHead className="w-20">Last Sync</TableHead>
+        <TableHead className="w-16">Status</TableHead>
       </TableRow>
     </TableHeader>
   );
