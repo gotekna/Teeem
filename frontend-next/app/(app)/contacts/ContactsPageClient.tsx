@@ -338,7 +338,7 @@ export default function ContactsPageClient({
         tableName={foundation?.name || "Contacts"}
         enableExport={true}
         enableImport={true}
-        showDataHealth={false}
+        showDataHealth={true}
         onDataHealthIssueClick={handleDataHealthIssueClick}
         onRefresh={refresh}
         onRowClick={handleRowClick}
