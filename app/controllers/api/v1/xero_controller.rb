@@ -1461,34 +1461,70 @@ module Api
           estimated_remaining_seconds = pdfs_pending * 10
           estimated_remaining_minutes = (estimated_remaining_seconds / 60.0).round(0)
 
+          # Calculate next scheduled sync times (in Brisbane time AEST/AEDT)
+          brisbane_tz = ActiveSupport::TimeZone["Australia/Brisbane"]
+          now_brisbane = Time.current.in_time_zone(brisbane_tz)
+
+          # Invoice sync runs every 30 minutes
+          next_invoice_sync = calculate_next_run(now_brisbane, 30, 0)
+
+          # PDF sync runs every 2 hours at minute 45
+          next_pdf_sync = calculate_next_run(now_brisbane, 120, 45)
+
           render json: {
             success: true,
             data: {
-              # Overall progress
-              total_invoices: total_invoices,
+              # Stage 1: Invoice DATA sync (Xero -> Database)
+              stage1_data_sync: {
+                total_in_database: total_invoices_in_db,
+                linked_to_contacts: total_with_contacts,
+                last_sync_at: last_invoice_sync,
+                next_sync_at: next_invoice_sync,
+                schedule: "Every 30 minutes",
+                breakdown: invoice_breakdown
+              },
+
+              # Stage 2: PDF Download (Xero -> Active Storage)
+              stage2_pdf_download: {
+                total_to_sync: total_with_contacts,
+                downloaded: invoices_with_pdfs,
+                pending: pdfs_pending,
+                progress_percentage: pdf_progress,
+                last_sync_at: last_pdf_sync,
+                next_sync_at: next_pdf_sync,
+                schedule: "Every 2 hours (50 per batch)",
+                synced_last_24h: pdfs_last_24h,
+                breakdown: {
+                  bills: { total: bills_total, synced: bills_with_pdfs },
+                  sales_invoices: { total: sales_total, synced: sales_with_pdfs },
+                  quotes: { total: quotes_total, synced: quotes_with_pdfs }
+                }
+              },
+
+              # Stage 3: SharePoint Upload (Active Storage -> OneDrive)
+              stage3_sharepoint: {
+                total_to_upload: invoices_with_pdfs,
+                uploaded: sharepoint_uploaded,
+                pending: sharepoint_pending,
+                progress_percentage: sharepoint_progress
+              },
+
+              # Overall metrics (for backwards compatibility)
+              total_invoices: total_with_contacts,
               pdfs_synced: invoices_with_pdfs,
-              pending: pending_count,
-              progress_percentage: progress_percentage,
-
-              # SharePoint status
-              sharepoint_uploads: sharepoint_uploads,
-
-              # Activity
-              synced_last_24h: recent_syncs,
-              last_sync_at: last_sync,
-
-              # Breakdown by type
+              pending: pdfs_pending,
+              progress_percentage: pdf_progress,
+              sharepoint_uploads: sharepoint_uploaded,
+              synced_last_24h: pdfs_last_24h,
+              last_sync_at: last_pdf_sync,
+              next_sync_at: next_pdf_sync,
               breakdown: {
                 bills: { total: bills_total, synced: bills_with_pdfs },
                 sales_invoices: { total: sales_total, synced: sales_with_pdfs },
                 quotes: { total: quotes_total, synced: quotes_with_pdfs }
               },
-
-              # Estimates
               estimated_remaining_minutes: estimated_remaining_minutes,
-
-              # Health status
-              health: determine_pdf_sync_health(progress_percentage, pending_count, last_sync)
+              health: determine_pdf_sync_health(pdf_progress, pdfs_pending, last_pdf_sync)
             }
           }
         rescue StandardError => e
@@ -1682,7 +1718,8 @@ module Api
 
       # Determine PDF sync health status based on progress and activity
       def determine_pdf_sync_health(progress_percentage, pending_count, last_sync)
-        # Health status: healthy, warning, error, not_started
+        # Health status: healthy, partial, warning, not_started
+        # Note: We can't detect if a sync is actively running, so we show status based on completion
         if progress_percentage == 0 && pending_count > 0
           {
             status: "not_started",
@@ -1695,24 +1732,67 @@ module Api
             message: "PDF sync is up to date",
             color: "green"
           }
-        elsif progress_percentage >= 50
+        elsif last_sync.present? && last_sync > 1.hour.ago
+          # Recently synced (within last hour) - likely still running or just finished a batch
           {
             status: "in_progress",
-            message: "PDF sync is in progress",
+            message: "PDF sync recently active",
             color: "blue"
           }
         elsif last_sync.present? && last_sync < 7.days.ago
           {
             status: "warning",
-            message: "PDF sync hasn't run recently",
+            message: "PDF sync hasn't run in over a week",
             color: "yellow"
+          }
+        elsif pending_count > 0
+          # Has pending items but not recently synced
+          {
+            status: "partial",
+            message: "#{pending_count} PDFs pending sync",
+            color: "amber"
           }
         else
           {
-            status: "in_progress",
-            message: "PDF sync is running",
-            color: "blue"
+            status: "healthy",
+            message: "PDF sync complete",
+            color: "green"
           }
+        end
+      end
+
+      # Calculate the next scheduled run time for a recurring job
+      # @param now [Time] Current time in the target timezone
+      # @param interval_minutes [Integer] How often the job runs (in minutes)
+      # @param at_minute [Integer] Which minute of the interval it runs at (0 for start of interval)
+      # @return [Time] Next scheduled run time
+      def calculate_next_run(now, interval_minutes, at_minute = 0)
+        if interval_minutes >= 60
+          # For hourly+ intervals (e.g., every 2 hours at minute 45)
+          hours_interval = interval_minutes / 60
+          current_hour = now.hour
+          current_minute = now.min
+
+          # Find the next hour that matches the interval pattern
+          # Jobs run at hours: 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22 (for 2-hour intervals)
+          next_hour = current_hour
+          next_hour += 1 if current_minute >= at_minute && current_hour % hours_interval == (hours_interval - 1) % hours_interval
+
+          # Round up to next interval
+          next_hour = ((next_hour / hours_interval) + 1) * hours_interval if current_minute >= at_minute || current_hour % hours_interval != 0
+          next_hour = (current_hour / hours_interval) * hours_interval if current_minute < at_minute && current_hour % hours_interval == 0
+
+          # Simple approach: find next occurrence
+          candidate = now.beginning_of_hour.change(min: at_minute)
+          candidate += hours_interval.hours while candidate <= now
+          candidate
+        else
+          # For sub-hourly intervals (e.g., every 30 minutes)
+          minutes_since_midnight = now.hour * 60 + now.min
+          current_slot = minutes_since_midnight / interval_minutes
+          next_slot_minutes = (current_slot + 1) * interval_minutes + at_minute
+
+          now.beginning_of_day + next_slot_minutes.minutes
         end
       end
 
