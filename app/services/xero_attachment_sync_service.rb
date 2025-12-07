@@ -266,19 +266,20 @@ class XeroAttachmentSyncService
     ext = File.extname(filename).downcase
     name = filename.downcase
 
-    # Common patterns
-    return "invoice" if name.include?("invoice") || name.include?("inv")
-    return "bill" if name.include?("bill")
-    return "receipt" if name.include?("receipt")
+    # Map attachment filenames to valid CompanyDocument document_types
+    # Uses existing DocumentType names from the database
+    return "Sales Document" if name.include?("invoice") || name.include?("inv")
+    return "Purchases" if name.include?("bill")
+    return "Expenses" if name.include?("receipt")
     return "contract" if name.include?("contract")
-    return "quote" if name.include?("quote") || name.include?("estimate")
+    return "Estimation" if name.include?("quote") || name.include?("estimate")
 
-    # Default based on extension
+    # Default based on extension - use "General" which is a valid type
     case ext
-    when ".pdf" then "document"
-    when ".doc", ".docx" then "document"
-    when ".xls", ".xlsx" then "spreadsheet"
-    when ".jpg", ".jpeg", ".png" then "image"
+    when ".pdf" then "General"
+    when ".doc", ".docx" then "General"
+    when ".xls", ".xlsx" then "General"
+    when ".jpg", ".jpeg", ".png" then "General"
     else "other"
     end
   end
