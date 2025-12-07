@@ -8,6 +8,10 @@ module HealthChecks
   #   - Duplicate contacts by name (warning)
   #   - Duplicate contacts by email (warning)
   #   - Contacts without email or phone (info)
+  #   - Person contacts missing first_name (critical)
+  #   - Company contacts missing full_name (critical)
+  #   - Invalid entity_type (warning)
+  #   - Invalid website URL - must be http:// or https:// (warning)
   #
   class ContactsCheck < BaseCheck
     def self.check_type
@@ -117,6 +121,25 @@ module HealthChecks
       )
     end
 
+    # Contacts with invalid website URLs (not starting with http:// or https://)
+    def check_invalid_website
+      # Find contacts with website that doesn't start with http:// or https://
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where.not(website: [ nil, "" ])
+                       .where.not("website LIKE 'http://%' OR website LIKE 'https://%'")
+                       .select(:id, :full_name, :website, :entity_type)
+
+      build_result(
+        name: "Contacts with Invalid Website URL",
+        description: "Website must start with http:// or https://. Fix by adding the protocol or clearing the field.",
+        severity: :warning,
+        items: contacts,
+        icon: "globe",
+        action_path: "/contacts/:id",
+        check_name: "invalid_website"
+      )
+    end
+
     protected
 
     def format_items(items)
@@ -127,6 +150,8 @@ module HealthChecks
           display_parts = []
           display_parts << (item.full_name.presence || "Contact ##{item.id}")
           display_parts << "(#{item.entity_type})" if item.try(:entity_type).present?
+          # Show invalid website in display if present
+          display_parts << "- website: #{item.website}" if item.try(:website).present?
 
           {
             id: item.id,
@@ -135,7 +160,8 @@ module HealthChecks
             first_name: item.try(:first_name),
             last_name: item.try(:last_name),
             entity_type: item.try(:entity_type),
-            email: item.try(:email)
+            email: item.try(:email),
+            website: item.try(:website)
           }
         else
           super
