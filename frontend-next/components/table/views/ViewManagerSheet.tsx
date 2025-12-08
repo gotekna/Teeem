@@ -83,6 +83,7 @@ import { SortableViewItem } from "./SortableViewItem";
 import { SortableColumnItem } from "./SortableColumnItem";
 import { SortableSortByItem } from "./SortableSortByItem";
 import { SortableGroupByItem } from "./SortableGroupByItem";
+import { useEntityTypes } from "@/hooks/useEntityTypes";
 
 // Column interface for view manager
 interface Column {
@@ -173,6 +174,9 @@ export function ViewManagerSheet({
   // Lookup options cache for filter dropdowns
   const [lookupOptionsCache, setLookupOptionsCache] = React.useState<Record<string, { id: number; display: string }[]>>({});
   const [lookupLoadingColumns, setLookupLoadingColumns] = React.useState<Set<string>>(new Set());
+
+  // SSoT: Entity types from API (used for entity_type column filters)
+  const { metadata: entityTypeMetadata } = useEntityTypes();
 
   // DnD sensors
   const sensors = useSensors(
@@ -684,6 +688,27 @@ export function ViewManagerSheet({
             <SelectItem value="false">No</SelectItem>
           </SelectContent>
         </Select>
+      );
+    }
+
+    // SSoT: Use entity types from API for entity_type column (not column.available_choices)
+    if (filter.column === 'entity_type' && entityTypeMetadata.length > 0) {
+      const entityTypeItems: ComboboxItem[] = entityTypeMetadata.map((et) => ({
+        id: et.value,
+        label: et.label,
+      }));
+
+      return (
+        <div className="w-[140px]">
+          <ComboboxDropdown
+            items={entityTypeItems}
+            selectedItem={filter.value ? { id: String(filter.value), label: entityTypeMetadata.find(et => et.value === filter.value)?.label || String(filter.value) } : undefined}
+            onSelect={(item) => updateFilter(filter.id, { value: item.id })}
+            placeholder="Search type..."
+            searchInTrigger={true}
+            popoverProps={{ className: "w-[200px]" }}
+          />
+        </div>
       );
     }
 

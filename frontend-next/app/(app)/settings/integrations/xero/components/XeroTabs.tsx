@@ -708,7 +708,7 @@ export function XeroContactSync() {
   );
 }
 
-// Helper to format relative time compactly
+// Helper to format relative time compactly - always show relative (Xd, Xh, Xm)
 function formatRelativeTime(dateString: string | null): { text: string; isRecent: boolean; isOld: boolean } {
   if (!dateString) return { text: "-", isRecent: false, isOld: false };
 
@@ -731,10 +731,9 @@ function formatRelativeTime(dateString: string | null): { text: string; isRecent
     text = `${diffMins}m`;
   } else if (diffHours < 24) {
     text = `${diffHours}h`;
-  } else if (diffDays < 7) {
-    text = `${diffDays}d`;
   } else {
-    text = date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+    // Always show relative days, even for older dates
+    text = `${diffDays}d`;
   }
 
   return { text, isRecent, isOld };
@@ -763,8 +762,8 @@ function formatLastSync(dateString: string | null): string {
   }
 }
 
-// SSoT: 3-type sync status display component
-function SyncStatusCell({ syncStatus }: { syncStatus: SyncStatusPerContact }) {
+// SSoT: Compact 3-type sync status display (C:5m I:6d P:-)
+function SyncStatusCell({ syncStatus, hasError }: { syncStatus: SyncStatusPerContact; hasError?: boolean }) {
   const contact = formatRelativeTime(syncStatus.contact_synced_at);
   const invoices = formatRelativeTime(syncStatus.invoices_synced_at);
   const pdfs = formatRelativeTime(syncStatus.pdfs_synced_at);
@@ -778,28 +777,37 @@ function SyncStatusCell({ syncStatus }: { syncStatus: SyncStatusPerContact }) {
 
   const getTextColor = (info: { text: string; isRecent: boolean; isOld: boolean }) => {
     if (info.text === "-") return "text-muted-foreground";
-    if (info.isRecent) return "text-green-700";
-    if (info.isOld) return "text-amber-700";
-    return "text-green-600";
+    if (info.isRecent) return "text-green-700 dark:text-green-400";
+    if (info.isOld) return "text-amber-700 dark:text-amber-400";
+    return "text-green-600 dark:text-green-400";
   };
 
+  // If there's an error, show error indicator
+  if (hasError) {
+    return (
+      <div className="text-xs text-red-600 font-medium flex items-center gap-1">
+        <AlertTriangle className="h-3 w-3" />
+        Error
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-0.5 text-xs">
-      <div className="flex items-center gap-1">
-        <span className={cn("w-1.5 h-1.5 rounded-full", getDotColor(contact))} />
-        <span className="text-muted-foreground w-5">C:</span>
-        <span className={getTextColor(contact)}>{contact.text}</span>
-      </div>
-      <div className="flex items-center gap-1">
-        <span className={cn("w-1.5 h-1.5 rounded-full", getDotColor(invoices))} />
-        <span className="text-muted-foreground w-5">I:</span>
-        <span className={getTextColor(invoices)}>{invoices.text}</span>
-      </div>
-      <div className="flex items-center gap-1">
-        <span className={cn("w-1.5 h-1.5 rounded-full", getDotColor(pdfs))} />
-        <span className="text-muted-foreground w-5">P:</span>
-        <span className={getTextColor(pdfs)}>{pdfs.text}</span>
-      </div>
+    <div className="text-xs font-mono whitespace-nowrap">
+      <span className={cn("inline-flex items-center gap-0.5", getTextColor(contact))}>
+        <span className={cn("w-1.5 h-1.5 rounded-full inline-block", getDotColor(contact))} />
+        C:{contact.text}
+      </span>
+      {" "}
+      <span className={cn("inline-flex items-center gap-0.5", getTextColor(invoices))}>
+        <span className={cn("w-1.5 h-1.5 rounded-full inline-block", getDotColor(invoices))} />
+        I:{invoices.text}
+      </span>
+      {" "}
+      <span className={cn("inline-flex items-center gap-0.5", getTextColor(pdfs))}>
+        <span className={cn("w-1.5 h-1.5 rounded-full inline-block", getDotColor(pdfs))} />
+        P:{pdfs.text}
+      </span>
     </div>
   );
 }
@@ -891,27 +899,9 @@ function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: (
       </TableCell>
       <TableCell className="py-2">
         {contact.sync_status ? (
-          <SyncStatusCell syncStatus={contact.sync_status} />
+          <SyncStatusCell syncStatus={contact.sync_status} hasError={contact.has_error} />
         ) : (
           <span className="text-xs text-muted-foreground">{formatLastSync(contact.last_synced_at)}</span>
-        )}
-      </TableCell>
-      <TableCell className="py-2">
-        {contact.has_error ? (
-          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">
-            <AlertTriangle className="h-3 w-3 mr-1" />
-            Error
-          </Badge>
-        ) : contact.synced ? (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
-            <Check className="h-3 w-3 mr-1" />
-            OK
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">
-            <X className="h-3 w-3 mr-1" />
-            No
-          </Badge>
         )}
       </TableCell>
     </TableRow>
@@ -962,8 +952,7 @@ function ContactsGroupedTable({
         <TableHead className="text-center w-12">Inv</TableHead>
         <TableHead className="text-center w-12">Bills</TableHead>
         <TableHead className="text-center w-12">PDF</TableHead>
-        <TableHead className="w-24">Sync Status</TableHead>
-        <TableHead className="w-16">Status</TableHead>
+        <TableHead>Sync Status</TableHead>
       </TableRow>
     </TableHeader>
   );
