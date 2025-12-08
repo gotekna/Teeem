@@ -43,6 +43,16 @@ module HealthChecks
       ConsolidationCheck
     ].freeze
 
+    # Map check types to frontend route slugs
+    ROUTE_SLUGS = {
+      "pricebook" => "pricebook",
+      "contacts" => "contacts",
+      "jobs" => "jobs",
+      "companies" => "corporate",
+      "company_documents" => "documents",
+      "consolidation" => nil # No direct route for consolidation checks
+    }.freeze
+
     class << self
       # Get check service for a foundation ID
       def for_foundation(foundation_id)
@@ -132,10 +142,12 @@ module HealthChecks
             # Get foundation info if available
             foundation_id = service_class.respond_to?(:foundation_id) ? service_class.foundation_id : nil
             foundation_name = service_class.check_type.titleize
+            route_slug = ROUTE_SLUGS[service_class.check_type]
 
             module_summaries << {
               foundation_id: foundation_id,
               foundation_name: foundation_name,
+              route_slug: route_slug,
               health_score: module_score,
               total_issues: module_critical + module_warnings + module_info,
               critical_issues: module_critical,

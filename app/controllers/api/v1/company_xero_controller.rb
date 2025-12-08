@@ -216,9 +216,13 @@ module Api
 
         begin
           sync_service = XeroBankSyncService.new(@company)
-          result = sync_service.sync_bank_accounts
+          # SSoT: Auto-create bank accounts from Xero
+          result = sync_service.sync_bank_accounts(auto_create: true)
 
           if result[:success]
+            # Reload bank accounts to get any newly created ones
+            @company.bank_accounts.reload
+
             render json: {
               success: true,
               xero_accounts: result[:xero_accounts],
@@ -231,7 +235,10 @@ module Api
                   xero_account_id: ba.xero_account_id,
                   linked_to_xero: ba.linked_to_xero?
                 }
-              end
+              end,
+              # SSoT: Include auto-create stats
+              auto_created_count: result[:auto_created_count],
+              auto_linked_count: result[:auto_linked_count]
             }
           else
             render json: result, status: :unprocessable_entity

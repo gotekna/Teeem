@@ -19,6 +19,7 @@ class CompanyXeroConnection < ApplicationRecord
 
   # Callbacks
   after_create :create_connection_activity, if: :connected?
+  after_commit :sync_bank_accounts_from_xero, if: :just_connected?
 
   # Instance methods
   def connected?
@@ -129,6 +130,42 @@ class CompanyXeroConnection < ApplicationRecord
   end
 
   private
+
+  # Check if this connection was just connected (status changed to connected)
+  def just_connected?
+    connected? && saved_change_to_connection_status? && connection_status_before_last_save != "connected"
+  end
+
+  # SSoT: Auto-sync bank accounts when Xero connection is established
+  def sync_bank_accounts_from_xero
+    return unless company.present? && connected?
+
+    Rails.logger.info("[XeroConnection] Auto-syncing bank accounts for company #{company.id} after Xero connection")
+
+    begin
+      sync_service = XeroBankSyncService.new(company)
+      result = sync_service.sync_bank_accounts(auto_create: true)
+
+      if result[:success]
+        Rails.logger.info("[XeroConnection] Auto-synced #{result[:auto_created_count]} bank accounts from Xero for company #{company.id}")
+
+        # Create activity if any accounts were created
+        if result[:auto_created_count] > 0
+          company.company_activities.create!(
+            activity_type: "bank_accounts_synced",
+            description: "#{result[:auto_created_count]} bank account(s) auto-synced from Xero",
+            metadata: { created_count: result[:auto_created_count], linked_count: result[:auto_linked_count] },
+            performed_by: Current.user || User.first,
+            occurred_at: Time.current
+          )
+        end
+      else
+        Rails.logger.error("[XeroConnection] Failed to sync bank accounts: #{result[:error]}")
+      end
+    rescue StandardError => e
+      Rails.logger.error("[XeroConnection] Error syncing bank accounts from Xero: #{e.message}")
+    end
+  end
 
   def create_connection_activity
     return unless company.present?
