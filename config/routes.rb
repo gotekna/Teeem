@@ -470,6 +470,7 @@ Rails.application.routes.draw do
           post :test
           get :users
           post :configure_sync
+          post :sync_to_sharepoint
           delete :disconnect
           # SharePoint/OneDrive endpoints
           get :sharepoint_sites

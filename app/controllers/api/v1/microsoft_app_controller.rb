@@ -593,6 +593,38 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
   end
 
+  # POST /api/v1/microsoft_app/sync_to_sharepoint
+  # Sync emails to EmailWarehouse and attachments to SharePoint for a specific organization
+  def sync_to_sharepoint
+    unless current_user_admin?
+      return render json: { error: "Only admins can trigger SharePoint sync" }, status: :forbidden
+    end
+
+    organization_id = params[:organization_id]
+    unless organization_id.present?
+      return render json: { error: "organization_id is required" }, status: :bad_request
+    end
+
+    credential = OrganizationMicrosoftAppCredential.find_by(id: organization_id)
+    unless credential&.status == "connected"
+      return render json: { error: "Organization not connected" }, status: :not_found
+    end
+
+    # Queue the sync job
+    SyncEmailsToSharePointJob.perform_later(credential.id)
+
+    render json: {
+      success: true,
+      message: "Sync job queued for #{credential.name}. Emails will be synced to warehouse and attachments uploaded to SharePoint."
+    }
+  rescue StandardError => e
+    Rails.logger.error "[MicrosoftApp] Sync to SharePoint failed: #{e.message}"
+    render json: {
+      success: false,
+      error: e.message
+    }, status: :unprocessable_entity
+  end
+
   private
 
   def current_user_admin?
