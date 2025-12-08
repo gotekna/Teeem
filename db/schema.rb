@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_08_092706) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_08_095424) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -987,6 +987,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_092706) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "beneficiary_type"
+    t.string "class_description"
     t.index ["company_group_id"], name: "index_contact_company_group_memberships_on_company_group_id"
     t.index ["company_id"], name: "index_contact_company_group_memberships_on_company_id"
     t.index ["contact_id", "company_group_id", "membership_type"], name: "idx_contact_group_membership_unique", unique: true
