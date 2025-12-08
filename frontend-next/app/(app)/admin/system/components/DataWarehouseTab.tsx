@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,8 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  Building2,
+  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -176,6 +179,10 @@ interface ViewData {
 }
 
 export function DataWarehouseTab() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const companyId = searchParams.get("company_id");
+
   const [loading, setLoading] = React.useState(true);
   const [stats, setStats] = React.useState<OrgDataStats | null>(null);
   const [warehouseStatus, setWarehouseStatus] = React.useState<WarehouseStatus | null>(null);
@@ -187,20 +194,42 @@ export function DataWarehouseTab() {
   const [viewData, setViewData] = React.useState<ViewData | null>(null);
   const [loadingViewData, setLoadingViewData] = React.useState(false);
   const [viewOffset, setViewOffset] = React.useState(0);
+  const [companyName, setCompanyName] = React.useState<string | null>(null);
   const PAGE_SIZE = 50;
+
+  // Load company name if filtering by company
+  React.useEffect(() => {
+    if (companyId) {
+      api.get<{ id: number; name: string }>(`/api/v1/companies/${companyId}`)
+        .then((res) => {
+          if (res?.name) {
+            setCompanyName(res.name);
+          }
+        })
+        .catch(console.error);
+    } else {
+      setCompanyName(null);
+    }
+  }, [companyId]);
 
   React.useEffect(() => {
     loadStats();
     loadWarehouseStatus();
     loadWarehouseMetadata();
-  }, []);
+  }, [companyId]);
+
+  const clearCompanyFilter = () => {
+    router.push("/admin/system?tab=data-warehouse");
+  };
 
   const loadStats = async () => {
     try {
       setLoading(true);
-      const response = await api.get<{ success: boolean; data: OrgDataStats }>(
-        "/api/v1/organization/data_stats"
-      );
+      // Use company-specific endpoint if filtering by company
+      const endpoint = companyId
+        ? `/api/v1/companies/${companyId}/data_stats`
+        : "/api/v1/organization/data_stats";
+      const response = await api.get<{ success: boolean; data: OrgDataStats }>(endpoint);
       if (response?.success) {
         setStats(response.data);
       }
@@ -410,12 +439,35 @@ export function DataWarehouseTab() {
 
   return (
     <div className="space-y-6">
+      {/* Company Filter Banner */}
+      {companyId && (
+        <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+              Filtered by Company: {companyName || `ID ${companyId}`}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearCompanyFilter}
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+          >
+            <X className="h-4 w-4 mr-1" />
+            Clear Filter
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Data Warehouse</h2>
           <p className="text-sm text-muted-foreground">
-            Organization-wide document storage, sync status, and data statistics
+            {companyId
+              ? `Document storage and data statistics for ${companyName || "this company"}`
+              : "Organization-wide document storage, sync status, and data statistics"}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
