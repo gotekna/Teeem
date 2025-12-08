@@ -73,6 +73,9 @@ class BankTransactionReportService
     @start_date = start_date
     @end_date = end_date
     @opening_balance = opening_balance || BigDecimal("0")
+
+    # Look up account details from BankAccount table (linked via xero_account_id)
+    @bank_account_record = BankAccount.find_by(xero_account_id: @bank_account_id) if @bank_account_id.present?
   end
 
   def generate
@@ -275,26 +278,76 @@ class BankTransactionReportService
     # Reset to black
     canvas.fill_color("000000")
 
-    # Left side: Account name
-    canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text(account_name.upcase, at: [50, 760])
-
-    # Statement period (NAB style)
-    canvas.font("Helvetica", size: 9)
-    canvas.text("Statement starts", at: [50, 745])
+    # Left side: Statement period
     canvas.font("Helvetica", size: 9, variant: :bold)
-    canvas.text(format_date_nab(start_date), at: [130, 745])
-
+    canvas.text("Statement starts", at: [50, 760])
     canvas.font("Helvetica", size: 9)
-    canvas.text("Statement ends", at: [50, 730])
+    canvas.text(format_date_nab(start_date), at: [130, 760])
+
     canvas.font("Helvetica", size: 9, variant: :bold)
-    canvas.text(format_date_nab(end_date), at: [130, 730])
+    canvas.text("Statement ends", at: [50, 745])
+    canvas.font("Helvetica", size: 9)
+    canvas.text(format_date_nab(end_date), at: [130, 745])
+
+    # Right side: Account Details box (like real NAB statement)
+    draw_nab_account_details_box(canvas, account_name)
 
     # Source note
     canvas.font("Helvetica", size: 7)
     canvas.fill_color("999999")
     canvas.text("Source: Xero Bank Feed Data", at: [50, 710])
     canvas.fill_color("000000")
+  end
+
+  # Draw NAB-style Account Details box on right side of header
+  def draw_nab_account_details_box(canvas, account_name)
+    box_x = 320
+    box_y = 770
+    box_width = 235
+    box_height = 60
+
+    # Light gray background
+    canvas.fill_color("F5F5F5")
+    canvas.rectangle(box_x, box_y - box_height, box_width, box_height)
+    canvas.fill
+
+    # Border
+    canvas.stroke_color(BORDER_COLOR)
+    canvas.line_width(1)
+    canvas.rectangle(box_x, box_y - box_height, box_width, box_height)
+    canvas.stroke
+
+    # "Account Details" title with underline
+    canvas.fill_color("000000")
+    canvas.font("Helvetica", size: 10, variant: :bold)
+    canvas.text("Account Details", at: [box_x + 10, box_y - 15])
+    canvas.stroke_color("000000")
+    canvas.line(box_x + 10, box_y - 18, box_x + 100, box_y - 18)
+    canvas.stroke
+
+    # Get company name and account details from BankAccount record
+    if @bank_account_record.present?
+      company_name = @bank_account_record.company&.name || "Unknown"
+      bsb = @bank_account_record.formatted_bsb || "-"
+      account_number = @bank_account_record.account_number || "-"
+    else
+      company_name = account_name.split(" - ").last || account_name
+      bsb = "-"
+      account_number = "-"
+    end
+
+    # Company name and account type
+    canvas.font("Helvetica", size: 9)
+    canvas.text(company_name.upcase, at: [box_x + 10, box_y - 30])
+    canvas.text(@branding[:account_type].upcase, at: [box_x + 10, box_y - 41])
+
+    # BSB and Account Number
+    canvas.font("Helvetica", size: 8)
+    canvas.text("BSB number", at: [box_x + 10, box_y - 52])
+    canvas.text(bsb, at: [box_x + 100, box_y - 52])
+
+    canvas.text("Account number", at: [box_x + 130, box_y - 52])
+    canvas.text(account_number, at: [box_x + 200, box_y - 52])
   end
 
   def draw_nab_summary(canvas, opening_balance, total_debits, total_credits, closing_balance)

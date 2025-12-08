@@ -91,48 +91,80 @@ module HealthChecks
       # Get system-wide health summary
       # Runs critical checks across all services
       def system_health
-        results = []
+        all_results = []
+        module_summaries = []
         total_critical = 0
         total_warnings = 0
         total_info = 0
+        total_checks = 0
 
         ALL_SERVICES.each do |service_class|
           begin
             service = service_class.new
             checks = service.run_all
+            total_checks += checks.length
+
+            module_critical = 0
+            module_warnings = 0
+            module_info = 0
 
             checks.each do |check|
               count = check[:count] || 0
               case check[:severity]
               when "critical"
                 total_critical += count
+                module_critical += count
               when "warning"
                 total_warnings += count
+                module_warnings += count
               when "info"
                 total_info += count
+                module_info += count
               end
 
-              # Include checks with issues
-              results << check.merge(check_type: service_class.check_type) if count > 0
+              # Include checks with issues for detailed view
+              all_results << check.merge(check_type: service_class.check_type) if count > 0
             end
+
+            # Calculate health score for this module
+            module_score = BaseCheck.calculate_health_score(checks)
+
+            # Get foundation info if available
+            foundation_id = service_class.respond_to?(:foundation_id) ? service_class.foundation_id : nil
+            foundation_name = service_class.check_type.titleize
+
+            module_summaries << {
+              foundation_id: foundation_id,
+              foundation_name: foundation_name,
+              health_score: module_score,
+              total_issues: module_critical + module_warnings + module_info,
+              critical_issues: module_critical,
+              warning_issues: module_warnings,
+              info_issues: module_info,
+              checks_count: checks.length
+            }
           rescue StandardError => e
             Rails.logger.error "[HealthChecks::Registry] Error running #{service_class}: #{e.message}"
           end
         end
 
-        overall_score = BaseCheck.calculate_health_score(results)
+        overall_score = BaseCheck.calculate_health_score(all_results)
 
         {
           success: true,
           overall_health: overall_score,
           status: health_status(overall_score),
           summary: {
-            critical: total_critical,
-            warnings: total_warnings,
-            info: total_info,
-            total: total_critical + total_warnings + total_info
+            total_checks: total_checks,
+            passed_checks: total_checks - all_results.length,
+            failed_checks: all_results.length,
+            critical_issues: total_critical,
+            warning_issues: total_warnings,
+            info_issues: total_info,
+            total_issues: total_critical + total_warnings + total_info
           },
-          checks: BaseCheck.sort_by_severity(results),
+          checks: module_summaries.sort_by { |m| m[:health_score] },
+          detailed_issues: BaseCheck.sort_by_severity(all_results),
           checked_at: Time.current.iso8601
         }
       end
