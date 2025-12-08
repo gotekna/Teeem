@@ -79,6 +79,7 @@ const DOCUMENT_TABS = [
   { id: "assets-docs", name: "ASSETS", icon: Briefcase },
   { id: "ato", name: "ATO", icon: FileText },
   { id: "bank", name: "BANK", icon: Landmark },
+  { id: "xero", name: "XERO", icon: RefreshCw },
   { id: "company", name: "COMPANY", icon: Building2 },
   { id: "dividends-docs", name: "DIVIDENDS", icon: DollarSign },
   { id: "financials", name: "FINANCIALS", icon: FileText },
@@ -120,6 +121,15 @@ const TRUSTEE_COMPANY_SUB_TABS = [
   { id: "directors", name: "Directors" },
   { id: "shareholdings", name: "Shareholdings" },
   { id: "trusts", name: "Trusts Managed" },
+];
+
+// Xero sub-tabs
+const XERO_SUB_TABS = [
+  { id: "connection", name: "Connection" },
+  { id: "accounts", name: "Accounts" },
+  { id: "profit-loss", name: "Profit & Loss" },
+  { id: "balance-sheet", name: "Balance Sheet" },
+  { id: "bank-accounts", name: "Bank Accounts" },
 ];
 
 interface Director {
@@ -4137,6 +4147,277 @@ function XeroAccountsCard({ companyId, companyName }: { companyId: string; compa
   );
 }
 
+// Xero Profit & Loss Report Card
+function XeroProfitLossCard({ companyId }: { companyId: string }) {
+  const [report, setReport] = React.useState<{
+    rows: Array<{
+      row_type: string;
+      title?: string;
+      cells?: Array<{ value: string }>;
+    }>;
+  } | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [dateRange, setDateRange] = React.useState({
+    from: new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0], // Jan 1 of current year
+    to: new Date().toISOString().split("T")[0], // Today
+  });
+
+  const loadReport = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get<{
+        success: boolean;
+        report: typeof report;
+        error?: string;
+      }>(`/api/v1/companies/${companyId}/xero/profit_loss`, {
+        params: { from_date: dateRange.from, to_date: dateRange.to }
+      });
+
+      if (response?.success && response.report) {
+        setReport(response.report);
+      } else {
+        setError(response?.error || "Failed to load report");
+      }
+    } catch (err) {
+      setError("Failed to load Profit & Loss report from Xero");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Profit & Loss Report</CardTitle>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={dateRange.from}
+              onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
+              className="w-36"
+            />
+            <span className="text-muted-foreground">to</span>
+            <Input
+              type="date"
+              value={dateRange.to}
+              onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
+              className="w-36"
+            />
+            <Button onClick={loadReport} disabled={loading} size="sm">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <span className="ml-2">Load</span>
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg text-sm mb-4">
+            {error}
+          </div>
+        )}
+
+        {!report && !loading && !error && (
+          <div className="text-center py-12 text-muted-foreground">
+            <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Select a date range and click Load to view the Profit & Loss report</p>
+          </div>
+        )}
+
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {report && report.rows && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                {report.rows.map((row, idx) => {
+                  if (row.row_type === "Header") {
+                    return (
+                      <tr key={idx} className="bg-muted/50 font-semibold">
+                        {row.cells?.map((cell, cellIdx) => (
+                          <td key={cellIdx} className="py-2 px-3">{cell.value}</td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                  if (row.row_type === "Section" && row.title) {
+                    return (
+                      <tr key={idx} className="bg-muted/30 font-medium">
+                        <td colSpan={10} className="py-2 px-3">{row.title}</td>
+                      </tr>
+                    );
+                  }
+                  if (row.row_type === "Row" && row.cells) {
+                    return (
+                      <tr key={idx} className="border-b hover:bg-muted/20">
+                        {row.cells.map((cell, cellIdx) => (
+                          <td key={cellIdx} className={cn("py-1.5 px-3", cellIdx > 0 && "text-right font-mono")}>
+                            {cell.value}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                  if (row.row_type === "SummaryRow" && row.cells) {
+                    return (
+                      <tr key={idx} className="border-t-2 font-semibold bg-muted/20">
+                        {row.cells.map((cell, cellIdx) => (
+                          <td key={cellIdx} className={cn("py-2 px-3", cellIdx > 0 && "text-right font-mono")}>
+                            {cell.value}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                  return null;
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Xero Balance Sheet Report Card
+function XeroBalanceSheetCard({ companyId }: { companyId: string }) {
+  const [report, setReport] = React.useState<{
+    rows: Array<{
+      row_type: string;
+      title?: string;
+      cells?: Array<{ value: string }>;
+    }>;
+  } | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [asOfDate, setAsOfDate] = React.useState(new Date().toISOString().split("T")[0]);
+
+  const loadReport = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get<{
+        success: boolean;
+        report: typeof report;
+        error?: string;
+      }>(`/api/v1/companies/${companyId}/xero/balance_sheet`, {
+        params: { date: asOfDate }
+      });
+
+      if (response?.success && response.report) {
+        setReport(response.report);
+      } else {
+        setError(response?.error || "Failed to load report");
+      }
+    } catch (err) {
+      setError("Failed to load Balance Sheet from Xero");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Balance Sheet</CardTitle>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">As of:</span>
+            <Input
+              type="date"
+              value={asOfDate}
+              onChange={(e) => setAsOfDate(e.target.value)}
+              className="w-36"
+            />
+            <Button onClick={loadReport} disabled={loading} size="sm">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <span className="ml-2">Load</span>
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg text-sm mb-4">
+            {error}
+          </div>
+        )}
+
+        {!report && !loading && !error && (
+          <div className="text-center py-12 text-muted-foreground">
+            <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Select a date and click Load to view the Balance Sheet</p>
+          </div>
+        )}
+
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {report && report.rows && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                {report.rows.map((row, idx) => {
+                  if (row.row_type === "Header") {
+                    return (
+                      <tr key={idx} className="bg-muted/50 font-semibold">
+                        {row.cells?.map((cell, cellIdx) => (
+                          <td key={cellIdx} className="py-2 px-3">{cell.value}</td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                  if (row.row_type === "Section" && row.title) {
+                    return (
+                      <tr key={idx} className="bg-muted/30 font-medium">
+                        <td colSpan={10} className="py-2 px-3">{row.title}</td>
+                      </tr>
+                    );
+                  }
+                  if (row.row_type === "Row" && row.cells) {
+                    return (
+                      <tr key={idx} className="border-b hover:bg-muted/20">
+                        {row.cells.map((cell, cellIdx) => (
+                          <td key={cellIdx} className={cn("py-1.5 px-3", cellIdx > 0 && "text-right font-mono")}>
+                            {cell.value}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                  if (row.row_type === "SummaryRow" && row.cells) {
+                    return (
+                      <tr key={idx} className="border-t-2 font-semibold bg-muted/20">
+                        {row.cells.map((cell, cellIdx) => (
+                          <td key={cellIdx} className={cn("py-2 px-3", cellIdx > 0 && "text-right font-mono")}>
+                            {cell.value}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                  return null;
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CompanyDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -4148,6 +4429,7 @@ export default function CompanyDetailPage() {
   const [activeTab, setActiveTab] = React.useState("overview");
   const [overviewSubTab, setOverviewSubTab] = React.useState("info");
   const [bankSubTab, setBankSubTab] = React.useState("transactions");
+  const [xeroSubTab, setXeroSubTab] = React.useState("connection");
   const [xeroConnected, setXeroConnected] = React.useState(false);
   const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
   const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
@@ -4494,60 +4776,65 @@ export default function CompanyDetailPage() {
             </div>
           )}
 
+          {/* XERO Tab with sub-tabs */}
+          {activeTab === "xero" && (
+            <>
+              {/* Xero Sub-tabs */}
+              <div className="flex gap-2 mb-4 border-b">
+                {XERO_SUB_TABS.map((subTab) => (
+                  <button
+                    key={subTab.id}
+                    onClick={() => setXeroSubTab(subTab.id)}
+                    className={cn(
+                      "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                      xeroSubTab === subTab.id
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {subTab.name}
+                  </button>
+                ))}
+              </div>
+
+              {xeroSubTab === "connection" && (
+                <XeroConnectionCard
+                  companyId={companyId}
+                  companyName={company?.name}
+                  onConnectionChange={setXeroConnected}
+                />
+              )}
+
+              {xeroSubTab === "accounts" && (
+                <XeroAccountsCard companyId={companyId} companyName={company?.name} />
+              )}
+
+              {xeroSubTab === "profit-loss" && (
+                <XeroProfitLossCard companyId={companyId} />
+              )}
+
+              {xeroSubTab === "balance-sheet" && (
+                <XeroBalanceSheetCard companyId={companyId} />
+              )}
+
+              {xeroSubTab === "bank-accounts" && (
+                <>
+                  <BankTransactionsCard
+                    companyId={companyId}
+                    isConnected={xeroConnected}
+                  />
+                  <XeroStatementView companyId={companyId} />
+                </>
+              )}
+            </>
+          )}
+
           {/* Document Category Tabs */}
-          {DOCUMENT_TABS.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && activeTab !== "data" && (
+          {DOCUMENT_TABS.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && activeTab !== "data" && activeTab !== "xero" && (
             <>
               {/* SSoT: Show ATO Setup Card on ATO tab */}
               {activeTab === "ato" && (
                 <ATOSetupCard company={company} />
-              )}
-              {/* Show Xero connection and transactions on BANK tab */}
-              {activeTab === "bank" && (
-                <>
-                  {/* Bank Sub-tabs */}
-                  <div className="flex gap-2 mb-4 border-b">
-                    {[
-                      { id: "transactions", label: "Transactions" },
-                      { id: "xero-accounts", label: "Xero Accounts" },
-                      { id: "xero-statement", label: "Xero Statement" },
-                    ].map((subTab) => (
-                      <button
-                        key={subTab.id}
-                        onClick={() => setBankSubTab(subTab.id)}
-                        className={cn(
-                          "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                          bankSubTab === subTab.id
-                            ? "border-primary text-primary"
-                            : "border-transparent text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {subTab.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {bankSubTab === "transactions" && (
-                    <>
-                      <XeroConnectionCard
-                        companyId={companyId}
-                        companyName={company?.name}
-                        onConnectionChange={setXeroConnected}
-                      />
-                      <BankTransactionsCard
-                        companyId={companyId}
-                        isConnected={xeroConnected}
-                      />
-                    </>
-                  )}
-
-                  {bankSubTab === "xero-accounts" && (
-                    <XeroAccountsCard companyId={companyId} companyName={company?.name} />
-                  )}
-
-                  {bankSubTab === "xero-statement" && (
-                    <XeroStatementView companyId={companyId} />
-                  )}
-                </>
               )}
               <CompanyDocumentsTab
                 companyId={companyId}

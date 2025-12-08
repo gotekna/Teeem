@@ -1300,6 +1300,9 @@ Rails.application.routes.draw do
         # Chart of Accounts from Xero
         get "xero/accounts", to: "company_xero#accounts"
         get "xero/accounts/compare", to: "company_xero#compare_accounts"
+        # Financial Reports from Xero
+        get "xero/profit_loss", to: "company_xero#profit_loss"
+        get "xero/balance_sheet", to: "company_xero#balance_sheet"
       end
 
       # Company Groups
