@@ -99,7 +99,7 @@ export default function NewCompanyPage() {
         error?: string;
       }>("/api/v1/asic/auto_populate", { abn, acn });
 
-      if (response.success && response.form_data) {
+      if (response?.success && response.form_data) {
         const data = response.form_data;
         setFormData((prev) => ({
           ...prev,
