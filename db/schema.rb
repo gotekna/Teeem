@@ -214,7 +214,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_095424) do
     t.index ["xero_account_id"], name: "index_bank_accounts_on_xero_account_id"
   end
 
-  create_table "bank_statement_reports", force: :cascade do |t|
+  create_table "bank_statement_reports", id: :serial, force: :cascade do |t|
     t.string "bank_account_id", null: false
     t.string "bank_account_name", null: false
     t.string "financial_year", null: false
@@ -231,19 +231,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_095424) do
     t.string "cloudinary_url"
     t.string "file_name"
     t.integer "file_size"
-    t.datetime "generated_at"
+    t.datetime "generated_at", precision: nil
     t.string "status", default: "pending"
     t.text "error_message"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
+    t.datetime "created_at", precision: nil, default: -> { "now()" }, null: false
+    t.datetime "updated_at", precision: nil, default: -> { "now()" }, null: false
     t.string "bank_code"
     t.string "account_number"
     t.string "company_code"
     t.index ["bank_account_id", "financial_year", "month"], name: "idx_bank_reports_unique", unique: true
     t.index ["bank_code"], name: "index_bank_statement_reports_on_bank_code"
     t.index ["company_code"], name: "index_bank_statement_reports_on_company_code"
-    t.index ["financial_year"], name: "index_bank_statement_reports_on_financial_year"
-    t.index ["status"], name: "index_bank_statement_reports_on_status"
   end
 
   create_table "bank_transactions", force: :cascade do |t|
@@ -2646,7 +2644,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_095424) do
     t.datetime "created_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.string "name"
-    t.index ["is_active"], name: "index_org_microsoft_app_credentials_on_is_active", unique: true, where: "(is_active = true)"
     t.index ["is_active"], name: "index_org_ms_app_creds_on_is_active"
     t.index ["name"], name: "index_org_ms_app_creds_on_name"
     t.index ["setup_by_id"], name: "index_organization_microsoft_app_credentials_on_setup_by_id"

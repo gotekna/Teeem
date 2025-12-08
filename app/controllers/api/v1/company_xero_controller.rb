@@ -594,7 +594,176 @@ module Api
         }
       end
 
+      # GET /api/v1/companies/:company_id/xero/profit_loss
+      # Returns Profit & Loss report from Xero
+      def profit_loss
+        connection = @company.company_xero_connection
+
+        if connection.nil? || !connection.connected?
+          return render json: {
+            success: false,
+            error: "Company is not connected to Xero"
+          }, status: :bad_request
+        end
+
+        # Refresh tokens if needed
+        if connection.needs_refresh?
+          unless connection.refresh_tokens!
+            return render json: {
+              success: false,
+              error: "Failed to refresh Xero tokens. Please reconnect."
+            }, status: :unauthorized
+          end
+        end
+
+        begin
+          from_date = params[:from_date] || Date.today.beginning_of_year.to_s
+          to_date = params[:to_date] || Date.today.to_s
+
+          client = XeroApiClient.new
+          result = client.get(
+            "Reports/ProfitAndLoss",
+            tenant_id: connection.xero_tenant_id,
+            access_token: connection.access_token,
+            params: { fromDate: from_date, toDate: to_date }
+          )
+
+          unless result[:success]
+            return render json: {
+              success: false,
+              error: result[:error] || "Failed to fetch Profit & Loss from Xero"
+            }, status: :unprocessable_entity
+          end
+
+          reports = result[:data]["Reports"] || []
+          report = reports.first
+
+          if report.nil?
+            return render json: {
+              success: false,
+              error: "No Profit & Loss report returned from Xero"
+            }, status: :unprocessable_entity
+          end
+
+          # Parse the report rows
+          rows = parse_xero_report_rows(report["Rows"] || [])
+
+          render json: {
+            success: true,
+            report: {
+              title: report["ReportTitles"]&.join(" - "),
+              from_date: from_date,
+              to_date: to_date,
+              rows: rows
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Failed to fetch Xero P&L for company #{@company.id}: #{e.message}")
+          render json: {
+            success: false,
+            error: e.message
+          }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/companies/:company_id/xero/balance_sheet
+      # Returns Balance Sheet report from Xero
+      def balance_sheet
+        connection = @company.company_xero_connection
+
+        if connection.nil? || !connection.connected?
+          return render json: {
+            success: false,
+            error: "Company is not connected to Xero"
+          }, status: :bad_request
+        end
+
+        # Refresh tokens if needed
+        if connection.needs_refresh?
+          unless connection.refresh_tokens!
+            return render json: {
+              success: false,
+              error: "Failed to refresh Xero tokens. Please reconnect."
+            }, status: :unauthorized
+          end
+        end
+
+        begin
+          as_of_date = params[:date] || Date.today.to_s
+
+          client = XeroApiClient.new
+          result = client.get(
+            "Reports/BalanceSheet",
+            tenant_id: connection.xero_tenant_id,
+            access_token: connection.access_token,
+            params: { date: as_of_date }
+          )
+
+          unless result[:success]
+            return render json: {
+              success: false,
+              error: result[:error] || "Failed to fetch Balance Sheet from Xero"
+            }, status: :unprocessable_entity
+          end
+
+          reports = result[:data]["Reports"] || []
+          report = reports.first
+
+          if report.nil?
+            return render json: {
+              success: false,
+              error: "No Balance Sheet report returned from Xero"
+            }, status: :unprocessable_entity
+          end
+
+          # Parse the report rows
+          rows = parse_xero_report_rows(report["Rows"] || [])
+
+          render json: {
+            success: true,
+            report: {
+              title: report["ReportTitles"]&.join(" - "),
+              date: as_of_date,
+              rows: rows
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Failed to fetch Xero Balance Sheet for company #{@company.id}: #{e.message}")
+          render json: {
+            success: false,
+            error: e.message
+          }, status: :internal_server_error
+        end
+      end
+
       private
+
+      # Helper to parse Xero report rows into a flat structure
+      def parse_xero_report_rows(rows, depth = 0)
+        result = []
+        rows.each do |row|
+          row_type = row["RowType"]
+
+          case row_type
+          when "Header"
+            cells = row["Cells"]&.map { |c| { value: c["Value"] || "" } } || []
+            result << { row_type: "Header", cells: cells }
+          when "Section"
+            title = row["Title"]
+            result << { row_type: "Section", title: title } if title.present?
+            if row["Rows"].present?
+              result.concat(parse_xero_report_rows(row["Rows"], depth + 1))
+            end
+          when "Row"
+            cells = row["Cells"]&.map { |c| { value: c["Value"] || "" } } || []
+            result << { row_type: "Row", cells: cells, depth: depth }
+          when "SummaryRow"
+            cells = row["Cells"]&.map { |c| { value: c["Value"] || "" } } || []
+            result << { row_type: "SummaryRow", cells: cells }
+          end
+        end
+        result
+      end
 
       def set_company
         @company = Company.find_by_slug_or_id(params[:company_id])
