@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,10 @@ import {
   Users,
   DollarSign,
   AlertCircle,
+  Layers,
+  Cloud,
+  HardDrive,
+  Upload,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -70,6 +75,36 @@ interface SystemHealthData {
   last_checked: string;
 }
 
+interface XeroSyncHealth {
+  connected: boolean;
+  organisation_name?: string;
+  contacts: {
+    synced: number;
+    total: number;
+    percentage: number;
+    last_synced_at?: string;
+  };
+  invoices: {
+    synced: number;
+    total: number;
+    percentage: number;
+    last_synced_at?: string;
+  };
+  pdf_pipeline: {
+    stage1_percentage: number;
+    stage2_percentage: number;
+    stage3_percentage: number;
+  };
+}
+
+interface IntegrationsHealth {
+  xero?: XeroSyncHealth;
+  microsoft?: {
+    connected: boolean;
+    sharepoint_enabled: boolean;
+  };
+}
+
 const iconMap: Record<string, React.ReactNode> = {
   jobs: <Briefcase className="h-5 w-5" />,
   companies: <Building2 className="h-5 w-5" />,
@@ -103,6 +138,7 @@ function getSeverityBadge(severity: string) {
 
 export default function SystemHealthPage() {
   const [healthData, setHealthData] = React.useState<SystemHealthData | null>(null);
+  const [integrationsHealth, setIntegrationsHealth] = React.useState<IntegrationsHealth | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [expandedTables, setExpandedTables] = React.useState<Set<string>>(new Set());
@@ -127,9 +163,82 @@ export default function SystemHealthPage() {
     }
   }, []);
 
+  const fetchIntegrationsHealth = React.useCallback(async () => {
+    try {
+      // Fetch Xero status
+      const xeroStatus = await api.get<{
+        connected: boolean;
+        organisation_name?: string;
+      }>("/api/v1/xero/status");
+
+      let xeroHealth: XeroSyncHealth | undefined;
+
+      if (xeroStatus.connected) {
+        // Fetch PDF sync health
+        const pdfHealth = await api.get<{
+          stage1_percentage: number;
+          stage2_percentage: number;
+          stage3_percentage: number;
+          stage1_data: { linked: number; total: number };
+          stage2_data: { downloaded: number; total: number };
+          stage3_data: { uploaded: number; total: number };
+        }>("/api/v1/xero/pdf_sync_status");
+
+        // Fetch sync status for contacts/invoices
+        const syncStatus = await api.get<{
+          invoices?: { last_synced_at?: string; records_synced?: number };
+          contacts?: { last_synced_at?: string; records_synced?: number };
+        }>("/api/v1/xero/sync_health");
+
+        xeroHealth = {
+          connected: true,
+          organisation_name: xeroStatus.organisation_name,
+          contacts: {
+            synced: syncStatus.contacts?.records_synced || 0,
+            total: syncStatus.contacts?.records_synced || 0,
+            percentage: 100,
+            last_synced_at: syncStatus.contacts?.last_synced_at,
+          },
+          invoices: {
+            synced: syncStatus.invoices?.records_synced || 0,
+            total: syncStatus.invoices?.records_synced || 0,
+            percentage: 100,
+            last_synced_at: syncStatus.invoices?.last_synced_at,
+          },
+          pdf_pipeline: {
+            stage1_percentage: pdfHealth.stage1_percentage || 0,
+            stage2_percentage: pdfHealth.stage2_percentage || 0,
+            stage3_percentage: pdfHealth.stage3_percentage || 0,
+          },
+        };
+      } else {
+        xeroHealth = {
+          connected: false,
+          contacts: { synced: 0, total: 0, percentage: 0 },
+          invoices: { synced: 0, total: 0, percentage: 0 },
+          pdf_pipeline: { stage1_percentage: 0, stage2_percentage: 0, stage3_percentage: 0 },
+        };
+      }
+
+      setIntegrationsHealth({ xero: xeroHealth });
+    } catch (error) {
+      console.error("Failed to fetch integrations health:", error);
+      // Set default disconnected state
+      setIntegrationsHealth({
+        xero: {
+          connected: false,
+          contacts: { synced: 0, total: 0, percentage: 0 },
+          invoices: { synced: 0, total: 0, percentage: 0 },
+          pdf_pipeline: { stage1_percentage: 0, stage2_percentage: 0, stage3_percentage: 0 },
+        },
+      });
+    }
+  }, []);
+
   React.useEffect(() => {
     fetchHealthData();
-  }, [fetchHealthData]);
+    fetchIntegrationsHealth();
+  }, [fetchHealthData, fetchIntegrationsHealth]);
 
   const toggleTable = (tableName: string) => {
     setExpandedTables((prev) => {
@@ -173,7 +282,10 @@ export default function SystemHealthPage() {
         </div>
         <Button
           variant="outline"
-          onClick={() => fetchHealthData(true)}
+          onClick={() => {
+            fetchHealthData(true);
+            fetchIntegrationsHealth();
+          }}
           disabled={refreshing}
         >
           <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
@@ -228,6 +340,129 @@ export default function SystemHealthPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Integrations Health */}
+      {integrationsHealth && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Integrations Health</CardTitle>
+            <CardDescription>
+              Monitor sync status for connected services
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Xero Integration */}
+              <Link href="/settings/integrations/xero">
+                <div className={cn(
+                  "p-4 rounded-lg border hover:bg-secondary/50 cursor-pointer transition-colors",
+                  integrationsHealth.xero?.connected ? "border-green-200 dark:border-green-800" : "border-gray-200 dark:border-gray-700"
+                )}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={cn(
+                      "p-2 rounded",
+                      integrationsHealth.xero?.connected
+                        ? "bg-green-100 dark:bg-green-900/20"
+                        : "bg-gray-100 dark:bg-gray-800"
+                    )}>
+                      <Layers className={cn(
+                        "h-5 w-5",
+                        integrationsHealth.xero?.connected ? "text-green-600" : "text-gray-400"
+                      )} />
+                    </div>
+                    <div>
+                      <p className="font-medium">Xero</p>
+                      <p className="text-xs text-muted-foreground">
+                        {integrationsHealth.xero?.connected
+                          ? integrationsHealth.xero.organisation_name || "Connected"
+                          : "Not connected"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {integrationsHealth.xero?.connected && (
+                    <div className="space-y-2">
+                      {/* Contacts Sync */}
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-muted-foreground">Contacts</span>
+                        </div>
+                        <span className={cn(
+                          "font-mono font-medium",
+                          integrationsHealth.xero.contacts.percentage >= 90 ? "text-green-600" :
+                          integrationsHealth.xero.contacts.percentage >= 50 ? "text-yellow-600" : "text-gray-400"
+                        )}>
+                          {integrationsHealth.xero.contacts.synced > 0 ? "100%" : "-"}
+                        </span>
+                      </div>
+
+                      {/* Invoice Sync */}
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-muted-foreground">Invoices</span>
+                        </div>
+                        <span className={cn(
+                          "font-mono font-medium",
+                          integrationsHealth.xero.invoices.percentage >= 90 ? "text-green-600" :
+                          integrationsHealth.xero.invoices.percentage >= 50 ? "text-yellow-600" : "text-gray-400"
+                        )}>
+                          {integrationsHealth.xero.invoices.synced > 0 ? "100%" : "-"}
+                        </span>
+                      </div>
+
+                      {/* PDF Pipeline */}
+                      <div className="pt-2 border-t border-border mt-2">
+                        <p className="text-xs text-muted-foreground mb-2">Document Pipeline</p>
+                        <div className="flex items-center gap-1">
+                          <div className="flex-1 flex items-center gap-1">
+                            <Cloud className="h-3 w-3 text-muted-foreground" />
+                            <Progress
+                              value={integrationsHealth.xero.pdf_pipeline.stage1_percentage}
+                              className="h-1.5 flex-1"
+                            />
+                            <span className="text-[10px] font-mono w-8 text-right">
+                              {integrationsHealth.xero.pdf_pipeline.stage1_percentage}%
+                            </span>
+                          </div>
+                          <div className="flex-1 flex items-center gap-1">
+                            <HardDrive className="h-3 w-3 text-muted-foreground" />
+                            <Progress
+                              value={integrationsHealth.xero.pdf_pipeline.stage2_percentage}
+                              className="h-1.5 flex-1"
+                            />
+                            <span className="text-[10px] font-mono w-8 text-right">
+                              {integrationsHealth.xero.pdf_pipeline.stage2_percentage}%
+                            </span>
+                          </div>
+                          <div className="flex-1 flex items-center gap-1">
+                            <Upload className="h-3 w-3 text-muted-foreground" />
+                            <Progress
+                              value={integrationsHealth.xero.pdf_pipeline.stage3_percentage}
+                              className="h-1.5 flex-1"
+                            />
+                            <span className="text-[10px] font-mono w-8 text-right">
+                              {integrationsHealth.xero.pdf_pipeline.stage3_percentage}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!integrationsHealth.xero?.connected && (
+                    <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Click to connect
+                    </div>
+                  )}
+                </div>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tables Health */}
       <Card>

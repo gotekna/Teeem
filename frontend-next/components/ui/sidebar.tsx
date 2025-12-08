@@ -30,6 +30,7 @@ import {
   ChevronRight,
   Wrench,
   Scale,
+  HeartPulse,
 } from "lucide-react";
 import {
   Persona,
@@ -74,6 +75,7 @@ const navigationItems: NavigationItem[] = [
   { name: "Documents", href: "/documents", icon: FolderOpen },
   { name: "Corporate", href: "/corporate", icon: Building2 },
   { name: "Cases", href: "/cases", icon: Scale, badgeKey: "pendingCaseProposals" },
+  { name: "Health", href: "/system-health", icon: HeartPulse },
   { name: "Portal", href: "/portal", icon: ExternalLink },
   { name: "Admin", href: "/admin", icon: Wrench },
 ];

@@ -1,4 +1,6 @@
 class ApplicationController < ActionController::API
+  include SsotAuthorization
+
   before_action :authorize_request
   after_action :update_last_seen
 
