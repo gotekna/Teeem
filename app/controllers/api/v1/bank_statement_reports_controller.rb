@@ -93,7 +93,7 @@ module Api
       # GET /api/v1/bank_statement_reports/by_structure
       # Returns reports organized by bank -> FY -> month for tree view
       def by_structure
-        reports = BankStatementReport.completed.order(:bank_account_name, financial_year: :desc, :month)
+        reports = BankStatementReport.completed.order(bank_account_name: :asc, financial_year: :desc, month: :asc)
 
         # Group by bank account
         structure = {}
