@@ -88,8 +88,8 @@ class BankTransactionReportService
 
     closing_balance = running_balance
 
-    # Generate pages (max ~30 transactions per page to leave room)
-    transactions_per_page = 28
+    # Generate pages (fewer per page since each has 2-line description)
+    transactions_per_page = 22
     pages_data = transactions_with_balance.each_slice(transactions_per_page).to_a
     total_pages = pages_data.length
 
@@ -259,11 +259,22 @@ class BankTransactionReportService
       # Date
       canvas.text(txn.transaction_date.strftime("%d/%m/%y"), at: [55, y])
 
-      # Description (contact name or line item description)
-      description = build_description(txn)
-      # Truncate if too long
-      description = description[0..35] + "..." if description.length > 38
-      canvas.text(description, at: [120, y])
+      # Description - two lines like real bank statements:
+      # Line 1: Transaction description (from Xero description field)
+      # Line 2: Contact/payee name
+      desc_line1, desc_line2 = build_two_line_description(txn)
+
+      # First line - description
+      desc_line1 = desc_line1[0..42] + "..." if desc_line1.length > 45
+      canvas.text(desc_line1, at: [120, y])
+
+      # Second line - contact name (smaller, indented slightly)
+      if desc_line2.present?
+        desc_line2 = desc_line2[0..42] + "..." if desc_line2.length > 45
+        canvas.font("Helvetica", size: 7)
+        canvas.text(desc_line2, at: [120, y - 8])
+        canvas.font("Helvetica", size: 8)
+      end
 
       # Debit/Credit columns
       amount = BigDecimal(txn.total.to_s)
@@ -276,7 +287,7 @@ class BankTransactionReportService
       # Running balance
       canvas.text(format_currency(balance), at: [485, y])
 
-      y -= 15
+      y -= 18  # More space for two-line descriptions
     end
 
     # Closing balance row (on last page only) - exact wording
@@ -315,7 +326,8 @@ class BankTransactionReportService
   end
 
   def build_description(txn)
-    # Priority: contact name > line item description > reference
+    # Priority: description > contact name > line item description > reference
+    return txn.description if txn.description.present?
     return txn.contact_name if txn.contact_name.present?
 
     # Try to get description from line items
@@ -332,6 +344,44 @@ class BankTransactionReportService
 
     # Fall back to reference or generic
     txn.reference.presence || "Bank Transaction"
+  end
+
+  # Build two-line description like real bank statements
+  # Line 1: Transaction description (what happened)
+  # Line 2: Contact/payee name (who it was with)
+  def build_two_line_description(txn)
+    line1 = nil
+    line2 = nil
+
+    # Line 1: Get the transaction description
+    # Priority: description field > line item description > reference
+    if txn.description.present?
+      line1 = txn.description
+    elsif txn.line_items.present?
+      begin
+        items = txn.line_items
+        items = JSON.parse(items) if items.is_a?(String)
+        line1 = items.first&.dig("Description")
+      rescue StandardError
+        # ignore
+      end
+    end
+    line1 ||= txn.reference.presence
+
+    # Line 2: Contact/payee name (if different from line 1)
+    if txn.contact_name.present? && txn.contact_name != line1
+      line2 = txn.contact_name
+    end
+
+    # If we have no line1, use contact name as line1
+    if line1.blank? && txn.contact_name.present?
+      line1 = txn.contact_name
+      line2 = nil
+    end
+
+    line1 ||= "Bank Transaction"
+
+    [line1, line2]
   end
 
   def format_currency(amount)
