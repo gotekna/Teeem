@@ -1,14 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   Tooltip,
   TooltipContent,
@@ -19,23 +13,25 @@ import {
   Loader2,
   RefreshCw,
   Download,
-  ChevronRight,
-  ChevronDown,
   FileText,
-  Building2,
-  Calendar,
   AlertCircle,
   CheckCircle2,
-  Clock,
 } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import { TableColumn, TableRow } from "@/components/table/types";
 
-// Types
-interface BankReportMonth {
+// Types for flat report structure
+interface BankStatementReport {
   id: number;
-  month: number;
+  bank_account_id: string;
+  bank_account_name: string;
+  bank_code: string;
+  account_number: string;
+  company_code: string;
+  financial_year: string;
+  month: number | null;
   month_name: string;
   period_display: string;
   transaction_count: number;
@@ -44,17 +40,7 @@ interface BankReportMonth {
   net_change: number;
   generated_at: string;
   file_name: string;
-}
-
-interface BankReportYear {
-  financial_year: string;
-  months: BankReportMonth[];
-}
-
-interface BankReportAccount {
-  name: string;
-  bank_account_id: string;
-  years: BankReportYear[];
+  status: string;
 }
 
 interface GenerateResult {
@@ -70,13 +56,82 @@ interface Props {
 }
 
 export function BankStatementReportsView({ companyId }: Props) {
-  const [reports, setReports] = useState<BankReportAccount[]>([]);
+  const [reports, setReports] = useState<BankStatementReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [downloading, setDownloading] = useState<number | null>(null);
-  const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
-  const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set());
   const [lastResult, setLastResult] = useState<GenerateResult | null>(null);
+
+  // Define columns for TeeemTableView
+  const columns: TableColumn[] = [
+    {
+      key: "bank_account_name",
+      label: "Bank Account",
+      column_type: "text",
+      width: 180,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: "bank_code",
+      label: "Bank",
+      column_type: "text",
+      width: 80,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: "financial_year",
+      label: "FY",
+      column_type: "text",
+      width: 80,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: "month_name",
+      label: "Month",
+      column_type: "text",
+      width: 100,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: "transaction_count",
+      label: "Transactions",
+      column_type: "number",
+      width: 100,
+      sortable: true,
+    },
+    {
+      key: "total_in",
+      label: "Money In",
+      column_type: "currency",
+      width: 120,
+      sortable: true,
+    },
+    {
+      key: "total_out",
+      label: "Money Out",
+      column_type: "currency",
+      width: 120,
+      sortable: true,
+    },
+    {
+      key: "net_change",
+      label: "Net",
+      column_type: "currency",
+      width: 120,
+      sortable: true,
+    },
+    {
+      key: "generated_at",
+      label: "Generated",
+      column_type: "datetime",
+      width: 140,
+      sortable: true,
+    },
+  ];
 
   // Load reports on mount
   useEffect(() => {
@@ -86,20 +141,12 @@ export function BankStatementReportsView({ companyId }: Props) {
   const loadReports = async () => {
     try {
       setLoading(true);
-      const response = await api.get<{ success: boolean; data: BankReportAccount[] }>(
-        "/api/v1/bank_statement_reports/by_structure"
+      const response = await api.get<{ success: boolean; data: BankStatementReport[] }>(
+        "/api/v1/bank_statement_reports"
       );
 
       if (response?.success) {
         setReports(response.data);
-        // Auto-expand first account and year
-        if (response.data.length > 0) {
-          const firstAccount = response.data[0];
-          setExpandedAccounts(new Set([firstAccount.bank_account_id]));
-          if (firstAccount.years.length > 0) {
-            setExpandedYears(new Set([`${firstAccount.bank_account_id}-${firstAccount.years[0].financial_year}`]));
-          }
-        }
       }
     } catch (error) {
       console.error("Failed to load reports:", error);
@@ -148,37 +195,60 @@ export function BankStatementReportsView({ companyId }: Props) {
     }
   };
 
-  const toggleAccount = (accountId: string) => {
-    setExpandedAccounts((prev) => {
-      const next = new Set(prev);
-      if (next.has(accountId)) {
-        next.delete(accountId);
-      } else {
-        next.add(accountId);
-      }
-      return next;
-    });
+  // Transform reports to entries for TeeemTableView
+  const entries: TableRow[] = reports.map((report) => ({
+    id: report.id,
+    bank_account_name: report.bank_account_name,
+    bank_code: report.bank_code || "-",
+    financial_year: report.financial_year,
+    month_name: report.month_name || "Annual",
+    transaction_count: report.transaction_count || 0,
+    total_in: report.total_in || 0,
+    total_out: report.total_out || 0,
+    net_change: report.net_change || 0,
+    generated_at: report.generated_at,
+    file_name: report.file_name,
+  }));
+
+  // Custom cell renderer for currency with colors and download action
+  const customCellRenderer = (entry: TableRow, columnKey: string): React.ReactNode | null => {
+    if (columnKey === "total_in" && typeof entry.total_in === "number") {
+      return (
+        <span className="text-green-600">
+          {new Intl.NumberFormat("en-AU", {
+            style: "currency",
+            currency: "AUD",
+          }).format(entry.total_in)}
+        </span>
+      );
+    }
+    if (columnKey === "total_out" && typeof entry.total_out === "number") {
+      return (
+        <span className="text-red-600">
+          {new Intl.NumberFormat("en-AU", {
+            style: "currency",
+            currency: "AUD",
+          }).format(entry.total_out)}
+        </span>
+      );
+    }
+    if (columnKey === "net_change" && typeof entry.net_change === "number") {
+      const value = entry.net_change;
+      return (
+        <span className={value >= 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+          {new Intl.NumberFormat("en-AU", {
+            style: "currency",
+            currency: "AUD",
+          }).format(value)}
+        </span>
+      );
+    }
+    return null;
   };
 
-  const toggleYear = (accountId: string, year: string) => {
-    const key = `${accountId}-${year}`;
-    setExpandedYears((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 2,
-    }).format(amount);
+  // Handle row click to download
+  const handleRowClick = (row: TableRow) => {
+    handleDownload(row.id as number);
   };
 
   if (loading) {
@@ -274,7 +344,7 @@ export function BankStatementReportsView({ companyId }: Props) {
         )}
       </Card>
 
-      {/* Reports tree */}
+      {/* Reports table using TeeemTableView */}
       {reports.length === 0 ? (
         <Card>
           <CardContent className="py-12">
@@ -288,125 +358,29 @@ export function BankStatementReportsView({ companyId }: Props) {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="pt-4">
-            <div className="space-y-2">
-              {reports.map((account) => (
-                <Collapsible
-                  key={account.bank_account_id}
-                  open={expandedAccounts.has(account.bank_account_id)}
-                  onOpenChange={() => toggleAccount(account.bank_account_id)}
-                >
-                  <CollapsibleTrigger className="flex items-center gap-2 w-full p-2 hover:bg-muted rounded-lg transition-colors">
-                    {expandedAccounts.has(account.bank_account_id) ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                    <Building2 className="h-4 w-4 text-blue-500" />
-                    <span className="font-medium">{account.name}</span>
-                    <Badge variant="secondary" className="ml-auto">
-                      {account.years.length} FY{account.years.length !== 1 ? "s" : ""}
-                    </Badge>
-                  </CollapsibleTrigger>
-
-                  <CollapsibleContent className="ml-6 mt-1 space-y-1">
-                    {account.years.map((year) => {
-                      const yearKey = `${account.bank_account_id}-${year.financial_year}`;
-                      return (
-                        <Collapsible
-                          key={year.financial_year}
-                          open={expandedYears.has(yearKey)}
-                          onOpenChange={() => toggleYear(account.bank_account_id, year.financial_year)}
-                        >
-                          <CollapsibleTrigger className="flex items-center gap-2 w-full p-2 hover:bg-muted rounded-lg transition-colors">
-                            {expandedYears.has(yearKey) ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                            <Calendar className="h-4 w-4 text-orange-500" />
-                            <span className="font-medium">{year.financial_year}</span>
-                            <Badge variant="outline" className="ml-auto">
-                              {year.months.length} month{year.months.length !== 1 ? "s" : ""}
-                            </Badge>
-                          </CollapsibleTrigger>
-
-                          <CollapsibleContent className="ml-6 mt-1">
-                            <div className="border rounded-lg overflow-hidden">
-                              <table className="w-full text-sm">
-                                <thead className="bg-muted/50">
-                                  <tr>
-                                    <th className="px-3 py-2 text-left font-medium">Month</th>
-                                    <th className="px-3 py-2 text-right font-medium">Transactions</th>
-                                    <th className="px-3 py-2 text-right font-medium">Money In</th>
-                                    <th className="px-3 py-2 text-right font-medium">Money Out</th>
-                                    <th className="px-3 py-2 text-right font-medium">Net</th>
-                                    <th className="px-3 py-2 text-center font-medium">Generated</th>
-                                    <th className="px-3 py-2 text-center font-medium">Download</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {year.months.map((month) => (
-                                    <tr key={month.id} className="border-t hover:bg-muted/30">
-                                      <td className="px-3 py-2 font-medium">{month.month_name}</td>
-                                      <td className="px-3 py-2 text-right">{month.transaction_count}</td>
-                                      <td className="px-3 py-2 text-right text-green-600">
-                                        {formatCurrency(month.total_in)}
-                                      </td>
-                                      <td className="px-3 py-2 text-right text-red-600">
-                                        {formatCurrency(month.total_out)}
-                                      </td>
-                                      <td className={cn(
-                                        "px-3 py-2 text-right font-medium",
-                                        month.net_change >= 0 ? "text-green-600" : "text-red-600"
-                                      )}>
-                                        {formatCurrency(month.net_change)}
-                                      </td>
-                                      <td className="px-3 py-2 text-center text-xs text-muted-foreground">
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger>
-                                              <span className="flex items-center justify-center gap-1">
-                                                <Clock className="h-3 w-3" />
-                                                {formatDistanceToNow(new Date(month.generated_at), { addSuffix: true })}
-                                              </span>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                              {format(new Date(month.generated_at), "PPpp")}
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      </td>
-                                      <td className="px-3 py-2 text-center">
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={() => handleDownload(month.id)}
-                                          disabled={downloading === month.id}
-                                        >
-                                          {downloading === month.id ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                          ) : (
-                                            <Download className="h-4 w-4" />
-                                          )}
-                                        </Button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      );
-                    })}
-                  </CollapsibleContent>
-                </Collapsible>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <TeeemTableView
+          columns={columns}
+          entries={entries}
+          tableName="Bank Statement Reports"
+          viewOnly={true}
+          initialGroupByColumn="bank_account_name"
+          customCellRenderer={customCellRenderer}
+          onRowClick={handleRowClick}
+          customActions={
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-muted-foreground">
+                    Click row to download PDF
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Click any row to download the PDF report</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          }
+        />
       )}
 
       {/* Legal note */}
