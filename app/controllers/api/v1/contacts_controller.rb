@@ -2660,7 +2660,7 @@ module Api
       def health
         begin
           checker = HealthChecks::ContactsCheck.new
-          results = checker.execute
+          results = checker.run_all
 
           health_score = HealthChecks::BaseCheck.calculate_health_score(results)
           total_issues = results.sum { |r| r[:count] || 0 }
