@@ -113,6 +113,7 @@ module Api
       def document_type_params
         params.require(:document_type).permit(
           :name,
+          :display_name,
           :category,
           :folder,
           :description,
@@ -133,6 +134,7 @@ module Api
         {
           id: document_type.id,
           name: document_type.name,
+          display_name: document_type.display_name,
           abbreviation: document_type.abbreviation,
           naming_format: document_type.naming_format,
           title_preview: document_type.title_preview,

@@ -45,6 +45,7 @@ const FILE_EXTENSION_OPTIONS = [
 interface DocumentType {
   id: number;
   name: string;
+  display_name?: string;
   abbreviation?: string;
   naming_format?: string;
   title_preview?: string;
@@ -257,8 +258,11 @@ export default function DocumentTypeDetailPage() {
                 id="name"
                 value={documentType.name}
                 onChange={(e) => updateField("name", e.target.value)}
-                placeholder="CTR - Company Tax Return"
+                placeholder="Company Tax Return"
               />
+              <p className="text-xs text-muted-foreground">
+                How this document type appears in dropdowns and lists
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="abbreviation">Code / Abbreviation</Label>
@@ -269,6 +273,9 @@ export default function DocumentTypeDetailPage() {
                 placeholder="CTR"
                 className="font-mono"
               />
+              <p className="text-xs text-muted-foreground">
+                Short code for quick identification
+              </p>
             </div>
           </div>
 
@@ -351,8 +358,8 @@ export default function DocumentTypeDetailPage() {
               className="font-mono text-sm"
             />
             {documentType.title_preview && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Preview:</span>
+              <div className="flex items-center gap-2 text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                <span className="text-muted-foreground font-medium">Preview:</span>
                 <span className="font-semibold text-green-700 dark:text-green-400 font-mono">
                   {documentType.title_preview}
                 </span>
@@ -360,6 +367,19 @@ export default function DocumentTypeDetailPage() {
             )}
             <p className="text-xs text-muted-foreground">
               Use variables like {"{CompanyCode}"}, {"{Date}"}, {"{FY}"} - see legend below
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="display_name">Display Name (Optional Override)</Label>
+            <Input
+              id="display_name"
+              value={documentType.display_name || ""}
+              onChange={(e) => updateField("display_name", e.target.value)}
+              placeholder="Leave empty to use Document Type Name"
+            />
+            <p className="text-xs text-muted-foreground">
+              Override the document type name for specific display contexts. Leave empty to use the main name above.
             </p>
           </div>
 
