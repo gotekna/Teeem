@@ -123,8 +123,16 @@ export default function DocumentTypeDetailPage() {
 
   const loadCompanies = async () => {
     try {
-      const response = await api.get<{ data: Array<{id: number; name: string; abbreviation: string}> }>('/api/v1/companies');
-      setCompanies(response.data || []);
+      const response = await api.get<any>('/api/v1/companies');
+      // Handle response format: {success: true, companies: [...], total: N}
+      const companiesData = response.data?.companies || response.companies || response.data?.data || response.data || response;
+
+      if (Array.isArray(companiesData)) {
+        setCompanies(companiesData);
+      } else {
+        console.warn("Companies data is not an array:", companiesData);
+        setCompanies([]);
+      }
     } catch (error) {
       console.error("Failed to load companies:", error);
     }
@@ -627,35 +635,32 @@ export default function DocumentTypeDetailPage() {
       {/* Naming & Organization */}
       <Card>
         <CardHeader>
-          <CardTitle>Naming & Organization</CardTitle>
+          <div className="flex items-start justify-between gap-4">
+            <CardTitle>Naming & Organization</CardTitle>
+            <div className="space-y-1 min-w-[300px]">
+              <Label htmlFor="preview-company" className="text-xs text-muted-foreground">
+                Preview Company
+              </Label>
+              <Select
+                value={previewCompanyId?.toString() || "default"}
+                onValueChange={(value) => setPreviewCompanyId(value === "default" ? null : parseInt(value))}
+              >
+                <SelectTrigger id="preview-company" className="h-8 text-sm">
+                  <SelectValue placeholder="Select company..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Example Data</SelectItem>
+                  {companies.map(company => (
+                    <SelectItem key={company.id} value={company.id.toString()}>
+                      {company.abbreviation} - {company.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Preview Company Selector */}
-          <div className="space-y-2 p-3 bg-blue-50/30 dark:bg-blue-950/10 rounded-lg border border-blue-200/50 dark:border-blue-900/50">
-            <Label htmlFor="preview-company" className="text-sm font-medium text-blue-900 dark:text-blue-200">
-              Preview with Real Company Data
-            </Label>
-            <Select
-              value={previewCompanyId?.toString() || "default"}
-              onValueChange={(value) => setPreviewCompanyId(value === "default" ? null : parseInt(value))}
-            >
-              <SelectTrigger id="preview-company">
-                <SelectValue placeholder="Select a company for live preview..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">Example Data (ABC Property Trust)</SelectItem>
-                {companies.map(company => (
-                  <SelectItem key={company.id} value={company.id.toString()}>
-                    {company.abbreviation} - {company.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-blue-600 dark:text-blue-400">
-              Select a company to see how placeholders will look with real data
-            </p>
-          </div>
-
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="file_name">File Name</Label>

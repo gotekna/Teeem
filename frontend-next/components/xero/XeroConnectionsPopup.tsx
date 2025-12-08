@@ -55,6 +55,19 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
     }
   };
 
+  const handleConnectToXero = async () => {
+    try {
+      const response = await api.xero.getAuthUrl();
+      if (response.success && response.auth_url) {
+        // Redirect to Xero OAuth page
+        window.location.href = response.auth_url;
+      }
+    } catch (error) {
+      console.error("Failed to get Xero auth URL:", error);
+      alert("Failed to connect to Xero. Please try again.");
+    }
+  };
+
   if (!isOpen) return null;
 
   // Group connections by Xero organization
@@ -236,13 +249,22 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
 
         {/* Footer */}
         <div className="border-t border-gray-200 p-4 dark:border-gray-700">
-          <button
-            onClick={loadConnections}
-            className="flex w-full items-center justify-center space-x-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-          >
-            <RefreshCw className="h-4 w-4" />
-            <span>Refresh Connections</span>
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={handleConnectToXero}
+              className="flex flex-1 items-center justify-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            >
+              <Building2 className="h-4 w-4" />
+              <span>Connect to Xero</span>
+            </button>
+            <button
+              onClick={loadConnections}
+              className="flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+              title="Refresh connection data"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
