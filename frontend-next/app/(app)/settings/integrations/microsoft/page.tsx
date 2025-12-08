@@ -1108,14 +1108,33 @@ function OrganizationCard({
   onRefresh: () => void;
   envConfigured: boolean;
 }) {
-  const [open, setOpen] = React.useState(org.status === "connected");
+  const [open, setOpen] = React.useState(org.status === "connected" || org.status === "pending");
   const [testing, setTesting] = React.useState(false);
   const [testingSharePoint, setTestingSharePoint] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
+  const [retrying, setRetrying] = React.useState(false);
   const [tenantUsers, setTenantUsers] = React.useState<TenantUser[]>([]);
   const [loadingUsers, setLoadingUsers] = React.useState(false);
   const [sharePointResult, setSharePointResult] = React.useState<{ success: boolean; message: string; sites?: { name: string; url: string }[] } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+
+  const handleRetryConsent = async () => {
+    setRetrying(true);
+    setError(null);
+    try {
+      const response = await api.post<{ success: boolean; admin_consent_url: string; message: string }>(
+        "/api/v1/microsoft_app/setup_from_env",
+        { name: org.name }
+      );
+      if (response?.admin_consent_url) {
+        window.location.href = response.admin_consent_url;
+      }
+    } catch (err: unknown) {
+      const error = err as { data?: { error?: string }; message?: string };
+      setError(error.data?.error || error.message || "Failed to retry consent");
+      setRetrying(false);
+    }
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -1341,13 +1360,25 @@ function OrganizationCard({
             )}
 
             {org.status === "pending" && (
-              <Alert>
-                <Key className="h-4 w-4" />
-                <AlertTitle>Admin Consent Required</AlertTitle>
-                <AlertDescription>
-                  An Azure AD admin needs to grant organization-wide consent for {org.name}.
-                </AlertDescription>
-              </Alert>
+              <>
+                <Alert>
+                  <Key className="h-4 w-4" />
+                  <AlertTitle>Admin Consent Required</AlertTitle>
+                  <AlertDescription>
+                    An Azure AD admin needs to grant organization-wide consent for {org.name}.
+                  </AlertDescription>
+                </Alert>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleRetryConsent} disabled={retrying}>
+                    {retrying ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                    Retry Consent
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={handleDisconnect} disabled={disconnecting}>
+                    {disconnecting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />}
+                    Cancel
+                  </Button>
+                </div>
+              </>
             )}
 
             {org.status === "error" && (

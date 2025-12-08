@@ -9,15 +9,23 @@
 class OrgEmailSyncJob < ApplicationJob
   queue_as :low
 
-  def perform(sync_type = "incremental")
-    credential = OrganizationMicrosoftAppCredential.active_credential
+  # Supports multi-org: pass credential_id or org_name to sync specific org
+  def perform(sync_type = "incremental", credential_id: nil, org_name: nil)
+    # Find credential - support specific org or default to first active
+    @credential = if credential_id.present?
+                    OrganizationMicrosoftAppCredential.find_by(id: credential_id)
+                  elsif org_name.present?
+                    OrganizationMicrosoftAppCredential.find_by_name(org_name)
+                  else
+                    OrganizationMicrosoftAppCredential.active_credential
+                  end
 
-    unless credential&.status == "connected"
+    unless @credential&.status == "connected"
       Rails.logger.info "[OrgEmailSync] Skipping - org Microsoft app not connected"
       return
     end
 
-    sync_config = credential.sync_config || {}
+    sync_config = @credential.sync_config || {}
     sync_all = sync_config["sync_all"] || false
     user_emails = sync_config["user_emails"] || []
     sync_years = sync_config["sync_years"] || 3
@@ -25,7 +33,7 @@ class OrgEmailSyncJob < ApplicationJob
     # Determine which users to sync
     if sync_all
       # Get all users from tenant
-      client = MicrosoftAppGraphClient.new
+      client = MicrosoftAppGraphClient.new(@credential)
       tenant_users = client.list_users(select: "id,mail,userPrincipalName")
       user_emails = tenant_users.map { |u| u["mail"] || u["userPrincipalName"] }.compact
     end
@@ -35,7 +43,7 @@ class OrgEmailSyncJob < ApplicationJob
       return
     end
 
-    Rails.logger.info "[OrgEmailSync] Starting #{sync_type} sync for #{user_emails.count} users"
+    Rails.logger.info "[OrgEmailSync] Starting #{sync_type} sync for #{@credential.name}: #{user_emails.count} users"
 
     total_synced = 0
     errors = []
@@ -52,7 +60,7 @@ class OrgEmailSyncJob < ApplicationJob
     end
 
     # Update last sync time
-    credential.update!(last_sync_at: Time.current)
+    @credential.update!(last_sync_at: Time.current)
 
     Rails.logger.info "[OrgEmailSync] Completed: #{total_synced} emails synced, #{errors.count} errors"
 
