@@ -44,7 +44,7 @@ module Api
       end
 
       # GET /api/v1/bank_statement_reports/:id/download
-      # Download the PDF file
+      # Download the PDF file (redirects to SharePoint URL)
       def download
         report = BankStatementReport.find(params[:id])
 
@@ -52,7 +52,7 @@ module Api
           return render json: { success: false, error: "Report not available for download" }, status: :unprocessable_entity
         end
 
-        # Redirect to Cloudinary URL for download
+        # Redirect to SharePoint URL for download
         redirect_to report.cloudinary_url, allow_other_host: true
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Report not found" }, status: :not_found

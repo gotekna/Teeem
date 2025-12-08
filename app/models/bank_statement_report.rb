@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 # Stores generated bank statement PDF reports for ATO compliance.
-# Reports are stored in Cloudinary and organized by bank account, FY, and month.
+# Reports are uploaded to SharePoint in the Warehousing/Bank Statements folder structure:
+#   Warehousing/Bank Statements/{bank_account_name}/{FY}/{month}.pdf
+# PDFs can be regenerated on demand from the underlying bank transaction data.
 class BankStatementReport < ApplicationRecord
   # Scopes
   scope :completed, -> { where(status: "completed") }
@@ -16,7 +18,7 @@ class BankStatementReport < ApplicationRecord
   validates :bank_account_id, presence: true
   validates :bank_account_name, presence: true
   validates :financial_year, presence: true
-  validates :bank_account_id, uniqueness: { scope: [:financial_year, :month] }
+  validates :bank_account_id, uniqueness: { scope: [ :financial_year, :month ] }
 
   # Generate or regenerate the PDF report
   def generate!
@@ -32,26 +34,20 @@ class BankStatementReport < ApplicationRecord
     result = service.generate
 
     if result[:success]
-      # Upload to Cloudinary
-      upload_result = Cloudinary::Uploader.upload(
-        StringIO.new(result[:pdf]),
-        resource_type: "raw",
-        folder: "teeem/bank_statements/#{financial_year}/#{bank_account_name.parameterize}",
-        public_id: generate_public_id,
-        format: "pdf"
-      )
+      # Upload PDF to SharePoint
+      sharepoint_result = upload_to_sharepoint(result[:pdf], result[:filename])
 
       update!(
         status: "completed",
-        cloudinary_public_id: upload_result["public_id"],
-        cloudinary_url: upload_result["secure_url"],
         file_name: result[:filename],
         file_size: result[:pdf].bytesize,
         transaction_count: result[:transaction_count],
         total_in: calculate_totals(result)[:in],
         total_out: calculate_totals(result)[:out],
         net_change: calculate_totals(result)[:net],
-        generated_at: Time.current
+        generated_at: Time.current,
+        cloudinary_url: sharepoint_result&.dig(:web_url),
+        cloudinary_public_id: sharepoint_result&.dig(:id)
       )
 
       { success: true, report: self }
@@ -91,12 +87,60 @@ class BankStatementReport < ApplicationRecord
 
   private
 
-  def generate_public_id
-    parts = [bank_account_name.parameterize]
-    parts << financial_year
-    parts << Date::MONTHNAMES[month] if month.present?
-    parts << Time.current.strftime("%Y%m%d%H%M%S")
-    parts.join("_")
+  # Upload file content to SharePoint using folder structure:
+  # Warehousing/Bank Statements/{bank_account_name}/{FY}/{filename}
+  def upload_to_sharepoint(content, filename)
+    credential = OrganizationOneDriveCredential.active_credential
+    unless credential.present?
+      Rails.logger.warn("[BankStatementReport] No SharePoint credentials found - skipping upload")
+      return nil
+    end
+
+    graph_client = MicrosoftGraphClient.new(credential)
+
+    # Get or create Warehousing folder at root
+    warehousing_folder = graph_client.find_folder_in_drive_root("Warehousing")
+    unless warehousing_folder
+      warehousing_folder = graph_client.create_folder("Warehousing")
+      Rails.logger.info("[BankStatementReport] Created SharePoint folder: Warehousing")
+    end
+
+    # Get or create Bank Statements subfolder
+    bank_statements_folder = graph_client.get_or_create_subfolder(
+      warehousing_folder["id"] || warehousing_folder[:id],
+      "Bank Statements"
+    )
+
+    # Get or create bank account subfolder (e.g., "NAB - Tekna Homes")
+    bank_folder = graph_client.get_or_create_subfolder(
+      bank_statements_folder[:id] || bank_statements_folder["id"],
+      bank_account_name
+    )
+
+    # Get or create FY subfolder (e.g., "FY24")
+    fy_folder = graph_client.get_or_create_subfolder(
+      bank_folder[:id] || bank_folder["id"],
+      financial_year
+    )
+
+    # Upload the file
+    upload_result = graph_client.upload_file_content(
+      fy_folder[:id] || fy_folder["id"],
+      filename,
+      content
+    )
+
+    Rails.logger.info("[BankStatementReport] Uploaded to SharePoint: Warehousing/Bank Statements/#{bank_account_name}/#{financial_year}/#{filename}")
+    upload_result
+  rescue MicrosoftGraphClient::AuthenticationError => e
+    Rails.logger.error("[BankStatementReport] SharePoint auth error: #{e.message}")
+    nil
+  rescue MicrosoftGraphClient::APIError => e
+    Rails.logger.error("[BankStatementReport] SharePoint API error: #{e.message}")
+    nil
+  rescue StandardError => e
+    Rails.logger.error("[BankStatementReport] SharePoint upload error: #{e.message}")
+    nil
   end
 
   def calculate_totals(result)
