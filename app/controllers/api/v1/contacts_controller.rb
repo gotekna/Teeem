@@ -661,16 +661,10 @@ module Api
           end
         end
 
-        # Update primary_company_id to be the first company (if employee_of relationship exists)
-        if company_ids.any?
-          first_company_relationship = @contact.outgoing_relationships
-            .active
-            .where(relationship_type: "employee_of")
-            .find_by(related_contact_id: company_ids.first)
-
-          if first_company_relationship && @contact.primary_company_id != company_ids.first
-            @contact.update!(primary_company_id: company_ids.first)
-          end
+        # Update primary_company_id to be the first company in the list
+        # Primary company is the first company in any company-related relationship
+        if company_ids.any? && @contact.primary_company_id != company_ids.first
+          @contact.update!(primary_company_id: company_ids.first)
         end
 
         render json: {
