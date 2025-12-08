@@ -2484,6 +2484,45 @@ Reference: TrinityTableView.jsx removed Actions column, added inline bulk button
 RULE:
 ALWAYS: ALL custom action buttons in Trinity tables (Add, Import, Export, Sync, etc.) MUST use h-[42px] for perfect toolbar alignment with search bar and Columns button
 
+## RULE #20.043: Health Check Button Pattern (SSoT)
+
+RULE:
+MUST: All health check / validation test UI components MUST follow this pattern:
+
+**Collapsed State (default):**
+- Single-line button showing: `[Icon] Health Check [X%] [>]`
+- Green background + green border when 100% tests pass
+- Red background + red border when ANY test fails
+- Gray background when tests not yet run (shows "Not run" instead of %)
+- Full width button with justify-between layout
+
+**Expanded State (on click):**
+- Full Card with header showing pass count badge (e.g., "5/7 Passed")
+- Refresh button to re-run tests
+- List of individual tests with pass/fail/pending/running states
+- Click chevron to collapse back to button
+
+**Behavior:**
+- Auto-run tests when first expanded (if no tests run yet)
+- Show spinner while tests running
+- Each test shows: icon (check/x/spinner/circle) + name + error message if failed
+
+**Colors:**
+- Pass: green-500 border, green-50 bg, CheckCircle2 icon
+- Fail: red-500 border, red-50 bg, XCircle icon
+- Running: blue-600 spinner, Loader2 icon
+- Pending: gray-300 border, empty circle
+
+**Reference Implementation:**
+- `frontend-next/app/(app)/settings/integrations/xero/page.tsx` - Xero Health Check
+
+NEVER:
+- Show health checks as always-expanded cards
+- Use different color schemes for pass/fail
+- Skip percentage display in collapsed state
+- Auto-run tests on page load (only on first expand)
+---
+
 # Chapter 21: Agent System & Automation
 
 **Last Updated:** 2025-11-18 00:22 AEST
