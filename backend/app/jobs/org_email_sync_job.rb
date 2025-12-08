@@ -78,9 +78,8 @@ class OrgEmailSyncJob < ApplicationJob
     when "full"
               sync_years.years.ago
     else
-              # Incremental - check last sync for this user or default to 24 hours
-              last_email = EmailWarehouse.where(owner_email: user_email).order(received_at: :desc).first
-              last_email&.received_at || 24.hours.ago
+              # Incremental - use credential's last_sync_at or default to 24 hours
+              @credential.last_sync_at || 24.hours.ago
     end
 
     # Get all mail folders
@@ -127,35 +126,37 @@ class OrgEmailSyncJob < ApplicationJob
 
   def upsert_email(email_data, owner_email, folder_name)
     # Transform Graph API response to our format
-    message_id = email_data["internetMessageId"] || email_data["id"]
+    internet_message_id = email_data["internetMessageId"] || email_data["id"]
 
     # Find or create
-    email = EmailWarehouse.find_or_initialize_by(message_id: message_id)
+    email = EmailWarehouse.find_or_initialize_by(internet_message_id: internet_message_id)
 
     # Extract sender info
     from_data = email_data["from"]&.dig("emailAddress") || {}
 
     # Extract recipients
-    to_recipients = (email_data["toRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
-    cc_recipients = (email_data["ccRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
+    to_emails = (email_data["toRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
+    cc_emails = (email_data["ccRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
 
     email.assign_attributes(
       outlook_id: email_data["id"],
       subject: email_data["subject"],
-      sender_email: from_data["address"],
-      sender_name: from_data["name"],
-      to_recipients: to_recipients,
-      cc_recipients: cc_recipients,
+      from_email: from_data["address"],
+      from_name: from_data["name"],
+      to_emails: to_emails,
+      cc_emails: cc_emails,
       received_at: email_data["receivedDateTime"],
       has_attachments: email_data["hasAttachments"] || false,
       body_preview: email_data["bodyPreview"],
       conversation_id: email_data["conversationId"],
       folder_name: folder_name,
-      owner_email: owner_email,
       is_read: email_data["isRead"] || false,
-      synced_at: Time.current,
+      last_synced_at: Time.current,
       microsoft_credential_id: @credential&.id  # Track which org this email came from
     )
+
+    # Set first_synced_at if new record
+    email.first_synced_at ||= Time.current
 
     # Set synced_by_user_id if we can match the owner to a TEEEM user
     unless email.synced_by_user_id
@@ -178,21 +179,21 @@ class OrgEmailSyncJob < ApplicationJob
 
     email
   rescue ActiveRecord::RecordInvalid => e
-    Rails.logger.warn "[OrgEmailSync] Failed to save email #{message_id}: #{e.message}"
+    Rails.logger.warn "[OrgEmailSync] Failed to save email #{internet_message_id}: #{e.message}"
     nil
   end
 
   def auto_match_user_emails(user_email)
-    # Find recently synced unassigned emails for this user
+    # Find recently synced unassigned emails for this org
     recent_unassigned = EmailWarehouse
-      .where(owner_email: user_email, construction_id: nil)
-      .where("synced_at > ?", 1.hour.ago)
+      .where(microsoft_credential_id: @credential.id, job_id: nil)
+      .where("last_synced_at > ?", 1.hour.ago)
 
     recent_unassigned.find_each do |email|
       # Try to auto-match based on email addresses in the thread
       matched_job = find_matching_job(email)
       if matched_job
-        email.update!(construction_id: matched_job.id)
+        email.update!(job_id: matched_job.id)
         Rails.logger.info "[OrgEmailSync] Auto-matched email #{email.id} to job #{matched_job.id}"
       end
     end
@@ -200,13 +201,13 @@ class OrgEmailSyncJob < ApplicationJob
 
   def find_matching_job(email)
     # Collect all email addresses involved
-    addresses = [ email.sender_email, email.to_recipients, email.cc_recipients ].flatten.compact.uniq
+    addresses = [ email.from_email, email.to_emails, email.cc_emails ].flatten.compact.uniq
 
     # Find contacts with these emails
     contacts = Contact.where(email: addresses).or(Contact.where(email_secondary: addresses))
 
     # Find jobs associated with these contacts
-    job_ids = JobContact.where(contact_id: contacts.pluck(:id)).pluck(:construction_id).uniq
+    job_ids = JobContact.where(contact_id: contacts.pluck(:id)).pluck(:job_id).uniq
 
     # Return the most recent job if multiple matches
     Construction.where(id: job_ids).order(created_at: :desc).first
