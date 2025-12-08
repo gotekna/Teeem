@@ -305,7 +305,15 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Only admins can view organization users" }, status: :forbidden
     end
 
-    credential = OrganizationMicrosoftAppCredential.active_credential
+    # Support fetching users for specific org by id or name
+    credential = if params[:organization_id].present?
+                   OrganizationMicrosoftAppCredential.find_by(id: params[:organization_id])
+                 elsif params[:name].present?
+                   OrganizationMicrosoftAppCredential.find_by_name(params[:name])
+                 else
+                   OrganizationMicrosoftAppCredential.active_credential
+                 end
+
     unless credential&.status == "connected"
       return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
     end

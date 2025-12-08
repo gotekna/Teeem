@@ -70,7 +70,7 @@ class OrgEmailSyncJob < ApplicationJob
   private
 
   def sync_user_emails(user_email, sync_type, sync_years)
-    client = MicrosoftAppGraphClient.new
+    client = MicrosoftAppGraphClient.new(@credential)
     total_synced = 0
 
     # Determine since date
