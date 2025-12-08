@@ -3108,9 +3108,9 @@ export default function CompanyDetailPage() {
   }, [searchParams]);
 
   const handleTabChange = (tabId: string) => {
-    // Redirect Data tab to admin data warehouse with company filter
+    // Redirect Data tab to data warehouse page with company filter
     if (tabId === "data") {
-      router.push(`/admin/system?tab=data-warehouse&company_id=${companyId}`);
+      router.push(`/data-warehouse?company_id=${companyId}`);
       return;
     }
     setActiveTab(tabId);
