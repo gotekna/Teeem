@@ -100,7 +100,7 @@ module HealthChecks
       contacts = Contact.where(deleted: [ false, nil ])
                        .where(entity_type: "company")
                        .where("display_name IS NULL OR display_name = ''")
-                       .select(:id, :display_name, :first_name, :last_name, :entity_type)
+                       .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Company Contacts Missing Full Name",
@@ -159,7 +159,7 @@ module HealthChecks
       contacts = Contact.where(deleted: [ false, nil ])
                        .where(entity_type: "person")
                        .where("(first_name IS NOT NULL AND LENGTH(first_name) > 1 AND first_name = UPPER(first_name) AND first_name != LOWER(first_name)) OR (last_name IS NOT NULL AND LENGTH(last_name) > 1 AND last_name = UPPER(last_name) AND last_name != LOWER(last_name))")
-                       .select(:id, :display_name, :first_name, :last_name, :entity_type)
+                       .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Person Names in ALL CAPS",
@@ -178,7 +178,7 @@ module HealthChecks
       contacts = Contact.where(deleted: [ false, nil ])
                        .where(entity_type: "person")
                        .where("(first_name IS NOT NULL AND first_name != '' AND first_name = LOWER(first_name) AND first_name ~ '[a-z]') OR (last_name IS NOT NULL AND last_name != '' AND last_name = LOWER(last_name) AND last_name ~ '[a-z]')")
-                       .select(:id, :display_name, :first_name, :last_name, :entity_type)
+                       .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Person Names in lowercase",
@@ -214,7 +214,7 @@ module HealthChecks
                        .where(entity_type: "person")
                        .where("first_name IS NOT NULL AND first_name != ''")
                        .where("last_name IS NULL OR last_name = ''")
-                       .select(:id, :display_name, :first_name, :last_name, :entity_type)
+                       .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Person Missing Last Name",
@@ -232,7 +232,7 @@ module HealthChecks
       contacts = Contact.where(deleted: [ false, nil ])
                        .where(is_team_contact: true)
                        .where(primary_company_id: nil)
-                       .select(:id, :display_name, :first_name, :last_name, :entity_type)
+                       .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Team Contact Missing Company",
