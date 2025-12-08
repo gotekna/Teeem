@@ -156,7 +156,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="relative w-full max-w-3xl max-h-[85vh] overflow-hidden rounded-lg bg-white shadow-xl dark:bg-gray-800"
+        className="relative w-full max-w-3xl max-h-[85vh] flex flex-col rounded-lg bg-white shadow-xl dark:bg-gray-800"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -178,7 +178,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
         </div>
 
         {/* Content */}
-        <div className="overflow-y-auto p-4" style={{ maxHeight: "calc(85vh - 140px)" }}>
+        <div className="overflow-y-auto overflow-x-hidden p-4 flex-1">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
@@ -311,7 +311,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                           No TEEEM companies linked to this organization yet.
                         </p>
                         {availableCompanies.length > 0 ? (
-                          <div className="space-y-2">
+                          <div className="space-y-2 relative z-50">
                             <select
                               onChange={(e) => {
                                 const companyId = parseInt(e.target.value);
@@ -322,6 +322,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                               disabled={linkingTenantId === org.tenant_id}
                               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                               defaultValue=""
+                              size={1}
                             >
                               <option value="" disabled>
                                 Select a company to link...
