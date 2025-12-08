@@ -17,6 +17,12 @@ module Api
         # Filter by status
         reports = reports.where(status: params[:status]) if params[:status].present?
 
+        # Filter by bank code (e.g., NAB, WBC, BOQ, CBA, ANZ)
+        reports = reports.for_bank(params[:bank_code]) if params[:bank_code].present?
+
+        # Filter by company code (e.g., TH)
+        reports = reports.for_company(params[:company_code]) if params[:company_code].present?
+
         render json: {
           success: true,
           data: reports.map { |r| serialize_report(r) },
@@ -26,6 +32,7 @@ module Api
             pending: reports.pending.count,
             failed: reports.failed.count,
             bank_accounts: reports.distinct.pluck(:bank_account_name),
+            bank_codes: reports.distinct.pluck(:bank_code).compact.sort,
             financial_years: reports.distinct.pluck(:financial_year).compact.sort.reverse
           }
         }
@@ -101,7 +108,13 @@ module Api
           bank = report.bank_account_name
           fy = report.financial_year
 
-          structure[bank] ||= { name: bank, bank_account_id: report.bank_account_id, years: {} }
+          structure[bank] ||= {
+            name: bank,
+            bank_account_id: report.bank_account_id,
+            bank_code: report.bank_code,
+            account_number: report.account_number,
+            years: {}
+          }
           structure[bank][:years][fy] ||= { financial_year: fy, months: [] }
           structure[bank][:years][fy][:months] << {
             id: report.id,
@@ -113,7 +126,8 @@ module Api
             total_out: report.total_out&.to_f,
             net_change: report.net_change&.to_f,
             generated_at: report.generated_at&.iso8601,
-            file_name: report.file_name
+            file_name: report.file_name,
+            bank_code: report.bank_code
           }
         end
 
@@ -139,6 +153,9 @@ module Api
           id: report.id,
           bank_account_id: report.bank_account_id,
           bank_account_name: report.bank_account_name,
+          bank_code: report.bank_code,
+          account_number: report.account_number,
+          company_code: report.company_code,
           financial_year: report.financial_year,
           month: report.month,
           year: report.year,

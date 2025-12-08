@@ -5,14 +5,42 @@
 #   Warehousing/Bank Statements/{bank_account_name}/{FY}/{month}.pdf
 # PDFs can be regenerated on demand from the underlying bank transaction data.
 class BankStatementReport < ApplicationRecord
+  # Bank code mapping for standardized naming
+  BANK_CODES = {
+    "nab" => "NAB",
+    "national australia" => "NAB",
+    "westpac" => "WBC",
+    "wbc" => "WBC",
+    "boq" => "BOQ",
+    "bank of queensland" => "BOQ",
+    "commonwealth" => "CBA",
+    "commbank" => "CBA",
+    "cba" => "CBA",
+    "anz" => "ANZ",
+    "stripe" => "STRIPE",
+    "simple saver" => "SS"
+  }.freeze
+
+  
   # Scopes
   scope :completed, -> { where(status: "completed") }
   scope :pending, -> { where(status: "pending") }
   scope :failed, -> { where(status: "failed") }
   scope :for_bank_account, ->(id) { where(bank_account_id: id) }
   scope :for_financial_year, ->(fy) { where(financial_year: fy) }
+  scope :for_bank, ->(code) { where(bank_code: code.upcase) }
+  scope :for_company, ->(code) { where(company_code: code.upcase) }
   scope :monthly, -> { where(report_type: "monthly") }
   scope :annual, -> { where(report_type: "annual") }
+
+  # Detect bank code from account name
+  def self.detect_bank_code(account_name)
+    name = account_name.to_s.downcase
+    BANK_CODES.each do |pattern, code|
+      return code if name.include?(pattern)
+    end
+    "OTHER"
+  end
 
   # Validations
   validates :bank_account_id, presence: true
@@ -22,6 +50,32 @@ class BankStatementReport < ApplicationRecord
 
   # Generate or regenerate the PDF report
   def generate!
+    # Detect and set bank_code if not already set
+    detected_bank_code = self.class.detect_bank_code(bank_account_name)
+    self.bank_code = detected_bank_code if bank_code.blank?
+
+    # Look up BSB and account number from BankAccount table (linked to Company)
+    if account_number.blank? || company_code.blank?
+      bank_account = BankAccount.find_by(xero_account_id: bank_account_id)
+      if bank_account.present?
+        # Format BSB and account number for filename
+        if account_number.blank?
+          parts = []
+          parts << bank_account.formatted_bsb if bank_account.bsb.present?
+          parts << bank_account.account_number if bank_account.account_number.present?
+          self.account_number = parts.join(" ")
+        end
+        # Get company code from linked company
+        if company_code.blank? && bank_account.company.present?
+          self.company_code = bank_account.company.code
+        end
+        # Get bank code
+        if bank_code.blank? && bank_account.bank_code.present?
+          self.bank_code = bank_account.bank_code
+        end
+      end
+    end
+
     update!(status: "generating", error_message: nil)
 
     # Build the PDF
@@ -34,12 +88,17 @@ class BankStatementReport < ApplicationRecord
     result = service.generate
 
     if result[:success]
+      # Generate standard filename format: {CompanyCode} {Period} {BankCode} {AccountNum} FY{YY} {CompanyCode}.pdf
+      # e.g., "TH EOY WBC 702 733 FY24 TH.pdf" for end of year
+      # e.g., "TH Jul WBC 702 733 FY24 TH.pdf" for monthly
+      standard_filename = generate_standard_filename
+
       # Upload PDF to SharePoint
-      sharepoint_result = upload_to_sharepoint(result[:pdf], result[:filename])
+      sharepoint_result = upload_to_sharepoint(result[:pdf], standard_filename)
 
       update!(
         status: "completed",
-        file_name: result[:filename],
+        file_name: standard_filename,
         file_size: result[:pdf].bytesize,
         transaction_count: result[:transaction_count],
         total_in: calculate_totals(result)[:in],
@@ -59,6 +118,30 @@ class BankStatementReport < ApplicationRecord
     update!(status: "failed", error_message: e.message)
     Rails.logger.error("BankStatementReport#generate! failed: #{e.message}")
     { success: false, error: e.message }
+  end
+
+  # Generate filename in standard format: {CompanyCode} {Period} {BankCode} {AccountNum} FY{YY}.pdf
+  def generate_standard_filename
+    # Get company code (default to "TH" for Tekna Homes if not set)
+    code = company_code.presence || "TH"
+
+    # Period: "EOY" for annual, month abbreviation for monthly
+    period = if month.present?
+               Date::ABBR_MONTHNAMES[month]
+             else
+               "EOY"
+             end
+
+    # Extract FY year (e.g., "FY24" from "FY2024")
+    fy_short = financial_year.to_s.gsub(/FY?(\d{4})/, 'FY\1').gsub(/FY(\d{4})/) { "FY#{$1[-2..]}" }
+    fy_short = "FY#{fy_short[-2..]}" unless fy_short.start_with?("FY")
+
+    # Build filename parts: {CompanyCode} {Period} {BankCode} {AccountNum} FY{YY}
+    parts = [ code, period, bank_code.presence || "BANK" ]
+    parts << account_number if account_number.present?
+    parts << fy_short
+
+    "#{parts.join(' ')}.pdf"
   end
 
   # Get the period display string

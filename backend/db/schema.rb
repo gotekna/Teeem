@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_08_063034) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -189,6 +189,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
     t.index ["company_id"], name: "index_assets_on_company_id"
   end
 
+  create_table "bank_account_configs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
   create_table "bank_accounts", force: :cascade do |t|
     t.bigint "company_id", null: false
     t.string "institution_name"
@@ -230,7 +235,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
     t.text "error_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "bank_code"
+    t.string "account_number"
+    t.string "company_code"
     t.index ["bank_account_id", "financial_year", "month"], name: "idx_bank_reports_unique", unique: true
+    t.index ["bank_code"], name: "index_bank_statement_reports_on_bank_code"
+    t.index ["company_code"], name: "index_bank_statement_reports_on_company_code"
     t.index ["financial_year"], name: "index_bank_statement_reports_on_financial_year"
     t.index ["status"], name: "index_bank_statement_reports_on_status"
   end

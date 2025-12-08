@@ -2655,6 +2655,28 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # GET /api/v1/contacts/health
+      # Quick health score for header display
+      def health
+        begin
+          checker = HealthChecks::ContactsCheck.new
+          results = checker.execute
+
+          health_score = HealthChecks::BaseCheck.calculate_health_score(results)
+          total_issues = results.sum { |r| r[:count] || 0 }
+
+          render json: {
+            success: true,
+            health_score: health_score,
+            total_issues: total_issues,
+            checked_at: Time.current.iso8601
+          }
+        rescue => e
+          Rails.logger.error("Contacts health check error: #{e.message}")
+          render json: { success: false, health_score: nil, error: e.message }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/contacts/preview_employee_extraction
       # Preview what would be extracted from email warehouse for specified email addresses
       # New flow:
