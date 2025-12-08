@@ -13,10 +13,15 @@ spec/
 test/
 .rspec
 
-# Ignore documentation
+# Ignore documentation and markdown files
 README.md
 CONTRIBUTING.md
 *.md
+
+# Ignore large CSV/Excel data files
+*.csv
+*.xlsx
+*.xls
 
 # Ignore development/test gems artifacts
 .ruby-lsp/
@@ -31,6 +36,7 @@ coverage/
 .vscode/
 .idea/
 .cursor/
+.claude/
 *.swp
 *.swo
 
