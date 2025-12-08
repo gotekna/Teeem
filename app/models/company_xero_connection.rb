@@ -1,14 +1,11 @@
 class CompanyXeroConnection < ApplicationRecord
   # Associations
   belongs_to :company
+  belongs_to :xero_credential, optional: true  # SSoT for OAuth tokens
   has_many :company_xero_accounts, dependent: :destroy
 
-  # Encrypted attributes - Rails 7+ attribute encryption
-  encrypts :encrypted_access_token
-  encrypts :encrypted_refresh_token
-
   # Validations
-  validates :xero_tenant_id, presence: true, uniqueness: true
+  validates :xero_tenant_id, presence: true, uniqueness: { scope: :company_id }
   validates :connection_status, inclusion: { in: %w[connected disconnected error pending] }
 
   # Scopes
@@ -23,51 +20,61 @@ class CompanyXeroConnection < ApplicationRecord
 
   # Instance methods
   def connected?
-    connection_status == "connected"
+    connection_status == "connected" && xero_credential.present? && !token_expired?
   end
 
   def token_expired?
-    token_expires_at.present? && token_expires_at <= 5.minutes.from_now
+    return true unless xero_credential.present?
+    xero_credential.expired?
   end
 
   def needs_refresh?
-    connected? && token_expired?
+    xero_credential.present? && token_expired?
   end
 
   def expired?
     token_expired?
   end
 
-  # Virtual accessors for tokens (stored in encrypted columns)
+  # Delegate token access to xero_credential (SSoT)
   def access_token
-    encrypted_access_token
-  end
-
-  def access_token=(value)
-    self.encrypted_access_token = value
+    xero_credential&.access_token
   end
 
   def refresh_token
-    encrypted_refresh_token
+    xero_credential&.refresh_token
   end
 
-  def refresh_token=(value)
-    self.encrypted_refresh_token = value
+  def token_expires_at
+    xero_credential&.expires_at
   end
 
-  # Mark as connected with tokens
-  def connect!(access_token:, refresh_token:, expires_at:, tenant_id: nil, tenant_name: nil)
+  # Link this company to a Xero credential
+  def link_to_credential!(credential)
     update!(
-      encrypted_access_token: access_token,
-      encrypted_refresh_token: refresh_token,
-      token_expires_at: expires_at,
-      xero_tenant_id: tenant_id || xero_tenant_id,
-      xero_tenant_name: tenant_name || xero_tenant_name,
+      xero_credential: credential,
+      xero_tenant_id: credential.tenant_id,
+      xero_tenant_name: credential.tenant_name,
       connection_status: "connected",
       last_sync_error: nil
     )
 
     create_connection_activity
+  end
+
+  # For backwards compatibility during migration
+  def connect!(access_token:, refresh_token:, expires_at:, tenant_id: nil, tenant_name: nil)
+    # Find or create xero_credential (SSoT)
+    credential = XeroCredential.find_or_initialize_by(tenant_id: tenant_id || xero_tenant_id)
+    credential.assign_attributes(
+      access_token: access_token,
+      refresh_token: refresh_token,
+      expires_at: expires_at,
+      tenant_name: tenant_name || xero_tenant_name
+    )
+    credential.save!
+
+    link_to_credential!(credential)
   end
 
   def mark_disconnected!(error_message = nil)
@@ -105,20 +112,15 @@ class CompanyXeroConnection < ApplicationRecord
     ((Time.current - last_sync_at) / 1.day).to_i
   end
 
-  # Refresh tokens using XeroApiClient
+  # Refresh tokens using XeroApiClient (delegates to credential)
   def refresh_tokens!
-    return false unless refresh_token.present?
+    return false unless xero_credential.present?
 
     client = XeroApiClient.new
-    result = client.refresh_access_token_for_connection(self)
+    result = client.refresh_access_token_for(xero_credential)
 
     if result[:success]
-      update!(
-        encrypted_access_token: result[:access_token],
-        encrypted_refresh_token: result[:refresh_token],
-        token_expires_at: result[:expires_at],
-        connection_status: "connected"
-      )
+      update!(connection_status: "connected")
       true
     else
       mark_error!(result[:error])

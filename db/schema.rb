@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_08_112658) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_08_202548) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -953,16 +953,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_112658) do
     t.bigint "company_id", null: false
     t.string "xero_tenant_id", null: false
     t.string "xero_tenant_name"
-    t.text "encrypted_access_token"
-    t.text "encrypted_refresh_token"
-    t.datetime "token_expires_at"
     t.datetime "last_sync_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "connection_status", default: "disconnected"
     t.text "last_sync_error"
+    t.bigint "xero_credential_id"
+    t.string "accounting_method"
+    t.date "financial_year_end"
     t.index ["company_id"], name: "index_company_xero_connections_on_company_id", unique: true
     t.index ["connection_status"], name: "index_company_xero_connections_on_connection_status"
+    t.index ["xero_credential_id"], name: "index_company_xero_connections_on_xero_credential_id"
     t.index ["xero_tenant_id"], name: "index_company_xero_connections_on_xero_tenant_id"
   end
 
@@ -1448,7 +1449,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_112658) do
     t.jsonb "tabs", default: []
     t.string "primary_tab"
     t.string "name_format"
-    t.string "naming_format"
+    t.string "file_name"
     t.string "abbreviation"
     t.jsonb "aliases", default: []
     t.string "display_name"
@@ -4769,6 +4770,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_112658) do
   add_foreign_key "company_shareholdings", "companies"
   add_foreign_key "company_xero_accounts", "company_xero_connections"
   add_foreign_key "company_xero_connections", "companies"
+  add_foreign_key "company_xero_connections", "xero_credentials"
   add_foreign_key "contact_activities", "contacts"
   add_foreign_key "contact_addresses", "contacts"
   add_foreign_key "contact_company_group_memberships", "companies"
