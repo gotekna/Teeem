@@ -6,21 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   ArrowLeft,
   Mail,
@@ -916,15 +906,10 @@ function OrgWideAccessSection() {
   const searchParams = useSearchParams();
   const [orgStatus, setOrgStatus] = React.useState<OrgAppStatus | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [setupDialogOpen, setSetupDialogOpen] = React.useState(false);
-  const [selectedOrgForSetup, setSelectedOrgForSetup] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Form state for new org setup
-  const [clientId, setClientId] = React.useState("");
-  const [clientSecret, setClientSecret] = React.useState("");
-  const [tenantId, setTenantId] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
+  // Track which org is currently being connected (null = none, string = org name)
+  const [connectingOrg, setConnectingOrg] = React.useState<string | null>(null);
 
   // Check if user is admin
   const isAdmin = user?.permissions?.includes("admin") || user?.role === "admin";
@@ -963,7 +948,9 @@ function OrgWideAccessSection() {
   }, [isAdmin]);
 
   const handleSetupOrg = async (orgName: string) => {
-    setSaving(true);
+    // All orgs use the same Azure AD app credentials from env vars
+    // Just redirect to Microsoft login with the org name
+    setConnectingOrg(orgName);
     setError(null);
 
     try {
@@ -972,42 +959,14 @@ function OrgWideAccessSection() {
         { name: orgName }
       );
 
-      // Redirect to admin consent
-      if (response) {
+      // Redirect to Microsoft login
+      if (response?.admin_consent_url) {
         window.location.href = response.admin_consent_url;
       }
     } catch (err: unknown) {
       const error = err as { data?: { error?: string }; message?: string };
-      setError(error.data?.error || error.message || "Failed to setup organization");
-      setSaving(false);
-    }
-  };
-
-  const handleSetupManual = async () => {
-    if (!selectedOrgForSetup) return;
-
-    setSaving(true);
-    setError(null);
-
-    try {
-      const response = await api.post<{ success: boolean; admin_consent_url: string; message: string }>(
-        "/api/v1/microsoft_app/setup",
-        {
-          name: selectedOrgForSetup,
-          client_id: clientId,
-          client_secret: clientSecret,
-          tenant_id: tenantId,
-        }
-      );
-
-      // Redirect to admin consent
-      if (response) {
-        window.location.href = response.admin_consent_url;
-      }
-    } catch (err: unknown) {
-      const error = err as { data?: { error?: string }; message?: string };
-      setError(error.data?.error || error.message || "Failed to save credentials");
-      setSaving(false);
+      setError(error.data?.error || error.message || "Failed to start connection");
+      setConnectingOrg(null);
     }
   };
 
@@ -1086,111 +1045,55 @@ function OrgWideAccessSection() {
         ))}
 
         {/* Unconfigured Organizations - Show as setup cards */}
-        {unconfiguredOrgs.map((org) => (
-          <Card key={org.name} className="border-dashed">
-            <CardHeader className="py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gray-100 rounded-lg">
-                    <Building2 className="h-5 w-5 text-gray-400" />
+        {unconfiguredOrgs.map((org) => {
+          const isThisOneConnecting = connectingOrg === org.name;
+
+          return (
+            <Card key={org.name} className={isThisOneConnecting ? "border-blue-200 bg-blue-50/30" : "border-dashed"}>
+              <CardHeader className="py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${isThisOneConnecting ? "bg-blue-100" : "bg-gray-100"}`}>
+                      {isThisOneConnecting ? (
+                        <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
+                      ) : (
+                        <Building2 className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">{org.name}</CardTitle>
+                      <CardDescription className="text-xs">{org.description}</CardDescription>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-base">{org.name}</CardTitle>
-                    <CardDescription className="text-xs">{org.description}</CardDescription>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">
-                    <XCircle className="h-3 w-3 mr-1" />
-                    Not Connected
-                  </Badge>
-                  <Button
-                    size="sm"
-                    onClick={() => handleSetupOrg(org.name)}
-                    disabled={saving}
-                  >
-                    {saving ? (
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  <div className="flex items-center gap-2">
+                    {isThisOneConnecting ? (
+                      <Badge className="bg-blue-100 text-blue-800">
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Connecting...
+                      </Badge>
                     ) : (
-                      <Shield className="h-4 w-4 mr-1" />
+                      <>
+                        <Badge variant="secondary">
+                          <XCircle className="h-3 w-3 mr-1" />
+                          Not Connected
+                        </Badge>
+                        <Button
+                          size="sm"
+                          onClick={() => handleSetupOrg(org.name)}
+                          disabled={connectingOrg !== null}
+                        >
+                          <Shield className="h-4 w-4 mr-1" />
+                          Connect
+                        </Button>
+                      </>
                     )}
-                    Connect
-                  </Button>
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
-          </Card>
-        ))}
+              </CardHeader>
+            </Card>
+          );
+        })}
       </div>
-
-      {/* Setup Dialog for manual configuration */}
-      <Dialog open={setupDialogOpen} onOpenChange={setSetupDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Configure Azure AD App Credentials</DialogTitle>
-            <DialogDescription>
-              Enter the credentials from your Azure AD App Registration for {selectedOrgForSetup}.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="clientId">Application (Client) ID</Label>
-              <Input
-                id="clientId"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="clientSecret">Client Secret</Label>
-              <Input
-                id="clientSecret"
-                type="password"
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
-                placeholder="Enter client secret"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tenantId">Directory (Tenant) ID</Label>
-              <Input
-                id="tenantId"
-                value={tenantId}
-                onChange={(e) => setTenantId(e.target.value)}
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              />
-            </div>
-
-            <Alert>
-              <Building2 className="h-4 w-4" />
-              <AlertDescription className="text-xs">
-                Find these values in Azure Portal → App Registrations → Your App → Overview
-              </AlertDescription>
-            </Alert>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSetupDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSetupManual}
-              disabled={saving || !clientId || !clientSecret || !tenantId}
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Key className="h-4 w-4 mr-2" />
-              )}
-              Save & Request Consent
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
