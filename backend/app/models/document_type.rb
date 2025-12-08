@@ -158,12 +158,12 @@ class DocumentType < ApplicationRecord
   # Generate a preview title showing what the document will look like when named
   # Replaces placeholders with example values, date in AU format (DD-MM-YYYY)
   def title_preview
-    return nil if naming_format.blank?
+    return nil if file_name.blank?
 
     # Australian date format (DD-MM-YYYY)
     au_date = Date.current.strftime("%d-%m-%Y")
 
-    format = naming_format.dup
+    format = file_name.dup
 
     # Replace all placeholders with example values
     # Corporate placeholders
@@ -194,12 +194,12 @@ class DocumentType < ApplicationRecord
   # Generate proposed filename for a specific job
   # Uses actual job data instead of placeholder values
   def generate_proposed_name(job:, file_extension: nil, description: nil, number: nil)
-    return nil if naming_format.blank?
+    return nil if file_name.blank?
 
     # Australian date format (DD-MM-YYYY)
     au_date = Date.current.strftime("%d-%m-%Y")
 
-    format = naming_format.dup
+    format = file_name.dup
 
     # Job placeholders with actual data
     job_code = "J#{job.id.to_s.rjust(3, '0')}"

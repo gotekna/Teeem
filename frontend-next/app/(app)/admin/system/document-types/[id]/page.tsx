@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Trash2, FileText, X } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -42,12 +42,36 @@ const FILE_EXTENSION_OPTIONS = [
   ".txt", ".csv", ".zip", ".msg", ".eml"
 ];
 
+// Placeholder definitions with scope
+const PLACEHOLDERS = {
+  company: [
+    { code: "{CompanyCode}", description: "Company abbreviation", color: "purple" },
+    { code: "{LoanID}", description: "Loan identifier", color: "purple" },
+    { code: "{AssetCode}", description: "Asset abbreviation", color: "purple" },
+    { code: "{FY}", description: "Financial year (4 digits)", color: "purple" },
+    { code: "{YY}", description: "Financial year (2 digits)", color: "purple" },
+    { code: "{Period}", description: "BAS period (Q1, Q2, etc)", color: "purple" },
+    { code: "{LenderCode}", description: "Lender company code", color: "purple" },
+    { code: "{Date}", description: "Document date", color: "purple" },
+    { code: "{Description}", description: "Custom text field", color: "purple" },
+  ],
+  job: [
+    { code: "{JobCode}", description: "Job number", color: "orange" },
+    { code: "{JobTitle}", description: "Job address/title", color: "orange" },
+    { code: "{CertType}", description: "Certificate type", color: "orange" },
+    { code: "{Consultant}", description: "Consultant name", color: "orange" },
+    { code: "{Number}", description: "Sequential number", color: "orange" },
+    { code: "{Date}", description: "Document date", color: "orange" },
+    { code: "{Description}", description: "Custom text field", color: "orange" },
+  ]
+};
+
 interface DocumentType {
   id: number;
   name: string;
   display_name?: string;
   abbreviation?: string;
-  naming_format?: string;
+  file_name?: string;
   title_preview?: string;
   category?: string;
   folder?: string;
@@ -73,6 +97,12 @@ export default function DocumentTypeDetailPage() {
   const [saving, setSaving] = React.useState(false);
   const [documentType, setDocumentType] = React.useState<DocumentType | null>(null);
   const [newExtension, setNewExtension] = React.useState("");
+  const [draggedPlaceholder, setDraggedPlaceholder] = React.useState<string | null>(null);
+  const [draggedFromField, setDraggedFromField] = React.useState<"file_name" | "display_name" | "source" | null>(null);
+  const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
+
+  const fileNameInputRef = React.useRef<HTMLInputElement>(null);
+  const displayNameInputRef = React.useRef<HTMLInputElement>(null);
 
   const documentTypeId = params.id as string;
 
@@ -183,6 +213,146 @@ export default function DocumentTypeDetailPage() {
     if (!documentType) return;
     const currentExts = documentType.file_extensions || [];
     updateField("file_extensions", currentExts.filter(e => e !== ext));
+  };
+
+  // Get placeholders based on scope
+  const getAvailablePlaceholders = () => {
+    const scope = documentType?.scope || "company";
+    if (scope === "both") {
+      return [...PLACEHOLDERS.company, ...PLACEHOLDERS.job];
+    }
+    return PLACEHOLDERS[scope as keyof typeof PLACEHOLDERS] || PLACEHOLDERS.company;
+  };
+
+  // Parse a field value into tokens (text and placeholders)
+  const parseTokens = (value: string): { type: "text" | "placeholder"; value: string }[] => {
+    if (!value) return [];
+    const tokens: { type: "text" | "placeholder"; value: string }[] = [];
+    const regex = /(\{[^}]+\})/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(value)) !== null) {
+      // Add text before placeholder
+      if (match.index > lastIndex) {
+        tokens.push({ type: "text", value: value.slice(lastIndex, match.index) });
+      }
+      // Add placeholder
+      tokens.push({ type: "placeholder", value: match[0] });
+      lastIndex = regex.lastIndex;
+    }
+
+    // Add remaining text
+    if (lastIndex < value.length) {
+      tokens.push({ type: "text", value: value.slice(lastIndex) });
+    }
+
+    return tokens;
+  };
+
+  // Rebuild field value from tokens
+  const rebuildFromTokens = (tokens: { type: "text" | "placeholder"; value: string }[]): string => {
+    return tokens.map(t => t.value).join("");
+  };
+
+  // Get color for placeholder
+  const getPlaceholderColor = (placeholder: string): string => {
+    const allPlaceholders = [...PLACEHOLDERS.company, ...PLACEHOLDERS.job];
+    const found = allPlaceholders.find(p => p.code === placeholder);
+    return found?.color || "purple";
+  };
+
+  // Handle drag start from source placeholders
+  const handleDragStartFromSource = (e: React.DragEvent, placeholder: string) => {
+    setDraggedPlaceholder(placeholder);
+    setDraggedFromField("source");
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData("text/plain", placeholder);
+  };
+
+  // Handle drag start from field token
+  const handleDragStartFromToken = (
+    e: React.DragEvent,
+    field: "file_name" | "display_name",
+    index: number,
+    placeholder: string
+  ) => {
+    setDraggedPlaceholder(placeholder);
+    setDraggedFromField(field);
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", placeholder);
+  };
+
+  // Handle drag end
+  const handleDragEnd = () => {
+    setDraggedPlaceholder(null);
+    setDraggedFromField(null);
+    setDraggedIndex(null);
+  };
+
+  // Handle drop to reorder within field
+  const handleDropOnToken = (
+    e: React.DragEvent,
+    field: "file_name" | "display_name",
+    dropIndex: number
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!documentType) return;
+
+    const placeholder = e.dataTransfer.getData("text/plain");
+    const currentValue = documentType[field] || "";
+    const tokens = parseTokens(currentValue);
+
+    // If dragging from same field, reorder
+    if (draggedFromField === field && draggedIndex !== null) {
+      const newTokens = [...tokens];
+      const [removed] = newTokens.splice(draggedIndex, 1);
+      newTokens.splice(dropIndex, 0, removed);
+      updateField(field, rebuildFromTokens(newTokens));
+    }
+    // If dragging from source, insert
+    else if (draggedFromField === "source") {
+      const newTokens = [...tokens];
+      newTokens.splice(dropIndex, 0, { type: "placeholder", value: placeholder });
+      updateField(field, rebuildFromTokens(newTokens));
+    }
+
+    setDraggedPlaceholder(null);
+    setDraggedFromField(null);
+    setDraggedIndex(null);
+  };
+
+  // Handle drag over (required to allow drop)
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = draggedFromField === "source" ? "copy" : "move";
+  };
+
+  // Remove token from field
+  const removeToken = (field: "file_name" | "display_name", index: number) => {
+    if (!documentType) return;
+    const tokens = parseTokens(documentType[field] || "");
+    const newTokens = tokens.filter((_, i) => i !== index);
+    updateField(field, rebuildFromTokens(newTokens));
+  };
+
+  // Edit text token
+  const updateTextToken = (field: "file_name" | "display_name", index: number, newValue: string) => {
+    if (!documentType) return;
+    const tokens = parseTokens(documentType[field] || "");
+    tokens[index] = { type: "text", value: newValue };
+    updateField(field, rebuildFromTokens(tokens));
+  };
+
+  // Click to insert at end
+  const handlePlaceholderClick = (placeholder: string, field: "file_name" | "display_name") => {
+    if (!documentType) return;
+    const currentValue = documentType[field] || "";
+    const newValue = currentValue + (currentValue ? " " : "") + placeholder;
+    updateField(field, newValue);
   };
 
   if (loading) {
@@ -349,14 +519,65 @@ export default function DocumentTypeDetailPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="naming_format">Naming Format Template</Label>
-            <Input
-              id="naming_format"
-              value={documentType.naming_format || ""}
-              onChange={(e) => updateField("naming_format", e.target.value)}
-              placeholder="{CompanyCode} CTR FY{YY}"
-              className="font-mono text-sm"
-            />
+            <Label htmlFor="file_name">File Name</Label>
+            <div className="min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-2 items-center">
+              {parseTokens(documentType.file_name || "").map((token, index) => (
+                <div
+                  key={index}
+                  draggable={token.type === "placeholder"}
+                  onDragStart={(e) =>
+                    token.type === "placeholder" &&
+                    handleDragStartFromToken(e, "file_name", index, token.value)
+                  }
+                  onDragEnd={handleDragEnd}
+                  onDrop={(e) => handleDropOnToken(e, "file_name", index)}
+                  onDragOver={handleDragOver}
+                  className={cn(
+                    token.type === "placeholder" &&
+                      "cursor-grab active:cursor-grabbing transition-all",
+                    draggedFromField === "file_name" &&
+                      draggedIndex === index &&
+                      "opacity-30"
+                  )}
+                >
+                  {token.type === "placeholder" ? (
+                    <Badge
+                      className={cn(
+                        "font-mono text-xs px-3 py-1.5 select-none",
+                        getPlaceholderColor(token.value) === "purple" &&
+                          "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
+                        getPlaceholderColor(token.value) === "orange" &&
+                          "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700"
+                      )}
+                    >
+                      <GripVertical className="h-3 w-3 mr-1 inline" />
+                      {token.value}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeToken("file_name", index);
+                        }}
+                        className="ml-2 hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ) : (
+                    <Input
+                      value={token.value}
+                      onChange={(e) => updateTextToken("file_name", index, e.target.value)}
+                      className="h-8 w-auto min-w-[50px] px-2 font-mono text-xs inline-block"
+                      style={{ width: `${Math.max(50, token.value.length * 8)}px` }}
+                    />
+                  )}
+                </div>
+              ))}
+              {parseTokens(documentType.file_name || "").length === 0 && (
+                <span className="text-sm text-muted-foreground">
+                  Drag placeholders here to build your file name template
+                </span>
+              )}
+            </div>
             {documentType.title_preview && (
               <div className="flex items-center gap-2 text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                 <span className="text-muted-foreground font-medium">Preview:</span>
@@ -366,21 +587,75 @@ export default function DocumentTypeDetailPage() {
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Use variables like {"{CompanyCode}"}, {"{Date}"}, {"{FY}"} - see legend below
+              Drag placeholders to reorder them. Click X to remove. Edit text directly.
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="display_name">Display Name (Optional Override)</Label>
+            <Label htmlFor="display_name">Display Name</Label>
             <Input
+              ref={displayNameInputRef}
               id="display_name"
               value={documentType.display_name || ""}
               onChange={(e) => updateField("display_name", e.target.value)}
+              onDrop={handleDropOnDisplayName}
+              onDragOver={handleDragOver}
               placeholder="Leave empty to use Document Type Name"
+              className={cn(
+                draggedPlaceholder && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950"
+              )}
             />
             <p className="text-xs text-muted-foreground">
-              Override the document type name for specific display contexts. Leave empty to use the main name above.
+              Override the document type name for specific display contexts. You can use placeholders here too.
             </p>
+          </div>
+
+          {/* Draggable Placeholders */}
+          <div className="space-y-3 p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center gap-2">
+              <GripVertical className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <Label className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                Available Placeholders for {documentType.scope === "both" ? "Company & Job" : documentType.scope === "job" ? "Jobs" : "Companies"}
+              </Label>
+            </div>
+            <p className="text-xs text-blue-600 dark:text-blue-400">
+              💡 Drag these chips into the fields above, or click to add at the end
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {getAvailablePlaceholders().map((placeholder) => (
+                <Badge
+                  key={placeholder.code}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, placeholder.code)}
+                  onDragEnd={handleDragEnd}
+                  onClick={() => handlePlaceholderClick(placeholder.code, "file_name")}
+                  className={cn(
+                    "cursor-grab active:cursor-grabbing font-mono text-xs px-3 py-1.5 transition-all hover:scale-105",
+                    placeholder.color === "purple" && "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
+                    placeholder.color === "orange" && "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+                    draggedPlaceholder === placeholder.code && "opacity-50 scale-95"
+                  )}
+                  title={`${placeholder.code} - ${placeholder.description}`}
+                >
+                  <GripVertical className="h-3 w-3 mr-1 inline" />
+                  {placeholder.code}
+                </Badge>
+              ))}
+            </div>
+            <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-blue-200 dark:border-blue-800">
+              {getAvailablePlaceholders().map((p) => (
+                <div key={p.code} className="flex items-start gap-2">
+                  <code className={cn(
+                    "px-1.5 py-0.5 rounded font-mono text-xs",
+                    p.color === "purple" && "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300",
+                    p.color === "orange" && "bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300"
+                  )}>
+                    {p.code}
+                  </code>
+                  <span className="text-xs">{p.description}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -621,50 +896,6 @@ export default function DocumentTypeDetailPage() {
                 {documentType.updated_at ? new Date(documentType.updated_at).toLocaleString() : "—"}
               </span>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Naming Format Legend */}
-      <Card className="bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
-        <CardHeader>
-          <CardTitle className="text-base text-blue-900 dark:text-blue-200">
-            Naming Format Variables Reference
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <div className="text-xs font-semibold text-purple-700 dark:text-purple-300 border-b border-purple-200 dark:border-purple-800 pb-1">
-              Corporate Documents (Company Scope)
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-blue-700 dark:text-blue-300">
-              <div><code className="bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">{"{CompanyCode}"}</code> Company abbreviation</div>
-              <div><code className="bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">{"{LoanID}"}</code> Loan identifier</div>
-              <div><code className="bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">{"{AssetCode}"}</code> Asset abbreviation</div>
-              <div><code className="bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">{"{FY}"}</code> Financial year (4 digits)</div>
-              <div><code className="bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">{"{YY}"}</code> Financial year (2 digits)</div>
-              <div><code className="bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">{"{Date}"}</code> Document date</div>
-              <div><code className="bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">{"{Period}"}</code> BAS period (Q1, Q2, etc)</div>
-              <div><code className="bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">{"{Description}"}</code> Custom text field</div>
-              <div><code className="bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">{"{LenderCode}"}</code> Lender company code</div>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="text-xs font-semibold text-orange-700 dark:text-orange-300 border-b border-orange-200 dark:border-orange-800 pb-1">
-              Job Documents (Job Scope)
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-orange-700 dark:text-orange-300">
-              <div><code className="bg-orange-100 dark:bg-orange-900 px-1.5 py-0.5 rounded">{"{JobCode}"}</code> Job number</div>
-              <div><code className="bg-orange-100 dark:bg-orange-900 px-1.5 py-0.5 rounded">{"{JobTitle}"}</code> Job address/title</div>
-              <div><code className="bg-orange-100 dark:bg-orange-900 px-1.5 py-0.5 rounded">{"{CertType}"}</code> Certificate type</div>
-              <div><code className="bg-orange-100 dark:bg-orange-900 px-1.5 py-0.5 rounded">{"{Consultant}"}</code> Consultant name</div>
-              <div><code className="bg-orange-100 dark:bg-orange-900 px-1.5 py-0.5 rounded">{"{Number}"}</code> Sequential number</div>
-            </div>
-          </div>
-
-          <div className="text-xs text-blue-600 dark:text-blue-400 pt-2 border-t border-blue-200 dark:border-blue-800">
-            💡 Example: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{CompanyCode}"} CTR FY{"{YY}"}</code> → "ABC CTR FY25"
           </div>
         </CardContent>
       </Card>
