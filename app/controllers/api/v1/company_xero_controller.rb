@@ -41,9 +41,7 @@ module Api
       # GET /api/v1/companies/:company_id/xero/authorize
       # Returns the OAuth authorization URL for connecting to Xero
       def authorize
-        # Store company_id in session for callback
-        session[:xero_company_id] = @company.id
-
+        # Note: company_id is passed via state parameter in OAuth flow, not session
         client = XeroApiClient.new
         auth_url = client.authorization_url_for_company(@company.id)
 
