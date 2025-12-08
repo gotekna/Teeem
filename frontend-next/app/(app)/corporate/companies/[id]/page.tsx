@@ -65,7 +65,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
+
+// Safe date formatter that handles null/invalid dates
+const safeFormatDate = (dateValue: string | Date | null | undefined, formatStr: string, fallback = "—"): string => {
+  if (!dateValue) return fallback;
+  const date = typeof dateValue === "string" ? new Date(dateValue) : dateValue;
+  return isValid(date) ? format(date, formatStr) : fallback;
+};
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
@@ -3750,7 +3757,7 @@ function BankTransactionsCard({ companyId, isConnected }: { companyId: string; i
                 {transactions.slice(0, 20).map((tx) => (
                   <tr key={tx.id} className="border-b hover:bg-muted/50">
                     <td className="py-2 px-2 whitespace-nowrap">
-                      {tx.transaction_date ? format(new Date(tx.transaction_date), "d MMM yyyy") : "—"}
+                      {safeFormatDate(tx.transaction_date, "d MMM yyyy")}
                     </td>
                     <td className="py-2 px-2 max-w-[200px] truncate" title={tx.description}>
                       {tx.description || tx.reference || "-"}
@@ -4692,7 +4699,7 @@ function XeroBankAccountsCard({ companyId }: { companyId: string }) {
                   return (
                     <tr key={tx.transaction_id} className="border-b hover:bg-muted/30">
                       <td className="py-2 px-3 whitespace-nowrap">
-                        {tx.date ? format(new Date(tx.date), "dd MMM yyyy") : "—"}
+                        {safeFormatDate(tx.date, "dd MMM yyyy")}
                       </td>
                       <td className="py-2 px-3">
                         <div className="max-w-xs truncate" title={tx.description}>
