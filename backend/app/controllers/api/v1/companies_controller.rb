@@ -802,6 +802,8 @@ module Api
           contact_email: membership.contact&.email,
           contact_entity_type: membership.contact&.entity_type,
           membership_type: membership.membership_type,
+          beneficiary_type: membership.beneficiary_type,
+          class_description: membership.class_description,
           can_view_confidential: membership.can_view_confidential,
           is_active: membership.is_active
         }

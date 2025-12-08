@@ -20,6 +20,12 @@ class ContactCompanyGroupMembership < ApplicationRecord
     trust_entity
   ].freeze
 
+  # Beneficiary types for trust beneficiaries
+  # - named: Specific named individuals
+  # - class: Groups/classes of beneficiaries (e.g., "children of X", "relatives")
+  # - default: Taker in default - receives if trustee doesn't exercise discretion
+  BENEFICIARY_TYPES = %w[named class default].freeze
+
   # Validations
   # Allow same contact to have multiple roles (director + shareholder) in same group
   validates :contact_id, uniqueness: { scope: [ :company_group_id, :membership_type ], message: "already has this membership type in this company group" }

@@ -5,6 +5,16 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,6 +61,7 @@ import {
   Info,
   Mail,
   Phone,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -248,6 +259,8 @@ interface TrustRolesMember {
   contact_email?: string;
   contact_entity_type?: string;
   membership_type: string;
+  beneficiary_type?: "named" | "class" | "default";
+  class_description?: string;
   can_view_confidential: boolean;
   is_active: boolean;
 }
@@ -1754,8 +1767,51 @@ function BeneficiariesTab({ company }: { company: Company }) {
 
   const beneficiaries = trustRoles?.beneficiaries || [];
 
+  // Group beneficiaries by type
+  const namedBeneficiaries = beneficiaries.filter(b => b.beneficiary_type === "named" || !b.beneficiary_type);
+  const classBeneficiaries = beneficiaries.filter(b => b.beneficiary_type === "class");
+  const defaultBeneficiary = beneficiaries.filter(b => b.beneficiary_type === "default");
+
+  const renderBeneficiaryCard = (b: TrustRolesMember, colorClass: string) => (
+    <Card key={b.membership_id}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-medium">{b.contact_name}</div>
+            {b.class_description && (
+              <div className="text-sm text-muted-foreground italic">{b.class_description}</div>
+            )}
+            {b.contact_email && (
+              <div className="text-sm text-muted-foreground">{b.contact_email}</div>
+            )}
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant="outline" className={colorClass}>
+                {b.beneficiary_type === "class" ? "Class" :
+                 b.beneficiary_type === "default" ? "Taker in Default" : "Named"}
+              </Badge>
+              {b.contact_entity_type && (
+                <Badge variant="outline">{b.contact_entity_type}</Badge>
+              )}
+              {!b.is_active && (
+                <Badge variant="destructive">Inactive</Badge>
+              )}
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push(`/contacts/${b.contact_id}`)}
+          >
+            <ExternalLink className="h-4 w-4 mr-1" />
+            View
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Beneficiaries ({beneficiaries.length})</h3>
         <Button variant="outline" size="sm">
@@ -1763,46 +1819,51 @@ function BeneficiariesTab({ company }: { company: Company }) {
           Add Beneficiary
         </Button>
       </div>
+
       {beneficiaries.length > 0 ? (
-        <div className="space-y-2">
-          {beneficiaries.map((b) => (
-            <Card key={b.membership_id}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{b.contact_name}</div>
-                    {b.contact_email && (
-                      <div className="text-sm text-muted-foreground">{b.contact_email}</div>
-                    )}
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="bg-amber-100 text-amber-700">
-                        Beneficiary
-                      </Badge>
-                      {b.contact_entity_type && (
-                        <Badge variant="outline">{b.contact_entity_type}</Badge>
-                      )}
-                      {!b.is_active && (
-                        <Badge variant="destructive">Inactive</Badge>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => router.push(`/contacts/${b.contact_id}`)}
-                  >
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    View
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <>
+          {/* Named Beneficiaries */}
+          {namedBeneficiaries.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Named Beneficiaries ({namedBeneficiaries.length})
+              </h4>
+              <div className="space-y-2">
+                {namedBeneficiaries.map((b) => renderBeneficiaryCard(b, "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"))}
+              </div>
+            </div>
+          )}
+
+          {/* Class/Group Beneficiaries */}
+          {classBeneficiaries.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Class Beneficiaries ({classBeneficiaries.length})
+              </h4>
+              <p className="text-xs text-muted-foreground">Groups or classes of beneficiaries (e.g., &quot;children of X&quot;, &quot;relatives&quot;)</p>
+              <div className="space-y-2">
+                {classBeneficiaries.map((b) => renderBeneficiaryCard(b, "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"))}
+              </div>
+            </div>
+          )}
+
+          {/* Taker in Default */}
+          {defaultBeneficiary.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Taker in Default
+              </h4>
+              <p className="text-xs text-muted-foreground">Receives trust property if trustee fails to exercise discretion or trust winds up</p>
+              <div className="space-y-2">
+                {defaultBeneficiary.map((b) => renderBeneficiaryCard(b, "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"))}
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="text-center text-muted-foreground py-8 border rounded-lg">
           No beneficiaries recorded for this trust.
-          <div className="text-sm mt-2">Add beneficiaries to track trust distributions.</div>
+          <div className="text-sm mt-2">Add named beneficiaries, class beneficiaries, or a taker in default.</div>
         </div>
       )}
     </div>
@@ -1943,6 +2004,109 @@ interface ConsolidatedCompany {
   status?: string;
 }
 
+// Org chart node interface for structure display
+interface OrgChartNodeData {
+  id: number;
+  name: string;
+  code?: string;
+  entity_type?: string;
+  is_trustee?: boolean;
+  trust_name?: string;
+  is_trust_of_trustee?: boolean;
+  children: OrgChartNodeData[];
+}
+
+// Recursive component to render org chart nodes
+function OrgChartNode({
+  node,
+  currentCompanyId,
+  onNavigate,
+  level,
+}: {
+  node: OrgChartNodeData;
+  currentCompanyId: number;
+  onNavigate: (id: number) => void;
+  level: number;
+}) {
+  const isCurrentCompany = node.id === currentCompanyId;
+  const isTrust = node.entity_type === "Trust" || node.entity_type === "Superfund";
+  const hasChildren = node.children && node.children.length > 0;
+
+  // Get icon based on entity type
+  const getEntityIcon = () => {
+    if (node.is_trust_of_trustee) return "🔐"; // Trust managed by trustee
+    if (isTrust) return "📜"; // Trust/Superfund
+    if (node.is_trustee) return "🏛️"; // Corporate trustee
+    return "🏢"; // Regular company
+  };
+
+  return (
+    <div className="relative">
+      {/* Node box */}
+      <div className="flex items-start gap-2 mb-2">
+        {/* Indent based on level with connecting line */}
+        {level > 0 && (
+          <div className="flex items-center" style={{ width: `${level * 24}px` }}>
+            <div className="flex items-center justify-end w-full">
+              <div className="w-4 h-px bg-border" />
+              <ChevronRight className="h-3 w-3 text-muted-foreground -ml-1" />
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={() => onNavigate(node.id)}
+          className={cn(
+            "flex items-center gap-2 px-3 py-2 rounded-lg border text-left transition-all hover:shadow-md",
+            isCurrentCompany
+              ? "bg-primary/10 border-primary ring-2 ring-primary/20"
+              : isTrust
+              ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+              : "bg-background border-border hover:bg-muted"
+          )}
+        >
+          <span className="text-lg">{getEntityIcon()}</span>
+          <div>
+            <div className={cn(
+              "text-sm font-medium",
+              isCurrentCompany && "text-primary"
+            )}>
+              {node.name}
+              {node.code && <span className="ml-1 text-xs text-muted-foreground">({node.code})</span>}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {node.is_trust_of_trustee ? "Trust" : node.entity_type || "Company"}
+              {node.is_trustee && node.trust_name && (
+                <span className="ml-1">(Trustee for {node.trust_name})</span>
+              )}
+            </div>
+          </div>
+          {isCurrentCompany && (
+            <Badge variant="outline" className="ml-2 text-xs bg-primary/10 text-primary border-primary/30">
+              Current
+            </Badge>
+          )}
+        </button>
+      </div>
+
+      {/* Render children recursively */}
+      {hasChildren && (
+        <div className="ml-0">
+          {node.children.map((child) => (
+            <OrgChartNode
+              key={child.id}
+              node={child}
+              currentCompanyId={currentCompanyId}
+              onNavigate={onNavigate}
+              level={level + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: () => void }) {
   const router = useRouter();
   const [consolidatedCompanies, setConsolidatedCompanies] = React.useState<ConsolidatedCompany[]>([]);
@@ -1962,12 +2126,18 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
   const [availableTrusts, setAvailableTrusts] = React.useState<{ id: number; name: string; entity_type?: string }[]>([]);
   const [selectedTrustName, setSelectedTrustName] = React.useState(company.trust_name || "");
   const [savingTrustee, setSavingTrustee] = React.useState(false);
+  // Group structure for org chart
+  const [groupStructure, setGroupStructure] = React.useState<{
+    group: { id: number; name: string };
+    companies: OrgChartNodeData[];
+  } | null>(null);
 
   React.useEffect(() => {
     loadConsolidatedCompanies();
     loadCompanyGroups();
     loadParentCompanyOptions();
     loadAvailableTrusts();
+    loadGroupStructure();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [company.id]);
 
@@ -2056,6 +2226,23 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
     }
   };
 
+  const loadGroupStructure = async () => {
+    if (!company.company_group_id) {
+      setGroupStructure(null);
+      return;
+    }
+    try {
+      const response = await api.get<{ success: boolean; data: { group: { id: number; name: string }; companies: OrgChartNodeData[] } }>(
+        `/api/v1/company_groups/${company.company_group_id}/structure`
+      );
+      if (response.success) {
+        setGroupStructure(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to load group structure:", error);
+    }
+  };
+
   const handleTrusteeChange = async (trustName: string) => {
     if (trustName === selectedTrustName) return;
     try {
@@ -2084,6 +2271,12 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
       });
       setSelectedGroupId(newGroupId);
       onUpdate();
+      // Reload structure after group change
+      if (newGroupId) {
+        setTimeout(() => loadGroupStructure(), 500);
+      } else {
+        setGroupStructure(null);
+      }
     } catch (error) {
       console.error("Failed to update company group:", error);
     } finally {
@@ -2110,6 +2303,7 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
       setShowAddForm(false);
       setSelectedCompanyId("");
       loadConsolidatedCompanies();
+      loadGroupStructure(); // Refresh org chart
       onUpdate();
     } catch (error) {
       console.error("Failed to add to consolidation:", error);
@@ -2126,6 +2320,7 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
         company: { consolidation_parent_id: null },
       });
       loadConsolidatedCompanies();
+      loadGroupStructure(); // Refresh org chart
       onUpdate();
     } catch (error) {
       console.error("Failed to remove from consolidation:", error);
@@ -2223,6 +2418,33 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
                 <p className="text-xs text-blue-700 dark:text-blue-300">
                   Financial results are reported through the consolidation parent
                 </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Group Structure Chart */}
+      {groupStructure && groupStructure.companies.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-muted-foreground" />
+                <h4 className="font-medium">{groupStructure.group.name} Structure</h4>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="min-w-fit">
+                {groupStructure.companies.map((node) => (
+                  <OrgChartNode
+                    key={node.id}
+                    node={node}
+                    currentCompanyId={company.id}
+                    onNavigate={(id) => router.push(`/corporate/companies/${id}`)}
+                    level={0}
+                  />
+                ))}
               </div>
             </div>
           </CardContent>
@@ -3032,12 +3254,14 @@ function ATOSetupCard({ company }: { company: Company }) {
   );
 }
 
-function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: { companyId: string; onSyncComplete?: () => void; onConnectionChange?: (connected: boolean) => void }) {
+function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnectionChange }: { companyId: string; companyName?: string; onSyncComplete?: () => void; onConnectionChange?: (connected: boolean) => void }) {
   const [status, setStatus] = React.useState<XeroConnectionStatus | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [connecting, setConnecting] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
   const [syncing, setSyncing] = React.useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
+  const [pendingConnection, setPendingConnection] = React.useState<XeroConnectionStatus | null>(null);
 
   React.useEffect(() => {
     loadStatus();
@@ -3084,7 +3308,9 @@ function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: {
           );
           if (statusCheck.connected) {
             clearInterval(pollInterval);
-            setStatus(statusCheck);
+            // Show confirmation dialog instead of auto-accepting
+            setPendingConnection(statusCheck);
+            setShowConfirmDialog(true);
             setConnecting(false);
           }
         }, 3000);
@@ -3125,6 +3351,30 @@ function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: {
       console.error("Failed to sync with Xero:", error);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // User confirms the Xero connection is correct
+  const handleConfirmConnection = () => {
+    if (pendingConnection) {
+      setStatus(pendingConnection);
+      setPendingConnection(null);
+    }
+    setShowConfirmDialog(false);
+  };
+
+  // User says wrong connection - disconnect
+  const handleRejectConnection = async () => {
+    setShowConfirmDialog(false);
+    setPendingConnection(null);
+    try {
+      setDisconnecting(true);
+      await api.post(`/api/v1/companies/${companyId}/xero/disconnect`);
+      setStatus({ connected: false });
+    } catch (error) {
+      console.error("Failed to disconnect from Xero:", error);
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -3245,6 +3495,50 @@ function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: {
           </div>
         </div>
       </CardContent>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Confirm Xero Connection
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>Please verify this connection is correct:</p>
+                <div className="rounded-lg border p-4 space-y-2 bg-muted/50">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">TEEEM Company:</span>
+                    <span className="font-medium text-foreground">{companyName || "Unknown"}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Connected to Xero:</span>
+                    <span className="font-medium text-blue-600">{pendingConnection?.xero_tenant_name || "Unknown"}</span>
+                  </div>
+                </div>
+                <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                  Make sure the Xero organisation matches this company. Connecting to the wrong Xero file will sync incorrect data.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={handleRejectConnection}
+              className="bg-red-50 text-red-700 hover:bg-red-100 border-red-200"
+            >
+              Wrong Company - Disconnect
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmConnection}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Yes, This is Correct
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
@@ -3859,6 +4153,7 @@ export default function CompanyDetailPage() {
                     <>
                       <XeroConnectionCard
                         companyId={companyId}
+                        companyName={company?.name}
                         onConnectionChange={setXeroConnected}
                       />
                       <BankTransactionsCard
