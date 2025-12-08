@@ -1674,19 +1674,30 @@ export default function ContactDetailPage() {
         const isNewPersonType = hasFirstLastName(newType);
 
         // Switching from person/sole_trader to company/trust
-        // Populate display_name from first/middle/last name
+        // Populate display_name and company_name_or_trust from first/middle/last name, then clear person fields
         if (isPrevPersonType && !isNewPersonType) {
           const constructedName = [prev.first_name, prev.middle_name, prev.last_name].filter(Boolean).join(" ");
-          if (constructedName && (!updated.display_name || updated.display_name === 'Unknown')) {
-            updated.display_name = constructedName;
+          if (constructedName) {
+            if (!updated.display_name || updated.display_name === 'Unknown') {
+              updated.display_name = constructedName;
+            }
+            // For company/trust, set company_name_or_trust (SSoT for company names)
+            if (!updated.company_name_or_trust) {
+              updated.company_name_or_trust = constructedName;
+            }
           }
+          // Clear person-specific fields - companies don't have first/middle/last names
+          updated.first_name = '';
+          updated.middle_name = '';
+          updated.last_name = '';
         }
 
         // Switching from company/trust to person/sole_trader
-        // Try to parse display_name into first/last name if they're empty
+        // Try to parse display_name or company_name_or_trust into first/last name if they're empty
         if (!isPrevPersonType && isNewPersonType) {
-          if (prev.display_name && (!prev.first_name && !prev.last_name)) {
-            const nameParts = prev.display_name.trim().split(/\s+/);
+          const nameSource = prev.company_name_or_trust || prev.display_name;
+          if (nameSource && (!prev.first_name && !prev.last_name)) {
+            const nameParts = nameSource.trim().split(/\s+/);
             if (nameParts.length >= 2) {
               updated.first_name = nameParts[0];
               updated.last_name = nameParts.slice(1).join(" ");
@@ -1694,6 +1705,8 @@ export default function ContactDetailPage() {
               updated.first_name = nameParts[0];
             }
           }
+          // Clear company-specific field - persons don't have company_name_or_trust
+          updated.company_name_or_trust = '';
         }
       }
 
