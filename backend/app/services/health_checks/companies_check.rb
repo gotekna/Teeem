@@ -71,22 +71,15 @@ module HealthChecks
     end
 
     # Companies without any directors
+    # NOTE: Disabled - CompanyRelationship model does not exist yet
+    # TODO: Implement when company-contact relationship model is created
     def check_companies_without_directors
-      # Get companies that have no director relationships
-      companies_with_directors = CompanyRelationship.where(relationship_type: "director")
-                                                    .distinct
-                                                    .pluck(:company_id)
-
-      companies = Company.where(active: [ true, nil ])
-                        .where.not(id: companies_with_directors)
-                        .where("company_type ILIKE '%pty%' OR company_type ILIKE '%proprietary%' OR company_type ILIKE '%limited%'")
-                        .select(:id, :name, :code, :company_type)
-
+      # Skip this check - model not implemented
       build_result(
         name: "Companies Without Directors",
-        description: "Companies without any director records. All companies must have at least one director.",
-        severity: :critical,
-        items: companies,
+        description: "Companies without any director records. (Check disabled - awaiting data model)",
+        severity: :info,
+        items: [],
         icon: "user-group",
         action_path: "/corporate/:id"
       )
