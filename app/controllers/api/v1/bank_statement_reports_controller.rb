@@ -31,9 +31,9 @@ module Api
             completed: reports.completed.count,
             pending: reports.pending.count,
             failed: reports.failed.count,
-            bank_accounts: reports.distinct.pluck(:bank_account_name),
-            bank_codes: reports.distinct.pluck(:bank_code).compact.sort,
-            financial_years: reports.distinct.pluck(:financial_year).compact.sort.reverse
+            bank_accounts: reports.unscope(:order).distinct.pluck(:bank_account_name).compact.sort,
+            bank_codes: reports.unscope(:order).distinct.pluck(:bank_code).compact.sort,
+            financial_years: reports.unscope(:order).distinct.pluck(:financial_year).compact.sort.reverse
           }
         }
       end

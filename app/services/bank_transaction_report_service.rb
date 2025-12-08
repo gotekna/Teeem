@@ -290,7 +290,7 @@ class BankTransactionReportService
     canvas.text(format_date_nab(end_date), at: [130, 745])
 
     # Right side: Account Details box (like real NAB statement)
-    draw_nab_account_details_box(canvas, account_name)
+    draw_account_details_box(canvas, account_name)
 
     # Source note
     canvas.font("Helvetica", size: 7)
@@ -299,8 +299,8 @@ class BankTransactionReportService
     canvas.fill_color("000000")
   end
 
-  # Draw NAB-style Account Details box on right side of header
-  def draw_nab_account_details_box(canvas, account_name)
+  # Draw Account Details box on right side of header (used by all bank types)
+  def draw_account_details_box(canvas, account_name)
     box_x = 320
     box_y = 770
     box_width = 235
@@ -485,7 +485,7 @@ class BankTransactionReportService
     canvas.text("#{format_date_westpac_long(start_date)} - #{format_date_westpac_long(end_date)}", at: [box_x + 10, box_y - 25])
 
     # Account details box
-    canvas.rectangle(box_x, box_y - 115, 210, 75)
+    canvas.rectangle(box_x, box_y - 130, 210, 90)
     canvas.stroke
 
     y = box_y - 50
@@ -494,10 +494,32 @@ class BankTransactionReportService
     canvas.font("Helvetica", size: 10, variant: :bold)
     canvas.text(account_name.upcase, at: [box_x + 10, y - 12])
 
+    # BSB and Account Number from BankAccount record
+    if @bank_account_record.present?
+      company_name = @bank_account_record.company&.name || "Unknown"
+      bsb = @bank_account_record.formatted_bsb || "-"
+      account_number = @bank_account_record.account_number || "-"
+    else
+      company_name = account_name.split(" - ").last || account_name
+      bsb = "-"
+      account_number = "-"
+    end
+
+    canvas.font("Helvetica", size: 8)
+    canvas.text("Company", at: [box_x + 10, y - 30])
+    canvas.font("Helvetica", size: 9)
+    canvas.text(company_name.upcase, at: [box_x + 70, y - 30])
+
+    canvas.font("Helvetica", size: 8)
+    canvas.text("BSB", at: [box_x + 10, y - 45])
+    canvas.text(bsb, at: [box_x + 70, y - 45])
+    canvas.text("Account", at: [box_x + 110, y - 45])
+    canvas.text(account_number, at: [box_x + 150, y - 45])
+
     # Source note
     canvas.font("Helvetica", size: 7)
     canvas.fill_color("999999")
-    canvas.text("Source: Xero Bank Feed Data", at: [box_x + 10, y - 55])
+    canvas.text("Source: Xero Bank Feed Data", at: [box_x + 10, y - 70])
     canvas.fill_color("000000")
   end
 
@@ -662,6 +684,9 @@ class BankTransactionReportService
     canvas.font("Helvetica", size: 9, variant: :bold)
     canvas.text("#{format_date_boq(start_date)} to #{format_date_boq(end_date)}", at: [130, 745])
 
+    # Account Details box on right side
+    draw_account_details_box(canvas, account_name)
+
     # Source note
     canvas.font("Helvetica", size: 7)
     canvas.fill_color("999999")
@@ -817,6 +842,9 @@ class BankTransactionReportService
     canvas.font("Helvetica", size: 9)
     canvas.text("Statement period:", at: [50, 745])
     canvas.text("#{format_date_commbank(start_date)} to #{format_date_commbank(end_date)}", at: [130, 745])
+
+    # Account Details box on right side
+    draw_account_details_box(canvas, account_name)
 
     # Source note
     canvas.font("Helvetica", size: 7)
@@ -976,6 +1004,9 @@ class BankTransactionReportService
     canvas.font("Helvetica", size: 9)
     canvas.text("Statement period:", at: [50, 745])
     canvas.text("#{format_date_anz(start_date)} to #{format_date_anz(end_date)}", at: [130, 745])
+
+    # Account Details box on right side
+    draw_account_details_box(canvas, account_name)
 
     # Source note
     canvas.font("Helvetica", size: 7)
