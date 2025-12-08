@@ -45,24 +45,27 @@ const FILE_EXTENSION_OPTIONS = [
 // Placeholder definitions with scope
 const PLACEHOLDERS = {
   company: [
-    { code: "{CompanyCode}", description: "Company abbreviation", color: "purple" },
-    { code: "{LoanID}", description: "Loan identifier", color: "purple" },
-    { code: "{AssetCode}", description: "Asset abbreviation", color: "purple" },
-    { code: "{FY}", description: "Financial year (4 digits)", color: "purple" },
-    { code: "{YY}", description: "Financial year (2 digits)", color: "purple" },
-    { code: "{Period}", description: "BAS period (Q1, Q2, etc)", color: "purple" },
-    { code: "{LenderCode}", description: "Lender company code", color: "purple" },
-    { code: "{Date}", description: "Document date", color: "purple" },
-    { code: "{Description}", description: "Custom text field", color: "purple" },
+    { code: "{CompanyCode}", description: "Company abbreviation (e.g., ABC)", color: "purple" },
+    { code: "{CompanyName}", description: "Full company name (e.g., ABC Property Trust)", color: "purple" },
+    { code: "{LoanID}", description: "Loan identifier (e.g., L001)", color: "purple" },
+    { code: "{AssetCode}", description: "Asset abbreviation (e.g., PROP1)", color: "purple" },
+    { code: "{FY}", description: "Financial year with prefix (e.g., FY25)", color: "purple" },
+    { code: "{YY}", description: "Financial year 2 digits only (e.g., 25)", color: "purple" },
+    { code: "{Period}", description: "BAS period with dates (e.g., Q1 Jul-Sep)", color: "purple" },
+    { code: "{LenderCode}", description: "Lender company code (e.g., NAB)", color: "purple" },
+    { code: "{Date}", description: "Document date DD-MM-YYYY (e.g., 09-12-2025)", color: "purple" },
+    { code: "{Description}", description: "Custom text field (e.g., Example)", color: "purple" },
+    { code: "{BankCode}", description: "Bank code (e.g., NAB)", color: "purple" },
+    { code: "{AccountNum}", description: "Account number (e.g., 12345)", color: "purple" },
   ],
   job: [
-    { code: "{JobCode}", description: "Job number", color: "orange" },
-    { code: "{JobTitle}", description: "Job address/title", color: "orange" },
-    { code: "{CertType}", description: "Certificate type", color: "orange" },
-    { code: "{Consultant}", description: "Consultant name", color: "orange" },
-    { code: "{Number}", description: "Sequential number", color: "orange" },
-    { code: "{Date}", description: "Document date", color: "orange" },
-    { code: "{Description}", description: "Custom text field", color: "orange" },
+    { code: "{JobCode}", description: "Job number (e.g., J069)", color: "orange" },
+    { code: "{JobTitle}", description: "Job address/title (e.g., 83 West Ridge)", color: "orange" },
+    { code: "{CertType}", description: "Certificate type (e.g., Occupancy)", color: "orange" },
+    { code: "{Consultant}", description: "Consultant name (e.g., ABC Eng)", color: "orange" },
+    { code: "{Number}", description: "Sequential number (e.g., 01)", color: "orange" },
+    { code: "{Date}", description: "Document date DD-MM-YYYY (e.g., 09-12-2025)", color: "orange" },
+    { code: "{Description}", description: "Custom text field (e.g., Example)", color: "orange" },
   ]
 };
 
@@ -101,6 +104,7 @@ export default function DocumentTypeDetailPage() {
   const [draggedFromField, setDraggedFromField] = React.useState<"file_name" | "display_name" | "source" | null>(null);
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
   const [basicInfoExpanded, setBasicInfoExpanded] = React.useState(false);
+  const [displayNameSameAsFileName, setDisplayNameSameAsFileName] = React.useState(true);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
@@ -112,6 +116,25 @@ export default function DocumentTypeDetailPage() {
       loadDocumentType();
     }
   }, [documentTypeId]);
+
+  // Initialize checkbox state based on whether display_name exists
+  React.useEffect(() => {
+    if (documentType) {
+      // If display_name is empty or same as file_name, check the box
+      if (!documentType.display_name || documentType.display_name === documentType.file_name) {
+        setDisplayNameSameAsFileName(true);
+      } else {
+        setDisplayNameSameAsFileName(false);
+      }
+    }
+  }, [documentType?.id]); // Only run when document type changes
+
+  // Sync display_name with file_name when checkbox is checked
+  React.useEffect(() => {
+    if (displayNameSameAsFileName && documentType) {
+      updateField("display_name", documentType.file_name || "");
+    }
+  }, [displayNameSameAsFileName, documentType?.file_name]);
 
   const loadDocumentType = async () => {
     try {
@@ -251,9 +274,29 @@ export default function DocumentTypeDetailPage() {
     return tokens;
   };
 
-  // Rebuild field value from tokens
+  // Rebuild field value from tokens with smart spacing
   const rebuildFromTokens = (tokens: { type: "text" | "placeholder"; value: string }[]): string => {
-    return tokens.map(t => t.value).join("");
+    if (tokens.length === 0) return "";
+
+    return tokens.map((token, index) => {
+      // First token - no prefix space needed
+      if (index === 0) return token.value.trimStart();
+
+      // Get previous token
+      const prevToken = tokens[index - 1];
+
+      // If previous token is a placeholder, always add space before current
+      if (prevToken.type === "placeholder") {
+        return " " + token.value.trimStart();
+      }
+
+      // If current is placeholder and previous is text without trailing space, add space
+      if (token.type === "placeholder" && !prevToken.value.endsWith(" ")) {
+        return " " + token.value;
+      }
+
+      return token.value;
+    }).join("").trim();
   };
 
   // Get color for placeholder
@@ -263,20 +306,21 @@ export default function DocumentTypeDetailPage() {
     return found?.color || "purple";
   };
 
-  // Generate preview for display name (similar to backend's title_preview logic)
-  const generateDisplayNamePreview = (value: string): string => {
+  // Generate preview by replacing placeholders with example values
+  const generatePreview = (value: string): string => {
     if (!value) return "";
 
     let preview = value;
 
     // Replace placeholders with example values
     preview = preview.replace(/\{CompanyCode\}/g, "ABC");
+    preview = preview.replace(/\{CompanyName\}/g, "ABC Property Trust");
     preview = preview.replace(/\{LoanID\}/g, "L001");
     preview = preview.replace(/\{LenderCode\}/g, "NAB");
     preview = preview.replace(/\{AssetCode\}/g, "PROP1");
-    preview = preview.replace(/\{FY\}/g, "2025");
+    preview = preview.replace(/\{FY\}/g, "FY25");
     preview = preview.replace(/\{YY\}/g, "25");
-    preview = preview.replace(/\{Period\}/g, "Q1");
+    preview = preview.replace(/\{Period\}/g, "Q1 Jul-Sep"); // Long-hand with dates
     preview = preview.replace(/\{Date\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
     preview = preview.replace(/\{PrintDate\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
     preview = preview.replace(/\{JobCode\}/g, "J069");
@@ -285,6 +329,8 @@ export default function DocumentTypeDetailPage() {
     preview = preview.replace(/\{Consultant\}/g, "ABC Eng");
     preview = preview.replace(/\{Number\}/g, "01");
     preview = preview.replace(/\{Description\}/g, "Example");
+    preview = preview.replace(/\{BankCode\}/g, "NAB");
+    preview = preview.replace(/\{AccountNum\}/g, "12345");
 
     return preview.trim();
   };
@@ -380,6 +426,14 @@ export default function DocumentTypeDetailPage() {
     const currentValue = documentType[field] || "";
     const newValue = currentValue + (currentValue ? " " : "") + placeholder;
     updateField(field, newValue);
+  };
+
+  // Add blank text token
+  const addBlankText = (field: "file_name" | "display_name") => {
+    if (!documentType) return;
+    const tokens = parseTokens(documentType[field] || "");
+    tokens.push({ type: "text", value: " " });
+    updateField(field, rebuildFromTokens(tokens));
   };
 
   if (loading) {
@@ -558,7 +612,18 @@ export default function DocumentTypeDetailPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="file_name">File Name</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="file_name">File Name</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => addBlankText("file_name")}
+                className="text-xs h-7"
+              >
+                + Add Text
+              </Button>
+            </div>
             <div className="min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-2 items-center">
               {parseTokens(documentType.file_name || "").map((token, index) => (
                 <div
@@ -617,22 +682,57 @@ export default function DocumentTypeDetailPage() {
                 </span>
               )}
             </div>
-            {documentType.title_preview && (
-              <div className="flex items-center gap-2 text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                <span className="text-muted-foreground font-medium">Preview:</span>
+            <div className="flex items-center gap-2 text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+              <span className="text-muted-foreground font-medium">Preview:</span>
+              {documentType.file_name && generatePreview(documentType.file_name) ? (
                 <span className="font-semibold text-green-700 dark:text-green-400 font-mono">
-                  {documentType.title_preview}
+                  {generatePreview(documentType.file_name)}
                 </span>
-              </div>
-            )}
+              ) : (
+                <span className="text-muted-foreground italic">
+                  (empty - add placeholders to see preview)
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
               Drag placeholders to reorder them. Click X to remove. Edit text directly.
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="display_name">Display Name</Label>
-            <div className="min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-2 items-center">
+            <div className="flex items-start justify-between gap-4">
+              <Label htmlFor="display_name">Display Name</Label>
+              <div className="flex items-center gap-3">
+                {!displayNameSameAsFileName && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => addBlankText("display_name")}
+                    className="text-xs h-7 -mt-1"
+                  >
+                    + Add Text
+                  </Button>
+                )}
+                <div className="flex items-center gap-2 whitespace-nowrap">
+                  <Checkbox
+                    id="same-as-file-name"
+                    checked={displayNameSameAsFileName}
+                    onCheckedChange={(checked) => setDisplayNameSameAsFileName(checked as boolean)}
+                  />
+                  <Label
+                    htmlFor="same-as-file-name"
+                    className="text-sm font-normal cursor-pointer text-muted-foreground"
+                  >
+                    Same as File Name
+                  </Label>
+                </div>
+              </div>
+            </div>
+            <div className={cn(
+              "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-2 items-center",
+              displayNameSameAsFileName && "opacity-50 pointer-events-none"
+            )}>
               {parseTokens(documentType.display_name || "").map((token, index) => (
                 <div
                   key={index}
@@ -690,16 +790,22 @@ export default function DocumentTypeDetailPage() {
                 </span>
               )}
             </div>
-            {documentType.display_name && generateDisplayNamePreview(documentType.display_name) && (
-              <div className="flex items-center gap-2 text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                <span className="text-muted-foreground font-medium">Preview:</span>
+            <div className="flex items-center gap-2 text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+              <span className="text-muted-foreground font-medium">Preview:</span>
+              {documentType.display_name && generatePreview(documentType.display_name) ? (
                 <span className="font-semibold text-green-700 dark:text-green-400 font-mono">
-                  {generateDisplayNamePreview(documentType.display_name)}
+                  {generatePreview(documentType.display_name)}
                 </span>
-              </div>
-            )}
+              ) : (
+                <span className="text-muted-foreground italic">
+                  (empty - add placeholders to see preview)
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Override the document type name for specific display contexts. Drag to reorder, X to remove.
+              {displayNameSameAsFileName
+                ? "Display Name will automatically match File Name. Uncheck to customize separately."
+                : "Override the document type name for specific display contexts. Drag to reorder, X to remove."}
             </p>
           </div>
 
