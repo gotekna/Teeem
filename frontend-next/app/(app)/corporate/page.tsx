@@ -47,6 +47,9 @@ import {
   Pencil,
   FolderOpen,
   Trash2,
+  Maximize2,
+  Minimize2,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -517,6 +520,7 @@ export default function CorporateDashboardPage() {
     corporateOfficer: true,
   });
   const [structureViewMode, setStructureViewMode] = React.useState<"chart" | "table">("chart");
+  const [isStructureFullscreen, setIsStructureFullscreen] = React.useState(false);
   const [selectedPerson, setSelectedPerson] = React.useState<StructurePerson | null>(null);
 
   // People tab state
@@ -2296,6 +2300,18 @@ export default function CorporateDashboardPage() {
                         Table
                       </button>
                     </div>
+                    {/* Fullscreen Toggle */}
+                    {structureViewMode === "chart" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsStructureFullscreen(true)}
+                        className="gap-2"
+                      >
+                        <Maximize2 className="h-4 w-4" />
+                        Fullscreen
+                      </Button>
+                    )}
                     {/* Filters */}
                     <span className="text-sm text-muted-foreground">Show:</span>
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -2649,6 +2665,75 @@ export default function CorporateDashboardPage() {
           </Sheet>
         </TabsContent>
       </Tabs>
+
+      {/* Fullscreen Structure Chart Modal */}
+      {isStructureFullscreen && structureData && (
+        <div className="fixed inset-0 z-50 bg-background">
+          {/* Header */}
+          <div className="absolute top-0 left-0 right-0 h-16 bg-background border-b flex items-center justify-between px-6 z-10">
+            <div className="flex items-center gap-4">
+              <Building2 className="h-6 w-6 text-blue-600" />
+              <h2 className="text-xl font-semibold">{structureData.group.name} - Structure Chart</h2>
+            </div>
+            <div className="flex items-center gap-4">
+              {/* Filters in fullscreen */}
+              <div className="flex items-center gap-3 text-sm">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={structureFilters.shareholders}
+                    onChange={(e) => setStructureFilters(prev => ({ ...prev, shareholders: e.target.checked }))}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span>Shareholders</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={structureFilters.directors}
+                    onChange={(e) => setStructureFilters(prev => ({ ...prev, directors: e.target.checked }))}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span>Directors</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={structureFilters.ownershipLinks}
+                    onChange={(e) => setStructureFilters(prev => ({ ...prev, ownershipLinks: e.target.checked }))}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span>Ownership Links</span>
+                </label>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsStructureFullscreen(false)}
+                className="gap-2"
+              >
+                <Minimize2 className="h-4 w-4" />
+                Exit Fullscreen
+              </Button>
+            </div>
+          </div>
+          {/* Chart takes full remaining space */}
+          <div className="absolute top-16 left-0 right-0 bottom-0">
+            <CorporateStructureChart
+              data={structureData}
+              filters={structureFilters}
+              fullscreen={true}
+              onEntityClick={(id, type) => {
+                if (type === "company") {
+                  router.push(`/corporate/companies/${id}`);
+                } else {
+                  router.push(`/contacts/${id}`);
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -90,15 +90,19 @@ interface CorporateStructureChartProps {
     ownershipLinks: boolean;
   };
   onEntityClick?: (entityId: number, entityType: "company" | "person") => void;
+  fullscreen?: boolean;
 }
 
 // Custom node component for person
 function PersonNode({ data }: { data: PersonNodeData }) {
-  const { label, email, roles, onClick } = data;
+  const { label, email, roles, onClick, isFullscreen } = data;
 
   return (
     <div
-      className="min-w-[150px] max-w-[200px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow text-sm bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700"
+      className={cn(
+        "rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700",
+        isFullscreen ? "min-w-[280px] max-w-[350px]" : "min-w-[150px] max-w-[200px]"
+      )}
       onClick={onClick}
     >
       {/* Connection handles */}
@@ -106,17 +110,23 @@ function PersonNode({ data }: { data: PersonNodeData }) {
       <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
 
       {/* Header */}
-      <div className="px-5 py-4 rounded-t-md flex items-center gap-3 bg-amber-100 dark:bg-amber-900/50">
-        <User className="h-5 w-5 text-amber-600" />
-        <span className="font-bold text-lg">{label}</span>
+      <div className={cn(
+        "rounded-t-md flex items-center gap-3 bg-amber-100 dark:bg-amber-900/50",
+        isFullscreen ? "px-6 py-5" : "px-5 py-4"
+      )}>
+        <User className={cn(isFullscreen ? "h-7 w-7" : "h-5 w-5", "text-amber-600")} />
+        <span className={cn("font-bold", isFullscreen ? "text-xl" : "text-lg")}>{label}</span>
       </div>
 
       {/* Body */}
-      <div className="px-5 py-4 text-base space-y-2">
+      <div className={cn(
+        "space-y-2",
+        isFullscreen ? "px-6 py-5 text-lg" : "px-5 py-4 text-base"
+      )}>
         {email && (
-          <div className="text-sm text-muted-foreground">{email}</div>
+          <div className={cn(isFullscreen ? "text-base" : "text-sm", "text-muted-foreground")}>{email}</div>
         )}
-        <div className="text-sm text-amber-700 dark:text-amber-400">
+        <div className={cn(isFullscreen ? "text-base" : "text-sm", "text-amber-700 dark:text-amber-400")}>
           {roles} roles
         </div>
       </div>
@@ -129,6 +139,7 @@ interface PersonNodeData {
   email: string | null;
   roles: number;
   onClick?: () => void;
+  isFullscreen?: boolean;
 }
 
 // Custom node component for entities
@@ -139,6 +150,7 @@ function EntityNode({ data }: { data: EntityNodeData }) {
     isTrustee,
     trustName,
     onClick,
+    isFullscreen,
   } = data;
 
   const getBackgroundColor = () => {
@@ -160,18 +172,19 @@ function EntityNode({ data }: { data: EntityNodeData }) {
   };
 
   const getIcon = () => {
+    const iconSize = isFullscreen ? "h-6 w-6" : "h-4 w-4";
     switch (entityType?.toLowerCase()) {
       case "trust":
       case "superfund":
-        return <Network className="h-4 w-4 text-rose-600" />;
+        return <Network className={cn(iconSize, "text-rose-600")} />;
       case "individual":
       case "person":
-        return <User className="h-4 w-4 text-amber-600" />;
+        return <User className={cn(iconSize, "text-amber-600")} />;
       default:
         if (isTrustee) {
-          return <Briefcase className="h-4 w-4 text-indigo-600" />;
+          return <Briefcase className={cn(iconSize, "text-indigo-600")} />;
         }
-        return <Building2 className="h-4 w-4 text-blue-600" />;
+        return <Building2 className={cn(iconSize, "text-blue-600")} />;
     }
   };
 
@@ -194,7 +207,8 @@ function EntityNode({ data }: { data: EntityNodeData }) {
   return (
     <div
       className={cn(
-        "min-w-[180px] max-w-[220px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow text-sm",
+        "rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow",
+        isFullscreen ? "min-w-[280px] max-w-[350px]" : "min-w-[180px] max-w-[220px]",
         getBackgroundColor()
       )}
       onClick={onClick}
@@ -204,13 +218,23 @@ function EntityNode({ data }: { data: EntityNodeData }) {
       <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
 
       {/* Header */}
-      <div className={cn("px-3 py-2 rounded-t-md flex items-center gap-2", getHeaderColor())}>
+      <div className={cn(
+        "rounded-t-md flex items-center gap-2",
+        isFullscreen ? "px-5 py-4" : "px-3 py-2",
+        getHeaderColor()
+      )}>
         {getIcon()}
-        <span className="font-semibold text-sm truncate">{label}</span>
+        <span className={cn(
+          "font-semibold truncate",
+          isFullscreen ? "text-lg" : "text-sm"
+        )}>{label}</span>
       </div>
 
       {/* Body - Compact view */}
-      <div className="px-3 py-2 text-xs space-y-1">
+      <div className={cn(
+        "space-y-1",
+        isFullscreen ? "px-5 py-4 text-base" : "px-3 py-2 text-xs"
+      )}>
         {/* Type badge */}
         <div className="text-muted-foreground">
           {isTrustee ? "Trustee" : entityType || "Company"}
@@ -218,7 +242,10 @@ function EntityNode({ data }: { data: EntityNodeData }) {
 
         {/* Trust Name (for trustees) */}
         {isTrustee && trustName && (
-          <div className="text-rose-600 text-xs truncate">{trustName}</div>
+          <div className={cn(
+            "text-rose-600 truncate",
+            isFullscreen ? "text-sm" : "text-xs"
+          )}>{trustName}</div>
         )}
       </div>
     </div>
@@ -240,6 +267,7 @@ interface EntityNodeData {
   secretary?: string;
   publicOfficer?: string;
   onClick?: () => void;
+  isFullscreen?: boolean;
 }
 
 // Node types registration
@@ -252,16 +280,18 @@ export default function CorporateStructureChart({
   data,
   filters,
   onEntityClick,
+  fullscreen = false,
 }: CorporateStructureChartProps) {
   // Build nodes and edges from structure data
   const { initialNodes, initialEdges, maxDepth } = useMemo(() => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
     let maxDepth = 1;
-    const nodeWidth = 200; // Visual width of a node (compact)
-    const nodeHeight = 100; // Approximate height of a node (compact)
-    const horizontalGap = 20; // Gap between sibling nodes horizontally
-    const verticalGap = 60; // Gap between levels vertically
+    // Adjust sizes based on fullscreen mode
+    const nodeWidth = fullscreen ? 300 : 200; // Visual width of a node
+    const nodeHeight = fullscreen ? 140 : 100; // Approximate height of a node
+    const horizontalGap = fullscreen ? 40 : 20; // Gap between sibling nodes horizontally
+    const verticalGap = fullscreen ? 100 : 60; // Gap between levels vertically
     const ySpacing = nodeHeight + verticalGap; // Total vertical spacing
 
     // Helper to get people roles for a company
@@ -358,6 +388,7 @@ export default function CorporateStructureChart({
           secretary,
           publicOfficer,
           onClick: () => onEntityClick?.(company.id, "company"),
+          isFullscreen: fullscreen,
         },
       });
 
@@ -485,6 +516,7 @@ export default function CorporateStructureChart({
             email: null,
             roles: personData.companyIds.length,
             onClick: () => onEntityClick?.(contactId, "person"),
+            isFullscreen: fullscreen,
           },
         });
 
@@ -566,7 +598,7 @@ export default function CorporateStructureChart({
     }
 
     return { initialNodes: nodes, initialEdges: edges, maxDepth };
-  }, [data, filters, onEntityClick]);
+  }, [data, filters, onEntityClick, fullscreen]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -580,12 +612,15 @@ export default function CorporateStructureChart({
   // Calculate dynamic height based on depth (500px per level + 300px buffer)
   // Also consider number of nodes for very wide charts
   const nodeCount = initialNodes.length;
-  const chartHeight = Math.max(900, maxDepth * 500 + 300, nodeCount * 80);
+  const chartHeight = fullscreen ? "100%" : `${Math.max(900, maxDepth * 500 + 300, nodeCount * 80)}px`;
 
   return (
     <div
-      className="w-full border rounded-lg bg-gray-50 dark:bg-gray-900"
-      style={{ height: `${chartHeight}px` }}
+      className={cn(
+        "w-full bg-gray-50 dark:bg-gray-900",
+        fullscreen ? "h-full" : "border rounded-lg"
+      )}
+      style={{ height: chartHeight }}
     >
       <ReactFlow
         nodes={nodes}

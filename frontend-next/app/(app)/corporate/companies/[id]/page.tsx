@@ -137,6 +137,7 @@ const XERO_SUB_TABS = [
   { id: "profit-loss", name: "Profit & Loss" },
   { id: "balance-sheet", name: "Balance Sheet" },
   { id: "bank-accounts", name: "Bank Accounts" },
+  { id: "bank-statement", name: "Bank Statement" },
 ];
 
 interface Director {
@@ -5134,6 +5135,10 @@ export default function CompanyDetailPage() {
 
               {xeroSubTab === "bank-accounts" && (
                 <XeroBankAccountsCard companyId={companyId} />
+              )}
+
+              {xeroSubTab === "bank-statement" && (
+                <XeroBankStatementCard companyId={companyId} />
               )}
             </>
           )}
