@@ -3628,6 +3628,7 @@ export default function CompanyDetailPage() {
                   {/* Company Sub-tab Content */}
                   {overviewSubTab === "info" && <InformationTab company={company} />}
                   {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
+                  {overviewSubTab === "bank-accounts" && <BankAccountsTab company={company} companyId={companyId} />}
                   {overviewSubTab === "health" && <HealthTab company={company} onUpdate={loadCompany} />}
                   {overviewSubTab === "directors" && <DirectorsTab company={company} />}
                   {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
