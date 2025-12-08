@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_08_202548) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_08_203150) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -542,6 +542,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_202548) do
     t.boolean "saved_to_job", default: false
     t.bigint "contact_id"
     t.bigint "case_id"
+    t.string "message_type", default: "text"
+    t.string "file_url"
+    t.string "file_name"
     t.index ["case_id"], name: "index_chat_messages_on_case_id"
     t.index ["channel", "created_at"], name: "index_chat_messages_on_channel_and_created_at"
     t.index ["contact_id"], name: "index_chat_messages_on_contact_id"
