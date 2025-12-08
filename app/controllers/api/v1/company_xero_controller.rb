@@ -736,6 +736,105 @@ module Api
         end
       end
 
+      # GET /api/v1/companies/:company_id/xero/bank_transactions
+      # Returns bank transactions for a specific bank account from Xero
+      def bank_transactions
+        connection = @company.company_xero_connection
+
+        if connection.nil? || !connection.connected?
+          return render json: {
+            success: false,
+            error: "Company is not connected to Xero"
+          }, status: :bad_request
+        end
+
+        bank_account_id = params[:bank_account_id]
+        if bank_account_id.blank?
+          return render json: {
+            success: false,
+            error: "bank_account_id is required"
+          }, status: :bad_request
+        end
+
+        # Refresh tokens if needed
+        if connection.needs_refresh?
+          unless connection.refresh_tokens!
+            return render json: {
+              success: false,
+              error: "Failed to refresh Xero tokens. Please reconnect."
+            }, status: :unauthorized
+          end
+        end
+
+        begin
+          from_date = params[:from_date] || 3.months.ago.to_date.to_s
+          to_date = params[:to_date] || Date.today.to_s
+
+          client = XeroApiClient.new
+
+          # Fetch bank transactions from Xero
+          result = client.get(
+            "BankTransactions",
+            tenant_id: connection.xero_tenant_id,
+            access_token: connection.access_token,
+            params: {
+              where: "BankAccount.AccountID=Guid(\"#{bank_account_id}\") AND Date>=DateTime(#{from_date.gsub("-", ",")}) AND Date<=DateTime(#{to_date.gsub("-", ",")})",
+              order: "Date DESC"
+            }
+          )
+
+          unless result[:success]
+            return render json: {
+              success: false,
+              error: result[:error] || "Failed to fetch bank transactions from Xero"
+            }, status: :unprocessable_entity
+          end
+
+          transactions = result[:data]["BankTransactions"] || []
+
+          # Format transactions for display
+          formatted_transactions = transactions.map do |tx|
+            # Calculate total amount from line items
+            total = (tx["LineItems"] || []).sum { |li| li["LineAmount"].to_f }
+            is_spend = tx["Type"] == "SPEND"
+
+            {
+              transaction_id: tx["BankTransactionID"],
+              date: tx["Date"],
+              type: tx["Type"],
+              reference: tx["Reference"],
+              description: tx["LineItems"]&.first&.dig("Description") || tx["Reference"] || "No description",
+              amount: is_spend ? -total.abs : total.abs,
+              contact_name: tx["Contact"]&.dig("Name"),
+              status: tx["Status"],
+              line_items: (tx["LineItems"] || []).map do |li|
+                {
+                  description: li["Description"],
+                  amount: li["LineAmount"].to_f,
+                  account_code: li["AccountCode"]
+                }
+              end
+            }
+          end
+
+          render json: {
+            success: true,
+            transactions: formatted_transactions,
+            meta: {
+              from_date: from_date,
+              to_date: to_date,
+              count: formatted_transactions.count
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Failed to fetch Xero bank transactions for company #{@company.id}: #{e.message}")
+          render json: {
+            success: false,
+            error: e.message
+          }, status: :internal_server_error
+        end
+      end
+
       private
 
       # Helper to parse Xero report rows into a flat structure
