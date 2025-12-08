@@ -291,7 +291,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Data Warehouse */}
           <Link
-            href="/system-health"
+            href="/admin/system?tab=data-warehouse"
             className="p-1.5 text-red-500 hover:text-red-600 rounded-md transition-colors"
             title="Data Warehouse"
           >
