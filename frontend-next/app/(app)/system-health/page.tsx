@@ -443,66 +443,76 @@ export default function SystemHealthPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {dataHealth.checks.filter(check => check.foundation_name).map((check) => {
-                // Use route_slug from backend, or derive from foundation_name as fallback
+                // Use route_slug from backend
                 const href = check.route_slug ? `/${check.route_slug}` : null;
 
-                return (
-                  <Link key={check.foundation_id} href={href}>
-                    <div className={cn(
-                      "p-4 rounded-lg border hover:bg-secondary/50 cursor-pointer transition-colors",
-                      check.health_score >= 90 ? "border-green-200 dark:border-green-800" :
-                      check.health_score >= 70 ? "border-yellow-200 dark:border-yellow-800" :
-                      "border-red-200 dark:border-red-800"
-                    )}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className={cn(
-                            "p-1.5 rounded",
-                            check.health_score >= 90 ? "bg-green-100 dark:bg-green-900/20" :
-                            check.health_score >= 70 ? "bg-yellow-100 dark:bg-yellow-900/20" :
-                            "bg-red-100 dark:bg-red-900/20"
-                          )}>
-                            {iconMap[(check.foundation_name || '').toLowerCase()] || <FileText className="h-4 w-4" />}
-                          </div>
-                          <span className="font-medium">{check.foundation_name}</span>
-                        </div>
-                        <span className={cn(
-                          "text-lg font-bold font-mono",
-                          getHealthColor(check.health_score)
+                const cardContent = (
+                  <div className={cn(
+                    "p-4 rounded-lg border transition-colors",
+                    href ? "hover:bg-secondary/50 cursor-pointer" : "",
+                    check.health_score >= 90 ? "border-green-200 dark:border-green-800" :
+                    check.health_score >= 70 ? "border-yellow-200 dark:border-yellow-800" :
+                    "border-red-200 dark:border-red-800"
+                  )}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "p-1.5 rounded",
+                          check.health_score >= 90 ? "bg-green-100 dark:bg-green-900/20" :
+                          check.health_score >= 70 ? "bg-yellow-100 dark:bg-yellow-900/20" :
+                          "bg-red-100 dark:bg-red-900/20"
                         )}>
-                          {check.health_score}%
-                        </span>
+                          {iconMap[(check.foundation_name || '').toLowerCase()] || <FileText className="h-4 w-4" />}
+                        </div>
+                        <span className="font-medium">{check.foundation_name}</span>
                       </div>
-
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{check.checks_count} checks</span>
-                        {check.total_issues > 0 && (
-                          <>
-                            <span>•</span>
-                            <span className={cn(
-                              check.critical_issues > 0 ? "text-red-600" : "text-yellow-600"
-                            )}>
-                              {check.total_issues} issues
-                            </span>
-                          </>
-                        )}
-                        {check.total_issues === 0 && (
-                          <>
-                            <span>•</span>
-                            <span className="text-green-600 flex items-center gap-1">
-                              <CheckCircle className="h-3 w-3" />
-                              All passed
-                            </span>
-                          </>
-                        )}
-                      </div>
-
-                      <Progress
-                        value={check.health_score}
-                        className="h-1.5 mt-2"
-                      />
+                      <span className={cn(
+                        "text-lg font-bold font-mono",
+                        getHealthColor(check.health_score)
+                      )}>
+                        {check.health_score}%
+                      </span>
                     </div>
+
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{check.checks_count} checks</span>
+                      {check.total_issues > 0 && (
+                        <>
+                          <span>•</span>
+                          <span className={cn(
+                            check.critical_issues > 0 ? "text-red-600" : "text-yellow-600"
+                          )}>
+                            {check.total_issues} issues
+                          </span>
+                        </>
+                      )}
+                      {check.total_issues === 0 && (
+                        <>
+                          <span>•</span>
+                          <span className="text-green-600 flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            All passed
+                          </span>
+                        </>
+                      )}
+                    </div>
+
+                    <Progress
+                      value={check.health_score}
+                      className="h-1.5 mt-2"
+                    />
+                  </div>
+                );
+
+                // Wrap in Link only if there's a route
+                return href ? (
+                  <Link key={check.foundation_id || check.foundation_name} href={href}>
+                    {cardContent}
                   </Link>
+                ) : (
+                  <div key={check.foundation_id || check.foundation_name}>
+                    {cardContent}
+                  </div>
                 );
               })}
             </div>

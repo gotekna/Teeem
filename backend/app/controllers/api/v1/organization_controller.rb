@@ -64,24 +64,55 @@ module Api
         # Email statistics with detailed breakdown
         # Note: email_warehouse table only has job_id for linking (no contact_id, company_id, etc.)
         email_stats = if defined?(EmailWarehouse)
+          total_count = EmailWarehouse.count
           total_size = EmailWarehouse.sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
           linked_to_job = EmailWarehouse.where.not(job_id: nil).count
           size_by_job = EmailWarehouse.where.not(job_id: nil).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
+
+          # AI Classification breakdown
+          spam_count = EmailWarehouse.where("email_classification->>'email_type' = ?", "spam").count
+          marketing_count = EmailWarehouse.where("email_classification->>'email_type' = ?", "marketing").count
+          transactional_count = EmailWarehouse.where("email_classification->>'email_type' = ?", "transactional").count
+          business_count = EmailWarehouse.where("email_classification->>'email_type' = ?", "business").count
+          unclassified_count = EmailWarehouse.where("email_classification IS NULL OR email_classification = '{}'").count
+          classified_count = total_count - unclassified_count
+
+          # SSoT migration progress
+          with_direction = EmailWarehouse.where.not(direction: nil).count
+          with_body_preview = EmailWarehouse.where("body_preview IS NOT NULL AND body_preview != ''").count
+
           {
-            total_emails: EmailWarehouse.count,
+            total_emails: total_count,
             total_size: total_size,
             linked_to_contact: 0,  # Not tracked in email_warehouse
             linked_to_job: linked_to_job,
             linked_to_company: 0,  # Not tracked in email_warehouse
             linked_to_company_group: 0,  # Not tracked in email_warehouse
-            junk_emails: 0,  # Not tracked in email_warehouse
-            unprocessed: 0,  # Not tracked in email_warehouse
+            junk_emails: spam_count,
+            unprocessed: unclassified_count,
             last_sync: EmailWarehouse.maximum(:last_synced_at) || EmailWarehouse.maximum(:created_at),
             # Size breakdown by category
             size_by_contact: 0,
             size_by_job: size_by_job,
             size_by_company: 0,
-            size_junk: 0
+            size_junk: 0,
+            # AI Classification
+            ai_classification: {
+              spam: spam_count,
+              marketing: marketing_count,
+              transactional: transactional_count,
+              business: business_count,
+              unclassified: unclassified_count,
+              classified_count: classified_count,
+              classification_rate: total_count > 0 ? ((classified_count.to_f / total_count) * 100).round(1) : 0
+            },
+            # SSoT migration
+            ssot_migration: {
+              with_direction: with_direction,
+              with_body_preview: with_body_preview,
+              direction_rate: total_count > 0 ? ((with_direction.to_f / total_count) * 100).round(1) : 0,
+              body_preview_rate: total_count > 0 ? ((with_body_preview.to_f / total_count) * 100).round(1) : 0
+            }
           }
         else
           {
@@ -97,7 +128,14 @@ module Api
             size_by_contact: 0,
             size_by_job: 0,
             size_by_company: 0,
-            size_junk: 0
+            size_junk: 0,
+            ai_classification: {
+              spam: 0, marketing: 0, transactional: 0, business: 0, unclassified: 0,
+              classified_count: 0, classification_rate: 0
+            },
+            ssot_migration: {
+              with_direction: 0, with_body_preview: 0, direction_rate: 0, body_preview_rate: 0
+            }
           }
         end
 

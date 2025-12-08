@@ -114,6 +114,21 @@ interface OrgDataStats {
     size_by_job: number;
     size_by_company: number;
     size_junk: number;
+    ai_classification?: {
+      spam: number;
+      marketing: number;
+      transactional: number;
+      business: number;
+      unclassified: number;
+      classified_count: number;
+      classification_rate: number;
+    };
+    ssot_migration?: {
+      with_direction: number;
+      with_body_preview: number;
+      direction_rate: number;
+      body_preview_rate: number;
+    };
   };
   sharepoint: {
     connected: boolean;
@@ -1044,12 +1059,86 @@ export function DataWarehouseTab() {
         </Card>
       )}
 
+      {/* Email AI Pipeline - Classification & Migration Status */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Mail className="h-4 w-4" />
+            Email AI Pipeline
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Classification Progress */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">AI Classification</span>
+              <span className="text-sm text-muted-foreground">
+                {stats.emails.ai_classification?.classification_rate || 0}% classified
+              </span>
+            </div>
+            <Progress
+              value={stats.emails.ai_classification?.classification_rate || 0}
+              className="h-2 mb-3"
+            />
+            <div className="grid grid-cols-5 gap-2">
+              <div className="text-center p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                <p className="text-lg font-bold text-red-600">{(stats.emails.ai_classification?.spam || 0).toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Spam</p>
+              </div>
+              <div className="text-center p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                <p className="text-lg font-bold text-orange-600">{(stats.emails.ai_classification?.marketing || 0).toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Marketing</p>
+              </div>
+              <div className="text-center p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <p className="text-lg font-bold text-blue-600">{(stats.emails.ai_classification?.transactional || 0).toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Transactional</p>
+              </div>
+              <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <p className="text-lg font-bold text-green-600">{(stats.emails.ai_classification?.business || 0).toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Business</p>
+              </div>
+              <div className="text-center p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <p className="text-lg font-bold text-gray-600">{(stats.emails.ai_classification?.unclassified || 0).toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Unclassified</p>
+              </div>
+            </div>
+          </div>
+
+          {/* SSoT Migration Progress */}
+          <div className="pt-4 border-t">
+            <h4 className="text-sm font-medium mb-3">SSoT Migration Progress</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-muted-foreground">Direction Field</span>
+                  <span className="text-xs font-medium">{stats.emails.ssot_migration?.direction_rate || 0}%</span>
+                </div>
+                <Progress value={stats.emails.ssot_migration?.direction_rate || 0} className="h-1.5" />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {(stats.emails.ssot_migration?.with_direction || 0).toLocaleString()} of {stats.emails.total_emails.toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-muted-foreground">Body Preview</span>
+                  <span className="text-xs font-medium">{stats.emails.ssot_migration?.body_preview_rate || 0}%</span>
+                </div>
+                <Progress value={stats.emails.ssot_migration?.body_preview_rate || 0} className="h-1.5" />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {(stats.emails.ssot_migration?.with_body_preview || 0).toLocaleString()} of {stats.emails.total_emails.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Email Warehouse Breakdown */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Mail className="h-4 w-4" />
-            Email Warehouse Breakdown
+            Email Storage Breakdown
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -1081,12 +1170,12 @@ export function DataWarehouseTab() {
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
               <p className="text-2xl font-bold text-red-600">{stats.emails.junk_emails.toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground">Junk Emails</p>
+              <p className="text-xs text-muted-foreground">Spam Emails</p>
               <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_junk)}</p>
             </div>
           </div>
           <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-            <span>Unprocessed: {stats.emails.unprocessed.toLocaleString()}</span>
+            <span>Unclassified: {stats.emails.unprocessed.toLocaleString()}</span>
             <span>Last Sync: {formatDate(stats.emails.last_sync)}</span>
           </div>
         </CardContent>
