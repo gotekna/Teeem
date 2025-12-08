@@ -1,8 +1,10 @@
 # frozen_string_literal: true
 
 # Stores generated bank statement PDF reports for ATO compliance.
-# Reports are uploaded to SharePoint in the Warehousing/Bank Statements folder structure:
-#   Warehousing/Bank Statements/{bank_account_name}/{FY}/{month}.pdf
+# Reports are uploaded to SharePoint in a separate folder from bank-produced statements:
+#   Warehousing/Bank Statements/Xero Generated/{bank_account_name}/{FY}/{filename}.pdf
+# Bank-produced (official) statements go in:
+#   Warehousing/Bank Statements/Bank Produced/{bank_account_name}/{FY}/{filename}.pdf
 # PDFs can be regenerated on demand from the underlying bank transaction data.
 class BankStatementReport < ApplicationRecord
   # Bank code mapping for standardized naming
@@ -171,7 +173,8 @@ class BankStatementReport < ApplicationRecord
   private
 
   # Upload file content to SharePoint using folder structure:
-  # Warehousing/Bank Statements/{bank_account_name}/{FY}/{filename}
+  # Warehousing/Bank Statements/Xero Generated/{bank_account_name}/{FY}/{filename}
+  # This keeps Xero-generated statements separate from bank-produced (official) statements
   def upload_to_sharepoint(content, filename)
     credential = OrganizationOneDriveCredential.active_credential
     unless credential.present?
@@ -194,9 +197,15 @@ class BankStatementReport < ApplicationRecord
       "Bank Statements"
     )
 
+    # Get or create "Xero Generated" subfolder to separate from bank-produced statements
+    xero_generated_folder = graph_client.get_or_create_subfolder(
+      bank_statements_folder[:id] || bank_statements_folder["id"],
+      "Xero Generated"
+    )
+
     # Get or create bank account subfolder (e.g., "NAB - Tekna Homes")
     bank_folder = graph_client.get_or_create_subfolder(
-      bank_statements_folder[:id] || bank_statements_folder["id"],
+      xero_generated_folder[:id] || xero_generated_folder["id"],
       bank_account_name
     )
 
@@ -213,7 +222,7 @@ class BankStatementReport < ApplicationRecord
       content
     )
 
-    Rails.logger.info("[BankStatementReport] Uploaded to SharePoint: Warehousing/Bank Statements/#{bank_account_name}/#{financial_year}/#{filename}")
+    Rails.logger.info("[BankStatementReport] Uploaded to SharePoint: Warehousing/Bank Statements/Xero Generated/#{bank_account_name}/#{financial_year}/#{filename}")
     upload_result
   rescue MicrosoftGraphClient::AuthenticationError => e
     Rails.logger.error("[BankStatementReport] SharePoint auth error: #{e.message}")

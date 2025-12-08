@@ -48,6 +48,7 @@ interface SystemHealthApiResponse {
     checks: Array<{
       foundation_id: number;
       foundation_name: string;
+      route_slug: string | null;
       health_score: number;
       total_issues: number;
       critical_issues: number;
@@ -442,8 +443,8 @@ export default function SystemHealthPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {dataHealth.checks.filter(check => check.foundation_name).map((check) => {
-                const tableSlug = (check.foundation_name || '').toLowerCase().replace(/\s+/g, '-');
-                const href = `/${tableSlug}`;
+                // Use route_slug from backend, or derive from foundation_name as fallback
+                const href = check.route_slug ? `/${check.route_slug}` : null;
 
                 return (
                   <Link key={check.foundation_id} href={href}>
