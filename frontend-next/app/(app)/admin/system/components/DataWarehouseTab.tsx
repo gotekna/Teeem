@@ -143,6 +143,16 @@ interface OrgDataStats {
     companies_connected: number;
     last_sync: string | null;
   };
+  corporate?: {
+    total: number;
+    active: number;
+    missing_abn: number;
+    missing_acn: number;
+    missing_review_date: number;
+    overdue_review: number;
+    by_entity_type: Record<string, number>;
+    health_rate: number;
+  };
   job_documents: {
     total_files: number;
     revit_files: number;
@@ -1180,6 +1190,67 @@ export function DataWarehouseTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Corporate (Companies) Health */}
+      {stats.corporate && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Corporate Health
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Data Completeness</span>
+              <span className="text-sm text-muted-foreground">
+                {stats.corporate.health_rate}% healthy
+              </span>
+            </div>
+            <Progress value={stats.corporate.health_rate} className="h-2 mb-3" />
+
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="text-center p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <p className="text-xl font-bold text-blue-600">{stats.corporate.total}</p>
+                <p className="text-xs text-muted-foreground">Total Companies</p>
+              </div>
+              <div className="text-center p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+                <p className="text-xl font-bold text-yellow-600">{stats.corporate.missing_abn}</p>
+                <p className="text-xs text-muted-foreground">Missing ABN</p>
+              </div>
+              <div className="text-center p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                <p className="text-xl font-bold text-orange-600">{stats.corporate.missing_acn}</p>
+                <p className="text-xs text-muted-foreground">Missing ACN</p>
+              </div>
+              <div className="text-center p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <p className="text-xl font-bold text-gray-600">{stats.corporate.missing_review_date}</p>
+                <p className="text-xs text-muted-foreground">No Review Date</p>
+              </div>
+              <div className="text-center p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                <p className="text-xl font-bold text-red-600">{stats.corporate.overdue_review}</p>
+                <p className="text-xs text-muted-foreground">Overdue Review</p>
+              </div>
+            </div>
+
+            {/* Entity Type Breakdown */}
+            {Object.keys(stats.corporate.by_entity_type).length > 0 && (
+              <div className="pt-3 border-t">
+                <h4 className="text-xs font-medium text-muted-foreground mb-2">By Entity Type</h4>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(stats.corporate.by_entity_type)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 8)
+                    .map(([type, count]) => (
+                      <Badge key={type} variant="outline" className="text-xs">
+                        {type}: {count}
+                      </Badge>
+                    ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* AI Verification Progress */}
       <Card>

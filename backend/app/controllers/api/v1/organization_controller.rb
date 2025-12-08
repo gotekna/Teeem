@@ -182,6 +182,28 @@ module Api
           }
         end
 
+        # Corporate (Companies) stats
+        active_companies = Company.where(active: [ true, nil ])
+        total_companies = active_companies.count
+        missing_abn = active_companies.where(abn: [ nil, "" ]).count
+        missing_acn = active_companies.where(acn: [ nil, "" ])
+                                      .where("entity_type ILIKE '%pty%' OR entity_type ILIKE '%proprietary%' OR entity_type ILIKE '%limited%'")
+                                      .count
+        missing_review = active_companies.where(review_date: nil).count
+        overdue_review = active_companies.where("review_date < ?", Date.current).count
+        entity_type_breakdown = active_companies.group(:entity_type).count.transform_keys { |k| k || "Unknown" }
+
+        corporate_stats = {
+          total: total_companies,
+          active: total_companies,
+          missing_abn: missing_abn,
+          missing_acn: missing_acn,
+          missing_review_date: missing_review,
+          overdue_review: overdue_review,
+          by_entity_type: entity_type_breakdown,
+          health_rate: total_companies > 0 ? (((total_companies - missing_abn - overdue_review).to_f / total_companies) * 100).round(1) : 100
+        }
+
         render json: {
           success: true,
           data: {
@@ -193,6 +215,7 @@ module Api
             documents: doc_stats,
             document_types: doc_type_stats,
             emails: email_stats,
+            corporate: corporate_stats,
             sharepoint: sharepoint_stats,
             xero: xero_stats,
             job_documents: job_doc_stats,
