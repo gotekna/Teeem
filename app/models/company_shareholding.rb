@@ -15,6 +15,7 @@ class CompanyShareholding < ApplicationRecord
 
   # Callbacks
   after_create :ensure_ssot_shareholder_membership
+  after_commit :sync_to_contact_relationship
 
   # Calculate percentage of total shares
   def percentage_of_total
@@ -53,5 +54,51 @@ class CompanyShareholding < ApplicationRecord
     shareholder_contact&.update_columns(company_group_id: company.company_group_id, link_to_cg: true) if shareholder_contact&.company_group_id.nil?
   rescue StandardError => e
     Rails.logger.error("CompanyShareholding##{id}: SSoT shareholder membership creation failed - #{e.message}")
+  end
+
+  # SSoT: Sync shareholder status to ContactRelationship table
+  # This ensures shareholder_of relationships in Overview tab stay in sync with Corporate tab
+  def sync_to_contact_relationship
+    # Prevent infinite loop when ContactRelationship triggers this callback
+    return if Thread.current[:syncing_shareholder_relationship]
+
+    # Only sync if shareholder is a Contact (not a Company)
+    return unless shareholder_type == "Contact"
+
+    # Company must be linked to a Contact for this to work
+    return unless company&.contact_id.present?
+    return unless shareholder_id.present?
+
+    Thread.current[:syncing_shareholder_relationship] = true
+
+    # Shareholding is active if there's no disposal date
+    is_active = disposal_date.nil?
+
+    if is_active
+      # Create or update the relationship
+      rel = ContactRelationship.find_or_initialize_by(
+        source_contact_id: shareholder_id,
+        related_contact_id: company.contact_id,
+        relationship_type: "shareholder_of"
+      )
+      rel.is_active = true
+      rel.start_date ||= acquisition_date
+      rel.ownership_percentage = percentage_of_total
+      rel.save!
+    else
+      # Deactivate the relationship
+      rel = ContactRelationship.find_by(
+        source_contact_id: shareholder_id,
+        related_contact_id: company.contact_id,
+        relationship_type: "shareholder_of"
+      )
+      if rel
+        rel.update!(is_active: false, end_date: disposal_date)
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.error("CompanyShareholding##{id}: SSoT contact relationship sync failed - #{e.message}")
+  ensure
+    Thread.current[:syncing_shareholder_relationship] = false
   end
 end

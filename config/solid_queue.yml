@@ -73,6 +73,11 @@ production:
       args: [{ incremental: true }]
       schedule: every 30 minutes
 
+    xero_contact_sync:
+      class: XeroContactSyncJob
+      queue: default
+      schedule: every 30 minutes
+
     # ============================================
     # DATA WAREHOUSE RECURRING JOBS
     # ============================================

@@ -9,7 +9,7 @@ class XeroAttachmentSyncJob < ApplicationJob
     if external_invoice_id.present?
       sync_single_invoice(external_invoice_id)
     else
-      sync_batch(options)
+      sync_batch_with_ssot(options)
     end
   end
 
@@ -31,6 +31,28 @@ class XeroAttachmentSyncJob < ApplicationJob
     end
 
     result
+  end
+
+  def sync_batch_with_ssot(options)
+    # Mark sync as in progress
+    XeroSyncStatus.start_sync!("pdfs")
+
+    begin
+      results = sync_batch(options)
+
+      # Update SSoT with success
+      XeroSyncStatus.complete_sync!(
+        "pdfs",
+        records_synced: results[:success],
+        next_sync_at: 2.hours.from_now
+      )
+
+      results
+    rescue StandardError => e
+      Rails.logger.error("[XeroAttachmentSyncJob] Batch failed: #{e.message}")
+      XeroSyncStatus.fail_sync!("pdfs", error: e.message)
+      raise
+    end
   end
 
   def sync_batch(options)

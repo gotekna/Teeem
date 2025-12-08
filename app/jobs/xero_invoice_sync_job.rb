@@ -14,6 +14,9 @@ class XeroInvoiceSyncJob < ApplicationJob
 
     Rails.logger.info("XeroInvoiceSyncJob started at #{Time.current} (incremental: #{incremental})")
 
+    # Mark sync as in progress
+    XeroSyncStatus.start_sync!("invoices", tenant_id: tenant_id)
+
     begin
       service = ExternalInvoiceSyncService.new(
         source: "xero",
@@ -28,7 +31,16 @@ class XeroInvoiceSyncJob < ApplicationJob
 
       Rails.logger.info("XeroInvoiceSyncJob completed: #{result[:stats].inspect}")
 
-      # Store last sync result for health monitoring
+      # Update SSoT with success
+      records_synced = result[:stats][:created].to_i + result[:stats][:updated].to_i
+      XeroSyncStatus.complete_sync!(
+        "invoices",
+        tenant_id: tenant_id,
+        records_synced: records_synced,
+        next_sync_at: 30.minutes.from_now
+      )
+
+      # Also keep cache for backwards compatibility
       Rails.cache.write(
         "xero_invoice_sync_last_result",
         {
@@ -45,7 +57,10 @@ class XeroInvoiceSyncJob < ApplicationJob
       Rails.logger.error("XeroInvoiceSyncJob failed: #{e.message}")
       Rails.logger.error(e.backtrace.join("\n"))
 
-      # Store error for health monitoring
+      # Update SSoT with failure
+      XeroSyncStatus.fail_sync!("invoices", tenant_id: tenant_id, error: e.message)
+
+      # Also keep cache for backwards compatibility
       Rails.cache.write(
         "xero_invoice_sync_last_result",
         {

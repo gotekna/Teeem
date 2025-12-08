@@ -996,6 +996,7 @@ Rails.application.routes.draw do
           get :tracking_categories
           get :validate_contacts
           get :pdf_sync_status
+          get :sync_health
         end
         member do
           get :sync_contacts_status

@@ -2,6 +2,7 @@ module Api
   module V1
     class ContactsController < ApplicationController
       before_action :set_contact, only: [ :show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles, :ownership_chain, :enrich_from_web, :reorder_employees, :reorder_companies ]
+      before_action :require_corporate_permission, only: [ :directorships, :shareholdings, :trust_roles, :ownership_chain ]
 
       # GET /api/v1/contacts/read_only_fields
       # Returns the list of Xero-synced fields that are read-only in TEEEM
@@ -325,7 +326,7 @@ module Api
         # SSoT: If this contact is linked to a Company, include company data
         linked_company = Company.find_by(contact_id: @contact.id)
         if linked_company
-          contact_json[:linked_company] = {
+          linked_company_data = {
             id: linked_company.id,
             name: linked_company.name,
             acn: linked_company.acn,
@@ -338,9 +339,12 @@ module Api
             registered_office_address: linked_company.registered_office_address,
             principal_place_of_business: linked_company.principal_place_of_business,
             company_group_id: linked_company.company_group_id,
-            company_group_name: linked_company.company_group&.name,
-            # Directors
-            directors: linked_company.company_directors.includes(:contact).map do |d|
+            company_group_name: linked_company.company_group&.name
+          }
+
+          # SSoT: Only include corporate data (directors, shareholdings) if user has permission
+          if can_view_corporate?
+            linked_company_data[:directors] = linked_company.company_directors.includes(:contact).map do |d|
               {
                 id: d.id,
                 contact_id: d.contact_id,
@@ -351,9 +355,8 @@ module Api
                 resignation_date: d.resignation_date,
                 is_current: d.is_current
               }
-            end,
-            # Shareholdings
-            shareholdings: linked_company.company_shareholdings.includes(:shareholder).map do |s|
+            end
+            linked_company_data[:shareholdings] = linked_company.company_shareholdings.includes(:shareholder).map do |s|
               {
                 id: s.id,
                 shareholder_type: s.shareholder_type,
@@ -364,19 +367,30 @@ module Api
                 beneficially_held: s.beneficially_held,
                 date_acquired: s.acquisition_date
               }
-            end,
-            # Counts
-            directors_count: linked_company.company_directors.current.count,
-            shareholdings_count: linked_company.company_shareholdings.count,
-            documents_count: linked_company.company_documents.count
-          }
+            end
+            linked_company_data[:directors_count] = linked_company.company_directors.current.count
+            linked_company_data[:shareholdings_count] = linked_company.company_shareholdings.count
+            linked_company_data[:documents_count] = linked_company.company_documents.count
+          else
+            # For users without corporate permission, hide corporate data
+            linked_company_data[:directors] = []
+            linked_company_data[:shareholdings] = []
+            linked_company_data[:directors_count] = 0
+            linked_company_data[:shareholdings_count] = 0
+            linked_company_data[:documents_count] = 0
+          end
+
+          contact_json[:linked_company] = linked_company_data
         end
 
         # SSoT: Filter confidential fields based on user permissions
         contact_json = filter_confidential_fields(contact_json)
 
-        # Add permission indicator for frontend
+        # Add permission indicators for frontend
         contact_json[:can_view_confidential] = current_user&.can_view_confidential? || false
+        contact_json[:can_view_corporate] = can_view_corporate? || false
+        contact_json[:can_edit_corporate] = can_edit_corporate? || false
+        contact_json[:can_view_cases] = can_view_cases? || false
 
         render json: {
           success: true,
@@ -3143,6 +3157,16 @@ module Api
       end
 
       private
+
+      # SSoT: Require corporate permission to access director/shareholder data
+      def require_corporate_permission
+        unless can_view_corporate?
+          render json: {
+            success: false,
+            error: "You do not have permission to view corporate data"
+          }, status: :forbidden
+        end
+      end
 
       # Convert name to Title Case while handling special cases
       # - "JOHN" -> "John"
