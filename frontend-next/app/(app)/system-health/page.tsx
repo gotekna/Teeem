@@ -461,7 +461,7 @@ export default function SystemHealthPage() {
                             check.health_score >= 70 ? "bg-yellow-100 dark:bg-yellow-900/20" :
                             "bg-red-100 dark:bg-red-900/20"
                           )}>
-                            {iconMap[check.foundation_name.toLowerCase()] || <FileText className="h-4 w-4" />}
+                            {iconMap[(check.foundation_name || '').toLowerCase()] || <FileText className="h-4 w-4" />}
                           </div>
                           <span className="font-medium">{check.foundation_name}</span>
                         </div>
