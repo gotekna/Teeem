@@ -4180,8 +4180,11 @@ function XeroProfitLossCard({ companyId }: { companyId: string }) {
       } else {
         setError(response?.error || "Failed to load report");
       }
-    } catch (err) {
-      setError("Failed to load Profit & Loss report from Xero");
+    } catch (err: unknown) {
+      // Extract error message from API response
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      const errorMessage = axiosError?.response?.data?.error || "Failed to load Profit & Loss report from Xero";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -4317,8 +4320,11 @@ function XeroBalanceSheetCard({ companyId }: { companyId: string }) {
       } else {
         setError(response?.error || "Failed to load report");
       }
-    } catch (err) {
-      setError("Failed to load Balance Sheet from Xero");
+    } catch (err: unknown) {
+      // Extract error message from API response
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      const errorMessage = axiosError?.response?.data?.error || "Failed to load Balance Sheet from Xero";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -4503,8 +4509,11 @@ function XeroBankAccountsCard({ companyId }: { companyId: string }) {
       } else {
         setError(response?.error || "Failed to load bank accounts");
       }
-    } catch (err) {
-      setError("Failed to load bank accounts from Xero");
+    } catch (err: unknown) {
+      // Extract error message from API response
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      const errorMessage = axiosError?.response?.data?.error || "Failed to load bank accounts from Xero";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -4557,12 +4566,16 @@ function XeroBankAccountsCard({ companyId }: { companyId: string }) {
   }
 
   if (error) {
+    const isNotConnected = error.toLowerCase().includes("not connected");
     return (
       <Card>
         <CardContent className="py-8">
           <div className="text-center text-muted-foreground">
             <AlertTriangle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>{error}</p>
+            <p className="font-medium">{error}</p>
+            {isNotConnected && (
+              <p className="text-sm mt-2">Go to the Connection tab to connect this company to Xero.</p>
+            )}
             <Button variant="outline" size="sm" className="mt-4" onClick={loadBankAccounts}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Retry
