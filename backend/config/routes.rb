@@ -1303,6 +1303,8 @@ Rails.application.routes.draw do
         # Financial Reports from Xero
         get "xero/profit_loss", to: "company_xero#profit_loss"
         get "xero/balance_sheet", to: "company_xero#balance_sheet"
+        # Bank transactions by account
+        get "xero/bank_transactions", to: "company_xero#bank_transactions"
       end
 
       # Company Groups

@@ -130,11 +130,11 @@ export function XeroStatementView({ companyId }: Props) {
       if (companyId) {
         const companyBankAccountsRes = await api.get<{
           success: boolean;
-          data: { bank_accounts: Array<{ id: number; xero_account_id?: string }> }
+          bank_accounts: Array<{ id: number; xero_account_id?: string }>
         }>(`/api/v1/companies/${companyId}/bank_accounts`);
 
-        if (companyBankAccountsRes?.success) {
-          xeroAccountIds = companyBankAccountsRes.data.bank_accounts
+        if (companyBankAccountsRes?.success && companyBankAccountsRes.bank_accounts) {
+          xeroAccountIds = companyBankAccountsRes.bank_accounts
             .filter(acc => acc.xero_account_id)
             .map(acc => acc.xero_account_id as string);
           setCompanyXeroAccountIds(xeroAccountIds);
