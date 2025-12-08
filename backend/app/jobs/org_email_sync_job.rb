@@ -164,6 +164,18 @@ class OrgEmailSyncJob < ApplicationJob
     end
 
     email.save!
+
+    # Build recipient links (to Users and Contacts)
+    if email.persisted?
+      begin
+        email.build_recipients!
+        Rails.logger.info "[OrgEmailSync] Built recipients for email #{email.id}"
+      rescue StandardError => e
+        Rails.logger.error "[OrgEmailSync] Failed to build recipients for email #{email.id}: #{e.message}"
+        # Continue even if recipient building fails - email is still saved
+      end
+    end
+
     email
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.warn "[OrgEmailSync] Failed to save email #{message_id}: #{e.message}"
