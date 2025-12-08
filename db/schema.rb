@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_08_095424) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_08_112658) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -187,6 +187,32 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_095424) do
     t.string "abbreviation"
     t.index ["abbreviation"], name: "index_assets_on_abbreviation"
     t.index ["company_id"], name: "index_assets_on_company_id"
+  end
+
+  create_table "balance_sheet_reports", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.string "company_name", null: false
+    t.string "company_code"
+    t.string "financial_year", null: false
+    t.date "report_date"
+    t.decimal "total_assets", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_liabilities", precision: 15, scale: 2, default: "0.0"
+    t.decimal "net_assets", precision: 15, scale: 2, default: "0.0"
+    t.jsonb "report_data"
+    t.string "cloudinary_public_id"
+    t.string "cloudinary_url"
+    t.string "file_name"
+    t.integer "file_size"
+    t.string "status", default: "pending"
+    t.datetime "generated_at"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_code"], name: "index_balance_sheet_reports_on_company_code"
+    t.index ["company_id", "financial_year"], name: "idx_bs_reports_unique", unique: true
+    t.index ["company_id"], name: "index_balance_sheet_reports_on_company_id"
+    t.index ["financial_year"], name: "index_balance_sheet_reports_on_financial_year"
+    t.index ["status"], name: "index_balance_sheet_reports_on_status"
   end
 
   create_table "bank_account_configs", force: :cascade do |t|
@@ -2887,6 +2913,34 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_095424) do
     t.index ["position"], name: "index_pricebook_categories_on_position"
   end
 
+  create_table "profit_loss_reports", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.string "company_name", null: false
+    t.string "company_code"
+    t.string "financial_year", null: false
+    t.date "report_date"
+    t.date "period_start"
+    t.date "period_end"
+    t.decimal "total_revenue", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_expenses", precision: 15, scale: 2, default: "0.0"
+    t.decimal "net_profit", precision: 15, scale: 2, default: "0.0"
+    t.jsonb "report_data"
+    t.string "cloudinary_public_id"
+    t.string "cloudinary_url"
+    t.string "file_name"
+    t.integer "file_size"
+    t.string "status", default: "pending"
+    t.datetime "generated_at"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_code"], name: "index_profit_loss_reports_on_company_code"
+    t.index ["company_id", "financial_year"], name: "idx_pl_reports_unique", unique: true
+    t.index ["company_id"], name: "index_profit_loss_reports_on_company_id"
+    t.index ["financial_year"], name: "index_profit_loss_reports_on_financial_year"
+    t.index ["status"], name: "index_profit_loss_reports_on_status"
+  end
+
   create_table "project_task_checklist_items", force: :cascade do |t|
     t.bigint "project_task_id", null: false
     t.string "name", null: false
@@ -4656,6 +4710,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_095424) do
   add_foreign_key "asset_service_histories", "assets"
   add_foreign_key "asset_service_histories", "users"
   add_foreign_key "assets", "companies"
+  add_foreign_key "balance_sheet_reports", "companies"
   add_foreign_key "bank_accounts", "companies"
   add_foreign_key "bank_transactions", "bank_accounts"
   add_foreign_key "bank_transactions", "companies"
@@ -4846,6 +4901,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_095424) do
   add_foreign_key "pricebook", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
   add_foreign_key "pricebook", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
   add_foreign_key "pricebook", "pricebook_categories", column: "category_id"
+  add_foreign_key "profit_loss_reports", "companies"
   add_foreign_key "project_task_checklist_items", "project_tasks"
   add_foreign_key "project_tasks", "project_tasks", column: "parent_task_id"
   add_foreign_key "project_tasks", "projects"
