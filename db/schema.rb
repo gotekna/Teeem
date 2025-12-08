@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_08_060315) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1617,6 +1617,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
     t.jsonb "extracted_contacts", default: {}
     t.jsonb "extracted_entities", default: {}
     t.jsonb "action_items", default: []
+    t.bigint "microsoft_credential_id"
     t.index ["cc_emails"], name: "index_email_warehouse_on_cc_emails", using: :gin
     t.index ["conversation_id"], name: "index_email_warehouse_on_conversation_id"
     t.index ["direction"], name: "index_email_warehouse_on_direction"
@@ -1629,6 +1630,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
     t.index ["job_id", "is_latest_in_thread"], name: "index_email_warehouse_on_job_id_and_is_latest_in_thread"
     t.index ["job_id", "received_at"], name: "index_email_warehouse_on_job_id_and_received_at"
     t.index ["job_id"], name: "index_email_warehouse_on_job_id"
+    t.index ["microsoft_credential_id"], name: "index_email_warehouse_on_microsoft_credential_id"
     t.index ["received_at"], name: "index_email_warehouse_on_received_at"
     t.index ["searchable"], name: "index_email_warehouse_on_searchable", using: :gin
     t.index ["sharepoint_file_id"], name: "index_email_warehouse_on_sharepoint_file_id"
@@ -4717,6 +4719,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
   add_foreign_key "email_recipients", "users"
   add_foreign_key "email_sync_statuses", "users"
   add_foreign_key "email_warehouse", "jobs"
+  add_foreign_key "email_warehouse", "organization_microsoft_app_credentials", column: "microsoft_credential_id"
   add_foreign_key "email_warehouse", "users", column: "ssot_owner_id"
   add_foreign_key "email_warehouse", "users", column: "synced_by_user_id"
   add_foreign_key "email_warehouse", "users", column: "user_classification_by_id"

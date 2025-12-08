@@ -153,7 +153,8 @@ class OrgEmailSyncJob < ApplicationJob
       folder_name: folder_name,
       owner_email: owner_email,
       is_read: email_data["isRead"] || false,
-      synced_at: Time.current
+      synced_at: Time.current,
+      microsoft_credential_id: @credential&.id  # Track which org this email came from
     )
 
     # Set synced_by_user_id if we can match the owner to a TEEEM user
