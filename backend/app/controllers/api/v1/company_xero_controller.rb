@@ -426,6 +426,174 @@ module Api
         }
       end
 
+      # GET /api/v1/companies/:company_id/xero/accounts
+      # Returns Chart of Accounts from Xero for this company
+      def accounts
+        connection = @company.company_xero_connection
+
+        if connection.nil? || !connection.connected?
+          return render json: {
+            success: false,
+            error: "Company is not connected to Xero"
+          }, status: :bad_request
+        end
+
+        # Refresh tokens if needed
+        if connection.needs_refresh?
+          unless connection.refresh_tokens!
+            return render json: {
+              success: false,
+              error: "Failed to refresh Xero tokens. Please reconnect."
+            }, status: :unauthorized
+          end
+        end
+
+        begin
+          client = XeroApiClient.new
+          result = client.get("Accounts", tenant_id: connection.xero_tenant_id, access_token: connection.access_token)
+
+          unless result[:success]
+            return render json: {
+              success: false,
+              error: result[:error] || "Failed to fetch accounts from Xero"
+            }, status: :unprocessable_entity
+          end
+
+          xero_accounts = result[:data]["Accounts"] || []
+
+          # Group by type and format for display
+          formatted_accounts = xero_accounts.map do |acc|
+            {
+              account_id: acc["AccountID"],
+              code: acc["Code"],
+              name: acc["Name"],
+              type: acc["Type"],
+              class: acc["Class"],
+              status: acc["Status"],
+              tax_type: acc["TaxType"],
+              description: acc["Description"],
+              bank_account_number: acc["BankAccountNumber"],
+              currency_code: acc["CurrencyCode"],
+              reporting_code: acc["ReportingCode"],
+              reporting_code_name: acc["ReportingCodeName"],
+              system_account: acc["SystemAccount"],
+              enable_payments: acc["EnablePaymentsToAccount"],
+              show_in_expense_claims: acc["ShowInExpenseClaims"]
+            }
+          end.reject { |a| a[:system_account].present? } # Exclude system accounts
+
+          # Summary by type
+          type_summary = formatted_accounts.group_by { |a| a[:type] }.transform_values(&:count)
+
+          render json: {
+            success: true,
+            company: {
+              id: @company.id,
+              name: @company.name,
+              xero_tenant_name: connection.xero_tenant_name
+            },
+            accounts: formatted_accounts.sort_by { |a| a[:code].to_s },
+            summary: {
+              total: formatted_accounts.count,
+              by_type: type_summary,
+              active: formatted_accounts.count { |a| a[:status] == "ACTIVE" },
+              archived: formatted_accounts.count { |a| a[:status] == "ARCHIVED" }
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Failed to fetch Xero accounts for company #{@company.id}: #{e.message}")
+          render json: {
+            success: false,
+            error: e.message
+          }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/companies/:company_id/xero/accounts/compare
+      # Compare Chart of Accounts across companies in the same consolidated group
+      def compare_accounts
+        # Get all companies in the same consolidated group
+        consolidated_company_ids = @company.consolidated_child_ids || []
+        consolidated_company_ids << @company.id
+        consolidated_company_ids.uniq!
+
+        companies_with_xero = Company.where(id: consolidated_company_ids)
+          .includes(:company_xero_connection)
+          .select { |c| c.company_xero_connection&.connected? }
+
+        if companies_with_xero.empty?
+          return render json: {
+            success: false,
+            error: "No companies in this group are connected to Xero"
+          }, status: :bad_request
+        end
+
+        client = XeroApiClient.new
+        all_accounts = {}
+        company_accounts = {}
+
+        companies_with_xero.each do |company|
+          connection = company.company_xero_connection
+
+          # Refresh if needed
+          connection.refresh_tokens! if connection.needs_refresh?
+
+          begin
+            result = client.get("Accounts", tenant_id: connection.xero_tenant_id, access_token: connection.access_token)
+            next unless result[:success]
+
+            accounts = (result[:data]["Accounts"] || []).reject { |a| a["SystemAccount"].present? }
+
+            company_accounts[company.id] = {
+              company_id: company.id,
+              company_name: company.name,
+              xero_tenant: connection.xero_tenant_name,
+              accounts: accounts.map { |a| { code: a["Code"], name: a["Name"], type: a["Type"], status: a["Status"] } }
+            }
+
+            # Build master list of all account codes
+            accounts.each do |acc|
+              code = acc["Code"]
+              all_accounts[code] ||= { code: code, name: acc["Name"], type: acc["Type"], companies: [] }
+              all_accounts[code][:companies] << {
+                company_id: company.id,
+                company_name: company.name,
+                name: acc["Name"],
+                status: acc["Status"]
+              }
+            end
+          rescue StandardError => e
+            Rails.logger.warn("Failed to fetch accounts for company #{company.id}: #{e.message}")
+          end
+        end
+
+        # Find differences
+        comparison = all_accounts.values.map do |acc|
+          company_count = acc[:companies].count
+          {
+            code: acc[:code],
+            name: acc[:name],
+            type: acc[:type],
+            company_count: company_count,
+            all_companies: company_count == companies_with_xero.count,
+            companies: acc[:companies],
+            names_match: acc[:companies].map { |c| c[:name] }.uniq.count == 1
+          }
+        end.sort_by { |a| a[:code].to_s }
+
+        render json: {
+          success: true,
+          companies: company_accounts.values,
+          comparison: comparison,
+          summary: {
+            total_unique_accounts: all_accounts.count,
+            accounts_in_all: comparison.count { |a| a[:all_companies] },
+            accounts_with_differences: comparison.count { |a| !a[:names_match] },
+            missing_in_some: comparison.count { |a| !a[:all_companies] }
+          }
+        }
+      end
+
       private
 
       def set_company

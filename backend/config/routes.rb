@@ -1297,6 +1297,9 @@ Rails.application.routes.draw do
         post "xero/link_bank_account", to: "company_xero#link_bank_account"
         post "xero/sync_transactions", to: "company_xero#sync_transactions"
         get "xero/transactions", to: "company_xero#transactions"
+        # Chart of Accounts from Xero
+        get "xero/accounts", to: "company_xero#accounts"
+        get "xero/accounts/compare", to: "company_xero#compare_accounts"
       end
 
       # Company Groups
