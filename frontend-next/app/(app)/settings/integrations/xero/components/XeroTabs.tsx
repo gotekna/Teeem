@@ -75,6 +75,13 @@ interface XeroTenant {
   is_primary: boolean;
 }
 
+// Per-contact sync status for all 3 sync types (SSoT)
+interface SyncStatusPerContact {
+  contact_synced_at: string | null;
+  invoices_synced_at: string | null;
+  pdfs_synced_at: string | null;
+}
+
 interface ContactSyncItem {
   id: number;
   display_name: string;
@@ -96,6 +103,8 @@ interface ContactSyncItem {
   bills_count: number;
   pdfs_synced: number;
   pdf_sync_percent: number | null;
+  // SSoT: All 3 sync timestamps per contact
+  sync_status: SyncStatusPerContact;
 }
 
 
@@ -699,7 +708,39 @@ export function XeroContactSync() {
   );
 }
 
-// Helper to format last sync date compactly
+// Helper to format relative time compactly
+function formatRelativeTime(dateString: string | null): { text: string; isRecent: boolean; isOld: boolean } {
+  if (!dateString) return { text: "-", isRecent: false, isOld: false };
+
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  // Is recent = synced within 1 hour
+  const isRecent = diffMins < 60;
+  // Is old = synced more than 24 hours ago
+  const isOld = diffHours > 24;
+
+  let text: string;
+  if (diffMins < 1) {
+    text = "now";
+  } else if (diffMins < 60) {
+    text = `${diffMins}m`;
+  } else if (diffHours < 24) {
+    text = `${diffHours}h`;
+  } else if (diffDays < 7) {
+    text = `${diffDays}d`;
+  } else {
+    text = date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+  }
+
+  return { text, isRecent, isOld };
+}
+
+// Helper to format last sync date compactly (legacy, for backwards compatibility)
 function formatLastSync(dateString: string | null): string {
   if (!dateString) return "-";
   const date = new Date(dateString);
@@ -720,6 +761,47 @@ function formatLastSync(dateString: string | null): string {
     const dateStr = date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
     return `${dateStr} ${time}`;
   }
+}
+
+// SSoT: 3-type sync status display component
+function SyncStatusCell({ syncStatus }: { syncStatus: SyncStatusPerContact }) {
+  const contact = formatRelativeTime(syncStatus.contact_synced_at);
+  const invoices = formatRelativeTime(syncStatus.invoices_synced_at);
+  const pdfs = formatRelativeTime(syncStatus.pdfs_synced_at);
+
+  const getDotColor = (info: { text: string; isRecent: boolean; isOld: boolean }) => {
+    if (info.text === "-") return "bg-gray-300";
+    if (info.isRecent) return "bg-green-500";
+    if (info.isOld) return "bg-amber-500";
+    return "bg-green-400";
+  };
+
+  const getTextColor = (info: { text: string; isRecent: boolean; isOld: boolean }) => {
+    if (info.text === "-") return "text-muted-foreground";
+    if (info.isRecent) return "text-green-700";
+    if (info.isOld) return "text-amber-700";
+    return "text-green-600";
+  };
+
+  return (
+    <div className="flex flex-col gap-0.5 text-xs">
+      <div className="flex items-center gap-1">
+        <span className={cn("w-1.5 h-1.5 rounded-full", getDotColor(contact))} />
+        <span className="text-muted-foreground w-5">C:</span>
+        <span className={getTextColor(contact)}>{contact.text}</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className={cn("w-1.5 h-1.5 rounded-full", getDotColor(invoices))} />
+        <span className="text-muted-foreground w-5">I:</span>
+        <span className={getTextColor(invoices)}>{invoices.text}</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className={cn("w-1.5 h-1.5 rounded-full", getDotColor(pdfs))} />
+        <span className="text-muted-foreground w-5">P:</span>
+        <span className={getTextColor(pdfs)}>{pdfs.text}</span>
+      </div>
+    </div>
+  );
 }
 
 // Helper to get role display
@@ -807,8 +889,12 @@ function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: (
           <span className="text-muted-foreground">-</span>
         )}
       </TableCell>
-      <TableCell className="text-xs text-muted-foreground py-2">
-        {formatLastSync(contact.last_synced_at)}
+      <TableCell className="py-2">
+        {contact.sync_status ? (
+          <SyncStatusCell syncStatus={contact.sync_status} />
+        ) : (
+          <span className="text-xs text-muted-foreground">{formatLastSync(contact.last_synced_at)}</span>
+        )}
       </TableCell>
       <TableCell className="py-2">
         {contact.has_error ? (
@@ -876,7 +962,7 @@ function ContactsGroupedTable({
         <TableHead className="text-center w-12">Inv</TableHead>
         <TableHead className="text-center w-12">Bills</TableHead>
         <TableHead className="text-center w-12">PDF</TableHead>
-        <TableHead className="w-20">Last Sync</TableHead>
+        <TableHead className="w-24">Sync Status</TableHead>
         <TableHead className="w-16">Status</TableHead>
       </TableRow>
     </TableHeader>

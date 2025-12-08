@@ -34,7 +34,8 @@ interface Stage1DataSync {
   total_in_database: number;
   linked_to_contacts: number;
   unlinked_count: number;
-  last_sync_at: string | null;
+  last_synced_at?: string | null;  // SSoT: Preferred field name
+  last_sync_at?: string | null;    // Deprecated: Kept for backwards compatibility
   next_sync_at: string | null;
   schedule: string;
   breakdown: {
@@ -51,7 +52,8 @@ interface Stage2PdfDownload {
   downloaded: number;
   pending: number;
   progress_percentage: number;
-  last_sync_at: string | null;
+  last_synced_at?: string | null;  // SSoT: Preferred field name
+  last_sync_at?: string | null;    // Deprecated: Kept for backwards compatibility
   next_sync_at: string | null;
   schedule: string;
   synced_last_24h: number;
@@ -82,7 +84,8 @@ interface PdfSyncStatus {
   progress_percentage: number;
   sharepoint_uploads: number;
   synced_last_24h: number;
-  last_sync_at: string | null;
+  last_synced_at?: string | null;  // SSoT: Preferred field name
+  last_sync_at?: string | null;    // Deprecated: Kept for backwards compatibility
   breakdown: {
     bills: { total: number; synced: number };
     sales_invoices: { total: number; synced: number };
@@ -341,7 +344,7 @@ export function XeroPdfSyncStatus() {
                   )
                 : 0
             }
-            lastSync={data.stage1_data_sync?.last_sync_at || null}
+            lastSync={data.stage1_data_sync?.last_synced_at || data.stage1_data_sync?.last_sync_at || null}
             nextSync={data.stage1_data_sync?.next_sync_at}
             schedule={data.stage1_data_sync?.schedule}
             color="bg-purple-100 text-purple-600"
@@ -356,7 +359,7 @@ export function XeroPdfSyncStatus() {
             completed={data.stage2_pdf_download?.downloaded || data.pdfs_synced}
             total={data.stage2_pdf_download?.total_to_sync || data.total_invoices}
             percentage={data.stage2_pdf_download?.progress_percentage || data.progress_percentage}
-            lastSync={data.stage2_pdf_download?.last_sync_at || data.last_sync_at}
+            lastSync={data.stage2_pdf_download?.last_synced_at || data.stage2_pdf_download?.last_sync_at || data.last_synced_at || data.last_sync_at || null}
             nextSync={data.stage2_pdf_download?.next_sync_at}
             schedule={data.stage2_pdf_download?.schedule}
             color="bg-blue-100 text-blue-600"
@@ -485,9 +488,9 @@ export function XeroPdfSyncStatus() {
               </span>
             )}
           </div>
-          {data.last_sync_at && (
+          {(data.last_synced_at || data.last_sync_at) && (
             <span className="text-muted-foreground">
-              Last: {formatDate(data.last_sync_at)}
+              Last: {formatDate(data.last_synced_at || data.last_sync_at || null)}
             </span>
           )}
         </div>

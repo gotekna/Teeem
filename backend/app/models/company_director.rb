@@ -22,6 +22,7 @@ class CompanyDirector < ApplicationRecord
   before_save :update_current_status
   after_create :create_appointment_activity
   after_create :ensure_ssot_director_membership
+  after_commit :sync_to_contact_relationship
   after_update :create_resignation_activity, if: :saved_change_to_resignation_date?
   after_update :update_ssot_director_membership, if: :saved_change_to_is_current?
 
@@ -101,5 +102,44 @@ class CompanyDirector < ApplicationRecord
     membership&.update!(is_active: is_current)
   rescue StandardError => e
     Rails.logger.error("CompanyDirector##{id}: SSoT director membership update failed - #{e.message}")
+  end
+
+  # SSoT: Sync director status to ContactRelationship table
+  # This ensures director_of relationships in Overview tab stay in sync with Corporate tab
+  def sync_to_contact_relationship
+    # Prevent infinite loop when ContactRelationship triggers this callback
+    return if Thread.current[:syncing_director_relationship]
+
+    # Company must be linked to a Contact for this to work
+    return unless company&.contact_id.present?
+    return unless contact_id.present?
+
+    Thread.current[:syncing_director_relationship] = true
+
+    if is_current
+      # Create or activate the relationship
+      rel = ContactRelationship.find_or_initialize_by(
+        source_contact_id: contact_id,
+        related_contact_id: company.contact_id,
+        relationship_type: "director_of"
+      )
+      rel.is_active = true
+      rel.start_date ||= appointment_date
+      rel.save!
+    else
+      # Deactivate the relationship
+      rel = ContactRelationship.find_by(
+        source_contact_id: contact_id,
+        related_contact_id: company.contact_id,
+        relationship_type: "director_of"
+      )
+      if rel
+        rel.update!(is_active: false, end_date: resignation_date || Date.today)
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.error("CompanyDirector##{id}: SSoT contact relationship sync failed - #{e.message}")
+  ensure
+    Thread.current[:syncing_director_relationship] = false
   end
 end

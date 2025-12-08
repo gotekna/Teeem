@@ -28,14 +28,55 @@ class XeroContactSyncJob < ApplicationJob
 
   def sync_all_tenants
     Rails.logger.info("XeroContactSyncJob: Syncing all tenants")
-    service = XeroContactSyncService.new
-    service.sync_all_tenants
+
+    # Mark sync as in progress
+    XeroSyncStatus.start_sync!("contacts")
+
+    begin
+      service = XeroContactSyncService.new
+      result = service.sync_all_tenants
+
+      # Update SSoT with success
+      records_synced = result[:stats][:synced].to_i rescue 0
+      XeroSyncStatus.complete_sync!(
+        "contacts",
+        records_synced: records_synced,
+        next_sync_at: 30.minutes.from_now
+      )
+
+      result
+    rescue StandardError => e
+      Rails.logger.error("XeroContactSyncJob failed: #{e.message}")
+      XeroSyncStatus.fail_sync!("contacts", error: e.message)
+      raise
+    end
   end
 
   def sync_tenant(tenant_id)
     Rails.logger.info("XeroContactSyncJob: Syncing tenant #{tenant_id}")
-    service = XeroContactSyncService.new(tenant_id: tenant_id)
-    service.sync
+
+    # Mark sync as in progress
+    XeroSyncStatus.start_sync!("contacts", tenant_id: tenant_id)
+
+    begin
+      service = XeroContactSyncService.new(tenant_id: tenant_id)
+      result = service.sync
+
+      # Update SSoT with success
+      records_synced = result[:stats][:synced].to_i rescue 0
+      XeroSyncStatus.complete_sync!(
+        "contacts",
+        tenant_id: tenant_id,
+        records_synced: records_synced,
+        next_sync_at: 30.minutes.from_now
+      )
+
+      result
+    rescue StandardError => e
+      Rails.logger.error("XeroContactSyncJob failed for tenant #{tenant_id}: #{e.message}")
+      XeroSyncStatus.fail_sync!("contacts", tenant_id: tenant_id, error: e.message)
+      raise
+    end
   end
 
   def sync_contact_from_xero(contact_id, tenant_id)

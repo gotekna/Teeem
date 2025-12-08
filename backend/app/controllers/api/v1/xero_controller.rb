@@ -742,7 +742,8 @@ module Api
           active_job = find_active_sync_job
 
           response_data = {
-            last_sync_at: last_synced_contact&.last_synced_at,
+            last_synced_at: last_synced_contact&.last_synced_at,  # SSoT: Use last_synced_at consistently
+            last_sync_at: last_synced_contact&.last_synced_at,    # Deprecated: kept for backwards compatibility
             total_contacts: total_contacts,
             synced_contacts: synced_contacts,
             sync_enabled_contacts: sync_enabled,
@@ -768,6 +769,7 @@ module Api
 
       # GET /api/v1/xero/contacts_sync_list
       # Returns all TEEEM contacts with their Xero sync status
+      # SSoT: Includes all 3 sync timestamps (contact, invoices, PDFs) per contact
       def contacts_sync_list
         begin
           contacts = Contact.includes(:primary_company, :external_invoices).all
@@ -777,12 +779,24 @@ module Api
                                           .group(:contact_id, :invoice_type)
                                           .count
 
+          # Get latest invoice sync time per contact
+          invoice_sync_times = ExternalInvoice.where.not(contact_id: nil)
+                                               .group(:contact_id)
+                                               .maximum(:last_synced_at)
+
           # Count PDFs per contact (documents linked to their invoices)
           pdf_counts_by_contact = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
                                                   .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
                                                   .where("company_documents.external_id LIKE ?", "xero:%:pdf")
                                                   .group("external_invoices.contact_id")
                                                   .count
+
+          # Get latest PDF sync time per contact
+          pdf_sync_times = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
+                                           .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                           .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+                                           .group("external_invoices.contact_id")
+                                           .maximum("company_documents.created_at")
 
           contacts_data = contacts.map do |contact|
             # Get invoice/bill counts for this contact
@@ -814,12 +828,21 @@ module Api
               invoices_count: invoices_count,
               bills_count: bills_count,
               pdfs_synced: pdfs_synced,
-              pdf_sync_percent: pdf_sync_percent
+              pdf_sync_percent: pdf_sync_percent,
+              # SSoT: All 3 sync timestamps per contact
+              sync_status: {
+                contact_synced_at: contact.last_synced_at&.iso8601,
+                invoices_synced_at: invoice_sync_times[contact.id]&.iso8601,
+                pdfs_synced_at: pdf_sync_times[contact.id]&.iso8601
+              }
             }
           end.sort_by { |c| c[:display_name]&.downcase || "" }
 
           # Get Xero data stats (invoices, bills, quotes synced from Xero)
           xero_data_stats = calculate_xero_data_stats
+
+          # Get global sync health from SSoT table
+          sync_health = XeroSyncStatus.health_summary
 
           render json: {
             success: true,
@@ -827,7 +850,8 @@ module Api
             total: contacts_data.count,
             synced_count: contacts_data.count { |c| c[:synced] },
             error_count: contacts_data.count { |c| c[:has_error] },
-            xero_data: xero_data_stats
+            xero_data: xero_data_stats,
+            sync_health: sync_health
           }
         rescue StandardError => e
           Rails.logger.error("Xero contacts_sync_list error: #{e.message}")
@@ -1539,7 +1563,8 @@ module Api
                 total_in_database: total_invoices_in_db,
                 linked_to_contacts: total_with_contacts,
                 unlinked_count: invoices_without_contacts,
-                last_sync_at: last_invoice_sync,
+                last_synced_at: last_invoice_sync,           # SSoT: Use last_synced_at consistently
+                last_sync_at: last_invoice_sync,             # Deprecated: kept for backwards compatibility
                 next_sync_at: next_invoice_sync,
                 schedule: "Every 30 minutes",
                 breakdown: invoice_breakdown,
@@ -1552,7 +1577,8 @@ module Api
                 downloaded: invoices_with_pdfs,
                 pending: pdfs_pending,
                 progress_percentage: pdf_progress,
-                last_sync_at: last_pdf_sync,
+                last_synced_at: last_pdf_sync,               # SSoT: Use last_synced_at consistently
+                last_sync_at: last_pdf_sync,                 # Deprecated: kept for backwards compatibility
                 next_sync_at: next_pdf_sync,
                 schedule: "Every 2 hours (50 per batch)",
                 synced_last_24h: pdfs_last_24h,
@@ -1581,7 +1607,8 @@ module Api
               progress_percentage: pdf_progress,
               sharepoint_uploads: sharepoint_pdfs_uploaded,
               synced_last_24h: pdfs_last_24h,
-              last_sync_at: last_pdf_sync,
+              last_synced_at: last_pdf_sync,              # SSoT: Use last_synced_at consistently
+              last_sync_at: last_pdf_sync,                # Deprecated: kept for backwards compatibility
               next_sync_at: next_pdf_sync,
               breakdown: {
                 bills: { total: bills_total, synced: bills_with_pdfs },
@@ -1598,6 +1625,26 @@ module Api
           render json: {
             success: false,
             error: "Failed to get PDF sync status: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/xero/sync_health
+      # Returns unified sync health status from XeroSyncStatus SSoT table
+      # This is the single source of truth for all Xero sync timestamps
+      def sync_health
+        begin
+          health = XeroSyncStatus.health_summary
+
+          render json: {
+            success: true,
+            data: health
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero sync_health error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to get sync health: #{e.message}"
           }, status: :internal_server_error
         end
       end

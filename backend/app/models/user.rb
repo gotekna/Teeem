@@ -89,6 +89,26 @@ class User < ApplicationRecord
     admin? || builder?
   end
 
+  # SSoT: Can this user view corporate data (directorships, shareholdings, corporate structure)?
+  def can_view_corporate?
+    permissions.include?("view_corporate_data")
+  end
+
+  # SSoT: Can this user edit corporate data?
+  def can_edit_corporate?
+    permissions.include?("edit_corporate_data")
+  end
+
+  # SSoT: Can this user view case/legal data?
+  def can_view_cases?
+    permissions.include?("view_case_data")
+  end
+
+  # SSoT: Can this user edit case/legal data?
+  def can_edit_cases?
+    permissions.include?("edit_case_data")
+  end
+
   # Returns array of permission strings for this user
   def permissions
     perms = []
@@ -118,7 +138,12 @@ class User < ApplicationRecord
         "view_confidential_fields",
         "view_all_company_groups",
         "edit_company_group_memberships",
-        "run_investigations"
+        "run_investigations",
+        # Corporate & Case data permissions
+        "view_corporate_data",
+        "edit_corporate_data",
+        "view_case_data",
+        "edit_case_data"
       ]
     when "product_owner"
       perms += [
@@ -128,7 +153,10 @@ class User < ApplicationRecord
         "view_gantt",
         # SSoT Corporate permissions
         "god_view",
-        "view_all_company_groups"
+        "view_all_company_groups",
+        # Corporate & Case data permissions (view only)
+        "view_corporate_data",
+        "view_case_data"
       ]
     when "estimator"
       perms += [

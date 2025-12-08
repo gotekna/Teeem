@@ -16,7 +16,7 @@ module SsotAuthorization
   ].freeze
 
   included do
-    helper_method :god_view?, :can_view_confidential?, :accessible_company_groups if respond_to?(:helper_method)
+    helper_method :god_view?, :can_view_confidential?, :can_view_corporate?, :can_edit_corporate?, :can_view_cases?, :can_edit_cases?, :accessible_company_groups if respond_to?(:helper_method)
   end
 
   # Check if current user has God View access (sees everything in their groups)
@@ -27,6 +27,26 @@ module SsotAuthorization
   # Check if current user can view confidential fields
   def can_view_confidential?
     current_user&.can_view_confidential?
+  end
+
+  # SSoT: Check if current user can view corporate data (directorships, shareholdings, corporate structure)
+  def can_view_corporate?
+    current_user&.can_view_corporate?
+  end
+
+  # SSoT: Check if current user can edit corporate data
+  def can_edit_corporate?
+    current_user&.can_edit_corporate?
+  end
+
+  # SSoT: Check if current user can view case/legal data
+  def can_view_cases?
+    current_user&.can_view_cases?
+  end
+
+  # SSoT: Check if current user can edit case/legal data
+  def can_edit_cases?
+    current_user&.can_edit_cases?
   end
 
   # Get company groups accessible to current user

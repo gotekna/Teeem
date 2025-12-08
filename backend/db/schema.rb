@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_07_221849) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_07_235830) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1090,7 +1090,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_07_221849) do
     t.index ["related_contact_id", "display_order"], name: "index_contact_relationships_on_company_and_order"
     t.index ["related_contact_id"], name: "index_contact_relationships_on_related_contact_id"
     t.index ["relationship_type"], name: "index_contact_relationships_on_relationship_type"
-    t.index ["source_contact_id", "related_contact_id"], name: "index_contact_relationships_on_source_and_related", unique: true
+    t.index ["source_contact_id", "related_contact_id", "relationship_type"], name: "index_contact_relationships_unique_by_type", unique: true
     t.index ["source_contact_id"], name: "index_contact_relationships_on_source_contact_id"
   end
 
@@ -4503,6 +4503,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_07_221849) do
     t.boolean "is_primary", default: false, null: false
     t.index ["is_primary"], name: "index_xero_credentials_on_is_primary"
     t.index ["tenant_id"], name: "index_xero_credentials_on_tenant_id"
+  end
+
+  create_table "xero_sync_statuses", force: :cascade do |t|
+    t.string "sync_type", null: false
+    t.string "tenant_id"
+    t.datetime "last_synced_at"
+    t.datetime "next_sync_at"
+    t.string "status"
+    t.integer "records_synced"
+    t.text "last_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["sync_type", "tenant_id"], name: "index_xero_sync_statuses_on_sync_type_and_tenant_id", unique: true
   end
 
   create_table "xero_tax_rates", force: :cascade do |t|

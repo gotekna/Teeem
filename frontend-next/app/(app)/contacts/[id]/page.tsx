@@ -259,8 +259,11 @@ interface Contact {
   director_companies?: DirectorCompany[];
   // Additional companies via relationships
   additional_companies?: AdditionalCompany[];
-  // SSoT permission indicator
+  // SSoT permission indicators
   can_view_confidential?: boolean;
+  can_view_corporate?: boolean;
+  can_edit_corporate?: boolean;
+  can_view_cases?: boolean;
   // SSoT: Linked company data for company-type contacts
   linked_company?: LinkedCompany;
   // Financial fields
@@ -2213,7 +2216,7 @@ export default function ContactDetailPage() {
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          {contact.linked_company && (
+          {contact.linked_company && contact.can_view_corporate && (
             <TabsTrigger value="corporate">
               <Building2 className="h-3.5 w-3.5 mr-1" />
               Corporate
@@ -2231,15 +2234,17 @@ export default function ContactDetailPage() {
             {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
           </TabsTrigger>
           <TabsTrigger value="coms">Communications</TabsTrigger>
-          <TabsTrigger value="cases">
-            <Briefcase className="h-3.5 w-3.5 mr-1" />
-            Cases
-            {caseRelationships.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5">
-                {caseRelationships.length}
-              </Badge>
-            )}
-          </TabsTrigger>
+          {contact.can_view_cases && (
+            <TabsTrigger value="cases">
+              <Briefcase className="h-3.5 w-3.5 mr-1" />
+              Cases
+              {caseRelationships.length > 0 && (
+                <Badge variant="secondary" className="ml-1.5">
+                  {caseRelationships.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          )}
           {contact.email && (
             <TabsTrigger value="emails">
               <Mail className="h-3.5 w-3.5 mr-1" />
