@@ -339,6 +339,7 @@ Rails.application.routes.draw do
           get :connected_mailboxes
           get :preview_employee_extraction
           post :extract_employees
+          get :health  # Quick health score for header display
         end
         member do
           post :reorder_employees
