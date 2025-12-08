@@ -66,7 +66,7 @@ module HealthChecks
       contacts = Contact.where(deleted: [ false, nil ])
                        .where.not(entity_type: "price_only")
                        .where("(email IS NULL OR email = '') AND (mobile_phone IS NULL OR mobile_phone = '') AND (office_phone IS NULL OR office_phone = '')")
-                       .select(:id, :display_name, :entity_type)
+                       .select(:id, :display_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Contacts Missing Contact Info",
@@ -83,7 +83,7 @@ module HealthChecks
       contacts = Contact.where(deleted: [ false, nil ])
                        .where(entity_type: "person")
                        .where("first_name IS NULL OR first_name = ''")
-                       .select(:id, :display_name, :first_name, :entity_type)
+                       .select(:id, :display_name, :first_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Person Contacts Missing First Name",
@@ -118,7 +118,7 @@ module HealthChecks
       valid_types = Contact::ENTITY_TYPES + [ nil ]
       contacts = Contact.where(deleted: [ false, nil ])
                        .where.not(entity_type: valid_types)
-                       .select(:id, :display_name, :entity_type)
+                       .select(:id, :display_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Contacts with Invalid Entity Type",
@@ -136,7 +136,7 @@ module HealthChecks
       contacts = Contact.where(deleted: [ false, nil ])
                        .where.not(website: [ nil, "" ])
                        .where.not("website LIKE 'http://%' OR website LIKE 'https://%'")
-                       .select(:id, :display_name, :website, :entity_type)
+                       .select(:id, :display_name, :website, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Contacts with Invalid Website URL",
@@ -195,7 +195,7 @@ module HealthChecks
     def check_email_as_name
       contacts = Contact.where(deleted: [ false, nil ])
                        .where("first_name LIKE '%@%' OR last_name LIKE '%@%'")
-                       .select(:id, :display_name, :first_name, :last_name, :email, :entity_type)
+                       .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Email Used as Name",
@@ -250,7 +250,7 @@ module HealthChecks
       contacts = Contact.where(deleted: [ false, nil ])
                        .where(entity_type: [ "company", "trust" ])
                        .where("company_name_or_trust IS NULL OR company_name_or_trust = ''")
-                       .select(:id, :display_name, :company_name_or_trust, :entity_type)
+                       .select(:id, :display_name, :company_name_or_trust, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Company/Trust Missing Business Name",
@@ -268,7 +268,7 @@ module HealthChecks
       contacts = Contact.where(deleted: [ false, nil ])
                        .where(entity_type: "sole_trader")
                        .where("company_name_or_trust IS NULL OR company_name_or_trust = ''")
-                       .select(:id, :display_name, :first_name, :last_name, :company_name_or_trust, :entity_type)
+                       .select(:id, :display_name, :first_name, :last_name, :company_name_or_trust, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Sole Trader Missing Business Name",
@@ -290,7 +290,7 @@ module HealthChecks
       contacts = Contact.where(deleted: [ false, nil ])
                        .where(entity_type: [ "company", "trust" ])
                        .where("website IS NULL OR website = ''")
-                       .select(:id, :display_name, :company_name_or_trust, :entity_type)
+                       .select(:id, :display_name, :company_name_or_trust, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Company Missing Website",
@@ -308,7 +308,7 @@ module HealthChecks
       contacts = Contact.where(deleted: [ false, nil ])
                        .where(entity_type: [ "company", "trust", "sole_trader" ])
                        .where("tax_number IS NULL OR tax_number = ''")
-                       .select(:id, :display_name, :company_name_or_trust, :entity_type)
+                       .select(:id, :display_name, :company_name_or_trust, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Company Missing ABN",
@@ -326,7 +326,7 @@ module HealthChecks
       contacts = Contact.where(deleted: [ false, nil ])
                        .where(entity_type: [ "company", "trust", "price_only" ])
                        .where("first_name IS NOT NULL AND first_name != '' OR middle_name IS NOT NULL AND middle_name != '' OR last_name IS NOT NULL AND last_name != ''")
-                       .select(:id, :display_name, :first_name, :middle_name, :last_name, :entity_type)
+                       .select(:id, :display_name, :first_name, :middle_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Non-Person with Person Fields",
@@ -410,7 +410,7 @@ module HealthChecks
       # Include all fields needed by the merge modal
       # Note: completeness_score is calculated, not a column - don't select it
       contacts = Contact.where(deleted: [ false, nil ])
-                       .select(:id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :entity_type)
+                       .select(:id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :entity_type, :is_team_contact, :primary_company_id)
                        .includes(:jobs, :purchase_orders)
 
       case type
