@@ -41,19 +41,31 @@ module Api
       # GET /api/v1/companies/:company_id/xero/authorize
       # Returns the OAuth authorization URL for connecting to Xero
       def authorize
+        Rails.logger.info("[Xero Authorize] Company #{@company.id} (#{@company.name}) requesting authorization URL")
+
         # Note: company_id is passed via state parameter in OAuth flow, not session
         client = XeroApiClient.new
         auth_url = client.authorization_url_for_company(@company.id)
+
+        Rails.logger.info("[Xero Authorize] Generated auth URL for company #{@company.id}: #{auth_url[0..100]}...")
 
         render json: {
           success: true,
           authorization_url: auth_url
         }
       rescue XeroApiClient::AuthenticationError => e
+        Rails.logger.error("[Xero Authorize] Authentication error for company #{@company.id}: #{e.message}")
         render json: {
           success: false,
           error: e.message
         }, status: :service_unavailable
+      rescue StandardError => e
+        Rails.logger.error("[Xero Authorize] Unexpected error for company #{@company.id}: #{e.message}")
+        Rails.logger.error(e.backtrace.first(5).join("\n"))
+        render json: {
+          success: false,
+          error: "Failed to generate authorization URL: #{e.message}"
+        }, status: :internal_server_error
       end
 
       # GET /api/v1/companies/:company_id/xero/callback
@@ -62,7 +74,10 @@ module Api
         code = params[:code]
         state = params[:state]
 
+        Rails.logger.info("[Xero Callback] Company #{@company.id} - Received callback with code=#{code.present? ? 'present' : 'missing'}, state=#{state}")
+
         if code.blank?
+          Rails.logger.warn("[Xero Callback] Company #{@company.id} - Missing authorization code")
           return render json: {
             success: false,
             error: "Authorization code not provided"
@@ -72,6 +87,7 @@ module Api
         # Verify state matches company_id
         expected_state = "company_#{@company.id}"
         if state != expected_state
+          Rails.logger.warn("[Xero Callback] Company #{@company.id} - State mismatch. Expected: #{expected_state}, Got: #{state}")
           return render json: {
             success: false,
             error: "Invalid state parameter"
@@ -79,10 +95,12 @@ module Api
         end
 
         begin
+          Rails.logger.info("[Xero Callback] Company #{@company.id} - Exchanging code for tokens...")
           client = XeroApiClient.new
           result = client.exchange_code_for_company_token(code, @company)
 
           if result[:success]
+            Rails.logger.info("[Xero Callback] Company #{@company.id} - Successfully connected to #{result[:tenant_name]}")
             render json: {
               success: true,
               message: "Successfully connected to #{result[:tenant_name]}",
@@ -90,21 +108,24 @@ module Api
               tenant_id: result[:tenant_id]
             }
           else
+            Rails.logger.error("[Xero Callback] Company #{@company.id} - Token exchange failed: #{result[:error]}")
             render json: {
               success: false,
               error: result[:error] || "Failed to connect to Xero"
             }, status: :unprocessable_entity
           end
         rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("[Xero Callback] Company #{@company.id} - Authentication error: #{e.message}")
           render json: {
             success: false,
             error: e.message
           }, status: :unauthorized
         rescue StandardError => e
-          Rails.logger.error("Xero OAuth callback error for company #{@company.id}: #{e.message}")
+          Rails.logger.error("[Xero Callback] Company #{@company.id} - Unexpected error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(10).join("\n"))
           render json: {
             success: false,
-            error: "Failed to complete Xero authorization"
+            error: "Failed to complete Xero authorization: #{e.message}"
           }, status: :internal_server_error
         end
       end
