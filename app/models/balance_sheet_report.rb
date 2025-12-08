@@ -104,9 +104,21 @@ class BalanceSheetReport < ApplicationRecord
         # Store raw data
         update!(report_data: result[:report])
 
-        # TODO: Generate PDF and upload to SharePoint
-        # For now, just mark as completed
-        mark_completed!
+        # Generate PDF and upload to SharePoint
+        pdf_service = BalanceSheetReportService.new(self)
+        pdf_result = pdf_service.generate
+
+        if pdf_result[:success]
+          mark_completed!(
+            url: pdf_result[:sharepoint_url],
+            file_name: pdf_result[:filename],
+            file_size: pdf_result[:pdf]&.bytesize
+          )
+        else
+          # Data fetched successfully but PDF generation failed
+          Rails.logger.warn("Balance Sheet data saved but PDF generation failed: #{pdf_result[:error]}")
+          mark_completed!
+        end
       else
         mark_failed!(result[:error] || "Failed to fetch Balance Sheet from Xero")
       end
