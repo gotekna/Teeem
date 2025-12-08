@@ -16,12 +16,12 @@ class XeroBankTransactionSyncJob < ApplicationJob
       client = XeroApiClient.new
       credential = XeroCredential.current
 
-      unless credential&.status == "connected"
+      unless credential.present?
         Rails.logger.warn("No valid Xero connection")
         return result
       end
 
-      tenant_id = credential.primary_tenant_id
+      tenant_id = credential.tenant_id
 
       # Fetch all pages of bank transactions
       page = 1
