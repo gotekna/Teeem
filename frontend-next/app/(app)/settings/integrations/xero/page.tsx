@@ -18,6 +18,8 @@ import {
   Link2,
   ArrowRightLeft,
   Users,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
@@ -63,6 +65,7 @@ export default function XeroIntegrationPage() {
   const [disconnecting, setDisconnecting] = React.useState(false);
   const [validationTests, setValidationTests] = React.useState<ValidationTest[]>([]);
   const [runningTests, setRunningTests] = React.useState(false);
+  const [healthCheckExpanded, setHealthCheckExpanded] = React.useState(false);
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -480,114 +483,105 @@ export default function XeroIntegrationPage() {
             <XeroPdfSyncStatus />
           )}
 
-          {/* Validation Tests */}
+          {/* Validation Tests - Collapsible */}
           {status?.connected && (
             <Card>
-              <CardHeader>
+              <CardHeader
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => setHealthCheckExpanded(!healthCheckExpanded)}
+              >
                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Integration Health Check</CardTitle>
-                    <CardDescription>
-                      Run tests to verify all Xero integration features are working correctly
-                    </CardDescription>
-                  </div>
-                  <Button
-                    onClick={runValidationTests}
-                    disabled={runningTests}
-                    variant="outline"
-                    className={
-                      validationTests.length > 0 && validationTests.every(t => t.status === "passed")
-                        ? "bg-green-600 hover:bg-green-700 text-white border-green-600"
-                        : ""
-                    }
-                  >
-                    {runningTests ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Running Tests...
-                      </>
-                    ) : validationTests.length > 0 && validationTests.every(t => t.status === "passed") ? (
-                      <>
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                        All Tests Passed
-                      </>
+                  <div className="flex items-center gap-2">
+                    {healthCheckExpanded ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
                     ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Run Health Check
-                      </>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     )}
-                  </Button>
+                    <div>
+                      <CardTitle className="text-base">Integration Health Check</CardTitle>
+                      <CardDescription className="text-xs">
+                        Run tests to verify Xero integration is working
+                      </CardDescription>
+                    </div>
+                  </div>
+                  {validationTests.length > 0 && validationTests.every(t => t.status === "passed") && (
+                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      All Passed
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
-              <CardContent>
-                {validationTests.length === 0 ? (
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>No tests run yet</AlertTitle>
-                    <AlertDescription>
-                      Click &quot;Run Health Check&quot; to validate your Xero integration setup
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <div className="space-y-2">
-                    {validationTests.map((test) => (
-                      <div
-                        key={test.id}
-                        className={`flex items-center justify-between p-4 border rounded-lg ${
-                          test.status === "passed"
-                            ? "border-green-500 bg-green-50/50 dark:bg-green-900/10"
-                            : test.status === "failed"
-                            ? "border-red-500 bg-red-50/50 dark:bg-red-900/10"
-                            : "border-gray-200"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className="flex-shrink-0">
-                            {test.status === "passed" && (
-                              <CheckCircle2 className="h-5 w-5 text-green-600" />
-                            )}
-                            {test.status === "failed" && (
-                              <XCircle className="h-5 w-5 text-red-600" />
-                            )}
-                            {test.status === "running" && (
-                              <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                            )}
-                            {test.status === "pending" && (
-                              <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-medium">{test.name}</p>
-                            <p className="text-sm text-muted-foreground">{test.description}</p>
-                            {test.error && (
-                              <p className="text-sm text-red-600 mt-1">Error: {test.error}</p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex-shrink-0">
-                          {test.status === "passed" && (
-                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                              Passed
-                            </Badge>
-                          )}
-                          {test.status === "failed" && (
-                            <Badge variant="destructive">Failed</Badge>
-                          )}
-                          {test.status === "running" && (
-                            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                              Running...
-                            </Badge>
-                          )}
-                          {test.status === "pending" && (
-                            <Badge variant="secondary">Pending</Badge>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+              {healthCheckExpanded && (
+                <CardContent className="pt-0">
+                  <div className="flex justify-end mb-4">
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        runValidationTests();
+                      }}
+                      disabled={runningTests}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {runningTests ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Running...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Run Health Check
+                        </>
+                      )}
+                    </Button>
                   </div>
-                )}
-              </CardContent>
+                  {validationTests.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Click &quot;Run Health Check&quot; to validate your Xero integration
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {validationTests.map((test) => (
+                        <div
+                          key={test.id}
+                          className={`flex items-center justify-between p-3 border rounded-lg text-sm ${
+                            test.status === "passed"
+                              ? "border-green-500 bg-green-50/50 dark:bg-green-900/10"
+                              : test.status === "failed"
+                              ? "border-red-500 bg-red-50/50 dark:bg-red-900/10"
+                              : "border-gray-200"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="flex-shrink-0">
+                              {test.status === "passed" && (
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                              )}
+                              {test.status === "failed" && (
+                                <XCircle className="h-4 w-4 text-red-600" />
+                              )}
+                              {test.status === "running" && (
+                                <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                              )}
+                              {test.status === "pending" && (
+                                <div className="h-4 w-4 rounded-full border-2 border-gray-300" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-medium">{test.name}</p>
+                              {test.error && (
+                                <p className="text-xs text-red-600 mt-0.5">{test.error}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              )}
             </Card>
           )}
 
@@ -671,53 +665,6 @@ export default function XeroIntegrationPage() {
             </Card>
           )}
 
-          {/* Features */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Features</CardTitle>
-              <CardDescription>What you can do with the Xero integration</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-start gap-3 p-4 border rounded-lg">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                  <div>
-                    <p className="font-medium">Sync Contacts</p>
-                    <p className="text-sm text-muted-foreground">
-                      Keep your contacts in sync between Teeem and Xero
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 p-4 border rounded-lg">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                  <div>
-                    <p className="font-medium">Create Invoices</p>
-                    <p className="text-sm text-muted-foreground">
-                      Generate invoices in Xero from job progress
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 p-4 border rounded-lg">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                  <div>
-                    <p className="font-medium">Track Expenses</p>
-                    <p className="text-sm text-muted-foreground">
-                      Import expenses and bills from Xero
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 p-4 border rounded-lg">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                  <div>
-                    <p className="font-medium">Financial Reports</p>
-                    <p className="text-sm text-muted-foreground">
-                      View financial data alongside project info
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* Field Mapping Tab */}
