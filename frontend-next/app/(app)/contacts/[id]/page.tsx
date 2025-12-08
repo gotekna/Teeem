@@ -83,7 +83,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Star } from 'lucide-react';
+import { GripVertical, Star, Code } from 'lucide-react';
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import {
   getEntityTypeLabel,
@@ -2276,23 +2276,58 @@ export default function ContactDetailPage() {
     if (!contact?.id || !newCompanyName.trim()) return;
     setCreatingCompany(true);
     try {
-      // Create the new company contact
+      // Check if person has Xero data to transfer
+      const hasXeroData = contact.xero_id;
+
+      // Create the new company contact, optionally transferring Xero data
+      const companyData: Record<string, unknown> = {
+        entity_type: "company",
+        company_name_or_trust: newCompanyName.trim(),
+        display_name: newCompanyName.trim(),
+      };
+
+      // Transfer Xero data from person to company if it exists
+      if (hasXeroData) {
+        companyData.xero_id = contact.xero_id;
+        companyData.sync_with_xero = contact.sync_with_xero;
+        companyData.xero_contact_number = contact.xero_contact_number;
+        companyData.xero_contact_status = contact.xero_contact_status;
+        companyData.xero_account_number = contact.xero_account_number;
+        companyData.xero_synced = contact.xero_synced;
+        companyData.xero_invoice_count = contact.xero_invoice_count;
+        companyData.xero_contact_types = contact.xero_contact_types;
+      }
+
       const response = await api.post<{ contact?: { id: number }; id?: number }>("/api/v1/contacts", {
-        contact: {
-          entity_type: "company",
-          company_name_or_trust: newCompanyName.trim(),
-          display_name: newCompanyName.trim(),
-        },
+        contact: companyData,
       });
       const newCompanyId = response?.contact?.id || (response as { id?: number })?.id;
       if (!newCompanyId) throw new Error("Failed to get new company ID");
 
+      // Clear Xero data from the person if it was transferred
+      if (hasXeroData) {
+        await api.patch(`/api/v1/contacts/${contact.id}`, {
+          contact: {
+            xero_id: null,
+            sync_with_xero: false,
+            xero_contact_number: null,
+            xero_contact_status: null,
+            xero_account_number: null,
+            xero_synced: false,
+            xero_invoice_count: null,
+            xero_contact_types: null,
+            xero_sync_error: null,
+          },
+        });
+      }
+
       // Link current person as employee of the new company
-      await api.post("/api/v1/contact_relationships", {
+      // Use the nested route: POST /api/v1/contacts/:contact_id/relationships
+      await api.post(`/api/v1/contacts/${contact.id}/relationships`, {
         contact_relationship: {
-          company_id: newCompanyId,
-          employee_id: contact.id,
-          role_type: "employee",
+          related_contact_id: newCompanyId,
+          relationship_type: "employee_of",
+          is_active: true,
         },
       });
 
@@ -2328,11 +2363,12 @@ export default function ContactDetailPage() {
       if (!newEmployeeId) throw new Error("Failed to get new employee ID");
 
       // Link new person as employee of current company
-      await api.post("/api/v1/contact_relationships", {
+      // Use the nested route: POST /api/v1/contacts/:contact_id/relationships
+      await api.post(`/api/v1/contacts/${newEmployeeId}/relationships`, {
         contact_relationship: {
-          company_id: contact.id,
-          employee_id: newEmployeeId,
-          role_type: "employee",
+          related_contact_id: contact.id,
+          relationship_type: "employee_of",
+          is_active: true,
         },
       });
 
@@ -2879,6 +2915,38 @@ export default function ContactDetailPage() {
                         <Switch checked={formData.is_team_contact} onCheckedChange={handleTeamContactToggle} disabled={saving} />
                       </div>
                     )}
+
+                    {/* Xero Link Status - SSoT display */}
+                    {contact.xero_id && (
+                      <div className="mt-4 pt-4 border-t">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-green-500" />
+                            <span className="text-sm font-medium">Linked to Xero</span>
+                          </div>
+                          {contact.xero_invoice_count && (
+                            <Badge variant="secondary">{contact.xero_invoice_count} invoices</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Xero ID: {contact.xero_id}
+                          {contact.xero_contact_number && ` • Contact #${contact.xero_contact_number}`}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Raw Data Section - Collapsible */}
+                    <details className="mt-4 pt-4 border-t">
+                      <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground flex items-center gap-2">
+                        <Code className="h-4 w-4" />
+                        Raw Data (Debug)
+                      </summary>
+                      <div className="mt-3 p-3 bg-muted rounded-md overflow-auto max-h-96">
+                        <pre className="text-xs whitespace-pre-wrap break-all font-mono">
+                          {JSON.stringify(contact, null, 2)}
+                        </pre>
+                      </div>
+                    </details>
                   </CardContent>
                 </Card>
 
