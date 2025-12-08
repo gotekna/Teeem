@@ -3750,7 +3750,7 @@ function BankTransactionsCard({ companyId, isConnected }: { companyId: string; i
                 {transactions.slice(0, 20).map((tx) => (
                   <tr key={tx.id} className="border-b hover:bg-muted/50">
                     <td className="py-2 px-2 whitespace-nowrap">
-                      {format(new Date(tx.transaction_date), "d MMM yyyy")}
+                      {tx.transaction_date ? format(new Date(tx.transaction_date), "d MMM yyyy") : "—"}
                     </td>
                     <td className="py-2 px-2 max-w-[200px] truncate" title={tx.description}>
                       {tx.description || tx.reference || "-"}
