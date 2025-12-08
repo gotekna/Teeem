@@ -2701,44 +2701,14 @@ export default function ContactDetailPage() {
                             </div>
                           )}
 
-                          {/* Selected companies display */}
-                          {selectedCompanies.length > 0 && (
-                            <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-md border">
-                              {selectedCompanies.map((company) => (
-                                <Badge
-                                  key={company.value}
-                                  variant="secondary"
-                                  className="bg-blue-100 text-blue-900 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-100 px-3 py-1.5 text-sm font-medium"
-                                >
-                                  {company.label}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const newSelected = selectedCompanies.filter(c => c.value !== company.value);
-                                      handleCompanyChange(newSelected);
-                                    }}
-                                    className="ml-2 hover:text-blue-700 dark:hover:text-blue-300"
-                                  >
-                                    <X className="size-3" />
-                                  </button>
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Search/add input */}
+                          {/* Companies multi-selector */}
                           <MultipleSelector
-                            value={[]}
+                            value={selectedCompanies}
                             onChange={(newOptions) => {
-                              if (newOptions.length > 0) {
-                                const newCompany = newOptions[0];
-                                if (!selectedCompanies.find(c => c.value === newCompany.value)) {
-                                  handleCompanyChange([...selectedCompanies, newCompany]);
-                                }
-                              }
+                              handleCompanyChange(newOptions);
                             }}
                             placeholder="🔍 Search and add companies..."
-                            options={availableCompanies.filter(opt => !selectedCompanies.find(s => s.value === opt.value))}
+                            options={availableCompanies}
                             emptyIndicator={
                               <p className="text-center text-sm text-muted-foreground">
                                 {loadingCompanies ? "Loading companies..." : "No companies found"}
@@ -2746,7 +2716,6 @@ export default function ContactDetailPage() {
                             }
                             disabled={loadingCompanies}
                             className="w-full bg-white dark:bg-gray-950"
-                            maxSelected={1}
                           />
 
                           <p className="text-xs text-muted-foreground">
