@@ -103,7 +103,7 @@ class XeroBankTransactionSyncJob < ApplicationJob
       reference: txn["Reference"],
       status: txn["Status"],
       is_reconciled: txn["IsReconciled"] || false,
-      contact_id: txn.dig("Contact", "ContactID"),
+      xero_contact_id: txn.dig("Contact", "ContactID"),
       contact_name: txn.dig("Contact", "Name"),
       sub_total: txn["SubTotal"],
       total_tax: txn["TotalTax"],

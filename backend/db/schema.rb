@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_08_013841) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_08_032007) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4128,6 +4128,45 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_013841) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "warehouse_bank_transactions", force: :cascade do |t|
+    t.string "xero_id", null: false
+    t.string "tenant_id"
+    t.string "source", default: "xero"
+    t.string "bank_account_id"
+    t.string "bank_account_code"
+    t.string "bank_account_name"
+    t.string "transaction_type"
+    t.date "transaction_date", null: false
+    t.string "reference"
+    t.string "status"
+    t.boolean "is_reconciled", default: false
+    t.string "xero_contact_id"
+    t.string "contact_name"
+    t.bigint "contact_id"
+    t.decimal "sub_total", precision: 15, scale: 2
+    t.decimal "total_tax", precision: 15, scale: 2
+    t.decimal "total", precision: 15, scale: 2
+    t.string "currency_code", default: "AUD"
+    t.jsonb "line_items", default: []
+    t.text "description"
+    t.integer "transaction_month"
+    t.integer "transaction_year"
+    t.string "financial_year"
+    t.boolean "has_attachments", default: false
+    t.datetime "last_synced_at"
+    t.datetime "xero_updated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bank_account_id"], name: "index_warehouse_bank_transactions_on_bank_account_id"
+    t.index ["contact_id"], name: "index_warehouse_bank_transactions_on_contact_id"
+    t.index ["financial_year"], name: "index_warehouse_bank_transactions_on_financial_year"
+    t.index ["tenant_id"], name: "index_warehouse_bank_transactions_on_tenant_id"
+    t.index ["transaction_date"], name: "index_warehouse_bank_transactions_on_transaction_date"
+    t.index ["transaction_year", "transaction_month"], name: "idx_on_transaction_year_transaction_month_398491194a"
+    t.index ["xero_contact_id"], name: "index_warehouse_bank_transactions_on_xero_contact_id"
+    t.index ["xero_id"], name: "index_warehouse_bank_transactions_on_xero_id", unique: true
+  end
+
   create_table "whs_action_items", force: :cascade do |t|
     t.string "actionable_type", null: false
     t.bigint "actionable_id", null: false
@@ -4872,6 +4911,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_013841) do
   add_foreign_key "user_permissions", "permissions"
   add_foreign_key "user_permissions", "users"
   add_foreign_key "users", "user_groups"
+  add_foreign_key "warehouse_bank_transactions", "contacts"
   add_foreign_key "whs_action_items", "project_tasks"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
   add_foreign_key "whs_action_items", "users", column: "created_by_id"
