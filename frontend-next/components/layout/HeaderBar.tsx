@@ -73,9 +73,6 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const [office365Status, setOffice365Status] = React.useState<ConnectionStatus>('disconnected');
   const [xeroTooltip, setXeroTooltip] = React.useState('Xero: Not Connected');
   const [office365Tooltip, setOffice365Tooltip] = React.useState('Office 365: Not Connected');
-  const [contactsHealthScore, setContactsHealthScore] = React.useState<number | null>(null);
-  const [jobsHealthScore, setJobsHealthScore] = React.useState<number | null>(null);
-  const [pricebookHealthScore, setPricebookHealthScore] = React.useState<number | null>(null);
 
   // Fetch unread message count and integration statuses
   React.useEffect(() => {
@@ -155,41 +152,8 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       }
     };
 
-    const fetchHealthScores = async () => {
-      // Fetch contacts health
-      try {
-        const contactsResponse = await api.get<{ health_score?: number }>("/api/v1/contacts/health");
-        if (contactsResponse?.health_score !== undefined) {
-          setContactsHealthScore(Math.round(contactsResponse.health_score));
-        }
-      } catch (error) {
-        console.debug("Failed to fetch contacts health:", error);
-      }
-
-      // Fetch jobs health
-      try {
-        const jobsResponse = await api.get<{ health_score?: number }>("/api/v1/constructions/health");
-        if (jobsResponse?.health_score !== undefined) {
-          setJobsHealthScore(Math.round(jobsResponse.health_score));
-        }
-      } catch (error) {
-        console.debug("Failed to fetch jobs health:", error);
-      }
-
-      // Fetch price book health
-      try {
-        const pricebookResponse = await api.get<{ health_score?: number }>("/api/v1/pricebook/health");
-        if (pricebookResponse?.health_score !== undefined) {
-          setPricebookHealthScore(Math.round(pricebookResponse.health_score));
-        }
-      } catch (error) {
-        console.debug("Failed to fetch pricebook health:", error);
-      }
-    };
-
     fetchUnreadCount();
     fetchIntegrationStatus();
-    fetchHealthScores();
 
     // Poll every 30 seconds for unread count
     const interval = setInterval(fetchUnreadCount, 30000);
@@ -335,76 +299,15 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             <Database className="h-4 w-4" />
           </Link>
 
-          {/* Health Check Panel */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                className="p-1.5 text-red-500 hover:text-red-600 rounded-md transition-colors"
-                title="Data Health Dashboard"
-              >
-                <HeartPulse className="h-4 w-4" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-72 p-0">
-              <div className="p-3 border-b bg-gray-50 dark:bg-gray-800">
-                <h3 className="font-semibold text-sm">Data Health Dashboard</h3>
-                <p className="text-xs text-gray-500">Click any item to view details</p>
-              </div>
-              <div className="p-2 space-y-1">
-                <Link
-                  href="/contacts?health=open"
-                  className="flex items-center justify-between p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm">Contacts</span>
-                  </span>
-                  <span className={cn(
-                    "text-sm font-bold px-2 py-0.5 rounded",
-                    contactsHealthScore !== null && contactsHealthScore >= 80 ? "bg-green-100 text-green-700" :
-                    contactsHealthScore !== null && contactsHealthScore >= 60 ? "bg-yellow-100 text-yellow-700" :
-                    "bg-red-100 text-red-700"
-                  )}>
-                    {contactsHealthScore !== null ? `${contactsHealthScore}%` : "..."}
-                  </span>
-                </Link>
-                <Link
-                  href="/jobs?health=open"
-                  className="flex items-center justify-between p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Briefcase className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm">Jobs</span>
-                  </span>
-                  <span className={cn(
-                    "text-sm font-bold px-2 py-0.5 rounded",
-                    jobsHealthScore !== null && jobsHealthScore >= 80 ? "bg-green-100 text-green-700" :
-                    jobsHealthScore !== null && jobsHealthScore >= 60 ? "bg-yellow-100 text-yellow-700" :
-                    "bg-red-100 text-red-700"
-                  )}>
-                    {jobsHealthScore !== null ? `${jobsHealthScore}%` : "..."}
-                  </span>
-                </Link>
-                <Link
-                  href="/pricebook?health=open"
-                  className="flex items-center justify-between p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Package className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm">Price Book</span>
-                  </span>
-                  <span className={cn(
-                    "text-sm font-bold px-2 py-0.5 rounded",
-                    pricebookHealthScore !== null && pricebookHealthScore >= 80 ? "bg-green-100 text-green-700" :
-                    pricebookHealthScore !== null && pricebookHealthScore >= 60 ? "bg-yellow-100 text-yellow-700" :
-                    "bg-red-100 text-red-700"
-                  )}>
-                    {pricebookHealthScore !== null ? `${pricebookHealthScore}%` : "..."}
-                  </span>
-                </Link>
-              </div>
-            </PopoverContent>
-          </Popover>
+          {/* Health Check - link to full page */}
+          <Link
+            href="/system-health"
+            className="p-1.5 text-red-500 hover:text-red-600 rounded-md transition-colors"
+            title="Data Health Dashboard"
+          >
+            <span className="sr-only">Data Health</span>
+            <HeartPulse className="h-4 w-4" />
+          </Link>
 
           {/* Inspiring Banner - centered */}
           <div className="flex-1 flex justify-center px-2">
