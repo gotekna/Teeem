@@ -1628,40 +1628,90 @@ export default function CorporateDashboardPage() {
                                 <span>Loading...</span>
                               </div>
                             ) : structure.companies && structure.companies.length > 0 ? (
-                              structure.companies.map((company) => (
-                                <div
-                                  key={company.id}
-                                  className="flex items-center justify-between py-1 px-2 rounded hover:bg-muted/50 cursor-pointer -mx-2"
-                                  onClick={() => router.push(`/corporate/companies/${company.id}`)}
-                                >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <Building2 className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
-                                    <span className="text-sm truncate">{company.name}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                                    {company.hierarchy_level === 0 && (
-                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-50 text-purple-700 border-purple-200">
-                                        Parent
-                                      </Badge>
+                              (() => {
+                                // Flatten all companies including children
+                                const flattenCompanies = (companies: typeof structure.companies, level = 0): Array<typeof structure.companies[0] & { _level: number }> => {
+                                  const result: Array<typeof structure.companies[0] & { _level: number }> = [];
+                                  for (const company of companies) {
+                                    result.push({ ...company, _level: level });
+                                    if (company.children && company.children.length > 0) {
+                                      result.push(...flattenCompanies(company.children as typeof structure.companies, level + 1));
+                                    }
+                                  }
+                                  return result;
+                                };
+                                const allCompanies = flattenCompanies(structure.companies);
+                                const isExpanded = expandedGroups.has(group.id);
+                                const displayCompanies = isExpanded ? allCompanies : allCompanies.slice(0, 5);
+                                const hasMore = allCompanies.length > 5;
+
+                                return (
+                                  <>
+                                    {displayCompanies.map((company) => (
+                                      <div
+                                        key={company.id}
+                                        className="flex items-center justify-between py-1 px-2 rounded hover:bg-muted/50 cursor-pointer -mx-2"
+                                        style={{ paddingLeft: `${8 + company._level * 16}px` }}
+                                        onClick={() => router.push(`/corporate/companies/${company.id}`)}
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          {company._level > 0 && (
+                                            <span className="text-muted-foreground text-xs">└</span>
+                                          )}
+                                          <Building2 className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
+                                          <span className="text-sm truncate">{company.name}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                                          {company.hierarchy_level === 0 && (
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-50 text-purple-700 border-purple-200">
+                                              Parent
+                                            </Badge>
+                                          )}
+                                          {(company.entity_type === "Trust" || company.entity_type === "Superfund") && (
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-50 text-emerald-700 border-emerald-200">
+                                              Trust
+                                            </Badge>
+                                          )}
+                                          {company.is_trustee && (
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200">
+                                              Trustee
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {hasMore && (
+                                      <button
+                                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 py-1 px-2 -mx-2"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setExpandedGroups(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(group.id)) {
+                                              next.delete(group.id);
+                                            } else {
+                                              next.add(group.id);
+                                            }
+                                            return next;
+                                          });
+                                        }}
+                                      >
+                                        {isExpanded ? (
+                                          <>
+                                            <ChevronDown className="h-3 w-3" />
+                                            Show less
+                                          </>
+                                        ) : (
+                                          <>
+                                            <ChevronRight className="h-3 w-3" />
+                                            +{allCompanies.length - 5} more
+                                          </>
+                                        )}
+                                      </button>
                                     )}
-                                    {company.children && company.children.length > 0 && (
-                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-50 text-blue-700 border-blue-200">
-                                        +{company.children.length}
-                                      </Badge>
-                                    )}
-                                    {(company.entity_type === "Trust" || company.entity_type === "Superfund") && (
-                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-50 text-emerald-700 border-emerald-200">
-                                        Trust
-                                      </Badge>
-                                    )}
-                                    {company.is_trustee && (
-                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200">
-                                        Trustee
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              ))
+                                  </>
+                                );
+                              })()
                             ) : (
                               <div className="text-sm text-muted-foreground py-2">
                                 No companies
