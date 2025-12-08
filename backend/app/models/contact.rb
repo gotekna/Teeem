@@ -155,6 +155,10 @@ class Contact < ApplicationRecord
   before_save :clear_roles_if_not_person
   after_save :cleanup_relationships_on_soft_delete, if: :soft_deleted?
 
+  # SSoT: Sync primary_company_id → employee_of relationship
+  # This ensures the relationship exists when primary_company is set directly
+  after_commit :sync_primary_company_to_relationship, if: :should_sync_primary_company_to_relationship?
+
   # Scopes
   scope :with_email, -> { where.not(email: [ nil, "" ]) }
   scope :with_phone, -> { where.not(mobile_phone: [ nil, "" ]).or(where.not(office_phone: [ nil, "" ])) }
@@ -649,6 +653,42 @@ class Contact < ApplicationRecord
   end
 
   private
+
+  # SSoT: Guard method for syncing primary_company_id to employee_of relationship
+  def should_sync_primary_company_to_relationship?
+    # Only sync for persons/sole traders (not companies/trusts)
+    return false unless %w[person sole_trader].include?(entity_type)
+    # Only sync if primary_company_id was changed
+    saved_change_to_primary_company_id?
+  end
+
+  # SSoT: Create/update employee_of relationship when primary_company_id is set directly
+  # This is the reverse of ContactRelationship#sync_primary_company_id
+  def sync_primary_company_to_relationship
+    # Prevent infinite loop with ContactRelationship callback
+    return if Thread.current[:syncing_primary_company_relationship]
+    Thread.current[:syncing_primary_company_relationship] = true
+
+    if primary_company_id.present?
+      # Create or activate employee_of relationship
+      relationship = outgoing_relationships.find_or_initialize_by(
+        related_contact_id: primary_company_id,
+        relationship_type: "employee_of"
+      )
+      relationship.is_active = true
+      relationship.start_date ||= Date.today
+      relationship.save!
+    else
+      # Deactivate any existing employee_of relationships (primary company was cleared)
+      outgoing_relationships
+        .where(relationship_type: "employee_of", is_active: true)
+        .update_all(is_active: false, end_date: Date.today)
+    end
+  rescue StandardError => e
+    Rails.logger.error("Contact##{id}: SSoT sync primary_company_to_relationship failed - #{e.message}")
+  ensure
+    Thread.current[:syncing_primary_company_relationship] = false
+  end
 
   def roles_must_be_valid
     return if roles.blank?
