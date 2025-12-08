@@ -162,15 +162,46 @@ module Api
           end
         end
 
-        # TODO: Implement actual sync logic (bank accounts, transactions, etc.)
-        # For now, just update last_sync_at
-        connection.sync_successful!
+        begin
+          # Sync bank accounts first (auto-creates if needed)
+          sync_service = XeroBankSyncService.new(@company)
+          bank_result = sync_service.sync_bank_accounts(auto_create: true)
 
-        render json: {
-          success: true,
-          message: "Sync completed successfully",
-          last_sync_at: connection.last_sync_at
-        }
+          # Then sync transactions for last 3 months
+          tx_result = sync_service.sync_transactions(
+            from_date: 3.months.ago.to_date,
+            to_date: Date.today
+          )
+
+          if bank_result[:success] && tx_result[:success]
+            connection.sync_successful!
+            render json: {
+              success: true,
+              message: "Sync completed successfully",
+              last_sync_at: connection.last_sync_at,
+              bank_accounts_synced: bank_result[:auto_created_count] || 0,
+              transactions_synced: tx_result[:total_transactions_synced] || 0
+            }
+          else
+            error_messages = []
+            error_messages << bank_result[:error] if bank_result[:error].present?
+            error_messages << tx_result[:errors]&.join(", ") if tx_result[:errors].present?
+            error_msg = error_messages.compact.join("; ")
+
+            connection.mark_error!(error_msg) if error_msg.present?
+            render json: {
+              success: false,
+              error: error_msg.presence || "Sync completed with issues"
+            }, status: :unprocessable_entity
+          end
+        rescue StandardError => e
+          Rails.logger.error("Xero sync error for company #{@company.id}: #{e.message}")
+          connection.mark_error!(e.message)
+          render json: {
+            success: false,
+            error: e.message
+          }, status: :internal_server_error
+        end
       end
 
       # GET /api/v1/companies/:company_id/xero/tenants
