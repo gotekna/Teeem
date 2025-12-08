@@ -762,7 +762,7 @@ module Api
           :encrypted_recovery_answer, :review_date, :gst_registration_status, :accounting_method,
           :shares_on_issue, :carry_forward_losses, :franking_balance, :amount_owing, :entity_type,
           :bank_name, :bank_bsb, :bank_account_number, :bank_account_name, :bank_start_date, :bank_end_date,
-          :consolidation_parent_id, :company_group_id, :parent_company_id,
+          :consolidation_parent_id, :company_group_id, :parent_company_id, :business_names,
           metadata: {},
           previous_names: []
         )

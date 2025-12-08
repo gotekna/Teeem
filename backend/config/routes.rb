@@ -313,6 +313,12 @@ Rails.application.routes.draw do
       # Contact roles management
       resources :contact_roles, only: [ :index, :create, :update, :destroy ]
 
+      # Global shareholdings view (all shareholdings across all companies)
+      resources :shareholdings, only: [ :index ]
+
+      # Global beneficiaries view (all trust beneficiaries)
+      resources :beneficiaries, only: [ :index ]
+
       # Contacts management
       resources :contacts do
         collection do

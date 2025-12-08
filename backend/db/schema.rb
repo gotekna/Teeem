@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_08_063949) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_08_092706) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -656,6 +656,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_063949) do
     t.text "previous_names", default: [], array: true
     t.bigint "contact_id"
     t.boolean "active", default: true
+    t.string "business_names"
     t.index ["abn"], name: "index_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
     t.index ["acn"], name: "index_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"
     t.index ["code"], name: "index_companies_on_code", unique: true

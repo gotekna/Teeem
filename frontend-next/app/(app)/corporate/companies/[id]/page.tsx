@@ -49,6 +49,8 @@ import {
   Pencil,
   GitMerge,
   Info,
+  Mail,
+  Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -138,6 +140,8 @@ interface ComplianceItem {
 interface Company {
   id: number;
   name: string;
+  previous_names?: string;
+  business_names?: string;
   slug?: string;
   code?: string;
   acn?: string;
@@ -328,6 +332,12 @@ function InformationTab({ company }: { company: Company }) {
         <div>
           <p className="text-sm text-muted-foreground">Legal Name</p>
           <p className="text-sm font-medium">{company.name}</p>
+          {company.previous_names && (
+            <p className="text-xs text-muted-foreground mt-1">Previously: {company.previous_names}</p>
+          )}
+          {company.business_names && (
+            <p className="text-xs text-muted-foreground mt-1">Trading as: {company.business_names}</p>
+          )}
         </div>
         {company.date_incorporated && (
           <div>
@@ -357,14 +367,40 @@ function InformationTab({ company }: { company: Company }) {
 
       {company.current_directors && company.current_directors.length > 0 && (
         <div className="pt-4">
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">Current Directors</h4>
-          <ul className="space-y-1">
+          <h4 className="text-sm font-medium text-muted-foreground mb-3">Current Directors</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {company.current_directors.map((director) => (
-              <li key={director.id} className="text-sm">
-                {director.contact?.display_name || "Unknown"}
-              </li>
+              <div key={director.id} className="border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-medium text-sm">
+                    {(director.contact?.display_name || "?")[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{director.contact?.display_name || "Unknown"}</p>
+                    {director.formatted_position && (
+                      <p className="text-xs text-muted-foreground">{director.formatted_position}</p>
+                    )}
+                  </div>
+                </div>
+                {(director.contact?.email || director.contact?.mobile_phone) && (
+                  <div className="space-y-1 text-xs">
+                    {director.contact?.email && (
+                      <a href={`mailto:${director.contact.email}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                        <Mail className="h-3 w-3" />
+                        <span className="truncate">{director.contact.email}</span>
+                      </a>
+                    )}
+                    {director.contact?.mobile_phone && (
+                      <a href={`tel:${director.contact.mobile_phone}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                        <Phone className="h-3 w-3" />
+                        <span>{director.contact.mobile_phone}</span>
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
     </div>
@@ -377,18 +413,13 @@ function CorporateTab({ company, onUpdate }: { company: Company; onUpdate: () =>
   const [saving, setSaving] = React.useState(false);
   const [formData, setFormData] = React.useState({
     tfn: company.tfn || "",
+    business_names: company.business_names || "",
     registered_office_address: company.registered_office_address || "",
     corporate_key: company.corporate_key || "",
     asic_username: company.asic_username || "",
     asic_password: "",
     recovery_question: company.recovery_question || "",
     recovery_answer: "",
-    bank_name: company.bank_name || "",
-    bank_bsb: company.bank_bsb || "",
-    bank_account_number: company.bank_account_number || "",
-    bank_account_name: company.bank_account_name || "",
-    bank_start_date: company.bank_start_date || "",
-    bank_end_date: company.bank_end_date || "",
   });
 
   const handleSave = async () => {
@@ -459,6 +490,19 @@ function CorporateTab({ company, onUpdate }: { company: Company; onUpdate: () =>
               />
             ) : (
               <p className="text-sm font-mono mt-1">{formatTFN(company.tfn)}</p>
+            )}
+          </div>
+          <div>
+            <Label className="text-muted-foreground">Business Names (Trading As)</Label>
+            {isEditing ? (
+              <Input
+                value={formData.business_names}
+                onChange={(e) => setFormData({ ...formData, business_names: e.target.value })}
+                placeholder="Trading names"
+                className="mt-1"
+              />
+            ) : (
+              <p className="text-sm mt-1">{company.business_names || "-"}</p>
             )}
           </div>
           <div className="md:col-span-2">
@@ -546,92 +590,6 @@ function CorporateTab({ company, onUpdate }: { company: Company; onUpdate: () =>
         </div>
       </div>
 
-      {/* Bank Account */}
-      <div className="border-t pt-6">
-        <h4 className="text-sm font-semibold mb-4">Bank Account</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <Label className="text-muted-foreground">Bank Name</Label>
-            {isEditing ? (
-              <Input
-                value={formData.bank_name}
-                onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
-                placeholder="e.g. Commonwealth Bank"
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm mt-1">{company.bank_name || "-"}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">BSB</Label>
-            {isEditing ? (
-              <Input
-                value={formData.bank_bsb}
-                onChange={(e) => setFormData({ ...formData, bank_bsb: e.target.value })}
-                placeholder="000-000"
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm font-mono mt-1">{company.bank_bsb || "-"}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">Account Number</Label>
-            {isEditing ? (
-              <Input
-                value={formData.bank_account_number}
-                onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })}
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm font-mono mt-1">{company.bank_account_number || "-"}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">Account Name</Label>
-            {isEditing ? (
-              <Input
-                value={formData.bank_account_name}
-                onChange={(e) => setFormData({ ...formData, bank_account_name: e.target.value })}
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm mt-1">{company.bank_account_name || "-"}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">Start Date</Label>
-            {isEditing ? (
-              <Input
-                type="date"
-                value={formData.bank_start_date}
-                onChange={(e) => setFormData({ ...formData, bank_start_date: e.target.value })}
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm mt-1">
-                {company.bank_start_date ? format(new Date(company.bank_start_date), "dd/MM/yyyy") : "-"}
-              </p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">End Date</Label>
-            {isEditing ? (
-              <Input
-                type="date"
-                value={formData.bank_end_date}
-                onChange={(e) => setFormData({ ...formData, bank_end_date: e.target.value })}
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm mt-1">
-                {company.bank_end_date ? format(new Date(company.bank_end_date), "dd/MM/yyyy") : "-"}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -751,6 +709,7 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
     account_number: "",
     account_name: "",
     date_opened: "",
+    date_closed: "",
     status: "active" as "active" | "closed",
   });
 
@@ -781,6 +740,7 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
       account_number: "",
       account_name: "",
       date_opened: "",
+      date_closed: "",
       status: "active",
     });
     setShowAddForm(false);
@@ -794,6 +754,7 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
       account_number: account.account_number,
       account_name: account.account_name || "",
       date_opened: account.date_opened || "",
+      date_closed: account.date_closed || "",
       status: account.status,
     });
     setEditingId(account.id);
@@ -910,10 +871,19 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
                 />
               </div>
               <div>
+                <Label>Date Closed</Label>
+                <Input
+                  type="date"
+                  value={formData.date_closed}
+                  onChange={(e) => setFormData({ ...formData, date_closed: e.target.value, status: e.target.value ? "closed" : formData.status })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
                 <Label>Status</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(value: "active" | "closed") => setFormData({ ...formData, status: value })}
+                  onValueChange={(value: "active" | "closed") => setFormData({ ...formData, status: value, date_closed: value === "closed" && !formData.date_closed ? new Date().toISOString().split("T")[0] : formData.date_closed })}
                 >
                   <SelectTrigger className="mt-1">
                     <SelectValue />
@@ -950,6 +920,8 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
                 <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">BSB</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Account</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Name</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Opened</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Closed</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Xero</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Status</th>
                 <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">Actions</th>
@@ -962,6 +934,8 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
                   <td className="px-4 py-3 text-sm font-mono">{account.formatted_bsb || account.bsb || "-"}</td>
                   <td className="px-4 py-3 text-sm font-mono">{account.masked_account_number || account.account_number}</td>
                   <td className="px-4 py-3 text-sm">{account.account_name || "-"}</td>
+                  <td className="px-4 py-3 text-sm">{account.date_opened ? format(new Date(account.date_opened), "dd/MM/yyyy") : "-"}</td>
+                  <td className="px-4 py-3 text-sm">{account.date_closed ? format(new Date(account.date_closed), "dd/MM/yyyy") : "-"}</td>
                   <td className="px-4 py-3">
                     {account.linked_to_xero || account.xero_account_id ? (
                       <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200">
@@ -2822,12 +2796,12 @@ function ATOSetupCard({ company }: { company: Company }) {
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
             <AlertTriangle className="h-5 w-5" />
-            SSoT Not Connected
+            Contact Not Linked
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-3">
-            This company is not linked to a Contact record. Link to a Contact for single source of truth management.
+            This company is not linked to a Contact record. Link to a Contact for centralised data management.
           </p>
           <Button variant="outline" size="sm" onClick={() => router.push("/contacts")}>
             Link to Contact
@@ -2843,7 +2817,7 @@ function ATOSetupCard({ company }: { company: Company }) {
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="h-5 w-5 text-blue-600" />
-            ATO Registration (SSoT)
+            ATO Registration
           </CardTitle>
           <Button
             variant="outline"
@@ -2856,7 +2830,7 @@ function ATOSetupCard({ company }: { company: Company }) {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Data sourced from Contact record (single source of truth)
+          Data sourced from linked Contact record
         </p>
       </CardHeader>
       <CardContent>
