@@ -4,7 +4,7 @@ module Api
       before_action :set_company, only: [ :show, :update, :destroy, :directors, :add_director,
                                          :update_director, :remove_director, :compliance_items,
                                          :activities, :documents, :assets, :hierarchy, :shareholders,
-                                         :investments, :trust_roles, :data_stats ]
+                                         :investments, :trust_roles, :data_stats, :warehouse_health ]
 
       # GET /api/v1/companies
       def index
@@ -523,6 +523,187 @@ module Api
             file_extensions: file_extensions,
             last_updated: Time.current
           }
+        }
+      end
+
+      # GET /api/v1/companies/:id/warehouse_health
+      # Returns data warehouse health checks for a company
+      def warehouse_health
+        checks = []
+
+        # 1. Documents Health Check
+        documents = @company.company_documents
+        total_docs = documents.count
+        verified_docs = documents.where(ai_verification_status: "verified").count
+        doc_rate = total_docs > 0 ? (verified_docs.to_f / total_docs * 100).round(1) : 0
+
+        checks << {
+          id: "documents_verified",
+          name: "Document Verification",
+          category: "documents",
+          description: "Documents verified by AI",
+          value: verified_docs,
+          total: total_docs,
+          percentage: doc_rate,
+          status: doc_rate >= 90 ? "pass" : doc_rate >= 70 ? "warning" : "fail",
+          action: doc_rate < 90 ? "Run AI verification on pending documents" : nil
+        }
+
+        # 2. Documents with Files
+        docs_with_files = documents.where.not(cloudinary_public_id: [ nil, "" ]).count
+        file_rate = total_docs > 0 ? (docs_with_files.to_f / total_docs * 100).round(1) : 100
+
+        checks << {
+          id: "documents_stored",
+          name: "Documents Stored",
+          category: "documents",
+          description: "Documents with files in cloud storage",
+          value: docs_with_files,
+          total: total_docs,
+          percentage: file_rate,
+          status: file_rate >= 95 ? "pass" : file_rate >= 80 ? "warning" : "fail",
+          action: file_rate < 95 ? "Upload missing document files" : nil
+        }
+
+        # 3. SharePoint/OneDrive Connection
+        has_sharepoint = @company.sharepoint_folder_url.present?
+        onedrive_docs = documents.where(source: "onedrive").count
+
+        checks << {
+          id: "sharepoint_connected",
+          name: "SharePoint Connected",
+          category: "integrations",
+          description: "Company folder linked to SharePoint",
+          value: has_sharepoint ? 1 : 0,
+          total: 1,
+          percentage: has_sharepoint ? 100 : 0,
+          status: has_sharepoint ? "pass" : "fail",
+          action: has_sharepoint ? nil : "Connect company to SharePoint folder",
+          extra: { synced_documents: onedrive_docs }
+        }
+
+        # 4. Xero Connection
+        xero = @company.company_xero_connection
+        xero_connected = xero&.connection_status == "connected"
+        xero_last_sync = xero&.last_sync_at
+        xero_stale = xero_last_sync.nil? || xero_last_sync < 24.hours.ago
+
+        checks << {
+          id: "xero_connected",
+          name: "Xero Connected",
+          category: "integrations",
+          description: "Company linked to Xero accounting",
+          value: xero_connected ? 1 : 0,
+          total: 1,
+          percentage: xero_connected ? 100 : 0,
+          status: xero_connected ? (xero_stale ? "warning" : "pass") : "fail",
+          action: xero_connected ? (xero_stale ? "Refresh Xero sync" : nil) : "Connect company to Xero",
+          extra: { tenant_name: xero&.xero_tenant_name, last_sync: xero_last_sync }
+        }
+
+        # 5. Contacts Linked
+        contacts = @company.contacts
+        total_contacts = contacts.count
+        contacts_with_email = contacts.where.not(email: [ nil, "" ]).count
+        contacts_with_phone = contacts.where.not(phone: [ nil, "" ]).or(contacts.where.not(mobile: [ nil, "" ])).count
+        contact_complete_rate = total_contacts > 0 ? ((contacts_with_email + contacts_with_phone).to_f / (total_contacts * 2) * 100).round(1) : 100
+
+        checks << {
+          id: "contacts_complete",
+          name: "Contact Information",
+          category: "contacts",
+          description: "Contacts with email and phone",
+          value: [ contacts_with_email, contacts_with_phone ].min,
+          total: total_contacts,
+          percentage: contact_complete_rate,
+          status: contact_complete_rate >= 80 ? "pass" : contact_complete_rate >= 50 ? "warning" : "fail",
+          action: contact_complete_rate < 80 ? "Complete missing contact details" : nil,
+          extra: { with_email: contacts_with_email, with_phone: contacts_with_phone }
+        }
+
+        # 6. Emails Linked (check if any emails reference this company)
+        # Email linking is done through contacts associated with this company
+        company_contact_emails = contacts.pluck(:email).compact.reject(&:empty?)
+        linked_emails = company_contact_emails.any? ?
+          EmailWarehouse.where("from_email IN (?) OR to_emails && ARRAY[?]::text[]",
+                               company_contact_emails, company_contact_emails).count : 0
+
+        checks << {
+          id: "emails_linked",
+          name: "Emails Linked",
+          category: "emails",
+          description: "Emails linked via company contacts",
+          value: linked_emails,
+          total: nil,
+          percentage: nil,
+          status: linked_emails > 0 ? "pass" : "info",
+          action: linked_emails == 0 ? "Add contact emails to capture correspondence" : nil
+        }
+
+        # 7. Document Types Coverage
+        expected_types = %w[ASIC ATO Bank Financial\ Statements Company\ Tax\ Return]
+        doc_types_present = documents.pluck(:document_type).compact.uniq
+        types_found = expected_types.count { |t| doc_types_present.include?(t) }
+        type_coverage = (types_found.to_f / expected_types.count * 100).round(1)
+
+        checks << {
+          id: "document_types",
+          name: "Document Types Coverage",
+          category: "documents",
+          description: "Core document types present",
+          value: types_found,
+          total: expected_types.count,
+          percentage: type_coverage,
+          status: type_coverage >= 80 ? "pass" : type_coverage >= 40 ? "warning" : "info",
+          action: type_coverage < 80 ? "Upload missing document types: #{(expected_types - doc_types_present).join(', ')}" : nil,
+          extra: { present: doc_types_present & expected_types, missing: expected_types - doc_types_present }
+        }
+
+        # 8. Bank Accounts (if applicable)
+        bank_accounts = @company.bank_accounts
+        has_bank = bank_accounts.count > 0
+        bank_with_feeds = bank_accounts.where(has_bank_feed: true).count if has_bank
+
+        if has_bank
+          checks << {
+            id: "bank_feeds",
+            name: "Bank Feed Connected",
+            category: "integrations",
+            description: "Bank accounts with live feeds",
+            value: bank_with_feeds || 0,
+            total: bank_accounts.count,
+            percentage: (bank_with_feeds.to_f / bank_accounts.count * 100).round(1),
+            status: bank_with_feeds == bank_accounts.count ? "pass" : bank_with_feeds > 0 ? "warning" : "info",
+            action: bank_with_feeds < bank_accounts.count ? "Connect bank feeds for remaining accounts" : nil
+          }
+        end
+
+        # Calculate overall health score
+        scored_checks = checks.select { |c| c[:percentage].present? }
+        overall_score = scored_checks.any? ?
+          (scored_checks.sum { |c| c[:percentage] } / scored_checks.count).round(1) : 100
+
+        # Summary by status
+        summary = {
+          total_checks: checks.count,
+          passing: checks.count { |c| c[:status] == "pass" },
+          warnings: checks.count { |c| c[:status] == "warning" },
+          failing: checks.count { |c| c[:status] == "fail" },
+          info: checks.count { |c| c[:status] == "info" },
+          overall_score: overall_score,
+          health_status: overall_score >= 80 ? "healthy" : overall_score >= 50 ? "needs_attention" : "critical"
+        }
+
+        render json: {
+          success: true,
+          company: {
+            id: @company.id,
+            name: @company.name,
+            code: @company.code
+          },
+          summary: summary,
+          checks: checks,
+          last_updated: Time.current
         }
       end
 

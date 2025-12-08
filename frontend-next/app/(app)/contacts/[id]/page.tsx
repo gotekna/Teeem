@@ -83,7 +83,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Star } from 'lucide-react';
+import { GripVertical, Star, Code } from 'lucide-react';
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import {
   getEntityTypeLabel,
@@ -220,6 +220,12 @@ interface Contact {
   is_family_member: boolean;
   is_team_contact: boolean;
   xero_contact_id: string | null;
+  xero_id?: string | null;
+  xero_contact_number?: string | null;
+  xero_contact_status?: string | null;
+  xero_account_number?: string | null;
+  xero_synced?: boolean | null;
+  xero_invoice_count?: number | null;
   xero_contact_types: string[];
   sync_with_xero: boolean;
   created_at: string;
@@ -1668,19 +1674,30 @@ export default function ContactDetailPage() {
         const isNewPersonType = hasFirstLastName(newType);
 
         // Switching from person/sole_trader to company/trust
-        // Populate display_name from first/middle/last name
+        // Populate display_name and company_name_or_trust from first/middle/last name, then clear person fields
         if (isPrevPersonType && !isNewPersonType) {
           const constructedName = [prev.first_name, prev.middle_name, prev.last_name].filter(Boolean).join(" ");
-          if (constructedName && (!updated.display_name || updated.display_name === 'Unknown')) {
-            updated.display_name = constructedName;
+          if (constructedName) {
+            if (!updated.display_name || updated.display_name === 'Unknown') {
+              updated.display_name = constructedName;
+            }
+            // For company/trust, set company_name_or_trust (SSoT for company names)
+            if (!updated.company_name_or_trust) {
+              updated.company_name_or_trust = constructedName;
+            }
           }
+          // Clear person-specific fields - companies don't have first/middle/last names
+          updated.first_name = '';
+          updated.middle_name = '';
+          updated.last_name = '';
         }
 
         // Switching from company/trust to person/sole_trader
-        // Try to parse display_name into first/last name if they're empty
+        // Try to parse display_name or company_name_or_trust into first/last name if they're empty
         if (!isPrevPersonType && isNewPersonType) {
-          if (prev.display_name && (!prev.first_name && !prev.last_name)) {
-            const nameParts = prev.display_name.trim().split(/\s+/);
+          const nameSource = prev.company_name_or_trust || prev.display_name;
+          if (nameSource && (!prev.first_name && !prev.last_name)) {
+            const nameParts = nameSource.trim().split(/\s+/);
             if (nameParts.length >= 2) {
               updated.first_name = nameParts[0];
               updated.last_name = nameParts.slice(1).join(" ");
@@ -1688,6 +1705,8 @@ export default function ContactDetailPage() {
               updated.first_name = nameParts[0];
             }
           }
+          // Clear company-specific field - persons don't have company_name_or_trust
+          updated.company_name_or_trust = '';
         }
       }
 
@@ -2249,6 +2268,10 @@ export default function ContactDetailPage() {
 
   // Auto-save on blur (debounced to avoid saving while user tabs between fields)
   // Note: We always attempt to save - handleSave will check if there's anything to save
+  // Using a ref to always get the latest handleSave to avoid stale closure issues
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
+
   const handleAutoSave = useCallback(() => {
     // Clear any existing timeout
     if (autoSaveTimeoutRef.current) {
@@ -2257,7 +2280,7 @@ export default function ContactDetailPage() {
     // Set a short delay to allow user to tab to another field without triggering save
     autoSaveTimeoutRef.current = setTimeout(() => {
       if (!saving) {
-        handleSave();
+        handleSaveRef.current();
       }
     }, 300);
   }, [saving]);
@@ -2276,23 +2299,58 @@ export default function ContactDetailPage() {
     if (!contact?.id || !newCompanyName.trim()) return;
     setCreatingCompany(true);
     try {
-      // Create the new company contact
+      // Check if person has Xero data to transfer
+      const hasXeroData = contact.xero_id;
+
+      // Create the new company contact, optionally transferring Xero data
+      const companyData: Record<string, unknown> = {
+        entity_type: "company",
+        company_name_or_trust: newCompanyName.trim(),
+        display_name: newCompanyName.trim(),
+      };
+
+      // Transfer Xero data from person to company if it exists
+      if (hasXeroData) {
+        companyData.xero_id = contact.xero_id;
+        companyData.sync_with_xero = contact.sync_with_xero;
+        companyData.xero_contact_number = contact.xero_contact_number;
+        companyData.xero_contact_status = contact.xero_contact_status;
+        companyData.xero_account_number = contact.xero_account_number;
+        companyData.xero_synced = contact.xero_synced;
+        companyData.xero_invoice_count = contact.xero_invoice_count;
+        companyData.xero_contact_types = contact.xero_contact_types;
+      }
+
       const response = await api.post<{ contact?: { id: number }; id?: number }>("/api/v1/contacts", {
-        contact: {
-          entity_type: "company",
-          company_name_or_trust: newCompanyName.trim(),
-          display_name: newCompanyName.trim(),
-        },
+        contact: companyData,
       });
       const newCompanyId = response?.contact?.id || (response as { id?: number })?.id;
       if (!newCompanyId) throw new Error("Failed to get new company ID");
 
+      // Clear Xero data from the person if it was transferred
+      if (hasXeroData) {
+        await api.patch(`/api/v1/contacts/${contact.id}`, {
+          contact: {
+            xero_id: null,
+            sync_with_xero: false,
+            xero_contact_number: null,
+            xero_contact_status: null,
+            xero_account_number: null,
+            xero_synced: false,
+            xero_invoice_count: null,
+            xero_contact_types: null,
+            xero_sync_error: null,
+          },
+        });
+      }
+
       // Link current person as employee of the new company
-      await api.post("/api/v1/contact_relationships", {
+      // Use the nested route: POST /api/v1/contacts/:contact_id/relationships
+      await api.post(`/api/v1/contacts/${contact.id}/relationships`, {
         contact_relationship: {
-          company_id: newCompanyId,
-          employee_id: contact.id,
-          role_type: "employee",
+          related_contact_id: newCompanyId,
+          relationship_type: "employee_of",
+          is_active: true,
         },
       });
 
@@ -2328,11 +2386,12 @@ export default function ContactDetailPage() {
       if (!newEmployeeId) throw new Error("Failed to get new employee ID");
 
       // Link new person as employee of current company
-      await api.post("/api/v1/contact_relationships", {
+      // Use the nested route: POST /api/v1/contacts/:contact_id/relationships
+      await api.post(`/api/v1/contacts/${newEmployeeId}/relationships`, {
         contact_relationship: {
-          company_id: contact.id,
-          employee_id: newEmployeeId,
-          role_type: "employee",
+          related_contact_id: contact.id,
+          relationship_type: "employee_of",
+          is_active: true,
         },
       });
 
@@ -2879,6 +2938,38 @@ export default function ContactDetailPage() {
                         <Switch checked={formData.is_team_contact} onCheckedChange={handleTeamContactToggle} disabled={saving} />
                       </div>
                     )}
+
+                    {/* Xero Link Status - SSoT display */}
+                    {contact.xero_id && (
+                      <div className="mt-4 pt-4 border-t">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-green-500" />
+                            <span className="text-sm font-medium">Linked to Xero</span>
+                          </div>
+                          {contact.xero_invoice_count && (
+                            <Badge variant="secondary">{contact.xero_invoice_count} invoices</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Xero ID: {contact.xero_id}
+                          {contact.xero_contact_number && ` • Contact #${contact.xero_contact_number}`}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Raw Data Section - Collapsible */}
+                    <details className="mt-4 pt-4 border-t">
+                      <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground flex items-center gap-2">
+                        <Code className="h-4 w-4" />
+                        Raw Data (Debug)
+                      </summary>
+                      <div className="mt-3 p-3 bg-muted rounded-md overflow-auto max-h-96">
+                        <pre className="text-xs whitespace-pre-wrap break-all font-mono">
+                          {JSON.stringify(contact, null, 2)}
+                        </pre>
+                      </div>
+                    </details>
                   </CardContent>
                 </Card>
 
@@ -3076,6 +3167,7 @@ export default function ContactDetailPage() {
                                   }
                                   setFieldErrors(prev => ({ ...prev, [`phone_${originalIndex}`]: '' }));
                                 }
+                                // Always trigger auto-save - the ref pattern ensures latest state is used
                                 handleAutoSave();
                               }}
                               placeholder="0400 000 000"

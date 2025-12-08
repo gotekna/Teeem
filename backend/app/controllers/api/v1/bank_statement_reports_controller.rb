@@ -1,0 +1,169 @@
+# frozen_string_literal: true
+
+module Api
+  module V1
+    class BankStatementReportsController < ApplicationController
+      # GET /api/v1/bank_statement_reports
+      # List all generated reports, organized by bank and FY
+      def index
+        reports = BankStatementReport.order(financial_year: :desc, month: :desc, bank_account_name: :asc)
+
+        # Filter by bank account
+        reports = reports.for_bank_account(params[:bank_account_id]) if params[:bank_account_id].present?
+
+        # Filter by financial year
+        reports = reports.for_financial_year(params[:financial_year]) if params[:financial_year].present?
+
+        # Filter by status
+        reports = reports.where(status: params[:status]) if params[:status].present?
+
+        render json: {
+          success: true,
+          data: reports.map { |r| serialize_report(r) },
+          summary: {
+            total_reports: reports.count,
+            completed: reports.completed.count,
+            pending: reports.pending.count,
+            failed: reports.failed.count,
+            bank_accounts: reports.distinct.pluck(:bank_account_name),
+            financial_years: reports.distinct.pluck(:financial_year).compact.sort.reverse
+          }
+        }
+      end
+
+      # GET /api/v1/bank_statement_reports/:id
+      def show
+        report = BankStatementReport.find(params[:id])
+
+        render json: {
+          success: true,
+          data: serialize_report(report, include_url: true)
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Report not found" }, status: :not_found
+      end
+
+      # GET /api/v1/bank_statement_reports/:id/download
+      # Download the PDF file (redirects to SharePoint URL)
+      def download
+        report = BankStatementReport.find(params[:id])
+
+        unless report.status == "completed" && report.cloudinary_url.present?
+          return render json: { success: false, error: "Report not available for download" }, status: :unprocessable_entity
+        end
+
+        # Redirect to SharePoint URL for download
+        redirect_to report.cloudinary_url, allow_other_host: true
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Report not found" }, status: :not_found
+      end
+
+      # POST /api/v1/bank_statement_reports/generate_all
+      # Trigger generation of all missing/outdated reports
+      def generate_all
+        result = BankStatementReportGenerationJob.perform_now(force: params[:force] == "true")
+
+        render json: {
+          success: true,
+          data: result
+        }
+      rescue StandardError => e
+        Rails.logger.error("Bank statement report generation failed: #{e.message}")
+        render json: {
+          success: false,
+          error: "Generation failed: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # POST /api/v1/bank_statement_reports/:id/regenerate
+      # Regenerate a specific report
+      def regenerate
+        report = BankStatementReport.find(params[:id])
+        result = report.generate!
+
+        render json: {
+          success: result[:success],
+          data: serialize_report(report.reload, include_url: true),
+          error: result[:error]
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Report not found" }, status: :not_found
+      end
+
+      # GET /api/v1/bank_statement_reports/by_structure
+      # Returns reports organized by bank -> FY -> month for tree view
+      def by_structure
+        reports = BankStatementReport.completed.order(bank_account_name: :asc, financial_year: :desc, month: :asc)
+
+        # Group by bank account
+        structure = {}
+        reports.each do |report|
+          bank = report.bank_account_name
+          fy = report.financial_year
+
+          structure[bank] ||= { name: bank, bank_account_id: report.bank_account_id, years: {} }
+          structure[bank][:years][fy] ||= { financial_year: fy, months: [] }
+          structure[bank][:years][fy][:months] << {
+            id: report.id,
+            month: report.month,
+            month_name: report.month ? Date::MONTHNAMES[report.month] : "Annual",
+            period_display: report.period_display,
+            transaction_count: report.transaction_count,
+            total_in: report.total_in&.to_f,
+            total_out: report.total_out&.to_f,
+            net_change: report.net_change&.to_f,
+            generated_at: report.generated_at&.iso8601,
+            file_name: report.file_name
+          }
+        end
+
+        # Convert to array format
+        data = structure.values.map do |bank|
+          bank[:years] = bank[:years].values.map do |year|
+            year[:months] = year[:months].sort_by { |m| m[:month] || 0 }
+            year
+          end
+          bank
+        end
+
+        render json: {
+          success: true,
+          data: data
+        }
+      end
+
+      private
+
+      def serialize_report(report, include_url: false)
+        data = {
+          id: report.id,
+          bank_account_id: report.bank_account_id,
+          bank_account_name: report.bank_account_name,
+          financial_year: report.financial_year,
+          month: report.month,
+          year: report.year,
+          report_type: report.report_type,
+          period_display: report.period_display,
+          period_start: report.period_start,
+          period_end: report.period_end,
+          transaction_count: report.transaction_count,
+          total_in: report.total_in&.to_f,
+          total_out: report.total_out&.to_f,
+          net_change: report.net_change&.to_f,
+          file_name: report.file_name,
+          file_size: report.file_size,
+          status: report.status,
+          error_message: report.error_message,
+          generated_at: report.generated_at&.iso8601,
+          needs_regeneration: report.needs_regeneration?,
+          created_at: report.created_at.iso8601,
+          updated_at: report.updated_at.iso8601
+        }
+
+        data[:download_url] = report.cloudinary_url if include_url && report.cloudinary_url.present?
+
+        data
+      end
+    end
+  end
+end

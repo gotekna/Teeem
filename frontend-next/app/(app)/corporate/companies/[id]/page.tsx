@@ -48,6 +48,7 @@ import {
   Sparkles,
   Pencil,
   GitMerge,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -56,6 +57,8 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
 import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
+import { XeroStatementView } from "@/components/corporate/XeroStatementView";
+import { BankStatementReportsView } from "@/components/corporate/BankStatementReportsView";
 
 // Document category tabs
 const DOCUMENT_TABS = [
@@ -2552,15 +2555,69 @@ interface DataStats {
   last_updated: string;
 }
 
+interface HealthCheck {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  value: number;
+  total: number | null;
+  percentage: number | null;
+  status: "pass" | "warning" | "fail" | "info";
+  action: string | null;
+  extra?: Record<string, unknown>;
+}
+
+interface WarehouseHealthData {
+  company: { id: number; name: string; code: string };
+  summary: {
+    total_checks: number;
+    passing: number;
+    warnings: number;
+    failing: number;
+    info: number;
+    overall_score: number;
+    health_status: "healthy" | "needs_attention" | "critical";
+  };
+  checks: HealthCheck[];
+  last_updated: string;
+}
+
 function DataWarehouseTab({ companyId }: { companyId: string }) {
   const [loading, setLoading] = React.useState(true);
   const [stats, setStats] = React.useState<DataStats | null>(null);
+  const [warehouseHealth, setWarehouseHealth] = React.useState<WarehouseHealthData | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [showAllChecks, setShowAllChecks] = React.useState(false);
 
   React.useEffect(() => {
-    loadStats();
+    loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [companyId]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [statsResponse, healthResponse] = await Promise.all([
+        api.get<{ success: boolean; data: DataStats }>(
+          `/api/v1/companies/${companyId}/data_stats`
+        ),
+        api.get<{ success: boolean } & WarehouseHealthData>(
+          `/api/v1/companies/${companyId}/warehouse_health`
+        )
+      ]);
+      if (statsResponse?.success) {
+        setStats(statsResponse.data);
+      }
+      if (healthResponse?.success) {
+        setWarehouseHealth(healthResponse);
+      }
+    } catch (error) {
+      console.error("Failed to load data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadStats = async () => {
     try {
@@ -2580,7 +2637,7 @@ function DataWarehouseTab({ companyId }: { companyId: string }) {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadStats();
+    await loadData();
     setRefreshing(false);
   };
 
@@ -2628,6 +2685,137 @@ function DataWarehouseTab({ companyId }: { companyId: string }) {
           Refresh
         </Button>
       </div>
+
+      {/* Health Score Overview */}
+      {warehouseHealth && (
+        <Card className={cn(
+          "border-l-4",
+          warehouseHealth.summary.health_status === "healthy" && "border-l-green-500",
+          warehouseHealth.summary.health_status === "needs_attention" && "border-l-yellow-500",
+          warehouseHealth.summary.health_status === "critical" && "border-l-red-500"
+        )}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "p-2 rounded-lg",
+                  warehouseHealth.summary.health_status === "healthy" && "bg-green-100 dark:bg-green-900/30",
+                  warehouseHealth.summary.health_status === "needs_attention" && "bg-yellow-100 dark:bg-yellow-900/30",
+                  warehouseHealth.summary.health_status === "critical" && "bg-red-100 dark:bg-red-900/30"
+                )}>
+                  {warehouseHealth.summary.health_status === "healthy" ? (
+                    <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  ) : warehouseHealth.summary.health_status === "needs_attention" ? (
+                    <AlertTriangle className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+                  ) : (
+                    <XCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{warehouseHealth.summary.overall_score}%</p>
+                  <p className="text-xs text-muted-foreground">
+                    Data Warehouse Health Score
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  {warehouseHealth.summary.passing} Pass
+                </Badge>
+                {warehouseHealth.summary.warnings > 0 && (
+                  <Badge variant="default" className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                    {warehouseHealth.summary.warnings} Warning
+                  </Badge>
+                )}
+                {warehouseHealth.summary.failing > 0 && (
+                  <Badge variant="default" className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    {warehouseHealth.summary.failing} Fail
+                  </Badge>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAllChecks(!showAllChecks)}
+                >
+                  {showAllChecks ? "Hide Details" : "Show Details"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Health Checks Detail */}
+            {showAllChecks && (
+              <div className="space-y-2 pt-4 border-t">
+                {warehouseHealth.checks.map((check) => (
+                  <div
+                    key={check.id}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg",
+                      check.status === "pass" && "bg-green-50 dark:bg-green-900/10",
+                      check.status === "warning" && "bg-yellow-50 dark:bg-yellow-900/10",
+                      check.status === "fail" && "bg-red-50 dark:bg-red-900/10",
+                      check.status === "info" && "bg-blue-50 dark:bg-blue-900/10"
+                    )}
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      {check.status === "pass" && (
+                        <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                      )}
+                      {check.status === "warning" && (
+                        <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
+                      )}
+                      {check.status === "fail" && (
+                        <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+                      )}
+                      {check.status === "info" && (
+                        <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm">{check.name}</p>
+                        <p className="text-xs text-muted-foreground">{check.description}</p>
+                        {check.action && (
+                          <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                            Action: {check.action}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0 ml-4">
+                      {check.percentage !== null ? (
+                        <p className="font-bold text-sm">{check.percentage}%</p>
+                      ) : (
+                        <p className="font-bold text-sm">{check.value}</p>
+                      )}
+                      {check.total !== null && (
+                        <p className="text-xs text-muted-foreground">{check.value} / {check.total}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Quick Issues List (if not expanded) */}
+            {!showAllChecks && warehouseHealth.checks.filter(c => c.status === "fail" || c.status === "warning").length > 0 && (
+              <div className="space-y-1 pt-2">
+                {warehouseHealth.checks
+                  .filter(c => c.status === "fail" || c.status === "warning")
+                  .slice(0, 3)
+                  .map((check) => (
+                    <div key={check.id} className="flex items-center gap-2 text-sm">
+                      {check.status === "fail" ? (
+                        <XCircle className="h-4 w-4 text-red-500" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                      )}
+                      <span className="text-muted-foreground">{check.name}:</span>
+                      <span>{check.action || check.description}</span>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -3439,6 +3627,7 @@ export default function CompanyDetailPage() {
   const [company, setCompany] = React.useState<Company | null>(null);
   const [activeTab, setActiveTab] = React.useState("overview");
   const [overviewSubTab, setOverviewSubTab] = React.useState("info");
+  const [bankSubTab, setBankSubTab] = React.useState("transactions");
   const [xeroConnected, setXeroConnected] = React.useState(false);
   const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
 
@@ -3736,14 +3925,48 @@ export default function CompanyDetailPage() {
               {/* Show Xero connection and transactions on BANK tab */}
               {activeTab === "bank" && (
                 <>
-                  <XeroConnectionCard
-                    companyId={companyId}
-                    onConnectionChange={setXeroConnected}
-                  />
-                  <BankTransactionsCard
-                    companyId={companyId}
-                    isConnected={xeroConnected}
-                  />
+                  {/* Bank Sub-tabs */}
+                  <div className="flex gap-2 mb-4 border-b">
+                    {[
+                      { id: "transactions", label: "Transactions" },
+                      { id: "xero-statement", label: "Xero Statement" },
+                      { id: "stored-reports", label: "Stored Reports" },
+                    ].map((subTab) => (
+                      <button
+                        key={subTab.id}
+                        onClick={() => setBankSubTab(subTab.id)}
+                        className={cn(
+                          "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                          bankSubTab === subTab.id
+                            ? "border-primary text-primary"
+                            : "border-transparent text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {subTab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {bankSubTab === "transactions" && (
+                    <>
+                      <XeroConnectionCard
+                        companyId={companyId}
+                        onConnectionChange={setXeroConnected}
+                      />
+                      <BankTransactionsCard
+                        companyId={companyId}
+                        isConnected={xeroConnected}
+                      />
+                    </>
+                  )}
+
+                  {bankSubTab === "xero-statement" && (
+                    <XeroStatementView companyId={companyId} />
+                  )}
+
+                  {bankSubTab === "stored-reports" && (
+                    <BankStatementReportsView companyId={companyId} />
+                  )}
                 </>
               )}
               <CompanyDocumentsTab

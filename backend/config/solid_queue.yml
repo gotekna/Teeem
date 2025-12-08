@@ -78,6 +78,12 @@ production:
       queue: default
       schedule: every 30 minutes
 
+    # Bank transaction sync (every 6 hours)
+    xero_bank_transaction_sync:
+      class: XeroBankTransactionSyncJob
+      queue: low
+      schedule: every 6 hours at minute 30
+
     # ============================================
     # DATA WAREHOUSE RECURRING JOBS
     # ============================================
@@ -117,6 +123,13 @@ production:
     # ============================================
     # EMAIL MAINTENANCE
     # ============================================
+
+    # Sync emails to SharePoint storage (SSoT)
+    email_share_point_sync:
+      class: EmailSharePointSyncJob
+      queue: low
+      args: [{ limit: 50 }]
+      schedule: every 2 hours at minute 20
 
     # Clean up expired ephemeral emails daily (GitHub notifications, calendar, etc.)
     cleanup_ephemeral_emails:

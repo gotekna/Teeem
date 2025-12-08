@@ -441,8 +441,8 @@ export default function SystemHealthPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {dataHealth.checks.map((check) => {
-                const tableSlug = check.foundation_name.toLowerCase().replace(/\s+/g, '-');
+              {dataHealth.checks.filter(check => check.foundation_name).map((check) => {
+                const tableSlug = (check.foundation_name || '').toLowerCase().replace(/\s+/g, '-');
                 const href = `/${tableSlug}`;
 
                 return (
@@ -461,7 +461,7 @@ export default function SystemHealthPage() {
                             check.health_score >= 70 ? "bg-yellow-100 dark:bg-yellow-900/20" :
                             "bg-red-100 dark:bg-red-900/20"
                           )}>
-                            {iconMap[check.foundation_name.toLowerCase()] || <FileText className="h-4 w-4" />}
+                            {iconMap[(check.foundation_name || '').toLowerCase()] || <FileText className="h-4 w-4" />}
                           </div>
                           <span className="font-medium">{check.foundation_name}</span>
                         </div>
