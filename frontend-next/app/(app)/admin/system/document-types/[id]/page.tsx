@@ -45,26 +45,26 @@ const FILE_EXTENSION_OPTIONS = [
 // Placeholder definitions with scope
 const PLACEHOLDERS = {
   company: [
-    { code: "{CompanyCode}", description: "Company abbreviation (e.g., ABC)", color: "purple" },
-    { code: "{CompanyName}", description: "Full company name (e.g., ABC Property Trust)", color: "purple" },
-    { code: "{LoanID}", description: "Loan identifier (e.g., L001)", color: "purple" },
-    { code: "{AssetCode}", description: "Asset abbreviation (e.g., PROP1)", color: "purple" },
-    { code: "{FY}", label: "FY{FY}", description: "Financial year with FY prefix (e.g., FY25)", color: "purple" },
-    { code: "{Period}", description: "BAS period with dates (e.g., Q1 Jul-Sep)", color: "purple" },
-    { code: "{LenderCode}", description: "Lender company code (e.g., NAB)", color: "purple" },
-    { code: "{Date}", description: "Document date DD-MM-YYYY (e.g., 09-12-2025)", color: "purple" },
-    { code: "{Description}", description: "Custom text field (e.g., Example)", color: "purple" },
-    { code: "{BankCode}", description: "Bank code (e.g., NAB)", color: "purple" },
-    { code: "{AccountNum}", description: "Account number (e.g., 12345)", color: "purple" },
+    { code: "{CompanyCode}", example: "TH", longCode: "{DisplayName}", longExample: "Tekna Homes", color: "purple" },
+    { code: "{LoanID}", example: "L001", longCode: "{LoanName}", longExample: "Loan to ABC Trust", color: "purple" },
+    { code: "{AssetCode}", example: "PROP1", longCode: "{AssetName}", longExample: "123 Main Street", color: "purple" },
+    { code: "{FY}", label: "FY{FY}", example: "FY25", color: "purple" },
+    { code: "{Period}", example: "Q1", longCode: "{PeriodLong}", longExample: "Q1 Jul-Sep", color: "purple" },
+    { code: "{LenderCode}", example: "ABC", longCode: "{LenderName}", longExample: "ABC Property Trust", color: "purple" },
+    { code: "{Date}", example: "09-12-2025", color: "purple" },
+    { code: "{Description}", example: "Example", color: "purple" },
+    { code: "{BankCode}", example: "NAB", color: "purple" },
+    { code: "{BankBSB}", example: "082-123", color: "purple" },
+    { code: "{BankNumber}", example: "12345678", color: "purple" },
   ],
   job: [
-    { code: "{JobCode}", description: "Job number (e.g., J069)", color: "orange" },
-    { code: "{JobTitle}", description: "Job address/title (e.g., 83 West Ridge)", color: "orange" },
-    { code: "{CertType}", description: "Certificate type (e.g., Occupancy)", color: "orange" },
-    { code: "{Consultant}", description: "Consultant name (e.g., ABC Eng)", color: "orange" },
-    { code: "{Number}", description: "Sequential number (e.g., 01)", color: "orange" },
-    { code: "{Date}", description: "Document date DD-MM-YYYY (e.g., 09-12-2025)", color: "orange" },
-    { code: "{Description}", description: "Custom text field (e.g., Example)", color: "orange" },
+    { code: "{JobCode}", example: "J069", color: "orange" },
+    { code: "{JobTitle}", example: "83 West Ridge", color: "orange" },
+    { code: "{CertType}", example: "Occupancy", color: "orange" },
+    { code: "{Consultant}", example: "ABC Eng", color: "orange" },
+    { code: "{Number}", example: "01", color: "orange" },
+    { code: "{Date}", example: "09-12-2025", color: "orange" },
+    { code: "{Description}", example: "Example", color: "orange" },
   ]
 };
 
@@ -104,7 +104,7 @@ export default function DocumentTypeDetailPage() {
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
   const [basicInfoExpanded, setBasicInfoExpanded] = React.useState(false);
   const [displayNameSameAsFileName, setDisplayNameSameAsFileName] = React.useState(true);
-  const [showFullDescription, setShowFullDescription] = React.useState(false);
+  const [showFullDescription, setShowFullDescription] = React.useState(true);
   const [previewCompanyId, setPreviewCompanyId] = React.useState<number | null>(null);
   const [companies, setCompanies] = React.useState<Array<{id: number; name: string; code: string}>>([]);
 
@@ -142,21 +142,42 @@ export default function DocumentTypeDetailPage() {
   // Initialize checkbox state based on whether display_name exists
   React.useEffect(() => {
     if (documentType) {
-      // If display_name is empty or same as file_name, check the box
-      if (!documentType.display_name || documentType.display_name === documentType.file_name) {
-        setDisplayNameSameAsFileName(true);
-      } else {
-        setDisplayNameSameAsFileName(false);
-      }
+      // Always default both to true - user can uncheck if they want custom display name
+      setDisplayNameSameAsFileName(true);
+      setShowFullDescription(true);
     }
   }, [documentType?.id]); // Only run when document type changes
+
+  // Map short codes to long codes
+  const shortToLongMap: Record<string, string> = {};
+  const allPlaceholders = [...PLACEHOLDERS.company, ...PLACEHOLDERS.job];
+  allPlaceholders.forEach((p: any) => {
+    if (p.longCode) {
+      shortToLongMap[p.code] = p.longCode;
+    }
+  });
+
+  // Convert short placeholders to long versions
+  const convertToLongCodes = (value: string): string => {
+    let result = value;
+    Object.entries(shortToLongMap).forEach(([short, long]) => {
+      result = result.replace(new RegExp(short.replace(/[{}]/g, '\\$&'), 'g'), long);
+    });
+    return result;
+  };
 
   // Sync display_name with file_name when checkbox is checked
   React.useEffect(() => {
     if (displayNameSameAsFileName && documentType) {
-      updateField("display_name", documentType.file_name || "");
+      const fileName = documentType.file_name || "";
+      if (showFullDescription) {
+        // Convert short codes to long codes
+        updateField("display_name", convertToLongCodes(fileName));
+      } else {
+        updateField("display_name", fileName);
+      }
     }
-  }, [displayNameSameAsFileName, documentType?.file_name]);
+  }, [displayNameSameAsFileName, showFullDescription, documentType?.file_name]);
 
   const loadDocumentType = async () => {
     try {
@@ -188,7 +209,6 @@ export default function DocumentTypeDetailPage() {
         title: "Success",
         description: "Document type saved successfully",
       });
-      router.push("/admin/system?tab=document-types");
     } catch (error) {
       console.error("Failed to save document type:", error);
       toast({
@@ -334,20 +354,25 @@ export default function DocumentTypeDetailPage() {
 
     let preview = value;
 
-    // Get selected company data or use defaults
+    // Get selected company data or use defaults (Tekna Homes)
     const selectedCompany = previewCompanyId ? companies.find(c => c.id === previewCompanyId) : null;
-    const companyCode = selectedCompany?.code || "ABC";
-    const companyName = selectedCompany?.name || "ABC Property Trust";
+    const companyCode = selectedCompany?.code || "TH";
+    const companyName = selectedCompany?.name || "Tekna Homes";
 
     // Replace placeholders with example values
     // Use full names if checkbox is checked, otherwise use codes
-    preview = preview.replace(/\{CompanyCode\}/g, useFullDescription ? companyName : companyCode);
-    preview = preview.replace(/\{CompanyName\}/g, companyName);
+    preview = preview.replace(/\{CompanyCode\}/g, companyCode);
+    preview = preview.replace(/\{DisplayName\}/g, companyName);
     preview = preview.replace(/\{LoanID\}/g, "L001");
-    preview = preview.replace(/\{LenderCode\}/g, useFullDescription ? "National Australia Bank" : "NAB");
-    preview = preview.replace(/\{AssetCode\}/g, useFullDescription ? "Property 1" : "PROP1");
+    preview = preview.replace(/\{LoanName\}/g, "Loan to ABC Trust");
+    preview = preview.replace(/\{AssetCode\}/g, "PROP1");
+    preview = preview.replace(/\{AssetName\}/g, "123 Main Street");
+    preview = preview.replace(/\{LenderCode\}/g, "ABC");
+    preview = preview.replace(/\{LenderName\}/g, "ABC Property Trust");
     preview = preview.replace(/\{FY\}/g, "FY25");
-    preview = preview.replace(/\{Period\}/g, "Q1 Jul-Sep"); // Long-hand with dates
+    preview = preview.replace(/\{YY\}/g, "25");
+    preview = preview.replace(/\{Period\}/g, "Q1");
+    preview = preview.replace(/\{PeriodLong\}/g, "Q1 Jul-Sep");
     preview = preview.replace(/\{Date\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
     preview = preview.replace(/\{PrintDate\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
     preview = preview.replace(/\{JobCode\}/g, "J069");
@@ -356,8 +381,11 @@ export default function DocumentTypeDetailPage() {
     preview = preview.replace(/\{Consultant\}/g, useFullDescription ? "ABC Engineering" : "ABC Eng");
     preview = preview.replace(/\{Number\}/g, "01");
     preview = preview.replace(/\{Description\}/g, "Example");
-    preview = preview.replace(/\{BankCode\}/g, useFullDescription ? "National Australia Bank" : "NAB");
-    preview = preview.replace(/\{AccountNum\}/g, "12345");
+    preview = preview.replace(/\{BankCode\}/g, "NAB");
+    preview = preview.replace(/\{BankName\}/g, "National Australia Bank");
+    preview = preview.replace(/\{BankBSB\}/g, "082-123");
+    preview = preview.replace(/\{BankNumber\}/g, "12345678");
+    preview = preview.replace(/\{AccountNum\}/g, "12345678");
 
     return preview.trim();
   };
@@ -480,7 +508,7 @@ export default function DocumentTypeDetailPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
@@ -781,21 +809,19 @@ export default function DocumentTypeDetailPage() {
                       Same as File Name
                     </Label>
                   </div>
-                  {!displayNameSameAsFileName && (
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="full-description"
-                        checked={showFullDescription}
-                        onCheckedChange={(checked) => setShowFullDescription(checked as boolean)}
-                      />
-                      <Label
-                        htmlFor="full-description"
-                        className="text-sm font-normal cursor-pointer text-muted-foreground"
-                      >
-                        Full Description
-                      </Label>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="full-description"
+                      checked={showFullDescription}
+                      onCheckedChange={(checked) => setShowFullDescription(checked as boolean)}
+                    />
+                    <Label
+                      htmlFor="full-description"
+                      className="text-sm font-normal cursor-pointer text-muted-foreground"
+                    >
+                      Full Description
+                    </Label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -882,7 +908,7 @@ export default function DocumentTypeDetailPage() {
             {/* End left side */}
 
             {/* Right side - Available Placeholders */}
-            <div className="w-72 shrink-0">
+            <div className="w-96 shrink-0">
               <div className="space-y-3 p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 sticky top-4">
                 <div className="flex items-center gap-2">
                   <GripVertical className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -890,41 +916,71 @@ export default function DocumentTypeDetailPage() {
                     Available Placeholders
                   </Label>
                 </div>
-                <p className="text-xs text-blue-600 dark:text-blue-400">
+                <p className="text-xs text-blue-600 dark:text-blue-400 mb-2">
                   Drag chips to fields or click to add
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {getAvailablePlaceholders().map((placeholder) => (
-                    <Badge
-                      key={placeholder.code}
-                      draggable
-                      onDragStart={(e) => handleDragStartFromSource(e, placeholder.code)}
-                      onDragEnd={handleDragEnd}
-                      className={cn(
-                        "cursor-grab active:cursor-grabbing font-mono text-xs px-2 py-1 transition-all hover:scale-105",
-                        placeholder.color === "purple" && "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
-                        placeholder.color === "orange" && "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
-                        draggedPlaceholder === placeholder.code && draggedFromField === "source" && "opacity-50 scale-95"
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Short</div>
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Long</div>
+                  {getAvailablePlaceholders().map((placeholder: any) => (
+                    <React.Fragment key={placeholder.code}>
+                      {/* Short column */}
+                      <div
+                        draggable
+                        onDragStart={(e) => handleDragStartFromSource(e, placeholder.code)}
+                        onDragEnd={handleDragEnd}
+                        className={cn(
+                          "cursor-grab active:cursor-grabbing p-1.5 rounded border transition-all hover:scale-[1.01]",
+                          placeholder.color === "purple" && "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950 dark:hover:bg-purple-900 border-purple-200 dark:border-purple-800",
+                          placeholder.color === "orange" && "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900 border-orange-200 dark:border-orange-800",
+                          draggedPlaceholder === placeholder.code && draggedFromField === "source" && "opacity-50 scale-95"
+                        )}
+                      >
+                        <div className="flex items-center gap-1">
+                          <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <code className={cn(
+                            "font-mono text-[10px] px-1 py-0.5 rounded",
+                            placeholder.color === "purple" && "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+                            placeholder.color === "orange" && "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
+                          )}>
+                            {placeholder.label || placeholder.code}
+                          </code>
+                        </div>
+                        <div className="pl-4 mt-0.5 text-[10px] font-semibold">
+                          {placeholder.example}
+                        </div>
+                      </div>
+                      {/* Long column */}
+                      {placeholder.longCode ? (
+                        <div
+                          draggable
+                          onDragStart={(e) => handleDragStartFromSource(e, placeholder.longCode)}
+                          onDragEnd={handleDragEnd}
+                          className={cn(
+                            "cursor-grab active:cursor-grabbing p-1.5 rounded border transition-all hover:scale-[1.01]",
+                            placeholder.color === "purple" && "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950 dark:hover:bg-purple-900 border-purple-200 dark:border-purple-800",
+                            placeholder.color === "orange" && "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900 border-orange-200 dark:border-orange-800",
+                            draggedPlaceholder === placeholder.longCode && draggedFromField === "source" && "opacity-50 scale-95"
+                          )}
+                        >
+                          <div className="flex items-center gap-1">
+                            <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <code className={cn(
+                              "font-mono text-[10px] px-1 py-0.5 rounded",
+                              placeholder.color === "purple" && "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+                              placeholder.color === "orange" && "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
+                            )}>
+                              {placeholder.longCode}
+                            </code>
+                          </div>
+                          <div className="pl-4 mt-0.5 text-[10px] font-semibold">
+                            {placeholder.longExample}
+                          </div>
+                        </div>
+                      ) : (
+                        <div />
                       )}
-                      title={placeholder.description}
-                    >
-                      <GripVertical className="h-3 w-3 mr-0.5 inline" />
-                      {(placeholder as any).label || placeholder.code}
-                    </Badge>
-                  ))}
-                </div>
-                <div className="text-xs text-muted-foreground space-y-0.5 pt-2 border-t border-blue-200 dark:border-blue-800 max-h-48 overflow-y-auto">
-                  {getAvailablePlaceholders().map((p) => (
-                    <div key={p.code} className="flex items-start gap-1">
-                      <code className={cn(
-                        "px-1 py-0.5 rounded font-mono text-[10px] shrink-0",
-                        p.color === "purple" && "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300",
-                        p.color === "orange" && "bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300"
-                      )}>
-                        {(p as any).label || p.code}
-                      </code>
-                      <span className="text-[10px] leading-tight">{p.description}</span>
-                    </div>
+                    </React.Fragment>
                   ))}
                 </div>
               </div>
