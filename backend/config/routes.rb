@@ -1057,6 +1057,7 @@ Rails.application.routes.draw do
           get :monthly_summary
           get :sync_status
           post :trigger_sync
+          get :download_report
         end
       end
 

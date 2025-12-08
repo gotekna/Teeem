@@ -104,6 +104,7 @@ export function XeroStatementView({ companyId }: Props) {
   // Loading states
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -238,6 +239,68 @@ export function XeroStatementView({ companyId }: Props) {
     }
   };
 
+  const handleDownloadReport = async () => {
+    try {
+      setDownloading(true);
+
+      // Build query params for the report
+      const params = new URLSearchParams();
+      if (selectedAccount !== "all") {
+        params.set("bank_account_id", selectedAccount);
+      }
+      if (selectedFY !== "all") {
+        params.set("financial_year", selectedFY);
+      }
+      if (selectedMonth !== "all") {
+        params.set("month", selectedMonth);
+      }
+
+      // Create a link to download the PDF
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+      const url = `${baseUrl}/api/v1/warehouse_bank_transactions/download_report?${params.toString()}`;
+
+      // Fetch with auth token
+      const token = localStorage.getItem("token");
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to download report");
+      }
+
+      // Get the blob and trigger download
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+
+      // Get filename from Content-Disposition header or generate one
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = "Xero_Transaction_Report.pdf";
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error("Failed to download report:", error);
+      alert(error instanceof Error ? error.message : "Failed to download report");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-AU", {
       style: "currency",
@@ -284,6 +347,20 @@ export function XeroStatementView({ companyId }: Props) {
                 Last sync: {formatDate(syncStatus.last_synced_at)}
               </span>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadReport}
+              disabled={downloading || totalCount === 0}
+              title="Download PDF transaction report (with legal disclaimer per s262A ITAA 1936)"
+            >
+              {downloading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Download Report
+            </Button>
             <Button
               variant="outline"
               size="sm"
