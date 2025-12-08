@@ -483,106 +483,148 @@ export default function XeroIntegrationPage() {
             <XeroPdfSyncStatus />
           )}
 
-          {/* Validation Tests - Collapsible */}
+          {/* Health Check Button - Compact with % indicator */}
           {status?.connected && (
-            <Card>
-              <CardHeader
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => setHealthCheckExpanded(!healthCheckExpanded)}
-              >
-                <div className="flex items-center justify-between">
+            <>
+              {/* Compact Health Check Button */}
+              {!healthCheckExpanded && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setHealthCheckExpanded(true);
+                    if (validationTests.length === 0) {
+                      runValidationTests();
+                    }
+                  }}
+                  className={`w-full justify-between ${
+                    validationTests.length > 0
+                      ? validationTests.every(t => t.status === "passed")
+                        ? "border-green-500 bg-green-50 hover:bg-green-100 text-green-700"
+                        : validationTests.some(t => t.status === "failed")
+                        ? "border-red-500 bg-red-50 hover:bg-red-100 text-red-700"
+                        : "border-gray-300"
+                      : "border-gray-300"
+                  }`}
+                >
                   <div className="flex items-center gap-2">
-                    {healthCheckExpanded ? (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <div>
-                      <CardTitle className="text-base">Integration Health Check</CardTitle>
-                      <CardDescription className="text-xs">
-                        Run tests to verify Xero integration is working
-                      </CardDescription>
-                    </div>
-                  </div>
-                  {validationTests.length > 0 && validationTests.every(t => t.status === "passed") && (
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      All Passed
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-              {healthCheckExpanded && (
-                <CardContent className="pt-0">
-                  <div className="flex justify-end mb-4">
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        runValidationTests();
-                      }}
-                      disabled={runningTests}
-                      variant="outline"
-                      size="sm"
-                    >
-                      {runningTests ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Running...
-                        </>
+                    {validationTests.length > 0 ? (
+                      validationTests.every(t => t.status === "passed") ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      ) : validationTests.some(t => t.status === "failed") ? (
+                        <XCircle className="h-4 w-4 text-red-600" />
                       ) : (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Run Health Check
-                        </>
-                      )}
-                    </Button>
+                        <RefreshCw className="h-4 w-4" />
+                      )
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    <span>Health Check</span>
                   </div>
-                  {validationTests.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      Click &quot;Run Health Check&quot; to validate your Xero integration
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {validationTests.map((test) => (
-                        <div
-                          key={test.id}
-                          className={`flex items-center justify-between p-3 border rounded-lg text-sm ${
-                            test.status === "passed"
-                              ? "border-green-500 bg-green-50/50 dark:bg-green-900/10"
-                              : test.status === "failed"
-                              ? "border-red-500 bg-red-50/50 dark:bg-red-900/10"
-                              : "border-gray-200"
-                          }`}
+                  <div className="flex items-center gap-2">
+                    {validationTests.length > 0 ? (
+                      <span className="font-semibold">
+                        {Math.round((validationTests.filter(t => t.status === "passed").length / validationTests.length) * 100)}%
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">Not run</span>
+                    )}
+                    <ChevronRight className="h-4 w-4" />
+                  </div>
+                </Button>
+              )}
+
+              {/* Expanded Health Check Panel */}
+              {healthCheckExpanded && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setHealthCheckExpanded(false)}
+                          className="h-8 w-8 p-0"
                         >
-                          <div className="flex items-center gap-3 flex-1">
-                            <div className="flex-shrink-0">
-                              {test.status === "passed" && (
-                                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                              )}
-                              {test.status === "failed" && (
-                                <XCircle className="h-4 w-4 text-red-600" />
-                              )}
-                              {test.status === "running" && (
-                                <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                              )}
-                              {test.status === "pending" && (
-                                <div className="h-4 w-4 rounded-full border-2 border-gray-300" />
-                              )}
-                            </div>
-                            <div className="flex-1">
-                              <p className="font-medium">{test.name}</p>
-                              {test.error && (
-                                <p className="text-xs text-red-600 mt-0.5">{test.error}</p>
-                              )}
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                        <CardTitle className="text-base">Integration Health Check</CardTitle>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {validationTests.length > 0 && (
+                          <Badge className={
+                            validationTests.every(t => t.status === "passed")
+                              ? "bg-green-100 text-green-800"
+                              : validationTests.some(t => t.status === "failed")
+                              ? "bg-red-100 text-red-800"
+                              : "bg-gray-100 text-gray-800"
+                          }>
+                            {validationTests.filter(t => t.status === "passed").length}/{validationTests.length} Passed
+                          </Badge>
+                        )}
+                        <Button
+                          onClick={runValidationTests}
+                          disabled={runningTests}
+                          variant="outline"
+                          size="sm"
+                        >
+                          {runningTests ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {validationTests.length === 0 ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {validationTests.map((test) => (
+                          <div
+                            key={test.id}
+                            className={`flex items-center justify-between p-3 border rounded-lg text-sm ${
+                              test.status === "passed"
+                                ? "border-green-500 bg-green-50/50 dark:bg-green-900/10"
+                                : test.status === "failed"
+                                ? "border-red-500 bg-red-50/50 dark:bg-red-900/10"
+                                : "border-gray-200"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className="flex-shrink-0">
+                                {test.status === "passed" && (
+                                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                )}
+                                {test.status === "failed" && (
+                                  <XCircle className="h-4 w-4 text-red-600" />
+                                )}
+                                {test.status === "running" && (
+                                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                                )}
+                                {test.status === "pending" && (
+                                  <div className="h-4 w-4 rounded-full border-2 border-gray-300" />
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-medium">{test.name}</p>
+                                {test.error && (
+                                  <p className="text-xs text-red-600 mt-0.5">{test.error}</p>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               )}
-            </Card>
+            </>
           )}
 
           {/* Connected Organizations */}
