@@ -58,6 +58,7 @@ import type { TableColumn, TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
 import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
 import { XeroStatementView } from "@/components/corporate/XeroStatementView";
+import { BankStatementReportsView } from "@/components/corporate/BankStatementReportsView";
 
 // Document category tabs
 const DOCUMENT_TABS = [
@@ -3929,6 +3930,7 @@ export default function CompanyDetailPage() {
                     {[
                       { id: "transactions", label: "Transactions" },
                       { id: "xero-statement", label: "Xero Statement" },
+                      { id: "stored-reports", label: "Stored Reports" },
                     ].map((subTab) => (
                       <button
                         key={subTab.id}
@@ -3960,6 +3962,10 @@ export default function CompanyDetailPage() {
 
                   {bankSubTab === "xero-statement" && (
                     <XeroStatementView companyId={companyId} />
+                  )}
+
+                  {bankSubTab === "stored-reports" && (
+                    <BankStatementReportsView companyId={companyId} />
                   )}
                 </>
               )}
