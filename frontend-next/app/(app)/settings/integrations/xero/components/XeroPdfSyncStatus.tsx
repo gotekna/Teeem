@@ -345,10 +345,10 @@ export function XeroPdfSyncStatus() {
       <CardContent className="space-y-6">
         {/* 3-Stage Progress */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* Stage 1: Invoice Data Sync */}
+          {/* Stage 1: Xero Data Sync (Bills, Invoices, Quotes) */}
           <StageProgress
             stage={1}
-            title="Invoice Data"
+            title="Xero Data"
             icon={Database}
             completed={data.stage1_data_sync?.linked_to_contacts || 0}
             total={data.stage1_data_sync?.total_in_database || 0}

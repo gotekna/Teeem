@@ -247,11 +247,26 @@ export default function XeroIntegrationPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 bg-muted rounded-lg">
                       <p className="text-sm text-muted-foreground">Organization</p>
-                      <p className="font-medium">{status.tenant_name || status.organization_name || "Unknown"}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{status.tenant_name || status.organization_name || "Unknown"}</p>
+                        {tenants.find(t => t.is_primary) && (
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-xs">
+                            Primary
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <div className="p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground">Tenant ID</p>
-                      <p className="font-medium text-xs">{status.tenant_id || "Unknown"}</p>
+                      <p className="text-sm text-muted-foreground">Connected</p>
+                      <p className="font-medium">
+                        {tenants.find(t => t.is_primary)?.connected_at
+                          ? new Date(tenants.find(t => t.is_primary)!.connected_at).toLocaleDateString("en-AU", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "Unknown"}
+                      </p>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -326,86 +341,6 @@ export default function XeroIntegrationPage() {
             <XeroPdfSyncStatus />
           )}
 
-          {/* Connected Organizations */}
-          {tenants.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Connected Organizations ({tenants.length})</CardTitle>
-                <CardDescription>
-                  Xero organizations connected to TEEEM. Primary org is used for contact sync.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {tenants.map((tenant) => (
-                    <div
-                      key={tenant.tenant_id}
-                      className={`flex items-center justify-between p-4 border rounded-lg ${
-                        tenant.is_primary ? "border-green-500 bg-green-50/50" : ""
-                      }`}
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{tenant.tenant_name}</p>
-                          {tenant.is_primary && (
-                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                              Primary
-                            </Badge>
-                          )}
-                          {tenant.expired && (
-                            <Badge variant="destructive">Expired</Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Tenant ID: {tenant.tenant_id}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <p className="text-sm text-muted-foreground">Connected</p>
-                          <p className="text-sm font-medium">
-                            {new Date(tenant.connected_at).toLocaleDateString("en-AU", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                          </p>
-                        </div>
-                        {!tenant.is_primary && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              try {
-                                await api.post("/api/v1/xero/set_primary", {
-                                  tenant_id: tenant.tenant_id,
-                                });
-                                // Refresh the data
-                                window.location.reload();
-                              } catch (error) {
-                                console.error("Failed to set primary:", error);
-                              }
-                            }}
-                          >
-                            Set as Primary
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <Alert className="mt-4">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>What is "Primary"?</AlertTitle>
-                  <AlertDescription>
-                    The primary Xero organization is used for contact sync and general operations.
-                    Company-specific accounting can use different Xero orgs via Corporate → Companies.
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-            </Card>
-          )}
-
         </TabsContent>
 
         {/* Health Tab - All health indicators in one place */}
@@ -422,7 +357,7 @@ export default function XeroIntegrationPage() {
               <div className="space-y-3">
                 <h4 className="text-sm font-medium text-muted-foreground">Document Sync Pipeline</h4>
 
-                {/* Stage 1: Invoice Data */}
+                {/* Stage 1: Xero Data (Bills, Invoices, Quotes) */}
                 <div
                   className={`flex items-center justify-between p-3 rounded-lg border ${
                     (pdfSyncHealth?.stage1_percentage ?? 0) >= 95
@@ -441,7 +376,7 @@ export default function XeroIntegrationPage() {
                       <Database className="h-4 w-4" />
                     </div>
                     <div>
-                      <div className="font-medium text-sm">Stage 1: Invoice Data</div>
+                      <div className="font-medium text-sm">Stage 1: Xero Data</div>
                       <div className="text-xs text-muted-foreground">
                         {pdfSyncHealth?.stage1_data.linked.toLocaleString()} / {pdfSyncHealth?.stage1_data.total.toLocaleString()} linked
                       </div>

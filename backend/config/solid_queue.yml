@@ -119,7 +119,7 @@ production:
     # ============================================
 
     # Sync emails to SharePoint storage (SSoT)
-    email_sharepoint_sync:
+    email_share_point_sync:
       class: EmailSharePointSyncJob
       queue: low
       args: [{ limit: 50 }]
