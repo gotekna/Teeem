@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -100,6 +100,7 @@ export default function DocumentTypeDetailPage() {
   const [draggedPlaceholder, setDraggedPlaceholder] = React.useState<string | null>(null);
   const [draggedFromField, setDraggedFromField] = React.useState<"file_name" | "display_name" | "source" | null>(null);
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
+  const [basicInfoExpanded, setBasicInfoExpanded] = React.useState(false);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
@@ -262,6 +263,32 @@ export default function DocumentTypeDetailPage() {
     return found?.color || "purple";
   };
 
+  // Generate preview for display name (similar to backend's title_preview logic)
+  const generateDisplayNamePreview = (value: string): string => {
+    if (!value) return "";
+
+    let preview = value;
+
+    // Replace placeholders with example values
+    preview = preview.replace(/\{CompanyCode\}/g, "ABC");
+    preview = preview.replace(/\{LoanID\}/g, "L001");
+    preview = preview.replace(/\{LenderCode\}/g, "NAB");
+    preview = preview.replace(/\{AssetCode\}/g, "PROP1");
+    preview = preview.replace(/\{FY\}/g, "2025");
+    preview = preview.replace(/\{YY\}/g, "25");
+    preview = preview.replace(/\{Period\}/g, "Q1");
+    preview = preview.replace(/\{Date\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
+    preview = preview.replace(/\{PrintDate\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
+    preview = preview.replace(/\{JobCode\}/g, "J069");
+    preview = preview.replace(/\{JobTitle\}/g, "83 West Ridge");
+    preview = preview.replace(/\{CertType\}/g, "Occupancy");
+    preview = preview.replace(/\{Consultant\}/g, "ABC Eng");
+    preview = preview.replace(/\{Number\}/g, "01");
+    preview = preview.replace(/\{Description\}/g, "Example");
+
+    return preview.trim();
+  };
+
   // Handle drag start from source placeholders
   const handleDragStartFromSource = (e: React.DragEvent, placeholder: string) => {
     setDraggedPlaceholder(placeholder);
@@ -417,10 +444,21 @@ export default function DocumentTypeDetailPage() {
 
       {/* Basic Info */}
       <Card>
-        <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => setBasicInfoExpanded(!basicInfoExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle>Basic Information</CardTitle>
+            {basicInfoExpanded ? (
+              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        {basicInfoExpanded && (
+          <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Document Type Name *</Label>
@@ -509,7 +547,8 @@ export default function DocumentTypeDetailPage() {
               />
             </div>
           </div>
-        </CardContent>
+          </CardContent>
+        )}
       </Card>
 
       {/* Naming & Organization */}
@@ -593,20 +632,74 @@ export default function DocumentTypeDetailPage() {
 
           <div className="space-y-2">
             <Label htmlFor="display_name">Display Name</Label>
-            <Input
-              ref={displayNameInputRef}
-              id="display_name"
-              value={documentType.display_name || ""}
-              onChange={(e) => updateField("display_name", e.target.value)}
-              onDrop={handleDropOnDisplayName}
-              onDragOver={handleDragOver}
-              placeholder="Leave empty to use Document Type Name"
-              className={cn(
-                draggedPlaceholder && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950"
+            <div className="min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-2 items-center">
+              {parseTokens(documentType.display_name || "").map((token, index) => (
+                <div
+                  key={index}
+                  draggable={token.type === "placeholder"}
+                  onDragStart={(e) =>
+                    token.type === "placeholder" &&
+                    handleDragStartFromToken(e, "display_name", index, token.value)
+                  }
+                  onDragEnd={handleDragEnd}
+                  onDrop={(e) => handleDropOnToken(e, "display_name", index)}
+                  onDragOver={handleDragOver}
+                  className={cn(
+                    token.type === "placeholder" &&
+                      "cursor-grab active:cursor-grabbing transition-all",
+                    draggedFromField === "display_name" &&
+                      draggedIndex === index &&
+                      "opacity-30"
+                  )}
+                >
+                  {token.type === "placeholder" ? (
+                    <Badge
+                      className={cn(
+                        "font-mono text-xs px-3 py-1.5 select-none",
+                        getPlaceholderColor(token.value) === "purple" &&
+                          "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
+                        getPlaceholderColor(token.value) === "orange" &&
+                          "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700"
+                      )}
+                    >
+                      <GripVertical className="h-3 w-3 mr-1 inline" />
+                      {token.value}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeToken("display_name", index);
+                        }}
+                        className="ml-2 hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ) : (
+                    <Input
+                      value={token.value}
+                      onChange={(e) => updateTextToken("display_name", index, e.target.value)}
+                      className="h-8 w-auto min-w-[50px] px-2 font-mono text-xs inline-block"
+                      style={{ width: `${Math.max(50, token.value.length * 8)}px` }}
+                    />
+                  )}
+                </div>
+              ))}
+              {parseTokens(documentType.display_name || "").length === 0 && (
+                <span className="text-sm text-muted-foreground">
+                  Optional: Leave empty to use Document Type Name, or drag placeholders here
+                </span>
               )}
-            />
+            </div>
+            {documentType.display_name && generateDisplayNamePreview(documentType.display_name) && (
+              <div className="flex items-center gap-2 text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                <span className="text-muted-foreground font-medium">Preview:</span>
+                <span className="font-semibold text-green-700 dark:text-green-400 font-mono">
+                  {generateDisplayNamePreview(documentType.display_name)}
+                </span>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
-              Override the document type name for specific display contexts. You can use placeholders here too.
+              Override the document type name for specific display contexts. Drag to reorder, X to remove.
             </p>
           </div>
 
@@ -626,14 +719,13 @@ export default function DocumentTypeDetailPage() {
                 <Badge
                   key={placeholder.code}
                   draggable
-                  onDragStart={(e) => handleDragStart(e, placeholder.code)}
+                  onDragStart={(e) => handleDragStartFromSource(e, placeholder.code)}
                   onDragEnd={handleDragEnd}
-                  onClick={() => handlePlaceholderClick(placeholder.code, "file_name")}
                   className={cn(
                     "cursor-grab active:cursor-grabbing font-mono text-xs px-3 py-1.5 transition-all hover:scale-105",
                     placeholder.color === "purple" && "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
                     placeholder.color === "orange" && "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
-                    draggedPlaceholder === placeholder.code && "opacity-50 scale-95"
+                    draggedPlaceholder === placeholder.code && draggedFromField === "source" && "opacity-50 scale-95"
                   )}
                   title={`${placeholder.code} - ${placeholder.description}`}
                 >
