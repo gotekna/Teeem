@@ -181,19 +181,20 @@ class Contact < ApplicationRecord
   # computed_display_name: Generates a display-friendly name based on entity type
   # Note: display_name is now a database column (SSoT), this method computes the value
   def computed_display_name
+    raw_display_name = read_attribute(:display_name)
     case entity_type
     when "person"
       # Team contact: append company name for clarity
       if is_team_contact && primary_company.present?
         person_name = [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence ||
-                      display_name.presence ||
+                      raw_display_name.presence ||
                       email
-        company_name = primary_company.company_name_or_trust.presence || primary_company.display_name
+        company_name = primary_company.company_name_or_trust.presence || primary_company.read_attribute(:display_name)
         "#{person_name} - #{company_name}"
       else
         # Person: prefer first + middle + last, fall back to display_name
         [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence ||
-          display_name.presence ||
+          raw_display_name.presence ||
           email ||
           "Contact ##{id}"
       end
@@ -201,21 +202,31 @@ class Contact < ApplicationRecord
       # Sole Trader: prefer business name, fall back to person name
       company_name_or_trust.presence ||
         [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence ||
-        display_name.presence ||
+        raw_display_name.presence ||
         "Contact ##{id}"
     when "company", "trust"
       # Company/Trust: prefer company_name_or_trust, fall back to display_name
       company_name_or_trust.presence ||
-        display_name.presence ||
+        raw_display_name.presence ||
         "Contact ##{id}"
     when "price_only"
       # Price Only: Contact used only for pricebook pricing (e.g., web scraping, legacy data)
-      display_name.presence ||
+      raw_display_name.presence ||
         "Contact ##{id}"
     else
       # NULL or unknown entity_type: basic fallback
-      display_name.presence ||
+      raw_display_name.presence ||
         "Contact ##{id}"
+    end
+  end
+
+  # Override display_name to use computed_display_name for team contacts
+  # This ensures team contacts show "Person Name - Company Name" in all contexts
+  def display_name
+    if is_team_contact && primary_company.present?
+      computed_display_name
+    else
+      read_attribute(:display_name)
     end
   end
 
