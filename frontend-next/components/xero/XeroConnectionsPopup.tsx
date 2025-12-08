@@ -241,8 +241,18 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           No TEEEM companies linked to this organization yet.
                         </p>
-                        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                          Link companies from the Corporate &gt; Company &gt; Xero tab.
+                        <button
+                          onClick={() => {
+                            window.location.href = `/corporate`;
+                            onClose();
+                          }}
+                          className="mt-3 inline-flex items-center space-x-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                        >
+                          <Building2 className="h-4 w-4" />
+                          <span>Link to Company</span>
+                        </button>
+                        <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                          Go to Corporate &gt; Company &gt; Xero tab to link.
                         </p>
                       </div>
                     )}
