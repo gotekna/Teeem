@@ -5138,7 +5138,10 @@ export default function CompanyDetailPage() {
               )}
 
               {xeroSubTab === "bank-statement" && (
-                <XeroBankStatementCard companyId={companyId} />
+                <div className="p-4 text-center text-gray-500">
+                  <p>Bank Statement reports are available in the Gold Standard Tables.</p>
+                  <p className="text-sm mt-2">Foundation ID: 487</p>
+                </div>
               )}
             </>
           )}
