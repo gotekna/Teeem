@@ -102,7 +102,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
         { tenant_id: tenantId }
       );
 
-      if (response.success) {
+      if (response && response.success) {
         // Reload connections to show the new link
         await loadConnections();
         alert("Successfully linked company to Xero organization!");
