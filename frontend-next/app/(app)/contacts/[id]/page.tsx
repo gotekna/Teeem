@@ -2255,6 +2255,10 @@ export default function ContactDetailPage() {
 
   // Auto-save on blur (debounced to avoid saving while user tabs between fields)
   // Note: We always attempt to save - handleSave will check if there's anything to save
+  // Using a ref to always get the latest handleSave to avoid stale closure issues
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
+
   const handleAutoSave = useCallback(() => {
     // Clear any existing timeout
     if (autoSaveTimeoutRef.current) {
@@ -2263,7 +2267,7 @@ export default function ContactDetailPage() {
     // Set a short delay to allow user to tab to another field without triggering save
     autoSaveTimeoutRef.current = setTimeout(() => {
       if (!saving) {
-        handleSave();
+        handleSaveRef.current();
       }
     }, 300);
   }, [saving]);
@@ -3150,6 +3154,7 @@ export default function ContactDetailPage() {
                                   }
                                   setFieldErrors(prev => ({ ...prev, [`phone_${originalIndex}`]: '' }));
                                 }
+                                // Always trigger auto-save - the ref pattern ensures latest state is used
                                 handleAutoSave();
                               }}
                               placeholder="0400 000 000"

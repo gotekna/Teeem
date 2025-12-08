@@ -773,6 +773,13 @@ export default function TeeemTableView({
   // healthPanelOpen managed by atom (SSoT)
   const [healthPanelOpen, setHealthPanelOpen] = useAtom(healthPanelOpenAtom);
 
+  // Auto-open health panel when ?health=open query param is present
+  useEffect(() => {
+    if (searchParams.get('health') === 'open') {
+      setHealthPanelOpen(true);
+    }
+  }, [searchParams, setHealthPanelOpen]);
+
   // NEW: Edit Mode state (unified editing approach)
   // When true, all editable cells become interactive with auto-save on blur
   const isEditMode = useAtomValue(tableEditModeAtom);

@@ -441,8 +441,8 @@ export default function SystemHealthPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {dataHealth.checks.map((check) => {
-                const tableSlug = check.foundation_name.toLowerCase().replace(/\s+/g, '-');
+              {dataHealth.checks.filter(check => check.foundation_name).map((check) => {
+                const tableSlug = (check.foundation_name || '').toLowerCase().replace(/\s+/g, '-');
                 const href = `/${tableSlug}`;
 
                 return (

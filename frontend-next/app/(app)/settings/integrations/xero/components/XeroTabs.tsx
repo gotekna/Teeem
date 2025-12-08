@@ -865,6 +865,13 @@ function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: (
           {contact.entity_type || "?"}
         </Badge>
       </TableCell>
+      <TableCell className="text-center py-2">
+        {contact.xero_id ? (
+          <Check className="h-4 w-4 text-green-600 mx-auto" />
+        ) : (
+          <X className="h-4 w-4 text-muted-foreground mx-auto" />
+        )}
+      </TableCell>
       <TableCell className="py-2">
         {role.text !== "-" ? (
           <Badge variant="outline" className={cn("text-xs", role.color)}>
@@ -948,6 +955,7 @@ function ContactsGroupedTable({
       <TableRow>
         <TableHead>Contact</TableHead>
         <TableHead>Type</TableHead>
+        <TableHead className="text-center w-12">Linked</TableHead>
         <TableHead className="w-20">Role</TableHead>
         <TableHead className="text-center w-12">Inv</TableHead>
         <TableHead className="text-center w-12">Bills</TableHead>
