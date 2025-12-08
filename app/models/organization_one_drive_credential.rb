@@ -1,4 +1,6 @@
 class OrganizationOneDriveCredential < ApplicationRecord
+  # Supports MULTIPLE Microsoft 365 tenants (Tekna, 100xBestLife, Homes of Hope, Love Your World)
+
   belongs_to :connected_by, class_name: "User", optional: true
 
   # Encrypt sensitive tokens
@@ -8,20 +10,31 @@ class OrganizationOneDriveCredential < ApplicationRecord
   # Validations
   validates :access_token, presence: true
   validates :refresh_token, presence: true
+  validates :name, uniqueness: true, allow_nil: true
   # drive_id is optional on create, set when client initializes and gets drive info
   # validates :drive_id, presence: true
 
   # Scopes
   scope :active, -> { where(is_active: true) }
 
-  # Get the active organization credential (singleton pattern)
+  # Multi-org support - returns all active credentials
+  def self.active_credentials
+    active.order(:name)
+  end
+
+  # Legacy singleton pattern - returns first active for backward compatibility
   def self.active_credential
     active.first
   end
 
-  # Check if organization has OneDrive connected
+  # Find by organization name
+  def self.find_by_name(name)
+    active.find_by(name: name)
+  end
+
+  # Check if any organization has OneDrive connected
   def self.connected?
-    active_credential.present? && active_credential.valid_credential?
+    active.any? { |cred| cred.valid_credential? }
   end
 
   # Check if token is expired or about to expire (within 5 minutes)

@@ -20,44 +20,60 @@ class Api::V1::MicrosoftAppController < ApplicationController
   ].freeze
 
   # GET /api/v1/microsoft_app/status
-  # Check the org-wide Microsoft app credential status
+  # Check the org-wide Microsoft app credential status (all organizations)
   def status
     # Check if env vars are configured
     env_configured = ENV["OUTLOOK_CLIENT_ID"].present? &&
                      ENV["OUTLOOK_CLIENT_SECRET"].present? &&
                      ENV["OUTLOOK_TENANT_ID"].present?
 
-    credential = OrganizationMicrosoftAppCredential.active_credential
+    credentials = OrganizationMicrosoftAppCredential.active_credentials
 
-    if credential.nil?
+    if credentials.empty?
       render json: {
         configured: false,
         status: "not_configured",
         message: "Organization-wide Microsoft access not configured",
         env_configured: env_configured,
-        tenant_id: ENV["OUTLOOK_TENANT_ID"]
+        tenant_id: ENV["OUTLOOK_TENANT_ID"],
+        organizations: []
       }
     else
+      # Return all configured organizations
+      organizations = credentials.map do |credential|
+        {
+          id: credential.id,
+          name: credential.name,
+          configured: true,
+          status: credential.status,
+          tenant_id: credential.tenant_id,
+          admin_consent_granted_at: credential.admin_consent_granted_at,
+          admin_consent_granted_by: credential.admin_consent_granted_by,
+          last_sync_at: credential.last_sync_at,
+          last_error: credential.last_error,
+          token_valid: !credential.token_expired?
+        }
+      end
+
       render json: {
         configured: true,
-        status: credential.status,
-        tenant_id: credential.tenant_id,
-        admin_consent_granted_at: credential.admin_consent_granted_at,
-        admin_consent_granted_by: credential.admin_consent_granted_by,
-        last_sync_at: credential.last_sync_at,
-        last_error: credential.last_error,
-        token_valid: !credential.token_expired?,
-        env_configured: env_configured
+        status: credentials.any? { |c| c.status == "connected" } ? "connected" : "pending",
+        env_configured: env_configured,
+        organizations: organizations
       }
     end
   end
 
   # POST /api/v1/microsoft_app/setup
   # Initial setup - uses existing OUTLOOK_* env vars OR manual input
+  # Now supports multiple organizations via :name parameter
   def setup
     unless current_user_admin?
       return render json: { error: "Only admins can configure organization-wide Microsoft access" }, status: :forbidden
     end
+
+    # Name is required for multi-org support
+    org_name = params[:name].presence || "Default"
 
     # Use env vars if available, otherwise use params
     client_id = params[:client_id].presence || ENV["OUTLOOK_CLIENT_ID"]
@@ -70,35 +86,51 @@ class Api::V1::MicrosoftAppController < ApplicationController
       }, status: :unprocessable_entity
     end
 
-    # Deactivate any existing credential
-    OrganizationMicrosoftAppCredential.active.update_all(is_active: false)
-
-    credential = OrganizationMicrosoftAppCredential.new(
-      client_id: client_id,
-      client_secret: client_secret,
-      tenant_id: tenant_id,
-      setup_by: current_user,
-      status: "pending"
-    )
-
-    if credential.save
-      render json: {
-        success: true,
-        message: "App credentials saved. Now grant admin consent to activate.",
-        admin_consent_url: admin_consent_url_for(credential),
-        using_env_vars: params[:client_id].blank?
-      }
+    # Check if org with this name already exists
+    existing = OrganizationMicrosoftAppCredential.find_by(name: org_name)
+    if existing
+      # Update existing credential instead of creating new
+      existing.update!(
+        client_id: client_id,
+        client_secret: client_secret,
+        tenant_id: tenant_id,
+        setup_by: current_user,
+        status: "pending",
+        is_active: true
+      )
+      credential = existing
     else
-      render json: { error: credential.errors.full_messages.join(", ") }, status: :unprocessable_entity
+      credential = OrganizationMicrosoftAppCredential.create!(
+        name: org_name,
+        client_id: client_id,
+        client_secret: client_secret,
+        tenant_id: tenant_id,
+        setup_by: current_user,
+        status: "pending"
+      )
     end
+
+    render json: {
+      success: true,
+      message: "App credentials saved for #{org_name}. Now grant admin consent to activate.",
+      admin_consent_url: admin_consent_url_for(credential),
+      organization_id: credential.id,
+      organization_name: credential.name,
+      using_env_vars: params[:client_id].blank?
+    }
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # POST /api/v1/microsoft_app/setup_from_env
   # Quick setup using existing env vars - no manual input needed
+  # Now supports multiple organizations via :name parameter
   def setup_from_env
     unless current_user_admin?
       return render json: { error: "Only admins can configure organization-wide Microsoft access" }, status: :forbidden
     end
+
+    org_name = params[:name].presence || "Tekna"
 
     client_id = ENV["OUTLOOK_CLIENT_ID"]
     client_secret = ENV["OUTLOOK_CLIENT_SECRET"]
@@ -110,21 +142,35 @@ class Api::V1::MicrosoftAppController < ApplicationController
       }, status: :unprocessable_entity
     end
 
-    # Deactivate any existing credential
-    OrganizationMicrosoftAppCredential.active.update_all(is_active: false)
-
-    credential = OrganizationMicrosoftAppCredential.create!(
-      client_id: client_id,
-      client_secret: client_secret,
-      tenant_id: tenant_id,
-      setup_by: current_user,
-      status: "pending"
-    )
+    # Check if org with this name already exists
+    existing = OrganizationMicrosoftAppCredential.find_by(name: org_name)
+    if existing
+      existing.update!(
+        client_id: client_id,
+        client_secret: client_secret,
+        tenant_id: tenant_id,
+        setup_by: current_user,
+        status: "pending",
+        is_active: true
+      )
+      credential = existing
+    else
+      credential = OrganizationMicrosoftAppCredential.create!(
+        name: org_name,
+        client_id: client_id,
+        client_secret: client_secret,
+        tenant_id: tenant_id,
+        setup_by: current_user,
+        status: "pending"
+      )
+    end
 
     render json: {
       success: true,
-      message: "Using existing Microsoft credentials. Now grant admin consent to enable organization-wide access.",
+      message: "Using existing Microsoft credentials for #{org_name}. Now grant admin consent to enable organization-wide access.",
       admin_consent_url: admin_consent_url_for(credential),
+      organization_id: credential.id,
+      organization_name: credential.name,
       tenant_id: tenant_id
     }
   end
@@ -164,28 +210,36 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
 
     if admin_consent == "True"
-      # Find and update the credential
-      credential = OrganizationMicrosoftAppCredential.active_credential
+      # Find the credential from state (supports multi-org)
+      credential = nil
+      admin_email = nil
+      org_name = nil
+
+      if state.present?
+        begin
+          state_data = JSON.parse(Base64.urlsafe_decode64(state))
+          # Multi-org: find by credential_id from state
+          if state_data["credential_id"]
+            credential = OrganizationMicrosoftAppCredential.find_by(id: state_data["credential_id"])
+          end
+          admin_user = User.find_by(id: state_data["admin_id"])
+          admin_email = admin_user&.email
+          org_name = credential&.name
+        rescue => e
+          Rails.logger.warn "[MicrosoftApp] Could not decode state: #{e.message}"
+        end
+      end
+
+      # Fallback to first active credential if state didn't work
+      credential ||= OrganizationMicrosoftAppCredential.active_credential
 
       if credential
         # Test the connection and fetch initial token
         if credential.test_connection!
-          # Get admin email from state if available
-          admin_email = nil
-          if state.present?
-            begin
-              state_data = JSON.parse(Base64.urlsafe_decode64(state))
-              admin_user = User.find_by(id: state_data["admin_id"])
-              admin_email = admin_user&.email
-            rescue => e
-              Rails.logger.warn "[MicrosoftApp] Could not decode state: #{e.message}"
-            end
-          end
-
           credential.mark_admin_consent!(admin_email || "unknown")
-          Rails.logger.info "[MicrosoftApp] Admin consent granted and connection verified for tenant #{tenant}"
+          Rails.logger.info "[MicrosoftApp] Admin consent granted for #{credential.name} (tenant: #{tenant})"
 
-          redirect_to "#{frontend_url}/settings/integrations/microsoft?app_consent_success=true", allow_other_host: true
+          redirect_to "#{frontend_url}/settings/integrations/microsoft?app_consent_success=true&org=#{CGI.escape(credential.name || '')}", allow_other_host: true
         else
           Rails.logger.error "[MicrosoftApp] Admin consent granted but connection test failed: #{credential.last_error}"
           redirect_to "#{frontend_url}/settings/integrations/microsoft?app_consent_error=#{CGI.escape(credential.last_error || 'Connection test failed')}", allow_other_host: true
@@ -200,13 +254,21 @@ class Api::V1::MicrosoftAppController < ApplicationController
   end
 
   # POST /api/v1/microsoft_app/test
-  # Test the connection
+  # Test the connection for a specific organization
   def test
     unless current_user_admin?
       return render json: { error: "Only admins can test organization-wide Microsoft access" }, status: :forbidden
     end
 
-    credential = OrganizationMicrosoftAppCredential.active_credential
+    # Support testing specific org by id or name
+    credential = if params[:organization_id].present?
+                   OrganizationMicrosoftAppCredential.find_by(id: params[:organization_id])
+                 elsif params[:name].present?
+                   OrganizationMicrosoftAppCredential.find_by_name(params[:name])
+                 else
+                   OrganizationMicrosoftAppCredential.active_credential
+                 end
+
     unless credential
       return render json: { error: "No app credential configured" }, status: :not_found
     end
@@ -214,13 +276,16 @@ class Api::V1::MicrosoftAppController < ApplicationController
     if credential.test_connection!
       render json: {
         success: true,
-        message: "Connection successful! Can access organization mailboxes.",
+        message: "Connection successful for #{credential.name}! Can access organization mailboxes.",
+        organization_id: credential.id,
+        organization_name: credential.name,
         status: credential.status
       }
     else
       render json: {
         success: false,
         error: credential.last_error,
+        organization_name: credential.name,
         status: credential.status
       }, status: :unprocessable_entity
     end
@@ -278,19 +343,31 @@ class Api::V1::MicrosoftAppController < ApplicationController
   end
 
   # DELETE /api/v1/microsoft_app/disconnect
-  # Remove the organization-wide Microsoft access
+  # Remove the organization-wide Microsoft access for a specific org
   def disconnect
     unless current_user_admin?
       return render json: { error: "Only admins can disconnect organization-wide Microsoft access" }, status: :forbidden
     end
 
-    credential = OrganizationMicrosoftAppCredential.active_credential
-    credential&.deactivate!
+    # Support disconnecting specific org by id or name
+    credential = if params[:organization_id].present?
+                   OrganizationMicrosoftAppCredential.find_by(id: params[:organization_id])
+                 elsif params[:name].present?
+                   OrganizationMicrosoftAppCredential.find_by_name(params[:name])
+                 else
+                   OrganizationMicrosoftAppCredential.active_credential
+                 end
 
-    render json: {
-      success: true,
-      message: "Organization-wide Microsoft access has been disconnected"
-    }
+    if credential
+      org_name = credential.name
+      credential.deactivate!
+      render json: {
+        success: true,
+        message: "Organization-wide Microsoft access for #{org_name} has been disconnected"
+      }
+    else
+      render json: { error: "No organization found to disconnect" }, status: :not_found
+    end
   end
 
   # ==========================================
@@ -510,7 +587,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
   def admin_consent_url_for(credential)
     redirect_uri = "#{request.base_url}/api/v1/microsoft_app/admin_consent_callback"
 
-    state_data = { admin_id: current_user&.id }
+    # Include credential_id in state for multi-org support
+    state_data = {
+      admin_id: current_user&.id,
+      credential_id: credential.id,
+      org_name: credential.name
+    }
     state = Base64.urlsafe_encode64(state_data.to_json)
 
     "https://login.microsoftonline.com/#{credential.tenant_id}/adminconsent?" + URI.encode_www_form({

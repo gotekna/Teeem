@@ -2,6 +2,7 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   # This uses the Client Credentials flow (application permissions)
   # No user interaction needed after admin consent is granted
   # Can access ANY user's mailbox in the tenant
+  # Supports MULTIPLE Microsoft 365 tenants (Tekna, 100xBestLife, Homes of Hope, Love Your World)
 
   belongs_to :setup_by, class_name: "User", optional: true
 
@@ -13,17 +14,34 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   validates :client_id, presence: true
   validates :tenant_id, presence: true
   validates :client_secret, presence: true
+  validates :name, presence: true, uniqueness: true
 
   # Scopes
   scope :active, -> { where(is_active: true) }
+  scope :connected, -> { active.where(status: "connected") }
 
-  # Singleton pattern - only one active credential
+  # Multi-org support - returns all active credentials
+  def self.active_credentials
+    active.order(:name)
+  end
+
+  # Legacy singleton pattern - returns first active for backward compatibility
   def self.active_credential
     active.first
   end
 
+  # Find by organization name
+  def self.find_by_name(name)
+    active.find_by(name: name)
+  end
+
   def self.connected?
-    active_credential&.status == "connected"
+    connected.exists?
+  end
+
+  # Check if any organization is connected
+  def self.any_connected?
+    connected.exists?
   end
 
   # Check if token is expired or about to expire (within 5 minutes)
