@@ -45,7 +45,7 @@ const FILE_EXTENSION_OPTIONS = [
 // Placeholder definitions with scope
 const PLACEHOLDERS = {
   company: [
-    { code: "{CompanyCode}", example: "TH", longCode: "{DisplayName}", longExample: "Tekna Homes", color: "purple" },
+    { code: "{CompanyCode}", example: "TH", longCode: "{CompanyName}", longExample: "Tekna Homes", color: "purple" },
     { code: "{LoanID}", example: "L001", longCode: "{LoanName}", longExample: "Loan to ABC Trust", color: "purple" },
     { code: "{AssetCode}", example: "PROP1", longCode: "{AssetName}", longExample: "123 Main Street", color: "purple" },
     { code: "{FY}", label: "FY{FY}", example: "FY25", color: "purple" },
