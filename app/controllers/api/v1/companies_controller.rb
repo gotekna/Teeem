@@ -451,7 +451,7 @@ module Api
           by_folder: documents.group(:folder).count,
           by_document_type: documents.group(:document_type).count,
           by_ai_status: documents.group(:ai_verification_status).count,
-          with_files: documents.where.not(cloudinary_public_id: [ nil, "" ]).count,
+          with_files: documents.where.not(file_url: [ nil, "" ]).count,
           verified: documents.where(ai_verification_status: "verified").count,
           needs_review: documents.where(ai_verification_status: %w[mismatch needs_review pending]).count,
           latest_upload: documents.maximum(:created_at),
@@ -497,7 +497,7 @@ module Api
 
         # File types (CAD/BIM from job_documents if this company has associated jobs)
         # For now, just company documents file breakdown
-        file_extensions = documents.where.not(cloudinary_public_id: nil)
+        file_extensions = documents.where.not(file_url: nil)
           .pluck(:title)
           .map { |t| File.extname(t.to_s).downcase }
           .compact
@@ -550,7 +550,7 @@ module Api
         }
 
         # 2. Documents with Files
-        docs_with_files = documents.where.not(cloudinary_public_id: [ nil, "" ]).count
+        docs_with_files = documents.where.not(file_url: [ nil, "" ]).count
         file_rate = total_docs > 0 ? (docs_with_files.to_f / total_docs * 100).round(1) : 100
 
         checks << {

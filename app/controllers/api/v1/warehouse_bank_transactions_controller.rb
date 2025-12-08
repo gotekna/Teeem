@@ -6,9 +6,13 @@ module Api
       def index
         transactions = WarehouseBankTransaction.active
 
-        # Filter by bank account
+        # Filter by bank account (single or multiple)
         if params[:bank_account_id].present?
           transactions = transactions.for_bank_account(params[:bank_account_id])
+        elsif params[:bank_account_ids].present?
+          # Support filtering by multiple bank account IDs (comma-separated)
+          account_ids = params[:bank_account_ids].split(",").map(&:strip)
+          transactions = transactions.where(bank_account_id: account_ids)
         end
 
         if params[:bank_account_name].present?
