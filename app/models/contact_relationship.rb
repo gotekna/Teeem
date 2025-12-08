@@ -2,40 +2,199 @@ class ContactRelationship < ApplicationRecord
   belongs_to :source_contact, class_name: "Contact"
   belongs_to :related_contact, class_name: "Contact"
 
-  # Relationship type options
-  RELATIONSHIP_TYPES = [
-    # Employment
-    "employee_of",
-    "contractor_for",
+  # Relationship type options with metadata
+  # source_types: what entity types can BE this relationship
+  # target_types: what entity types can be the TARGET of this relationship
+  # category: grouping for UI display
+  RELATIONSHIP_TYPE_METADATA = {
+    # Employment - Person works for Company/Trust
+    "employee_of" => {
+      label: "Employee",
+      category: "employment",
+      source_types: %w[person],
+      target_types: %w[company trust sole_trader],
+      description: "Works as an employee"
+    },
+    "contractor_for" => {
+      label: "Contractor",
+      category: "employment",
+      source_types: %w[person sole_trader company],
+      target_types: %w[company trust sole_trader],
+      description: "Works as a contractor"
+    },
 
-    # Company roles
-    "director_of",
-    "shareholder_of",
-    "authorized_signatory_of",
-    "beneficial_owner_of",
+    # Company/Trust roles - Person has role in Company/Trust
+    "director_of" => {
+      label: "Director",
+      category: "company_role",
+      source_types: %w[person company], # Companies can be corporate directors
+      target_types: %w[company],
+      description: "Director of the company",
+      syncs_to_corporate: true
+    },
+    "shareholder_of" => {
+      label: "Shareholder",
+      category: "company_role",
+      source_types: %w[person company trust], # Companies/Trusts can own shares
+      target_types: %w[company],
+      description: "Holds shares in the company",
+      syncs_to_corporate: true
+    },
+    "authorized_signatory_of" => {
+      label: "Authorized Signatory",
+      category: "company_role",
+      source_types: %w[person],
+      target_types: %w[company trust],
+      description: "Authorized to sign on behalf of"
+    },
+    "beneficial_owner_of" => {
+      label: "Beneficial Owner",
+      category: "company_role",
+      source_types: %w[person company trust],
+      target_types: %w[company trust],
+      description: "Ultimate beneficial owner"
+    },
+    "partner_in" => {
+      label: "Partner",
+      category: "company_role",
+      source_types: %w[person company],
+      target_types: %w[company],
+      description: "Partner in the business"
+    },
 
     # Trust roles
-    "trustee_of",
-    "beneficiary_of",
-    "appointor_of",
+    "trustee_of" => {
+      label: "Trustee",
+      category: "trust_role",
+      source_types: %w[person company], # Corporate trustees are common
+      target_types: %w[trust],
+      description: "Trustee of the trust"
+    },
+    "beneficiary_of" => {
+      label: "Beneficiary",
+      category: "trust_role",
+      source_types: %w[person company trust], # Trusts can be beneficiaries
+      target_types: %w[trust],
+      description: "Beneficiary of the trust"
+    },
+    "appointor_of" => {
+      label: "Appointor",
+      category: "trust_role",
+      source_types: %w[person company],
+      target_types: %w[trust],
+      description: "Appointor of the trust"
+    },
 
     # Ownership
-    "owner_of",
-    "co_owner_with",
+    "owner_of" => {
+      label: "Owner",
+      category: "ownership",
+      source_types: %w[person company trust],
+      target_types: %w[company trust sole_trader],
+      description: "Owner of the entity"
+    },
+    "co_owner_with" => {
+      label: "Co-Owner",
+      category: "ownership",
+      source_types: %w[person company trust],
+      target_types: %w[person company trust],
+      description: "Co-owner with another entity"
+    },
 
-    # Business relationships
-    "partner_in",
-    "parent_company",
-    "subsidiary",
+    # Corporate hierarchy
+    "parent_company" => {
+      label: "Parent Company",
+      category: "corporate_structure",
+      source_types: %w[company trust],
+      target_types: %w[company trust],
+      description: "Parent company of"
+    },
+    "subsidiary" => {
+      label: "Subsidiary",
+      category: "corporate_structure",
+      source_types: %w[company trust],
+      target_types: %w[company trust],
+      description: "Subsidiary of"
+    },
 
-    # Legacy/General
-    "previous_client",
-    "referral",
-    "supplier_alternate",
-    "related_project",
-    "family_member",
-    "other"
-  ].freeze
+    # General relationships
+    "previous_client" => {
+      label: "Previous Client",
+      category: "general",
+      source_types: %w[person company trust sole_trader],
+      target_types: %w[person company trust sole_trader],
+      description: "Former client relationship"
+    },
+    "referral" => {
+      label: "Referral",
+      category: "general",
+      source_types: %w[person company trust sole_trader],
+      target_types: %w[person company trust sole_trader],
+      description: "Referred by or referred to"
+    },
+    "supplier_alternate" => {
+      label: "Alternative Supplier",
+      category: "general",
+      source_types: %w[company sole_trader],
+      target_types: %w[company sole_trader],
+      description: "Alternative supplier for same products"
+    },
+    "related_project" => {
+      label: "Related Project",
+      category: "general",
+      source_types: %w[person company trust sole_trader],
+      target_types: %w[person company trust sole_trader],
+      description: "Related through a project"
+    },
+    "family_member" => {
+      label: "Family Member",
+      category: "personal",
+      source_types: %w[person],
+      target_types: %w[person],
+      description: "Family relationship"
+    },
+    "other" => {
+      label: "Other",
+      category: "general",
+      source_types: %w[person company trust sole_trader],
+      target_types: %w[person company trust sole_trader],
+      description: "Other relationship type"
+    }
+  }.freeze
+
+  # Simple list for validation (backwards compatible)
+  RELATIONSHIP_TYPES = RELATIONSHIP_TYPE_METADATA.keys.freeze
+
+  # Helper method to get valid relationship types for a source → target combination
+  # If target_entity_type is nil, returns all types where source matches
+  def self.valid_types_for(source_entity_type:, target_entity_type: nil)
+    RELATIONSHIP_TYPE_METADATA.select do |_type, meta|
+      source_match = source_entity_type.nil? || meta[:source_types].include?(source_entity_type)
+      target_match = target_entity_type.nil? || meta[:target_types].include?(target_entity_type)
+      source_match && target_match
+    end.keys
+  end
+
+  # Helper method to get relationship types by category
+  def self.types_by_category
+    RELATIONSHIP_TYPE_METADATA.group_by { |_type, meta| meta[:category] }
+      .transform_values { |pairs| pairs.map(&:first) }
+  end
+
+  # Get metadata as array for API responses
+  def self.relationship_types_with_metadata
+    RELATIONSHIP_TYPE_METADATA.map do |type, meta|
+      {
+        value: type,
+        label: meta[:label],
+        category: meta[:category],
+        source_types: meta[:source_types],
+        target_types: meta[:target_types],
+        description: meta[:description],
+        syncs_to_corporate: meta[:syncs_to_corporate] || false
+      }
+    end
+  end
 
   # Validations
   validates :relationship_type, presence: true, inclusion: { in: RELATIONSHIP_TYPES }
