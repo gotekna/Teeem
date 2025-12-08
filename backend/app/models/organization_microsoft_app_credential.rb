@@ -14,7 +14,7 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   validates :client_id, presence: true
   validates :tenant_id, presence: true
   validates :client_secret, presence: true
-  validates :name, presence: true, uniqueness: true
+  validates :name, presence: true, uniqueness: { scope: :is_active, conditions: -> { where(is_active: true) }, message: "is already used by an active organization" }
 
   # Scopes
   scope :active, -> { where(is_active: true) }

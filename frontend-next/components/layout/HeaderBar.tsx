@@ -73,6 +73,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const [office365Status, setOffice365Status] = React.useState<ConnectionStatus>('disconnected');
   const [xeroTooltip, setXeroTooltip] = React.useState('Xero: Not Connected');
   const [office365Tooltip, setOffice365Tooltip] = React.useState('Office 365: Not Connected');
+  const [contactsHealthScore, setContactsHealthScore] = React.useState<number | null>(null);
 
   // Fetch unread message count and integration statuses
   React.useEffect(() => {
@@ -152,8 +153,20 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       }
     };
 
+    const fetchContactsHealth = async () => {
+      try {
+        const response = await api.get<{ health_score?: number }>("/api/v1/contacts/health");
+        if (response?.health_score !== undefined) {
+          setContactsHealthScore(Math.round(response.health_score));
+        }
+      } catch (error) {
+        console.debug("Failed to fetch contacts health:", error);
+      }
+    };
+
     fetchUnreadCount();
     fetchIntegrationStatus();
+    fetchContactsHealth();
 
     // Poll every 30 seconds for unread count
     const interval = setInterval(fetchUnreadCount, 30000);
@@ -299,14 +312,24 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             <Database className="h-4 w-4" />
           </Link>
 
-          {/* Health Check - link to full page */}
+          {/* Contacts Health - link to full page */}
           <Link
             href="/system-health"
-            className="p-1.5 text-red-500 hover:text-red-600 rounded-md transition-colors"
-            title="Data Health Dashboard"
+            className="flex items-center gap-1.5 px-2 py-1 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white rounded-md transition-colors"
+            title="Contacts Data Health"
           >
-            <span className="sr-only">Data Health</span>
-            <HeartPulse className="h-4 w-4" />
+            <HeartPulse className="h-4 w-4 text-red-500" />
+            <span className="text-xs font-medium hidden sm:inline">Contacts</span>
+            {contactsHealthScore !== null && (
+              <span className={cn(
+                "text-xs font-bold px-1.5 py-0.5 rounded",
+                contactsHealthScore >= 80 ? "bg-green-100 text-green-700" :
+                contactsHealthScore >= 60 ? "bg-yellow-100 text-yellow-700" :
+                "bg-red-100 text-red-700"
+              )}>
+                {contactsHealthScore}%
+              </span>
+            )}
           </Link>
 
           {/* Inspiring Banner - centered */}
