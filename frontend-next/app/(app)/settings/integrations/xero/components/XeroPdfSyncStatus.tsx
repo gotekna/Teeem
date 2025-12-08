@@ -213,12 +213,25 @@ export function XeroPdfSyncStatus() {
   };
 
   // Format time for next sync display (Brisbane time)
-  const formatNextSync = (dateString: string | null) => {
+  // If next_sync_at is in the past, we need to calculate when the NEXT scheduled run should be
+  const formatNextSync = (dateString: string | null, schedule?: string) => {
     if (!dateString) return null;
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = date.getTime() - now.getTime();
     const diffMins = Math.round(diffMs / 60000);
+
+    // If the scheduled time is in the past, calculate when the next one should be
+    if (diffMins < -5) {
+      // More than 5 minutes overdue - show as overdue
+      const overdueMinutes = Math.abs(diffMins);
+      if (overdueMinutes < 60) {
+        return `overdue ${overdueMinutes}m`;
+      } else {
+        const hours = Math.floor(overdueMinutes / 60);
+        return `overdue ${hours}h`;
+      }
+    }
 
     if (diffMins <= 0) return "Starting soon";
     if (diffMins < 60) return `in ${diffMins} min`;
@@ -279,7 +292,11 @@ export function XeroPdfSyncStatus() {
       <div className="flex justify-between text-xs text-muted-foreground">
         <span>Last: {formatDate(lastSync)}</span>
         {nextSync && (
-          <span className="text-blue-600 font-medium">
+          <span className={`font-medium ${
+            formatNextSync(nextSync)?.startsWith("overdue")
+              ? "text-red-600"
+              : "text-blue-600"
+          }`}>
             Next: {formatNextSync(nextSync)}
           </span>
         )}
