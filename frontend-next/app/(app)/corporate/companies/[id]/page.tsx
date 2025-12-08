@@ -4692,7 +4692,7 @@ function XeroBankAccountsCard({ companyId }: { companyId: string }) {
                   return (
                     <tr key={tx.transaction_id} className="border-b hover:bg-muted/30">
                       <td className="py-2 px-3 whitespace-nowrap">
-                        {format(new Date(tx.date), "dd MMM yyyy")}
+                        {tx.date ? format(new Date(tx.date), "dd MMM yyyy") : "—"}
                       </td>
                       <td className="py-2 px-3">
                         <div className="max-w-xs truncate" title={tx.description}>
