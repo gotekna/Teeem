@@ -20,7 +20,7 @@
 #   service.sync_all_pending(limit: 100)
 
 class EmailSharePointService
-  # SharePoint site path - store under Documents/Emails
+  # OneDrive path - store under Emails folder
   EMAILS_FOLDER = "Emails"
 
   # Tekna internal domains - all go under @tekna.com.au folder
@@ -29,10 +29,13 @@ class EmailSharePointService
   class NotConnectedError < StandardError; end
   class UploadError < StandardError; end
 
-  attr_reader :client, :results
+  attr_reader :client, :results, :credential
 
   def initialize
-    @client = MicrosoftAppGraphClient.new
+    @credential = OrganizationOneDriveCredential.active_credential
+    raise NotConnectedError, "No Organization OneDrive configured" unless @credential
+
+    @client = MicrosoftGraphClient.new(@credential)
     @results = {
       processed: 0,
       uploaded: 0,
@@ -277,21 +280,13 @@ class EmailSharePointService
       .strip
   end
 
-  # Get the SharePoint site and drive info
-  def get_site_drive
-    # Use the TEEEM SharePoint site
-    credential = OrganizationOneDriveCredential.active_credential
-    raise NotConnectedError, "No Organization OneDrive configured" unless credential
-
-    {
-      site_id: credential.site_id,
-      drive_id: credential.drive_id
-    }
+  # Get drive path prefix for Graph API calls
+  def drive_path
+    @credential.drive_id ? "/drives/#{@credential.drive_id}" : "/me/drive"
   end
 
   # Ensure a folder path exists, creating folders as needed
   def ensure_folder_exists(folder_path)
-    drive = get_site_drive
     path_parts = folder_path.split("/")
     current_path = ""
 
@@ -301,27 +296,20 @@ class EmailSharePointService
 
       begin
         # Try to access the folder - if it exists, continue
-        endpoint = "/drives/#{drive[:drive_id]}/root:/#{current_path}"
-        response = HTTP.auth("Bearer #{access_token}")
-                       .get("https://graph.microsoft.com/v1.0#{endpoint}")
-
-        next if response.status.success?
-
+        @client.get("#{drive_path}/root:/#{current_path}")
+      rescue MicrosoftGraphClient::APIError => e
         # Folder doesn't exist, create it
-        create_folder(drive[:drive_id], parent_path, folder_name)
-      rescue StandardError => e
-        # Create folder on any error
-        create_folder(drive[:drive_id], parent_path, folder_name)
+        create_folder(parent_path, folder_name)
       end
     end
   end
 
-  # Create a folder in SharePoint
-  def create_folder(drive_id, parent_path, folder_name)
+  # Create a folder in OneDrive
+  def create_folder(parent_path, folder_name)
     endpoint = if parent_path == "root"
-      "/drives/#{drive_id}/root/children"
+      "#{drive_path}/root/children"
     else
-      "/drives/#{drive_id}/root:/#{parent_path}:/children"
+      "#{drive_path}/root:/#{parent_path}:/children"
     end
 
     body = {
@@ -330,60 +318,37 @@ class EmailSharePointService
       "@microsoft.graph.conflictBehavior" => "replace"
     }
 
-    response = HTTP.auth("Bearer #{access_token}")
-                   .headers("Content-Type" => "application/json")
-                   .post("https://graph.microsoft.com/v1.0#{endpoint}", json: body)
-
-    unless response.status.success?
-      error_body = JSON.parse(response.body.to_s) rescue {}
+    begin
+      @client.post(endpoint, body)
+    rescue MicrosoftGraphClient::APIError => e
       # Ignore "name already exists" errors
-      unless error_body.dig("error", "code") == "nameAlreadyExists"
-        raise UploadError, "Failed to create folder '#{folder_name}': #{response.body}"
-      end
+      raise UploadError, "Failed to create folder '#{folder_name}': #{e.message}" unless e.message.include?("nameAlreadyExists")
     end
-
-    JSON.parse(response.body.to_s) rescue {}
   end
 
-  # Upload a file to SharePoint
+  # Upload a file to OneDrive
   def upload_file(folder_path, filename, content)
-    drive = get_site_drive
-
     # For small files (< 4MB), use simple upload
-    endpoint = "/drives/#{drive[:drive_id]}/root:/#{folder_path}/#{CGI.escape(filename)}:/content"
+    endpoint = "#{drive_path}/root:/#{folder_path}/#{CGI.escape(filename)}:/content"
 
-    response = HTTP.auth("Bearer #{access_token}")
-                   .headers("Content-Type" => "message/rfc822")
-                   .put("https://graph.microsoft.com/v1.0#{endpoint}", body: content)
+    result = @client.put(endpoint, content, { "Content-Type" => "message/rfc822" })
 
-    unless response.status.success?
-      raise UploadError, "Failed to upload '#{filename}': #{response.body}"
-    end
-
-    result = JSON.parse(response.body.to_s)
     {
       id: result["id"],
       name: result["name"],
       web_url: result["webUrl"],
       size: result["size"]
     }
+  rescue MicrosoftGraphClient::APIError => e
+    raise UploadError, "Failed to upload '#{filename}': #{e.message}"
   end
 
-  # Download a file from SharePoint by file ID
+  # Download a file from OneDrive by file ID
   def download_file(file_id)
-    drive = get_site_drive
-    endpoint = "/drives/#{drive[:drive_id]}/items/#{file_id}/content"
-
-    response = HTTP.auth("Bearer #{access_token}")
-                   .get("https://graph.microsoft.com/v1.0#{endpoint}")
-
-    return nil unless response.status.success?
-    response.body.to_s
-  end
-
-  # Get access token
-  def access_token
-    @client.send(:access_token)
+    @client.download_file(file_id)
+  rescue MicrosoftGraphClient::APIError => e
+    Rails.logger.error "[EmailSharePoint] Failed to download file #{file_id}: #{e.message}"
+    nil
   end
 
   # Sanitize folder name (remove invalid SharePoint characters)
