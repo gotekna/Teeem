@@ -410,8 +410,8 @@ module HealthChecks
       # Include all fields needed by the merge modal
       # Note: completeness_score is calculated, not a column - don't select it
       contacts = Contact.where(deleted: [ false, nil ])
-                       .select(:id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :entity_type, :is_team_contact, :primary_company_id)
-                       .includes(:jobs, :purchase_orders)
+                       .select(:id, :display_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :entity_type, :is_team_contact, :primary_company_id)
+                       .includes(:jobs, :purchase_orders, :primary_company)
 
       case type
       when :name
