@@ -6,9 +6,9 @@ class AddNameToMicrosoftCredentialsAndRemoveSingletonConstraints < ActiveRecord:
     add_column :organization_outlook_credentials, :name, :string
 
     # Remove unique constraint on is_active (allows multiple active orgs)
-    # organization_microsoft_app_credentials
+    # organization_microsoft_app_credentials - use full index name as created by Rails
     remove_index :organization_microsoft_app_credentials,
-                 name: "index_org_microsoft_app_credentials_on_is_active",
+                 name: "index_organization_microsoft_app_credentials_on_is_active",
                  if_exists: true
 
     # organization_one_drive_credentials

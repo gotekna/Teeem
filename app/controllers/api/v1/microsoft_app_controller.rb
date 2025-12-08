@@ -234,6 +234,13 @@ class Api::V1::MicrosoftAppController < ApplicationController
       credential ||= OrganizationMicrosoftAppCredential.active_credential
 
       if credential
+        # Update the credential with the actual tenant_id from the org that granted consent
+        # This is important for multi-tenant apps where we use 'organizations' endpoint
+        if tenant.present? && tenant != credential.tenant_id
+          credential.update!(tenant_id: tenant)
+          Rails.logger.info "[MicrosoftApp] Updated tenant_id for #{credential.name} to #{tenant}"
+        end
+
         # Test the connection and fetch initial token
         if credential.test_connection!
           credential.mark_admin_consent!(admin_email || "unknown")
@@ -595,7 +602,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
     }
     state = Base64.urlsafe_encode64(state_data.to_json)
 
-    "https://login.microsoftonline.com/#{credential.tenant_id}/adminconsent?" + URI.encode_www_form({
+    # Use 'organizations' for multi-tenant apps - allows any Azure AD tenant to consent
+    # The actual tenant_id will be captured from the callback response
+    "https://login.microsoftonline.com/organizations/adminconsent?" + URI.encode_www_form({
       client_id: credential.client_id,
       redirect_uri: redirect_uri,
       state: state
