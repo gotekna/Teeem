@@ -1096,8 +1096,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "contact_types", default: [], array: true
-    t.index ["contact_types"], name: "index_contact_roles_on_contact_types", using: :gin
+    t.text "contact_types", default: "{}"
     t.index ["name"], name: "index_contact_roles_on_name", unique: true
   end
 
@@ -1138,7 +1137,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
     t.datetime "updated_at", null: false
     t.datetime "last_synced_at"
     t.text "xero_sync_error"
-    t.string "roles", default: [], array: true
+    t.text "roles", default: "{}"
     t.integer "rating", default: 0
     t.decimal "response_rate", precision: 5, scale: 2, default: "0.0"
     t.integer "avg_response_time"
@@ -1216,7 +1215,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
     t.index ["rating"], name: "index_contacts_on_rating"
-    t.index ["roles"], name: "index_contacts_on_roles", using: :gin
     t.index ["supplier_code"], name: "index_contacts_on_supplier_code", unique: true, where: "(supplier_code IS NOT NULL)"
     t.index ["sys_type_id"], name: "index_contacts_on_sys_type_id"
     t.index ["teeem_rating"], name: "index_contacts_on_teeem_rating"
@@ -2361,6 +2359,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
     t.index ["xero_tracking_option_id"], name: "index_jobs_on_xero_tracking_option_id"
   end
 
+  create_table "known_parties", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "email"
+    t.string "phone"
+    t.string "organisation"
+    t.string "relationship_type"
+    t.string "default_alignment", default: "neutral"
+    t.text "notes"
+    t.bigint "contact_id"
+    t.integer "seen_count", default: 1
+    t.datetime "last_seen_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_known_parties_on_contact_id"
+    t.index ["email"], name: "index_known_parties_on_email", unique: true, where: "(email IS NOT NULL)"
+    t.index ["name", "organisation"], name: "index_known_parties_on_name_and_organisation", unique: true
+    t.index ["relationship_type"], name: "index_known_parties_on_relationship_type"
+  end
+
   create_table "kudos_events", force: :cascade do |t|
     t.bigint "subcontractor_account_id", null: false
     t.bigint "quote_response_id"
@@ -2602,23 +2619,23 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
     t.text "client_secret"
     t.string "tenant_id", null: false
     t.text "access_token"
-    t.datetime "token_expires_at"
+    t.datetime "token_expires_at", precision: nil
     t.boolean "is_active", default: true
     t.string "status", default: "pending"
     t.text "last_error"
-    t.datetime "admin_consent_granted_at"
+    t.datetime "admin_consent_granted_at", precision: nil
     t.string "admin_consent_granted_by"
     t.jsonb "sync_config", default: {}
-    t.datetime "last_sync_at"
+    t.datetime "last_sync_at", precision: nil
     t.bigint "setup_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
+    t.datetime "created_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.string "name"
+    t.index ["is_active"], name: "index_org_microsoft_app_credentials_on_is_active", unique: true, where: "(is_active = true)"
     t.index ["is_active"], name: "index_org_ms_app_creds_on_is_active"
-    t.index ["is_active"], name: "index_organization_microsoft_app_credentials_on_is_active", unique: true, where: "(is_active = true)"
     t.index ["name"], name: "index_org_ms_app_creds_on_name"
     t.index ["setup_by_id"], name: "index_organization_microsoft_app_credentials_on_setup_by_id"
-    t.index ["tenant_id"], name: "index_organization_microsoft_app_credentials_on_tenant_id"
+    t.index ["tenant_id"], name: "index_org_microsoft_app_credentials_on_tenant_id"
   end
 
   create_table "organization_one_drive_credentials", force: :cascade do |t|
@@ -3860,6 +3877,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
   end
 
+  create_table "tables", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "singular_name"
+    t.string "plural_name"
+    t.string "database_table_name", null: false
+    t.string "icon"
+    t.string "title_column"
+    t.boolean "searchable", default: true
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["database_table_name"], name: "index_tables_on_database_table_name", unique: true
+  end
+
   create_table "task_dependencies", force: :cascade do |t|
     t.bigint "successor_task_id", null: false
     t.bigint "predecessor_task_id", null: false
@@ -4764,6 +4795,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
   add_foreign_key "jobs", "job_status", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
   add_foreign_key "jobs", "users", column: "archived_by_id", on_delete: :nullify
+  add_foreign_key "known_parties", "contacts"
   add_foreign_key "kudos_events", "purchase_orders"
   add_foreign_key "kudos_events", "quote_responses"
   add_foreign_key "kudos_events", "subcontractor_accounts"
@@ -4783,7 +4815,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
   add_foreign_key "meetings", "users", column: "created_by_id"
   add_foreign_key "notifications", "users"
   add_foreign_key "one_drive_credentials", "jobs"
-  add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id"
+  add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id", name: "organization_microsoft_app_credentials_setup_by_id_fkey"
   add_foreign_key "organization_one_drive_credentials", "users", column: "connected_by_id"
   add_foreign_key "pay_now_requests", "contacts"
   add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
