@@ -178,6 +178,32 @@ interface ViewData {
   data: Record<string, unknown>[];
 }
 
+// Microsoft 365 organization stats
+interface MicrosoftOrgStats {
+  name: string;
+  connected: boolean;
+  credential_id?: number;
+  tenant_id?: string;
+  status: string;
+  last_sync_at?: string;
+  admin_consent_granted_at?: string;
+  admin_consent_granted_by?: string;
+  stats: {
+    emails: number;
+    email_storage_bytes: number;
+    linked_to_job: number;
+    last_email_received?: string;
+  };
+}
+
+interface MicrosoftOrgStatsResponse {
+  success: boolean;
+  organizations: MicrosoftOrgStats[];
+  total_connected: number;
+  total_emails: number;
+  generated_at: string;
+}
+
 export function DataWarehouseTab() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -195,6 +221,7 @@ export function DataWarehouseTab() {
   const [loadingViewData, setLoadingViewData] = React.useState(false);
   const [viewOffset, setViewOffset] = React.useState(0);
   const [companyName, setCompanyName] = React.useState<string | null>(null);
+  const [microsoftOrgStats, setMicrosoftOrgStats] = React.useState<MicrosoftOrgStatsResponse | null>(null);
   const PAGE_SIZE = 50;
 
   // Load company name if filtering by company
@@ -216,6 +243,7 @@ export function DataWarehouseTab() {
     loadStats();
     loadWarehouseStatus();
     loadWarehouseMetadata();
+    loadMicrosoftOrgStats();
   }, [companyId]);
 
   const clearCompanyFilter = () => {
@@ -320,6 +348,17 @@ export function DataWarehouseTab() {
       }
     } catch (error) {
       console.error("Failed to load warehouse metadata:", error);
+    }
+  };
+
+  const loadMicrosoftOrgStats = async () => {
+    try {
+      const response = await api.get<MicrosoftOrgStatsResponse>("/api/v1/organization/microsoft_org_stats");
+      if (response?.success) {
+        setMicrosoftOrgStats(response);
+      }
+    } catch (error) {
+      console.error("Failed to load Microsoft org stats:", error);
     }
   };
 
@@ -478,8 +517,19 @@ export function DataWarehouseTab() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="flex flex-wrap gap-1">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          {/* Microsoft 365 Organization Tabs */}
+          {microsoftOrgStats?.organizations.map((org) => (
+            <TabsTrigger key={org.name} value={`org-${org.name}`} className="gap-1">
+              {org.name}
+              {org.connected ? (
+                <CheckCircle className="h-3 w-3 text-green-500" />
+              ) : (
+                <XCircle className="h-3 w-3 text-muted-foreground" />
+              )}
+            </TabsTrigger>
+          ))}
           <TabsTrigger value="browse">Browse Views</TabsTrigger>
           <TabsTrigger value="data">View Data</TabsTrigger>
         </TabsList>
@@ -745,6 +795,117 @@ export function DataWarehouseTab() {
             </Card>
           )}
         </TabsContent>
+
+        {/* Microsoft 365 Organization Tabs */}
+        {microsoftOrgStats?.organizations.map((org) => (
+          <TabsContent key={org.name} value={`org-${org.name}`} className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "p-2 rounded-lg",
+                      org.connected ? "bg-green-100 dark:bg-green-900/30" : "bg-gray-100 dark:bg-gray-800"
+                    )}>
+                      <Building2 className={cn(
+                        "h-5 w-5",
+                        org.connected ? "text-green-600 dark:text-green-400" : "text-gray-400"
+                      )} />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">{org.name} Microsoft 365</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        {org.connected
+                          ? `Connected since ${org.admin_consent_granted_at ? format(new Date(org.admin_consent_granted_at), "PPP") : "unknown"}`
+                          : "Not connected to Microsoft 365"
+                        }
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={org.connected ? "default" : "secondary"}>
+                    {org.connected ? (
+                      <><CheckCircle className="h-3 w-3 mr-1" /> Connected</>
+                    ) : (
+                      <><XCircle className="h-3 w-3 mr-1" /> Not Connected</>
+                    )}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {org.connected ? (
+                  <div className="space-y-6">
+                    {/* Stats Cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="p-4 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Mail className="h-4 w-4 text-blue-500" />
+                          <span className="text-sm font-medium">Emails</span>
+                        </div>
+                        <p className="text-2xl font-bold">{org.stats.emails.toLocaleString()}</p>
+                      </div>
+                      <div className="p-4 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <HardDrive className="h-4 w-4 text-purple-500" />
+                          <span className="text-sm font-medium">Storage</span>
+                        </div>
+                        <p className="text-2xl font-bold">
+                          {org.stats.email_storage_bytes > 1073741824
+                            ? `${(org.stats.email_storage_bytes / 1073741824).toFixed(1)} GB`
+                            : `${(org.stats.email_storage_bytes / 1048576).toFixed(0)} MB`
+                          }
+                        </p>
+                      </div>
+                      <div className="p-4 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <FolderOpen className="h-4 w-4 text-green-500" />
+                          <span className="text-sm font-medium">Linked to Jobs</span>
+                        </div>
+                        <p className="text-2xl font-bold">{org.stats.linked_to_job.toLocaleString()}</p>
+                      </div>
+                      <div className="p-4 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Clock className="h-4 w-4 text-orange-500" />
+                          <span className="text-sm font-medium">Last Sync</span>
+                        </div>
+                        <p className="text-lg font-medium">
+                          {org.last_sync_at
+                            ? format(new Date(org.last_sync_at), "PPp")
+                            : "Never"
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Additional Info */}
+                    <div className="text-sm text-muted-foreground">
+                      {org.stats.last_email_received && (
+                        <p>Last email received: {format(new Date(org.stats.last_email_received), "PPp")}</p>
+                      )}
+                      {org.admin_consent_granted_by && (
+                        <p>Admin consent by: {org.admin_consent_granted_by}</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Not Connected</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      This organization is not yet connected to Microsoft 365.<br />
+                      Connect it from Settings to sync emails and files.
+                    </p>
+                    <Button asChild>
+                      <Link href="/settings/integrations/microsoft">
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Go to Microsoft Settings
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ))}
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">

@@ -1122,6 +1122,7 @@ Rails.application.routes.draw do
 
       # Organization-wide data stats
       get "organization/data_stats", to: "organization#data_stats"
+      get "organization/microsoft_org_stats", to: "organization#microsoft_org_stats"
 
       # Organization settings (job folder name format, etc.)
       get "organization_settings", to: "organization#settings"

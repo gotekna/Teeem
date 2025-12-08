@@ -33,6 +33,63 @@ module Api
         end
       end
 
+      # GET /api/v1/organization/microsoft_org_stats
+      # Returns statistics for each connected Microsoft 365 organization
+      def microsoft_org_stats
+        all_credentials = OrganizationMicrosoftAppCredential.order(:name)
+
+        # Define all possible orgs (including not-connected ones)
+        all_org_names = [ "Tekna", "100xBestLife", "Homes of Hope", "Love Your World" ]
+
+        org_stats = all_org_names.map do |org_name|
+          credential = all_credentials.find { |c| c.name == org_name }
+
+          if credential&.status == "connected"
+            # Get email stats for this org
+            emails = EmailWarehouse.for_microsoft_credential(credential.id)
+            total_size = emails.sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
+
+            {
+              name: org_name,
+              connected: true,
+              credential_id: credential.id,
+              tenant_id: credential.tenant_id,
+              status: credential.status,
+              last_sync_at: credential.last_sync_at,
+              admin_consent_granted_at: credential.admin_consent_granted_at,
+              admin_consent_granted_by: credential.admin_consent_granted_by,
+              stats: {
+                emails: emails.count,
+                email_storage_bytes: total_size,
+                linked_to_job: emails.where.not(job_id: nil).count,
+                last_email_received: emails.maximum(:received_at)
+              }
+            }
+          else
+            {
+              name: org_name,
+              connected: false,
+              credential_id: credential&.id,
+              status: credential&.status || "not_configured",
+              stats: {
+                emails: 0,
+                email_storage_bytes: 0,
+                linked_to_job: 0,
+                last_email_received: nil
+              }
+            }
+          end
+        end
+
+        render json: {
+          success: true,
+          organizations: org_stats,
+          total_connected: org_stats.count { |o| o[:connected] },
+          total_emails: EmailWarehouse.count,
+          generated_at: Time.current
+        }
+      end
+
       # GET /api/v1/organization/data_stats
       # Returns organization-wide data warehouse statistics
       def data_stats
