@@ -220,6 +220,9 @@ interface Contact {
   is_family_member: boolean;
   is_team_contact: boolean;
   xero_contact_id: string | null;
+  xero_id?: string | null;
+  xero_contact_number?: string | null;
+  xero_contact_status?: string | null;
   xero_contact_types: string[];
   sync_with_xero: boolean;
   created_at: string;
