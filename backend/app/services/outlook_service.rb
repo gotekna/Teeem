@@ -108,6 +108,64 @@ class OutlookService
     end
   end
 
+  # Delete an email from Outlook
+  def delete_email(message_id)
+    url = "#{GRAPH_API_BASE}/me/messages/#{message_id}"
+    response = make_request(url, :delete)
+
+    if response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPNoContent)
+      Rails.logger.info "Deleted email from Outlook: #{message_id}"
+      true
+    else
+      Rails.logger.error "Failed to delete Outlook email: #{response.code} - #{response.body}"
+      false
+    end
+  end
+
+  # Move email to a different folder
+  def move_to_folder(message_id, destination_folder_id)
+    url = "#{GRAPH_API_BASE}/me/messages/#{message_id}/move"
+    response = make_request(url, :post, { destinationId: destination_folder_id })
+
+    if response.is_a?(Net::HTTPSuccess)
+      Rails.logger.info "Moved email #{message_id} to folder #{destination_folder_id}"
+      true
+    else
+      Rails.logger.error "Failed to move Outlook email: #{response.code} - #{response.body}"
+      false
+    end
+  end
+
+  # Move email to Deleted Items
+  def move_to_trash(message_id)
+    deleted_folder_id = get_special_folder_id('deleteditems')
+    return false unless deleted_folder_id
+
+    move_to_folder(message_id, deleted_folder_id)
+  end
+
+  # Move email to Junk folder
+  def move_to_junk(message_id)
+    junk_folder_id = get_special_folder_id('junkemail')
+    return false unless junk_folder_id
+
+    move_to_folder(message_id, junk_folder_id)
+  end
+
+  # Get ID of a well-known folder (deleteditems, junkemail, inbox, sentitems)
+  def get_special_folder_id(folder_name)
+    url = "#{GRAPH_API_BASE}/me/mailFolders/#{folder_name}"
+    response = make_request(url)
+
+    if response.is_a?(Net::HTTPSuccess)
+      data = JSON.parse(response.body)
+      data['id']
+    else
+      Rails.logger.error "Failed to get special folder #{folder_name}: #{response.code} - #{response.body}"
+      nil
+    end
+  end
+
   # Get attachments for an email
   def get_attachments(message_id)
     url = "#{GRAPH_API_BASE}/me/messages/#{message_id}/attachments"
@@ -168,6 +226,8 @@ class OutlookService
       req = Net::HTTP::Post.new(uri.request_uri)
       req.body = body.to_json if body
       req
+    when :delete
+      Net::HTTP::Delete.new(uri.request_uri)
     end
 
     request["Authorization"] = "Bearer #{@access_token}"

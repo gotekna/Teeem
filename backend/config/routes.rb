@@ -507,10 +507,15 @@ Rails.application.routes.draw do
           post :sync
           post :sync_for_job
           get "for_job/:job_id", action: :for_job
+          get :spam
+          post :bulk_delete_spam
+          get :rules
         end
         member do
           post :assign_to_job
           post :unassign
+          post :mark_as_spam
+          delete :delete_from_outlook
         end
       end
 

@@ -216,4 +216,100 @@ namespace :cases do
     end
     puts "\n"
   end
+
+  desc "Preview ephemeral emails that would be cleaned up"
+  task preview_ephemeral_cleanup: :environment do
+    puts "\n========================================="
+    puts "Ephemeral Email Cleanup Preview"
+    puts "=========================================\n"
+
+    # Show what's currently marked as ephemeral
+    ephemeral_emails = EmailWarehouse
+      .where("email_classification->>'ephemeral' = ?", "true")
+
+    puts "Total ephemeral emails: #{ephemeral_emails.count}\n"
+
+    # Group by type
+    by_type = ephemeral_emails.group("email_classification->>'ephemeral_type'").count
+    puts "\nBy type:"
+    by_type.each do |type, count|
+      puts "  #{type}: #{count}"
+    end
+
+    # Show expired
+    expired = ephemeral_emails.where("(email_classification->>'expires_at')::timestamp < ?", Time.current)
+    puts "\nExpired (would be deleted): #{expired.count}"
+
+    if expired.count > 0
+      puts "\nSample expired emails:"
+      expired.limit(10).each do |email|
+        expires_at = email.email_classification["expires_at"]
+        type = email.email_classification["ephemeral_type"]
+        puts "  - [#{type}] #{email.subject.to_s.truncate(50)} (expired #{expires_at})"
+      end
+    end
+
+    puts "\nTo actually clean up, run: rails emails:cleanup_ephemeral"
+    puts "To also delete from Outlook: rails emails:cleanup_ephemeral_with_outlook\n"
+  end
+
+  desc "Clean up expired ephemeral emails (database only)"
+  task cleanup_ephemeral: :environment do
+    CleanupEphemeralEmailsJob.execute!(delete_from_outlook: false)
+  end
+
+  desc "Clean up expired ephemeral emails (database AND Outlook)"
+  task cleanup_ephemeral_with_outlook: :environment do
+    CleanupEphemeralEmailsJob.execute!(delete_from_outlook: true)
+  end
+
+  desc "Reclassify all emails currently marked as spam (to fix false positives)"
+  task reclassify_spam: :environment do
+    puts "\n========================================="
+    puts "Reclassifying Spam Emails"
+    puts "=========================================\n"
+
+    spam_emails = EmailWarehouse.spam
+    total = spam_emails.count
+    puts "Found #{total} emails currently classified as spam\n"
+
+    return if total.zero?
+
+    reclassified = 0
+    still_spam = 0
+    failed = 0
+
+    spam_emails.find_each do |email|
+      # Clear the current classification and reclassify
+      old_type = email.email_classification["email_type"]
+      result = EmailClassificationService.new(email).classify!
+
+      if result[:email_type] != "spam"
+        reclassified += 1
+        puts "  ✓ Reclassified: #{email.from_email} - #{email.subject.to_s.truncate(50)} → #{result[:email_type]}"
+      else
+        still_spam += 1
+      end
+    rescue StandardError => e
+      Rails.logger.error "[EmailClassification] Failed to reclassify email #{email.id}: #{e.message}"
+      failed += 1
+    end
+
+    puts "\n========================================="
+    puts "Reclassification Results:"
+    puts "=========================================\n"
+    puts "  Reclassified (no longer spam): #{reclassified}"
+    puts "  Still spam: #{still_spam}"
+    puts "  Failed: #{failed}"
+
+    # Show updated stats
+    puts "\n========================================="
+    puts "Updated Classification Breakdown:"
+    puts "=========================================\n"
+    stats = EmailWarehouse.group("email_classification->>'email_type'").count
+    stats.each do |type, count|
+      puts "  #{(type || 'unclassified').ljust(20)} #{count}"
+    end
+    puts "\n"
+  end
 end

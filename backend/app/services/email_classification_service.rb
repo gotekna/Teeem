@@ -55,6 +55,50 @@ class EmailClassificationService
     noreply
   ].freeze
 
+  # Trusted internal/business domains - NEVER classify as spam
+  TRUSTED_DOMAINS = %w[
+    tekna.com.au
+    bunnings.com.au
+    harveynorman.com.au
+    joii.org
+    bartleylaw.com
+    moorelawyers.com.au
+    heartwoodind.com.au
+    a1servicesgroup.com.au
+    australianqc.com.au
+    titusplus.com
+  ].freeze
+
+  # Automated/ephemeral emails - short retention period (7 days)
+  # These are useful briefly but become noise quickly
+  EPHEMERAL_PATTERNS = {
+    github_notifications: {
+      from_pattern: /notifications@github\.com|noreply@github\.com/i,
+      subject_patterns: [
+        /\[.*\]\s*(Run failed|Run succeeded|Run cancelled)/i,  # GitHub Actions
+        /\[.*\]\s*Build/i,
+        /\[.*\]\s*Deploy/i,
+        /\[.*\]\s*CI/i
+      ],
+      retention_days: 7
+    },
+    calendar_notifications: {
+      from_pattern: /calendar-notification@google\.com|noreply@calendar\.google\.com/i,
+      subject_patterns: [ /reminder:/i, /invitation:/i, /updated invitation/i ],
+      retention_days: 7
+    },
+    system_alerts: {
+      from_pattern: /heroku|sentry|datadog|pingdom|uptime/i,
+      subject_patterns: [ /alert/i, /down/i, /recovered/i, /warning/i ],
+      retention_days: 14
+    },
+    shipping_tracking: {
+      from_pattern: /auspost|startrack|dhl|fedex|ups|tracking/i,
+      subject_patterns: [ /tracking|shipped|delivered|in transit/i ],
+      retention_days: 30
+    }
+  }.freeze
+
   # Transactional email indicators
   TRANSACTIONAL_KEYWORDS = [
     /your\s+(order|receipt|invoice|payment)/i,
@@ -110,13 +154,41 @@ class EmailClassificationService
       transactional_score
     )
 
-    {
+    result = {
       email_type: type,
       confidence: confidence,
       signals: collect_signals(subject_score, body_score, domain_score),
       classified_at: Time.current,
       method: "heuristic"
     }
+
+    # Check if this is an ephemeral email with short retention
+    ephemeral_info = detect_ephemeral
+    if ephemeral_info
+      result[:ephemeral] = true
+      result[:ephemeral_type] = ephemeral_info[:type]
+      result[:retention_days] = ephemeral_info[:retention_days]
+      result[:expires_at] = (@email.received_at || Time.current) + ephemeral_info[:retention_days].days
+    end
+
+    result
+  end
+
+  # Detect if email is ephemeral (automated notifications with short retention)
+  def detect_ephemeral
+    from_email = @email.from_email || ""
+    subject = @email.subject || ""
+
+    EPHEMERAL_PATTERNS.each do |type, config|
+      next unless from_email.match?(config[:from_pattern])
+
+      # Check if subject matches any pattern for this type
+      if config[:subject_patterns].any? { |pattern| subject.match?(pattern) }
+        return { type: type, retention_days: config[:retention_days] }
+      end
+    end
+
+    nil
   end
 
   # Check for marketing headers (List-Unsubscribe, Precedence: bulk)
@@ -134,11 +206,41 @@ class EmailClassificationService
   def has_spam_indicators?
     subject = @email.subject || ""
 
-    # All caps subject with 10+ chars
-    return true if subject.length > 10 && subject == subject.upcase
+    # Never classify trusted domains as spam
+    from_domain = (@email.from_email || "").split("@").last&.downcase
+    return false if from_domain && TRUSTED_DOMAINS.any? { |td| from_domain.include?(td) }
 
-    # Excessive punctuation
-    return true if subject.scan(/[!?]/).length >= 3
+    # All caps with 10+ chars - BUT exclude business patterns
+    # (job addresses, legal matters, company names are often caps)
+    if subject.length > 10 && subject == subject.upcase
+      # Skip ALL CAPS check if it looks like a business email
+      # These patterns are common in construction/legal:
+      # - RE:/FW: prefixes
+      # - Contains lot/address numbers
+      # - Contains company suffixes (PTY LTD, etc.)
+      # - Contains legal case references
+      business_patterns = [
+        /^(RE|FW|FWD):/i,                    # Reply/Forward
+        /LOT\s+\d+/i,                         # Lot numbers
+        /PTY\s+LTD/i,                         # Company suffix
+        /\d+\s+[A-Z]+\s+(ST|RD|AVE|DR|CT)/i,  # Street addresses
+        /INV[-\s]?\d+/i,                      # Invoice numbers
+        /ORDER\s+#?\d+/i,                     # Order numbers (with number)
+        /ACCOUNT\s+\d+/i,                     # Account numbers
+        /QUD\d+|BS\d+/i,                      # Court case numbers
+        /LIQUIDAT/i                           # Legal proceedings
+      ]
+
+      is_business_caps = business_patterns.any? { |p| subject.match?(p) }
+      return true unless is_business_caps
+    end
+
+    # Excessive punctuation (3+ !) - BUT only if no business context
+    if subject.scan(/[!]/).length >= 3
+      # "ORDER!!!" from Bunnings is legitimate, check for business context
+      return false if subject.match?(/ORDER|INVOICE|ACCOUNT/i)
+      return true
+    end
 
     # Spam keywords
     SPAM_KEYWORDS.any? { |pattern| subject.match?(pattern) }

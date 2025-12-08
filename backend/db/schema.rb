@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_08_002005) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_08_013841) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1438,6 +1438,26 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_002005) do
     t.index ["name"], name: "index_documentation_categories_on_name", unique: true
   end
 
+  create_table "email_attachments", force: :cascade do |t|
+    t.bigint "email_warehouse_id", null: false
+    t.bigint "company_document_id"
+    t.string "sharepoint_file_id"
+    t.string "sharepoint_path"
+    t.string "outlook_attachment_id"
+    t.string "filename", null: false
+    t.string "content_type"
+    t.bigint "file_size"
+    t.string "content_hash"
+    t.boolean "is_existing_doc", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_document_id"], name: "index_email_attachments_on_company_document_id"
+    t.index ["content_hash"], name: "index_email_attachments_on_content_hash"
+    t.index ["email_warehouse_id"], name: "index_email_attachments_on_email_warehouse_id"
+    t.index ["outlook_attachment_id"], name: "index_email_attachments_on_outlook_attachment_id"
+    t.index ["sharepoint_file_id"], name: "index_email_attachments_on_sharepoint_file_id"
+  end
+
   create_table "email_case_proposals", force: :cascade do |t|
     t.bigint "email_warehouse_id"
     t.bigint "case_record_id"
@@ -1487,6 +1507,23 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_002005) do
     t.index ["email_warehouse_id"], name: "index_email_job_proposals_on_email_warehouse_id"
     t.index ["job_id"], name: "index_email_job_proposals_on_job_id"
     t.index ["status"], name: "index_email_job_proposals_on_status"
+  end
+
+  create_table "email_recipients", force: :cascade do |t|
+    t.bigint "email_warehouse_id", null: false
+    t.bigint "user_id"
+    t.bigint "contact_id"
+    t.string "email_address", null: false
+    t.string "recipient_type", null: false
+    t.boolean "is_internal", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_email_recipients_on_contact_id"
+    t.index ["email_warehouse_id", "email_address"], name: "idx_email_recipients_unique", unique: true
+    t.index ["email_warehouse_id"], name: "index_email_recipients_on_email_warehouse_id"
+    t.index ["is_internal"], name: "index_email_recipients_on_is_internal"
+    t.index ["recipient_type"], name: "index_email_recipients_on_recipient_type"
+    t.index ["user_id"], name: "index_email_recipients_on_user_id"
   end
 
   create_table "email_sync_statuses", force: :cascade do |t|
@@ -1541,8 +1578,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_002005) do
     t.string "user_classification"
     t.datetime "user_classification_at"
     t.bigint "user_classification_by_id"
+    t.string "direction"
+    t.bigint "ssot_owner_id"
+    t.string "sharepoint_file_id"
+    t.string "sharepoint_path"
+    t.datetime "sharepoint_synced_at"
+    t.string "body_preview", limit: 500
+    t.text "ai_summary"
+    t.jsonb "extracted_contacts", default: {}
+    t.jsonb "extracted_entities", default: {}
+    t.jsonb "action_items", default: []
     t.index ["cc_emails"], name: "index_email_warehouse_on_cc_emails", using: :gin
     t.index ["conversation_id"], name: "index_email_warehouse_on_conversation_id"
+    t.index ["direction"], name: "index_email_warehouse_on_direction"
     t.index ["email_classification"], name: "index_email_warehouse_on_email_classification", using: :gin
     t.index ["from_email"], name: "index_email_warehouse_on_from_email"
     t.index ["internet_headers"], name: "index_email_warehouse_on_internet_headers", using: :gin
@@ -1554,6 +1602,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_002005) do
     t.index ["job_id"], name: "index_email_warehouse_on_job_id"
     t.index ["received_at"], name: "index_email_warehouse_on_received_at"
     t.index ["searchable"], name: "index_email_warehouse_on_searchable", using: :gin
+    t.index ["sharepoint_file_id"], name: "index_email_warehouse_on_sharepoint_file_id"
+    t.index ["ssot_owner_id"], name: "index_email_warehouse_on_ssot_owner_id"
     t.index ["synced_by_user_id"], name: "index_email_warehouse_on_synced_by_user_id"
     t.index ["to_emails"], name: "index_email_warehouse_on_to_emails", using: :gin
     t.index ["user_classification"], name: "index_email_warehouse_on_user_classification"
@@ -4610,6 +4660,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_002005) do
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "document_verification_feedbacks", "company_documents"
   add_foreign_key "document_verification_feedbacks", "users"
+  add_foreign_key "email_attachments", "company_documents"
+  add_foreign_key "email_attachments", "email_warehouse"
   add_foreign_key "email_case_proposals", "cases", column: "case_record_id"
   add_foreign_key "email_case_proposals", "email_warehouse"
   add_foreign_key "email_case_proposals", "users", column: "approved_by_id"
@@ -4618,8 +4670,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_002005) do
   add_foreign_key "email_job_proposals", "jobs"
   add_foreign_key "email_job_proposals", "users", column: "approved_by_user_id"
   add_foreign_key "email_job_proposals", "users", column: "created_by_user_id"
+  add_foreign_key "email_recipients", "contacts"
+  add_foreign_key "email_recipients", "email_warehouse"
+  add_foreign_key "email_recipients", "users"
   add_foreign_key "email_sync_statuses", "users"
   add_foreign_key "email_warehouse", "jobs"
+  add_foreign_key "email_warehouse", "users", column: "ssot_owner_id"
   add_foreign_key "email_warehouse", "users", column: "synced_by_user_id"
   add_foreign_key "email_warehouse", "users", column: "user_classification_by_id"
   add_foreign_key "emails", "jobs"

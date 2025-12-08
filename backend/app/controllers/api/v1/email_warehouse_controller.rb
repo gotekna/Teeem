@@ -1,5 +1,5 @@
 class Api::V1::EmailWarehouseController < ApplicationController
-  before_action :set_email, only: [ :show, :assign_to_job, :unassign ]
+  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook ]
 
   # GET /api/v1/email_warehouse
   # List emails from warehouse with filtering
@@ -239,7 +239,200 @@ class Api::V1::EmailWarehouseController < ApplicationController
       conversations: EmailWarehouse.distinct.count(:conversation_id),
       oldest_email: EmailWarehouse.minimum(:received_at),
       newest_email: EmailWarehouse.maximum(:received_at),
-      jobs_with_emails: EmailWarehouse.assigned.distinct.count(:job_id)
+      jobs_with_emails: EmailWarehouse.assigned.distinct.count(:job_id),
+      spam_emails: EmailWarehouse.spam.count,
+      with_ai_summary: EmailWarehouse.with_ai_summary.count
+    }
+  end
+
+  # GET /api/v1/email_warehouse/spam
+  # List all spam emails
+  def spam
+    emails = EmailWarehouse.spam.recent_first
+
+    # Pagination
+    page = (params[:page] || 1).to_i
+    per_page = [ (params[:per_page] || 50).to_i, 200 ].min
+    total = emails.count
+
+    emails = emails.offset((page - 1) * per_page).limit(per_page)
+
+    render json: {
+      emails: emails.map { |e| email_json(e) },
+      pagination: {
+        page: page,
+        per_page: per_page,
+        total: total,
+        total_pages: (total.to_f / per_page).ceil
+      }
+    }
+  end
+
+  # POST /api/v1/email_warehouse/:id/mark_as_spam
+  # Mark a single email as spam
+  def mark_as_spam
+    delete_from_outlook = params[:delete_from_outlook] == "true"
+
+    if delete_from_outlook && current_user.outlook_credential&.valid_credential?
+      outlook_service = OutlookService.new(current_user)
+      @email.mark_as_spam!(delete_from_outlook: true, outlook_service: outlook_service)
+    else
+      @email.mark_as_spam!(delete_from_outlook: false)
+    end
+
+    render json: {
+      success: true,
+      message: delete_from_outlook ? "Email marked as spam and deleted from Outlook" : "Email marked as spam",
+      email: email_json(@email)
+    }
+  end
+
+  # DELETE /api/v1/email_warehouse/:id/delete_from_outlook
+  # Delete a single email from Outlook (without marking as spam)
+  def delete_from_outlook
+    unless current_user.outlook_credential&.valid_credential?
+      return render json: { error: "Outlook not connected" }, status: :unprocessable_entity
+    end
+
+    unless @email.outlook_id.present?
+      return render json: { error: "Email has no Outlook ID" }, status: :unprocessable_entity
+    end
+
+    outlook_service = OutlookService.new(current_user)
+
+    if outlook_service.delete_email(@email.outlook_id)
+      # Mark as deleted in our database
+      @email.update!(
+        email_classification: (@email.email_classification || {}).merge('deleted_from_outlook' => true, 'deleted_at' => Time.current.iso8601)
+      )
+
+      render json: {
+        success: true,
+        message: "Email deleted from Outlook",
+        email_id: @email.id
+      }
+    else
+      render json: { error: "Failed to delete email from Outlook" }, status: :unprocessable_entity
+    end
+  end
+
+  # GET /api/v1/email_warehouse/rules
+  # Get email classification rules and current user's email stats
+  def rules
+    user_email = current_user.email&.downcase
+
+    # Get user's email stats
+    user_emails = EmailWarehouse.where("synced_by_user_id = ? OR LOWER(from_email) = ? OR ? = ANY(LOWER(to_emails::text)::text[])",
+                                       current_user.id, user_email, user_email)
+
+    # Classification breakdown for user
+    classification_counts = user_emails.group("email_classification->>'email_type'").count
+
+    # Ephemeral breakdown
+    ephemeral_count = user_emails.where("email_classification->>'ephemeral' = ?", "true").count
+    expired_ephemeral = user_emails.where("email_classification->>'ephemeral' = ?", "true")
+                                   .where("(email_classification->>'expires_at')::timestamp < ?", Time.current).count
+
+    # Build rules response with current system rules
+    render json: {
+      user_stats: {
+        total_emails: user_emails.count,
+        by_classification: {
+          business: classification_counts["business"] || 0,
+          transactional: classification_counts["transactional"] || 0,
+          marketing: classification_counts["marketing"] || 0,
+          spam: classification_counts["spam"] || 0,
+          unclassified: classification_counts[nil] || 0
+        },
+        ephemeral: {
+          total: ephemeral_count,
+          expired: expired_ephemeral
+        }
+      },
+      rules: {
+        spam_detection: {
+          description: "Emails flagged as spam based on these indicators",
+          indicators: [
+            { name: "ALL CAPS subject", description: "Subject is all capitals with 10+ characters (unless business pattern)" },
+            { name: "Excessive punctuation", description: "3+ exclamation marks in subject" },
+            { name: "Spam keywords", description: "Contains phrases like 'you've won', 'claim your prize', '$$$'" }
+          ],
+          trusted_domains: EmailClassificationService::TRUSTED_DOMAINS,
+          note: "Emails from trusted domains are never marked as spam"
+        },
+        marketing_detection: {
+          description: "Newsletter and promotional email detection",
+          indicators: [
+            { name: "Marketing headers", description: "List-Unsubscribe header, X-Campaign-Id, etc." },
+            { name: "Marketing keywords", description: "Unsubscribe links, 'view in browser', sale/discount language" },
+            { name: "Marketing domains", description: "Known email marketing platforms" }
+          ],
+          marketing_domains: EmailClassificationService::MARKETING_DOMAINS
+        },
+        ephemeral_rules: {
+          description: "Automated emails with limited retention - deleted after expiry",
+          categories: EmailClassificationService::EPHEMERAL_PATTERNS.map do |type, config|
+            {
+              type: type.to_s,
+              retention_days: config[:retention_days],
+              from_pattern: config[:from_pattern].source,
+              examples: ephemeral_examples(type)
+            }
+          end
+        },
+        transactional_detection: {
+          description: "Order confirmations, receipts, shipping notifications",
+          keywords: EmailClassificationService::TRANSACTIONAL_KEYWORDS.map(&:source)
+        }
+      },
+      cleanup_preview: {
+        spam_pending_delete: EmailWarehouse.spam.count,
+        ephemeral_expired: expired_ephemeral
+      }
+    }
+  end
+
+  # POST /api/v1/email_warehouse/bulk_delete_spam
+  # Delete all spam emails from Outlook (and optionally from database)
+  def bulk_delete_spam
+    unless current_user.outlook_credential&.valid_credential?
+      return render json: { error: "Outlook not connected" }, status: :unprocessable_entity
+    end
+
+    outlook_service = OutlookService.new(current_user)
+    spam_emails = EmailWarehouse.spam.where.not(outlook_id: nil)
+
+    deleted_count = 0
+    failed_count = 0
+    errors = []
+
+    spam_emails.find_each do |email|
+      if outlook_service.delete_email(email.outlook_id)
+        # Mark as deleted in our database
+        email.update!(
+          email_classification: (email.email_classification || {}).merge('deleted_from_outlook' => true, 'deleted_at' => Time.current.iso8601)
+        )
+        deleted_count += 1
+      else
+        failed_count += 1
+        errors << "Failed to delete email #{email.id}"
+      end
+    rescue StandardError => e
+      failed_count += 1
+      errors << "Error deleting email #{email.id}: #{e.message}"
+    end
+
+    # Optionally delete from our database too
+    if params[:delete_from_database] == "true"
+      EmailWarehouse.spam.where("email_classification->>'deleted_from_outlook' = ?", 'true').destroy_all
+    end
+
+    render json: {
+      success: failed_count == 0,
+      message: "Deleted #{deleted_count} spam emails from Outlook",
+      deleted_count: deleted_count,
+      failed_count: failed_count,
+      errors: errors.first(10)  # Limit errors in response
     }
   end
 
@@ -338,5 +531,20 @@ class Api::V1::EmailWarehouseController < ApplicationController
       .uniq { |s| s[:email].id }
       .sort_by { |s| -s[:confidence] }
       .first(20)
+  end
+
+  def ephemeral_examples(type)
+    case type
+    when :github_notifications
+      [ "GitHub Actions run failed/succeeded", "CI/CD notifications", "Deploy status" ]
+    when :calendar_notifications
+      [ "Meeting reminders", "Calendar invitations", "Event updates" ]
+    when :system_alerts
+      [ "Heroku alerts", "Sentry error notifications", "Uptime monitors" ]
+    when :shipping_tracking
+      [ "AusPost tracking", "Package delivered", "Shipment in transit" ]
+    else
+      []
+    end
   end
 end

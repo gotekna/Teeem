@@ -10,6 +10,9 @@ description: |
   ║  Email-Contact Match:     33% from, 79% to/cc      [INFO] ║
   ║  Contact Enrichment:      Signature mining ready   [INFO] ║
   ║  Storage Health:          No orphan blobs          [PASS] ║
+  ║  SSoT Architecture:       Direction/Owner tracking [NEW]  ║
+  ║  AI Summaries:            Summarization status     [NEW]  ║
+  ║  Spam Management:         Spam detection/deletion  [NEW]  ║
   ╠═══════════════════════════════════════════════════════════╣
   ║  Focus: Central data quality + contact enrichment         ║
   ║  Covers: Emails, Docs, Jobs, Cases, Contacts, Companies   ║
@@ -45,6 +48,9 @@ Performs comprehensive health checks across all central data stores in TEEEM: Em
 - Monitor storage health (ActiveStorage blobs)
 - Track email classification and search index health
 - Measure email-to-contact match rates
+- Monitor SSoT architecture health (direction, owner, SharePoint sync)
+- Track AI summarization coverage
+- Monitor spam detection and cleanup status
 
 ## When to Use
 
@@ -156,6 +162,63 @@ SELECT 'Xero expired', COUNT(*) FROM company_xero_connections
 SELECT 'Storage MB', ROUND(SUM(byte_size)/1024.0/1024.0, 2) FROM active_storage_blobs;
 SELECT 'Content types', content_type, COUNT(*) FROM active_storage_blobs
   GROUP BY content_type ORDER BY COUNT(*) DESC LIMIT 5;
+```
+
+### Step 5.5: SSoT Architecture Health (NEW)
+
+```sql
+-- Direction tracking
+SELECT 'Emails missing direction', COUNT(*) FROM email_warehouse WHERE direction IS NULL;
+SELECT 'Sent emails', COUNT(*) FROM email_warehouse WHERE direction = 'sent';
+SELECT 'Received emails', COUNT(*) FROM email_warehouse WHERE direction = 'received';
+
+-- Owner tracking
+SELECT 'Emails missing SSoT owner', COUNT(*) FROM email_warehouse WHERE ssot_owner_id IS NULL;
+SELECT 'Emails with owner', COUNT(*) FROM email_warehouse WHERE ssot_owner_id IS NOT NULL;
+
+-- SharePoint sync status
+SELECT 'Emails synced to SharePoint', COUNT(*) FROM email_warehouse WHERE sharepoint_file_id IS NOT NULL;
+SELECT 'Emails pending SharePoint sync', COUNT(*) FROM email_warehouse WHERE sharepoint_file_id IS NULL;
+
+-- Body preview status
+SELECT 'Emails with body_preview', COUNT(*) FROM email_warehouse WHERE body_preview IS NOT NULL;
+SELECT 'Emails missing body_preview', COUNT(*) FROM email_warehouse WHERE body_preview IS NULL AND body_text IS NOT NULL;
+
+-- AI summarization status
+SELECT 'Emails with AI summary', COUNT(*) FROM email_warehouse WHERE ai_summary IS NOT NULL;
+SELECT 'Emails pending AI summary', COUNT(*) FROM email_warehouse
+  WHERE ai_summary IS NULL
+  AND body_text IS NOT NULL
+  AND (email_classification->>'email_type' NOT IN ('spam', 'marketing') OR email_classification IS NULL);
+
+-- Spam status
+SELECT 'Spam emails', COUNT(*) FROM email_warehouse WHERE email_classification->>'email_type' = 'spam';
+SELECT 'Spam deleted from Outlook', COUNT(*) FROM email_warehouse
+  WHERE email_classification->>'email_type' = 'spam'
+  AND email_classification->>'deleted_from_outlook' = 'true';
+SELECT 'Spam pending deletion', COUNT(*) FROM email_warehouse
+  WHERE email_classification->>'email_type' = 'spam'
+  AND (email_classification->>'deleted_from_outlook' IS NULL OR email_classification->>'deleted_from_outlook' != 'true');
+```
+
+### Step 5.6: Email Recipients & Attachments (NEW)
+
+```sql
+-- Email recipients table health
+SELECT 'Email recipients total', COUNT(*) FROM email_recipients;
+SELECT 'Emails with recipients built', COUNT(DISTINCT email_warehouse_id) FROM email_recipients;
+SELECT 'Emails without recipients', COUNT(*) FROM email_warehouse ew
+  WHERE NOT EXISTS (SELECT 1 FROM email_recipients er WHERE er.email_warehouse_id = ew.id);
+
+-- Recipients linked to users/contacts
+SELECT 'Recipients linked to users', COUNT(*) FROM email_recipients WHERE user_id IS NOT NULL;
+SELECT 'Recipients linked to contacts', COUNT(*) FROM email_recipients WHERE contact_id IS NOT NULL;
+SELECT 'Recipients unlinked', COUNT(*) FROM email_recipients WHERE user_id IS NULL AND contact_id IS NULL;
+
+-- Email attachments table health
+SELECT 'Email attachments total', COUNT(*) FROM email_attachments;
+SELECT 'Attachments linked to company_documents', COUNT(*) FROM email_attachments WHERE company_document_id IS NOT NULL;
+SELECT 'Attachments synced to SharePoint', COUNT(*) FROM email_attachments WHERE sharepoint_file_id IS NOT NULL;
 ```
 
 ## Pass/Fail Criteria
@@ -364,6 +427,14 @@ Contact.where(mobile_phone: [nil, ''])
 | Storage Size | < 1GB | 39 MB |
 | Contacts needing enrichment | < 20% | - |
 | Contacts missing phone | < 30% | - |
+| **SSoT Metrics** | | |
+| Emails with direction set | 100% | - |
+| Emails with SSoT owner | 100% | - |
+| Emails synced to SharePoint | > 90% | 0% |
+| Emails with body_preview | 100% | - |
+| Emails with AI summary | > 80% (business) | - |
+| Spam deleted from Outlook | 100% | - |
+| Recipients built | 100% | 0% |
 
 ## Related Agents
 

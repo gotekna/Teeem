@@ -42,6 +42,16 @@ import {
   Settings,
   Users,
   Key,
+  Filter,
+  Trash2,
+  Timer,
+  ShieldCheck,
+  AlertOctagon,
+  Megaphone,
+  Receipt,
+  Github,
+  Bell,
+  Package,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -492,6 +502,9 @@ export default function MicrosoftIntegrationPage() {
         </Collapsible>
       )}
 
+      {/* Email Rules Section */}
+      {status?.connected && <EmailRulesSection />}
+
       {/* Organization-Wide Access - Admin Only */}
       <OrgWideAccessSection />
     </div>
@@ -567,6 +580,290 @@ function ConnectionCard({
         </div>
       </div>
     </div>
+  );
+}
+
+// ============================================
+// Email Rules Section
+// ============================================
+
+interface EmailRulesData {
+  user_stats: {
+    total_emails: number;
+    by_classification: {
+      business: number;
+      transactional: number;
+      marketing: number;
+      spam: number;
+      unclassified: number;
+    };
+    ephemeral: {
+      total: number;
+      expired: number;
+    };
+  };
+  rules: {
+    spam_detection: {
+      description: string;
+      indicators: { name: string; description: string }[];
+      trusted_domains: string[];
+      note: string;
+    };
+    marketing_detection: {
+      description: string;
+      indicators: { name: string; description: string }[];
+      marketing_domains: string[];
+    };
+    ephemeral_rules: {
+      description: string;
+      categories: {
+        type: string;
+        retention_days: number;
+        from_pattern: string;
+        examples: string[];
+      }[];
+    };
+    transactional_detection: {
+      description: string;
+      keywords: string[];
+    };
+  };
+  cleanup_preview: {
+    spam_pending_delete: number;
+    ephemeral_expired: number;
+  };
+}
+
+function EmailRulesSection() {
+  const [rulesData, setRulesData] = React.useState<EmailRulesData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [rulesOpen, setRulesOpen] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchRules = async () => {
+      try {
+        const data = await api.get<EmailRulesData>("/api/v1/email_warehouse/rules");
+        setRulesData(data);
+      } catch (err) {
+        console.error("Failed to fetch email rules:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRules();
+  }, []);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!rulesData) return null;
+
+  const stats = rulesData.user_stats;
+  const rules = rulesData.rules;
+
+  return (
+    <Collapsible open={rulesOpen} onOpenChange={setRulesOpen}>
+      <Card>
+        <CollapsibleTrigger className="w-full text-left">
+          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 rounded-lg">
+                  <Filter className="h-5 w-5 text-indigo-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Email Rules & Classification</CardTitle>
+                  <CardDescription className="text-xs">
+                    How your emails are categorized and cleaned up
+                  </CardDescription>
+                </div>
+              </div>
+              <ChevronDown
+                className={`h-5 w-5 text-muted-foreground transition-transform ${
+                  rulesOpen ? "rotate-180" : ""
+                }`}
+              />
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-0 space-y-6">
+            {/* Your Email Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="border rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-blue-600">{stats.by_classification.business}</div>
+                <div className="text-xs text-muted-foreground">Business</div>
+              </div>
+              <div className="border rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-green-600">{stats.by_classification.transactional}</div>
+                <div className="text-xs text-muted-foreground">Transactional</div>
+              </div>
+              <div className="border rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-orange-600">{stats.by_classification.marketing}</div>
+                <div className="text-xs text-muted-foreground">Marketing</div>
+              </div>
+              <div className="border rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-red-600">{stats.by_classification.spam}</div>
+                <div className="text-xs text-muted-foreground">Spam</div>
+              </div>
+              <div className="border rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-gray-600">{stats.by_classification.unclassified}</div>
+                <div className="text-xs text-muted-foreground">Unclassified</div>
+              </div>
+            </div>
+
+            {/* Rule Categories */}
+            <div className="space-y-4">
+              {/* Spam Rules */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertOctagon className="h-5 w-5 text-red-500" />
+                  <h3 className="font-medium">Spam Detection</h3>
+                  {rulesData.cleanup_preview.spam_pending_delete > 0 && (
+                    <Badge variant="destructive" className="text-xs">
+                      {rulesData.cleanup_preview.spam_pending_delete} pending
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">{rules.spam_detection.description}</p>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-xs font-medium text-muted-foreground mb-2">Spam Indicators</h4>
+                    <ul className="text-sm space-y-1">
+                      {rules.spam_detection.indicators.map((ind, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <XCircle className="h-3 w-3 text-red-500 mt-1 flex-shrink-0" />
+                          <span><strong>{ind.name}:</strong> {ind.description}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-medium text-muted-foreground mb-2">
+                      <ShieldCheck className="h-3 w-3 inline mr-1" />
+                      Trusted Domains (never spam)
+                    </h4>
+                    <div className="flex flex-wrap gap-1">
+                      {rules.spam_detection.trusted_domains.map((domain, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs font-mono">
+                          {domain}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ephemeral/Auto-Cleanup Rules */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Timer className="h-5 w-5 text-amber-500" />
+                  <h3 className="font-medium">Auto-Cleanup Rules</h3>
+                  {stats.ephemeral.expired > 0 && (
+                    <Badge className="bg-amber-100 text-amber-800 text-xs">
+                      {stats.ephemeral.expired} expired
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">{rules.ephemeral_rules.description}</p>
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {rules.ephemeral_rules.categories.map((cat, i) => (
+                    <div key={i} className="border rounded p-3 bg-muted/30">
+                      <div className="flex items-center gap-2 mb-2">
+                        {cat.type === "github_notifications" && <Github className="h-4 w-4 text-gray-700" />}
+                        {cat.type === "calendar_notifications" && <Bell className="h-4 w-4 text-orange-500" />}
+                        {cat.type === "system_alerts" && <AlertTriangle className="h-4 w-4 text-red-500" />}
+                        {cat.type === "shipping_tracking" && <Package className="h-4 w-4 text-blue-500" />}
+                        <span className="font-medium text-sm capitalize">{cat.type.replace(/_/g, " ")}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                        <Clock className="h-3 w-3" />
+                        <span>Keep for {cat.retention_days} days</span>
+                      </div>
+                      <ul className="text-xs text-muted-foreground">
+                        {cat.examples.map((ex, j) => (
+                          <li key={j}>• {ex}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Marketing Rules */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Megaphone className="h-5 w-5 text-orange-500" />
+                  <h3 className="font-medium">Marketing Detection</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">{rules.marketing_detection.description}</p>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-xs font-medium text-muted-foreground mb-2">Detection Signals</h4>
+                    <ul className="text-sm space-y-1">
+                      {rules.marketing_detection.indicators.map((ind, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <Megaphone className="h-3 w-3 text-orange-500 mt-1 flex-shrink-0" />
+                          <span><strong>{ind.name}:</strong> {ind.description}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-medium text-muted-foreground mb-2">Known Marketing Platforms</h4>
+                    <div className="flex flex-wrap gap-1">
+                      {rules.marketing_detection.marketing_domains.slice(0, 8).map((domain, i) => (
+                        <Badge key={i} variant="outline" className="text-xs font-mono">
+                          {domain}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transactional Rules */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Receipt className="h-5 w-5 text-green-500" />
+                  <h3 className="font-medium">Transactional Detection</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-2">{rules.transactional_detection.description}</p>
+                <p className="text-xs text-muted-foreground">
+                  Detected by keywords: order confirmations, receipts, payment notifications, shipping updates
+                </p>
+              </div>
+            </div>
+
+            {/* Cleanup Actions */}
+            {(rulesData.cleanup_preview.spam_pending_delete > 0 || rulesData.cleanup_preview.ephemeral_expired > 0) && (
+              <Alert>
+                <Trash2 className="h-4 w-4" />
+                <AlertTitle>Cleanup Available</AlertTitle>
+                <AlertDescription>
+                  {rulesData.cleanup_preview.spam_pending_delete > 0 && (
+                    <span>{rulesData.cleanup_preview.spam_pending_delete} spam emails can be deleted. </span>
+                  )}
+                  {rulesData.cleanup_preview.ephemeral_expired > 0 && (
+                    <span>{rulesData.cleanup_preview.ephemeral_expired} expired automated emails can be cleaned up. </span>
+                  )}
+                  <span className="text-muted-foreground">Cleanup runs automatically at 3am daily.</span>
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
 

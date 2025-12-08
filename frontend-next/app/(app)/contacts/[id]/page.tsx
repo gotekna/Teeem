@@ -106,6 +106,16 @@ const formatABN = (abn: string | null) => {
   return abn;
 };
 
+// Helper function to format ACN as XXX XXX XXX
+const formatACN = (acn: string | null) => {
+  if (!acn) return "";
+  const digits = acn.replace(/\D/g, "");
+  if (digits.length === 9) {
+    return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
+  }
+  return acn;
+};
+
 // Validate ABN - must be 11 digits
 const validateABN = (abn: string | null): { isValid: boolean; error?: string } => {
   if (!abn || abn.trim() === "") return { isValid: true }; // Empty is OK
@@ -684,6 +694,7 @@ function SortableEmployeeItem({
           min={1}
           value={positionInput}
           onChange={(e) => setPositionInput(e.target.value)}
+          onFocus={(e) => e.target.select()}
           onBlur={() => {
             const newPos = parseInt(positionInput);
             if (!isNaN(newPos) && newPos >= 1) {
@@ -853,6 +864,7 @@ function SortableCompanyItem({
           min={1}
           value={positionInput}
           onChange={(e) => setPositionInput(e.target.value)}
+          onFocus={(e) => e.target.select()}
           onBlur={() => {
             const newPos = parseInt(positionInput);
             if (!isNaN(newPos) && newPos >= 1) {
@@ -1840,6 +1852,8 @@ export default function ContactDetailPage() {
     try {
       const company_ids = newCompanies.map(c => parseInt(c.value));
       await api.post(`/api/v1/contacts/${contact!.id}/reorder_companies`, { company_ids });
+      // Reload to update Primary Company display
+      await loadContact();
     } catch (err) {
       console.error("Failed to reorder companies:", err);
       alert("Failed to save company order");
@@ -1861,6 +1875,8 @@ export default function ContactDetailPage() {
     try {
       const company_ids = newCompanies.map(c => parseInt(c.value));
       await api.post(`/api/v1/contacts/${contact!.id}/reorder_companies`, { company_ids });
+      // Reload to update Primary Company display
+      await loadContact();
     } catch (err) {
       console.error("Failed to reorder companies:", err);
       loadContact();
@@ -2715,6 +2731,7 @@ export default function ContactDetailPage() {
                               </p>
                             }
                             disabled={loadingCompanies}
+                            hidePlaceholderWhenSelected={false}
                             className="w-full bg-white dark:bg-gray-950"
                           />
 
@@ -3138,13 +3155,13 @@ export default function ContactDetailPage() {
                             {contact.primary_company.abn && (
                               <div className="flex items-center gap-2 text-sm">
                                 <span className="text-xs text-muted-foreground font-medium">ABN:</span>
-                                <span className="font-mono">{contact.primary_company.abn}</span>
+                                <span className="font-mono">{formatABN(contact.primary_company.abn)}</span>
                               </div>
                             )}
                             {contact.primary_company.acn && (
                               <div className="flex items-center gap-2 text-sm">
                                 <span className="text-xs text-muted-foreground font-medium">ACN:</span>
-                                <span className="font-mono">{contact.primary_company.acn}</span>
+                                <span className="font-mono">{formatACN(contact.primary_company.acn)}</span>
                               </div>
                             )}
                           </div>
