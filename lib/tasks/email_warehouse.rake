@@ -1,29 +1,54 @@
 namespace :email_warehouse do
-  desc "Delete all spam emails from Outlook"
+  desc "Delete all spam emails from Outlook using org-wide credentials"
   task delete_spam: :environment do
-    # Find a user with valid Outlook credentials
-    user = User.joins(:outlook_credential).where("outlook_credentials.expires_at > ?", Time.current).first
+    # Get org-wide Microsoft credentials
+    credential = OrganizationMicrosoftAppCredential.active_credential
 
-    if user.nil?
-      puts "No user with valid Outlook credentials found!"
+    if credential.nil?
+      puts "No active organization Microsoft credential found!"
       exit 1
     end
 
-    puts "Using user: #{user.email}"
+    unless credential.status == "connected"
+      puts "Microsoft credential is not connected (status: #{credential.status})"
+      exit 1
+    end
 
-    outlook_service = OutlookService.new(user)
+    puts "Using org-wide Microsoft credential (tenant: #{credential.tenant_id})"
+
+    # Get valid access token
+    access_token = credential.valid_access_token
+    if access_token.nil?
+      puts "Failed to get access token!"
+      exit 1
+    end
+
     spam_emails = EmailWarehouse.where("email_classification->>'email_type' = ?", "spam")
                                 .where.not(outlook_id: nil)
                                 .where("email_classification->>'deleted_from_outlook' IS NULL OR email_classification->>'deleted_from_outlook' != 'true'")
+                                .includes(:synced_by_user)
 
     puts "Found #{spam_emails.count} spam emails to delete"
 
     deleted_count = 0
     failed_count = 0
+    skipped_count = 0
 
     spam_emails.find_each do |email|
       begin
-        if outlook_service.delete_email(email.outlook_id)
+        # Get the user whose mailbox contains this email
+        user = email.synced_by_user
+        if user.nil? || user.email.blank?
+          skipped_count += 1
+          next
+        end
+
+        # Delete via Graph API using application permissions
+        # Format: DELETE /users/{user-email}/messages/{message-id}
+        url = "https://graph.microsoft.com/v1.0/users/#{user.email}/messages/#{email.outlook_id}"
+        response = HTTP.auth("Bearer #{access_token}").delete(url)
+
+        if response.status.success? || response.status == 404  # 404 = already deleted
           email.update!(
             email_classification: (email.email_classification || {}).merge(
               "deleted_from_outlook" => true,
@@ -33,6 +58,7 @@ namespace :email_warehouse do
           deleted_count += 1
           print "." if deleted_count % 10 == 0
         else
+          puts "\nFailed to delete email #{email.id}: #{response.status} - #{response.body.to_s.truncate(100)}"
           failed_count += 1
         end
       rescue => e
@@ -41,7 +67,7 @@ namespace :email_warehouse do
       end
     end
 
-    puts "\n\nCompleted! Deleted: #{deleted_count}, Failed: #{failed_count}"
+    puts "\n\nCompleted! Deleted: #{deleted_count}, Failed: #{failed_count}, Skipped: #{skipped_count}"
   end
 
   desc "Run backfill job to set direction, body_preview, ssot_owner_id"
