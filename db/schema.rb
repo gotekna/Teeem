@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_08_032007) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_08_040919) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -206,6 +206,33 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_032007) do
     t.index ["company_id"], name: "index_bank_accounts_on_company_id"
     t.index ["status"], name: "index_bank_accounts_on_status"
     t.index ["xero_account_id"], name: "index_bank_accounts_on_xero_account_id"
+  end
+
+  create_table "bank_statement_reports", force: :cascade do |t|
+    t.string "bank_account_id", null: false
+    t.string "bank_account_name", null: false
+    t.string "financial_year", null: false
+    t.integer "month"
+    t.integer "year"
+    t.string "report_type", default: "monthly"
+    t.date "period_start"
+    t.date "period_end"
+    t.integer "transaction_count", default: 0
+    t.decimal "total_in", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_out", precision: 15, scale: 2, default: "0.0"
+    t.decimal "net_change", precision: 15, scale: 2, default: "0.0"
+    t.string "cloudinary_public_id"
+    t.string "cloudinary_url"
+    t.string "file_name"
+    t.integer "file_size"
+    t.datetime "generated_at"
+    t.string "status", default: "pending"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bank_account_id", "financial_year", "month"], name: "idx_bank_reports_unique", unique: true
+    t.index ["financial_year"], name: "index_bank_statement_reports_on_financial_year"
+    t.index ["status"], name: "index_bank_statement_reports_on_status"
   end
 
   create_table "bank_transactions", force: :cascade do |t|

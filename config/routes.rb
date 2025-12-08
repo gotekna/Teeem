@@ -1061,6 +1061,18 @@ Rails.application.routes.draw do
         end
       end
 
+      # Bank Statement Reports (stored PDFs for ATO compliance)
+      resources :bank_statement_reports, only: [ :index, :show ] do
+        collection do
+          post :generate_all
+          get :by_structure
+        end
+        member do
+          get :download
+          post :regenerate
+        end
+      end
+
       # OneDrive integration (per-job - legacy)
       get "onedrive/authorize", to: "one_drive#authorize"
       get "onedrive/callback", to: "one_drive#callback"
