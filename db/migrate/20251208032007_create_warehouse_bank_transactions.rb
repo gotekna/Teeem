@@ -19,9 +19,9 @@ class CreateWarehouseBankTransactions < ActiveRecord::Migration[8.0]
       t.boolean :is_reconciled, default: false
 
       # Contact
-      t.string :contact_id
+      t.string :xero_contact_id  # Xero's contact ID
       t.string :contact_name
-      t.references :contact, foreign_key: true, null: true
+      t.references :contact, foreign_key: true, null: true  # TEEEM contact FK
 
       # Amounts
       t.decimal :sub_total, precision: 15, scale: 2
@@ -55,7 +55,7 @@ class CreateWarehouseBankTransactions < ActiveRecord::Migration[8.0]
       t.index :transaction_date
       t.index [:transaction_year, :transaction_month]
       t.index :financial_year
-      t.index :contact_id
+      t.index :xero_contact_id
     end
   end
 end

@@ -78,6 +78,12 @@ production:
       queue: default
       schedule: every 30 minutes
 
+    # Bank transaction sync (every 6 hours)
+    xero_bank_transaction_sync:
+      class: XeroBankTransactionSyncJob
+      queue: low
+      schedule: every 6 hours at minute 30
+
     # ============================================
     # DATA WAREHOUSE RECURRING JOBS
     # ============================================
