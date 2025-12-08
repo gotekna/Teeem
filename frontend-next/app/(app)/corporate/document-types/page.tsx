@@ -71,6 +71,16 @@ interface DocumentType extends TableRow {
 export default function DocumentTypesPage() {
   const router = useRouter();
   const [loading, setLoading] = React.useState(true);
+
+  // Handle row click - navigate to detail page
+  const handleRowClick = React.useCallback((row: DocumentType) => {
+    router.push(`/admin/system/document-types/${row.id}`);
+  }, [router]);
+
+  // Handle row double-click
+  const handleRowDoubleClick = React.useCallback((row: DocumentType) => {
+    router.push(`/admin/system/document-types/${row.id}`);
+  }, [router]);
   const [documentTypes, setDocumentTypes] = React.useState<DocumentType[]>([]);
   const [columns] = React.useState(buildDocumentTypeColumns());
   const [showAddForm, setShowAddForm] = React.useState(false);
@@ -375,6 +385,8 @@ export default function DocumentTypesPage() {
         columns={columns}
         onEdit={handleEdit}
         onRowUpdate={handleRowUpdate}
+        onRowClick={handleRowClick}
+        onRowDoubleClick={handleRowDoubleClick}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
         enableExport={true}
