@@ -20,7 +20,13 @@ import {
   Users,
   ChevronDown,
   ChevronRight,
+  Activity,
+  Database,
+  Download,
+  Upload,
+  FileText,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { XeroFieldMapping, XeroContactSync } from "./components/XeroTabs";
@@ -54,6 +60,16 @@ interface ValidationTest {
   error?: string;
 }
 
+interface PdfSyncHealth {
+  stage1_percentage: number;
+  stage2_percentage: number;
+  stage3_percentage: number;
+  overall_status: "healthy" | "in_progress" | "warning" | "not_started" | "partial";
+  stage1_data: { linked: number; total: number };
+  stage2_data: { downloaded: number; total: number };
+  stage3_data: { uploaded: number; total: number };
+}
+
 export default function XeroIntegrationPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -66,6 +82,7 @@ export default function XeroIntegrationPage() {
   const [validationTests, setValidationTests] = React.useState<ValidationTest[]>([]);
   const [runningTests, setRunningTests] = React.useState(false);
   const [healthCheckExpanded, setHealthCheckExpanded] = React.useState(false);
+  const [pdfSyncHealth, setPdfSyncHealth] = React.useState<PdfSyncHealth | null>(null);
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -74,10 +91,38 @@ export default function XeroIntegrationPage() {
         const statusResponse = await api.xero.getStatus();
         setStatus(statusResponse.data || { connected: false });
 
-        // Fetch all tenants
+        // Fetch all tenants and PDF sync status if connected
         if (statusResponse.data?.connected) {
-          const tenantsResponse = await api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants");
+          const [tenantsResponse, pdfSyncResponse] = await Promise.all([
+            api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants"),
+            api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"),
+          ]);
           setTenants(tenantsResponse.tenants || []);
+
+          // Extract health data from PDF sync response
+          if (pdfSyncResponse.success && pdfSyncResponse.data) {
+            const d = pdfSyncResponse.data;
+            setPdfSyncHealth({
+              stage1_percentage: d.stage1_data_sync?.total_in_database
+                ? Math.round((d.stage1_data_sync.linked_to_contacts / d.stage1_data_sync.total_in_database) * 100)
+                : 0,
+              stage2_percentage: d.stage2_pdf_download?.progress_percentage || d.progress_percentage || 0,
+              stage3_percentage: d.stage3_sharepoint?.progress_percentage || 0,
+              overall_status: d.health?.status || "not_started",
+              stage1_data: {
+                linked: d.stage1_data_sync?.linked_to_contacts || 0,
+                total: d.stage1_data_sync?.total_in_database || 0
+              },
+              stage2_data: {
+                downloaded: d.stage2_pdf_download?.downloaded || d.pdfs_synced || 0,
+                total: d.stage2_pdf_download?.total_to_sync || d.total_invoices || 0
+              },
+              stage3_data: {
+                uploaded: d.stage3_sharepoint?.uploaded || d.sharepoint_uploads || 0,
+                total: d.stage3_sharepoint?.total_to_upload || d.pdfs_synced || 0
+              },
+            });
+          }
         }
       } catch (error) {
         console.error("Failed to fetch Xero data:", error);
@@ -348,10 +393,14 @@ export default function XeroIntegrationPage() {
         }}
         className="space-y-6"
       >
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="connection">
             <Link2 className="h-4 w-4 mr-2" />
             Connection
+          </TabsTrigger>
+          <TabsTrigger value="health">
+            <Activity className="h-4 w-4 mr-2" />
+            Health
           </TabsTrigger>
           <TabsTrigger value="mapping">
             <ArrowRightLeft className="h-4 w-4 mr-2" />
@@ -707,6 +756,259 @@ export default function XeroIntegrationPage() {
             </Card>
           )}
 
+        </TabsContent>
+
+        {/* Health Tab - All health indicators in one place */}
+        <TabsContent value="health" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">System Health Overview</CardTitle>
+              <CardDescription>
+                All Xero integration health indicators at a glance
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Document Sync Stages */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-muted-foreground">Document Sync Pipeline</h4>
+
+                {/* Stage 1: Invoice Data */}
+                <div
+                  className={`flex items-center justify-between p-3 rounded-lg border ${
+                    (pdfSyncHealth?.stage1_percentage ?? 0) >= 95
+                      ? "border-green-500 bg-green-50"
+                      : (pdfSyncHealth?.stage1_percentage ?? 0) >= 50
+                      ? "border-amber-500 bg-amber-50"
+                      : "border-gray-300 bg-gray-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded ${
+                      (pdfSyncHealth?.stage1_percentage ?? 0) >= 95
+                        ? "bg-green-100 text-green-600"
+                        : "bg-purple-100 text-purple-600"
+                    }`}>
+                      <Database className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm">Stage 1: Invoice Data</div>
+                      <div className="text-xs text-muted-foreground">
+                        {pdfSyncHealth?.stage1_data.linked.toLocaleString()} / {pdfSyncHealth?.stage1_data.total.toLocaleString()} linked
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Progress value={pdfSyncHealth?.stage1_percentage ?? 0} className="w-24 h-2" />
+                    <span className={`font-semibold text-sm w-12 text-right ${
+                      (pdfSyncHealth?.stage1_percentage ?? 0) >= 95 ? "text-green-600" : ""
+                    }`}>
+                      {pdfSyncHealth?.stage1_percentage ?? 0}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Stage 2: PDF Download */}
+                <div
+                  className={`flex items-center justify-between p-3 rounded-lg border ${
+                    (pdfSyncHealth?.stage2_percentage ?? 0) >= 95
+                      ? "border-green-500 bg-green-50"
+                      : (pdfSyncHealth?.stage2_percentage ?? 0) >= 50
+                      ? "border-amber-500 bg-amber-50"
+                      : "border-gray-300 bg-gray-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded ${
+                      (pdfSyncHealth?.stage2_percentage ?? 0) >= 95
+                        ? "bg-green-100 text-green-600"
+                        : "bg-blue-100 text-blue-600"
+                    }`}>
+                      <Download className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm">Stage 2: PDF Download</div>
+                      <div className="text-xs text-muted-foreground">
+                        {pdfSyncHealth?.stage2_data.downloaded.toLocaleString()} / {pdfSyncHealth?.stage2_data.total.toLocaleString()} downloaded
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Progress value={pdfSyncHealth?.stage2_percentage ?? 0} className="w-24 h-2" />
+                    <span className={`font-semibold text-sm w-12 text-right ${
+                      (pdfSyncHealth?.stage2_percentage ?? 0) >= 95 ? "text-green-600" : ""
+                    }`}>
+                      {pdfSyncHealth?.stage2_percentage ?? 0}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Stage 3: SharePoint Upload */}
+                <div
+                  className={`flex items-center justify-between p-3 rounded-lg border ${
+                    (pdfSyncHealth?.stage3_percentage ?? 0) >= 95
+                      ? "border-green-500 bg-green-50"
+                      : (pdfSyncHealth?.stage3_percentage ?? 0) >= 50
+                      ? "border-amber-500 bg-amber-50"
+                      : "border-gray-300 bg-gray-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded ${
+                      (pdfSyncHealth?.stage3_percentage ?? 0) >= 95
+                        ? "bg-green-100 text-green-600"
+                        : "bg-green-100 text-green-600"
+                    }`}>
+                      <Upload className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm">Stage 3: SharePoint Upload</div>
+                      <div className="text-xs text-muted-foreground">
+                        {pdfSyncHealth?.stage3_data.uploaded.toLocaleString()} / {pdfSyncHealth?.stage3_data.total.toLocaleString()} uploaded
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Progress value={pdfSyncHealth?.stage3_percentage ?? 0} className="w-24 h-2" />
+                    <span className={`font-semibold text-sm w-12 text-right ${
+                      (pdfSyncHealth?.stage3_percentage ?? 0) >= 95 ? "text-green-600" : ""
+                    }`}>
+                      {pdfSyncHealth?.stage3_percentage ?? 0}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Integration Health Check */}
+              <div className="space-y-3 pt-2">
+                <h4 className="text-sm font-medium text-muted-foreground">Integration Tests</h4>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (validationTests.length === 0) {
+                      runValidationTests();
+                    }
+                    setHealthCheckExpanded(!healthCheckExpanded);
+                  }}
+                  className={`w-full justify-between ${
+                    validationTests.length > 0
+                      ? validationTests.every(t => t.status === "passed")
+                        ? "border-green-500 bg-green-50 hover:bg-green-100 text-green-700"
+                        : validationTests.some(t => t.status === "failed")
+                        ? "border-red-500 bg-red-50 hover:bg-red-100 text-red-700"
+                        : "border-gray-300"
+                      : "border-gray-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {validationTests.length > 0 ? (
+                      validationTests.every(t => t.status === "passed") ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      ) : validationTests.some(t => t.status === "failed") ? (
+                        <XCircle className="h-4 w-4 text-red-600" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    <span>API Health Check</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {validationTests.length > 0 ? (
+                      <span className="font-semibold">
+                        {Math.round((validationTests.filter(t => t.status === "passed").length / validationTests.length) * 100)}%
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">Click to run</span>
+                    )}
+                    {healthCheckExpanded ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </div>
+                </Button>
+
+                {/* Expanded test details */}
+                {healthCheckExpanded && validationTests.length > 0 && (
+                  <div className="space-y-2 pl-4 border-l-2 border-muted">
+                    {validationTests.map((test) => (
+                      <div
+                        key={test.id}
+                        className="flex items-center justify-between py-1"
+                      >
+                        <div className="flex items-center gap-2">
+                          {test.status === "passed" && (
+                            <CheckCircle2 className="h-3 w-3 text-green-600" />
+                          )}
+                          {test.status === "failed" && (
+                            <XCircle className="h-3 w-3 text-red-600" />
+                          )}
+                          {test.status === "running" && (
+                            <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
+                          )}
+                          {test.status === "pending" && (
+                            <div className="h-3 w-3 rounded-full border border-gray-300" />
+                          )}
+                          <span className="text-sm">{test.name}</span>
+                        </div>
+                        {test.error && (
+                          <span className="text-xs text-red-600 truncate max-w-[200px]">{test.error}</span>
+                        )}
+                      </div>
+                    ))}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={runValidationTests}
+                      disabled={runningTests}
+                      className="mt-2"
+                    >
+                      {runningTests ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                      ) : (
+                        <RefreshCw className="h-3 w-3 mr-2" />
+                      )}
+                      Re-run Tests
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Overall Status Badge */}
+              <div className="pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Overall Status</span>
+                  <Badge className={
+                    pdfSyncHealth?.overall_status === "healthy"
+                      ? "bg-green-100 text-green-800"
+                      : pdfSyncHealth?.overall_status === "in_progress"
+                      ? "bg-blue-100 text-blue-800"
+                      : pdfSyncHealth?.overall_status === "warning"
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-gray-100 text-gray-800"
+                  }>
+                    {pdfSyncHealth?.overall_status === "healthy" && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                    {pdfSyncHealth?.overall_status === "in_progress" && <RefreshCw className="h-3 w-3 mr-1 animate-spin" />}
+                    {pdfSyncHealth?.overall_status === "warning" && <AlertTriangle className="h-3 w-3 mr-1" />}
+                    {pdfSyncHealth?.overall_status?.replace("_", " ") || "Unknown"}
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Link to full Document Sync details */}
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => router.push("/settings/integrations/xero?tab=connection")}
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            View Full Document Sync Details
+          </Button>
         </TabsContent>
 
         {/* Field Mapping Tab */}
