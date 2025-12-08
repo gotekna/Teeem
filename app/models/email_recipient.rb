@@ -12,11 +12,12 @@ class EmailRecipient < ApplicationRecord
   validates :recipient_type, presence: true, inclusion: { in: TYPES }
   validates :email_address, uniqueness: { scope: :email_warehouse_id }
 
-  # Scopes (using "senders" instead of "from" to avoid conflicting with ActiveRecord's built-in .from method)
+  # Scopes
+  # Note: 'from' conflicts with ActiveRecord's .from() method, so using 'senders'
   scope :senders, -> { where(recipient_type: 'from') }
-  scope :to_recipients, -> { where(recipient_type: 'to') }
-  scope :cc_recipients, -> { where(recipient_type: 'cc') }
-  scope :bcc_recipients, -> { where(recipient_type: 'bcc') }
+  scope :recipients_to, -> { where(recipient_type: 'to') }
+  scope :recipients_cc, -> { where(recipient_type: 'cc') }
+  scope :recipients_bcc, -> { where(recipient_type: 'bcc') }
   scope :internal, -> { where(is_internal: true) }
   scope :external, -> { where(is_internal: false) }
 

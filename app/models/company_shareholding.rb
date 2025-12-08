@@ -69,6 +69,10 @@ class CompanyShareholding < ApplicationRecord
     return unless company&.contact_id.present?
     return unless shareholder_id.present?
 
+    # Skip self-referential relationships (e.g., company owns its own shares / treasury)
+    # ContactRelationship doesn't allow source == related
+    return if shareholder_id == company.contact_id
+
     Thread.current[:syncing_shareholder_relationship] = true
 
     # Shareholding is active if there's no disposal date

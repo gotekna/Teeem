@@ -1049,6 +1049,30 @@ Rails.application.routes.draw do
       get "external_invoices/by_contact/:contact_id", to: "external_invoices#by_contact", as: :external_invoices_by_contact
       get "external_invoices/by_external_id/:external_id", to: "external_invoices#by_external_id", as: :external_invoice_by_external_id
 
+      # Warehouse Bank Transactions (Xero bank statement data)
+      resources :warehouse_bank_transactions, only: [ :index, :show ] do
+        collection do
+          get :bank_accounts
+          get :financial_years
+          get :monthly_summary
+          get :sync_status
+          post :trigger_sync
+          get :download_report
+        end
+      end
+
+      # Bank Statement Reports (stored PDFs for ATO compliance)
+      resources :bank_statement_reports, only: [ :index, :show ] do
+        collection do
+          post :generate_all
+          get :by_structure
+        end
+        member do
+          get :download
+          post :regenerate
+        end
+      end
+
       # OneDrive integration (per-job - legacy)
       get "onedrive/authorize", to: "one_drive#authorize"
       get "onedrive/callback", to: "one_drive#callback"
@@ -1210,6 +1234,7 @@ Rails.application.routes.draw do
           get :investments
           get :trust_roles  # SSoT: Trustee, Beneficiaries, Appointor for Trust/Superfund entities
           get :data_stats   # Data warehouse statistics for this company
+          get :warehouse_health   # Data warehouse health checks for this company
         end
 
         # Bank Accounts (nested under companies)

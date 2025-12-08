@@ -7,7 +7,7 @@
 # - pdfs (XeroAttachmentSyncService - every 2 hours)
 # - payments (future)
 class XeroSyncStatus < ApplicationRecord
-  SYNC_TYPES = %w[invoices contacts pdfs payments].freeze
+  SYNC_TYPES = %w[invoices contacts pdfs payments bank_transactions].freeze
   STATUSES = %w[success failed in_progress].freeze
 
   validates :sync_type, presence: true, inclusion: { in: SYNC_TYPES }
