@@ -190,4 +190,29 @@ namespace :financial_reports do
 
     puts "\n✅ Bank statement records created. Run generate! on each to produce PDFs."
   end
+
+  desc "Create P&L and Balance Sheet reports for Tekna Admin"
+  task create_tekna_admin_reports: :environment do
+    company = Company.find(4) # Tekna Admin Pty Ltd
+    puts "Creating reports for #{company.name}..."
+
+    # Create P&L Report for FY2025
+    pl = ProfitLossReport.find_or_initialize_by(company_id: 4, financial_year: "FY2025")
+    pl.company_name = company.name
+    pl.company_code = "TA"
+    pl.period_start = Date.new(2024, 7, 1)
+    pl.period_end = Date.new(2025, 6, 30)
+    pl.save!
+    puts "P&L Report created: ID=#{pl.id}"
+
+    # Create Balance Sheet Report for FY2025
+    bs = BalanceSheetReport.find_or_initialize_by(company_id: 4, financial_year: "FY2025")
+    bs.company_name = company.name
+    bs.company_code = "TA"
+    bs.report_date = Date.new(2025, 6, 30)
+    bs.save!
+    puts "Balance Sheet Report created: ID=#{bs.id}"
+
+    puts "\n✅ Reports created for Tekna Admin!"
+  end
 end

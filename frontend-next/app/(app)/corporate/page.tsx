@@ -550,7 +550,6 @@ export default function CorporateDashboardPage() {
   }
   const [fullScreenPersonOwnershipChain, setFullScreenPersonOwnershipChain] = React.useState<OwnershipNodeState[]>([]);
   const [loadingPersonRoles, setLoadingPersonRoles] = React.useState(false);
-  const [showPersonFullDetail, setShowPersonFullDetail] = React.useState(true);
 
   // Groups tab state
   const [showCreateGroupDialog, setShowCreateGroupDialog] = React.useState(false);
@@ -1597,19 +1596,30 @@ export default function CorporateDashboardPage() {
                         <CardContent className="p-4">
                           {/* Header */}
                           <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2">
+                            <div
+                              className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors"
+                              onClick={() => {
+                                setSelectedGroupId(group.id);
+                                setActiveTab("structure");
+                                setIsStructureFullscreen(true);
+                              }}
+                            >
                               <FolderOpen className="h-5 w-5 text-indigo-600" />
                               <h3 className="font-medium">{group.name}</h3>
                               {group.active === false && (
                                 <Badge variant="secondary" className="text-xs">Inactive</Badge>
                               )}
+                              <Maximize2 className="h-4 w-4 text-muted-foreground" />
                             </div>
                             <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7"
-                                onClick={() => openEditGroupDialog(group)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditGroupDialog(group);
+                                }}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
@@ -1617,7 +1627,10 @@ export default function CorporateDashboardPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 text-destructive hover:text-destructive"
-                                onClick={() => handleDeleteGroup(group)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteGroup(group);
+                                }}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
@@ -1834,7 +1847,7 @@ export default function CorporateDashboardPage() {
                               <td className="py-2 px-3">
                                 <div className="flex items-center gap-2">
                                   <button
-                                    onClick={() => router.push(`/corporate/structure/${person.id}`)}
+                                    onClick={() => setFullScreenPerson(person)}
                                     className="text-teal-600 hover:text-teal-800 flex items-center gap-1"
                                     title="View Structure"
                                   >
@@ -1861,171 +1874,62 @@ export default function CorporateDashboardPage() {
             </Card>
           )}
 
-          {/* Full Screen Person Structure Dialog */}
-          <Dialog open={!!fullScreenPerson} onOpenChange={(open) => !open && setFullScreenPerson(null)}>
-            <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-xl">
-                  <GitBranch className="h-6 w-6 text-teal-600" />
-                  {String(fullScreenPerson?.display_name || fullScreenPerson?.name || "")} - Corporate Structure
-                </DialogTitle>
-                <DialogDescription>
-                  All company relationships for this person
-                </DialogDescription>
-              </DialogHeader>
-              {fullScreenPerson && (
-                <div className="flex-1 overflow-y-auto p-4">
-                  {loadingPersonRoles ? (
-                    <div className="flex items-center justify-center h-64">
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : (
-                  <div className="space-y-6">
-                    {/* Visual Ownership Chart */}
-                    <PersonStructureChart
-                      personName={String(fullScreenPerson?.display_name || fullScreenPerson?.name || "")}
-                      personEmail={fullScreenPerson?.email as string | null}
-                      ownershipChain={fullScreenPersonOwnershipChain}
-                      directorRoles={fullScreenPersonRoles
-                        .filter(r => r.type === "director")
-                        .map(r => ({
-                          company_id: r.company_id,
-                          company_name: r.company_name,
-                          position: r.position,
-                          is_current: r.is_current,
-                        }))}
-                      onCompanyClick={(companyId) => {
-                        setFullScreenPerson(null);
-                        router.push(`/corporate/companies/${companyId}`);
-                      }}
-                      showFullDetail={showPersonFullDetail}
-                      onToggleFullDetail={() => setShowPersonFullDetail(!showPersonFullDetail)}
-                    />
+          {/* Full Screen Person Structure Overlay */}
+          {fullScreenPerson && (
+            <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col">
+              {/* Floating action buttons in top-right corner */}
+              <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFullScreenPerson(null);
+                    router.push(`/contacts/${fullScreenPerson?.id}`);
+                  }}
+                  className="bg-white/90 hover:bg-white shadow-sm"
+                >
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  View Contact
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setFullScreenPerson(null)}
+                  className="bg-white/90 hover:bg-white shadow-sm"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
 
-                    {/* Cards Grid - shown when Full Detail is enabled */}
-                    {showPersonFullDetail && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {/* Group each company's roles together */}
-                    {(() => {
-                      // Use the fetched roles from state
-                      const roles = fullScreenPersonRoles;
-
-                      // Group roles by company
-                      const companiesMap = new Map<number, {
-                        id: number;
-                        name: string;
-                        roles: typeof roles;
-                      }>();
-
-                      roles.forEach(role => {
-                        if (!companiesMap.has(role.company_id)) {
-                          companiesMap.set(role.company_id, {
-                            id: role.company_id,
-                            name: role.company_name,
-                            roles: []
-                          });
-                        }
-                        companiesMap.get(role.company_id)!.roles.push(role);
-                      });
-
-                      // Convert to array and sort by company name
-                      const companies = Array.from(companiesMap.values()).sort((a, b) =>
-                        a.name.localeCompare(b.name)
-                      );
-
-                      if (companies.length === 0) {
-                        return (
-                          <div className="col-span-full text-center text-muted-foreground py-12">
-                            <GitBranch className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                            <p>No company relationships found</p>
-                          </div>
-                        );
-                      }
-
-                      return companies.map(company => (
-                        <Card key={company.id} className="hover:shadow-lg transition-shadow">
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-base flex items-center gap-2">
-                              <Building2 className="h-5 w-5 text-blue-600" />
-                              <button
-                                onClick={() => {
-                                  setFullScreenPerson(null);
-                                  router.push(`/corporate/companies/${company.id}`);
-                                }}
-                                className="hover:underline text-left"
-                              >
-                                {company.name}
-                              </button>
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            {/* Director Role */}
-                            {company.roles.filter(r => r.type === "director").map((role, i) => (
-                              <div key={`dir-${i}`} className="flex items-center gap-2 bg-purple-50 dark:bg-purple-950/30 rounded-lg p-2">
-                                <Users className="h-4 w-4 text-purple-600" />
-                                <div>
-                                  <span className="font-medium text-purple-700 dark:text-purple-300">Director</span>
-                                  {role.is_current === false && (
-                                    <Badge variant="secondary" className="ml-2 text-xs">Former</Badge>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-
-                            {/* Shareholder Role */}
-                            {company.roles.filter(r => r.type === "shareholder").map((role, i) => (
-                              <div key={`sh-${i}`} className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2">
-                                <Package className="h-4 w-4 text-amber-600" />
-                                <div>
-                                  <span className="font-medium text-amber-700 dark:text-amber-300">Shareholder</span>
-                                  <span className="text-sm text-muted-foreground ml-2">
-                                    {role.shares?.toLocaleString() || 0} shares ({role.percentage || 0}%)
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-
-                            {/* Secretary Role */}
-                            {company.roles.filter(r => r.type === "secretary").map((role, i) => (
-                              <div key={`sec-${i}`} className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950/30 rounded-lg p-2">
-                                <FileText className="h-4 w-4 text-blue-600" />
-                                <span className="font-medium text-blue-700 dark:text-blue-300">Secretary</span>
-                              </div>
-                            ))}
-
-                            {/* Public/Corporate Officer Role */}
-                            {company.roles.filter(r => ["public_officer", "corporate_officer", "officer"].includes(r.type || "")).map((role, i) => (
-                              <div key={`off-${i}`} className="flex items-center gap-2 bg-green-50 dark:bg-green-950/30 rounded-lg p-2">
-                                <Key className="h-4 w-4 text-green-600" />
-                                <div>
-                                  <span className="font-medium text-green-700 dark:text-green-300">Public Officer</span>
-                                </div>
-                              </div>
-                            ))}
-                          </CardContent>
-                        </Card>
-                      ));
-                    })()}
-                    </div>
-                    )}
+              {/* Full screen chart */}
+              <div className="flex-1 overflow-hidden">
+                {loadingPersonRoles ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
-                  )}
-                </div>
-              )}
-              <DialogFooter className="border-t pt-4">
-                <Button variant="outline" onClick={() => setFullScreenPerson(null)}>
-                  Close
-                </Button>
-                <Button onClick={() => {
-                  setFullScreenPerson(null);
-                  router.push(`/contacts/${fullScreenPerson?.id}`);
-                }}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  View Full Contact
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                ) : (
+                  <PersonStructureChart
+                    personName={String(fullScreenPerson?.display_name || fullScreenPerson?.name || "")}
+                    personEmail={fullScreenPerson?.email as string | null}
+                    ownershipChain={fullScreenPersonOwnershipChain}
+                    directorRoles={fullScreenPersonRoles
+                      .filter(r => ["director", "secretary", "public_officer", "corporate_officer", "officer"].includes(r.type || ""))
+                      .map(r => ({
+                        company_id: r.company_id,
+                        company_name: r.company_name,
+                        position: r.type, // Use type for role classification (director/secretary/officer)
+                        is_current: r.is_current,
+                      }))}
+                    onCompanyClick={(companyId) => {
+                      setFullScreenPerson(null);
+                      router.push(`/corporate/companies/${companyId}`);
+                    }}
+                    fullscreen
+                  />
+                )}
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {/* Memberships Tab */}
@@ -2180,7 +2084,10 @@ export default function CorporateDashboardPage() {
             {groups.map((group) => (
               <button
                 key={group.id}
-                onClick={() => setSelectedGroupId(group.id)}
+                onClick={() => {
+                  setSelectedGroupId(group.id);
+                  setIsStructureFullscreen(true);
+                }}
                 className={`px-4 py-2 rounded-lg text-sm transition-colors ${
                   selectedGroupId === group.id
                     ? "bg-primary text-primary-foreground"
@@ -2685,16 +2592,16 @@ export default function CorporateDashboardPage() {
                     onChange={(e) => setStructureFilters(prev => ({ ...prev, shareholders: e.target.checked }))}
                     className="h-4 w-4 rounded border-gray-300"
                   />
-                  <span>Shareholders</span>
+                  <span className="text-amber-700">Shareholders</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={structureFilters.directors}
-                    onChange={(e) => setStructureFilters(prev => ({ ...prev, directors: e.target.checked }))}
+                    onChange={(e) => setStructureFilters(prev => ({ ...prev, directors: e.target.checked, secretary: e.target.checked, corporateOfficer: e.target.checked }))}
                     className="h-4 w-4 rounded border-gray-300"
                   />
-                  <span>Directors</span>
+                  <span className="text-purple-700">Directors/Officers</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
@@ -2703,7 +2610,7 @@ export default function CorporateDashboardPage() {
                     onChange={(e) => setStructureFilters(prev => ({ ...prev, ownershipLinks: e.target.checked }))}
                     className="h-4 w-4 rounded border-gray-300"
                   />
-                  <span>Ownership Links</span>
+                  <span className="text-emerald-700">Ownership Lines</span>
                 </label>
               </div>
               <Button

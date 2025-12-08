@@ -151,6 +151,10 @@ function EntityNode({ data }: { data: EntityNodeData }) {
     trustName,
     onClick,
     isFullscreen,
+    shareholders,
+    directors,
+    secretary,
+    publicOfficer,
   } = data;
 
   const getBackgroundColor = () => {
@@ -247,6 +251,34 @@ function EntityNode({ data }: { data: EntityNodeData }) {
             isFullscreen ? "text-sm" : "text-xs"
           )}>{trustName}</div>
         )}
+
+        {/* Shareholders */}
+        {shareholders && shareholders.length > 0 && (
+          <div className="text-amber-600 dark:text-amber-400">
+            <span className="font-medium">Shareholders:</span> {shareholders.map(s => `${s.name} (${s.percentage}%)`).join(", ")}
+          </div>
+        )}
+
+        {/* Directors */}
+        {directors && directors.length > 0 && (
+          <div className="text-purple-600 dark:text-purple-400">
+            <span className="font-medium">Directors:</span> {directors.join(", ")}
+          </div>
+        )}
+
+        {/* Secretary */}
+        {secretary && (
+          <div className="text-blue-600 dark:text-blue-400">
+            <span className="font-medium">Secretary:</span> {secretary}
+          </div>
+        )}
+
+        {/* Public/Corporate Officer */}
+        {publicOfficer && (
+          <div className="text-green-600 dark:text-green-400">
+            <span className="font-medium">Officer:</span> {publicOfficer}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -282,6 +314,10 @@ export default function CorporateStructureChart({
   onEntityClick,
   fullscreen = false,
 }: CorporateStructureChartProps) {
+  // Use ref for callback to avoid infinite re-renders
+  const onEntityClickRef = React.useRef(onEntityClick);
+  onEntityClickRef.current = onEntityClick;
+
   // Build nodes and edges from structure data
   const { initialNodes, initialEdges, maxDepth } = useMemo(() => {
     const nodes: Node[] = [];
@@ -387,7 +423,7 @@ export default function CorporateStructureChart({
           shareholders,
           secretary,
           publicOfficer,
-          onClick: () => onEntityClick?.(company.id, "company"),
+          onClick: () => onEntityClickRef.current?.(company.id, "company"),
           isFullscreen: fullscreen,
         },
       });
@@ -515,7 +551,7 @@ export default function CorporateStructureChart({
             label: personData.name,
             email: null,
             roles: personData.companyIds.length,
-            onClick: () => onEntityClick?.(contactId, "person"),
+            onClick: () => onEntityClickRef.current?.(contactId, "person"),
             isFullscreen: fullscreen,
           },
         });
@@ -598,7 +634,7 @@ export default function CorporateStructureChart({
     }
 
     return { initialNodes: nodes, initialEdges: edges, maxDepth };
-  }, [data, filters, onEntityClick, fullscreen]);
+  }, [data, filters, fullscreen]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);

@@ -1305,6 +1305,26 @@ Rails.application.routes.draw do
         get "xero/balance_sheet", to: "company_xero#balance_sheet"
         # Bank transactions by account
         get "xero/bank_transactions", to: "company_xero#bank_transactions"
+
+        # PDF Financial Reports (Gold Standard tables)
+        resources :profit_loss_reports, only: [:index, :show] do
+          collection do
+            post :generate
+          end
+          member do
+            post :regenerate
+            get :download
+          end
+        end
+        resources :balance_sheet_reports, only: [:index, :show] do
+          collection do
+            post :generate
+          end
+          member do
+            post :regenerate
+            get :download
+          end
+        end
       end
 
       # Company Groups
