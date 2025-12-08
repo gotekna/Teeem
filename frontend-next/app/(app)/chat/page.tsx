@@ -24,6 +24,7 @@ import {
   Briefcase,
   Plus,
   Monitor,
+  X,
 } from "lucide-react";
 import {
   DropdownMenu,

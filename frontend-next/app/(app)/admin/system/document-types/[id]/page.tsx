@@ -106,6 +106,8 @@ export default function DocumentTypeDetailPage() {
   const [basicInfoExpanded, setBasicInfoExpanded] = React.useState(false);
   const [displayNameSameAsFileName, setDisplayNameSameAsFileName] = React.useState(true);
   const [showFullDescription, setShowFullDescription] = React.useState(false);
+  const [previewCompanyId, setPreviewCompanyId] = React.useState<number | null>(null);
+  const [companies, setCompanies] = React.useState<Array<{id: number; name: string; abbreviation: string}>>([]);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
@@ -115,8 +117,18 @@ export default function DocumentTypeDetailPage() {
   React.useEffect(() => {
     if (documentTypeId) {
       loadDocumentType();
+      loadCompanies();
     }
   }, [documentTypeId]);
+
+  const loadCompanies = async () => {
+    try {
+      const response = await api.get<{ data: Array<{id: number; name: string; abbreviation: string}> }>('/api/v1/companies');
+      setCompanies(response.data || []);
+    } catch (error) {
+      console.error("Failed to load companies:", error);
+    }
+  };
 
   // Initialize checkbox state based on whether display_name exists
   React.useEffect(() => {
@@ -313,10 +325,15 @@ export default function DocumentTypeDetailPage() {
 
     let preview = value;
 
+    // Get selected company data or use defaults
+    const selectedCompany = previewCompanyId ? companies.find(c => c.id === previewCompanyId) : null;
+    const companyCode = selectedCompany?.abbreviation || "ABC";
+    const companyName = selectedCompany?.name || "ABC Property Trust";
+
     // Replace placeholders with example values
     // Use full names if checkbox is checked, otherwise use codes
-    preview = preview.replace(/\{CompanyCode\}/g, useFullDescription ? "ABC Property Trust" : "ABC");
-    preview = preview.replace(/\{CompanyName\}/g, "ABC Property Trust");
+    preview = preview.replace(/\{CompanyCode\}/g, useFullDescription ? companyName : companyCode);
+    preview = preview.replace(/\{CompanyName\}/g, companyName);
     preview = preview.replace(/\{LoanID\}/g, "L001");
     preview = preview.replace(/\{LenderCode\}/g, useFullDescription ? "National Australia Bank" : "NAB");
     preview = preview.replace(/\{AssetCode\}/g, useFullDescription ? "Property 1" : "PROP1");
@@ -613,6 +630,32 @@ export default function DocumentTypeDetailPage() {
           <CardTitle>Naming & Organization</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Preview Company Selector */}
+          <div className="space-y-2 p-3 bg-blue-50/30 dark:bg-blue-950/10 rounded-lg border border-blue-200/50 dark:border-blue-900/50">
+            <Label htmlFor="preview-company" className="text-sm font-medium text-blue-900 dark:text-blue-200">
+              Preview with Real Company Data
+            </Label>
+            <Select
+              value={previewCompanyId?.toString() || "default"}
+              onValueChange={(value) => setPreviewCompanyId(value === "default" ? null : parseInt(value))}
+            >
+              <SelectTrigger id="preview-company">
+                <SelectValue placeholder="Select a company for live preview..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Example Data (ABC Property Trust)</SelectItem>
+                {companies.map(company => (
+                  <SelectItem key={company.id} value={company.id.toString()}>
+                    {company.abbreviation} - {company.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-blue-600 dark:text-blue-400">
+              Select a company to see how placeholders will look with real data
+            </p>
+          </div>
+
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="file_name">File Name</Label>
