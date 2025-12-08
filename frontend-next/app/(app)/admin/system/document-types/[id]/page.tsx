@@ -798,6 +798,26 @@ export default function DocumentTypeDetailPage() {
                 <div className="flex items-center gap-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <Checkbox
+                      id="remove-display-name"
+                      checked={!displayNameSameAsFileName && !documentType.display_name}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setDisplayNameSameAsFileName(false);
+                          updateField("display_name", "");
+                        } else {
+                          setDisplayNameSameAsFileName(true);
+                        }
+                      }}
+                    />
+                    <Label
+                      htmlFor="remove-display-name"
+                      className="text-sm font-normal cursor-pointer text-muted-foreground"
+                    >
+                      Remove Display Name
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
                       id="same-as-file-name"
                       checked={displayNameSameAsFileName}
                       onCheckedChange={(checked) => setDisplayNameSameAsFileName(checked as boolean)}
