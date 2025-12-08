@@ -4481,25 +4481,27 @@ function XeroBankAccountsCard({ companyId }: { companyId: string }) {
       const response = await api.get<{
         success: boolean;
         xero_accounts?: Array<{
-          AccountID: string;
-          Name: string;
-          Code: string;
-          Type: string;
-          BankAccountNumber?: string;
-          CurrencyCode?: string;
+          xero_account_id: string;
+          xero_account_name: string;
+          xero_account_number?: string;
+          xero_bank_account_type?: string;
+          local_bank_account_id?: number;
+          local_bank_account_name?: string;
+          matched: boolean;
+          linked: boolean;
         }>;
         error?: string;
       }>(`/api/v1/companies/${companyId}/xero/bank_accounts`);
 
       if (response?.success && response.xero_accounts) {
-        // Map Xero API format to our interface
+        // Map backend response to our interface
         const mapped = response.xero_accounts.map(acc => ({
-          account_id: acc.AccountID,
-          name: acc.Name,
-          code: acc.Code,
-          type: acc.Type,
-          bank_account_number: acc.BankAccountNumber,
-          currency_code: acc.CurrencyCode,
+          account_id: acc.xero_account_id,
+          name: acc.xero_account_name,
+          code: acc.xero_bank_account_type || "",
+          type: acc.xero_bank_account_type || "BANK",
+          bank_account_number: acc.xero_account_number,
+          currency_code: "AUD",
         }));
         setBankAccounts(mapped);
         // Auto-select first account
