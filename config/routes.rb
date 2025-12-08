@@ -349,6 +349,7 @@ Rails.application.routes.draw do
           get :trust_roles
           get :ownership_chain
           get :case_relationships
+          get :coworkers  # Get people at the same company(ies)
           post :copy_price_history
           delete :remove_from_categories
           post :bulk_update_prices

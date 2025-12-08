@@ -1,7 +1,7 @@
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [ :show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles, :ownership_chain, :enrich_from_web, :reorder_employees, :reorder_companies ]
+      before_action :set_contact, only: [ :show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles, :ownership_chain, :enrich_from_web, :reorder_employees, :reorder_companies, :coworkers ]
       before_action :require_corporate_permission, only: [ :directorships, :shareholdings, :trust_roles, :ownership_chain ]
 
       # GET /api/v1/contacts/read_only_fields
@@ -121,11 +121,23 @@ module Api
                 }
               end
 
-              # Count additional companies
-              contact_json["additional_companies_count"] = contact.outgoing_relationships
+              # Get all company relationships with roles
+              company_relationships = contact.outgoing_relationships
                 .active
-                .where(relationship_type: [ "director_of", "shareholder_of", "trustee_of", "employee_of", "partner_in" ])
-                .count
+                .where(relationship_type: [ "director_of", "shareholder_of", "trustee_of", "employee_of", "partner_in", "authorized_signatory_of", "beneficial_owner_of" ])
+                .includes(:related_contact)
+
+              contact_json["additional_companies_count"] = company_relationships.count
+
+              # Include company_roles for display (e.g., "Director @ Harvey Norman")
+              contact_json["company_roles"] = company_relationships.filter_map do |rel|
+                next unless rel.related_contact
+                {
+                  company_id: rel.related_contact_id,
+                  company_name: rel.related_contact.display_name,
+                  role: rel.relationship_type.gsub("_of", "").gsub("_", " ").titleize
+                }
+              end
             end
 
             if include_jobs
@@ -1045,13 +1057,13 @@ module Api
               company.update!(email: nil)
               results[:email_cleared] << { id: company.id, name: company.display_name, old_email: old_email }
 
-              # Create employment relationship if it doesn't exist
-              unless ContactEmployment.exists?(employee_id: person.id, employer_id: company.id)
-                ContactEmployment.create!(
-                  employee_id: person.id,
-                  employer_id: company.id,
-                  is_active: true,
-                  is_primary: results[:employments_created].empty? # First one is primary
+              # Create employee_of relationship if it doesn't exist
+              unless ContactRelationship.exists?(source_contact_id: person.id, related_contact_id: company.id, relationship_type: "employee_of")
+                ContactRelationship.create!(
+                  source_contact_id: person.id,
+                  related_contact_id: company.id,
+                  relationship_type: "employee_of",
+                  is_active: true
                 )
                 results[:employments_created] << { person_id: person.id, company_id: company.id, company_name: company.display_name }
               end
@@ -3153,6 +3165,101 @@ module Api
         render json: {
           success: false,
           error: "Failed to load case relationships: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/:id/coworkers
+      # Returns other people who work at the same company(ies) as this contact
+      # For person contacts: finds people at the same company via employee_of relationships
+      # For company contacts: finds all employees/directors/shareholders of this company
+      def coworkers
+        coworkers_data = []
+
+        if @contact.entity_type == "person" || @contact.entity_type == "sole_trader"
+          # Get all companies this person works at
+          company_ids = @contact.outgoing_relationships
+            .active
+            .where(relationship_type: %w[employee_of director_of shareholder_of])
+            .pluck(:related_contact_id)
+
+          # Find other people at these companies
+          if company_ids.any?
+            coworkers = Contact.joins(:outgoing_relationships)
+              .where(contact_relationships: {
+                related_contact_id: company_ids,
+                relationship_type: %w[employee_of director_of shareholder_of],
+                is_active: true
+              })
+              .where.not(id: @contact.id)
+              .where(entity_type: %w[person sole_trader])
+              .distinct
+              .includes(:outgoing_relationships)
+
+            coworkers_data = coworkers.map do |coworker|
+              # Get their roles at the shared companies
+              shared_roles = coworker.outgoing_relationships
+                .active
+                .where(related_contact_id: company_ids)
+                .includes(:related_contact)
+                .map do |rel|
+                  {
+                    company_id: rel.related_contact_id,
+                    company_name: rel.related_contact&.display_name,
+                    role: rel.relationship_type.gsub("_of", "").gsub("_", " ").titleize
+                  }
+                end
+
+              {
+                id: coworker.id,
+                display_name: coworker.display_name,
+                email: coworker.email,
+                mobile_phone: coworker.mobile_phone,
+                entity_type: coworker.entity_type,
+                company_roles: shared_roles
+              }
+            end
+          end
+        else
+          # This is a company - find all people associated with it
+          coworkers = Contact.joins(:outgoing_relationships)
+            .where(contact_relationships: {
+              related_contact_id: @contact.id,
+              relationship_type: %w[employee_of director_of shareholder_of],
+              is_active: true
+            })
+            .where(entity_type: %w[person sole_trader])
+            .distinct
+            .includes(:outgoing_relationships)
+
+          coworkers_data = coworkers.map do |person|
+            # Get their role at this company
+            roles = person.outgoing_relationships
+              .active
+              .where(related_contact_id: @contact.id)
+              .pluck(:relationship_type)
+              .map { |rt| rt.gsub("_of", "").gsub("_", " ").titleize }
+
+            {
+              id: person.id,
+              display_name: person.display_name,
+              email: person.email,
+              mobile_phone: person.mobile_phone,
+              entity_type: person.entity_type,
+              roles: roles
+            }
+          end
+        end
+
+        render json: {
+          success: true,
+          data: coworkers_data,
+          total_count: coworkers_data.length
+        }
+      rescue => e
+        Rails.logger.error("Coworkers error: #{e.message}")
+        render json: {
+          success: false,
+          error: "Failed to load coworkers: #{e.message}"
         }, status: :internal_server_error
       end
 
