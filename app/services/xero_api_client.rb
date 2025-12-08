@@ -44,6 +44,7 @@ class XeroApiClient
   end
 
   # Exchange authorization code for access token
+  # Creates XeroCredential records for ALL authorized organizations
   def exchange_code_for_token(code)
     begin
       client = oauth_client
@@ -56,26 +57,39 @@ class XeroApiClient
         raise ApiError, "No Xero organization connected"
       end
 
-      # Use the first organization
-      tenant = tenant_info.first
+      # Create credentials for ALL authorized organizations
+      credentials_created = []
+      tenant_info.each do |tenant|
+        # Find or create credential for this tenant
+        credential = XeroCredential.find_or_initialize_by(tenant_id: tenant["tenantId"])
+        credential.assign_attributes(
+          access_token: token.token,
+          refresh_token: token.refresh_token,
+          expires_at: Time.current + token.expires_in.seconds,
+          tenant_name: tenant["tenantName"],
+          tenant_type: tenant["tenantType"]
+        )
+        credential.save!
+        credentials_created << credential
 
-      # Store credentials in database
-      credential = XeroCredential.create!(
-        access_token: token.token,
-        refresh_token: token.refresh_token,
-        expires_at: Time.current + token.expires_in.seconds,
-        tenant_id: tenant["tenantId"],
-        tenant_name: tenant["tenantName"],
-        tenant_type: tenant["tenantType"]
-      )
+        Rails.logger.info("Xero OAuth successful: #{tenant['tenantName']} (#{tenant['tenantId']})")
+      end
 
-      Rails.logger.info("Xero OAuth successful: #{tenant['tenantName']} (#{tenant['tenantId']})")
-
+      # Return info about all created credentials
       {
         success: true,
-        tenant_name: tenant["tenantName"],
-        tenant_id: tenant["tenantId"],
-        expires_at: credential.expires_at
+        organizations_count: credentials_created.count,
+        organizations: credentials_created.map { |c|
+          {
+            tenant_id: c.tenant_id,
+            tenant_name: c.tenant_name,
+            expires_at: c.expires_at
+          }
+        },
+        # Keep backwards compatibility - return first org details
+        tenant_name: credentials_created.first.tenant_name,
+        tenant_id: credentials_created.first.tenant_id,
+        expires_at: credentials_created.first.expires_at
       }
     rescue OAuth2::Error => e
       Rails.logger.error("Xero OAuth error: #{e.message}")
