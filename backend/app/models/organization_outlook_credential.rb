@@ -1,16 +1,31 @@
 class OrganizationOutlookCredential < ApplicationRecord
-  # This is a singleton model - only one record should exist
+  # Supports MULTIPLE Microsoft 365 tenants (Tekna, 100xBestLife, Homes of Hope, Love Your World)
+
   validates :access_token, presence: true
   validates :refresh_token, presence: true
   validates :expires_at, presence: true
+  validates :name, uniqueness: true, allow_nil: true
 
   # Encrypt sensitive tokens at rest
   encrypts :access_token
   encrypts :refresh_token
 
-  # Get the single organization credential
+  # Scopes
+  scope :active, -> { all }
+
+  # Multi-org support - returns all credentials
+  def self.active_credentials
+    order(:name)
+  end
+
+  # Legacy singleton pattern - returns first for backward compatibility
   def self.current
     first
+  end
+
+  # Find by organization name
+  def self.find_by_name(name)
+    find_by(name: name)
   end
 
   # Check if token is expired or about to expire (within 5 minutes)

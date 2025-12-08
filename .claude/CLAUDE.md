@@ -74,19 +74,23 @@ When discovering duplicate/conflicting implementations:
 - ✅ Use `/l` command to deploy Live branch to production
 - Other developers (jake, etc.) should still use feature branches
 
-## 🔴 CRITICAL: Heroku App Restriction
+## 🔴 CRITICAL: NEVER Use teeem-backend Heroku App
 
-**NEVER use the `teeem-backend` Heroku app.** This app is deprecated and MUST NOT be used.
+**🚨 THE `teeem-backend` HEROKU APP IS DEPRECATED AND MUST NEVER BE USED 🚨**
 
-**Production app is `teeemlive` ONLY.**
+This is a hard rule with NO exceptions:
 
-- ❌ NEVER run `heroku` commands with `--app teeem-backend`
-- ❌ NEVER use the `heroku` git remote (points to deprecated teeem-backend)
-- ❌ NEVER deploy to teeem-backend under any circumstances
+- ❌ **NEVER** run `heroku` commands with `--app teeem-backend`
+- ❌ **NEVER** use the `heroku` git remote (points to deprecated teeem-backend)
+- ❌ **NEVER** deploy to teeem-backend under any circumstances
+- ❌ **NEVER** check logs, run console, or any operation on teeem-backend
+
+**Production app is `teeemlive` ONLY:**
 - ✅ ALWAYS use `--app teeemlive` for production
-- ✅ Use `--app teeem-rob-dev` for staging/testing only
+- ✅ Use `--app teeem-rob-dev` for Rob's dev environment
+- ✅ Use `--app teeem-sam-dev` for Sam's dev environment
 
-**If you see any reference to `teeem-backend` in commands or configs, FLAG it as an error.**
+**If you see any reference to `teeem-backend` in commands or configs, FLAG it as an error and refuse to proceed.**
 
 ## 🔴 Local Development
 
