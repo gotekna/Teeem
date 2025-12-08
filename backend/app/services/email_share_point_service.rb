@@ -296,7 +296,9 @@ class EmailSharePointService
 
       begin
         # Try to access the folder - if it exists, continue
-        @client.get("#{drive_path}/root:/#{current_path}")
+        # URL encode the path to handle spaces and special characters
+        encoded_path = current_path.split("/").map { |s| CGI.escape(s) }.join("/")
+        @client.get("#{drive_path}/root:/#{encoded_path}")
       rescue MicrosoftGraphClient::APIError => e
         # Folder doesn't exist, create it
         create_folder(parent_path, folder_name)
@@ -309,7 +311,9 @@ class EmailSharePointService
     endpoint = if parent_path == "root"
       "#{drive_path}/root/children"
     else
-      "#{drive_path}/root:/#{parent_path}:/children"
+      # URL encode the parent path to handle spaces and special characters
+      encoded_parent = parent_path.split("/").map { |s| CGI.escape(s) }.join("/")
+      "#{drive_path}/root:/#{encoded_parent}:/children"
     end
 
     body = {
@@ -329,7 +333,9 @@ class EmailSharePointService
   # Upload a file to OneDrive
   def upload_file(folder_path, filename, content)
     # For small files (< 4MB), use simple upload
-    endpoint = "#{drive_path}/root:/#{folder_path}/#{CGI.escape(filename)}:/content"
+    # URL encode the folder path and filename to handle spaces and special characters
+    encoded_folder = folder_path.split("/").map { |s| CGI.escape(s) }.join("/")
+    endpoint = "#{drive_path}/root:/#{encoded_folder}/#{CGI.escape(filename)}:/content"
 
     result = @client.put(endpoint, content, { "Content-Type" => "message/rfc822" })
 
