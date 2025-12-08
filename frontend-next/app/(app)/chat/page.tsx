@@ -279,7 +279,7 @@ export default function ChatPage() {
       // Convert canvas to blob
       canvas.toBlob((blob) => {
         if (blob) {
-          const file = new File([blob], `screenshot-${Date.now()}.png`, {
+          const file = new (File as any)([blob], `screenshot-${Date.now()}.png`, {
             type: "image/png",
           });
           setPastedImage(file);
