@@ -90,6 +90,7 @@ interface PdfSyncStatus {
   breakdown: {
     bills: { total: number; synced: number };
     sales_invoices: { total: number; synced: number };
+    credit_notes: { total: number; synced: number };
     quotes: { total: number; synced: number };
   };
   estimated_remaining_minutes: number;
