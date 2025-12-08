@@ -200,16 +200,16 @@ class OrgEmailSyncJob < ApplicationJob
   end
 
   def find_matching_job(email)
-    # Collect all email addresses involved
-    addresses = [ email.from_email, email.to_emails, email.cc_emails ].flatten.compact.uniq
+    # Use the sophisticated matching logic from EmailWarehouse model
+    # This includes: job ID patterns, contact matching, address matching, street matching
+    # Plus: confidence scores and spam filtering
+    matches = email.find_matching_jobs
 
-    # Find contacts with these emails
-    contacts = Contact.where(email: addresses).or(Contact.where(email_secondary: addresses))
+    # Return highest confidence match if above threshold (0.8)
+    best_match = matches.first
+    return nil unless best_match && best_match[:confidence] >= 0.8
 
-    # Find jobs associated with these contacts
-    job_ids = JobContact.where(contact_id: contacts.pluck(:id)).pluck(:job_id).uniq
-
-    # Return the most recent job if multiple matches
-    Construction.where(id: job_ids).order(created_at: :desc).first
+    Rails.logger.info "[OrgEmailSync] Matched email #{email.id} to job #{best_match[:job].id} (#{best_match[:match_type]}, confidence: #{best_match[:confidence]})"
+    best_match[:job]
   end
 end
