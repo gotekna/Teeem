@@ -44,6 +44,8 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [linkingTenantId, setLinkingTenantId] = useState<string | null>(null);
+  const [openDropdownTenantId, setOpenDropdownTenantId] = useState<string | null>(null);
+  const [searchTerms, setSearchTerms] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (isOpen) {
@@ -51,6 +53,17 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
       loadCompanies();
     }
   }, [isOpen]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (openDropdownTenantId && !(e.target as Element).closest('.combobox-container')) {
+        setOpenDropdownTenantId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openDropdownTenantId]);
 
   const loadConnections = async () => {
     try {
@@ -311,28 +324,47 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                           No TEEEM companies linked to this organization yet.
                         </p>
                         {availableCompanies.length > 0 ? (
-                          <div className="space-y-2 relative z-50">
-                            <select
+                          <div className="space-y-2 relative combobox-container">
+                            <input
+                              type="text"
+                              placeholder="Search and select a company..."
+                              value={searchTerms[org.tenant_id] || ""}
                               onChange={(e) => {
-                                const companyId = parseInt(e.target.value);
-                                if (companyId) {
-                                  handleLinkCompany(org.tenant_id, companyId);
-                                }
+                                setSearchTerms({ ...searchTerms, [org.tenant_id]: e.target.value });
+                                setOpenDropdownTenantId(org.tenant_id);
                               }}
+                              onFocus={() => setOpenDropdownTenantId(org.tenant_id)}
                               disabled={linkingTenantId === org.tenant_id}
-                              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                              defaultValue=""
-                              size={1}
-                            >
-                              <option value="" disabled>
-                                Select a company to link...
-                              </option>
-                              {availableCompanies.map((company) => (
-                                <option key={company.id} value={company.id}>
-                                  {company.name}
-                                </option>
-                              ))}
-                            </select>
+                              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            {openDropdownTenantId === org.tenant_id && (
+                              <div className="absolute z-[100] mt-1 w-full max-h-60 overflow-auto rounded-md border border-gray-300 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700">
+                                {availableCompanies
+                                  .filter(company =>
+                                    company.name.toLowerCase().includes((searchTerms[org.tenant_id] || "").toLowerCase())
+                                  )
+                                  .map((company) => (
+                                    <button
+                                      key={company.id}
+                                      onClick={() => {
+                                        handleLinkCompany(org.tenant_id, company.id);
+                                        setOpenDropdownTenantId(null);
+                                        setSearchTerms({ ...searchTerms, [org.tenant_id]: "" });
+                                      }}
+                                      className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-gray-600 text-gray-900 dark:text-white"
+                                    >
+                                      {company.name}
+                                    </button>
+                                  ))}
+                                {availableCompanies.filter(company =>
+                                  company.name.toLowerCase().includes((searchTerms[org.tenant_id] || "").toLowerCase())
+                                ).length === 0 && (
+                                  <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                    No companies found
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             {linkingTenantId === org.tenant_id && (
                               <p className="text-xs text-blue-600 dark:text-blue-400">
                                 Linking company...
