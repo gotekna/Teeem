@@ -28,6 +28,11 @@ interface XeroOrganization {
   companies: CompanyLink[];
 }
 
+interface Company {
+  id: number;
+  name: string;
+}
+
 interface XeroConnectionsPopupProps {
   isOpen: boolean;
   onClose: () => void;
@@ -35,11 +40,14 @@ interface XeroConnectionsPopupProps {
 
 export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupProps) {
   const [organizations, setOrganizations] = useState<XeroOrganization[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [linkingTenantId, setLinkingTenantId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       loadConnections();
+      loadCompanies();
     }
   }, [isOpen]);
 
@@ -62,6 +70,17 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
     }
   };
 
+  const loadCompanies = async () => {
+    try {
+      const response = await api.get<{ success: boolean; companies: Company[] }>(
+        "/api/v1/companies"
+      );
+      setCompanies(response.companies || []);
+    } catch (error) {
+      console.error("Failed to load companies:", error);
+    }
+  };
+
   const handleConnectToXero = async () => {
     try {
       const response = await api.xero.getAuthUrl();
@@ -75,6 +94,27 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
     }
   };
 
+  const handleLinkCompany = async (tenantId: string, companyId: number) => {
+    try {
+      setLinkingTenantId(tenantId);
+      const response = await api.post<{ success: boolean; message: string }>(
+        `/api/v1/companies/${companyId}/xero/link`,
+        { tenant_id: tenantId }
+      );
+
+      if (response.success) {
+        // Reload connections to show the new link
+        await loadConnections();
+        alert("Successfully linked company to Xero organization!");
+      }
+    } catch (error) {
+      console.error("Failed to link company:", error);
+      alert("Failed to link company. Please try again.");
+    } finally {
+      setLinkingTenantId(null);
+    }
+  };
+
   if (!isOpen) return null;
 
   const totalOrgs = organizations.length;
@@ -83,6 +123,14 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
   const connectedCompanies = organizations.reduce((sum, org) =>
     sum + org.companies.filter((c) => c.connected).length, 0
   );
+
+  // Get list of company IDs that already have Xero connections
+  const linkedCompanyIds = new Set(
+    organizations.flatMap(org => org.companies.map(c => c.company_id))
+  );
+
+  // Filter to only show companies without Xero connections
+  const availableCompanies = companies.filter(c => !linkedCompanyIds.has(c.id));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -237,23 +285,43 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                         </div>
                       ))
                     ) : (
-                      <div className="rounded-md bg-white p-4 text-center dark:bg-gray-800">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                      <div className="rounded-md bg-white p-4 dark:bg-gray-800">
+                        <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
                           No TEEEM companies linked to this organization yet.
                         </p>
-                        <button
-                          onClick={() => {
-                            window.location.href = `/corporate`;
-                            onClose();
-                          }}
-                          className="mt-3 inline-flex items-center space-x-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-                        >
-                          <Building2 className="h-4 w-4" />
-                          <span>Link to Company</span>
-                        </button>
-                        <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                          Go to Corporate &gt; Company &gt; Xero tab to link.
-                        </p>
+                        {availableCompanies.length > 0 ? (
+                          <div className="space-y-2">
+                            <select
+                              onChange={(e) => {
+                                const companyId = parseInt(e.target.value);
+                                if (companyId) {
+                                  handleLinkCompany(org.tenant_id, companyId);
+                                }
+                              }}
+                              disabled={linkingTenantId === org.tenant_id}
+                              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                              defaultValue=""
+                            >
+                              <option value="" disabled>
+                                Select a company to link...
+                              </option>
+                              {availableCompanies.map((company) => (
+                                <option key={company.id} value={company.id}>
+                                  {company.name}
+                                </option>
+                              ))}
+                            </select>
+                            {linkingTenantId === org.tenant_id && (
+                              <p className="text-xs text-blue-600 dark:text-blue-400">
+                                Linking company...
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-400 dark:text-gray-500">
+                            All companies already have Xero connections.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>

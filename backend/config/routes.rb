@@ -1289,6 +1289,7 @@ Rails.application.routes.draw do
         get "xero/status", to: "company_xero#status"
         get "xero/authorize", to: "company_xero#authorize"
         get "xero/callback", to: "company_xero#callback"
+        post "xero/link", to: "company_xero#link"
         post "xero/disconnect", to: "company_xero#disconnect"
         post "xero/sync", to: "company_xero#sync"
         get "xero/tenants", to: "company_xero#tenants"

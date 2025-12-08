@@ -38,6 +38,56 @@ module Api
         end
       end
 
+      # POST /api/v1/companies/:company_id/xero/link
+      # Links this company to an existing Xero credential by tenant_id
+      def link
+        tenant_id = params[:tenant_id]
+
+        if tenant_id.blank?
+          render json: { success: false, error: "tenant_id is required" }, status: :bad_request
+          return
+        end
+
+        # Find the credential for this tenant
+        credential = XeroCredential.find_by(tenant_id: tenant_id)
+
+        if credential.nil?
+          render json: { success: false, error: "Xero organization not found. Please authorize with Xero first." }, status: :not_found
+          return
+        end
+
+        # Check if this company already has a Xero connection
+        connection = @company.company_xero_connection
+
+        if connection.present?
+          render json: { success: false, error: "This company is already linked to #{connection.xero_tenant_name}" }, status: :unprocessable_entity
+          return
+        end
+
+        # Create the connection
+        connection = @company.build_company_xero_connection
+        connection.assign_attributes(
+          xero_credential_id: credential.id,
+          xero_tenant_id: credential.tenant_id,
+          xero_tenant_name: credential.tenant_name,
+          connection_status: "connected"
+        )
+
+        if connection.save
+          Rails.logger.info("Linked company #{@company.id} (#{@company.name}) to Xero org #{credential.tenant_name}")
+          render json: {
+            success: true,
+            message: "Successfully linked company to #{credential.tenant_name}",
+            connection: connection.as_json(
+              only: [ :id, :xero_tenant_id, :xero_tenant_name, :connection_status ],
+              methods: [ :connected? ]
+            )
+          }
+        else
+          render json: { success: false, error: connection.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        end
+      end
+
       # GET /api/v1/companies/:company_id/xero/authorize
       # Returns the OAuth authorization URL for connecting to Xero
       def authorize
