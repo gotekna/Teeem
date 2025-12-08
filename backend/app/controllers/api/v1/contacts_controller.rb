@@ -2472,6 +2472,36 @@ module Api
         }
       end
 
+      # GET /api/v1/contacts/employment_statuses
+      # SSoT: Returns valid employment statuses from Contact::EMPLOYMENT_STATUSES
+      def employment_statuses
+        render json: {
+          success: true,
+          employment_statuses: Contact::EMPLOYMENT_STATUSES,
+          metadata: Contact::EMPLOYMENT_STATUSES.map { |status|
+            {
+              value: status,
+              label: status.titleize
+            }
+          }
+        }
+      end
+
+      # GET /api/v1/contacts/roles
+      # SSoT: Returns valid roles from Contact::ROLES
+      def roles
+        render json: {
+          success: true,
+          roles: Contact::ROLES,
+          metadata: Contact::ROLES.map { |role|
+            {
+              value: role,
+              label: role.titleize.gsub("_", " ")
+            }
+          }
+        }
+      end
+
       # GET /api/v1/contacts/invalid_entity_types
       # Health check: Find contacts with invalid entity_type values
       def invalid_entity_types

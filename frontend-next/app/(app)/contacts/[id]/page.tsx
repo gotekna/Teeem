@@ -45,6 +45,8 @@ import {
   Save,
   X,
   Plus,
+  Link2,
+  Scale,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -57,6 +59,13 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DndContext,
   closestCenter,
@@ -504,12 +513,30 @@ interface ContactRelationship {
   target_contact_id: number;
   related_contact_id?: number; // Alias for target_contact_id in some API responses
   relationship_type: string;
+  relationship_type_label?: string;
+  direction?: 'outgoing' | 'incoming';
   role_in_relationship?: string | null;
   ownership_percentage?: number | null;
   context?: string | null;
   start_date?: string | null;
   end_date?: string | null;
   is_active: boolean;
+  notes?: string | null;
+  other_contact?: {
+    id: number;
+    name: string;
+    entity_type: string;
+    email?: string;
+    phone?: string;
+    roles?: string[];
+  };
+  related_contact?: {
+    id: number;
+    display_name: string;
+    email?: string;
+    phone?: string;
+    roles?: string[];
+  };
 }
 
 // API response for relationships
@@ -521,8 +548,19 @@ interface RelationshipsResponse {
   };
 }
 
-// Relationship types available for company relationships
-const COMPANY_RELATIONSHIP_TYPES: Option[] = [
+// Relationship type metadata from API (SSoT)
+interface RelationshipTypeMetadata {
+  value: string;
+  label: string;
+  category: string;
+  source_types: string[];
+  target_types: string[];
+  description: string;
+  syncs_to_corporate: boolean;
+}
+
+// Fallback relationship types (used until API metadata loads)
+const FALLBACK_RELATIONSHIP_TYPES: Option[] = [
   // Employment
   { value: "employee_of", label: "Employee" },
   { value: "contractor_for", label: "Contractor" },
@@ -538,7 +576,37 @@ const COMPANY_RELATIONSHIP_TYPES: Option[] = [
   { value: "appointor_of", label: "Appointor" },
   // Ownership
   { value: "owner_of", label: "Owner" },
+  { value: "co_owner_with", label: "Co-Owner" },
+  // Corporate structure
+  { value: "parent_company", label: "Parent Company" },
+  { value: "subsidiary", label: "Subsidiary" },
+  // General
+  { value: "previous_client", label: "Previous Client" },
+  { value: "referral", label: "Referral" },
+  { value: "supplier_alternate", label: "Alternative Supplier" },
+  { value: "related_project", label: "Related Project" },
+  { value: "family_member", label: "Family Member" },
+  { value: "other", label: "Other" },
 ];
+
+// Helper to filter relationship types based on source and target entity types
+function getValidRelationshipTypes(
+  metadata: RelationshipTypeMetadata[],
+  sourceEntityType: string | null,
+  targetEntityType: string | null
+): Option[] {
+  if (!metadata || metadata.length === 0) {
+    return FALLBACK_RELATIONSHIP_TYPES;
+  }
+
+  return metadata
+    .filter(m => {
+      const sourceMatch = !sourceEntityType || m.source_types.includes(sourceEntityType);
+      const targetMatch = !targetEntityType || m.target_types.includes(targetEntityType);
+      return sourceMatch && targetMatch;
+    })
+    .map(m => ({ value: m.value, label: m.label }));
+}
 
 // Sortable Employee Item Component
 interface SortableEmployeeItemProps {
@@ -549,6 +617,7 @@ interface SortableEmployeeItemProps {
   onRemove: (employeeId: number) => void;
   onPositionChange: (employeeId: number, position: number) => void;
   isPrimary: boolean;
+  availableRoleTypes: Option[]; // SSoT: Valid role types for this entity combination
 }
 
 function SortableEmployeeItem({
@@ -559,6 +628,7 @@ function SortableEmployeeItem({
   onRemove,
   onPositionChange,
   isPrimary,
+  availableRoleTypes,
 }: SortableEmployeeItemProps) {
   const {
     attributes,
@@ -578,7 +648,7 @@ function SortableEmployeeItem({
   const roles = employeeRoles[employee.id.toString()] || [];
   const roleOptions = roles.map(roleType => ({
     value: roleType,
-    label: COMPANY_RELATIONSHIP_TYPES.find(r => r.value === roleType)?.label || roleType,
+    label: availableRoleTypes.find(r => r.value === roleType)?.label || roleType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
   }));
 
   const [positionInput, setPositionInput] = useState(String(index + 1));
@@ -674,7 +744,7 @@ function SortableEmployeeItem({
               onRolesChange(employee.id, roleTypes);
             }}
             placeholder="Select roles..."
-            options={COMPANY_RELATIONSHIP_TYPES}
+            options={availableRoleTypes}
             className="flex-1 max-w-md"
             badgeClassName="text-xs"
             hidePlaceholderWhenSelected
@@ -716,6 +786,7 @@ interface SortableCompanyItemProps {
   onRemove: () => void;
   onPositionChange: (companyId: string, position: number) => void;
   isPrimary: boolean;
+  availableRoleTypes: Option[]; // SSoT: Valid role types for this entity combination
 }
 
 function SortableCompanyItem({
@@ -726,6 +797,7 @@ function SortableCompanyItem({
   onRemove,
   onPositionChange,
   isPrimary,
+  availableRoleTypes,
 }: SortableCompanyItemProps) {
   const {
     attributes,
@@ -745,7 +817,7 @@ function SortableCompanyItem({
   const roles = companyRoles[company.value] || [];
   const roleOptions = roles.map(roleType => ({
     value: roleType,
-    label: COMPANY_RELATIONSHIP_TYPES.find(r => r.value === roleType)?.label || roleType,
+    label: availableRoleTypes.find(r => r.value === roleType)?.label || roleType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
   }));
 
   const [positionInput, setPositionInput] = useState(String(index + 1));
@@ -827,7 +899,7 @@ function SortableCompanyItem({
               onRolesChange(company.value, roleTypes);
             }}
             placeholder="Select roles..."
-            options={COMPANY_RELATIONSHIP_TYPES}
+            options={availableRoleTypes}
             className="flex-1 max-w-md"
             badgeClassName="text-xs"
             hidePlaceholderWhenSelected
@@ -948,6 +1020,18 @@ export default function ContactDetailPage() {
 
   // Track roles for each employee (employeeId -> roleTypes[])
   const [employeeRoles, setEmployeeRoles] = useState<Record<string, string[]>>({});
+
+  // SSoT: Relationship type metadata from API
+  const [relationshipTypeMetadata, setRelationshipTypeMetadata] = useState<RelationshipTypeMetadata[]>([]);
+
+  // Related Entities state (for company-to-company, person-to-person relationships)
+  const [relatedEntities, setRelatedEntities] = useState<ContactRelationship[]>([]);
+  const [loadingRelatedEntities, setLoadingRelatedEntities] = useState(false);
+  const [showAddRelatedEntity, setShowAddRelatedEntity] = useState(false);
+  const [newRelatedEntityContactId, setNewRelatedEntityContactId] = useState<string>("");
+  const [newRelatedEntityType, setNewRelatedEntityType] = useState<string>("");
+  const [addingRelatedEntity, setAddingRelatedEntity] = useState(false);
+  const [availableContacts, setAvailableContacts] = useState<Option[]>([]);
 
   // Add Employee state (for company contacts)
   const [showAddEmployee, setShowAddEmployee] = useState(false);
@@ -1143,6 +1227,11 @@ export default function ContactDetailPage() {
           const response = await api.get<RelationshipsResponse>(`/api/v1/contacts/${contact.id}/relationships`);
           const incoming = response.relationships?.incoming || [];
 
+          // Store metadata if returned
+          if ((response as any).relationship_types_metadata) {
+            setRelationshipTypeMetadata((response as any).relationship_types_metadata);
+          }
+
           // Group relationships by employee ID and collect role types
           const rolesMap: Record<string, string[]> = {};
           incoming.forEach((rel: ContactRelationship) => {
@@ -1150,12 +1239,8 @@ export default function ContactDetailPage() {
             if (!rolesMap[employeeId]) {
               rolesMap[employeeId] = [];
             }
-            // Only include company-related roles (must match COMPANY_RELATIONSHIP_TYPES)
-            if (['employee_of', 'director_of', 'shareholder_of', 'contractor_for', 'partner_in',
-                 'authorized_signatory_of', 'beneficial_owner_of', 'trustee_of', 'beneficiary_of',
-                 'appointor_of', 'owner_of'].includes(rel.relationship_type)) {
-              rolesMap[employeeId].push(rel.relationship_type);
-            }
+            // Include all valid relationship types (no hardcoded filter)
+            rolesMap[employeeId].push(rel.relationship_type);
           });
 
           console.log('[Employee useEffect] Employee roles fetched:', rolesMap);
@@ -1170,6 +1255,107 @@ export default function ContactDetailPage() {
       setEmployeeRoles({});
     }
   }, [contact?.employees, contact?.id]);
+
+  // SSoT: Fetch relationship type metadata and related entities from API
+  useEffect(() => {
+    const fetchRelationshipsAndMetadata = async () => {
+      if (!contact?.id) return;
+
+      setLoadingRelatedEntities(true);
+      try {
+        const response = await api.get<{
+          relationships: {
+            outgoing: ContactRelationship[];
+            incoming: ContactRelationship[];
+          };
+          relationship_types_metadata: RelationshipTypeMetadata[];
+        }>(`/api/v1/contacts/${contact.id}/relationships`);
+
+        if (response.relationship_types_metadata) {
+          setRelationshipTypeMetadata(response.relationship_types_metadata);
+        }
+
+        // Filter relationships that don't fit the existing UI sections:
+        // - Person's "Companies" card shows: person → company/trust relationships
+        // - Company's "Employees" card shows: person → this company relationships
+        // "Related Entities" shows everything else:
+        // - Company → Company (parent/subsidiary, shareholder)
+        // - Company → Trust (shareholdings, beneficial ownership)
+        // - Person → Person (family, co-owner)
+        // - Trust → Trust (beneficiary chains)
+        const allRelationships = [
+          ...(response.relationships?.outgoing || []),
+          ...(response.relationships?.incoming || [])
+        ];
+
+        const filteredRelationships = allRelationships.filter(rel => {
+          const otherEntityType = rel.other_contact?.entity_type;
+          const thisEntityType = contact.entity_type;
+
+          // Skip inactive relationships
+          if (!rel.is_active) return false;
+
+          // For persons: Companies card handles person → company/trust
+          if (isPerson(thisEntityType)) {
+            // Exclude relationships already shown in Companies card
+            if (otherEntityType && ['company', 'trust', 'sole_trader'].includes(otherEntityType)) {
+              return false;
+            }
+          }
+
+          // For companies/trusts: Employees card handles incoming person → this company
+          if (canHaveEmployees(thisEntityType)) {
+            // Exclude incoming person relationships (shown in Employees card)
+            if (rel.direction === 'incoming' && otherEntityType === 'person') {
+              return false;
+            }
+          }
+
+          // Include everything else
+          return true;
+        });
+
+        // Deduplicate (in case a relationship appears in both outgoing and incoming)
+        const uniqueRelationships = filteredRelationships.reduce((acc, rel) => {
+          if (!acc.find(r => r.id === rel.id)) {
+            acc.push(rel);
+          }
+          return acc;
+        }, [] as ContactRelationship[]);
+
+        setRelatedEntities(uniqueRelationships);
+      } catch (err) {
+        console.error("Failed to fetch relationships:", err);
+      } finally {
+        setLoadingRelatedEntities(false);
+      }
+    };
+    fetchRelationshipsAndMetadata();
+  }, [contact?.id, contact?.entity_type]);
+
+  // Fetch all contacts for the related entity selector
+  useEffect(() => {
+    const fetchAllContacts = async () => {
+      try {
+        const response = await api.get<{ contacts: any[] }>("/api/v1/contacts", {
+          params: { limit: 500 }
+        });
+        const contacts = response.contacts || [];
+        const options: Option[] = contacts
+          .filter((c: any) => c.id !== contact?.id) // Exclude current contact
+          .map((c: any) => ({
+            value: c.id.toString(),
+            label: `${c.display_name || c.first_name || 'Unknown'} (${c.entity_type || 'unknown'})`,
+          }));
+        setAvailableContacts(options);
+      } catch (err) {
+        console.error("Failed to fetch contacts for related entity selector:", err);
+      }
+    };
+    if (contact?.id) {
+      fetchAllContacts();
+    }
+  }, [contact?.id]);
 
   // SSoT: Auto-open edit modal when ?edit=true is in URL (e.g., from CG page)
   useEffect(() => {
@@ -1827,6 +2013,87 @@ export default function ContactDetailPage() {
     } catch (err) {
       console.error("[Employee Roles] Failed to update roles for employee:", employeeId, "Error:", err);
       alert("Failed to update employee roles");
+    }
+  };
+
+  // Handle adding a new related entity
+  const handleAddRelatedEntity = async () => {
+    if (!contact || !newRelatedEntityContactId || !newRelatedEntityType) return;
+
+    setAddingRelatedEntity(true);
+    try {
+      await api.post(`/api/v1/contacts/${contact.id}/relationships`, {
+        contact_relationship: {
+          related_contact_id: parseInt(newRelatedEntityContactId),
+          relationship_type: newRelatedEntityType,
+          is_active: true,
+        },
+      });
+
+      // Reload relationships
+      const response = await api.get<{
+        relationships: {
+          outgoing: ContactRelationship[];
+          incoming: ContactRelationship[];
+        };
+      }>(`/api/v1/contacts/${contact.id}/relationships`);
+
+      // Refilter relationships
+      const allRelationships = [
+        ...(response.relationships?.outgoing || []),
+        ...(response.relationships?.incoming || [])
+      ];
+
+      const filteredRelationships = allRelationships.filter(rel => {
+        const otherEntityType = rel.other_contact?.entity_type;
+        const thisEntityType = contact.entity_type;
+        if (!rel.is_active) return false;
+        if (isPerson(thisEntityType)) {
+          if (otherEntityType && ['company', 'trust', 'sole_trader'].includes(otherEntityType)) {
+            return false;
+          }
+        }
+        if (canHaveEmployees(thisEntityType)) {
+          if (rel.direction === 'incoming' && otherEntityType === 'person') {
+            return false;
+          }
+        }
+        return true;
+      });
+
+      const uniqueRelationships = filteredRelationships.reduce((acc, rel) => {
+        if (!acc.find(r => r.id === rel.id)) {
+          acc.push(rel);
+        }
+        return acc;
+      }, [] as ContactRelationship[]);
+
+      setRelatedEntities(uniqueRelationships);
+
+      // Reset form
+      setNewRelatedEntityContactId("");
+      setNewRelatedEntityType("");
+      setShowAddRelatedEntity(false);
+    } catch (err) {
+      console.error("Failed to add related entity:", err);
+      alert("Failed to add relationship");
+    } finally {
+      setAddingRelatedEntity(false);
+    }
+  };
+
+  // Handle removing a related entity
+  const handleRemoveRelatedEntity = async (relationshipId: number, sourceContactId: number) => {
+    if (!contact) return;
+    if (!confirm("Remove this relationship?")) return;
+
+    try {
+      await api.delete(`/api/v1/contacts/${sourceContactId}/relationships/${relationshipId}`);
+      // Remove from local state
+      setRelatedEntities(prev => prev.filter(r => r.id !== relationshipId));
+    } catch (err) {
+      console.error("Failed to remove related entity:", err);
+      alert("Failed to remove relationship");
     }
   };
 
@@ -3009,6 +3276,11 @@ export default function ContactDetailPage() {
                               onRemove={handleRemoveEmployee}
                               onPositionChange={handleEmployeePositionChange}
                               isPrimary={index === 0}
+                              availableRoleTypes={getValidRelationshipTypes(
+                                relationshipTypeMetadata,
+                                'person', // employee is a person
+                                formData.entity_type // target is this company/trust
+                              )}
                             />
                           ))}
                         </div>
@@ -3052,6 +3324,11 @@ export default function ContactDetailPage() {
                               }}
                               onPositionChange={handleCompanyPositionChange}
                               isPrimary={index === 0}
+                              availableRoleTypes={getValidRelationshipTypes(
+                                relationshipTypeMetadata,
+                                formData.entity_type, // this person is the source
+                                'company' // target is company (we filter companies only)
+                              )}
                             />
                           ))}
                         </div>
@@ -3060,6 +3337,174 @@ export default function ContactDetailPage() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Related Entities Card - for relationships not covered by Companies/Employees */}
+              {/* Shows: Company→Company, Person→Person, Trust→Trust, etc. */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Link2 className="h-5 w-5" />
+                      Related Entities
+                      {relatedEntities.length > 0 && (
+                        <Badge variant="secondary" className="ml-2">{relatedEntities.length}</Badge>
+                      )}
+                    </CardTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAddRelatedEntity(!showAddRelatedEntity)}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Relationship
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {/* Add Relationship Form */}
+                  {showAddRelatedEntity && (
+                    <div className="mb-4 p-4 border rounded-lg bg-muted/30 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Related Contact</Label>
+                          <Select
+                            value={newRelatedEntityContactId}
+                            onValueChange={setNewRelatedEntityContactId}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select contact..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableContacts.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Relationship Type</Label>
+                          <Select
+                            value={newRelatedEntityType}
+                            onValueChange={setNewRelatedEntityType}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select type..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getValidRelationshipTypes(relationshipTypeMetadata, formData.entity_type, null).map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={handleAddRelatedEntity}
+                          disabled={!newRelatedEntityContactId || !newRelatedEntityType || addingRelatedEntity}
+                        >
+                          {addingRelatedEntity ? "Adding..." : "Add"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setShowAddRelatedEntity(false);
+                            setNewRelatedEntityContactId("");
+                            setNewRelatedEntityType("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Related Entities List */}
+                  {loadingRelatedEntities ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      Loading relationships...
+                    </div>
+                  ) : relatedEntities.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      <p className="text-sm">No related entities</p>
+                      <p className="text-xs mt-1">
+                        Add relationships like parent companies, subsidiaries, family members, or business partners
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {relatedEntities.map((rel) => (
+                        <div
+                          key={rel.id}
+                          className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors"
+                        >
+                          {/* Entity Icon */}
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            {rel.other_contact?.entity_type === 'person' ? (
+                              <User className="h-5 w-5 text-primary" />
+                            ) : rel.other_contact?.entity_type === 'trust' ? (
+                              <Scale className="h-5 w-5 text-primary" />
+                            ) : (
+                              <Building2 className="h-5 w-5 text-primary" />
+                            )}
+                          </div>
+
+                          {/* Entity Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Link href={`/contacts/${rel.other_contact?.id}`} className="text-sm font-medium hover:underline">
+                                {rel.other_contact?.name || 'Unknown'}
+                              </Link>
+                              <Badge variant="outline" className="text-xs">
+                                {rel.other_contact?.entity_type}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="secondary" className="text-xs">
+                                {rel.direction === 'outgoing' ? '→' : '←'} {rel.relationship_type_label || rel.relationship_type.replace(/_/g, ' ')}
+                              </Badge>
+                              {rel.ownership_percentage && (
+                                <span className="text-xs text-muted-foreground">
+                                  {rel.ownership_percentage}%
+                                </span>
+                              )}
+                            </div>
+                            {rel.other_contact?.email && (
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                                <Mail className="h-3 w-3" />
+                                {rel.other_contact.email}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveRelatedEntity(rel.id, rel.source_contact_id)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Link href={`/contacts/${rel.other_contact?.id}`}>
+                              <Button variant="ghost" size="sm">
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Business & Tax Card - Hide for people with primary company */}
               {!(canHaveEmployer(formData.entity_type) && contact.primary_company) && (

@@ -84,6 +84,7 @@ import { SortableColumnItem } from "./SortableColumnItem";
 import { SortableSortByItem } from "./SortableSortByItem";
 import { SortableGroupByItem } from "./SortableGroupByItem";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
+import { useContactChoices } from "@/hooks/useContactChoices";
 
 // Column interface for view manager
 interface Column {
@@ -175,8 +176,9 @@ export function ViewManagerSheet({
   const [lookupOptionsCache, setLookupOptionsCache] = React.useState<Record<string, { id: number; display: string }[]>>({});
   const [lookupLoadingColumns, setLookupLoadingColumns] = React.useState<Set<string>>(new Set());
 
-  // SSoT: Entity types from API (used for entity_type column filters)
+  // SSoT: Contact choices from API (used for choice column filters)
   const { metadata: entityTypeMetadata } = useEntityTypes();
+  const { employmentStatusMetadata, roleMetadata } = useContactChoices();
 
   // DnD sensors
   const sensors = useSensors(
@@ -691,20 +693,28 @@ export function ViewManagerSheet({
       );
     }
 
-    // SSoT: Use entity types from API for entity_type column (not column.available_choices)
-    if (filter.column === 'entity_type' && entityTypeMetadata.length > 0) {
-      const entityTypeItems: ComboboxItem[] = entityTypeMetadata.map((et) => ({
-        id: et.value,
-        label: et.label,
+    // SSoT: Use choices from API for specific columns (not column.available_choices)
+    // This ensures filter dropdowns show valid values from Contact model constants
+    const ssotColumns: Record<string, { metadata: { value: string; label: string }[]; placeholder: string }> = {
+      entity_type: { metadata: entityTypeMetadata, placeholder: "Search type..." },
+      employment_status: { metadata: employmentStatusMetadata, placeholder: "Search status..." },
+      primary_role: { metadata: roleMetadata, placeholder: "Search role..." },
+    };
+
+    const ssotConfig = ssotColumns[filter.column];
+    if (ssotConfig && ssotConfig.metadata.length > 0) {
+      const items: ComboboxItem[] = ssotConfig.metadata.map((item) => ({
+        id: item.value,
+        label: item.label,
       }));
 
       return (
         <div className="w-[140px]">
           <ComboboxDropdown
-            items={entityTypeItems}
-            selectedItem={filter.value ? { id: String(filter.value), label: entityTypeMetadata.find(et => et.value === filter.value)?.label || String(filter.value) } : undefined}
+            items={items}
+            selectedItem={filter.value ? { id: String(filter.value), label: ssotConfig.metadata.find(m => m.value === filter.value)?.label || String(filter.value) } : undefined}
             onSelect={(item) => updateFilter(filter.id, { value: item.id })}
-            placeholder="Search type..."
+            placeholder={ssotConfig.placeholder}
             searchInTrigger={true}
             popoverProps={{ className: "w-[200px]" }}
           />
