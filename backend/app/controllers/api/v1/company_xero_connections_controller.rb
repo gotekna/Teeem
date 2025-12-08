@@ -4,17 +4,49 @@ module Api
       before_action :set_connection, only: [ :show, :disconnect, :sync_accounts ]
 
       # GET /api/v1/company_xero_connections
+      # Returns ALL Xero organizations (credentials) and their linked TEEEM companies
       def index
-        @connections = CompanyXeroConnection.includes(:company).all
+        # Get all Xero credentials (organizations)
+        all_credentials = XeroCredential.all.order(created_at: :desc)
+
+        # Get all company connections
+        all_connections = CompanyXeroConnection.includes(:company).all
+
+        # Build response showing all Xero orgs with their linked companies
+        organizations = all_credentials.map do |credential|
+          # Find all companies linked to this Xero org
+          linked_companies = all_connections.select { |conn| conn.xero_tenant_id == credential.tenant_id }
+
+          {
+            tenant_id: credential.tenant_id,
+            tenant_name: credential.tenant_name,
+            connected: !credential.expired?,
+            expires_at: credential.expires_at,
+            expired: credential.expired?,
+            companies: linked_companies.map do |conn|
+              {
+                id: conn.id,
+                company_id: conn.company_id,
+                company: {
+                  id: conn.company.id,
+                  name: conn.company.name
+                },
+                xero_tenant_id: conn.xero_tenant_id,
+                xero_tenant_name: conn.xero_tenant_name,
+                connection_status: conn.connection_status,
+                connected: conn.connected?,
+                last_sync_at: conn.last_sync_at,
+                days_since_last_sync: conn.days_since_last_sync
+              }
+            end
+          }
+        end
 
         render json: {
           success: true,
-          connections: @connections.as_json(
-            include: { company: { only: [ :id, :name ] } },
-            only: [ :id, :company_id, :xero_tenant_id, :xero_tenant_name, :connection_status,
-                   :last_sync_at, :accounting_method, :financial_year_end ],
-            methods: [ :connected?, :days_since_last_sync ]
-          )
+          organizations: organizations,
+          total_organizations: organizations.count,
+          connected_organizations: organizations.count { |o| o[:connected] }
         }
       end
 

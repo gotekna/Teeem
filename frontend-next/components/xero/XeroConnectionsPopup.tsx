@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { X, CheckCircle, XCircle, RefreshCw, Building2, Calendar, Star, ArrowRight } from "lucide-react";
 import { api } from "@/lib/api";
 
-interface XeroConnection {
+interface CompanyLink {
   id: number;
   company_id: number;
   company: {
@@ -22,8 +22,10 @@ interface XeroConnection {
 interface XeroOrganization {
   tenant_id: string;
   tenant_name: string;
-  companies: XeroConnection[];
-  allConnected: boolean;
+  connected: boolean;
+  expired: boolean;
+  expires_at: string;
+  companies: CompanyLink[];
 }
 
 interface XeroConnectionsPopupProps {
@@ -32,7 +34,7 @@ interface XeroConnectionsPopupProps {
 }
 
 export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupProps) {
-  const [connections, setConnections] = useState<XeroConnection[]>([]);
+  const [organizations, setOrganizations] = useState<XeroOrganization[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,10 +46,15 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
   const loadConnections = async () => {
     try {
       setLoading(true);
-      const response = await api.get<{ success: boolean; connections: XeroConnection[] }>(
+      const response = await api.get<{
+        success: boolean;
+        organizations: XeroOrganization[];
+        total_organizations: number;
+        connected_organizations: number;
+      }>(
         "/api/v1/company_xero_connections"
       );
-      setConnections(response.connections || []);
+      setOrganizations(response.organizations || []);
     } catch (error) {
       console.error("Failed to load Xero connections:", error);
     } finally {
@@ -70,33 +77,12 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
 
   if (!isOpen) return null;
 
-  // Group connections by Xero organization
-  const organizations: XeroOrganization[] = [];
-  const organizationMap = new Map<string, XeroOrganization>();
-
-  connections.forEach((connection) => {
-    if (!organizationMap.has(connection.xero_tenant_id)) {
-      const org: XeroOrganization = {
-        tenant_id: connection.xero_tenant_id,
-        tenant_name: connection.xero_tenant_name,
-        companies: [],
-        allConnected: true,
-      };
-      organizationMap.set(connection.xero_tenant_id, org);
-      organizations.push(org);
-    }
-
-    const org = organizationMap.get(connection.xero_tenant_id)!;
-    org.companies.push(connection);
-    if (!connection.connected) {
-      org.allConnected = false;
-    }
-  });
-
   const totalOrgs = organizations.length;
-  const connectedOrgs = organizations.filter((o) => o.allConnected).length;
-  const totalCompanies = connections.length;
-  const connectedCompanies = connections.filter((c) => c.connected).length;
+  const connectedOrgs = organizations.filter((o) => o.connected).length;
+  const totalCompanies = organizations.reduce((sum, org) => sum + org.companies.length, 0);
+  const connectedCompanies = organizations.reduce((sum, org) =>
+    sum + org.companies.filter((c) => c.connected).length, 0
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -147,15 +133,15 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                     <div className="flex items-center space-x-3">
                       {/* Organization Status */}
                       <div className="relative">
-                        {org.allConnected ? (
+                        {org.connected ? (
                           <>
                             <CheckCircle className="h-6 w-6 text-green-500" />
                             <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-green-500 border-2 border-white dark:border-gray-800" />
                           </>
                         ) : (
                           <>
-                            <XCircle className="h-6 w-6 text-orange-500" />
-                            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-orange-500 border-2 border-white dark:border-gray-800" />
+                            <XCircle className="h-6 w-6 text-red-500" />
+                            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white dark:border-gray-800" />
                           </>
                         )}
                       </div>
@@ -166,80 +152,100 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                           <span className="font-semibold text-gray-900 dark:text-white">
                             {org.tenant_name}
                           </span>
-                          {org.companies.length === 1 && (
-                            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                              <Star className="mr-1 h-3 w-3" />
-                              Primary
+                          {org.companies.length === 0 && (
+                            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                              Not linked
                             </span>
                           )}
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Xero Organization • {org.companies.length} {org.companies.length === 1 ? 'company' : 'companies'}
+                          Xero Organization {org.companies.length > 0 && `• ${org.companies.length} ${org.companies.length === 1 ? 'company' : 'companies'}`}
                         </p>
                       </div>
                     </div>
 
                     <div className="text-right">
-                      <span className={`text-sm font-medium ${org.allConnected ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
-                        {org.companies.filter(c => c.connected).length} / {org.companies.length}
-                      </span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">connected</p>
+                      {org.companies.length > 0 ? (
+                        <>
+                          <span className={`text-sm font-medium ${
+                            org.companies.every(c => c.connected) ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'
+                          }`}>
+                            {org.companies.filter(c => c.connected).length} / {org.companies.length}
+                          </span>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">linked</p>
+                        </>
+                      ) : (
+                        <span className={`text-sm font-medium ${org.connected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {org.connected ? 'Connected' : 'Expired'}
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   {/* Linked TEEEM Companies */}
                   <div className="p-3 space-y-2">
-                    {org.companies.map((connection) => (
-                      <div
-                        key={connection.id}
-                        className="flex items-center justify-between rounded-md bg-white p-3 dark:bg-gray-800"
-                      >
-                        <div className="flex items-center space-x-3 flex-1">
-                          {/* Company Status */}
-                          <div>
-                            {connection.connected ? (
-                              <CheckCircle className="h-4 w-4 text-green-500" />
-                            ) : (
-                              <XCircle className="h-4 w-4 text-red-500" />
-                            )}
-                          </div>
-
-                          {/* Arrow */}
-                          <ArrowRight className="h-4 w-4 text-gray-400" />
-
-                          {/* TEEEM Company Name */}
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              <Building2 className="h-4 w-4 text-gray-400" />
-                              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                {connection.company.name}
-                              </span>
+                    {org.companies.length > 0 ? (
+                      org.companies.map((connection) => (
+                        <div
+                          key={connection.id}
+                          className="flex items-center justify-between rounded-md bg-white p-3 dark:bg-gray-800"
+                        >
+                          <div className="flex items-center space-x-3 flex-1">
+                            {/* Company Status */}
+                            <div>
+                              {connection.connected ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              )}
                             </div>
-                            {connection.last_sync_at && (
-                              <div className="mt-0.5 flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
-                                <Calendar className="h-3 w-3" />
-                                <span>
-                                  Last sync: {new Date(connection.last_sync_at).toLocaleDateString()}
-                                  {connection.days_since_last_sync !== undefined &&
-                                    ` (${connection.days_since_last_sync}d ago)`}
+
+                            {/* Arrow */}
+                            <ArrowRight className="h-4 w-4 text-gray-400" />
+
+                            {/* TEEEM Company Name */}
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2">
+                                <Building2 className="h-4 w-4 text-gray-400" />
+                                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                  {connection.company.name}
                                 </span>
                               </div>
-                            )}
-                          </div>
+                              {connection.last_sync_at && (
+                                <div className="mt-0.5 flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
+                                  <Calendar className="h-3 w-3" />
+                                  <span>
+                                    Last sync: {new Date(connection.last_sync_at).toLocaleDateString()}
+                                    {connection.days_since_last_sync !== undefined &&
+                                      ` (${connection.days_since_last_sync}d ago)`}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
 
-                          {/* View Button */}
-                          <button
-                            onClick={() => {
-                              window.location.href = `/corporate/companies/${connection.company_id}?tab=xero`;
-                              onClose();
-                            }}
-                            className="whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                          >
-                            View
-                          </button>
+                            {/* View Button */}
+                            <button
+                              onClick={() => {
+                                window.location.href = `/corporate/companies/${connection.company_id}?tab=xero`;
+                                onClose();
+                              }}
+                              className="whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                            >
+                              View
+                            </button>
+                          </div>
                         </div>
+                      ))
+                    ) : (
+                      <div className="rounded-md bg-white p-4 text-center dark:bg-gray-800">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          No TEEEM companies linked to this organization yet.
+                        </p>
+                        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                          Link companies from the Corporate &gt; Company &gt; Xero tab.
+                        </p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               ))}
