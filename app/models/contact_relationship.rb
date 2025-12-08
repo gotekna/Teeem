@@ -324,7 +324,11 @@ class ContactRelationship < ApplicationRecord
 
   # Sync primary_company_id field when employee_of relationships change
   # This keeps the legacy primary_company_id field in sync with ContactRelationship data
+  # SSoT: ContactRelationship (employee_of) → Contact.primary_company_id
   def sync_primary_company_id
+    # Prevent infinite loop with Contact#sync_primary_company_to_relationship
+    return if Thread.current[:syncing_primary_company_relationship]
+
     person = source_contact
     return unless person
 
@@ -337,6 +341,7 @@ class ContactRelationship < ApplicationRecord
     new_primary_company_id = active_relationships.first&.related_contact_id
 
     # Only update if changed (avoid unnecessary writes)
+    # Use update_column to skip callbacks and avoid infinite loops
     if person.primary_company_id != new_primary_company_id
       person.update_column(:primary_company_id, new_primary_company_id)
     end
