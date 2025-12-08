@@ -118,6 +118,13 @@ production:
     # EMAIL MAINTENANCE
     # ============================================
 
+    # Sync emails to SharePoint storage (SSoT)
+    email_sharepoint_sync:
+      class: EmailSharePointSyncJob
+      queue: low
+      args: [{ limit: 50 }]
+      schedule: every 2 hours at minute 20
+
     # Clean up expired ephemeral emails daily (GitHub notifications, calendar, etc.)
     cleanup_ephemeral_emails:
       class: CleanupEphemeralEmailsJob
