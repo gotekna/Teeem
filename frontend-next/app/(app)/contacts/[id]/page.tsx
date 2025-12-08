@@ -223,6 +223,9 @@ interface Contact {
   xero_id?: string | null;
   xero_contact_number?: string | null;
   xero_contact_status?: string | null;
+  xero_account_number?: string | null;
+  xero_synced?: boolean | null;
+  xero_invoice_count?: number | null;
   xero_contact_types: string[];
   sync_with_xero: boolean;
   created_at: string;
