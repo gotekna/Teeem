@@ -13,6 +13,7 @@ import {
   User,
   Settings,
   LogOut,
+  Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -277,6 +278,16 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           >
             <span className="sr-only">Xero</span>
             <XeroIcon className="h-4 w-4" />
+          </Link>
+
+          {/* Data Warehouse / System Health */}
+          <Link
+            href="/system-health"
+            className="p-1.5 text-red-500 hover:text-red-600 rounded-md transition-colors"
+            title="System Health & Data Warehouse"
+          >
+            <span className="sr-only">System Health</span>
+            <Database className="h-4 w-4" />
           </Link>
 
           {/* Inspiring Banner - centered */}
