@@ -58,7 +58,7 @@ export default function XeroCallbackPage() {
         // For company callbacks, show error briefly then close
         setTimeout(() => window.close(), 3000);
       } else {
-        setTimeout(() => router.push("/settings"), 3000);
+        setTimeout(() => router.push("/dashboard"), 3000);
       }
       return;
     }
@@ -73,7 +73,7 @@ export default function XeroCallbackPage() {
       if (isCompanyCallback) {
         setTimeout(() => window.close(), 3000);
       } else {
-        setTimeout(() => router.push("/settings"), 3000);
+        setTimeout(() => router.push("/dashboard"), 3000);
       }
       return;
     }
@@ -103,7 +103,8 @@ export default function XeroCallbackPage() {
         // Parent window (XeroConnectionCard) is polling for status
         setTimeout(() => window.close(), 1500);
       } else {
-        setTimeout(() => router.push("/settings"), 2000);
+        // Redirect back to dashboard instead of settings
+        setTimeout(() => router.push("/dashboard"), 2000);
       }
     } catch (err) {
       setStatus({
@@ -115,7 +116,7 @@ export default function XeroCallbackPage() {
       if (isCompanyCallback) {
         setTimeout(() => window.close(), 3000);
       } else {
-        setTimeout(() => router.push("/settings"), 3000);
+        setTimeout(() => router.push("/dashboard"), 3000);
       }
     }
   };

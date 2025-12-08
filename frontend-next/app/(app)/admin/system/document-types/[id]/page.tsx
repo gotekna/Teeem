@@ -49,8 +49,7 @@ const PLACEHOLDERS = {
     { code: "{CompanyName}", description: "Full company name (e.g., ABC Property Trust)", color: "purple" },
     { code: "{LoanID}", description: "Loan identifier (e.g., L001)", color: "purple" },
     { code: "{AssetCode}", description: "Asset abbreviation (e.g., PROP1)", color: "purple" },
-    { code: "{FY}", description: "Financial year with prefix (e.g., FY25)", color: "purple" },
-    { code: "{YY}", description: "Financial year 2 digits only (e.g., 25)", color: "purple" },
+    { code: "{FY}", label: "FY{FY}", description: "Financial year with FY prefix (e.g., FY25)", color: "purple" },
     { code: "{Period}", description: "BAS period with dates (e.g., Q1 Jul-Sep)", color: "purple" },
     { code: "{LenderCode}", description: "Lender company code (e.g., NAB)", color: "purple" },
     { code: "{Date}", description: "Document date DD-MM-YYYY (e.g., 09-12-2025)", color: "purple" },
@@ -107,7 +106,7 @@ export default function DocumentTypeDetailPage() {
   const [displayNameSameAsFileName, setDisplayNameSameAsFileName] = React.useState(true);
   const [showFullDescription, setShowFullDescription] = React.useState(false);
   const [previewCompanyId, setPreviewCompanyId] = React.useState<number | null>(null);
-  const [companies, setCompanies] = React.useState<Array<{id: number; name: string; abbreviation: string}>>([]);
+  const [companies, setCompanies] = React.useState<Array<{id: number; name: string; code: string}>>([]);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
@@ -128,7 +127,9 @@ export default function DocumentTypeDetailPage() {
       const companiesData = response.data?.companies || response.companies || response.data?.data || response.data || response;
 
       if (Array.isArray(companiesData)) {
-        setCompanies(companiesData);
+        // Filter to only show corporate-linked companies (those with a company_group_id)
+        const corporateLinkedCompanies = companiesData.filter((c: any) => c.company_group_id != null);
+        setCompanies(corporateLinkedCompanies);
       } else {
         console.warn("Companies data is not an array:", companiesData);
         setCompanies([]);
@@ -335,7 +336,7 @@ export default function DocumentTypeDetailPage() {
 
     // Get selected company data or use defaults
     const selectedCompany = previewCompanyId ? companies.find(c => c.id === previewCompanyId) : null;
-    const companyCode = selectedCompany?.abbreviation || "ABC";
+    const companyCode = selectedCompany?.code || "ABC";
     const companyName = selectedCompany?.name || "ABC Property Trust";
 
     // Replace placeholders with example values
@@ -346,7 +347,6 @@ export default function DocumentTypeDetailPage() {
     preview = preview.replace(/\{LenderCode\}/g, useFullDescription ? "National Australia Bank" : "NAB");
     preview = preview.replace(/\{AssetCode\}/g, useFullDescription ? "Property 1" : "PROP1");
     preview = preview.replace(/\{FY\}/g, "FY25");
-    preview = preview.replace(/\{YY\}/g, "25");
     preview = preview.replace(/\{Period\}/g, "Q1 Jul-Sep"); // Long-hand with dates
     preview = preview.replace(/\{Date\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
     preview = preview.replace(/\{PrintDate\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
@@ -652,7 +652,7 @@ export default function DocumentTypeDetailPage() {
                   <SelectItem value="default">Example Data</SelectItem>
                   {companies.map(company => (
                     <SelectItem key={company.id} value={company.id.toString()}>
-                      {company.abbreviation} - {company.name}
+                      {company.code} - {company.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -661,19 +661,22 @@ export default function DocumentTypeDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="file_name">File Name</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => addBlankText("file_name")}
-                className="text-xs h-7"
-              >
-                + Add Text
-              </Button>
-            </div>
+          <div className="flex gap-6">
+            {/* Left side - File Name and Display Name */}
+            <div className="flex-1 space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="file_name">File Name</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => addBlankText("file_name")}
+                    className="text-xs h-7"
+                  >
+                    + Add Text
+                  </Button>
+                </div>
             <div className="min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-2 items-center">
               {parseTokens(documentType.file_name || "").map((token, index) => (
                 <div
@@ -875,53 +878,59 @@ export default function DocumentTypeDetailPage() {
                 : "Override the document type name for specific display contexts. Drag to reorder, X to remove."}
             </p>
           </div>
+            </div>
+            {/* End left side */}
 
-          {/* Draggable Placeholders */}
-          <div className="space-y-3 p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <div className="flex items-center gap-2">
-              <GripVertical className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              <Label className="text-sm font-semibold text-blue-900 dark:text-blue-200">
-                Available Placeholders for {documentType.scope === "both" ? "Company & Job" : documentType.scope === "job" ? "Jobs" : "Companies"}
-              </Label>
-            </div>
-            <p className="text-xs text-blue-600 dark:text-blue-400">
-              💡 Drag these chips into the fields above, or click to add at the end
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {getAvailablePlaceholders().map((placeholder) => (
-                <Badge
-                  key={placeholder.code}
-                  draggable
-                  onDragStart={(e) => handleDragStartFromSource(e, placeholder.code)}
-                  onDragEnd={handleDragEnd}
-                  className={cn(
-                    "cursor-grab active:cursor-grabbing font-mono text-xs px-3 py-1.5 transition-all hover:scale-105",
-                    placeholder.color === "purple" && "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
-                    placeholder.color === "orange" && "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
-                    draggedPlaceholder === placeholder.code && draggedFromField === "source" && "opacity-50 scale-95"
-                  )}
-                  title={`${placeholder.code} - ${placeholder.description}`}
-                >
-                  <GripVertical className="h-3 w-3 mr-1 inline" />
-                  {placeholder.code}
-                </Badge>
-              ))}
-            </div>
-            <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-blue-200 dark:border-blue-800">
-              {getAvailablePlaceholders().map((p) => (
-                <div key={p.code} className="flex items-start gap-2">
-                  <code className={cn(
-                    "px-1.5 py-0.5 rounded font-mono text-xs",
-                    p.color === "purple" && "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300",
-                    p.color === "orange" && "bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300"
-                  )}>
-                    {p.code}
-                  </code>
-                  <span className="text-xs">{p.description}</span>
+            {/* Right side - Available Placeholders */}
+            <div className="w-72 shrink-0">
+              <div className="space-y-3 p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 sticky top-4">
+                <div className="flex items-center gap-2">
+                  <GripVertical className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <Label className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                    Available Placeholders
+                  </Label>
                 </div>
-              ))}
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  Drag chips to fields or click to add
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {getAvailablePlaceholders().map((placeholder) => (
+                    <Badge
+                      key={placeholder.code}
+                      draggable
+                      onDragStart={(e) => handleDragStartFromSource(e, placeholder.code)}
+                      onDragEnd={handleDragEnd}
+                      className={cn(
+                        "cursor-grab active:cursor-grabbing font-mono text-xs px-2 py-1 transition-all hover:scale-105",
+                        placeholder.color === "purple" && "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
+                        placeholder.color === "orange" && "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+                        draggedPlaceholder === placeholder.code && draggedFromField === "source" && "opacity-50 scale-95"
+                      )}
+                      title={placeholder.description}
+                    >
+                      <GripVertical className="h-3 w-3 mr-0.5 inline" />
+                      {(placeholder as any).label || placeholder.code}
+                    </Badge>
+                  ))}
+                </div>
+                <div className="text-xs text-muted-foreground space-y-0.5 pt-2 border-t border-blue-200 dark:border-blue-800 max-h-48 overflow-y-auto">
+                  {getAvailablePlaceholders().map((p) => (
+                    <div key={p.code} className="flex items-start gap-1">
+                      <code className={cn(
+                        "px-1 py-0.5 rounded font-mono text-[10px] shrink-0",
+                        p.color === "purple" && "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300",
+                        p.color === "orange" && "bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300"
+                      )}>
+                        {(p as any).label || p.code}
+                      </code>
+                      <span className="text-[10px] leading-tight">{p.description}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
+          {/* End flex container */}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
