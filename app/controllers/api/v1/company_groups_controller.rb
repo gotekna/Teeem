@@ -147,7 +147,7 @@ module Api
 
         render json: {
           success: true,
-          data: memberships.map { |m| serialize_membership(m) }
+          data: memberships.map { |m| serialize_membership(m) }.compact
         }
       end
 
@@ -220,6 +220,8 @@ module Api
       # SSoT: Serialize full membership data
       def serialize_membership(membership)
         contact = membership.contact
+        return nil unless contact  # Skip orphaned memberships
+
         # Check if this contact has a linked Company record
         linked_company = Company.find_by(contact_id: contact.id)
         {
