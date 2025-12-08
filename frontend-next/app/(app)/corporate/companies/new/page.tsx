@@ -115,7 +115,7 @@ export default function NewCompanyPage() {
           status: data.status === "active" ? "Active" : data.status === "inactive" ? "Inactive" : prev.status,
         }));
       } else {
-        setError(response.error || "Lookup failed");
+        setError(response?.error || "Lookup failed");
       }
     } catch (err) {
       setError("ASIC lookup failed. Check the ABN/ACN and try again.");

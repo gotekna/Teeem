@@ -82,15 +82,13 @@ const DOCUMENT_TABS = [
   { id: "activity", name: "Activity", icon: Clock },
 ];
 
-// Overview sub-tabs
+// Overview sub-tabs for Companies (Health accessed via header badge)
 const OVERVIEW_SUB_TABS = [
   { id: "info", name: "Information" },
   { id: "corporate", name: "Corporate" },
   { id: "bank-accounts", name: "Bank Accounts" },
-  { id: "health", name: "Health" },
   { id: "directors", name: "Directors" },
   { id: "shareholdings", name: "Shareholdings" },
-  { id: "trusts", name: "Trusts" },
   { id: "consolidation", name: "Consolidation" },
 ];
 
@@ -208,6 +206,9 @@ interface Shareholding {
   beneficially_held?: boolean;
   beneficial_owner?: string;
   acquisition_date?: string;
+  disposal_date?: string;
+  certificate_number?: string;
+  consideration_paid?: number;
 }
 
 // SSoT: Bank account data from bank_accounts table
@@ -595,39 +596,141 @@ function CorporateTab({ company, onUpdate }: { company: Company; onUpdate: () =>
 }
 
 // Directors Sub-Tab
-function DirectorsTab({ company }: { company: Company }) {
+interface OfficerRecord {
+  id: number;
+  position: string;
+  formatted_position: string;
+  appointment_date: string;
+  resignation_date?: string;
+  is_current: boolean;
+  notes?: string;
+  contact: {
+    id: number;
+    display_name: string;
+    email?: string;
+    mobile_phone?: string;
+  };
+}
+
+function DirectorsTab({ companyId }: { companyId: string }) {
+  const [officers, setOfficers] = React.useState<OfficerRecord[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const loadOfficers = async () => {
+      try {
+        const response = await api.get<{ success: boolean; directors: OfficerRecord[] }>(
+          `/api/v1/companies/${companyId}/directors`
+        );
+        setOfficers(response.directors || []);
+      } catch (error) {
+        console.error("Failed to load officers:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadOfficers();
+  }, [companyId]);
+
+  // Group officers by role type
+  const directors = officers.filter(o => o.position?.includes("director") || o.position === "chairman");
+  const secretaries = officers.filter(o => o.position?.includes("secretary"));
+  const publicOfficers = officers.filter(o => o.position?.includes("public_officer"));
+
+  const renderOfficerList = (title: string, officerList: OfficerRecord[]) => {
+    const current = officerList.filter(o => o.is_current);
+    const former = officerList.filter(o => !o.is_current);
+
+    return (
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{title}</h4>
+        {officerList.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2">No {title.toLowerCase()} recorded</p>
+        ) : (
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Name</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Position</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Appointed</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Resigned</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {/* Current officers first */}
+                {current.map((officer) => (
+                  <tr key={officer.id} className="hover:bg-muted/30">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-700 dark:text-green-300 text-xs font-medium">
+                          {officer.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{officer.contact?.display_name || "Unknown"}</p>
+                          {officer.contact?.email && (
+                            <a href={`mailto:${officer.contact.email}`} className="text-xs text-muted-foreground hover:text-primary">
+                              {officer.contact.email}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm">{officer.formatted_position}</td>
+                    <td className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), "dd/MM/yyyy") : "-"}</td>
+                    <td className="px-4 py-3 text-sm">-</td>
+                    <td className="px-4 py-3">
+                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Current</Badge>
+                    </td>
+                  </tr>
+                ))}
+                {/* Former officers */}
+                {former.map((officer) => (
+                  <tr key={officer.id} className="hover:bg-muted/30 opacity-60">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 text-xs font-medium">
+                          {officer.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{officer.contact?.display_name || "Unknown"}</p>
+                          {officer.contact?.email && (
+                            <span className="text-xs text-muted-foreground">{officer.contact.email}</span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm">{officer.formatted_position}</td>
+                    <td className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), "dd/MM/yyyy") : "-"}</td>
+                    <td className="px-4 py-3 text-sm">{officer.resignation_date ? format(new Date(officer.resignation_date), "dd/MM/yyyy") : "-"}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant="secondary">Former</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-medium">Directors</h3>
-      {company.current_directors && company.current_directors.length > 0 ? (
-        <div className="space-y-4">
-          {company.current_directors.map((director) => (
-            <div key={director.id} className="flex items-center justify-between py-3 border-b last:border-0">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-                  {director.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?"}
-                </div>
-                <div>
-                  <p className="font-medium">{director.contact?.display_name || "Unknown"}</p>
-                  <p className="text-sm text-muted-foreground">{director.formatted_position}</p>
-                </div>
-              </div>
-              <div className="text-right text-sm">
-                <p className="text-muted-foreground">
-                  Appointed {format(new Date(director.appointment_date), "d MMM yyyy")}
-                </p>
-                {director.contact?.email && (
-                  <a href={`mailto:${director.contact.email}`} className="text-primary hover:underline">
-                    {director.contact.email}
-                  </a>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-muted-foreground text-center py-8">No directors recorded</p>
-      )}
+    <div className="space-y-6">
+      <h3 className="text-lg font-medium">Corporate Officers History</h3>
+      {renderOfficerList("Directors", directors)}
+      {renderOfficerList("Secretaries", secretaries)}
+      {renderOfficerList("Public Officers", publicOfficers)}
     </div>
   );
 }
@@ -653,6 +756,10 @@ function ShareholdingsTab({ company, companyId }: { company: Company; companyId:
     loadShareholders();
   }, [companyId]);
 
+  // Separate current and former shareholders
+  const currentShareholders = shareholders.filter(sh => !sh.disposal_date);
+  const formerShareholders = shareholders.filter(sh => sh.disposal_date);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -662,32 +769,85 @@ function ShareholdingsTab({ company, companyId }: { company: Company; companyId:
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">Shareholdings</h3>
+        <h3 className="text-lg font-medium">Shareholding History</h3>
         {company.shares_on_issue && (
           <span className="text-sm text-muted-foreground">
             {company.shares_on_issue.toLocaleString()} shares on issue
           </span>
         )}
       </div>
+
       {shareholders.length > 0 ? (
-        <div className="space-y-3">
-          {shareholders.map((sh) => (
-            <div key={sh.id} className="flex items-center justify-between py-3 border-b last:border-0">
-              <div>
-                <p className="font-medium">{sh.shareholder_name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {sh.share_class || "Ordinary"} shares
-                  {sh.beneficially_held && ` (Beneficial owner: ${sh.beneficial_owner})`}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-medium">{sh.number_of_shares.toLocaleString()} shares</p>
-                <p className="text-sm text-muted-foreground">{sh.percentage}%</p>
-              </div>
-            </div>
-          ))}
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Shareholder</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Class</th>
+                <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Shares</th>
+                <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">%</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Acquired</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Disposed</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {/* Current shareholders first */}
+              {currentShareholders.map((sh) => (
+                <tr key={sh.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-700 dark:text-green-300 text-xs font-medium">
+                        {sh.shareholder_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{sh.shareholder_name}</p>
+                        {sh.beneficially_held && (
+                          <p className="text-xs text-muted-foreground">Beneficial: {sh.beneficial_owner}</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm capitalize">{sh.share_class || "Ordinary"}</td>
+                  <td className="px-4 py-3 text-sm text-right font-mono">{sh.number_of_shares.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-sm text-right">{sh.percentage}%</td>
+                  <td className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), "dd/MM/yyyy") : "-"}</td>
+                  <td className="px-4 py-3 text-sm">-</td>
+                  <td className="px-4 py-3">
+                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Current</Badge>
+                  </td>
+                </tr>
+              ))}
+              {/* Former shareholders */}
+              {formerShareholders.map((sh) => (
+                <tr key={sh.id} className="hover:bg-muted/30 opacity-60">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 text-xs font-medium">
+                        {sh.shareholder_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{sh.shareholder_name}</p>
+                        {sh.beneficially_held && (
+                          <p className="text-xs text-muted-foreground">Beneficial: {sh.beneficial_owner}</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm capitalize">{sh.share_class || "Ordinary"}</td>
+                  <td className="px-4 py-3 text-sm text-right font-mono">{sh.number_of_shares.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-sm text-right">{sh.percentage}%</td>
+                  <td className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), "dd/MM/yyyy") : "-"}</td>
+                  <td className="px-4 py-3 text-sm">{sh.disposal_date ? format(new Date(sh.disposal_date), "dd/MM/yyyy") : "-"}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant="secondary">Former</Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : (
         <p className="text-muted-foreground text-center py-8">No shareholders recorded</p>
@@ -3320,6 +3480,7 @@ export default function CompanyDetailPage() {
   const [bankSubTab, setBankSubTab] = React.useState("transactions");
   const [xeroConnected, setXeroConnected] = React.useState(false);
   const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
+  const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
 
   // Load company details
   const loadCompany = React.useCallback(async () => {
@@ -3349,10 +3510,26 @@ export default function CompanyDetailPage() {
     }
   }, [companyId]);
 
+  // Load health score for header badge
+  const loadHealthScore = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; companies: Array<{ id: number; health_score: number; health_status: string }> }>(
+        `/api/v1/companies/health_report`
+      );
+      const companyHealth = response.companies?.find((c) => c.id === parseInt(companyId));
+      if (companyHealth) {
+        setHealthScore({ score: companyHealth.health_score, status: companyHealth.health_status });
+      }
+    } catch (error) {
+      console.error("Failed to load health score:", error);
+    }
+  }, [companyId]);
+
   React.useEffect(() => {
     loadCompany();
     loadDocumentCounts();
-  }, [loadCompany, loadDocumentCounts]);
+    loadHealthScore();
+  }, [loadCompany, loadDocumentCounts, loadHealthScore]);
 
   // Handle tab from URL
   React.useEffect(() => {
@@ -3446,7 +3623,42 @@ export default function CompanyDetailPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* Health Score Badge */}
+              {healthScore && (
+                <button
+                  onClick={() => {
+                    setActiveTab("overview");
+                    setOverviewSubTab("health");
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all hover:scale-105",
+                    healthScore.status === "excellent" && "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800",
+                    healthScore.status === "good" && "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
+                    healthScore.status === "needs_attention" && "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800",
+                    healthScore.status === "critical" && "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                  )}
+                >
+                  <span className={cn(
+                    "text-2xl font-bold",
+                    healthScore.status === "excellent" && "text-green-700 dark:text-green-300",
+                    healthScore.status === "good" && "text-blue-700 dark:text-blue-300",
+                    healthScore.status === "needs_attention" && "text-yellow-700 dark:text-yellow-300",
+                    healthScore.status === "critical" && "text-red-700 dark:text-red-300"
+                  )}>
+                    {healthScore.score}%
+                  </span>
+                  <span className={cn(
+                    "text-xs uppercase font-medium",
+                    healthScore.status === "excellent" && "text-green-600 dark:text-green-400",
+                    healthScore.status === "good" && "text-blue-600 dark:text-blue-400",
+                    healthScore.status === "needs_attention" && "text-yellow-600 dark:text-yellow-400",
+                    healthScore.status === "critical" && "text-red-600 dark:text-red-400"
+                  )}>
+                    Health
+                  </span>
+                </button>
+              )}
               <Button variant="outline" asChild>
                 <a href={getSharePointUrl()} target="_blank" rel="noopener noreferrer">
                   <FolderOpen className="h-4 w-4 mr-2" />
@@ -3572,7 +3784,7 @@ export default function CompanyDetailPage() {
                   {overviewSubTab === "info" && <InformationTab company={company} />}
                   {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
                   {overviewSubTab === "bank-accounts" && <BankAccountsTab company={company} companyId={companyId} />}
-                  {overviewSubTab === "directors" && <DirectorsTab company={company} />}
+                  {overviewSubTab === "directors" && <DirectorsTab companyId={companyId} />}
                   {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
                   {overviewSubTab === "trusts" && <TrustsTab company={company} onUpdate={loadCompany} />}
                 </>
@@ -3603,7 +3815,7 @@ export default function CompanyDetailPage() {
                   {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
                   {overviewSubTab === "bank-accounts" && <BankAccountsTab company={company} companyId={companyId} />}
                   {overviewSubTab === "health" && <HealthTab company={company} onUpdate={loadCompany} />}
-                  {overviewSubTab === "directors" && <DirectorsTab company={company} />}
+                  {overviewSubTab === "directors" && <DirectorsTab companyId={companyId} />}
                   {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
                   {overviewSubTab === "trusts" && <TrustsTab company={company} onUpdate={loadCompany} />}
                   {overviewSubTab === "consolidation" && <ConsolidationTab company={company} onUpdate={loadCompany} />}
