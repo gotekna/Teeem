@@ -29,11 +29,21 @@ export default function XeroCallbackPage() {
   const handleCallback = async () => {
     const code = searchParams.get("code");
     const error = searchParams.get("error");
+    const state = searchParams.get("state");
+
+    // Check if this is a company-specific callback (from Corporate > Company > Bank tab)
+    const isCompanyCallback = state && state.startsWith("company_");
+    const companyId = isCompanyCallback ? state.replace("company_", "") : null;
 
     // Check if we've already processed this code to prevent duplicate OAuth exchanges on refresh
     const processedCode = sessionStorage.getItem("xero_processed_code");
     if (code && code === processedCode) {
-      router.replace("/settings");
+      if (isCompanyCallback) {
+        // Company callback - just close the popup, parent is polling
+        window.close();
+      } else {
+        router.replace("/settings");
+      }
       return;
     }
 
@@ -44,7 +54,12 @@ export default function XeroCallbackPage() {
         success: false,
         error: `Authorization failed: ${error}`,
       });
-      setTimeout(() => router.push("/settings"), 3000);
+      if (isCompanyCallback) {
+        // For company callbacks, show error briefly then close
+        setTimeout(() => window.close(), 3000);
+      } else {
+        setTimeout(() => router.push("/settings"), 3000);
+      }
       return;
     }
 
@@ -55,12 +70,24 @@ export default function XeroCallbackPage() {
         success: false,
         error: "No authorization code received",
       });
-      setTimeout(() => router.push("/settings"), 3000);
+      if (isCompanyCallback) {
+        setTimeout(() => window.close(), 3000);
+      } else {
+        setTimeout(() => router.push("/settings"), 3000);
+      }
       return;
     }
 
     try {
-      await api.post("/api/v1/xero/callback", { code });
+      if (isCompanyCallback && companyId) {
+        // Company-specific callback - call the company endpoint
+        await api.get(`/api/v1/companies/${companyId}/xero/callback`, {
+          params: { code, state }
+        });
+      } else {
+        // Global callback for Settings page
+        await api.post("/api/v1/xero/callback", { code });
+      }
 
       // Mark this code as processed to prevent re-execution on refresh
       sessionStorage.setItem("xero_processed_code", code);
@@ -71,7 +98,13 @@ export default function XeroCallbackPage() {
         error: null,
       });
 
-      setTimeout(() => router.push("/settings"), 2000);
+      if (isCompanyCallback) {
+        // Company callback - close popup after brief success message
+        // Parent window (XeroConnectionCard) is polling for status
+        setTimeout(() => window.close(), 1500);
+      } else {
+        setTimeout(() => router.push("/settings"), 2000);
+      }
     } catch (err) {
       setStatus({
         loading: false,
@@ -79,7 +112,11 @@ export default function XeroCallbackPage() {
         error: (err as Error).message || "Failed to complete Xero connection",
       });
 
-      setTimeout(() => router.push("/settings"), 3000);
+      if (isCompanyCallback) {
+        setTimeout(() => window.close(), 3000);
+      } else {
+        setTimeout(() => router.push("/settings"), 3000);
+      }
     }
   };
 
