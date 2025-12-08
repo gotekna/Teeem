@@ -63,7 +63,6 @@ import { ClaudeShortcutsTab } from "./components/ClaudeShortcutsTab";
 import { UserManualTab } from "./components/UserManualTab";
 import { InspiringQuotesTab } from "./components/InspiringQuotesTab";
 import { PerformanceTab } from "./components/PerformanceTab";
-import { DataWarehouseTab } from "./components/DataWarehouseTab";
 import { DocumentTypesTab } from "./components/DocumentTypesTab";
 import { ContactTypesTab } from "./components/ContactTypesTab";
 
@@ -84,7 +83,6 @@ const TIMEZONES = [
 
 const MAIN_TABS = [
   { id: "company", label: "Company", icon: Building2 },
-  { id: "data-warehouse", label: "Data Warehouse", icon: Database },
   { id: "document-types", label: "Document Types", icon: FileText },
   { id: "contact-types", label: "Contacts", icon: Tag },
   { id: "contact-roles", label: "Contact Roles", icon: UserCog },
@@ -460,9 +458,6 @@ function SystemAdminPageContent() {
         <div className="mt-6">
           <TabsContent value="company">
             <CompanySettingsTab />
-          </TabsContent>
-          <TabsContent value="data-warehouse">
-            <DataWarehouseTab />
           </TabsContent>
           <TabsContent value="document-types">
             <DocumentTypesTab />

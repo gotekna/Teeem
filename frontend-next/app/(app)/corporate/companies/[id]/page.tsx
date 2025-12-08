@@ -2517,8 +2517,8 @@ function ActivityTab() {
   );
 }
 
-// Data Warehouse Tab - Redirects to /admin/system?tab=data-warehouse&company_id={id}
-// The Data tab content has been moved to the admin system page for centralized management
+// Data Warehouse Tab - Redirects to /system-health
+// The Data tab redirects to the system health page
 
 
 // Xero Connection Card for BANK tab
@@ -3108,9 +3108,9 @@ export default function CompanyDetailPage() {
   }, [searchParams]);
 
   const handleTabChange = (tabId: string) => {
-    // Redirect Data tab to admin data warehouse with company filter
+    // Redirect Data tab to system health page
     if (tabId === "data") {
-      router.push(`/admin/system?tab=data-warehouse&company_id=${companyId}`);
+      router.push("/system-health");
       return;
     }
     setActiveTab(tabId);
@@ -3422,7 +3422,7 @@ export default function CompanyDetailPage() {
           {activeTab === "documents" && (
             <CompanyDocumentsTab companyId={companyId} company={company} category="all" />
           )}
-          {/* Data tab redirects to /admin/system?tab=data-warehouse&company_id={id} */}
+          {/* Data tab redirects to /system-health */}
           {activeTab === "activity" && <ActivityTab />}
         </CardContent>
       </Card>
