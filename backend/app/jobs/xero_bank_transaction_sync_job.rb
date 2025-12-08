@@ -16,7 +16,7 @@ class XeroBankTransactionSyncJob < ApplicationJob
       client = XeroApiClient.new
       credential = XeroCredential.current
 
-      unless credential&.connected?
+      unless credential&.status == "connected"
         Rails.logger.warn("No valid Xero connection")
         return result
       end
