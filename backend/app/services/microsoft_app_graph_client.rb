@@ -13,8 +13,8 @@ class MicrosoftAppGraphClient
   class NotConnectedError < StandardError; end
   class ApiError < StandardError; end
 
-  def initialize
-    @credential = OrganizationMicrosoftAppCredential.active_credential
+  def initialize(credential = nil)
+    @credential = credential || OrganizationMicrosoftAppCredential.active_credential
     raise NotConnectedError, "Organization Microsoft app not configured" unless @credential
     raise NotConnectedError, "Organization Microsoft app not connected" unless @credential.status == "connected"
   end
