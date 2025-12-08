@@ -342,11 +342,7 @@ export default function ChatPage() {
         }
 
         // Note: You'll need to update the backend to handle file uploads
-        await api.post("/api/v1/chat_messages", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        });
+        await api.postFormData("/api/v1/chat_messages", formData);
       } catch (error) {
         console.error("Failed to send image:", error);
       }

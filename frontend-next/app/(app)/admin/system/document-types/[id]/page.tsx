@@ -105,6 +105,7 @@ export default function DocumentTypeDetailPage() {
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
   const [basicInfoExpanded, setBasicInfoExpanded] = React.useState(false);
   const [displayNameSameAsFileName, setDisplayNameSameAsFileName] = React.useState(true);
+  const [showFullDescription, setShowFullDescription] = React.useState(false);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
@@ -307,17 +308,18 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Generate preview by replacing placeholders with example values
-  const generatePreview = (value: string): string => {
+  const generatePreview = (value: string, useFullDescription: boolean = false): string => {
     if (!value) return "";
 
     let preview = value;
 
     // Replace placeholders with example values
-    preview = preview.replace(/\{CompanyCode\}/g, "ABC");
+    // Use full names if checkbox is checked, otherwise use codes
+    preview = preview.replace(/\{CompanyCode\}/g, useFullDescription ? "ABC Property Trust" : "ABC");
     preview = preview.replace(/\{CompanyName\}/g, "ABC Property Trust");
     preview = preview.replace(/\{LoanID\}/g, "L001");
-    preview = preview.replace(/\{LenderCode\}/g, "NAB");
-    preview = preview.replace(/\{AssetCode\}/g, "PROP1");
+    preview = preview.replace(/\{LenderCode\}/g, useFullDescription ? "National Australia Bank" : "NAB");
+    preview = preview.replace(/\{AssetCode\}/g, useFullDescription ? "Property 1" : "PROP1");
     preview = preview.replace(/\{FY\}/g, "FY25");
     preview = preview.replace(/\{YY\}/g, "25");
     preview = preview.replace(/\{Period\}/g, "Q1 Jul-Sep"); // Long-hand with dates
@@ -325,11 +327,11 @@ export default function DocumentTypeDetailPage() {
     preview = preview.replace(/\{PrintDate\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
     preview = preview.replace(/\{JobCode\}/g, "J069");
     preview = preview.replace(/\{JobTitle\}/g, "83 West Ridge");
-    preview = preview.replace(/\{CertType\}/g, "Occupancy");
-    preview = preview.replace(/\{Consultant\}/g, "ABC Eng");
+    preview = preview.replace(/\{CertType\}/g, useFullDescription ? "Certificate of Occupancy" : "Occupancy");
+    preview = preview.replace(/\{Consultant\}/g, useFullDescription ? "ABC Engineering" : "ABC Eng");
     preview = preview.replace(/\{Number\}/g, "01");
     preview = preview.replace(/\{Description\}/g, "Example");
-    preview = preview.replace(/\{BankCode\}/g, "NAB");
+    preview = preview.replace(/\{BankCode\}/g, useFullDescription ? "National Australia Bank" : "NAB");
     preview = preview.replace(/\{AccountNum\}/g, "12345");
 
     return preview.trim();
@@ -714,18 +716,35 @@ export default function DocumentTypeDetailPage() {
                     + Add Text
                   </Button>
                 )}
-                <div className="flex items-center gap-2 whitespace-nowrap">
-                  <Checkbox
-                    id="same-as-file-name"
-                    checked={displayNameSameAsFileName}
-                    onCheckedChange={(checked) => setDisplayNameSameAsFileName(checked as boolean)}
-                  />
-                  <Label
-                    htmlFor="same-as-file-name"
-                    className="text-sm font-normal cursor-pointer text-muted-foreground"
-                  >
-                    Same as File Name
-                  </Label>
+                <div className="flex items-center gap-4 whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="same-as-file-name"
+                      checked={displayNameSameAsFileName}
+                      onCheckedChange={(checked) => setDisplayNameSameAsFileName(checked as boolean)}
+                    />
+                    <Label
+                      htmlFor="same-as-file-name"
+                      className="text-sm font-normal cursor-pointer text-muted-foreground"
+                    >
+                      Same as File Name
+                    </Label>
+                  </div>
+                  {!displayNameSameAsFileName && (
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="full-description"
+                        checked={showFullDescription}
+                        onCheckedChange={(checked) => setShowFullDescription(checked as boolean)}
+                      />
+                      <Label
+                        htmlFor="full-description"
+                        className="text-sm font-normal cursor-pointer text-muted-foreground"
+                      >
+                        Full Description
+                      </Label>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -792,9 +811,9 @@ export default function DocumentTypeDetailPage() {
             </div>
             <div className="flex items-center gap-2 text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
               <span className="text-muted-foreground font-medium">Preview:</span>
-              {documentType.display_name && generatePreview(documentType.display_name) ? (
+              {documentType.display_name && generatePreview(documentType.display_name, showFullDescription) ? (
                 <span className="font-semibold text-green-700 dark:text-green-400 font-mono">
-                  {generatePreview(documentType.display_name)}
+                  {generatePreview(documentType.display_name, showFullDescription)}
                 </span>
               ) : (
                 <span className="text-muted-foreground italic">
