@@ -31,6 +31,7 @@ interface XeroOrganization {
 interface Company {
   id: number;
   name: string;
+  company_group_id?: number;
 }
 
 interface XeroConnectionsPopupProps {
@@ -129,8 +130,28 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
     organizations.flatMap(org => org.companies.map(c => c.company_id))
   );
 
-  // Filter to only show companies without Xero connections
-  const availableCompanies = companies.filter(c => !linkedCompanyIds.has(c.id));
+  // Get company group IDs from already linked companies
+  const linkedCompanyGroupIds = new Set(
+    organizations.flatMap(org =>
+      org.companies
+        .map(c => companies.find(comp => comp.id === c.company_id)?.company_group_id)
+        .filter((id): id is number => id !== undefined)
+    )
+  );
+
+  // Filter to only show companies:
+  // 1. Without existing Xero connections
+  // 2. In the same company group(s) as already linked companies
+  const availableCompanies = companies.filter(c => {
+    // Must not already have a Xero connection
+    if (linkedCompanyIds.has(c.id)) return false;
+
+    // If no companies are linked yet, show all unlinked companies
+    if (linkedCompanyGroupIds.size === 0) return true;
+
+    // Only show companies in the same company group(s)
+    return c.company_group_id !== undefined && linkedCompanyGroupIds.has(c.company_group_id);
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
