@@ -188,17 +188,15 @@ export function XeroPdfSyncStatus() {
   React.useEffect(() => {
     fetchStatus();
     fetchRateLimits();
-    // Auto-refresh status every 30 seconds if sync is in progress
-    const statusInterval = setInterval(() => {
-      if (data?.health.status === "in_progress") {
-        fetchStatus();
-      }
-    }, 30000);
-    // No auto-refresh for rate limits - manual refresh only (saves API calls)
+    // Auto-refresh every 5 seconds to show live syncing activity
+    const refreshInterval = setInterval(() => {
+      fetchStatus();
+      fetchRateLimits();
+    }, 5000);
     return () => {
-      clearInterval(statusInterval);
+      clearInterval(refreshInterval);
     };
-  }, [fetchStatus, fetchRateLimits, data?.health.status]);
+  }, [fetchStatus, fetchRateLimits]);
 
   if (loading) {
     return (

@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDown, ChevronRight, Type } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDown, ChevronRight, ChevronLeft, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -120,6 +120,7 @@ export default function DocumentTypeDetailPage() {
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
+  const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string }>>([]);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
@@ -144,6 +145,25 @@ export default function DocumentTypeDetailPage() {
       }
     };
     fetchFolders();
+  }, []);
+
+  // Fetch all document types for navigation
+  React.useEffect(() => {
+    const fetchAllDocumentTypes = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_types");
+        if (response.success && Array.isArray(response.data)) {
+          // Sort by name for consistent navigation
+          const sorted = response.data
+            .map((dt: any) => ({ id: dt.id, name: dt.name }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          setAllDocumentTypes(sorted);
+        }
+      } catch (error) {
+        console.error("Failed to fetch document types for navigation:", error);
+      }
+    };
+    fetchAllDocumentTypes();
   }, []);
 
   const documentTypeId = params.id as string;
@@ -299,6 +319,23 @@ export default function DocumentTypeDetailPage() {
         description: errorMessage,
         variant: "destructive",
       });
+    }
+  };
+
+  // Navigation functions
+  const currentIndex = allDocumentTypes.findIndex(dt => dt.id === parseInt(documentTypeId));
+  const hasPrevious = currentIndex > 0;
+  const hasNext = currentIndex < allDocumentTypes.length - 1 && currentIndex !== -1;
+
+  const navigateToPrevious = () => {
+    if (hasPrevious) {
+      router.push(`/admin/system/document-types/${allDocumentTypes[currentIndex - 1].id}`);
+    }
+  };
+
+  const navigateToNext = () => {
+    if (hasNext) {
+      router.push(`/admin/system/document-types/${allDocumentTypes[currentIndex + 1].id}`);
     }
   };
 
@@ -682,6 +719,29 @@ export default function DocumentTypeDetailPage() {
           <Button variant="ghost" size="icon" onClick={() => router.push("/admin/system?tab=document-types")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
+          {/* Previous/Next navigation */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={navigateToPrevious}
+              disabled={!hasPrevious}
+              className="h-8 w-8"
+              title={hasPrevious ? `Previous: ${allDocumentTypes[currentIndex - 1]?.name}` : "No previous"}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={navigateToNext}
+              disabled={!hasNext}
+              className="h-8 w-8"
+              title={hasNext ? `Next: ${allDocumentTypes[currentIndex + 1]?.name}` : "No next"}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
           <div>
             <div className="flex items-center gap-3">
               <FileText className="h-6 w-6 text-muted-foreground" />
@@ -690,6 +750,11 @@ export default function DocumentTypeDetailPage() {
                 <Badge variant="outline" className="font-mono font-bold">
                   {documentType.abbreviation}
                 </Badge>
+              )}
+              {allDocumentTypes.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {currentIndex + 1} of {allDocumentTypes.length}
+                </span>
               )}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
