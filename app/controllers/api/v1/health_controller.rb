@@ -908,17 +908,24 @@ module Api
 
       def get_xero_status
         credential = XeroCredential.current
-        if credential&.connected?
-          {
-            connected: true,
-            organisation_name: credential.tenant_name,
-            last_synced: credential.updated_at&.iso8601
-          }
-        else
-          { connected: false }
-        end
-      rescue StandardError
-        { connected: false }
+        return { connected: false } unless credential
+
+        # Use the SSoT status field from XeroCredential model
+        # status: 'connected', 'degraded', or 'disconnected'
+        is_connected = credential.status == 'connected'
+        is_degraded = credential.status == 'degraded'
+
+        {
+          connected: is_connected || is_degraded, # Show connected if usable
+          status: credential.status,
+          health_status: credential.health_status.to_s,
+          organisation_name: credential.tenant_name,
+          last_synced: credential.last_successful_api_call_at&.iso8601,
+          needs_attention: is_degraded || credential.status == 'disconnected'
+        }
+      rescue StandardError => e
+        Rails.logger.error("Health check Xero status error: #{e.message}")
+        { connected: false, error: e.message }
       end
 
       def determine_health_status(score)
