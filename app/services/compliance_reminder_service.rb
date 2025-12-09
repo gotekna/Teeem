@@ -39,7 +39,7 @@ class ComplianceReminderService
     target_date = @today + days_before.days
 
     CorporateCompanyComplianceItem
-      .includes(:company)
+      .includes(:corporate_company)
       .where(status: "pending")
       .where(due_date: target_date)
       .select { |item| item.needs_reminder?(days_before) }

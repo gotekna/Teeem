@@ -30,7 +30,7 @@ class AssetReminderService
       target_date = @today + days_before.days
 
       insurances = AssetInsurance
-        .includes(asset: :company)
+        .includes(asset: :corporate_company)
         .where(status: "active")
         .where(renewal_date: target_date)
 
@@ -42,7 +42,7 @@ class AssetReminderService
     end
 
     # Overdue insurance
-    overdue_insurances = AssetInsurance.overdue.includes(asset: :company)
+    overdue_insurances = AssetInsurance.overdue.includes(asset: :corporate_company)
     overdue_insurances.each do |insurance|
       if send_insurance_overdue_reminder(insurance)
         sent_count += 1
