@@ -1,6 +1,6 @@
 class IntercompanyBalance < ApplicationRecord
   # Associations
-  belongs_to :company
+  belongs_to :corporate_company, foreign_key: 'company_id'
   belongs_to :related_company, class_name: "CorporateCompany"
 
   # Constants
@@ -120,7 +120,7 @@ class IntercompanyBalance < ApplicationRecord
   end
 
   def company_name
-    company&.name
+    corporate_company&.name
   end
 
   def related_company_name
