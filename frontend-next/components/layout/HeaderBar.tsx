@@ -36,7 +36,6 @@ import {
 } from "@/components/ui/popover";
 import { InspiringBanner } from "./InspiringBanner";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
-import { XeroConnectionsPopup } from "@/components/xero/XeroConnectionsPopup";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -74,7 +73,6 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const [office365Status, setOffice365Status] = React.useState<ConnectionStatus>('disconnected');
   const [xeroTooltip, setXeroTooltip] = React.useState('Xero: Not Connected');
   const [office365Tooltip, setOffice365Tooltip] = React.useState('Office 365: Not Connected');
-  const [showXeroPopup, setShowXeroPopup] = React.useState(false);
 
   // Fetch unread message count and integration statuses
   React.useEffect(() => {
@@ -280,8 +278,8 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Xero Status */}
-          <button
-            onClick={() => setShowXeroPopup(true)}
+          <Link
+            href="/settings/integrations/xero"
             className={cn(
               "relative p-1.5 rounded-md transition-colors",
               getStatusColors(xeroStatus)
@@ -297,7 +295,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             {xeroStatus === 'error' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-gray-900" />
             )}
-          </button>
+          </Link>
 
           {/* Data Warehouse */}
           <Link
@@ -390,12 +388,6 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </DropdownMenu>
         </div>
       </div>
-
-      {/* Xero Connections Popup */}
-      <XeroConnectionsPopup
-        isOpen={showXeroPopup}
-        onClose={() => setShowXeroPopup(false)}
-      />
     </header>
   );
 }
