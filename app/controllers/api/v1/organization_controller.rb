@@ -54,9 +54,9 @@ module Api
 
         # Document types breakdown
         doc_type_stats = documents
-          .joins("LEFT JOIN document_types ON document_types.name = company_documents.document_type")
-          .select("company_documents.document_type, document_types.abbreviation, COUNT(*) as doc_count")
-          .group("company_documents.document_type, document_types.abbreviation")
+          .joins("LEFT JOIN document_types ON document_types.name = corporate_company_documents.document_type")
+          .select("corporate_company_documents.document_type, document_types.abbreviation, COUNT(*) as doc_count")
+          .group("corporate_company_documents.document_type, document_types.abbreviation")
           .order("doc_count DESC")
           .limit(15)
           .map { |d| { type: d.document_type, abbreviation: d.abbreviation, count: d.doc_count } }
