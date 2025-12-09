@@ -100,14 +100,16 @@ class OrgEmailSyncJob < ApplicationJob
   def sync_folder(client, user_email, folder, since)
     synced = 0
     page = 0
-    max_pages = 50 # Safety limit
+    skip = 0
+    max_pages = 200 # Increased from 50 to handle large mailboxes (200 * 100 = 20,000 emails per folder)
 
     loop do
       emails = client.get_user_emails(
         user_email,
         folder: folder[:id],
         top: 100,
-        since: since
+        since: since,
+        skip: skip
       )
 
       break if emails.empty?
@@ -119,9 +121,11 @@ class OrgEmailSyncJob < ApplicationJob
       end
 
       page += 1
+      skip += 100 # Move to next page
       break if page >= max_pages || emails.count < 100
     end
 
+    Rails.logger.info "[OrgEmailSync] Synced #{synced} emails from #{folder[:name]} (#{page} pages)"
     synced
   end
 
