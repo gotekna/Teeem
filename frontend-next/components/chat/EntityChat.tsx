@@ -67,7 +67,7 @@ export function EntityChat({
     // Poll for new messages every 5 seconds
     const interval = setInterval(loadMessages, 5000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [entityType, entityId]);
 
   useEffect(() => {

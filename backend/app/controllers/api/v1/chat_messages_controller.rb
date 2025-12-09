@@ -132,7 +132,7 @@ class Api::V1::ChatMessagesController < ApplicationController
     if params[:chat_message][:file].present?
       @message.file.attach(params[:chat_message][:file])
       @message.file_name = params[:chat_message][:file].original_filename
-      @message.message_type ||= 'file'
+      @message.message_type ||= "file"
     end
 
     if @message.save

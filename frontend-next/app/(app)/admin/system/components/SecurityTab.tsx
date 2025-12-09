@@ -115,7 +115,7 @@ function UsersManagementTab() {
   React.useEffect(() => {
     loadUsers();
     loadRoles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, []);
 
   const loadUsers = async () => {
@@ -359,7 +359,7 @@ function RolesManagementTab() {
 
   React.useEffect(() => {
     loadRoles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, []);
 
   const loadRoles = async () => {

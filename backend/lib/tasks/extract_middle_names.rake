@@ -28,7 +28,7 @@ namespace :contacts do
       /\b(council|department|team|office|admin)\b/i,
       /\b(concrete|steel|timber|hire|transport)\b/i,
       /\b(design|contract|trade|supply)\b/i,
-      /\&/,  # "Smith & Jones" style business names
+      /\&/  # "Smith & Jones" style business names
     ].freeze
 
     contacts.find_each do |contact|
@@ -60,7 +60,7 @@ namespace :contacts do
 
           contact.middle_name = middle_name
           contact.last_name = new_last_name
-          contact.full_name = [first_name, middle_name, new_last_name].compact.join(" ")
+          contact.full_name = [ first_name, middle_name, new_last_name ].compact.join(" ")
           contact.save!
 
           puts "✓ [#{contact.id}] #{first_name} #{last_name}"
@@ -74,7 +74,7 @@ namespace :contacts do
 
           contact.middle_name = middle_name
           contact.last_name = new_last_name
-          contact.full_name = [first_name, middle_name, new_last_name].compact.join(" ")
+          contact.full_name = [ first_name, middle_name, new_last_name ].compact.join(" ")
           contact.save!
 
           puts "✓ [#{contact.id}] #{first_name} #{last_name}"
@@ -113,7 +113,7 @@ namespace :contacts do
       /\b(council|department|team|office|admin)\b/i,
       /\b(concrete|steel|timber|hire|transport)\b/i,
       /\b(design|contract|trade|supply)\b/i,
-      /\&/,
+      /\&/
     ].freeze
 
     contacts.each do |c|
@@ -137,7 +137,7 @@ namespace :contacts do
   end
 
   desc "Fix specific contact with middle name (e.g., rails contacts:fix_middle_name[2184])"
-  task :fix_middle_name, [:contact_id] => :environment do |t, args|
+  task :fix_middle_name, [ :contact_id ] => :environment do |t, args|
     contact = Contact.find(args[:contact_id])
 
     puts "Current: #{contact.first_name} #{contact.last_name}"
@@ -149,7 +149,7 @@ namespace :contacts do
 
       contact.middle_name = middle
       contact.last_name = last
-      contact.full_name = [contact.first_name, middle, last].join(" ")
+      contact.full_name = [ contact.first_name, middle, last ].join(" ")
       contact.save!
 
       puts "✓ Fixed: #{contact.first_name} #{contact.middle_name} #{contact.last_name}"

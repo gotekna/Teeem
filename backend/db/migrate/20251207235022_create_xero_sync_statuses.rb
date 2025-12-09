@@ -12,6 +12,6 @@ class CreateXeroSyncStatuses < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :xero_sync_statuses, [:sync_type, :tenant_id], unique: true
+    add_index :xero_sync_statuses, [ :sync_type, :tenant_id ], unique: true
   end
 end

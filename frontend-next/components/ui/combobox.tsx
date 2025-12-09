@@ -98,7 +98,7 @@ export const Combobox = ({
         setInputValue(selected?.name ?? "");
       }
     }, 150);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [selected]);
 
   const handleOnFocus = (event: React.FocusEvent<HTMLInputElement>) => {

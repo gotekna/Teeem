@@ -20,7 +20,7 @@ try {
 // Build timestamp in ISO format (for deployed time display)
 const buildTime = new Date().toISOString();
 
-const nextConfig: any = {
+const nextConfig: NextConfig = {
   devIndicators: {
     buildActivity: false,
     appIsrStatus: false,

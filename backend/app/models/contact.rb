@@ -7,7 +7,7 @@ class Contact < ApplicationRecord
   has_many :sms_messages, dependent: :destroy
 
   # Company group for document filing (family members)
-  belongs_to :corporate_group, optional: true, foreign_key: 'company_group_id'
+  belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
 
   # Multiple emails and phones
   has_many :contact_emails, -> { order(:position) }, dependent: :destroy
@@ -186,14 +186,14 @@ class Contact < ApplicationRecord
     when "person"
       # Team contact: append company name for clarity
       if is_team_contact && primary_company.present?
-        person_name = [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence ||
+        person_name = [ first_name, middle_name, last_name ].compact.reject(&:blank?).join(" ").presence ||
                       raw_display_name.presence ||
                       email
         company_name = primary_company.company_name_or_trust.presence || primary_company.read_attribute(:display_name)
         "#{person_name} - #{company_name}"
       else
         # Person: prefer first + middle + last, fall back to display_name
-        [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence ||
+        [ first_name, middle_name, last_name ].compact.reject(&:blank?).join(" ").presence ||
           raw_display_name.presence ||
           email ||
           "Contact ##{id}"
@@ -201,7 +201,7 @@ class Contact < ApplicationRecord
     when "sole_trader"
       # Sole Trader: prefer business name, fall back to person name
       company_name_or_trust.presence ||
-        [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence ||
+        [ first_name, middle_name, last_name ].compact.reject(&:blank?).join(" ").presence ||
         raw_display_name.presence ||
         "Contact ##{id}"
     when "company", "trust"

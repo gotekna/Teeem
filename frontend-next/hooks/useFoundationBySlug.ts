@@ -72,7 +72,7 @@ interface ViewsResponse {
 }
 
 // Module-level cache for preloaded views (shared with TeeemTableView)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export const preloadedViewsCache: Record<number, { views: any[]; timestamp: number }> = {};
 const VIEWS_CACHE_TTL = 60000; // 1 minute
 

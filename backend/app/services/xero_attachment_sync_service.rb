@@ -281,7 +281,7 @@ class XeroAttachmentSyncService
     contact_folder = contact_folder_name
     type_folder = folder_for_invoice_type
 
-    [base_path, contact_folder, type_folder, filename].compact.join("/")
+    [ base_path, contact_folder, type_folder, filename ].compact.join("/")
   end
 
   # Get the contact folder name using the configured format

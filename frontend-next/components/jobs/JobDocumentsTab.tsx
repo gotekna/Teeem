@@ -193,7 +193,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   useEffect(() => {
     checkOrganizationStatus();
     loadDocumentCategories();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [jobId]);
 
   useEffect(() => {
@@ -206,7 +206,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
         loadDocumentTasks(selectedCategory.id);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [selectedCategory]);
 
   useEffect(() => {
@@ -214,7 +214,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     if (selectedSubCategory) {
       loadDocumentTasks(selectedSubCategory.id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [selectedSubCategory]);
 
   const checkOrganizationStatus = async () => {
@@ -663,7 +663,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     if (viewMode === "allfiles" && orgStatus.connected) {
       loadAllFiles();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [viewMode, orgStatus.connected]);
 
   const getStatusBadge = (task: DocumentTask) => {

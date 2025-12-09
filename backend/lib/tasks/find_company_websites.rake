@@ -7,7 +7,7 @@ namespace :contacts do
     puts
 
     # Find companies without websites but with emails
-    companies = Contact.where(entity_type: ["company", "trust"])
+    companies = Contact.where(entity_type: [ "company", "trust" ])
                       .where("website IS NULL OR website = ''")
                       .where("email IS NOT NULL AND email != ''")
                       .order(:id)
@@ -28,11 +28,11 @@ namespace :contacts do
 
         # Extract domain from email
         if email.match?(/@/)
-          domain = email.split('@').last.downcase
+          domain = email.split("@").last.downcase
 
           # Skip personal email domains
-          personal_domains = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com',
-                            'icloud.com', 'live.com', 'bigpond.com', 'optusnet.com.au']
+          personal_domains = [ "gmail.com", "hotmail.com", "outlook.com", "yahoo.com",
+                            "icloud.com", "live.com", "bigpond.com", "optusnet.com.au" ]
 
           if personal_domains.include?(domain)
             stats[:skipped] += 1
@@ -73,7 +73,7 @@ namespace :contacts do
 
   desc "Preview companies that can have websites extracted from emails"
   task preview_email_websites: :environment do
-    companies = Contact.where(entity_type: ["company", "trust"])
+    companies = Contact.where(entity_type: [ "company", "trust" ])
                       .where("website IS NULL OR website = ''")
                       .where("email IS NOT NULL AND email != ''")
                       .limit(30)
@@ -81,15 +81,15 @@ namespace :contacts do
     puts "PREVIEW: Companies with emails but no websites (first 30):"
     puts
 
-    personal_domains = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com',
-                       'icloud.com', 'live.com', 'bigpond.com', 'optusnet.com.au']
+    personal_domains = [ "gmail.com", "hotmail.com", "outlook.com", "yahoo.com",
+                       "icloud.com", "live.com", "bigpond.com", "optusnet.com.au" ]
 
     companies.each do |c|
       name = c.full_name || c.company_name_or_trust || "NO NAME"
       email = c.email.to_s
 
       if email.match?(/@/)
-        domain = email.split('@').last.downcase
+        domain = email.split("@").last.downcase
         is_personal = personal_domains.include?(domain)
         status = is_personal ? "[SKIP - personal]" : "[WILL UPDATE]"
 
@@ -99,9 +99,9 @@ namespace :contacts do
     end
 
     puts
-    total = Contact.where(entity_type: ['company', 'trust'])
-                  .where('website IS NULL OR website = ?', '')
-                  .where('email IS NOT NULL AND email != ?', '')
+    total = Contact.where(entity_type: [ "company", "trust" ])
+                  .where("website IS NULL OR website = ?", "")
+                  .where("email IS NOT NULL AND email != ?", "")
                   .count
     puts "Total companies with emails but no websites: #{total}"
   end

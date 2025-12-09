@@ -38,6 +38,7 @@ export const AvatarImageNext = React.forwardRef<
         setHasError(true);
         onError?.(e);
       }}
+      alt=""
       {...props}
     />
   );

@@ -237,7 +237,7 @@ function GoldStandardDataTab() {
       });
       setFieldOrder(initialOrder);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [rawColumns]);
 
   const updateFieldOrder = (columnName: string, newOrder: number) => {
@@ -399,7 +399,7 @@ function GoldStandardDataTab() {
 
   React.useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, []);
 
   const loadData = async () => {

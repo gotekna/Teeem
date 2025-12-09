@@ -42,10 +42,10 @@ class EmailSharePointSyncJob < ApplicationJob
     results
   rescue MicrosoftAppGraphClient::NotConnectedError => e
     Rails.logger.warn "[EmailSharePointSync] Microsoft Graph not connected: #{e.message}"
-    { processed: 0, uploaded: 0, skipped: 0, errors: [{ error: e.message }] }
+    { processed: 0, uploaded: 0, skipped: 0, errors: [ { error: e.message } ] }
   rescue EmailSharePointService::NotConnectedError => e
     Rails.logger.warn "[EmailSharePointSync] SharePoint not configured: #{e.message}"
-    { processed: 0, uploaded: 0, skipped: 0, errors: [{ error: e.message }] }
+    { processed: 0, uploaded: 0, skipped: 0, errors: [ { error: e.message } ] }
   end
 
   # Class method for quick one-off sync

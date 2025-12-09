@@ -76,7 +76,7 @@ export function XeroInvoicesList({
     if (contactId) {
       loadInvoices();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [contactId, type]);
 
   const loadInvoices = async () => {

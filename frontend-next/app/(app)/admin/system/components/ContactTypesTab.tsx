@@ -353,7 +353,7 @@ export function ContactTypesTab() {
   React.useEffect(() => {
     loadData();
     loadSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, []);
 
   const loadData = async () => {

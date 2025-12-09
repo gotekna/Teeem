@@ -2545,7 +2545,7 @@ module Api
       # GET /api/v1/contacts/price_only_with_xero
       # Health check: Find price_only contacts that are synced to Xero (should never happen)
       def price_only_with_xero
-        violations = Contact.where(entity_type: 'price_only')
+        violations = Contact.where(entity_type: "price_only")
           .where.not(xero_id: nil)
           .select(:id, :display_name, :xero_id, :xero_contact_types, :is_active)
 
@@ -2571,7 +2571,7 @@ module Api
       # GET /api/v1/contacts/company_with_first_name
       # Health check: Find companies/trusts/price_only with first_name or last_name set
       def company_with_first_name
-        violations = Contact.where(entity_type: [ 'company', 'trust', 'price_only' ])
+        violations = Contact.where(entity_type: [ "company", "trust", "price_only" ])
           .where("first_name IS NOT NULL OR last_name IS NOT NULL")
           .select(:id, :display_name, :entity_type, :first_name, :last_name, :company_name_or_trust, :is_active)
 
@@ -2599,7 +2599,7 @@ module Api
       # GET /api/v1/contacts/person_without_name
       # Health check: Find person/sole_trader contacts without first_name
       def person_without_name
-        violations = Contact.where(entity_type: [ 'person', 'sole_trader' ])
+        violations = Contact.where(entity_type: [ "person", "sole_trader" ])
           .where("first_name IS NULL OR first_name = ''")
           .select(:id, :display_name, :entity_type, :first_name, :last_name, :is_active)
 
@@ -2628,7 +2628,7 @@ module Api
       def missing_contact_info
         begin
           # Exclude price_only - they're just pricebook placeholders
-          violations = Contact.where.not(entity_type: 'price_only')
+          violations = Contact.where.not(entity_type: "price_only")
             .where("(mobile_phone IS NULL OR mobile_phone = '') AND (email IS NULL OR email = '')")
             .select(:id, :display_name, :entity_type, :mobile_phone, :email, :is_active)
 
@@ -2706,7 +2706,7 @@ module Api
       def preview_employee_extraction
         # Parse email patterns - can be array or comma-separated string
         email_patterns = if params[:email_patterns].is_a?(String)
-          params[:email_patterns].split(',').map(&:strip).reject(&:blank?)
+          params[:email_patterns].split(",").map(&:strip).reject(&:blank?)
         else
           Array(params[:email_patterns]).reject(&:blank?)
         end
@@ -2756,8 +2756,8 @@ module Api
         # Step 2: Determine parent company context (use first pattern's domain)
         first_pattern = email_patterns.first
         if first_pattern
-          parent_domain = first_pattern.split('@').last
-          parent_company_name = parent_domain.split('.').first.titleize
+          parent_domain = first_pattern.split("@").last
+          parent_company_name = parent_domain.split(".").first.titleize
           parent_company = Contact.find_by(
             "LOWER(display_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
             "%#{parent_company_name.downcase}%",
@@ -2801,7 +2801,7 @@ module Api
         end
 
         # Filter out generic/system emails
-        generic_patterns = ['noreply', 'no-reply', 'donotreply', 'postmaster', 'mailer-daemon', 'accounts@', 'info@', 'support@', 'admin@']
+        generic_patterns = [ "noreply", "no-reply", "donotreply", "postmaster", "mailer-daemon", "accounts@", "info@", "support@", "admin@" ]
         candidate_emails = unique_emails.reject do |email_addr|
           generic_patterns.any? { |pattern| email_addr.downcase.include?(pattern) }
         end
@@ -2809,8 +2809,8 @@ module Api
         # Build preview data for each unique email address
         preview_data = candidate_emails.filter_map do |email_addr|
           # Extract person name from email (e.g., "sophie.harder" -> "Sophie Harder")
-          email_local = email_addr.split('@').first
-          person_name_from_email = email_local.split(/[._-]/).map(&:capitalize).join(' ')
+          email_local = email_addr.split("@").first
+          person_name_from_email = email_local.split(/[._-]/).map(&:capitalize).join(" ")
 
           # Check if this email already exists on any contact
           contact_with_email = Contact.find_by(email: email_addr)
@@ -2820,7 +2820,7 @@ module Api
           # 1. Single name (e.g., "andrew") - no matches, too ambiguous
           # 2. First name + single initial (e.g., "Justin S") - require initial to match START of last name
           # 3. First name + full last name (e.g., "Sophie Harder") - standard matching
-          name_parts = person_name_from_email.downcase.split(' ')
+          name_parts = person_name_from_email.downcase.split(" ")
 
           matching_contacts = if name_parts.length < 2
             # Single name part only (e.g., "andrew@tekna.com.au")
@@ -2839,13 +2839,13 @@ module Api
           else
             # Multiple full name parts (3+ chars each): require ALL parts to be present (AND logic)
             # e.g., "Sophie Harder" matches "Sophie Harder" and "Sophie Mee-jeong Harder"
-            Contact.where(entity_type: 'person')
-              .where(name_parts.map { "LOWER(display_name) ILIKE ?" }.join(' AND '), *name_parts.map { |p| "%#{p}%" })
+            Contact.where(entity_type: "person")
+              .where(name_parts.map { "LOWER(display_name) ILIKE ?" }.join(" AND "), *name_parts.map { |p| "%#{p}%" })
               .limit(5)
           end
 
           # Get email domain company (skip personal email providers)
-          domain = email_addr.split('@').last.downcase
+          domain = email_addr.split("@").last.downcase
 
           # Personal email domain patterns - match base name regardless of TLD
           personal_domain_bases = %w[
@@ -2856,7 +2856,7 @@ module Api
           ]
 
           # Check if domain matches any personal email pattern (e.g., outlook.com, outlook.com.au, hotmail.co.uk)
-          domain_base = domain.split('.').first
+          domain_base = domain.split(".").first
           is_personal_domain = personal_domain_bases.include?(domain_base)
 
           domain_company = nil
@@ -2865,7 +2865,7 @@ module Api
           unless is_personal_domain
             # For subdomains like "au.harveynorman.com", extract the main company name
             # Split by dots and find the most meaningful part (not "au", "com", etc.)
-            domain_parts = domain.split('.')
+            domain_parts = domain.split(".")
             tlds_and_country_codes = %w[com net org edu gov au uk nz us ca co]
             meaningful_parts = domain_parts.reject { |p| tlds_and_country_codes.include?(p.downcase) || p.length <= 2 }
             domain_company_name = (meaningful_parts.first || domain_parts.first).titleize
@@ -2875,13 +2875,13 @@ module Api
             # (e.g., contact might have incorrect data in company_name_or_trust field)
 
             # Step 1: Try exact-ish match on display_name first
-            domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+            domain_company = Contact.where(entity_type: [ "company", "trust", "sole_trader" ])
               .where("LOWER(display_name) LIKE ?", "%#{domain_company_name.downcase}%")
               .first
 
             # Step 2: If no display_name match, try with spaces removed on display_name
             if domain_company.nil?
-              domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+              domain_company = Contact.where(entity_type: [ "company", "trust", "sole_trader" ])
                 .where("LOWER(REPLACE(display_name, ' ', '')) LIKE ?",
                        "%#{domain_company_name.downcase.gsub(' ', '')}%")
                 .first
@@ -2890,7 +2890,7 @@ module Api
             # Step 3: Only fall back to company_name_or_trust if no display_name match
             # (company_name_or_trust can have stale/incorrect data)
             if domain_company.nil?
-              domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+              domain_company = Contact.where(entity_type: [ "company", "trust", "sole_trader" ])
                 .where("LOWER(company_name_or_trust) LIKE ?", "%#{domain_company_name.downcase}%")
                 .first
             end
@@ -2900,7 +2900,7 @@ module Api
             # e.g., "SVP" matches "SV Partners" (S-V from first two words)
             if domain_company.nil? && domain_company_name.length <= 5
               abbrev = domain_company_name.upcase
-              domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+              domain_company = Contact.where(entity_type: [ "company", "trust", "sole_trader" ])
                 .where("UPPER(display_name) LIKE ?", "#{abbrev[0..1]}%")
                 .first
             end
@@ -2917,7 +2917,7 @@ module Api
               if domain_company.nil? && first_match
                 employee_rel = ContactRelationship.find_by(
                   source_contact_id: first_match.id,
-                  relationship_type: 'employee_of'
+                  relationship_type: "employee_of"
                 )
                 domain_company = Contact.find_by(id: employee_rel&.related_contact_id)
               end
@@ -2944,7 +2944,7 @@ module Api
             ContactRelationship.exists?(
               source_contact_id: person_id,
               related_contact_id: company_id,
-              relationship_type: 'employee_of'
+              relationship_type: "employee_of"
             )
           }
 
@@ -2995,20 +2995,20 @@ module Api
                 website: domain_company.website,
                 exists: true
               }
-            elsif domain_company_name.present? && !is_personal_domain
+                            elsif domain_company_name.present? && !is_personal_domain
               # Only suggest creating a company for non-personal domains
               {
                 id: nil,
                 name: domain_company_name,
-                entity_type: 'company',
+                entity_type: "company",
                 office_phone: nil,
                 website: nil,
                 exists: false
               }
-            else
+                            else
               # Personal email domain - don't suggest any company
               nil
-            end,
+                            end,
 
             # Parent companies this person was communicating with
             parent_companies: parent_companies.map { |pc|
@@ -3088,7 +3088,7 @@ module Api
               display_name: extraction[:new_contact_name],
               email: extraction[:email],
               mobile_phone: extraction[:mobile],
-              entity_type: 'person',
+              entity_type: "person",
               is_active: true
             )
             contacts_created += 1
@@ -3162,7 +3162,7 @@ module Api
               company = Contact.create!(
                 display_name: extraction[:domain_company_name],
                 company_name_or_trust: extraction[:domain_company_name],
-                entity_type: 'company',
+                entity_type: "company",
                 is_active: true
               )
               companies_created += 1
@@ -3173,7 +3173,7 @@ module Api
               ContactRelationship.create!(
                 source_contact_id: contact.id,
                 related_contact_id: company.id,
-                relationship_type: 'employee_of',
+                relationship_type: "employee_of",
                 is_active: true
               )
               relationships_created += 1
@@ -3190,7 +3190,7 @@ module Api
               ContactRelationship.create!(
                 source_contact_id: contact.id,
                 related_contact_id: parent_company.id,
-                relationship_type: 'employee_of',
+                relationship_type: "employee_of",
                 is_active: true
               )
               relationships_created += 1
@@ -3375,7 +3375,7 @@ module Api
         primary.first_name ||= duplicate.first_name
         primary.last_name ||= duplicate.last_name
         primary.primary_role ||= duplicate.primary_role
-        primary.notes = [primary.notes, duplicate.notes].compact.reject(&:blank?).join("\n\n---\nMerged from #{duplicate.display_name}:\n") if duplicate.notes.present? && duplicate.notes != primary.notes
+        primary.notes = [ primary.notes, duplicate.notes ].compact.reject(&:blank?).join("\n\n---\nMerged from #{duplicate.display_name}:\n") if duplicate.notes.present? && duplicate.notes != primary.notes
         primary.save! if primary.changed?
 
         # Move outgoing relationships (where duplicate is source)

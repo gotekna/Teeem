@@ -7,8 +7,8 @@ namespace :contacts do
     puts
 
     # Find ALL CAPS default_supplier contacts with first_name or last_name
-    all_contacts = Contact.where(entity_type: 'default_supplier')
-                          .where.not(full_name: [nil, ''])
+    all_contacts = Contact.where(entity_type: "default_supplier")
+                          .where.not(full_name: [ nil, "" ])
 
     all_caps_contacts = all_contacts.select do |c|
       c.full_name == c.full_name.upcase && c.full_name.match?(/[A-Z]/)

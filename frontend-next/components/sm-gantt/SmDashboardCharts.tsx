@@ -1,3 +1,4 @@
+ 
 "use client";
 
 import { useMemo, ElementType } from "react";
@@ -417,6 +418,7 @@ export function DonutChart({ data, size = 150, strokeWidth = 20 }: DonutChartPro
           {data.map((segment, i) => {
             const segmentLength = (segment.value / total) * circumference;
             const offset = currentOffset;
+             
             currentOffset += segmentLength;
 
             return (

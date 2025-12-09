@@ -19,7 +19,7 @@ import {
   revertCellAtom,
   exitEditModeAtom,
 } from '@/lib/table-edit-atoms';
-import type { CellPosition, NavigationDirection, UseTableKeyboardNavReturn } from '@/components/table/editors/types';
+import type { NavigationDirection, UseTableKeyboardNavReturn } from '@/components/table/editors/types';
 
 export interface UseTableKeyboardNavOptions {
   /** All column keys in order */

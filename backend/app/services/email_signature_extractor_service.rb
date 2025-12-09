@@ -203,12 +203,12 @@ class EmailSignatureExtractorService
 
   def extract_abn(text)
     match = text.match(ABN_PATTERN)
-    match[1]&.gsub(/\s/, '') if match
+    match[1]&.gsub(/\s/, "") if match
   end
 
   def extract_acn(text)
     match = text.match(ACN_PATTERN)
-    match[1]&.gsub(/\s/, '') if match
+    match[1]&.gsub(/\s/, "") if match
   end
 
   def extract_website(text)
@@ -227,7 +227,7 @@ class EmailSignatureExtractorService
     return nil if phone.blank?
 
     # Remove all non-digit characters except +
-    clean = phone.gsub(/[^\d+]/, '')
+    clean = phone.gsub(/[^\d+]/, "")
 
     # Minimum length check
     return nil if clean.length < 8

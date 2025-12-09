@@ -1,3 +1,4 @@
+ 
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -128,7 +129,7 @@ export default function ChatPage() {
 
     try {
       // Determine API parameters based on conversation type
-      let apiParams: Record<string, string | number> = {};
+      const apiParams: Record<string, string | number> = {};
 
       // Handle DM format: "dm-34-45" or "dm-new-45"
       if (typeof conversationId === "string" && conversationId.startsWith("dm-")) {

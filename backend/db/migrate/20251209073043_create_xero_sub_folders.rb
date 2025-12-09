@@ -5,7 +5,7 @@ class CreateXeroSubFolders < ActiveRecord::Migration[8.0]
       f.description = 'Xero integration documents'
       f.order_position = 2
       f.sharepoint_path = '/Corporate/{company_code}/Xero'
-      f.entity_types = ['trading_company']
+      f.entity_types = [ 'trading_company' ]
       f.active = true
       f.parent_id = nil  # Main tab
     end
@@ -70,7 +70,7 @@ class CreateXeroSubFolders < ActiveRecord::Migration[8.0]
         f.description = folder_data[:description]
         f.sharepoint_path = folder_data[:sharepoint_path]
         f.order_position = folder_data[:order_position]
-        f.entity_types = ['trading_company']
+        f.entity_types = [ 'trading_company' ]
         f.active = true
       end
     end

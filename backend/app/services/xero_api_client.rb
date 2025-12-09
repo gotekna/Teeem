@@ -23,12 +23,20 @@ class XeroApiClient
     raise AuthenticationError, "Missing Xero credentials in environment" unless credentials_present?
   end
 
+  # OAuth scopes for Xero API access
+  # - offline_access: Required for refresh tokens
+  # - accounting.transactions: Read/write invoices, bills, credit notes
+  # - accounting.contacts: Read/write contacts
+  # - accounting.settings: Read tax rates, tracking categories
+  # - accounting.attachments: Read/write attachments (upgraded from .read for two-way sync)
+  OAUTH_SCOPES = "offline_access accounting.transactions accounting.contacts accounting.settings accounting.attachments"
+
   # Generate OAuth authorization URL
   def authorization_url
     client = oauth_client
     client.auth_code.authorize_url(
       redirect_uri: @redirect_uri,
-      scope: "offline_access accounting.transactions accounting.contacts accounting.settings accounting.attachments.read"
+      scope: OAUTH_SCOPES
     )
   end
 
@@ -38,7 +46,7 @@ class XeroApiClient
     client = oauth_client
     client.auth_code.authorize_url(
       redirect_uri: @redirect_uri,
-      scope: "offline_access accounting.transactions accounting.contacts accounting.settings accounting.attachments.read",
+      scope: OAUTH_SCOPES,
       state: "company_#{company_id}"
     )
   end
@@ -577,7 +585,129 @@ class XeroApiClient
     { success: false, error: e.message }
   end
 
+  # Upload an attachment to a Xero entity (invoice, contact, etc.)
+  # Requires accounting.attachments scope (not just .read)
+  #
+  # @param entity_type [String] - The entity type (Invoices, Contacts, BankTransactions, etc.)
+  # @param entity_id [String] - The Xero entity GUID
+  # @param filename [String] - The filename for the attachment
+  # @param file_content [String] - The binary file content
+  # @param options [Hash] - Optional parameters
+  #   - :tenant_id [String] - Specific tenant to use
+  #   - :content_type [String] - MIME type (default: application/octet-stream)
+  #   - :include_online [Boolean] - Whether to include in online invoice (default: false)
+  #
+  # @return [Hash] - { success: true, attachment_id: '...', ... } or { success: false, error: '...' }
+  def upload_attachment(entity_type, entity_id, filename, file_content, options = {})
+    tenant_id = options[:tenant_id]
+    content_type = options[:content_type] || guess_content_type(filename)
+    include_online = options[:include_online] || false
+
+    # Find credential
+    credential = find_credential_for_tenant(tenant_id)
+    unless credential
+      return { success: false, error: "No Xero credential available" }
+    end
+
+    # Ensure token is valid
+    ensure_token_valid!(credential)
+
+    # Build the upload URL
+    # Xero attachment endpoint: PUT {EntityType}/{EntityGuid}/Attachments/{Filename}
+    url = "#{BASE_URL}/#{entity_type}/#{entity_id}/Attachments/#{CGI.escape(filename)}"
+
+    # Add query param for online invoices
+    url += "?IncludeOnline=true" if include_online && entity_type == 'Invoices'
+
+    request_tenant_id = credential.respond_to?(:xero_tenant_id) ? credential.xero_tenant_id : credential.tenant_id
+
+    headers = {
+      "Authorization" => "Bearer #{credential.access_token}",
+      "Xero-tenant-id" => request_tenant_id,
+      "Content-Type" => content_type,
+      "Content-Length" => file_content.bytesize.to_s
+    }
+
+    Rails.logger.info("[Xero] Uploading attachment #{filename} to #{entity_type}/#{entity_id}")
+
+    response = HTTParty.put(
+      url,
+      headers: headers,
+      body: file_content,
+      timeout: 60
+    )
+
+    if response.success?
+      data = JSON.parse(response.body) rescue {}
+      attachment = data["Attachments"]&.first
+
+      Rails.logger.info("[Xero] Attachment uploaded successfully: #{attachment&.dig('AttachmentID')}")
+
+      {
+        success: true,
+        attachment_id: attachment&.dig("AttachmentID"),
+        filename: attachment&.dig("FileName"),
+        url: attachment&.dig("Url"),
+        content_length: attachment&.dig("ContentLength"),
+        include_online: attachment&.dig("IncludeOnline")
+      }
+    elsif response.code == 429
+      retry_after = response.headers["Retry-After"]&.to_i || 60
+      raise RateLimitError, "Rate limited, retry after #{retry_after} seconds"
+    else
+      error_body = JSON.parse(response.body) rescue {}
+      error_message = error_body["Message"] || error_body["Detail"] || "Upload failed with status #{response.code}"
+      Rails.logger.error("[Xero] Attachment upload failed: #{error_message}")
+      { success: false, error: error_message, status: response.code }
+    end
+  rescue RateLimitError
+    raise
+  rescue StandardError => e
+    Rails.logger.error("[Xero] Error uploading attachment #{filename}: #{e.message}")
+    { success: false, error: e.message }
+  end
+
   private
+
+  # Find the appropriate credential for a tenant
+  def find_credential_for_tenant(tenant_id)
+    if tenant_id.present?
+      CorporateCompanyXeroConnection.find_by(xero_tenant_id: tenant_id) ||
+        XeroCredential.find_by(tenant_id: tenant_id)
+    else
+      XeroCredential.current
+    end
+  end
+
+  # Ensure the credential has a valid token
+  def ensure_token_valid!(credential)
+    if credential.respond_to?(:needs_refresh?) ? credential.needs_refresh? : credential.expired?
+      if credential.is_a?(CorporateCompanyXeroConnection)
+        credential.refresh_tokens!
+      else
+        refresh_access_token_for(credential)
+      end
+      credential.reload
+    end
+  end
+
+  # Guess content type from filename
+  def guess_content_type(filename)
+    ext = File.extname(filename).downcase
+    case ext
+    when '.pdf' then 'application/pdf'
+    when '.png' then 'image/png'
+    when '.jpg', '.jpeg' then 'image/jpeg'
+    when '.gif' then 'image/gif'
+    when '.doc' then 'application/msword'
+    when '.docx' then 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    when '.xls' then 'application/vnd.ms-excel'
+    when '.xlsx' then 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    when '.csv' then 'text/csv'
+    when '.txt' then 'text/plain'
+    else 'application/octet-stream'
+    end
+  end
 
   def credentials_present?
     @client_id.present? && @client_secret.present? && @redirect_uri.present?

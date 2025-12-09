@@ -74,7 +74,7 @@ namespace :email_warehouse do
     require "cgi"
 
     # Find emails with HTML body but no text body
-    emails_to_fix = EmailWarehouse.where(body_text: [nil, ""]).where.not(body_html: [nil, ""])
+    emails_to_fix = EmailWarehouse.where(body_text: [ nil, "" ]).where.not(body_html: [ nil, "" ])
     total = emails_to_fix.count
 
     puts "Found #{total} emails with HTML body but no text body"
@@ -121,7 +121,7 @@ namespace :email_warehouse do
     puts "  Errors: #{errors}"
 
     # Show new stats
-    with_body = EmailWarehouse.where.not(body_text: [nil, ""]).count
+    with_body = EmailWarehouse.where.not(body_text: [ nil, "" ]).count
     total_emails = EmailWarehouse.count
     puts ""
     puts "New stats:"

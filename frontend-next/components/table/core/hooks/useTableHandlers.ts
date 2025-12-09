@@ -135,7 +135,7 @@ export function useTableHandlers(props: UseTableHandlersProps) {
 
   const handleColumnResize = useCallback((key: string, width: number) => {
     setColumnWidths((prev) => ({ ...prev, [key]: width }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const hideColumn = useCallback((columnKey: string) => {
@@ -143,7 +143,7 @@ export function useTableHandlers(props: UseTableHandlersProps) {
       ...prev,
       [columnKey]: false,
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const handleColumnDragEnd = useCallback((event: DragEndEvent) => {
@@ -224,7 +224,7 @@ export function useTableHandlers(props: UseTableHandlersProps) {
         return [...prev, { column: columnKey, dir: "asc" as const }];
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // ============================================================================
@@ -248,7 +248,7 @@ export function useTableHandlers(props: UseTableHandlersProps) {
       },
     ]);
     setShowFilters(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [COLUMNS]);
 
   const addFilterForColumn = useCallback((columnKey: string) => {
@@ -263,7 +263,7 @@ export function useTableHandlers(props: UseTableHandlersProps) {
       },
     ]);
     setFilterPanelOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const updateFilter = useCallback(
@@ -277,13 +277,13 @@ export function useTableHandlers(props: UseTableHandlersProps) {
 
   const removeFilter = useCallback((id: string | number) => {
     setCascadeFilters((prev) => prev.filter((f) => f.id !== id));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const clearAllFilters = useCallback(() => {
     setCascadeFilters([]);
     setShowFilters(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // ============================================================================
@@ -305,7 +305,7 @@ export function useTableHandlers(props: UseTableHandlersProps) {
       }
       return newSet;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const getAllGroupKeys = useCallback((
@@ -316,7 +316,7 @@ export function useTableHandlers(props: UseTableHandlersProps) {
 
   const expandAllGroups = useCallback(() => {
     setCollapsedGroups(new Set());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const collapseAllGroups = useCallback(() => {
@@ -324,7 +324,7 @@ export function useTableHandlers(props: UseTableHandlersProps) {
       // This will be populated with actual group keys from the component
       return prev;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // ============================================================================
@@ -341,7 +341,7 @@ export function useTableHandlers(props: UseTableHandlersProps) {
       }
       return newSet;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const toggleSelectAll = useCallback(() => {
@@ -350,7 +350,7 @@ export function useTableHandlers(props: UseTableHandlersProps) {
     } else {
       setSelectedRows(new Set(entries.map((e) => e.id)));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [selectedRows.size, entries]);
 
   const handleMergeClick = useCallback((ids: (number | string)[]) => {
@@ -362,7 +362,7 @@ export function useTableHandlers(props: UseTableHandlersProps) {
     setShowMergeModal?.(false);
     setRowsToMerge?.([]);
     setSelectedRows(new Set());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [setShowMergeModal, setRowsToMerge]);
 
   // ============================================================================
@@ -404,7 +404,7 @@ export function useTableHandlers(props: UseTableHandlersProps) {
     });
 
     setColumnWidths((prev) => ({ ...prev, ...newWidths }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [COLUMNS, visibleColumns]);
 
   const getDisplayValue = useCallback((value: unknown): string => {

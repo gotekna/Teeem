@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, CheckCircle, XCircle, RefreshCw, Building2, Calendar, Star, ArrowRight } from "lucide-react";
+import { X, CheckCircle, XCircle, RefreshCw, Building2, Calendar, ArrowRight } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface CompanyLink {

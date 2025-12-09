@@ -19,7 +19,7 @@ class XeroDocumentBackfillJob < ApplicationJob
 
     # Find documents that need backfilling
     scope = CorporateCompanyDocument
-      .where(source: 'xero')
+      .where(source: "xero")
       .where(onedrive_file_id: nil)
       .where.not(expected_onedrive_path: nil)
       .order(created_at: :desc)
@@ -89,9 +89,9 @@ class XeroDocumentBackfillJob < ApplicationJob
 
     # Strategy: Use the expected path to find the file
     # Split path into folder path + filename
-    path_parts = document.expected_onedrive_path.split('/')
+    path_parts = document.expected_onedrive_path.split("/")
     filename = path_parts.last
-    folder_path = path_parts[0..-2].join('/')
+    folder_path = path_parts[0..-2].join("/")
 
     # Try to find the folder first
     begin

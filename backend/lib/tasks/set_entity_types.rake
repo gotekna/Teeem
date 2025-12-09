@@ -7,7 +7,7 @@ namespace :contacts do
     puts
 
     # Find all contacts with no entity_type
-    contacts = Contact.where(entity_type: [nil, '']).order(:id)
+    contacts = Contact.where(entity_type: [ nil, "" ]).order(:id)
 
     stats = {
       people_set: 0,
@@ -34,15 +34,15 @@ namespace :contacts do
         looks_like_person_name = words[0][0] == words[0][0].upcase && words[1][0] == words[1][0].upcase
       elsif words.count >= 3
         all_title_case = words.all? { |w| w[0] == w[0].upcase }
-        looks_like_person_name = all_title_case && words.none? { |w| w.downcase == 'pty' || w.downcase == 'ltd' }
+        looks_like_person_name = all_title_case && words.none? { |w| w.downcase == "pty" || w.downcase == "ltd" }
       end
 
       # Decide and update
       if has_first_last || (looks_like_person_name && !has_abn && !has_acn && !has_company_field)
-        c.update_column(:entity_type, 'person')
+        c.update_column(:entity_type, "person")
         stats[:people_set] += 1
       elsif has_abn || has_acn || has_company_field || name.match?(/pty|ltd|limited|group|services|solutions|constructions|installations/i)
-        c.update_column(:entity_type, 'company')
+        c.update_column(:entity_type, "company")
         stats[:companies_set] += 1
       else
         stats[:unclear_skipped] += 1

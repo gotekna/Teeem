@@ -1103,7 +1103,7 @@ export default function ContactDetailPage() {
 
   useEffect(() => {
     loadContact();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [id]);
 
   // Initialize contact_emails and contact_phones from legacy fields if needed
@@ -1157,7 +1157,7 @@ export default function ContactDetailPage() {
     if (contact?.id) {
       loadMemberships();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching contact?.id
+     
   }, [contact?.id]);
 
   // Fetch all companies for multi-select dropdown
@@ -2449,7 +2449,7 @@ export default function ContactDetailPage() {
       resetFiltersForEmailsTab();
       loadEmails();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching activeTab and contact?.id
+     
   }, [activeTab, contact?.id]);
 
   // Reload emails when showAllInThread changes
@@ -2457,7 +2457,7 @@ export default function ContactDetailPage() {
     if (activeTab === "emails" && contact?.email) {
       loadEmails(1);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching showAllInThread
+     
   }, [showAllInThread]);
 
   const handleTabChange = (value: string) => {

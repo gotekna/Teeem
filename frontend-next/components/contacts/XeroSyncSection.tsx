@@ -78,7 +78,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
   // Load Xero links for this contact
   useEffect(() => {
     loadXeroLinks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally watching contact.id only (loadXeroLinks is stable)
+     
   }, [contact.id]);
 
   // Load available tenants
@@ -92,7 +92,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
       loadXeroContactData();
       loadSyncConfig(selectedLink.xero_tenant_id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally watching selectedLinkId only (functions are stable, selectedLink derived from it)
+     
   }, [selectedLinkId]);
 
   const loadXeroLinks = async () => {

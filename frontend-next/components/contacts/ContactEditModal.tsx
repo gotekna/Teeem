@@ -219,7 +219,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
 
   const updateContactPerson = (index: number, field: keyof ContactPerson, value: string | boolean | null) => {
     const updated = [...contactPersons];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (updated[index] as any)[field] = value;
 
     // If setting this one as primary, unset others

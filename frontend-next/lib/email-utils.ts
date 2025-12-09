@@ -51,7 +51,7 @@ export function parseEmailWithName(emailString: string): {
  * })
  * // Returns: ["john@example.com", "jane@example.com", "bob@example.com", "alice@example.com"]
  */
-export function extractEmailsFromRow(row: Record<string, any>): string[] {
+export function extractEmailsFromRow(row: Record<string, unknown>): string[] {
   const emails: string[] = [];
 
   Object.entries(row).forEach(([key, value]) => {
@@ -77,7 +77,7 @@ export function extractEmailsFromRow(row: Record<string, any>): string[] {
  * @param rows - Array of table row objects
  * @returns Array of unique email addresses from all rows
  */
-export function extractEmailsFromRows(rows: Array<Record<string, any>>): string[] {
+export function extractEmailsFromRows(rows: Array<Record<string, unknown>>): string[] {
   const allEmails: string[] = [];
 
   rows.forEach((row) => {

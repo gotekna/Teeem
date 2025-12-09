@@ -25,7 +25,7 @@
 #  updated_at           :datetime         not null
 #
 class BalanceSheetReport < ApplicationRecord
-  belongs_to :corporate_company, foreign_key: 'company_id'
+  belongs_to :corporate_company, foreign_key: "company_id"
 
   # Validations
   validates :company_name, presence: true

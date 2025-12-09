@@ -196,7 +196,7 @@ export default function PriceBookItemDetailPage() {
   useEffect(() => {
     loadItem();
     loadSuppliers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [code]);
 
   const loadItem = async () => {

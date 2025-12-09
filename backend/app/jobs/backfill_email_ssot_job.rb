@@ -76,12 +76,12 @@ class BackfillEmailSsotJob < ApplicationJob
   def determine_direction(email)
     folder_name = email.folder_name.to_s.downcase
 
-    if folder_name.include?('sent')
-      'sent'
-    elsif folder_name.include?('draft')
-      'sent'  # Drafts are outgoing
+    if folder_name.include?("sent")
+      "sent"
+    elsif folder_name.include?("draft")
+      "sent"  # Drafts are outgoing
     else
-      'received'  # Default to received for inbox, archive, etc.
+      "received"  # Default to received for inbox, archive, etc.
     end
   end
 
@@ -89,7 +89,7 @@ class BackfillEmailSsotJob < ApplicationJob
     return nil if body_text.blank?
 
     body_text.to_s
-      .gsub(/\s+/, ' ')  # Normalize whitespace
+      .gsub(/\s+/, " ")  # Normalize whitespace
       .strip
       .truncate(500)
   end

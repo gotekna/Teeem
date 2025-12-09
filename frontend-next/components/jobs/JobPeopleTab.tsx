@@ -148,7 +148,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   useEffect(() => {
     loadContacts();
     loadUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [jobId]);
 
   // Auto-focus search input when adding
@@ -192,7 +192,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
       }
     }, 300);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [searchQuery, addingRole]);
 
   const searchContacts = async (query: string) => {

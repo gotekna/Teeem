@@ -1,7 +1,7 @@
 module Api
   module V1
     class DocumentFoldersController < ApplicationController
-      before_action :set_document_folder, only: [:show, :update, :destroy]
+      before_action :set_document_folder, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/document_folders
       def index

@@ -40,7 +40,7 @@ interface DeleteOptions extends RequestOptions {
   data?: unknown;
 }
 
-interface PostOptions extends RequestOptions {}
+type PostOptions = RequestOptions;
 
 // Request deduplication cache
 const pendingRequests = new Map<string, Promise<unknown>>();
@@ -67,7 +67,7 @@ const handleErrorResponse = async (response: Response): Promise<never> => {
   let errorMessage: string;
   if (errorData.errors && Array.isArray(errorData.errors)) {
     // Properly format error objects
-    errorMessage = errorData.errors.map((err: any) => {
+    errorMessage = errorData.errors.map((err: string | { email?: string; error?: string }) => {
       if (typeof err === 'string') return err;
       if (err.email && err.error) return `${err.email}: ${err.error}`;
       if (err.error) return err.error;

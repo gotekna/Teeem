@@ -78,7 +78,7 @@ export function WorkflowConfigTab() {
 
   React.useEffect(() => {
     loadInitialData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, []);
 
   const loadInitialData = async () => {

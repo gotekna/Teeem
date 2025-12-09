@@ -51,7 +51,7 @@ export default function AsicLoginsPage() {
 
   React.useEffect(() => {
     loadAsicLogins();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [selectedGroup]);
 
   const loadCompanyGroups = async () => {
