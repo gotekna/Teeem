@@ -41,9 +41,9 @@ class CleanupEphemeralEmailsJob < ApplicationJob
       else
         begin
           # Optionally delete from Outlook first
-          if delete_from_outlook && email.graph_message_id.present?
+          if delete_from_outlook && email.outlook_id.present?
             outlook_service = OutlookService.new(email.synced_by_user)
-            outlook_service.delete_email(email.graph_message_id)
+            outlook_service.delete_email(email.outlook_id)
           end
 
           # Remove from our database
