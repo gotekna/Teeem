@@ -1521,19 +1521,32 @@ module Api
           # Invoice sync runs every 30 minutes
           next_invoice_sync = calculate_next_run(now_brisbane, 30, 0)
 
-          # PDF sync runs every 2 hours at minute 45
-          next_pdf_sync = calculate_next_run(now_brisbane, 120, 45)
+          # PDF sync uses smart rate limiting - calculates next run based on pending count
+          # When catching up (>100 pending): batches every 5 min
+          # Almost caught up (<100 pending): batches every 10 min
+          # Caught up (0 pending): checks every 30 min
+          next_pdf_sync = if pdfs_pending > 100
+            5.minutes.from_now
+          elsif pdfs_pending > 0
+            10.minutes.from_now
+          else
+            30.minutes.from_now
+          end
 
-          # Stage 2 blocker info - why isn't PDF sync faster?
-          stage2_blocker = if pdfs_pending > 0
-            hours_remaining = (estimated_remaining_minutes / 60.0).round(1)
-            days_remaining = (hours_remaining / 24.0).round(1)
+          # Stage 2 info - smart rate-limited sync status
+          stage2_blocker = if pdfs_pending > 100
             {
-              reason: "Rate limited: 50 PDFs every 2 hours",
-              detail: "Xero API limits prevent faster syncing. #{pdfs_pending} PDFs pending.",
+              reason: "Catching up - syncing at max safe speed",
+              detail: "Processing ~20 PDFs per batch, auto-queuing next batch. #{pdfs_pending} remaining.",
               pending_count: pdfs_pending,
-              estimated_hours: hours_remaining,
-              estimated_days: days_remaining > 1 ? days_remaining : nil
+              sync_mode: "catching_up"
+            }
+          elsif pdfs_pending > 0
+            {
+              reason: "Almost caught up - slowing down",
+              detail: "#{pdfs_pending} PDFs remaining, will be near-live soon.",
+              pending_count: pdfs_pending,
+              sync_mode: "almost_done"
             }
           else
             nil
@@ -1589,7 +1602,7 @@ module Api
                 last_synced_at: last_pdf_sync,               # SSoT: Use last_synced_at consistently
                 last_sync_at: last_pdf_sync,                 # Deprecated: kept for backwards compatibility
                 next_sync_at: next_pdf_sync,
-                schedule: "Every 2 hours (50 per batch)",
+                schedule: pdfs_pending > 100 ? "Smart sync: max speed (every 5 min)" : pdfs_pending > 0 ? "Smart sync: slowing down (every 10 min)" : "Smart sync: near-live (every 30 min)",
                 synced_last_24h: pdfs_last_24h,
                 breakdown: {
                   bills: { total: bills_total, synced: bills_with_pdfs },

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_10_035103) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_10_051045) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2085,6 +2085,27 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_035103) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["user_id"], name: "index_grok_plans_on_user_id"
+  end
+
+  create_table "health_kudos_events", force: :cascade do |t|
+    t.string "actor_type", default: "user", null: false
+    t.bigint "user_id"
+    t.string "action", null: false
+    t.string "fix_type", null: false
+    t.string "record_type"
+    t.bigint "record_id"
+    t.integer "records_fixed", default: 1
+    t.integer "points", default: 0, null: false
+    t.jsonb "details", default: {}
+    t.string "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action"], name: "index_health_kudos_events_on_action"
+    t.index ["actor_type"], name: "index_health_kudos_events_on_actor_type"
+    t.index ["created_at"], name: "index_health_kudos_events_on_created_at"
+    t.index ["fix_type"], name: "index_health_kudos_events_on_fix_type"
+    t.index ["record_type", "record_id"], name: "index_health_kudos_events_on_record_type_and_record_id"
+    t.index ["user_id"], name: "index_health_kudos_events_on_user_id"
   end
 
   create_table "implementation_patterns", force: :cascade do |t|
@@ -4928,6 +4949,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_035103) do
   add_foreign_key "folder_template_items", "folder_templates"
   add_foreign_key "folder_templates", "users", column: "created_by_id"
   add_foreign_key "grok_plans", "users"
+  add_foreign_key "health_kudos_events", "users", on_delete: :nullify
   add_foreign_key "insurance_policies", "corporate_companies", column: "company_id"
   add_foreign_key "intercompany_balances", "corporate_companies", column: "company_id"
   add_foreign_key "intercompany_balances", "corporate_companies", column: "related_company_id"

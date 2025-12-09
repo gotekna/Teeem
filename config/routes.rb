@@ -67,7 +67,12 @@ Rails.application.routes.draw do
       get "system/performance", to: "system#performance"
       get "system/metrics", to: "system#metrics"
 
-      # Health checks
+      # Health checks - NEW unified endpoints
+      get "health/unified", to: "health#unified"       # Main unified health dashboard
+      post "health/fix", to: "health#fix"              # Fix health issues
+      get "health/leaderboard", to: "health#leaderboard"  # Kudos leaderboard
+
+      # Health checks - Legacy endpoints (kept for backwards compatibility)
       get "health/system", to: "health#system"
       get "health/pricebook", to: "health#pricebook"
       get "health/pricebook/missing_items", to: "health#missing_items"
