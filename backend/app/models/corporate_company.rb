@@ -143,13 +143,13 @@ class CorporateCompany < ApplicationRecord
   # SharePoint folder URL for this company's root folder in 00 TEEEM PRIVATE
   # Structure: 00 TEEEM PRIVATE / [Group Name] / [Company Name]
   def sharepoint_folder_url
-    return nil unless company_group.present?
+    return nil unless corporate_group.present?
 
     credential = OrganizationOneDriveCredential.active_credential
     return nil unless credential&.metadata&.dig("site_web_url")
 
     base_url = credential.metadata["site_web_url"]
-    group_name = company_group.name
+    group_name = corporate_group.name
     company_folder_name = "#{code.presence || name[0..2].upcase} - #{name}"
 
     # URL encode the path components
@@ -279,7 +279,7 @@ class CorporateCompany < ApplicationRecord
 
   # Group name for display
   def group_name
-    company_group&.name || company_group_legacy
+    corporate_group&.name || company_group_legacy
   end
 
   # Legacy company_group field (string) - for backwards compatibility
