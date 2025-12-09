@@ -568,101 +568,111 @@ export function XeroPdfSyncStatus() {
           </div>
         </div>
 
-        {/* Rate Limit Warning Banner */}
-        {isAtLimit && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+        {/* Live API Activity - Prominent Section */}
+        <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <span className="text-sm font-medium text-red-800">
-                Xero API rate limit reached - syncing paused until limit resets
-              </span>
-            </div>
-          </div>
-        )}
-        {!isAtLimit && isApproachingLimit && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <span className="text-sm font-medium text-amber-800">
-                Approaching Xero API rate limit (95%) - syncing will slow down
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Rate Limits - API Usage */}
-        {rateLimits && rateLimits.tenants.length > 0 && (
-          <div className="space-y-2 border-t pt-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Gauge className="h-4 w-4" />
-                <span>API Rate Limits</span>
-                <Badge variant="outline" className="text-xs">
-                  {rateLimits.aggregate.daily_requests} / {rateLimits.limits.daily} today
-                </Badge>
+              <div className="relative">
+                <Activity className="h-5 w-5 text-blue-600" />
+                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-green-500 rounded-full animate-pulse" />
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={fetchRateLimits}
-                disabled={rateLimitsLoading}
-                className="h-7 px-2"
-              >
-                <RefreshCw className={`h-3 w-3 mr-1 ${rateLimitsLoading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
+              <span className="font-semibold text-blue-900">Live Xero API Activity</span>
+              <Badge className="bg-blue-100 text-blue-700 text-xs">
+                Auto-refresh 5s
+              </Badge>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {rateLimits && (
+              <div className="text-sm text-blue-700">
+                <span className="font-semibold">{rateLimits.aggregate.daily_requests}</span>
+                <span className="text-blue-500"> / {rateLimits.limits.daily} API calls today</span>
+              </div>
+            )}
+          </div>
+
+          {/* Rate Limit Warning Banners */}
+          {isAtLimit && (
+            <div className="p-2 mb-3 bg-red-100 border border-red-300 rounded text-sm">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <span className="font-medium text-red-800">
+                  Rate limit reached - syncing paused until reset
+                </span>
+              </div>
+            </div>
+          )}
+          {!isAtLimit && isApproachingLimit && (
+            <div className="p-2 mb-3 bg-amber-100 border border-amber-300 rounded text-sm">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <span className="font-medium text-amber-800">
+                  Approaching 95% rate limit - sync slowing down
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Per-Tenant Rate Limits */}
+          {rateLimits && rateLimits.tenants.length > 0 ? (
+            <div className="space-y-2">
               {rateLimits.tenants.map((tenant) => (
-                <div key={tenant.tenant_id} className="p-2 border rounded-lg bg-muted/30">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium truncate">{tenant.tenant_name}</span>
+                <div key={tenant.tenant_id} className="p-3 bg-white/80 border border-blue-100 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-sm">{tenant.tenant_name}</span>
                     {tenant.can_make_request ? (
-                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                        <CheckCircle2 className="h-2.5 w-2.5 mr-1" />
-                        OK
+                      <Badge className="bg-green-100 text-green-700 text-xs">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Ready
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
-                        <AlertTriangle className="h-2.5 w-2.5 mr-1" />
+                      <Badge className="bg-red-100 text-red-700 text-xs">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
                         Throttled
                       </Badge>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* Per-minute usage */}
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Per-minute */}
                     <div>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Per min</span>
-                        <span>{tenant.minute?.used || 0}/{rateLimits.limits.minute}</span>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">This minute</span>
+                        <span className="font-mono font-medium">
+                          {tenant.minute?.used || 0}/{rateLimits.limits.minute}
+                        </span>
                       </div>
                       <Progress
                         value={tenant.minute?.percentage || 0}
-                        className={`h-1 mt-0.5 ${(tenant.minute?.percentage || 0) > 80 ? '[&>div]:bg-amber-500' : ''} ${(tenant.minute?.percentage || 0) > 95 ? '[&>div]:bg-red-500' : ''}`}
+                        className={`h-2 ${(tenant.minute?.percentage || 0) > 80 ? '[&>div]:bg-amber-500' : '[&>div]:bg-blue-500'} ${(tenant.minute?.percentage || 0) > 95 ? '[&>div]:bg-red-500' : ''}`}
                       />
                     </div>
-                    {/* Daily usage */}
+                    {/* Daily */}
                     <div>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Daily</span>
-                        <span>{tenant.daily?.used || 0}/{rateLimits.limits.daily}</span>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">Today</span>
+                        <span className="font-mono font-medium">
+                          {tenant.daily?.used || 0}/{rateLimits.limits.daily}
+                        </span>
                       </div>
                       <Progress
                         value={tenant.daily?.percentage || 0}
-                        className={`h-1 mt-0.5 ${(tenant.daily?.percentage || 0) > 80 ? '[&>div]:bg-amber-500' : ''} ${(tenant.daily?.percentage || 0) > 95 ? '[&>div]:bg-red-500' : ''}`}
+                        className={`h-2 ${(tenant.daily?.percentage || 0) > 80 ? '[&>div]:bg-amber-500' : '[&>div]:bg-purple-500'} ${(tenant.daily?.percentage || 0) > 95 ? '[&>div]:bg-red-500' : ''}`}
                       />
                     </div>
                   </div>
                   {tenant.total_7d > 0 && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {tenant.total_7d.toLocaleString()} requests (7d)
+                    <div className="text-xs text-muted-foreground mt-2 text-right">
+                      {tenant.total_7d.toLocaleString()} total requests (7 days)
                     </div>
                   )}
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="text-center py-4 text-muted-foreground text-sm">
+              <Gauge className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              No Xero tenants connected
+            </div>
+          )}
+        </div>
 
         {/* Time Estimate & Activity */}
         <div className="flex items-center justify-between text-sm border-t pt-3">
