@@ -140,17 +140,41 @@ const INITIAL_FOLDERS = [
 interface Folder {
   id: number;
   name: string;
-  order: number;
+  order_position: number;
   entity_types: string[];
   description: string;
+  active: boolean;
 }
 
 export function FoldersTabsConfigTab() {
-  const [folders, setFolders] = React.useState<Folder[]>(INITIAL_FOLDERS);
+  const [folders, setFolders] = React.useState<Folder[]>([]);
   const [newFolderName, setNewFolderName] = React.useState("");
   const [newFolderDescription, setNewFolderDescription] = React.useState("");
   const [selectedEntityType, setSelectedEntityType] = React.useState<string | null>(null);
   const [hasChanges, setHasChanges] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isSaving, setIsSaving] = React.useState(false);
+
+  // Fetch folders from API on mount
+  React.useEffect(() => {
+    fetchFolders();
+  }, []);
+
+  const fetchFolders = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch("/api/v1/document_folders");
+      const data = await response.json();
+
+      if (data.success) {
+        setFolders(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch folders:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const moveFolder = (index: number, direction: "up" | "down") => {
     const newFolders = [...folders];
@@ -162,34 +186,59 @@ export function FoldersTabsConfigTab() {
 
     // Update order values
     newFolders.forEach((folder, idx) => {
-      folder.order = idx + 1;
+      folder.order_position = idx;
     });
 
     setFolders(newFolders);
     setHasChanges(true);
   };
 
-  const addFolder = () => {
+  const addFolder = async () => {
     if (!newFolderName.trim()) return;
 
-    const newFolder: Folder = {
-      id: Math.max(...folders.map(f => f.id)) + 1,
+    const newFolder = {
       name: newFolderName.toUpperCase(),
-      order: folders.length + 1,
+      order_position: folders.length,
       entity_types: [],
-      description: newFolderDescription
+      description: newFolderDescription,
+      active: true
     };
 
-    setFolders([...folders, newFolder]);
-    setNewFolderName("");
-    setNewFolderDescription("");
-    setHasChanges(true);
+    try {
+      const response = await fetch("/api/v1/document_folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folder: newFolder })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setFolders([...folders, data.data]);
+        setNewFolderName("");
+        setNewFolderDescription("");
+        setHasChanges(false); // Just saved
+      }
+    } catch (error) {
+      console.error("Failed to add folder:", error);
+    }
   };
 
-  const deleteFolder = (id: number) => {
+  const deleteFolder = async (id: number) => {
     if (!confirm("Delete this folder? This cannot be undone.")) return;
-    setFolders(folders.filter(f => f.id !== id).map((f, idx) => ({ ...f, order: idx + 1 })));
-    setHasChanges(true);
+
+    try {
+      const response = await fetch(`/api/v1/document_folders/${id}`, {
+        method: "DELETE"
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setFolders(folders.filter(f => f.id !== id).map((f, idx) => ({ ...f, order_position: idx })));
+        setHasChanges(false);
+      }
+    } catch (error) {
+      console.error("Failed to delete folder:", error);
+    }
   };
 
   const toggleEntityType = (folderId: number, entityType: string) => {
@@ -215,10 +264,43 @@ export function FoldersTabsConfigTab() {
   };
 
   const saveChanges = async () => {
-    // TODO: Save to backend API
-    console.log("Saving folders:", folders);
-    alert("Configuration saved! (Backend API integration pending)");
-    setHasChanges(false);
+    try {
+      setIsSaving(true);
+
+      // Update each folder individually
+      for (const folder of folders) {
+        await fetch(`/api/v1/document_folders/${folder.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            folder: {
+              name: folder.name,
+              description: folder.description,
+              order_position: folder.order_position,
+              entity_types: folder.entity_types,
+              active: folder.active
+            }
+          })
+        });
+      }
+
+      // Reorder all folders
+      await fetch("/api/v1/document_folders/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folders: folders.map(f => ({ id: f.id, order_position: f.order_position }))
+        })
+      });
+
+      setHasChanges(false);
+      alert("Configuration saved successfully!");
+    } catch (error) {
+      console.error("Failed to save changes:", error);
+      alert("Failed to save changes. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const getFilteredFolders = () => {
@@ -230,6 +312,14 @@ export function FoldersTabsConfigTab() {
     const type = ENTITY_TYPES.find(t => t.value === entityType);
     return type?.color || "gray";
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Loading folders configuration...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -243,11 +333,11 @@ export function FoldersTabsConfigTab() {
         </div>
         <Button
           onClick={saveChanges}
-          disabled={!hasChanges}
+          disabled={!hasChanges || isSaving}
           size="lg"
         >
           <Save className="h-4 w-4 mr-2" />
-          Save Changes
+          {isSaving ? "Saving..." : "Save Changes"}
         </Button>
       </div>
 
@@ -321,7 +411,7 @@ export function FoldersTabsConfigTab() {
                   <ArrowUp className="h-3 w-3" />
                 </Button>
                 <div className="flex items-center justify-center h-6 w-6 text-xs font-mono text-muted-foreground">
-                  {folder.order}
+                  {folder.order_position + 1}
                 </div>
                 <Button
                   variant="ghost"

@@ -259,13 +259,13 @@ class CaseDocumentOrganizationService
     case target_location
     when :corporate
       # Get company's corporate folder
-      company = case_record.company || case_record.companies.first
+      company = case_record.corporate_company || case_record.corporate_companies.first
       return nil unless company
 
       # Find or create corporate folder for company
       get_or_create_company_folder(company, "Corporate")
     when :register
-      company = case_record.company || case_record.companies.first
+      company = case_record.corporate_company || case_record.corporate_companies.first
       return nil unless company
 
       get_or_create_company_folder(company, "Register")
@@ -317,10 +317,10 @@ class CaseDocumentOrganizationService
   # Create a company_document entry for a new file
   def create_company_document(file_info, graph_result, doc_type)
     # Determine company
-    company = case_record.company || case_record.companies.first
+    company = case_record.corporate_company || case_record.corporate_companies.first
 
     CorporateCompanyDocument.create!(
-      company: company,
+      corporate_company: company,
       title: file_info[:name],
       document_type: doc_type,
       file_name: file_info[:name],

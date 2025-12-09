@@ -356,7 +356,7 @@ module Api
 
           # SSoT: Only include corporate data (directors, shareholdings) if user has permission
           if can_view_corporate?
-            linked_company_data[:directors] = linked_company.company_directors.includes(:contact).map do |d|
+            linked_company_data[:directors] = linked_company.corporate_company_directors.includes(:contact).map do |d|
               {
                 id: d.id,
                 contact_id: d.contact_id,
@@ -368,7 +368,7 @@ module Api
                 is_current: d.is_current
               }
             end
-            linked_company_data[:shareholdings] = linked_company.company_shareholdings.includes(:shareholder).map do |s|
+            linked_company_data[:shareholdings] = linked_company.corporate_company_shareholdings.includes(:shareholder).map do |s|
               {
                 id: s.id,
                 shareholder_type: s.shareholder_type,
@@ -380,9 +380,9 @@ module Api
                 date_acquired: s.acquisition_date
               }
             end
-            linked_company_data[:directors_count] = linked_company.company_directors.current.count
-            linked_company_data[:shareholdings_count] = linked_company.company_shareholdings.count
-            linked_company_data[:documents_count] = linked_company.company_documents.count
+            linked_company_data[:directors_count] = linked_company.corporate_company_directors.current.count
+            linked_company_data[:shareholdings_count] = linked_company.corporate_company_shareholdings.count
+            linked_company_data[:documents_count] = linked_company.corporate_company_documents.count
             # SSoT: Include bank accounts from the bank_accounts table
             linked_company_data[:bank_accounts] = linked_company.bank_accounts.active.map do |ba|
               {
@@ -2141,7 +2141,7 @@ module Api
       # GET /api/v1/contacts/:id/company_group_memberships
       # Returns all company group memberships for this contact
       def company_group_memberships
-        memberships = @contact.company_group_memberships.includes(:company_group, :company)
+        memberships = @contact.company_group_memberships.includes(:company_group, :corporate_company)
 
         render json: {
           success: true,
@@ -2157,7 +2157,7 @@ module Api
       # GET /api/v1/contacts/:id/directorships
       # Returns all directorships for this contact (from CorporateCompanyDirector table)
       def directorships
-        directorships = @contact.company_directorships
+        directorships = @contact.corporate_company_directorships
           .includes(company: :company_group)
           .order(is_current: :desc, appointment_date: :desc)
 
@@ -2195,7 +2195,7 @@ module Api
       # GET /api/v1/contacts/:id/shareholdings
       # Returns all shareholdings for this contact (from CorporateCompanyShareholding table)
       def shareholdings
-        shareholdings = @contact.company_shareholdings
+        shareholdings = @contact.corporate_company_shareholdings
           .includes(company: :company_group)
           .order(created_at: :desc)
 
@@ -2310,7 +2310,7 @@ module Api
       # and what those companies own (including trusts)
       def ownership_chain
         # Get direct shareholdings for this contact
-        direct_holdings = @contact.company_shareholdings
+        direct_holdings = @contact.corporate_company_shareholdings
           .includes(company: [ :company_group ])
           .where("number_of_shares > 0")
 

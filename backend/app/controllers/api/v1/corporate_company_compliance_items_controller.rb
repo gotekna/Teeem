@@ -5,7 +5,7 @@ module Api
 
       # GET /api/v1/company_compliance_items
       def index
-        @items = CorporateCompanyComplianceItem.includes(:company).all
+        @items = CorporateCompanyComplianceItem.includes(:corporate_company).all
 
         # Filter by company
         @items = @items.where(company_id: params[:company_id]) if params[:company_id].present?

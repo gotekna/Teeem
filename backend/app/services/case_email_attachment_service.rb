@@ -160,7 +160,7 @@ class CaseEmailAttachmentService
 
   # Create company_document for the attachment
   def create_company_document(case_email, file, content_hash, graph_result)
-    company = case_record.company || case_record.companies.first
+    company = case_record.corporate_company || case_record.corporate_companies.first
     email = case_email.email_warehouse
 
     # Determine document type from mime type

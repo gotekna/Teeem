@@ -15,7 +15,8 @@ end
 client = MicrosoftGraphClient.new
 
 # Constants
-PRIMARY_FOLDERS = %w[ADVICE ASIC ASSETS ATO BANK COMPANY DIVIDENDS FINANCIALS GENERAL INSURANCE LOANS MINUTES REGISTRY TRUST].freeze
+# Fetch folder names from database (SSoT)
+PRIMARY_FOLDERS = DocumentFolder.active.ordered.pluck(:name).freeze
 ASSETS_SUBFOLDERS = %w[Disposal Expenses Purchases Valuation].freeze
 NEEDS_REVIEW_FOLDER = "_NEEDS_REVIEW"
 

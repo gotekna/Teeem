@@ -409,8 +409,8 @@ module Api
         return true if contact.quote_request_contacts.exists?
         return true if contact.pricebook_items.exists?
         return true if contact.case_contacts.exists?
-        return true if contact.company_directorships.exists?
-        return true if contact.company_shareholdings.exists?
+        return true if contact.corporate_company_directorships.exists?
+        return true if contact.corporate_company_shareholdings.exists?
         return true if contact.contact_activities.exists?
 
         false

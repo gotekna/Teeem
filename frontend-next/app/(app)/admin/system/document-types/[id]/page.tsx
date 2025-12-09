@@ -114,9 +114,33 @@ export default function DocumentTypeDetailPage() {
   const [companies, setCompanies] = React.useState<Array<{id: number; name: string; code: string}>>([]);
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
+  const [folderOptions, setFolderOptions] = React.useState<string[]>([]);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Fetch available folders from API (SSoT)
+  React.useEffect(() => {
+    const fetchFolders = async () => {
+      try {
+        const response = await fetch("/api/v1/document_folders");
+        const data = await response.json();
+        if (data.success) {
+          // Extract folder names and sort alphabetically
+          const names = data.data.map((f: any) => f.name).sort();
+          setFolderOptions(names);
+        } else {
+          // Fallback to hard-coded list if API fails
+          setFolderOptions(FOLDER_OPTIONS);
+        }
+      } catch (error) {
+        console.error("Failed to fetch folders:", error);
+        // Fallback to hard-coded list if API fails
+        setFolderOptions(FOLDER_OPTIONS);
+      }
+    };
+    fetchFolders();
+  }, []);
 
   const documentTypeId = params.id as string;
 
@@ -1130,7 +1154,7 @@ export default function DocumentTypeDetailPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {FOLDER_OPTIONS.map(f => (
+                    {folderOptions.map(f => (
                       <SelectItem key={f} value={f}>{f}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1148,7 +1172,7 @@ export default function DocumentTypeDetailPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {FOLDER_OPTIONS.map(f => (
+                    {folderOptions.map(f => (
                       <SelectItem key={f} value={f}>{f}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1163,7 +1187,7 @@ export default function DocumentTypeDetailPage() {
                 Select all tabs where this document type should appear
               </p>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
-                {FOLDER_OPTIONS.map(tab => {
+                {folderOptions.map(tab => {
                   const isSelected = (documentType.tabs || []).includes(tab);
                   const isPrimary = documentType.primary_tab === tab;
                   return (

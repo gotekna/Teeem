@@ -6,7 +6,7 @@ module Api
 
       # GET /api/v1/company_documents
       def index
-        @documents = CorporateCompanyDocument.includes(:company, :user, :asset).all
+        @documents = CorporateCompanyDocument.includes(:corporate_company, :user, :asset).all
 
         # Filter by company
         @documents = @documents.where(company_id: params[:company_id]) if params[:company_id].present?
