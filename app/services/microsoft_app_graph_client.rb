@@ -86,7 +86,7 @@ class MicrosoftAppGraphClient
     endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/$value"
 
     # This endpoint returns raw MIME content, not JSON
-    response = HTTP.auth("Bearer #{valid_access_token}")
+    response = HTTP.auth("Bearer #{access_token}")
                    .get("#{GRAPH_API_BASE}#{endpoint}")
 
     unless response.status.success?
