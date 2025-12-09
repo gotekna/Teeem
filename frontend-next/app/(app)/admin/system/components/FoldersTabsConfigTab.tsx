@@ -20,6 +20,7 @@ import {
   Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 // Entity types
 const ENTITY_TYPES = [
@@ -163,8 +164,7 @@ export function FoldersTabsConfigTab() {
   const fetchFolders = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch("/api/v1/document_folders");
-      const data = await response.json();
+      const data = await api.get<{ success: boolean; data: Folder[] }>("/api/v1/document_folders");
 
       if (data.success) {
         setFolders(data.data);
@@ -205,14 +205,9 @@ export function FoldersTabsConfigTab() {
     };
 
     try {
-      const response = await fetch("/api/v1/document_folders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folder: newFolder })
-      });
+      const data = await api.post<{ success: boolean; data: Folder }>("/api/v1/document_folders", { folder: newFolder });
 
-      const data = await response.json();
-      if (data.success) {
+      if (data?.success && data.data) {
         setFolders([...folders, data.data]);
         setNewFolderName("");
         setNewFolderDescription("");
@@ -227,12 +222,9 @@ export function FoldersTabsConfigTab() {
     if (!confirm("Delete this folder? This cannot be undone.")) return;
 
     try {
-      const response = await fetch(`/api/v1/document_folders/${id}`, {
-        method: "DELETE"
-      });
+      const data = await api.delete<{ success: boolean }>(`/api/v1/document_folders/${id}`);
 
-      const data = await response.json();
-      if (data.success) {
+      if (data?.success) {
         setFolders(folders.filter(f => f.id !== id).map((f, idx) => ({ ...f, order_position: idx })));
         setHasChanges(false);
       }
@@ -269,28 +261,20 @@ export function FoldersTabsConfigTab() {
 
       // Update each folder individually
       for (const folder of folders) {
-        await fetch(`/api/v1/document_folders/${folder.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            folder: {
-              name: folder.name,
-              description: folder.description,
-              order_position: folder.order_position,
-              entity_types: folder.entity_types,
-              active: folder.active
-            }
-          })
+        await api.patch(`/api/v1/document_folders/${folder.id}`, {
+          folder: {
+            name: folder.name,
+            description: folder.description,
+            order_position: folder.order_position,
+            entity_types: folder.entity_types,
+            active: folder.active
+          }
         });
       }
 
       // Reorder all folders
-      await fetch("/api/v1/document_folders/reorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          folders: folders.map(f => ({ id: f.id, order_position: f.order_position }))
-        })
+      await api.post("/api/v1/document_folders/reorder", {
+        folders: folders.map(f => ({ id: f.id, order_position: f.order_position }))
       });
 
       setHasChanges(false);
