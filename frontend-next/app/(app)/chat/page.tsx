@@ -879,7 +879,7 @@ export default function ChatPage() {
               </Dialog>
 
               {/* Message Input */}
-              <div className="p-4 border-t">
+              <div className="p-4 border-t shrink-0">
                 {/* Image Preview */}
                 {imagePreview && (
                   <div className="mb-3 relative inline-block">
@@ -898,7 +898,7 @@ export default function ChatPage() {
                     </Button>
                   </div>
                 )}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" title="Attach file">
