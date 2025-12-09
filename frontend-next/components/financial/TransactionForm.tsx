@@ -91,7 +91,7 @@ export default function TransactionForm({
       }
       setError(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [isOpen, transaction, type]);
 
   const loadCategories = async () => {

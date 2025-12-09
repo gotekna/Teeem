@@ -61,8 +61,9 @@ export default function WorkflowTaskList() {
       } else {
         setError("Failed to load workflow tasks");
       }
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to load workflow tasks");
+    } catch (err) {
+      const error = err as { response?: { data?: { error?: string } } };
+      setError(error.response?.data?.error || "Failed to load workflow tasks");
     } finally {
       setIsLoading(false);
     }

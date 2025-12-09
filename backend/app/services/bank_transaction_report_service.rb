@@ -267,27 +267,27 @@ class BankTransactionReportService
     # Bank title in header
     canvas.fill_color(@branding[:text_on_primary])
     canvas.font("Helvetica", size: 18, variant: :bold)
-    canvas.text(@branding[:bank_title], at: [50, 815])
+    canvas.text(@branding[:bank_title], at: [ 50, 815 ])
 
     canvas.font("Helvetica", size: 11)
-    canvas.text(@branding[:account_type], at: [50, 798])
+    canvas.text(@branding[:account_type], at: [ 50, 798 ])
 
     canvas.font("Helvetica", size: 9)
-    canvas.text("Page #{page_num} of #{total_pages}", at: [500, 815])
+    canvas.text("Page #{page_num} of #{total_pages}", at: [ 500, 815 ])
 
     # Reset to black
     canvas.fill_color("000000")
 
     # Left side: Statement period
     canvas.font("Helvetica", size: 9, variant: :bold)
-    canvas.text("Statement starts", at: [50, 760])
+    canvas.text("Statement starts", at: [ 50, 760 ])
     canvas.font("Helvetica", size: 9)
-    canvas.text(format_date_nab(start_date), at: [130, 760])
+    canvas.text(format_date_nab(start_date), at: [ 130, 760 ])
 
     canvas.font("Helvetica", size: 9, variant: :bold)
-    canvas.text("Statement ends", at: [50, 745])
+    canvas.text("Statement ends", at: [ 50, 745 ])
     canvas.font("Helvetica", size: 9)
-    canvas.text(format_date_nab(end_date), at: [130, 745])
+    canvas.text(format_date_nab(end_date), at: [ 130, 745 ])
 
     # Right side: Account Details box (like real NAB statement)
     draw_account_details_box(canvas, account_name)
@@ -295,7 +295,7 @@ class BankTransactionReportService
     # Source note
     canvas.font("Helvetica", size: 7)
     canvas.fill_color("999999")
-    canvas.text("Source: Xero Bank Feed Data", at: [50, 710])
+    canvas.text("Source: Xero Bank Feed Data", at: [ 50, 710 ])
     canvas.fill_color("000000")
   end
 
@@ -320,7 +320,7 @@ class BankTransactionReportService
     # "Account Details" title with underline
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text("Account Details", at: [box_x + 10, box_y - 15])
+    canvas.text("Account Details", at: [ box_x + 10, box_y - 15 ])
     canvas.stroke_color("000000")
     canvas.line(box_x + 10, box_y - 18, box_x + 100, box_y - 18)
     canvas.stroke
@@ -338,16 +338,16 @@ class BankTransactionReportService
 
     # Company name and account type
     canvas.font("Helvetica", size: 9)
-    canvas.text(company_name.upcase, at: [box_x + 10, box_y - 30])
-    canvas.text(@branding[:account_type].upcase, at: [box_x + 10, box_y - 41])
+    canvas.text(company_name.upcase, at: [ box_x + 10, box_y - 30 ])
+    canvas.text(@branding[:account_type].upcase, at: [ box_x + 10, box_y - 41 ])
 
     # BSB and Account Number
     canvas.font("Helvetica", size: 8)
-    canvas.text("BSB number", at: [box_x + 10, box_y - 52])
-    canvas.text(bsb, at: [box_x + 100, box_y - 52])
+    canvas.text("BSB number", at: [ box_x + 10, box_y - 52 ])
+    canvas.text(bsb, at: [ box_x + 100, box_y - 52 ])
 
-    canvas.text("Account number", at: [box_x + 130, box_y - 52])
-    canvas.text(account_number, at: [box_x + 200, box_y - 52])
+    canvas.text("Account number", at: [ box_x + 130, box_y - 52 ])
+    canvas.text(account_number, at: [ box_x + 200, box_y - 52 ])
   end
 
   def draw_nab_summary(canvas, opening_balance, total_debits, total_credits, closing_balance)
@@ -363,7 +363,7 @@ class BankTransactionReportService
 
     y = box_y - 15
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text("Account Balance Summary", at: [box_x + 10, y])
+    canvas.text("Account Balance Summary", at: [ box_x + 10, y ])
 
     y -= 8
     canvas.line(box_x + 10, y, box_x + box_width - 10, y)
@@ -371,16 +371,16 @@ class BankTransactionReportService
 
     y -= 15
     canvas.font("Helvetica", size: 9)
-    canvas.text("Opening balance", at: [box_x + 10, y])
-    canvas.text(format_currency_cr_dr(opening_balance), at: [box_x + 130, y])
+    canvas.text("Opening balance", at: [ box_x + 10, y ])
+    canvas.text(format_currency_cr_dr(opening_balance), at: [ box_x + 130, y ])
 
     y -= 12
-    canvas.text("Total credits", at: [box_x + 10, y])
-    canvas.text(format_currency(total_credits), at: [box_x + 130, y])
+    canvas.text("Total credits", at: [ box_x + 10, y ])
+    canvas.text(format_currency(total_credits), at: [ box_x + 130, y ])
 
     y -= 12
-    canvas.text("Total debits", at: [box_x + 10, y])
-    canvas.text(format_currency(total_debits), at: [box_x + 130, y])
+    canvas.text("Total debits", at: [ box_x + 10, y ])
+    canvas.text(format_currency(total_debits), at: [ box_x + 130, y ])
 
     y -= 8
     canvas.line(box_x + 10, y, box_x + box_width - 10, y)
@@ -388,22 +388,22 @@ class BankTransactionReportService
 
     y -= 12
     canvas.font("Helvetica", size: 9, variant: :bold)
-    canvas.text("Closing balance", at: [box_x + 10, y])
-    canvas.text(format_currency_cr_dr(closing_balance), at: [box_x + 130, y])
+    canvas.text("Closing balance", at: [ box_x + 10, y ])
+    canvas.text(format_currency_cr_dr(closing_balance), at: [ box_x + 130, y ])
   end
 
   def draw_nab_transactions(canvas, transactions_with_balance, y_start, is_first_page, is_last_page)
     canvas.font("Helvetica", size: 11, variant: :bold)
     canvas.fill_color("000000")
-    canvas.text("Transaction Details", at: [50, y_start + 5])
+    canvas.text("Transaction Details", at: [ 50, y_start + 5 ])
 
     y = y_start - 15
     canvas.font("Helvetica", size: 8)
-    canvas.text("Date", at: [50, y])
-    canvas.text("Particulars", at: [110, y])
-    canvas.text("Debits", at: [340, y])
-    canvas.text("Credits", at: [410, y])
-    canvas.text("Balance", at: [480, y])
+    canvas.text("Date", at: [ 50, y ])
+    canvas.text("Particulars", at: [ 110, y ])
+    canvas.text("Debits", at: [ 340, y ])
+    canvas.text("Credits", at: [ 410, y ])
+    canvas.text("Balance", at: [ 480, y ])
 
     canvas.stroke_color(BORDER_COLOR)
     canvas.line(50, y - 5, 545, y - 5)
@@ -414,9 +414,9 @@ class BankTransactionReportService
 
     if is_first_page && transactions_with_balance.any?
       first_txn = transactions_with_balance.first[:txn]
-      canvas.text(format_date_nab(first_txn.transaction_date), at: [50, y])
-      canvas.text("Brought forward", at: [110, y])
-      canvas.text(format_currency_cr_dr(@opening_balance), at: [480, y])
+      canvas.text(format_date_nab(first_txn.transaction_date), at: [ 50, y ])
+      canvas.text("Brought forward", at: [ 110, y ])
+      canvas.text(format_currency_cr_dr(@opening_balance), at: [ 480, y ])
       y -= 14
     end
 
@@ -425,25 +425,25 @@ class BankTransactionReportService
       txn = item[:txn]
       balance = item[:balance]
 
-      canvas.text(format_date_nab(txn.transaction_date), at: [50, y])
+      canvas.text(format_date_nab(txn.transaction_date), at: [ 50, y ])
 
       desc_line1, desc_line2 = build_two_line_description(txn)
       desc_line1 = desc_line1[0..38] + "..." if desc_line1.length > 40
-      canvas.text(desc_line1, at: [110, y])
+      canvas.text(desc_line1, at: [ 110, y ])
 
       if desc_line2.present?
         desc_line2 = desc_line2[0..38] + "..." if desc_line2.length > 40
-        canvas.text(desc_line2, at: [115, y - 10])
+        canvas.text(desc_line2, at: [ 115, y - 10 ])
       end
 
       amount = BigDecimal(txn.total.to_s)
       if txn.transaction_type == "SPEND"
-        canvas.text(format_currency(amount), at: [340, y])
+        canvas.text(format_currency(amount), at: [ 340, y ])
       else
-        canvas.text(format_currency(amount), at: [410, y])
+        canvas.text(format_currency(amount), at: [ 410, y ])
       end
 
-      canvas.text(format_currency_cr_dr(balance), at: [480, y])
+      canvas.text(format_currency_cr_dr(balance), at: [ 480, y ])
       y -= desc_line2.present? ? 22 : 14
     end
   end
@@ -456,7 +456,7 @@ class BankTransactionReportService
     # "Electronic Statement" header (italic, centered)
     canvas.font("Helvetica", size: 12)
     canvas.fill_color("000000")
-    canvas.text("Electronic Statement", at: [240, 820])
+    canvas.text("Electronic Statement", at: [ 240, 820 ])
 
     # Westpac "W" logo area (red rectangle as placeholder)
     canvas.fill_color(@branding[:primary_color])
@@ -464,12 +464,12 @@ class BankTransactionReportService
     canvas.fill
     canvas.fill_color("FFFFFF")
     canvas.font("Helvetica", size: 28, variant: :bold)
-    canvas.text("W", at: [65, 775])
+    canvas.text("W", at: [ 65, 775 ])
 
     # "Westpac Business One" title
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 16, variant: :bold)
-    canvas.text("Westpac Business One", at: [50, 740])
+    canvas.text("Westpac Business One", at: [ 50, 740 ])
 
     # Right side: Statement Period box
     box_x = 350
@@ -480,9 +480,9 @@ class BankTransactionReportService
     canvas.stroke
 
     canvas.font("Helvetica", size: 8)
-    canvas.text("Statement Period", at: [box_x + 10, box_y - 12])
+    canvas.text("Statement Period", at: [ box_x + 10, box_y - 12 ])
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text("#{format_date_westpac_long(start_date)} - #{format_date_westpac_long(end_date)}", at: [box_x + 10, box_y - 25])
+    canvas.text("#{format_date_westpac_long(start_date)} - #{format_date_westpac_long(end_date)}", at: [ box_x + 10, box_y - 25 ])
 
     # Account details box
     canvas.rectangle(box_x, box_y - 130, 210, 90)
@@ -490,9 +490,9 @@ class BankTransactionReportService
 
     y = box_y - 50
     canvas.font("Helvetica", size: 8)
-    canvas.text("Account Name", at: [box_x + 10, y])
+    canvas.text("Account Name", at: [ box_x + 10, y ])
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text(account_name.upcase, at: [box_x + 10, y - 12])
+    canvas.text(account_name.upcase, at: [ box_x + 10, y - 12 ])
 
     # BSB and Account Number from BankAccount record
     if @bank_account_record.present?
@@ -506,20 +506,20 @@ class BankTransactionReportService
     end
 
     canvas.font("Helvetica", size: 8)
-    canvas.text("Company", at: [box_x + 10, y - 30])
+    canvas.text("Company", at: [ box_x + 10, y - 30 ])
     canvas.font("Helvetica", size: 9)
-    canvas.text(company_name.upcase, at: [box_x + 70, y - 30])
+    canvas.text(company_name.upcase, at: [ box_x + 70, y - 30 ])
 
     canvas.font("Helvetica", size: 8)
-    canvas.text("BSB", at: [box_x + 10, y - 45])
-    canvas.text(bsb, at: [box_x + 70, y - 45])
-    canvas.text("Account", at: [box_x + 110, y - 45])
-    canvas.text(account_number, at: [box_x + 150, y - 45])
+    canvas.text("BSB", at: [ box_x + 10, y - 45 ])
+    canvas.text(bsb, at: [ box_x + 70, y - 45 ])
+    canvas.text("Account", at: [ box_x + 110, y - 45 ])
+    canvas.text(account_number, at: [ box_x + 150, y - 45 ])
 
     # Source note
     canvas.font("Helvetica", size: 7)
     canvas.fill_color("999999")
-    canvas.text("Source: Xero Bank Feed Data", at: [box_x + 10, y - 70])
+    canvas.text("Source: Xero Bank Feed Data", at: [ box_x + 10, y - 70 ])
     canvas.fill_color("000000")
   end
 
@@ -537,16 +537,16 @@ class BankTransactionReportService
     y = box_y - 15
     canvas.font("Helvetica", size: 9)
 
-    canvas.text("Opening Balance", at: [box_x + 10, y])
-    canvas.text(format_currency(opening_balance), at: [box_x + 140, y])
+    canvas.text("Opening Balance", at: [ box_x + 10, y ])
+    canvas.text(format_currency(opening_balance), at: [ box_x + 140, y ])
 
     y -= 15
-    canvas.text("Total Credits", at: [box_x + 10, y])
-    canvas.text("+ #{format_currency(total_credits)}", at: [box_x + 140, y])
+    canvas.text("Total Credits", at: [ box_x + 10, y ])
+    canvas.text("+ #{format_currency(total_credits)}", at: [ box_x + 140, y ])
 
     y -= 15
-    canvas.text("Total Debits", at: [box_x + 10, y])
-    canvas.text("- #{format_currency(total_debits)}", at: [box_x + 140, y])
+    canvas.text("Total Debits", at: [ box_x + 10, y ])
+    canvas.text("- #{format_currency(total_debits)}", at: [ box_x + 140, y ])
 
     y -= 20
     # Gray background for closing balance row
@@ -556,9 +556,9 @@ class BankTransactionReportService
 
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 9, variant: :bold)
-    canvas.text("Closing Balance", at: [box_x + 10, y])
+    canvas.text("Closing Balance", at: [ box_x + 10, y ])
     prefix = closing_balance >= 0 ? "+ " : "- "
-    canvas.text("#{prefix}#{format_currency(closing_balance.abs)}", at: [box_x + 140, y])
+    canvas.text("#{prefix}#{format_currency(closing_balance.abs)}", at: [ box_x + 140, y ])
   end
 
   def draw_westpac_transactions(canvas, transactions_with_balance, y_start, is_first_page, is_last_page)
@@ -569,22 +569,22 @@ class BankTransactionReportService
 
     canvas.fill_color("FFFFFF")
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text("TRANSACTIONS", at: [60, y_start + 5])
+    canvas.text("TRANSACTIONS", at: [ 60, y_start + 5 ])
 
     # Disclaimer text
     canvas.fill_color("666666")
     canvas.font("Helvetica", size: 7)
-    canvas.text("Please check all entries on this statement and promptly inform Westpac of any possible error or unauthorised transaction", at: [60, y_start - 12])
+    canvas.text("Please check all entries on this statement and promptly inform Westpac of any possible error or unauthorised transaction", at: [ 60, y_start - 12 ])
 
     # Column headers
     y = y_start - 28
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 8, variant: :bold)
-    canvas.text("DATE", at: [55, y])
-    canvas.text("TRANSACTION DESCRIPTION", at: [120, y])
-    canvas.text("DEBIT", at: [355, y])
-    canvas.text("CREDIT", at: [420, y])
-    canvas.text("BALANCE", at: [485, y])
+    canvas.text("DATE", at: [ 55, y ])
+    canvas.text("TRANSACTION DESCRIPTION", at: [ 120, y ])
+    canvas.text("DEBIT", at: [ 355, y ])
+    canvas.text("CREDIT", at: [ 420, y ])
+    canvas.text("BALANCE", at: [ 485, y ])
 
     canvas.stroke_color(BORDER_COLOR)
     canvas.line(50, y - 5, 545, y - 5)
@@ -597,9 +597,9 @@ class BankTransactionReportService
     if is_first_page && transactions_with_balance.any?
       first_txn = transactions_with_balance.first[:txn]
       canvas.font("Helvetica", size: 8, variant: :bold)
-      canvas.text(format_date_westpac(first_txn.transaction_date), at: [55, y])
-      canvas.text("STATEMENT OPENING BALANCE", at: [120, y])
-      canvas.text(format_currency(@opening_balance), at: [485, y])
+      canvas.text(format_date_westpac(first_txn.transaction_date), at: [ 55, y ])
+      canvas.text("STATEMENT OPENING BALANCE", at: [ 120, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 485, y ])
       canvas.font("Helvetica", size: 8)
       y -= 15
     end
@@ -609,27 +609,27 @@ class BankTransactionReportService
       txn = item[:txn]
       balance = item[:balance]
 
-      canvas.text(format_date_westpac(txn.transaction_date), at: [55, y])
+      canvas.text(format_date_westpac(txn.transaction_date), at: [ 55, y ])
 
       desc_line1, desc_line2 = build_two_line_description(txn)
       desc_line1 = desc_line1[0..42] + "..." if desc_line1.length > 45
-      canvas.text(desc_line1, at: [120, y])
+      canvas.text(desc_line1, at: [ 120, y ])
 
       if desc_line2.present?
         desc_line2 = desc_line2[0..42] + "..." if desc_line2.length > 45
         canvas.font("Helvetica", size: 7)
-        canvas.text(desc_line2, at: [120, y - 9])
+        canvas.text(desc_line2, at: [ 120, y - 9 ])
         canvas.font("Helvetica", size: 8)
       end
 
       amount = BigDecimal(txn.total.to_s)
       if txn.transaction_type == "SPEND"
-        canvas.text(format_currency(amount), at: [355, y])
+        canvas.text(format_currency(amount), at: [ 355, y ])
       else
-        canvas.text(format_currency(amount), at: [420, y])
+        canvas.text(format_currency(amount), at: [ 420, y ])
       end
 
-      canvas.text(format_currency(balance), at: [485, y])
+      canvas.text(format_currency(balance), at: [ 485, y ])
       y -= desc_line2.present? ? 20 : 14
     end
 
@@ -644,9 +644,9 @@ class BankTransactionReportService
       canvas.stroke
 
       canvas.font("Helvetica", size: 8, variant: :bold)
-      canvas.text(format_date_westpac(last_txn.transaction_date), at: [55, y])
-      canvas.text("CLOSING BALANCE", at: [120, y])
-      canvas.text(format_currency(closing_bal), at: [485, y])
+      canvas.text(format_date_westpac(last_txn.transaction_date), at: [ 55, y ])
+      canvas.text("CLOSING BALANCE", at: [ 120, y ])
+      canvas.text(format_currency(closing_bal), at: [ 485, y ])
     end
   end
 
@@ -663,26 +663,26 @@ class BankTransactionReportService
     # Bank name in header
     canvas.fill_color(@branding[:text_on_primary])
     canvas.font("Helvetica", size: 16, variant: :bold)
-    canvas.text("Bank of Queensland", at: [50, 815])
+    canvas.text("Bank of Queensland", at: [ 50, 815 ])
 
     canvas.font("Helvetica", size: 10)
-    canvas.text("Business Statement", at: [50, 798])
+    canvas.text("Business Statement", at: [ 50, 798 ])
 
     canvas.font("Helvetica", size: 9)
-    canvas.text("Page #{page_num} of #{total_pages}", at: [500, 815])
+    canvas.text("Page #{page_num} of #{total_pages}", at: [ 500, 815 ])
 
     # Reset to black
     canvas.fill_color("000000")
 
     # Account name
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text(account_name.upcase, at: [50, 760])
+    canvas.text(account_name.upcase, at: [ 50, 760 ])
 
     # Statement period
     canvas.font("Helvetica", size: 9)
-    canvas.text("Statement Period:", at: [50, 745])
+    canvas.text("Statement Period:", at: [ 50, 745 ])
     canvas.font("Helvetica", size: 9, variant: :bold)
-    canvas.text("#{format_date_boq(start_date)} to #{format_date_boq(end_date)}", at: [130, 745])
+    canvas.text("#{format_date_boq(start_date)} to #{format_date_boq(end_date)}", at: [ 130, 745 ])
 
     # Account Details box on right side
     draw_account_details_box(canvas, account_name)
@@ -690,7 +690,7 @@ class BankTransactionReportService
     # Source note
     canvas.font("Helvetica", size: 7)
     canvas.fill_color("999999")
-    canvas.text("Source: Xero Bank Feed Data", at: [50, 725])
+    canvas.text("Source: Xero Bank Feed Data", at: [ 50, 725 ])
     canvas.fill_color("000000")
   end
 
@@ -707,7 +707,7 @@ class BankTransactionReportService
 
     y = box_y - 15
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text("Account Summary", at: [box_x + 10, y])
+    canvas.text("Account Summary", at: [ box_x + 10, y ])
 
     y -= 8
     canvas.line(box_x + 10, y, box_x + box_width - 10, y)
@@ -715,16 +715,16 @@ class BankTransactionReportService
 
     y -= 15
     canvas.font("Helvetica", size: 9)
-    canvas.text("Opening Balance", at: [box_x + 10, y])
-    canvas.text(format_currency(opening_balance), at: [box_x + 130, y])
+    canvas.text("Opening Balance", at: [ box_x + 10, y ])
+    canvas.text(format_currency(opening_balance), at: [ box_x + 130, y ])
 
     y -= 12
-    canvas.text("Total Credits", at: [box_x + 10, y])
-    canvas.text(format_currency(total_credits), at: [box_x + 130, y])
+    canvas.text("Total Credits", at: [ box_x + 10, y ])
+    canvas.text(format_currency(total_credits), at: [ box_x + 130, y ])
 
     y -= 12
-    canvas.text("Total Debits", at: [box_x + 10, y])
-    canvas.text(format_currency(total_debits), at: [box_x + 130, y])
+    canvas.text("Total Debits", at: [ box_x + 10, y ])
+    canvas.text(format_currency(total_debits), at: [ box_x + 130, y ])
 
     y -= 8
     canvas.line(box_x + 10, y, box_x + box_width - 10, y)
@@ -732,8 +732,8 @@ class BankTransactionReportService
 
     y -= 12
     canvas.font("Helvetica", size: 9, variant: :bold)
-    canvas.text("Closing Balance", at: [box_x + 10, y])
-    canvas.text(format_currency(closing_balance), at: [box_x + 130, y])
+    canvas.text("Closing Balance", at: [ box_x + 10, y ])
+    canvas.text(format_currency(closing_balance), at: [ box_x + 130, y ])
   end
 
   def draw_boq_transactions(canvas, transactions_with_balance, y_start, is_first_page, is_last_page)
@@ -744,17 +744,17 @@ class BankTransactionReportService
 
     canvas.fill_color("FFFFFF")
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text("Transaction Details", at: [60, y_start + 5])
+    canvas.text("Transaction Details", at: [ 60, y_start + 5 ])
 
     # Column headers
     y = y_start - 20
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 8, variant: :bold)
-    canvas.text("Date", at: [55, y])
-    canvas.text("Transaction", at: [120, y])
-    canvas.text("Debit", at: [355, y])
-    canvas.text("Credit", at: [420, y])
-    canvas.text("Balance", at: [485, y])
+    canvas.text("Date", at: [ 55, y ])
+    canvas.text("Transaction", at: [ 120, y ])
+    canvas.text("Debit", at: [ 355, y ])
+    canvas.text("Credit", at: [ 420, y ])
+    canvas.text("Balance", at: [ 485, y ])
 
     canvas.stroke_color(BORDER_COLOR)
     canvas.line(50, y - 5, 545, y - 5)
@@ -765,9 +765,9 @@ class BankTransactionReportService
 
     if is_first_page && transactions_with_balance.any?
       first_txn = transactions_with_balance.first[:txn]
-      canvas.text(format_date_boq(first_txn.transaction_date), at: [55, y])
-      canvas.text("Opening Balance", at: [120, y])
-      canvas.text(format_currency(@opening_balance), at: [485, y])
+      canvas.text(format_date_boq(first_txn.transaction_date), at: [ 55, y ])
+      canvas.text("Opening Balance", at: [ 120, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 485, y ])
       y -= 14
     end
 
@@ -776,27 +776,27 @@ class BankTransactionReportService
       txn = item[:txn]
       balance = item[:balance]
 
-      canvas.text(format_date_boq(txn.transaction_date), at: [55, y])
+      canvas.text(format_date_boq(txn.transaction_date), at: [ 55, y ])
 
       desc_line1, desc_line2 = build_two_line_description(txn)
       desc_line1 = desc_line1[0..38] + "..." if desc_line1.length > 40
-      canvas.text(desc_line1, at: [120, y])
+      canvas.text(desc_line1, at: [ 120, y ])
 
       if desc_line2.present?
         desc_line2 = desc_line2[0..38] + "..." if desc_line2.length > 40
         canvas.font("Helvetica", size: 7)
-        canvas.text(desc_line2, at: [120, y - 9])
+        canvas.text(desc_line2, at: [ 120, y - 9 ])
         canvas.font("Helvetica", size: 8)
       end
 
       amount = BigDecimal(txn.total.to_s)
       if txn.transaction_type == "SPEND"
-        canvas.text(format_currency(amount), at: [355, y])
+        canvas.text(format_currency(amount), at: [ 355, y ])
       else
-        canvas.text(format_currency(amount), at: [420, y])
+        canvas.text(format_currency(amount), at: [ 420, y ])
       end
 
-      canvas.text(format_currency(balance), at: [485, y])
+      canvas.text(format_currency(balance), at: [ 485, y ])
       y -= desc_line2.present? ? 20 : 14
     end
 
@@ -810,9 +810,9 @@ class BankTransactionReportService
       canvas.stroke
 
       canvas.font("Helvetica", size: 8, variant: :bold)
-      canvas.text(format_date_boq(last_txn.transaction_date), at: [55, y])
-      canvas.text("Closing Balance", at: [120, y])
-      canvas.text(format_currency(closing_bal), at: [485, y])
+      canvas.text(format_date_boq(last_txn.transaction_date), at: [ 55, y ])
+      canvas.text("Closing Balance", at: [ 120, y ])
+      canvas.text(format_currency(closing_bal), at: [ 485, y ])
     end
   end
 
@@ -829,19 +829,19 @@ class BankTransactionReportService
     # "Statement" title
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 20, variant: :bold)
-    canvas.text("Statement", at: [120, 805])
+    canvas.text("Statement", at: [ 120, 805 ])
 
     canvas.font("Helvetica", size: 9)
-    canvas.text("Page #{page_num} of #{total_pages}", at: [500, 815])
+    canvas.text("Page #{page_num} of #{total_pages}", at: [ 500, 815 ])
 
     # Account name
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text(account_name, at: [50, 760])
+    canvas.text(account_name, at: [ 50, 760 ])
 
     # Statement period
     canvas.font("Helvetica", size: 9)
-    canvas.text("Statement period:", at: [50, 745])
-    canvas.text("#{format_date_commbank(start_date)} to #{format_date_commbank(end_date)}", at: [130, 745])
+    canvas.text("Statement period:", at: [ 50, 745 ])
+    canvas.text("#{format_date_commbank(start_date)} to #{format_date_commbank(end_date)}", at: [ 130, 745 ])
 
     # Account Details box on right side
     draw_account_details_box(canvas, account_name)
@@ -849,7 +849,7 @@ class BankTransactionReportService
     # Source note
     canvas.font("Helvetica", size: 7)
     canvas.fill_color("999999")
-    canvas.text("Source: Xero Bank Feed Data", at: [50, 725])
+    canvas.text("Source: Xero Bank Feed Data", at: [ 50, 725 ])
     canvas.fill_color("000000")
   end
 
@@ -872,31 +872,31 @@ class BankTransactionReportService
     y = box_y - 20
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text("Account Summary", at: [box_x + 10, y])
+    canvas.text("Account Summary", at: [ box_x + 10, y ])
 
     y -= 15
     canvas.font("Helvetica", size: 9)
-    canvas.text("Opening balance", at: [box_x + 10, y])
-    canvas.text(format_currency(opening_balance), at: [box_x + 130, y])
+    canvas.text("Opening balance", at: [ box_x + 10, y ])
+    canvas.text(format_currency(opening_balance), at: [ box_x + 130, y ])
 
     y -= 12
-    canvas.text("Total credits", at: [box_x + 10, y])
-    canvas.text("+" + format_currency(total_credits), at: [box_x + 130, y])
+    canvas.text("Total credits", at: [ box_x + 10, y ])
+    canvas.text("+" + format_currency(total_credits), at: [ box_x + 130, y ])
 
     y -= 12
-    canvas.text("Total debits", at: [box_x + 10, y])
-    canvas.text("-" + format_currency(total_debits), at: [box_x + 130, y])
+    canvas.text("Total debits", at: [ box_x + 10, y ])
+    canvas.text("-" + format_currency(total_debits), at: [ box_x + 130, y ])
 
     y -= 15
     canvas.font("Helvetica", size: 9, variant: :bold)
-    canvas.text("Closing balance", at: [box_x + 10, y])
-    canvas.text(format_currency(closing_balance), at: [box_x + 130, y])
+    canvas.text("Closing balance", at: [ box_x + 10, y ])
+    canvas.text(format_currency(closing_balance), at: [ box_x + 130, y ])
   end
 
   def draw_commbank_transactions(canvas, transactions_with_balance, y_start, is_first_page, is_last_page)
     canvas.font("Helvetica", size: 11, variant: :bold)
     canvas.fill_color("000000")
-    canvas.text("Transactions", at: [50, y_start + 5])
+    canvas.text("Transactions", at: [ 50, y_start + 5 ])
 
     # Yellow underline
     canvas.fill_color(@branding[:primary_color])
@@ -906,11 +906,11 @@ class BankTransactionReportService
     y = y_start - 20
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 8, variant: :bold)
-    canvas.text("Date", at: [50, y])
-    canvas.text("Description", at: [110, y])
-    canvas.text("Debit", at: [340, y])
-    canvas.text("Credit", at: [410, y])
-    canvas.text("Balance", at: [480, y])
+    canvas.text("Date", at: [ 50, y ])
+    canvas.text("Description", at: [ 110, y ])
+    canvas.text("Debit", at: [ 340, y ])
+    canvas.text("Credit", at: [ 410, y ])
+    canvas.text("Balance", at: [ 480, y ])
 
     canvas.stroke_color(BORDER_COLOR)
     canvas.line(50, y - 5, 545, y - 5)
@@ -921,9 +921,9 @@ class BankTransactionReportService
 
     if is_first_page && transactions_with_balance.any?
       first_txn = transactions_with_balance.first[:txn]
-      canvas.text(format_date_commbank(first_txn.transaction_date), at: [50, y])
-      canvas.text("Opening Balance", at: [110, y])
-      canvas.text(format_currency(@opening_balance), at: [480, y])
+      canvas.text(format_date_commbank(first_txn.transaction_date), at: [ 50, y ])
+      canvas.text("Opening Balance", at: [ 110, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 480, y ])
       y -= 14
     end
 
@@ -932,27 +932,27 @@ class BankTransactionReportService
       txn = item[:txn]
       balance = item[:balance]
 
-      canvas.text(format_date_commbank(txn.transaction_date), at: [50, y])
+      canvas.text(format_date_commbank(txn.transaction_date), at: [ 50, y ])
 
       desc_line1, desc_line2 = build_two_line_description(txn)
       desc_line1 = desc_line1[0..38] + "..." if desc_line1.length > 40
-      canvas.text(desc_line1, at: [110, y])
+      canvas.text(desc_line1, at: [ 110, y ])
 
       if desc_line2.present?
         desc_line2 = desc_line2[0..38] + "..." if desc_line2.length > 40
         canvas.font("Helvetica", size: 7)
-        canvas.text(desc_line2, at: [110, y - 9])
+        canvas.text(desc_line2, at: [ 110, y - 9 ])
         canvas.font("Helvetica", size: 8)
       end
 
       amount = BigDecimal(txn.total.to_s)
       if txn.transaction_type == "SPEND"
-        canvas.text(format_currency(amount), at: [340, y])
+        canvas.text(format_currency(amount), at: [ 340, y ])
       else
-        canvas.text(format_currency(amount), at: [410, y])
+        canvas.text(format_currency(amount), at: [ 410, y ])
       end
 
-      canvas.text(format_currency(balance), at: [480, y])
+      canvas.text(format_currency(balance), at: [ 480, y ])
       y -= desc_line2.present? ? 20 : 14
     end
 
@@ -966,9 +966,9 @@ class BankTransactionReportService
       canvas.stroke
 
       canvas.font("Helvetica", size: 8, variant: :bold)
-      canvas.text(format_date_commbank(last_txn.transaction_date), at: [50, y])
-      canvas.text("Closing Balance", at: [110, y])
-      canvas.text(format_currency(closing_bal), at: [480, y])
+      canvas.text(format_date_commbank(last_txn.transaction_date), at: [ 50, y ])
+      canvas.text("Closing Balance", at: [ 110, y ])
+      canvas.text(format_currency(closing_bal), at: [ 480, y ])
     end
   end
 
@@ -985,25 +985,25 @@ class BankTransactionReportService
     # ANZ logo/title
     canvas.fill_color(@branding[:text_on_primary])
     canvas.font("Helvetica", size: 20, variant: :bold)
-    canvas.text("ANZ", at: [50, 815])
+    canvas.text("ANZ", at: [ 50, 815 ])
 
     canvas.font("Helvetica", size: 11)
-    canvas.text("Business Account Statement", at: [50, 798])
+    canvas.text("Business Account Statement", at: [ 50, 798 ])
 
     canvas.font("Helvetica", size: 9)
-    canvas.text("Page #{page_num} of #{total_pages}", at: [500, 815])
+    canvas.text("Page #{page_num} of #{total_pages}", at: [ 500, 815 ])
 
     # Reset to black
     canvas.fill_color("000000")
 
     # Account name
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text(account_name, at: [50, 760])
+    canvas.text(account_name, at: [ 50, 760 ])
 
     # Statement period
     canvas.font("Helvetica", size: 9)
-    canvas.text("Statement period:", at: [50, 745])
-    canvas.text("#{format_date_anz(start_date)} to #{format_date_anz(end_date)}", at: [130, 745])
+    canvas.text("Statement period:", at: [ 50, 745 ])
+    canvas.text("#{format_date_anz(start_date)} to #{format_date_anz(end_date)}", at: [ 130, 745 ])
 
     # Account Details box on right side
     draw_account_details_box(canvas, account_name)
@@ -1011,7 +1011,7 @@ class BankTransactionReportService
     # Source note
     canvas.font("Helvetica", size: 7)
     canvas.fill_color("999999")
-    canvas.text("Source: Xero Bank Feed Data", at: [50, 725])
+    canvas.text("Source: Xero Bank Feed Data", at: [ 50, 725 ])
     canvas.fill_color("000000")
   end
 
@@ -1034,25 +1034,25 @@ class BankTransactionReportService
     y = box_y - 20
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text("Account Summary", at: [box_x + 10, y])
+    canvas.text("Account Summary", at: [ box_x + 10, y ])
 
     y -= 15
     canvas.font("Helvetica", size: 9)
-    canvas.text("Opening balance", at: [box_x + 10, y])
-    canvas.text(format_currency(opening_balance), at: [box_x + 130, y])
+    canvas.text("Opening balance", at: [ box_x + 10, y ])
+    canvas.text(format_currency(opening_balance), at: [ box_x + 130, y ])
 
     y -= 12
-    canvas.text("Credits", at: [box_x + 10, y])
-    canvas.text(format_currency(total_credits), at: [box_x + 130, y])
+    canvas.text("Credits", at: [ box_x + 10, y ])
+    canvas.text(format_currency(total_credits), at: [ box_x + 130, y ])
 
     y -= 12
-    canvas.text("Debits", at: [box_x + 10, y])
-    canvas.text(format_currency(total_debits), at: [box_x + 130, y])
+    canvas.text("Debits", at: [ box_x + 10, y ])
+    canvas.text(format_currency(total_debits), at: [ box_x + 130, y ])
 
     y -= 15
     canvas.font("Helvetica", size: 9, variant: :bold)
-    canvas.text("Closing balance", at: [box_x + 10, y])
-    canvas.text(format_currency(closing_balance), at: [box_x + 130, y])
+    canvas.text("Closing balance", at: [ box_x + 10, y ])
+    canvas.text(format_currency(closing_balance), at: [ box_x + 130, y ])
   end
 
   def draw_anz_transactions(canvas, transactions_with_balance, y_start, is_first_page, is_last_page)
@@ -1063,17 +1063,17 @@ class BankTransactionReportService
 
     canvas.fill_color("FFFFFF")
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text("Transactions", at: [60, y_start + 5])
+    canvas.text("Transactions", at: [ 60, y_start + 5 ])
 
     # Column headers
     y = y_start - 20
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 8, variant: :bold)
-    canvas.text("Date", at: [55, y])
-    canvas.text("Details", at: [120, y])
-    canvas.text("Withdrawals", at: [340, y])
-    canvas.text("Deposits", at: [410, y])
-    canvas.text("Balance", at: [480, y])
+    canvas.text("Date", at: [ 55, y ])
+    canvas.text("Details", at: [ 120, y ])
+    canvas.text("Withdrawals", at: [ 340, y ])
+    canvas.text("Deposits", at: [ 410, y ])
+    canvas.text("Balance", at: [ 480, y ])
 
     canvas.stroke_color(BORDER_COLOR)
     canvas.line(50, y - 5, 545, y - 5)
@@ -1084,9 +1084,9 @@ class BankTransactionReportService
 
     if is_first_page && transactions_with_balance.any?
       first_txn = transactions_with_balance.first[:txn]
-      canvas.text(format_date_anz(first_txn.transaction_date), at: [55, y])
-      canvas.text("Opening Balance", at: [120, y])
-      canvas.text(format_currency(@opening_balance), at: [480, y])
+      canvas.text(format_date_anz(first_txn.transaction_date), at: [ 55, y ])
+      canvas.text("Opening Balance", at: [ 120, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 480, y ])
       y -= 14
     end
 
@@ -1095,27 +1095,27 @@ class BankTransactionReportService
       txn = item[:txn]
       balance = item[:balance]
 
-      canvas.text(format_date_anz(txn.transaction_date), at: [55, y])
+      canvas.text(format_date_anz(txn.transaction_date), at: [ 55, y ])
 
       desc_line1, desc_line2 = build_two_line_description(txn)
       desc_line1 = desc_line1[0..38] + "..." if desc_line1.length > 40
-      canvas.text(desc_line1, at: [120, y])
+      canvas.text(desc_line1, at: [ 120, y ])
 
       if desc_line2.present?
         desc_line2 = desc_line2[0..38] + "..." if desc_line2.length > 40
         canvas.font("Helvetica", size: 7)
-        canvas.text(desc_line2, at: [120, y - 9])
+        canvas.text(desc_line2, at: [ 120, y - 9 ])
         canvas.font("Helvetica", size: 8)
       end
 
       amount = BigDecimal(txn.total.to_s)
       if txn.transaction_type == "SPEND"
-        canvas.text(format_currency(amount), at: [340, y])
+        canvas.text(format_currency(amount), at: [ 340, y ])
       else
-        canvas.text(format_currency(amount), at: [410, y])
+        canvas.text(format_currency(amount), at: [ 410, y ])
       end
 
-      canvas.text(format_currency(balance), at: [480, y])
+      canvas.text(format_currency(balance), at: [ 480, y ])
       y -= desc_line2.present? ? 20 : 14
     end
 
@@ -1129,9 +1129,9 @@ class BankTransactionReportService
       canvas.stroke
 
       canvas.font("Helvetica", size: 8, variant: :bold)
-      canvas.text(format_date_anz(last_txn.transaction_date), at: [55, y])
-      canvas.text("Closing Balance", at: [120, y])
-      canvas.text(format_currency(closing_bal), at: [480, y])
+      canvas.text(format_date_anz(last_txn.transaction_date), at: [ 55, y ])
+      canvas.text("Closing Balance", at: [ 120, y ])
+      canvas.text(format_currency(closing_bal), at: [ 480, y ])
     end
   end
 
@@ -1187,12 +1187,12 @@ class BankTransactionReportService
     canvas.font("Helvetica", size: 6)
     canvas.fill_color("666666")
     # Wrap the disclaimer
-    canvas.text(LEGAL_DISCLAIMER, at: [50, 45])
+    canvas.text(LEGAL_DISCLAIMER, at: [ 50, 45 ])
     canvas.fill_color("000000")
 
     # Page number centered
     canvas.font("Helvetica", size: 8)
-    canvas.text("Page #{page_num} of #{total_pages}", at: [270, 25])
+    canvas.text("Page #{page_num} of #{total_pages}", at: [ 270, 25 ])
   end
 
   def build_description(txn)
@@ -1251,7 +1251,7 @@ class BankTransactionReportService
 
     line1 ||= "Bank Transaction"
 
-    [line1, line2]
+    [ line1, line2 ]
   end
 
   def format_currency(amount)
@@ -1264,7 +1264,7 @@ class BankTransactionReportService
   end
 
   def generate_filename
-    parts = ["Bank_Statement"]
+    parts = [ "Bank_Statement" ]
 
     # Add bank account name if we can get it
     if @bank_account_id.present?

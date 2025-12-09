@@ -105,7 +105,8 @@ class Api::V1::FeatureTrackersController < ApplicationController
       wunderbuilt: { field: :wunderbuilt_has, name: "Wunderbuilt", color: "yellow" },
       smarterbuild: { field: :smarterbuild_has, name: "SmarterBuild", color: "gray" },
       jacks: { field: :jacks_has, name: "Jacks", color: "red" },
-      clickup: { field: :clickup_has, name: "ClickUp", color: "indigo" }
+      clickup: { field: :clickup_has, name: "ClickUp", color: "indigo" },
+      evolve: { field: :evolve_has, name: "Evolve", color: "green" }
     }
 
     competitor_stats = competitors.map do |key, config|
@@ -166,7 +167,8 @@ class Api::V1::FeatureTrackersController < ApplicationController
       :simpro_has,
       :smarterbuild_has,
       :clickhome_has,
-      :clickup_has
+      :clickup_has,
+      :evolve_has
     )
   end
 end

@@ -20,11 +20,8 @@ try {
 // Build timestamp in ISO format (for deployed time display)
 const buildTime = new Date().toISOString();
 
-const nextConfig: any = {
-  devIndicators: {
-    buildActivity: false,
-    appIsrStatus: false,
-  },
+const nextConfig: NextConfig = {
+  devIndicators: false,
   // Empty turbopack config to silence warning (PDF viewer uses dynamic import with ssr: false)
   turbopack: {},
   env: {

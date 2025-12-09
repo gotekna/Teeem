@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -189,21 +189,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["company_id"], name: "index_assets_on_company_id"
   end
 
-  create_table "attachments", force: :cascade do |t|
-    t.string "sharepoint_file_id", null: false
-    t.string "sharepoint_path", null: false
-    t.string "filename", null: false
-    t.string "content_type"
-    t.bigint "file_size"
-    t.string "content_hash", null: false
-    t.bigint "organization_microsoft_app_credential_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["content_hash"], name: "index_attachments_on_content_hash", unique: true
-    t.index ["organization_microsoft_app_credential_id"], name: "index_attachments_on_org_cred_id"
-    t.index ["sharepoint_file_id"], name: "index_attachments_on_sharepoint_file_id"
-  end
-
   create_table "balance_sheet_reports", force: :cascade do |t|
     t.bigint "company_id", null: false
     t.string "company_name", null: false
@@ -230,6 +215,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["status"], name: "index_balance_sheet_reports_on_status"
   end
 
+  create_table "bank_account_configs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
   create_table "bank_accounts", force: :cascade do |t|
     t.bigint "company_id", null: false
     t.string "institution_name"
@@ -250,7 +240,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["xero_account_id"], name: "index_bank_accounts_on_xero_account_id"
   end
 
-  create_table "bank_statement_reports", force: :cascade do |t|
+  create_table "bank_statement_reports", id: :serial, force: :cascade do |t|
     t.string "bank_account_id", null: false
     t.string "bank_account_name", null: false
     t.string "financial_year", null: false
@@ -267,19 +257,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.string "cloudinary_url"
     t.string "file_name"
     t.integer "file_size"
-    t.datetime "generated_at"
+    t.datetime "generated_at", precision: nil
     t.string "status", default: "pending"
     t.text "error_message"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
+    t.datetime "created_at", precision: nil, default: -> { "now()" }, null: false
+    t.datetime "updated_at", precision: nil, default: -> { "now()" }, null: false
     t.string "bank_code"
     t.string "account_number"
     t.string "company_code"
     t.index ["bank_account_id", "financial_year", "month"], name: "idx_bank_reports_unique", unique: true
     t.index ["bank_code"], name: "index_bank_statement_reports_on_bank_code"
     t.index ["company_code"], name: "index_bank_statement_reports_on_company_code"
-    t.index ["financial_year"], name: "index_bank_statement_reports_on_financial_year"
-    t.index ["status"], name: "index_bank_statement_reports_on_status"
   end
 
   create_table "bank_transactions", force: :cascade do |t|
@@ -641,347 +629,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["lookup_foundation_id"], name: "index_columns_on_lookup_foundation_id"
   end
 
-  create_table "companies", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "company_group"
-    t.string "acn"
-    t.string "abn"
-    t.string "tfn"
-    t.date "date_incorporated"
-    t.text "purpose"
-    t.string "status", default: "active"
-    t.string "registered_office_address"
-    t.string "principal_place_of_business"
-    t.boolean "is_trustee", default: false
-    t.string "trust_name"
-    t.string "corporate_key"
-    t.string "asic_username"
-    t.text "encrypted_asic_password"
-    t.text "recovery_question"
-    t.text "encrypted_recovery_answer"
-    t.date "review_date"
-    t.string "gst_registration_status"
-    t.string "accounting_method"
-    t.integer "shares_on_issue"
-    t.decimal "carry_forward_losses", precision: 15, scale: 2
-    t.decimal "franking_balance", precision: 15, scale: 2
-    t.decimal "amount_owing", precision: 15, scale: 2
-    t.jsonb "metadata", default: {}
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "company_group_id"
-    t.string "company_code"
-    t.integer "health_score"
-    t.string "health_status"
-    t.boolean "has_loans", default: false
-    t.boolean "loan_documents_in_place", default: false
-    t.string "onedrive_folder_id"
-    t.string "onedrive_folder_path"
-    t.string "code"
-    t.string "sharepoint_folder_url"
-    t.string "sharepoint_folder_name"
-    t.string "entity_type", default: "company"
-    t.bigint "parent_company_id"
-    t.integer "hierarchy_level", default: 0
-    t.string "bank_name"
-    t.string "bank_bsb"
-    t.string "bank_account_number"
-    t.string "bank_account_name"
-    t.date "bank_start_date"
-    t.date "bank_end_date"
-    t.bigint "consolidation_parent_id"
-    t.string "slug"
-    t.string "bas_frequency", default: "quarterly"
-    t.text "previous_names", default: [], array: true
-    t.bigint "contact_id"
-    t.boolean "active", default: true
-    t.string "business_names"
-    t.index ["abn"], name: "index_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
-    t.index ["acn"], name: "index_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"
-    t.index ["code"], name: "index_companies_on_code", unique: true
-    t.index ["company_group"], name: "index_companies_on_company_group"
-    t.index ["company_group_id", "parent_company_id"], name: "index_companies_on_group_and_parent"
-    t.index ["company_group_id"], name: "index_companies_on_company_group_id"
-    t.index ["consolidation_parent_id"], name: "index_companies_on_consolidation_parent_id"
-    t.index ["contact_id"], name: "index_companies_on_contact_id"
-    t.index ["name"], name: "index_companies_on_name"
-    t.index ["onedrive_folder_id"], name: "index_companies_on_onedrive_folder_id"
-    t.index ["parent_company_id"], name: "index_companies_on_parent_company_id"
-    t.index ["review_date"], name: "index_companies_on_review_date"
-    t.index ["slug"], name: "index_companies_on_slug", unique: true
-    t.index ["status"], name: "index_companies_on_status"
-  end
-
-  create_table "company_activities", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.bigint "user_id"
-    t.string "activity_type", null: false
-    t.text "description"
-    t.jsonb "change_details", default: {}
-    t.string "related_type"
-    t.bigint "related_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["activity_type"], name: "index_company_activities_on_activity_type"
-    t.index ["company_id"], name: "index_company_activities_on_company_id"
-    t.index ["created_at"], name: "index_company_activities_on_created_at"
-    t.index ["related_type", "related_id"], name: "index_company_activities_on_related_type_and_related_id"
-    t.index ["user_id"], name: "index_company_activities_on_user_id"
-  end
-
-  create_table "company_compliance_items", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.string "title", null: false
-    t.text "description"
-    t.string "item_type", null: false
-    t.date "due_date", null: false
-    t.boolean "completed", default: false
-    t.datetime "completed_at"
-    t.string "reminder_days"
-    t.datetime "last_reminder_sent_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "recurrence"
-    t.boolean "asic_related", default: false
-    t.boolean "ato_related", default: false
-    t.index ["asic_related"], name: "index_company_compliance_items_on_asic_related"
-    t.index ["ato_related"], name: "index_company_compliance_items_on_ato_related"
-    t.index ["company_id", "due_date", "completed"], name: "idx_on_company_id_due_date_completed_3b39c7e9ad"
-    t.index ["company_id"], name: "index_company_compliance_items_on_company_id"
-    t.index ["completed"], name: "index_company_compliance_items_on_completed"
-    t.index ["due_date"], name: "index_company_compliance_items_on_due_date"
-    t.index ["item_type"], name: "index_company_compliance_items_on_item_type"
-    t.index ["recurrence"], name: "index_company_compliance_items_on_recurrence"
-  end
-
-  create_table "company_directors", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.bigint "contact_id", null: false
-    t.string "position"
-    t.date "appointment_date"
-    t.date "resignation_date"
-    t.boolean "is_current", default: true
-    t.text "notes"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["appointment_date"], name: "index_company_directors_on_appointment_date"
-    t.index ["company_id", "contact_id"], name: "index_company_directors_unique_active", unique: true, where: "(is_current = true)"
-    t.index ["company_id"], name: "index_company_directors_on_company_id"
-    t.index ["contact_id"], name: "index_company_directors_on_contact_id"
-    t.index ["is_current"], name: "index_company_directors_on_is_current"
-  end
-
-  create_table "company_documents", force: :cascade do |t|
-    t.bigint "company_id"
-    t.string "title", null: false
-    t.text "description"
-    t.string "document_type", null: false
-    t.date "document_date"
-    t.string "file_url"
-    t.string "file_name"
-    t.integer "file_size"
-    t.datetime "uploaded_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "folder"
-    t.string "storage_type"
-    t.string "filed_by"
-    t.bigint "document_type_id"
-    t.string "onedrive_file_id"
-    t.string "onedrive_download_url"
-    t.datetime "last_modified_at"
-    t.string "expected_onedrive_path"
-    t.string "register_folder"
-    t.string "company_code"
-    t.string "source", default: "manual"
-    t.bigint "asset_id"
-    t.bigint "loan_id"
-    t.bigint "contact_id"
-    t.integer "financial_years", default: [], array: true
-    t.datetime "ai_verified_at"
-    t.string "ai_verification_status"
-    t.string "ai_suggested_name"
-    t.string "ai_suggested_folder"
-    t.decimal "ai_confidence_score"
-    t.datetime "user_validated_at"
-    t.bigint "user_validated_by_id"
-    t.string "display_title"
-    t.string "ai_suggested_type"
-    t.integer "ai_suggested_fy", default: [], array: true
-    t.text "ai_analysis_notes"
-    t.boolean "validation_required", default: false
-    t.date "ref_date"
-    t.date "filed_date"
-    t.string "ai_extracted_description"
-    t.date "ai_extracted_date"
-    t.integer "ai_source_page"
-    t.text "ai_source_quote"
-    t.boolean "ai_contains_multiple_documents", default: false
-    t.jsonb "ai_split_recommendation"
-    t.string "documentable_type"
-    t.bigint "documentable_id"
-    t.string "content_hash"
-    t.string "external_id"
-    t.integer "job_id"
-    t.string "mime_type"
-    t.index ["asset_id"], name: "index_company_documents_on_asset_id"
-    t.index ["company_code"], name: "index_company_documents_on_company_code"
-    t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"
-    t.index ["company_id", "document_type"], name: "idx_company_docs_company_type"
-    t.index ["company_id", "folder"], name: "idx_company_docs_company_folder"
-    t.index ["company_id"], name: "index_company_documents_on_company_id"
-    t.index ["contact_id"], name: "index_company_documents_on_contact_id"
-    t.index ["content_hash"], name: "index_company_documents_on_content_hash"
-    t.index ["document_date"], name: "index_company_documents_on_document_date"
-    t.index ["document_type"], name: "index_company_documents_on_document_type"
-    t.index ["document_type_id"], name: "index_company_documents_on_document_type_id"
-    t.index ["documentable_type", "documentable_id"], name: "idx_company_docs_documentable"
-    t.index ["external_id"], name: "index_company_documents_on_external_id"
-    t.index ["financial_years"], name: "index_company_documents_on_financial_years", using: :gin
-    t.index ["folder"], name: "index_company_documents_on_folder"
-    t.index ["job_id"], name: "index_company_documents_on_job_id"
-    t.index ["loan_id"], name: "index_company_documents_on_loan_id"
-    t.index ["onedrive_file_id"], name: "index_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
-    t.index ["source"], name: "index_company_documents_on_source"
-    t.index ["storage_type"], name: "index_company_documents_on_storage_type"
-    t.index ["user_validated_by_id"], name: "index_company_documents_on_user_validated_by_id"
-  end
-
-  create_table "company_groups", force: :cascade do |t|
-    t.string "name", null: false
-    t.text "description"
-    t.string "default_registered_office"
-    t.string "default_principal_place"
-    t.string "default_accountant"
-    t.string "default_accountant_contact"
-    t.boolean "active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["name"], name: "index_company_groups_on_name", unique: true
-  end
-
-  create_table "company_loans", force: :cascade do |t|
-    t.bigint "lender_company_id", null: false
-    t.bigint "borrower_company_id", null: false
-    t.decimal "principal_amount", precision: 12, scale: 2, null: false
-    t.decimal "current_balance", precision: 12, scale: 2
-    t.decimal "interest_rate", precision: 5, scale: 2
-    t.string "interest_type"
-    t.date "loan_date"
-    t.date "maturity_date"
-    t.boolean "loan_documents_in_place", default: false
-    t.string "security_type"
-    t.string "status", default: "active"
-    t.text "notes"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["borrower_company_id"], name: "index_company_loans_on_borrower_company_id"
-    t.index ["lender_company_id"], name: "index_company_loans_on_lender_company_id"
-    t.index ["loan_date"], name: "index_company_loans_on_loan_date"
-    t.index ["loan_documents_in_place"], name: "index_company_loans_on_loan_documents_in_place"
-    t.index ["status"], name: "index_company_loans_on_status"
-  end
-
-  create_table "company_minutes", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.bigint "minute_template_id"
-    t.string "title", null: false
-    t.date "meeting_date", null: false
-    t.text "content"
-    t.string "status", default: "draft"
-    t.date "signed_date"
-    t.string "signed_by"
-    t.string "document_path"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["company_id"], name: "index_company_minutes_on_company_id"
-    t.index ["meeting_date"], name: "index_company_minutes_on_meeting_date"
-    t.index ["minute_template_id"], name: "index_company_minutes_on_minute_template_id"
-    t.index ["status"], name: "index_company_minutes_on_status"
-  end
-
-  create_table "company_settings", force: :cascade do |t|
-    t.string "company_name"
-    t.string "abn"
-    t.string "gst_number"
-    t.string "email"
-    t.string "phone"
-    t.text "address"
-    t.string "logo_url"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "twilio_account_sid"
-    t.string "twilio_auth_token"
-    t.string "twilio_phone_number"
-    t.boolean "twilio_enabled", default: false
-    t.string "timezone", default: "Australia/Brisbane"
-    t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>false, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}, null: false
-    t.jsonb "job_cascade_sort"
-    t.jsonb "job_folder_name_format"
-    t.string "contact_documents_path"
-    t.string "contact_folder_format", default: "id_name"
-  end
-
-  create_table "company_shareholdings", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.bigint "shareholder_id", null: false
-    t.string "share_class", default: "ordinary"
-    t.bigint "number_of_shares", null: false
-    t.boolean "beneficially_held", default: false
-    t.string "beneficial_owner"
-    t.date "acquired_date"
-    t.text "notes"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "shareholder_type", default: "Contact"
-    t.date "acquisition_date"
-    t.date "disposal_date"
-    t.string "certificate_number"
-    t.decimal "consideration_paid", precision: 15, scale: 2
-    t.index ["beneficially_held"], name: "index_company_shareholdings_on_beneficially_held"
-    t.index ["company_id", "shareholder_id", "share_class"], name: "idx_shareholdings_unique", unique: true
-    t.index ["company_id"], name: "index_company_shareholdings_on_company_id"
-    t.index ["share_class"], name: "index_company_shareholdings_on_share_class"
-    t.index ["shareholder_id"], name: "index_company_shareholdings_on_shareholder_id"
-    t.index ["shareholder_type", "shareholder_id"], name: "idx_shareholdings_polymorphic"
-  end
-
-  create_table "company_xero_accounts", force: :cascade do |t|
-    t.bigint "company_xero_connection_id", null: false
-    t.string "xero_account_id", null: false
-    t.string "account_code"
-    t.string "account_name"
-    t.string "account_type"
-    t.string "tax_type"
-    t.string "description"
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["account_code"], name: "index_company_xero_accounts_on_account_code"
-    t.index ["company_xero_connection_id"], name: "index_company_xero_accounts_on_company_xero_connection_id"
-    t.index ["company_xero_connection_id"], name: "index_xero_accounts_on_connection_id"
-    t.index ["is_active"], name: "index_company_xero_accounts_on_is_active"
-    t.index ["xero_account_id"], name: "index_company_xero_accounts_on_xero_account_id"
-  end
-
-  create_table "company_xero_connections", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.string "xero_tenant_id", null: false
-    t.string "xero_tenant_name"
-    t.datetime "last_sync_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "connection_status", default: "disconnected"
-    t.text "last_sync_error"
-    t.bigint "xero_credential_id"
-    t.string "accounting_method"
-    t.date "financial_year_end"
-    t.index ["company_id"], name: "index_company_xero_connections_on_company_id", unique: true
-    t.index ["connection_status"], name: "index_company_xero_connections_on_connection_status"
-    t.index ["xero_credential_id"], name: "index_company_xero_connections_on_xero_credential_id"
-    t.index ["xero_tenant_id"], name: "index_company_xero_connections_on_xero_tenant_id"
-  end
-
   create_table "contact_activities", force: :cascade do |t|
     t.bigint "contact_id", null: false
     t.string "activity_type"
@@ -1017,7 +664,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["contact_id"], name: "index_contact_addresses_on_contact_id"
   end
 
-  create_table "contact_company_group_memberships", force: :cascade do |t|
+  create_table "contact_corporate_group_memberships", force: :cascade do |t|
     t.bigint "contact_id", null: false
     t.bigint "company_group_id", null: false
     t.string "membership_type"
@@ -1029,10 +676,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.datetime "updated_at", null: false
     t.string "beneficiary_type"
     t.string "class_description"
-    t.index ["company_group_id"], name: "index_contact_company_group_memberships_on_company_group_id"
-    t.index ["company_id"], name: "index_contact_company_group_memberships_on_company_id"
+    t.index ["company_group_id"], name: "index_contact_corporate_group_memberships_on_company_group_id"
+    t.index ["company_id"], name: "index_contact_corporate_group_memberships_on_company_id"
     t.index ["contact_id", "company_group_id", "membership_type"], name: "idx_contact_group_membership_unique", unique: true
-    t.index ["contact_id"], name: "index_contact_company_group_memberships_on_contact_id"
+    t.index ["contact_id"], name: "index_contact_corporate_group_memberships_on_contact_id"
   end
 
   create_table "contact_emails", force: :cascade do |t|
@@ -1151,8 +798,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "contact_types", default: [], array: true
-    t.index ["contact_types"], name: "index_contact_roles_on_contact_types", using: :gin
+    t.text "contact_types", default: "{}"
     t.index ["name"], name: "index_contact_roles_on_name", unique: true
   end
 
@@ -1193,7 +839,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.datetime "updated_at", null: false
     t.datetime "last_synced_at"
     t.text "xero_sync_error"
-    t.string "roles", default: [], array: true
+    t.text "roles", default: "{}"
     t.integer "rating", default: 0
     t.decimal "response_rate", precision: 5, scale: 2, default: "0.0"
     t.integer "avg_response_time"
@@ -1271,7 +917,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
     t.index ["rating"], name: "index_contacts_on_rating"
-    t.index ["roles"], name: "index_contacts_on_roles", using: :gin
     t.index ["supplier_code"], name: "index_contacts_on_supplier_code", unique: true, where: "(supplier_code IS NOT NULL)"
     t.index ["sys_type_id"], name: "index_contacts_on_sys_type_id"
     t.index ["teeem_rating"], name: "index_contacts_on_teeem_rating"
@@ -1279,6 +924,351 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["xero_contact_status"], name: "index_contacts_on_xero_contact_status"
     t.index ["xero_contact_types"], name: "index_contacts_on_xero_contact_types", using: :gin
     t.index ["xero_id", "last_synced_at"], name: "index_contacts_on_xero_id_and_last_synced_at"
+  end
+
+  create_table "corporate_companies", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "company_group"
+    t.string "acn"
+    t.string "abn"
+    t.string "tfn"
+    t.date "date_incorporated"
+    t.text "purpose"
+    t.string "status", default: "active"
+    t.string "registered_office_address"
+    t.string "principal_place_of_business"
+    t.boolean "is_trustee", default: false
+    t.string "trust_name"
+    t.string "corporate_key"
+    t.string "asic_username"
+    t.text "encrypted_asic_password"
+    t.text "recovery_question"
+    t.text "encrypted_recovery_answer"
+    t.date "review_date"
+    t.string "gst_registration_status"
+    t.string "accounting_method"
+    t.integer "shares_on_issue"
+    t.decimal "carry_forward_losses", precision: 15, scale: 2
+    t.decimal "franking_balance", precision: 15, scale: 2
+    t.decimal "amount_owing", precision: 15, scale: 2
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "company_group_id"
+    t.string "company_code"
+    t.integer "health_score"
+    t.string "health_status"
+    t.boolean "has_loans", default: false
+    t.boolean "loan_documents_in_place", default: false
+    t.string "onedrive_folder_id"
+    t.string "onedrive_folder_path"
+    t.string "code"
+    t.string "sharepoint_folder_url"
+    t.string "sharepoint_folder_name"
+    t.string "entity_type", default: "company"
+    t.bigint "parent_company_id"
+    t.integer "hierarchy_level", default: 0
+    t.string "bank_name"
+    t.string "bank_bsb"
+    t.string "bank_account_number"
+    t.string "bank_account_name"
+    t.date "bank_start_date"
+    t.date "bank_end_date"
+    t.bigint "consolidation_parent_id"
+    t.string "slug"
+    t.string "bas_frequency", default: "quarterly"
+    t.text "previous_names", default: [], array: true
+    t.bigint "contact_id"
+    t.boolean "active", default: true
+    t.string "business_names"
+    t.index ["abn"], name: "index_corporate_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
+    t.index ["acn"], name: "index_corporate_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"
+    t.index ["code"], name: "index_corporate_companies_on_code", unique: true
+    t.index ["company_group"], name: "index_corporate_companies_on_company_group"
+    t.index ["company_group_id", "parent_company_id"], name: "index_companies_on_group_and_parent"
+    t.index ["company_group_id"], name: "index_corporate_companies_on_company_group_id"
+    t.index ["consolidation_parent_id"], name: "index_corporate_companies_on_consolidation_parent_id"
+    t.index ["contact_id"], name: "index_corporate_companies_on_contact_id"
+    t.index ["name"], name: "index_corporate_companies_on_name"
+    t.index ["onedrive_folder_id"], name: "index_corporate_companies_on_onedrive_folder_id"
+    t.index ["parent_company_id"], name: "index_corporate_companies_on_parent_company_id"
+    t.index ["review_date"], name: "index_corporate_companies_on_review_date"
+    t.index ["slug"], name: "index_corporate_companies_on_slug", unique: true
+    t.index ["status"], name: "index_corporate_companies_on_status"
+  end
+
+  create_table "corporate_company_activities", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.bigint "user_id"
+    t.string "activity_type", null: false
+    t.text "description"
+    t.jsonb "change_details", default: {}
+    t.string "related_type"
+    t.bigint "related_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["activity_type"], name: "index_corporate_company_activities_on_activity_type"
+    t.index ["company_id"], name: "index_corporate_company_activities_on_company_id"
+    t.index ["created_at"], name: "index_corporate_company_activities_on_created_at"
+    t.index ["related_type", "related_id"], name: "idx_on_related_type_related_id_d4aa46e723"
+    t.index ["user_id"], name: "index_corporate_company_activities_on_user_id"
+  end
+
+  create_table "corporate_company_compliance_items", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.string "title", null: false
+    t.text "description"
+    t.string "item_type", null: false
+    t.date "due_date", null: false
+    t.boolean "completed", default: false
+    t.datetime "completed_at"
+    t.string "reminder_days"
+    t.datetime "last_reminder_sent_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "recurrence"
+    t.boolean "asic_related", default: false
+    t.boolean "ato_related", default: false
+    t.index ["asic_related"], name: "index_corporate_company_compliance_items_on_asic_related"
+    t.index ["ato_related"], name: "index_corporate_company_compliance_items_on_ato_related"
+    t.index ["company_id", "due_date", "completed"], name: "idx_on_company_id_due_date_completed_83c37a183d"
+    t.index ["company_id"], name: "index_corporate_company_compliance_items_on_company_id"
+    t.index ["completed"], name: "index_corporate_company_compliance_items_on_completed"
+    t.index ["due_date"], name: "index_corporate_company_compliance_items_on_due_date"
+    t.index ["item_type"], name: "index_corporate_company_compliance_items_on_item_type"
+    t.index ["recurrence"], name: "index_corporate_company_compliance_items_on_recurrence"
+  end
+
+  create_table "corporate_company_directors", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.bigint "contact_id", null: false
+    t.string "position"
+    t.date "appointment_date"
+    t.date "resignation_date"
+    t.boolean "is_current", default: true
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["appointment_date"], name: "index_corporate_company_directors_on_appointment_date"
+    t.index ["company_id", "contact_id"], name: "index_company_directors_unique_active", unique: true, where: "(is_current = true)"
+    t.index ["company_id"], name: "index_corporate_company_directors_on_company_id"
+    t.index ["contact_id"], name: "index_corporate_company_directors_on_contact_id"
+    t.index ["is_current"], name: "index_corporate_company_directors_on_is_current"
+  end
+
+  create_table "corporate_company_documents", force: :cascade do |t|
+    t.bigint "company_id"
+    t.string "title", null: false
+    t.text "description"
+    t.string "document_type", null: false
+    t.date "document_date"
+    t.string "file_url"
+    t.string "file_name"
+    t.integer "file_size"
+    t.datetime "uploaded_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "folder"
+    t.string "storage_type"
+    t.string "filed_by"
+    t.bigint "document_type_id"
+    t.string "onedrive_file_id"
+    t.string "onedrive_download_url"
+    t.datetime "last_modified_at"
+    t.string "expected_onedrive_path"
+    t.string "register_folder"
+    t.string "company_code"
+    t.string "source", default: "manual"
+    t.bigint "asset_id"
+    t.bigint "loan_id"
+    t.bigint "contact_id"
+    t.integer "financial_years", default: [], array: true
+    t.datetime "ai_verified_at"
+    t.string "ai_verification_status"
+    t.string "ai_suggested_name"
+    t.string "ai_suggested_folder"
+    t.decimal "ai_confidence_score"
+    t.datetime "user_validated_at"
+    t.bigint "user_validated_by_id"
+    t.string "display_title"
+    t.string "ai_suggested_type"
+    t.integer "ai_suggested_fy", default: [], array: true
+    t.text "ai_analysis_notes"
+    t.boolean "validation_required", default: false
+    t.date "ref_date"
+    t.date "filed_date"
+    t.string "ai_extracted_description"
+    t.date "ai_extracted_date"
+    t.integer "ai_source_page"
+    t.text "ai_source_quote"
+    t.boolean "ai_contains_multiple_documents", default: false
+    t.jsonb "ai_split_recommendation"
+    t.string "documentable_type"
+    t.bigint "documentable_id"
+    t.string "content_hash"
+    t.string "external_id"
+    t.integer "job_id"
+    t.string "mime_type"
+    t.datetime "synced_to_xero_at"
+    t.string "xero_attachment_id"
+    t.boolean "sync_to_xero", default: false, null: false
+    t.index ["asset_id"], name: "index_corporate_company_documents_on_asset_id"
+    t.index ["company_code"], name: "index_corporate_company_documents_on_company_code"
+    t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"
+    t.index ["company_id", "document_type"], name: "idx_company_docs_company_type"
+    t.index ["company_id", "folder"], name: "idx_company_docs_company_folder"
+    t.index ["company_id"], name: "index_corporate_company_documents_on_company_id"
+    t.index ["contact_id"], name: "index_corporate_company_documents_on_contact_id"
+    t.index ["content_hash"], name: "index_corporate_company_documents_on_content_hash"
+    t.index ["document_date"], name: "index_corporate_company_documents_on_document_date"
+    t.index ["document_type"], name: "index_corporate_company_documents_on_document_type"
+    t.index ["document_type_id"], name: "index_corporate_company_documents_on_document_type_id"
+    t.index ["documentable_type", "documentable_id"], name: "idx_company_docs_documentable"
+    t.index ["external_id"], name: "index_corporate_company_documents_on_external_id"
+    t.index ["financial_years"], name: "index_corporate_company_documents_on_financial_years", using: :gin
+    t.index ["folder"], name: "index_corporate_company_documents_on_folder"
+    t.index ["job_id"], name: "index_corporate_company_documents_on_job_id"
+    t.index ["loan_id"], name: "index_corporate_company_documents_on_loan_id"
+    t.index ["onedrive_file_id"], name: "index_corporate_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
+    t.index ["source"], name: "index_corporate_company_documents_on_source"
+    t.index ["storage_type"], name: "index_corporate_company_documents_on_storage_type"
+    t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_corp_docs_pending_xero_sync"
+    t.index ["user_validated_by_id"], name: "index_corporate_company_documents_on_user_validated_by_id"
+  end
+
+  create_table "corporate_company_loans", force: :cascade do |t|
+    t.bigint "lender_company_id", null: false
+    t.bigint "borrower_company_id", null: false
+    t.decimal "principal_amount", precision: 12, scale: 2, null: false
+    t.decimal "current_balance", precision: 12, scale: 2
+    t.decimal "interest_rate", precision: 5, scale: 2
+    t.string "interest_type"
+    t.date "loan_date"
+    t.date "maturity_date"
+    t.boolean "loan_documents_in_place", default: false
+    t.string "security_type"
+    t.string "status", default: "active"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["borrower_company_id"], name: "index_corporate_company_loans_on_borrower_company_id"
+    t.index ["lender_company_id"], name: "index_corporate_company_loans_on_lender_company_id"
+    t.index ["loan_date"], name: "index_corporate_company_loans_on_loan_date"
+    t.index ["loan_documents_in_place"], name: "index_corporate_company_loans_on_loan_documents_in_place"
+    t.index ["status"], name: "index_corporate_company_loans_on_status"
+  end
+
+  create_table "corporate_company_minutes", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.bigint "minute_template_id"
+    t.string "title", null: false
+    t.date "meeting_date", null: false
+    t.text "content"
+    t.string "status", default: "draft"
+    t.date "signed_date"
+    t.string "signed_by"
+    t.string "document_path"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id"], name: "index_corporate_company_minutes_on_company_id"
+    t.index ["meeting_date"], name: "index_corporate_company_minutes_on_meeting_date"
+    t.index ["minute_template_id"], name: "index_corporate_company_minutes_on_minute_template_id"
+    t.index ["status"], name: "index_corporate_company_minutes_on_status"
+  end
+
+  create_table "corporate_company_settings", force: :cascade do |t|
+    t.string "company_name"
+    t.string "abn"
+    t.string "gst_number"
+    t.string "email"
+    t.string "phone"
+    t.text "address"
+    t.string "logo_url"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "twilio_account_sid"
+    t.string "twilio_auth_token"
+    t.string "twilio_phone_number"
+    t.boolean "twilio_enabled", default: false
+    t.string "timezone", default: "Australia/Brisbane"
+    t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>false, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}, null: false
+    t.jsonb "job_cascade_sort"
+    t.jsonb "job_folder_name_format"
+    t.string "contact_documents_path"
+    t.string "contact_folder_format", default: "id_name"
+  end
+
+  create_table "corporate_company_shareholdings", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.bigint "shareholder_id", null: false
+    t.string "share_class", default: "ordinary"
+    t.bigint "number_of_shares", null: false
+    t.boolean "beneficially_held", default: false
+    t.string "beneficial_owner"
+    t.date "acquired_date"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "shareholder_type", default: "Contact"
+    t.date "acquisition_date"
+    t.date "disposal_date"
+    t.string "certificate_number"
+    t.decimal "consideration_paid", precision: 15, scale: 2
+    t.index ["beneficially_held"], name: "index_corporate_company_shareholdings_on_beneficially_held"
+    t.index ["company_id", "shareholder_id", "share_class"], name: "idx_shareholdings_unique", unique: true
+    t.index ["company_id"], name: "index_corporate_company_shareholdings_on_company_id"
+    t.index ["share_class"], name: "index_corporate_company_shareholdings_on_share_class"
+    t.index ["shareholder_id"], name: "index_corporate_company_shareholdings_on_shareholder_id"
+    t.index ["shareholder_type", "shareholder_id"], name: "idx_shareholdings_polymorphic"
+  end
+
+  create_table "corporate_company_xero_accounts", force: :cascade do |t|
+    t.bigint "company_xero_connection_id", null: false
+    t.string "xero_account_id", null: false
+    t.string "account_code"
+    t.string "account_name"
+    t.string "account_type"
+    t.string "tax_type"
+    t.string "description"
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_code"], name: "index_corporate_company_xero_accounts_on_account_code"
+    t.index ["company_xero_connection_id"], name: "idx_on_company_xero_connection_id_dd7b188bc9"
+    t.index ["company_xero_connection_id"], name: "index_xero_accounts_on_connection_id"
+    t.index ["is_active"], name: "index_corporate_company_xero_accounts_on_is_active"
+    t.index ["xero_account_id"], name: "index_corporate_company_xero_accounts_on_xero_account_id"
+  end
+
+  create_table "corporate_company_xero_connections", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.string "xero_tenant_id", null: false
+    t.string "xero_tenant_name"
+    t.datetime "last_sync_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "connection_status", default: "disconnected"
+    t.text "last_sync_error"
+    t.bigint "xero_credential_id"
+    t.string "accounting_method"
+    t.date "financial_year_end"
+    t.index ["company_id"], name: "index_corporate_company_xero_connections_on_company_id", unique: true
+    t.index ["connection_status"], name: "index_corporate_company_xero_connections_on_connection_status"
+    t.index ["xero_credential_id"], name: "index_corporate_company_xero_connections_on_xero_credential_id"
+    t.index ["xero_tenant_id"], name: "index_corporate_company_xero_connections_on_xero_tenant_id"
+  end
+
+  create_table "corporate_groups", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.string "default_registered_office"
+    t.string "default_principal_place"
+    t.string "default_accountant"
+    t.string "default_accountant_contact"
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_corporate_groups_on_name", unique: true
   end
 
   create_table "data_quality_issues", force: :cascade do |t|
@@ -1435,6 +1425,22 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["resolved_by_id"], name: "index_document_duplicate_reviews_on_resolved_by_id"
   end
 
+  create_table "document_folders", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.integer "order_position", default: 0, null: false
+    t.jsonb "entity_types", default: [], null: false
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "sharepoint_path"
+    t.integer "parent_id"
+    t.index ["entity_types"], name: "index_document_folders_on_entity_types", using: :gin
+    t.index ["name"], name: "index_document_folders_on_name", unique: true
+    t.index ["order_position"], name: "index_document_folders_on_order_position"
+    t.index ["parent_id"], name: "index_document_folders_on_parent_id"
+  end
+
   create_table "document_tasks", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.string "category"
@@ -1524,14 +1530,22 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
 
   create_table "email_attachments", force: :cascade do |t|
     t.bigint "email_warehouse_id", null: false
+    t.bigint "company_document_id"
+    t.string "sharepoint_file_id"
+    t.string "sharepoint_path"
     t.string "outlook_attachment_id"
+    t.string "filename", null: false
+    t.string "content_type"
+    t.bigint "file_size"
+    t.string "content_hash"
+    t.boolean "is_existing_doc", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "attachment_id"
-    t.index ["attachment_id"], name: "index_email_attachments_on_attachment_id"
-    t.index ["email_warehouse_id", "attachment_id"], name: "index_email_attachments_unique", unique: true
+    t.index ["company_document_id"], name: "index_email_attachments_on_company_document_id"
+    t.index ["content_hash"], name: "index_email_attachments_on_content_hash"
     t.index ["email_warehouse_id"], name: "index_email_attachments_on_email_warehouse_id"
     t.index ["outlook_attachment_id"], name: "index_email_attachments_on_outlook_attachment_id"
+    t.index ["sharepoint_file_id"], name: "index_email_attachments_on_sharepoint_file_id"
   end
 
   create_table "email_case_proposals", force: :cascade do |t|
@@ -1664,8 +1678,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.jsonb "extracted_contacts", default: {}
     t.jsonb "extracted_entities", default: {}
     t.jsonb "action_items", default: []
-    t.bigint "microsoft_credential_id"
-    t.string "mailbox_owner_email"
     t.index ["cc_emails"], name: "index_email_warehouse_on_cc_emails", using: :gin
     t.index ["conversation_id"], name: "index_email_warehouse_on_conversation_id"
     t.index ["direction"], name: "index_email_warehouse_on_direction"
@@ -1678,8 +1690,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["job_id", "is_latest_in_thread"], name: "index_email_warehouse_on_job_id_and_is_latest_in_thread"
     t.index ["job_id", "received_at"], name: "index_email_warehouse_on_job_id_and_received_at"
     t.index ["job_id"], name: "index_email_warehouse_on_job_id"
-    t.index ["mailbox_owner_email"], name: "index_email_warehouse_on_mailbox_owner_email"
-    t.index ["microsoft_credential_id"], name: "index_email_warehouse_on_microsoft_credential_id"
     t.index ["received_at"], name: "index_email_warehouse_on_received_at"
     t.index ["searchable"], name: "index_email_warehouse_on_searchable", using: :gin
     t.index ["sharepoint_file_id"], name: "index_email_warehouse_on_sharepoint_file_id"
@@ -1815,6 +1825,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.string "sync_error"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "source_of_truth", default: "xero"
+    t.boolean "sync_to_xero", default: false, null: false
+    t.datetime "synced_to_xero_at"
+    t.datetime "xero_updated_at"
+    t.datetime "local_updated_at"
+    t.boolean "sync_conflict", default: false, null: false
     t.index ["contact_id"], name: "index_external_invoices_on_contact_id"
     t.index ["created_in_teeem"], name: "index_external_invoices_on_created_in_teeem"
     t.index ["external_contact_id"], name: "index_external_invoices_on_external_contact_id"
@@ -1827,7 +1843,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["source", "tenant_id", "external_id"], name: "idx_external_invoices_unique", unique: true
     t.index ["source"], name: "index_external_invoices_on_source"
     t.index ["status"], name: "index_external_invoices_on_status"
+    t.index ["sync_conflict"], name: "idx_external_invoices_conflicts", where: "(sync_conflict = true)"
     t.index ["sync_enabled"], name: "index_external_invoices_on_sync_enabled"
+    t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_external_invoices_pending_sync"
     t.index ["tenant_id"], name: "index_external_invoices_on_tenant_id"
     t.index ["tracking_data"], name: "index_external_invoices_on_tracking_data", using: :gin
   end
@@ -1901,6 +1919,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.boolean "teeem_has", default: false, null: false
     t.boolean "clickup_has"
     t.bigint "feature_chapter_id", null: false
+    t.boolean "evolve_has"
     t.index ["chapter"], name: "index_feature_trackers_on_chapter"
     t.index ["feature_chapter_id"], name: "index_feature_trackers_on_feature_chapter_id"
     t.index ["sort_order"], name: "index_feature_trackers_on_sort_order"
@@ -2066,6 +2085,27 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["user_id"], name: "index_grok_plans_on_user_id"
+  end
+
+  create_table "health_kudos_events", force: :cascade do |t|
+    t.string "actor_type", default: "user", null: false
+    t.bigint "user_id"
+    t.string "action", null: false
+    t.string "fix_type", null: false
+    t.string "record_type"
+    t.bigint "record_id"
+    t.integer "records_fixed", default: 1
+    t.integer "points", default: 0, null: false
+    t.jsonb "details", default: {}
+    t.string "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action"], name: "index_health_kudos_events_on_action"
+    t.index ["actor_type"], name: "index_health_kudos_events_on_actor_type"
+    t.index ["created_at"], name: "index_health_kudos_events_on_created_at"
+    t.index ["fix_type"], name: "index_health_kudos_events_on_fix_type"
+    t.index ["record_type", "record_id"], name: "index_health_kudos_events_on_record_type_and_record_id"
+    t.index ["user_id"], name: "index_health_kudos_events_on_user_id"
   end
 
   create_table "implementation_patterns", force: :cascade do |t|
@@ -2412,6 +2452,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["xero_tracking_option_id"], name: "index_jobs_on_xero_tracking_option_id"
   end
 
+  create_table "known_parties", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "email"
+    t.string "phone"
+    t.string "organisation"
+    t.string "relationship_type"
+    t.string "default_alignment", default: "neutral"
+    t.text "notes"
+    t.bigint "contact_id"
+    t.integer "seen_count", default: 1
+    t.datetime "last_seen_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_known_parties_on_contact_id"
+    t.index ["email"], name: "index_known_parties_on_email", unique: true, where: "(email IS NOT NULL)"
+    t.index ["name", "organisation"], name: "index_known_parties_on_name_and_organisation", unique: true
+    t.index ["relationship_type"], name: "index_known_parties_on_relationship_type"
+  end
+
   create_table "kudos_events", force: :cascade do |t|
     t.bigint "subcontractor_account_id", null: false
     t.bigint "quote_response_id"
@@ -2653,29 +2712,22 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.text "client_secret"
     t.string "tenant_id", null: false
     t.text "access_token"
-    t.datetime "token_expires_at"
+    t.datetime "token_expires_at", precision: nil
     t.boolean "is_active", default: true
     t.string "status", default: "pending"
     t.text "last_error"
-    t.datetime "admin_consent_granted_at"
+    t.datetime "admin_consent_granted_at", precision: nil
     t.string "admin_consent_granted_by"
     t.jsonb "sync_config", default: {}
-    t.datetime "last_sync_at"
+    t.datetime "last_sync_at", precision: nil
     t.bigint "setup_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
+    t.datetime "created_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.string "name"
-    t.string "sharepoint_site_id"
-    t.string "sharepoint_drive_id"
-    t.string "sharepoint_drive_name"
     t.index ["is_active"], name: "index_org_ms_app_creds_on_is_active"
-    t.index ["is_active"], name: "index_organization_microsoft_app_credentials_on_is_active", unique: true, where: "(is_active = true)"
-    t.index ["name", "is_active"], name: "index_org_microsoft_app_creds_on_name_and_active", unique: true, where: "(is_active = true)"
     t.index ["name"], name: "index_org_ms_app_creds_on_name"
     t.index ["setup_by_id"], name: "index_organization_microsoft_app_credentials_on_setup_by_id"
-    t.index ["sharepoint_drive_id"], name: "idx_on_sharepoint_drive_id_0a6d5a1255"
-    t.index ["sharepoint_site_id"], name: "idx_on_sharepoint_site_id_47efe5ba09"
-    t.index ["tenant_id"], name: "index_organization_microsoft_app_credentials_on_tenant_id"
+    t.index ["tenant_id"], name: "index_org_microsoft_app_credentials_on_tenant_id"
   end
 
   create_table "organization_one_drive_credentials", force: :cascade do |t|
@@ -3945,6 +3997,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
   end
 
+  create_table "tables", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "singular_name"
+    t.string "plural_name"
+    t.string "database_table_name", null: false
+    t.string "icon"
+    t.string "title_column"
+    t.boolean "searchable", default: true
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["database_table_name"], name: "index_tables_on_database_table_name", unique: true
+  end
+
   create_table "task_dependencies", force: :cascade do |t|
     t.bigint "successor_task_id", null: false
     t.bigint "predecessor_task_id", null: false
@@ -4632,6 +4698,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.index ["code"], name: "index_xero_accounts_on_code", unique: true
   end
 
+  create_table "xero_alerts", force: :cascade do |t|
+    t.bigint "xero_credential_id"
+    t.bigint "corporate_company_id"
+    t.string "alert_type", null: false
+    t.string "severity", null: false
+    t.string "title", null: false
+    t.text "message"
+    t.boolean "dismissed", default: false, null: false
+    t.datetime "dismissed_at"
+    t.bigint "dismissed_by_id"
+    t.boolean "auto_resolved", default: false, null: false
+    t.datetime "auto_resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "dismissed", "created_at"], name: "idx_xero_alerts_company_active"
+    t.index ["corporate_company_id"], name: "index_xero_alerts_on_corporate_company_id"
+    t.index ["dismissed_by_id"], name: "index_xero_alerts_on_dismissed_by_id"
+    t.index ["severity", "dismissed"], name: "idx_xero_alerts_severity_active"
+    t.index ["xero_credential_id", "alert_type", "dismissed"], name: "idx_xero_alerts_credential_type"
+    t.index ["xero_credential_id"], name: "index_xero_alerts_on_xero_credential_id"
+  end
+
   create_table "xero_chart_of_accounts", force: :cascade do |t|
     t.bigint "company_group_id"
     t.string "account_code", null: false
@@ -4659,8 +4747,45 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "is_primary", default: false, null: false
+    t.string "status", default: "connected", null: false
+    t.datetime "refresh_token_expires_at"
+    t.datetime "last_refresh_at"
+    t.text "last_refresh_error"
+    t.integer "refresh_failure_count", default: 0, null: false
+    t.datetime "last_successful_api_call_at"
+    t.string "circuit_state", default: "closed", null: false
+    t.datetime "circuit_opened_at"
+    t.integer "circuit_failure_count", default: 0, null: false
+    t.string "granted_scopes"
+    t.index ["circuit_state"], name: "index_xero_credentials_on_circuit_state"
     t.index ["is_primary"], name: "index_xero_credentials_on_is_primary"
+    t.index ["last_successful_api_call_at"], name: "index_xero_credentials_on_last_successful_api_call_at"
+    t.index ["status"], name: "index_xero_credentials_on_status"
     t.index ["tenant_id"], name: "index_xero_credentials_on_tenant_id"
+  end
+
+  create_table "xero_sync_events", force: :cascade do |t|
+    t.bigint "xero_credential_id"
+    t.string "sync_type", null: false
+    t.string "event_type", null: false
+    t.string "trigger", null: false
+    t.integer "records_processed", default: 0, null: false
+    t.integer "records_created", default: 0, null: false
+    t.integer "records_updated", default: 0, null: false
+    t.integer "records_skipped", default: 0, null: false
+    t.integer "records_failed", default: 0, null: false
+    t.text "error_message"
+    t.string "error_class"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.integer "duration_ms"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_xero_sync_events_on_created_at"
+    t.index ["sync_type", "event_type", "created_at"], name: "idx_xero_sync_events_type_status"
+    t.index ["xero_credential_id", "sync_type", "created_at"], name: "idx_xero_sync_events_cred_type_time"
+    t.index ["xero_credential_id"], name: "index_xero_sync_events_on_xero_credential_id"
   end
 
   create_table "xero_sync_statuses", force: :cascade do |t|
@@ -4697,21 +4822,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
   add_foreign_key "asset_insurances", "assets"
   add_foreign_key "asset_service_histories", "assets"
   add_foreign_key "asset_service_histories", "users"
-  add_foreign_key "assets", "companies"
-  add_foreign_key "attachments", "organization_microsoft_app_credentials"
-  add_foreign_key "balance_sheet_reports", "companies"
-  add_foreign_key "bank_accounts", "companies"
+  add_foreign_key "assets", "corporate_companies", column: "company_id"
+  add_foreign_key "balance_sheet_reports", "corporate_companies", column: "company_id"
+  add_foreign_key "bank_accounts", "corporate_companies", column: "company_id"
   add_foreign_key "bank_transactions", "bank_accounts"
-  add_foreign_key "bank_transactions", "companies"
+  add_foreign_key "bank_transactions", "corporate_companies", column: "company_id"
   add_foreign_key "case_actions", "cases"
   add_foreign_key "case_actions", "users", column: "created_by_id"
   add_foreign_key "case_companies", "cases"
-  add_foreign_key "case_companies", "companies"
+  add_foreign_key "case_companies", "corporate_companies", column: "company_id"
   add_foreign_key "case_contacts", "cases"
   add_foreign_key "case_contacts", "contacts"
   add_foreign_key "case_contacts", "users", column: "added_by_id"
   add_foreign_key "case_documents", "cases"
-  add_foreign_key "case_documents", "company_documents"
+  add_foreign_key "case_documents", "corporate_company_documents", column: "company_document_id"
   add_foreign_key "case_documents", "users", column: "added_by_id"
   add_foreign_key "case_email_qas", "case_emails"
   add_foreign_key "case_email_qas", "cases"
@@ -4723,13 +4847,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
   add_foreign_key "case_jobs", "cases"
   add_foreign_key "case_jobs", "jobs"
   add_foreign_key "case_timeline_events", "cases"
-  add_foreign_key "case_timeline_events", "companies"
   add_foreign_key "case_timeline_events", "contacts"
+  add_foreign_key "case_timeline_events", "corporate_companies", column: "company_id"
   add_foreign_key "case_timeline_events", "jobs"
   add_foreign_key "cases", "cases", column: "parent_case_id"
-  add_foreign_key "cases", "companies"
-  add_foreign_key "cases", "company_groups"
   add_foreign_key "cases", "contacts"
+  add_foreign_key "cases", "corporate_companies", column: "company_id"
+  add_foreign_key "cases", "corporate_groups", column: "company_group_id"
   add_foreign_key "cases", "users", column: "assigned_to_id"
   add_foreign_key "cases", "users", column: "created_by_id"
   add_foreign_key "chat_messages", "jobs"
@@ -4737,33 +4861,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
   add_foreign_key "chat_messages", "users"
   add_foreign_key "columns", "column_type_definitions"
   add_foreign_key "columns", "foundations"
-  add_foreign_key "companies", "companies", column: "consolidation_parent_id", on_delete: :nullify
-  add_foreign_key "companies", "companies", column: "parent_company_id"
-  add_foreign_key "companies", "company_groups"
-  add_foreign_key "companies", "contacts"
-  add_foreign_key "company_activities", "companies"
-  add_foreign_key "company_activities", "users"
-  add_foreign_key "company_compliance_items", "companies"
-  add_foreign_key "company_directors", "companies"
-  add_foreign_key "company_directors", "contacts"
-  add_foreign_key "company_documents", "assets"
-  add_foreign_key "company_documents", "companies"
-  add_foreign_key "company_documents", "company_loans", column: "loan_id"
-  add_foreign_key "company_documents", "contacts"
-  add_foreign_key "company_documents", "document_types"
-  add_foreign_key "company_loans", "companies", column: "borrower_company_id"
-  add_foreign_key "company_loans", "companies", column: "lender_company_id"
-  add_foreign_key "company_minutes", "companies"
-  add_foreign_key "company_minutes", "minute_templates"
-  add_foreign_key "company_shareholdings", "companies"
-  add_foreign_key "company_xero_accounts", "company_xero_connections"
-  add_foreign_key "company_xero_connections", "companies"
-  add_foreign_key "company_xero_connections", "xero_credentials"
   add_foreign_key "contact_activities", "contacts"
   add_foreign_key "contact_addresses", "contacts"
-  add_foreign_key "contact_company_group_memberships", "companies"
-  add_foreign_key "contact_company_group_memberships", "company_groups"
-  add_foreign_key "contact_company_group_memberships", "contacts"
+  add_foreign_key "contact_corporate_group_memberships", "contacts"
+  add_foreign_key "contact_corporate_group_memberships", "corporate_companies", column: "company_id"
+  add_foreign_key "contact_corporate_group_memberships", "corporate_groups", column: "company_group_id"
   add_foreign_key "contact_emails", "contacts"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
@@ -4772,25 +4874,48 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
   add_foreign_key "contact_phones", "contacts"
   add_foreign_key "contact_relationships", "contacts", column: "related_contact_id"
   add_foreign_key "contact_relationships", "contacts", column: "source_contact_id"
-  add_foreign_key "contacts", "company_groups"
   add_foreign_key "contacts", "contacts", column: "primary_company_id"
-  add_foreign_key "director_onboarding_requests", "companies"
+  add_foreign_key "contacts", "corporate_groups", column: "company_group_id"
+  add_foreign_key "corporate_companies", "contacts"
+  add_foreign_key "corporate_companies", "corporate_companies", column: "consolidation_parent_id", on_delete: :nullify
+  add_foreign_key "corporate_companies", "corporate_companies", column: "parent_company_id"
+  add_foreign_key "corporate_companies", "corporate_groups", column: "company_group_id"
+  add_foreign_key "corporate_company_activities", "corporate_companies", column: "company_id"
+  add_foreign_key "corporate_company_activities", "users"
+  add_foreign_key "corporate_company_compliance_items", "corporate_companies", column: "company_id"
+  add_foreign_key "corporate_company_directors", "contacts"
+  add_foreign_key "corporate_company_directors", "corporate_companies", column: "company_id"
+  add_foreign_key "corporate_company_documents", "assets"
+  add_foreign_key "corporate_company_documents", "contacts"
+  add_foreign_key "corporate_company_documents", "corporate_companies", column: "company_id"
+  add_foreign_key "corporate_company_documents", "corporate_company_loans", column: "loan_id"
+  add_foreign_key "corporate_company_documents", "document_types"
+  add_foreign_key "corporate_company_loans", "corporate_companies", column: "borrower_company_id"
+  add_foreign_key "corporate_company_loans", "corporate_companies", column: "lender_company_id"
+  add_foreign_key "corporate_company_minutes", "corporate_companies", column: "company_id"
+  add_foreign_key "corporate_company_minutes", "minute_templates"
+  add_foreign_key "corporate_company_shareholdings", "corporate_companies", column: "company_id"
+  add_foreign_key "corporate_company_xero_accounts", "corporate_company_xero_connections", column: "company_xero_connection_id"
+  add_foreign_key "corporate_company_xero_connections", "corporate_companies", column: "company_id"
+  add_foreign_key "corporate_company_xero_connections", "xero_credentials"
   add_foreign_key "director_onboarding_requests", "contacts"
+  add_foreign_key "director_onboarding_requests", "corporate_companies", column: "company_id"
   add_foreign_key "director_onboarding_requests", "users", column: "invited_by_id"
   add_foreign_key "director_onboarding_requests", "users", column: "reviewed_by_id"
   add_foreign_key "dividend_payments", "contacts", column: "shareholder_id"
   add_foreign_key "dividend_payments", "dividends"
-  add_foreign_key "dividends", "companies"
-  add_foreign_key "document_activities", "company_documents"
+  add_foreign_key "dividends", "corporate_companies", column: "company_id"
+  add_foreign_key "document_activities", "corporate_company_documents", column: "company_document_id"
   add_foreign_key "document_activities", "users"
   add_foreign_key "document_duplicate_reviews", "cases"
-  add_foreign_key "document_duplicate_reviews", "company_documents", column: "existing_document_id"
-  add_foreign_key "document_duplicate_reviews", "company_documents", column: "new_document_id"
+  add_foreign_key "document_duplicate_reviews", "corporate_company_documents", column: "existing_document_id"
+  add_foreign_key "document_duplicate_reviews", "corporate_company_documents", column: "new_document_id"
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
+  add_foreign_key "document_folders", "document_folders", column: "parent_id"
   add_foreign_key "document_tasks", "jobs"
-  add_foreign_key "document_verification_feedbacks", "company_documents"
+  add_foreign_key "document_verification_feedbacks", "corporate_company_documents", column: "company_document_id"
   add_foreign_key "document_verification_feedbacks", "users"
-  add_foreign_key "email_attachments", "attachments"
+  add_foreign_key "email_attachments", "corporate_company_documents", column: "company_document_id"
   add_foreign_key "email_attachments", "email_warehouse"
   add_foreign_key "email_case_proposals", "cases", column: "case_record_id"
   add_foreign_key "email_case_proposals", "email_warehouse"
@@ -4805,7 +4930,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
   add_foreign_key "email_recipients", "users"
   add_foreign_key "email_sync_statuses", "users"
   add_foreign_key "email_warehouse", "jobs"
-  add_foreign_key "email_warehouse", "organization_microsoft_app_credentials", column: "microsoft_credential_id"
   add_foreign_key "email_warehouse", "users", column: "ssot_owner_id"
   add_foreign_key "email_warehouse", "users", column: "synced_by_user_id"
   add_foreign_key "email_warehouse", "users", column: "user_classification_by_id"
@@ -4818,16 +4942,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
   add_foreign_key "external_invoices", "jobs"
   add_foreign_key "fact_job_daily_snapshots", "jobs"
   add_foreign_key "feature_trackers", "feature_chapters"
-  add_foreign_key "financial_transactions", "companies"
+  add_foreign_key "financial_transactions", "corporate_companies", column: "company_id"
   add_foreign_key "financial_transactions", "jobs"
   add_foreign_key "financial_transactions", "users"
   add_foreign_key "folder_template_items", "folder_template_items", column: "parent_id"
   add_foreign_key "folder_template_items", "folder_templates"
   add_foreign_key "folder_templates", "users", column: "created_by_id"
   add_foreign_key "grok_plans", "users"
-  add_foreign_key "insurance_policies", "companies"
-  add_foreign_key "intercompany_balances", "companies"
-  add_foreign_key "intercompany_balances", "companies", column: "related_company_id"
+  add_foreign_key "health_kudos_events", "users", on_delete: :nullify
+  add_foreign_key "insurance_policies", "corporate_companies", column: "company_id"
+  add_foreign_key "intercompany_balances", "corporate_companies", column: "company_id"
+  add_foreign_key "intercompany_balances", "corporate_companies", column: "related_company_id"
   add_foreign_key "job_activities", "jobs"
   add_foreign_key "job_activities", "users"
   add_foreign_key "job_claims", "contacts"
@@ -4853,6 +4978,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
   add_foreign_key "jobs", "job_status", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
   add_foreign_key "jobs", "users", column: "archived_by_id", on_delete: :nullify
+  add_foreign_key "known_parties", "contacts"
   add_foreign_key "kudos_events", "purchase_orders"
   add_foreign_key "kudos_events", "quote_responses"
   add_foreign_key "kudos_events", "subcontractor_accounts"
@@ -4872,7 +4998,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
   add_foreign_key "meetings", "users", column: "created_by_id"
   add_foreign_key "notifications", "users"
   add_foreign_key "one_drive_credentials", "jobs"
-  add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id"
+  add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id", name: "organization_microsoft_app_credentials_setup_by_id_fkey"
   add_foreign_key "organization_one_drive_credentials", "users", column: "connected_by_id"
   add_foreign_key "pay_now_requests", "contacts"
   add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
@@ -4891,7 +5017,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
   add_foreign_key "pricebook", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
   add_foreign_key "pricebook", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
   add_foreign_key "pricebook", "pricebook_categories", column: "category_id"
-  add_foreign_key "profit_loss_reports", "companies"
+  add_foreign_key "profit_loss_reports", "corporate_companies", column: "company_id"
   add_foreign_key "project_task_checklist_items", "project_tasks"
   add_foreign_key "project_tasks", "project_tasks", column: "parent_task_id"
   add_foreign_key "project_tasks", "projects"
@@ -4920,7 +5046,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
   add_foreign_key "quote_responses", "quote_requests"
   add_foreign_key "rain_logs", "jobs"
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
-  add_foreign_key "reconciliation_reports", "company_groups"
+  add_foreign_key "reconciliation_reports", "corporate_groups", column: "company_group_id"
   add_foreign_key "role_permissions", "permissions"
   add_foreign_key "schedule_task_checklist_items", "schedule_tasks"
   add_foreign_key "schedule_tasks", "jobs"
@@ -4931,9 +5057,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
   add_foreign_key "schedule_template_rows", "schedule_templates"
   add_foreign_key "schedule_template_rows", "users", column: "assigned_user_id"
   add_foreign_key "schedule_templates", "users", column: "created_by_id"
-  add_foreign_key "share_transfers", "companies"
   add_foreign_key "share_transfers", "contacts", column: "from_shareholder_id"
   add_foreign_key "share_transfers", "contacts", column: "to_shareholder_id"
+  add_foreign_key "share_transfers", "corporate_companies", column: "company_id"
   add_foreign_key "sm_dependencies", "tasks", column: "predecessor_task_id", on_delete: :cascade
   add_foreign_key "sm_dependencies", "tasks", column: "successor_task_id", on_delete: :cascade
   add_foreign_key "sm_dependencies", "users", column: "created_by_id", on_delete: :nullify
@@ -5028,5 +5154,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_012701) do
   add_foreign_key "whs_swms_hazards", "whs_swms"
   add_foreign_key "workflow_instances", "workflow_definitions"
   add_foreign_key "workflow_steps", "workflow_instances"
-  add_foreign_key "xero_chart_of_accounts", "company_groups"
+  add_foreign_key "xero_alerts", "corporate_companies"
+  add_foreign_key "xero_alerts", "users", column: "dismissed_by_id"
+  add_foreign_key "xero_alerts", "xero_credentials"
+  add_foreign_key "xero_chart_of_accounts", "corporate_groups", column: "company_group_id"
+  add_foreign_key "xero_sync_events", "xero_credentials"
 end

@@ -1,4 +1,4 @@
-require 'csv'
+require "csv"
 
 namespace :xero do
   desc "Export all Xero contacts to CSV stdout (for piping to file)"

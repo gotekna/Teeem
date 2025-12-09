@@ -1257,7 +1257,7 @@ function HealthTab({ company, onUpdate }: { company: Company; onUpdate: () => vo
 
   React.useEffect(() => {
     loadHealthReport();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [company.id]);
 
   const loadHealthReport = async () => {
@@ -1465,7 +1465,7 @@ function TrustsTab({ company, onUpdate }: { company: Company; onUpdate: () => vo
   React.useEffect(() => {
     loadTrusts();
     loadCompanyGroups();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [company.id]);
 
   const loadTrusts = async () => {
@@ -2183,7 +2183,7 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
     loadParentCompanyOptions();
     loadAvailableTrusts();
     loadGroupStructure();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [company.id]);
 
   const loadConsolidatedCompanies = async () => {
@@ -2703,7 +2703,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
     loadDocuments();
     // checkSharePointConnection(); // Unused - SharePoint connection state was never defined
     loadCompanies();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [companyId, category]);
 
   const loadCompanies = async () => {
@@ -3310,7 +3310,7 @@ function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnecti
 
   React.useEffect(() => {
     loadStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [companyId]);
 
   const loadStatus = async () => {
@@ -3334,7 +3334,7 @@ function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnecti
     if (status !== null) {
       onConnectionChange?.(status.connected);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching status.connected
+     
   }, [status?.connected]);
 
   const handleConnect = async () => {
@@ -3627,7 +3627,7 @@ function BankTransactionsCard({ companyId, isConnected }: { companyId: string; i
     if (isConnected) {
       loadTransactions();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [companyId, isConnected, dateRange]);
 
   const loadTransactions = async () => {
@@ -3905,7 +3905,7 @@ function XeroAccountsCard({ companyId, companyName }: { companyId: string; compa
 
   React.useEffect(() => {
     loadAccounts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [companyId]);
 
   // Get unique types for filter
@@ -5019,6 +5019,68 @@ export default function CompanyDetailPage() {
   const [xeroConnected, setXeroConnected] = React.useState(false);
   const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
   const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
+  const [documentFolderTabs, setDocumentFolderTabs] = React.useState<Array<{ id: string; name: string; icon: any }>>([]);
+
+  // Map folder names to icons
+  const getFolderIcon = (folderName: string) => {
+    const iconMap: Record<string, any> = {
+      'ADVICE': Briefcase,
+      'ASIC': FileText,
+      'ASSETS': Briefcase,
+      'ATO': FileText,
+      'BANK': Landmark,
+      'XERO': RefreshCw,
+      'COMPANY': Building2,
+      'DIVIDENDS': DollarSign,
+      'FINANCIALS': FileText,
+      'GENERAL': FolderOpen,
+      'INSURANCE': Heart,
+      'LOANS': Banknote,
+      'MINUTES': FileText,
+      'REGISTRY': FileText,
+      'TRUST': Users,
+      'PAYROLL': DollarSign,
+      'SUPERANNUATION': DollarSign,
+      'CONTRACTS': FileText,
+      'COMPLIANCE': CheckCircle,
+    };
+    return iconMap[folderName] || FileText;
+  };
+
+  // Load document folders from API (SSoT) based on company entity type
+  const loadDocumentFolders = React.useCallback(async (company: Company) => {
+    try {
+      // Determine entity type for folder filtering
+      let entityType = "trading_company";
+      if (company.entity_type === "Trust" || company.entity_type === "Superfund") {
+        entityType = "trust";
+      } else if (company.is_trustee) {
+        entityType = "trustee_company";
+      }
+
+      const data = await api.get<{ success: boolean; data: any[] }>(`/api/v1/document_folders?entity_type=${entityType}&active=true`);
+
+      if (data.success) {
+        // Map folder data to tab format with appropriate icons
+        const folderTabs = data.data.map((folder: any) => {
+          // Some folders need "-docs" suffix to avoid conflicts with other pages
+          const needsDocsSuffix = ['ASSETS', 'DIVIDENDS', 'LOANS', 'MINUTES'].includes(folder.name);
+          const tabId = folder.name.toLowerCase().replace(/_/g, '-') + (needsDocsSuffix ? '-docs' : '');
+
+          return {
+            id: tabId,
+            name: folder.name,
+            icon: getFolderIcon(folder.name)
+          };
+        });
+        setDocumentFolderTabs(folderTabs);
+      }
+    } catch (error) {
+      console.error("Failed to load document folders:", error);
+      // Fallback to hard-coded list if API fails
+      setDocumentFolderTabs([]);
+    }
+  }, []);
 
   // Load company details
   const loadCompany = React.useCallback(async () => {
@@ -5028,12 +5090,14 @@ export default function CompanyDetailPage() {
         `/api/v1/companies/${companyId}`
       );
       setCompany(response.company);
+      // Load document folders based on company entity type
+      await loadDocumentFolders(response.company);
     } catch (error) {
       console.error("Failed to load company:", error);
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, loadDocumentFolders]);
 
   // Load document counts for tabs
   const loadDocumentCounts = React.useCallback(async () => {
@@ -5048,20 +5112,37 @@ export default function CompanyDetailPage() {
     }
   }, [companyId]);
 
-  // Load health score for header badge
+  // Load health score for header badge (fast endpoint - loads only this company)
   const loadHealthScore = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; companies: Array<{ id: number; health_score: number; health_status: string }> }>(
-        `/api/v1/companies/health_report`
+      const response = await api.get<{ success: boolean; health: { health_score: number; health_status: string } }>(
+        `/api/v1/companies/${companyId}/health`
       );
-      const companyHealth = response.companies?.find((c) => c.id === parseInt(companyId));
-      if (companyHealth) {
-        setHealthScore({ score: companyHealth.health_score, status: companyHealth.health_status });
+      if (response.health) {
+        setHealthScore({ score: response.health.health_score, status: response.health.health_status });
       }
     } catch (error) {
       console.error("Failed to load health score:", error);
     }
   }, [companyId]);
+
+  // Compute final DOCUMENT_TABS: folder tabs + special UI tabs
+  const computedDocumentTabs = React.useMemo(() => {
+    // Special UI tabs (not document folders)
+    const specialTabs = [
+      { id: "documents", name: "Documents", icon: FileText },
+      { id: "data", name: "Data", icon: Database },
+      { id: "activity", name: "Activity", icon: Clock },
+    ];
+
+    // Combine: folder tabs + special tabs
+    // Keep original DOCUMENT_TABS order as fallback if folders not loaded yet
+    if (documentFolderTabs.length === 0) {
+      return DOCUMENT_TABS;
+    }
+
+    return [...documentFolderTabs, ...specialTabs];
+  }, [documentFolderTabs]);
 
   React.useEffect(() => {
     loadCompany();
@@ -5227,7 +5308,7 @@ export default function CompanyDetailPage() {
             <Building2 className="h-4 w-4 mr-2" />
             Overview
           </button>
-          {DOCUMENT_TABS.map((tab) => {
+          {computedDocumentTabs.map((tab) => {
             const Icon = tab.icon;
             // Map tab id to count key (handle naming differences)
             const countKey = tab.id === "assets-docs" ? "assets-docs" :
@@ -5435,7 +5516,7 @@ export default function CompanyDetailPage() {
           )}
 
           {/* Document Category Tabs */}
-          {DOCUMENT_TABS.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && activeTab !== "data" && activeTab !== "xero" && (
+          {computedDocumentTabs.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && activeTab !== "data" && activeTab !== "xero" && (
             <>
               {/* SSoT: Show ATO Setup Card on ATO tab */}
               {activeTab === "ato" && (
@@ -5444,7 +5525,7 @@ export default function CompanyDetailPage() {
               <CompanyDocumentsTab
                 companyId={companyId}
                 company={company}
-                category={DOCUMENT_TABS.find(t => t.id === activeTab)?.name}
+                category={computedDocumentTabs.find(t => t.id === activeTab)?.name}
               />
             </>
           )}

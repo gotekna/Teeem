@@ -340,7 +340,7 @@ export default function SmFieldPage() {
     if (isOnline && pendingSync > 0) {
       syncOfflineData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [isOnline, pendingSync]);
 
   if (loading) {

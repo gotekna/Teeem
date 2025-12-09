@@ -274,11 +274,11 @@ class Api::V1::MicrosoftAppController < ApplicationController
     # Support testing specific org by id or name
     credential = if params[:organization_id].present?
                    OrganizationMicrosoftAppCredential.find_by(id: params[:organization_id])
-                 elsif params[:name].present?
+    elsif params[:name].present?
                    OrganizationMicrosoftAppCredential.find_by_name(params[:name])
-                 else
+    else
                    OrganizationMicrosoftAppCredential.active_credential
-                 end
+    end
 
     unless credential
       return render json: { error: "No app credential configured" }, status: :not_found
@@ -371,11 +371,11 @@ class Api::V1::MicrosoftAppController < ApplicationController
     # Support disconnecting specific org by id or name
     credential = if params[:organization_id].present?
                    OrganizationMicrosoftAppCredential.find_by(id: params[:organization_id])
-                 elsif params[:name].present?
+    elsif params[:name].present?
                    OrganizationMicrosoftAppCredential.find_by_name(params[:name])
-                 else
+    else
                    OrganizationMicrosoftAppCredential.active_credential
-                 end
+    end
 
     if credential
       org_name = credential.name

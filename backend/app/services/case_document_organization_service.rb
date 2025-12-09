@@ -136,7 +136,7 @@ class CaseDocumentOrganizationService
   def process_file(file_info)
     # Step 1: Check if file already exists in company_documents (by hash)
     if file_info[:content_hash].present?
-      existing_doc = CompanyDocument.find_by_content_hash(file_info[:content_hash])
+      existing_doc = CorporateCompanyDocument.find_by_content_hash(file_info[:content_hash])
 
       if existing_doc
         # File already exists - just link to case
@@ -181,7 +181,7 @@ class CaseDocumentOrganizationService
 
   # Queue a file for duplicate review
   def queue_for_duplicate_review(file_info)
-    existing = CompanyDocument.find_by_content_hash(file_info[:content_hash])
+    existing = CorporateCompanyDocument.find_by_content_hash(file_info[:content_hash])
     return unless existing
 
     DocumentDuplicateReview.find_or_create_by!(
@@ -259,13 +259,13 @@ class CaseDocumentOrganizationService
     case target_location
     when :corporate
       # Get company's corporate folder
-      company = case_record.company || case_record.companies.first
+      company = case_record.corporate_company || case_record.corporate_companies.first
       return nil unless company
 
       # Find or create corporate folder for company
       get_or_create_company_folder(company, "Corporate")
     when :register
-      company = case_record.company || case_record.companies.first
+      company = case_record.corporate_company || case_record.corporate_companies.first
       return nil unless company
 
       get_or_create_company_folder(company, "Register")
@@ -317,10 +317,10 @@ class CaseDocumentOrganizationService
   # Create a company_document entry for a new file
   def create_company_document(file_info, graph_result, doc_type)
     # Determine company
-    company = case_record.company || case_record.companies.first
+    company = case_record.corporate_company || case_record.corporate_companies.first
 
-    CompanyDocument.create!(
-      company: company,
+    CorporateCompanyDocument.create!(
+      corporate_company: company,
       title: file_info[:name],
       document_type: doc_type,
       file_name: file_info[:name],

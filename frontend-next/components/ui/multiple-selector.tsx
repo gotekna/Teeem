@@ -1,3 +1,4 @@
+ 
 "use client";
 
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
@@ -410,6 +411,7 @@ const MultipleSelector = React.forwardRef<
       [options],
     );
 
+     
     const commandFilter = React.useCallback(() => {
       if (commandProps?.filter) {
         return commandProps.filter;

@@ -6,7 +6,7 @@ Performs a full codebase audit across security, SSoT compliance, code quality, a
 
 ## What This Command Does
 
-The `/t` command runs a comprehensive code review checking 10 categories:
+The `/t` command runs a comprehensive code review checking 11 categories:
 
 1. **Security Scan** - Brakeman + manual review for vulnerabilities
 2. **SSoT Violations** - Duplicate definitions, conflicting sources
@@ -18,6 +18,7 @@ The `/t` command runs a comprehensive code review checking 10 categories:
 8. **Performance Red Flags** - N+1 queries, missing eager loading
 9. **Documentation Freshness** - Stale docs, old TODOs
 10. **TeeemTableView Compliance** - foundationIdNumeric, Gold Standard column types
+11. **Frontend Performance** - Lazy loading, eager fetches, redundant API calls
 
 ## Execution Protocol
 
@@ -85,7 +86,43 @@ Check for known bug patterns from code-guardian.md:
 cd frontend-next && npm run lint 2>&1 | grep "set-state-in-effect"
 ```
 
-### Step 4: UI/UX Compliance
+### Step 4: Frontend Performance Audit
+
+**Check for performance anti-patterns using performance-auditor.md rules:**
+
+**PERF-001: Loading ALL Records on Mount**
+```bash
+# Find pages loading all records on mount
+grep -r "useEffect.*\[\]" frontend-next/app --include="*.tsx" -A 10 | grep -E "api\.(get|post).*\/api\/v1\/\w+['\"]"
+```
+
+**PERF-002: Missing Lazy Loading for Modals**
+```bash
+# Find modal/dialog pages without lazy loading
+grep -r "Modal\|Dialog\|Popover" frontend-next/app --include="*.tsx" -l | xargs grep -l "useEffect.*\[\]"
+```
+
+**PERF-003: Detail Pages Calling "All" Endpoints**
+```bash
+# Check [id] pages for calls to non-ID endpoints
+find frontend-next/app -path "*\[*\]*" -name "*.tsx" | xargs grep -l "api.get.*\/api\/v1\/\w\+['\"])"
+```
+
+**PERF-004: Missing Fetch Guards**
+```bash
+# Find useEffect with modal deps but no guards
+grep -r "useEffect.*modalOpen\|dialogOpen\|showDialog" frontend-next/app --include="*.tsx" -A 5 | grep -v "length.*0\|\.current"
+```
+
+**High-Priority Pages to Audit:**
+- `app/(app)/jobs/[id]/page.tsx`
+- `app/(app)/contacts/[id]/page.tsx`
+- `app/(app)/corporate/companies/[id]/page.tsx`
+- `app/(app)/pricebook/[code]/page.tsx`
+- `app/(app)/chat/page.tsx`
+- `app/(app)/dashboard/page.tsx`
+
+### Step 5: UI/UX Compliance
 
 **TeeemTableView Check:**
 - Find tables with `foundationId` but missing `foundationIdNumeric`
@@ -104,7 +141,7 @@ grep -r 'foundationId=' frontend-next --include="*.tsx" | grep -v 'foundationIdN
 cd backend && bin/rails runner "invalid = Column.where.not(column_type: Column::COLUMN_TYPE_MAP.keys); puts invalid.any? ? 'INVALID TYPES FOUND: ' + invalid.pluck(:column_type).uniq.join(', ') : 'All columns valid'"
 ```
 
-### Step 5: Database Schema Health
+### Step 6: Database Schema Health
 
 ```bash
 # Check for tables without indexes on foreign keys
@@ -114,7 +151,7 @@ cd backend && bin/rails runner "puts 'Checking foreign key indexes...'"
 cd backend && bin/rails db:migrate:status
 ```
 
-### Step 6: Test Coverage
+### Step 7: Test Coverage
 
 ```bash
 # Find models without specs
@@ -124,7 +161,7 @@ cd backend && for model in app/models/*.rb; do spec="spec/models/$(basename $mod
 cd backend && for ctrl in app/controllers/api/v1/*.rb; do spec="spec/requests/api/v1/$(basename $ctrl .rb | sed 's/_controller//')_spec.rb"; [ ! -f "$spec" ] && echo "Missing: $spec"; done 2>/dev/null
 ```
 
-### Step 7: Generate Report
+### Step 8: Generate Report
 
 Compile all findings into standardized format:
 
@@ -134,18 +171,19 @@ Compile all findings into standardized format:
                     [Brisbane Time]
 ════════════════════════════════════════════════════════════════
 
-SUMMARY (10 Categories)
+SUMMARY (11 Categories)
 ───────────────────────
-[PASS/WARN/FAIL] 1. Security:           X issues
-[PASS/WARN/FAIL] 2. SSoT:               X issues
-[PASS/WARN/FAIL] 3. UI/UX:              X issues
-[PASS/WARN/FAIL] 4. Code Quality:       X issues
-[PASS/WARN/FAIL] 5. DB Schema:          X issues
-[PASS/WARN/FAIL] 6. Test Coverage:      X issues
-[PASS/WARN/FAIL] 7. API Consistency:    X issues
-[PASS/WARN/FAIL] 8. Performance:        X issues
-[PASS/WARN/FAIL] 9. Documentation:      X issues
-[PASS/WARN/FAIL] 10. TeeemTableView:    X issues
+[PASS/WARN/FAIL] 1. Security:            X issues
+[PASS/WARN/FAIL] 2. SSoT:                X issues
+[PASS/WARN/FAIL] 3. UI/UX:               X issues
+[PASS/WARN/FAIL] 4. Code Quality:        X issues
+[PASS/WARN/FAIL] 5. DB Schema:           X issues
+[PASS/WARN/FAIL] 6. Test Coverage:       X issues
+[PASS/WARN/FAIL] 7. API Consistency:     X issues
+[PASS/WARN/FAIL] 8. Backend Performance: X issues
+[PASS/WARN/FAIL] 9. Documentation:       X issues
+[PASS/WARN/FAIL] 10. TeeemTableView:     X issues
+[PASS/WARN/FAIL] 11. Frontend Perf:      X issues (PERF-001 to 005)
 
 Total: X issues (Y critical, Z warnings)
 
@@ -185,6 +223,7 @@ PRIORITY FIXES
 This command leverages checks from:
 - `gold-standard-sst.md` - Column type SSoT (31 types)
 - `code-guardian.md` - Pattern detection (5 patterns)
+- `performance-auditor.md` - Frontend performance (PERF-001 to 005)
 - `ui-table-auditor.md` - Table compliance (including foundationIdNumeric)
 - `ui-compliance-auditor.md` - Frontend standards
 - `architecture-guardian.md` - SOLID principles

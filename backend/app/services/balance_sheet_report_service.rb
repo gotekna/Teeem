@@ -67,16 +67,16 @@ class BalanceSheetReportService
     # Title
     canvas.fill_color("FFFFFF")
     canvas.font("Helvetica", size: 20, variant: :bold)
-    canvas.text("Balance Sheet", at: [50, 815])
+    canvas.text("Balance Sheet", at: [ 50, 815 ])
 
     canvas.font("Helvetica", size: 11)
-    canvas.text("From Xero Accounting", at: [50, 798])
+    canvas.text("From Xero Accounting", at: [ 50, 798 ])
 
     # Date
     canvas.font("Helvetica", size: 10)
     report_date = @report.report_date || Date.current
-    canvas.text("As at #{format_date(report_date)}", at: [420, 815])
-    canvas.text(@report.financial_year, at: [420, 798])
+    canvas.text("As at #{format_date(report_date)}", at: [ 420, 815 ])
+    canvas.text(@report.financial_year, at: [ 420, 798 ])
   end
 
   def draw_company_info(canvas)
@@ -94,12 +94,12 @@ class BalanceSheetReportService
     canvas.stroke
 
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text("Company Details", at: [box_x + 10, box_y - 15])
+    canvas.text("Company Details", at: [ box_x + 10, box_y - 15 ])
 
     canvas.font("Helvetica", size: 9)
-    canvas.text(@report.company_name, at: [box_x + 10, box_y - 30])
-    canvas.text("Code: #{@report.company_code}", at: [box_x + 10, box_y - 42]) if @report.company_code.present?
-    canvas.text("ABN: #{@company.abn}", at: [box_x + 10, box_y - 54]) if @company&.abn.present?
+    canvas.text(@report.company_name, at: [ box_x + 10, box_y - 30 ])
+    canvas.text("Code: #{@report.company_code}", at: [ box_x + 10, box_y - 42 ]) if @report.company_code.present?
+    canvas.text("ABN: #{@company.abn}", at: [ box_x + 10, box_y - 54 ]) if @company&.abn.present?
 
     # Summary box on right
     draw_summary_box(canvas)
@@ -123,19 +123,19 @@ class BalanceSheetReportService
 
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 10, variant: :bold)
-    canvas.text("Financial Position", at: [box_x + 10, box_y - 15])
+    canvas.text("Financial Position", at: [ box_x + 10, box_y - 15 ])
 
     y = box_y - 35
     canvas.font("Helvetica", size: 9)
 
     canvas.fill_color(ASSETS_COLOR)
-    canvas.text("Total Assets:", at: [box_x + 10, y])
-    canvas.text(format_currency(@report.total_assets), at: [box_x + 120, y])
+    canvas.text("Total Assets:", at: [ box_x + 10, y ])
+    canvas.text(format_currency(@report.total_assets), at: [ box_x + 120, y ])
 
     y -= 14
     canvas.fill_color(LIABILITIES_COLOR)
-    canvas.text("Total Liabilities:", at: [box_x + 10, y])
-    canvas.text(format_currency(@report.total_liabilities), at: [box_x + 120, y])
+    canvas.text("Total Liabilities:", at: [ box_x + 10, y ])
+    canvas.text(format_currency(@report.total_liabilities), at: [ box_x + 120, y ])
 
     y -= 14
     canvas.fill_color("000000")
@@ -147,13 +147,13 @@ class BalanceSheetReportService
     net_assets = @report.net_assets || (@report.total_assets.to_f - @report.total_liabilities.to_f)
 
     canvas.fill_color(EQUITY_COLOR)
-    canvas.text("Net Assets:", at: [box_x + 10, y])
-    canvas.text(format_currency(net_assets), at: [box_x + 120, y])
+    canvas.text("Net Assets:", at: [ box_x + 10, y ])
+    canvas.text(format_currency(net_assets), at: [ box_x + 120, y ])
 
     y -= 16
     canvas.fill_color("666666")
     canvas.font("Helvetica", size: 7)
-    canvas.text("(Equals Total Equity)", at: [box_x + 10, y])
+    canvas.text("(Equals Total Equity)", at: [ box_x + 10, y ])
     canvas.fill_color("000000")
   end
 
@@ -165,7 +165,7 @@ class BalanceSheetReportService
     return unless report_data.is_a?(Hash) && report_data["Rows"].present?
 
     canvas.font("Helvetica", size: 11, variant: :bold)
-    canvas.text("Detailed Breakdown", at: [50, y_start])
+    canvas.text("Detailed Breakdown", at: [ 50, y_start ])
 
     y = y_start - 25
 
@@ -176,8 +176,8 @@ class BalanceSheetReportService
 
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 9, variant: :bold)
-    canvas.text("Account", at: [55, y])
-    canvas.text("Amount", at: [480, y])
+    canvas.text("Account", at: [ 55, y ])
+    canvas.text("Amount", at: [ 480, y ])
 
     canvas.stroke_color(BORDER_COLOR)
     canvas.line(50, y - 8, 555, y - 8)
@@ -196,13 +196,13 @@ class BalanceSheetReportService
       # Section header with color coding
       canvas.font("Helvetica", size: 9, variant: :bold)
       section_color = case title.downcase
-                      when /asset/ then ASSETS_COLOR
-                      when /liabilit/ then LIABILITIES_COLOR
-                      when /equity/ then EQUITY_COLOR
-                      else ACCENT_COLOR
-                      end
+      when /asset/ then ASSETS_COLOR
+      when /liabilit/ then LIABILITIES_COLOR
+      when /equity/ then EQUITY_COLOR
+      else ACCENT_COLOR
+      end
       canvas.fill_color(section_color)
-      canvas.text(title.upcase, at: [55, y])
+      canvas.text(title.upcase, at: [ 55, y ])
       canvas.fill_color("000000")
       y -= 15
 
@@ -218,8 +218,8 @@ class BalanceSheetReportService
           account_name = cells[0]&.dig("Value") || ""
           amount = cells[1]&.dig("Value")&.to_f || 0
 
-          canvas.text("  #{account_name}", at: [55, y])
-          canvas.text(format_currency(amount), at: [480, y])
+          canvas.text("  #{account_name}", at: [ 55, y ])
+          canvas.text(format_currency(amount), at: [ 480, y ])
           y -= 12
 
         when "SummaryRow"
@@ -228,8 +228,8 @@ class BalanceSheetReportService
           amount = cells[1]&.dig("Value")&.to_f || 0
 
           canvas.font("Helvetica", size: 9, variant: :bold)
-          canvas.text(label, at: [55, y])
-          canvas.text(format_currency(amount), at: [480, y])
+          canvas.text(label, at: [ 55, y ])
+          canvas.text(format_currency(amount), at: [ 480, y ])
           canvas.font("Helvetica", size: 8)
           y -= 15
         end
@@ -249,13 +249,13 @@ class BalanceSheetReportService
       y -= 20
       canvas.font("Helvetica", size: 9)
       canvas.fill_color("666666")
-      canvas.text("Accounting Equation: Assets = Liabilities + Equity", at: [55, y])
+      canvas.text("Accounting Equation: Assets = Liabilities + Equity", at: [ 55, y ])
 
       y -= 12
       assets = @report.total_assets.to_f
       liabilities = @report.total_liabilities.to_f
       net = @report.net_assets.to_f
-      canvas.text("#{format_currency(assets)} = #{format_currency(liabilities)} + #{format_currency(net)}", at: [55, y])
+      canvas.text("#{format_currency(assets)} = #{format_currency(liabilities)} + #{format_currency(net)}", at: [ 55, y ])
       canvas.fill_color("000000")
     end
   end
@@ -271,10 +271,10 @@ class BalanceSheetReportService
     canvas.fill_color("666666")
     disclaimer = "This report was generated from Xero accounting software. " \
                  "For official records, refer to your audited financial statements."
-    canvas.text(disclaimer, at: [50, 45])
+    canvas.text(disclaimer, at: [ 50, 45 ])
 
     # Generated timestamp
-    canvas.text("Generated: #{Time.current.strftime('%d %b %Y at %H:%M')}", at: [50, 30])
+    canvas.text("Generated: #{Time.current.strftime('%d %b %Y at %H:%M')}", at: [ 50, 30 ])
     canvas.fill_color("000000")
   end
 

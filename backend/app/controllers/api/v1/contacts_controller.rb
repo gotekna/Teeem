@@ -21,7 +21,7 @@ module Api
 
         # Filter to only show actual company directors (from company_directors table)
         if params[:is_director] == "true"
-          director_contact_ids = CompanyDirector.where(is_current: true).pluck(:contact_id).uniq
+          director_contact_ids = CorporateCompanyDirector.where(is_current: true).pluck(:contact_id).uniq
           @contacts = @contacts.where(id: director_contact_ids)
         end
 
@@ -101,7 +101,7 @@ module Api
           only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status, :is_family_member, :is_potential_director, :company_group_id, :is_team_contact ] + director_fields,
           include: {
             portal_user: { only: [ :id, :email, :portal_type, :active ] },
-            company_group: { only: [ :id, :name ] }
+            corporate_group: { only: [ :id, :name ] }
           },
           methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?, :company_group_memberships_count ]
         )
@@ -184,7 +184,7 @@ module Api
             contact_addresses: { only: [ :id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary ] },
             contact_groups: { only: [ :id, :name, :status, :xero_contact_group_id ] },
             portal_user: { only: [ :id, :email, :portal_type, :active, :last_login_at, :created_at ] },
-            company_group: { only: [ :id, :name ] }
+            corporate_group: { only: [ :id, :name ] }
           },
           methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies, :display_name ]
         )
@@ -230,7 +230,7 @@ module Api
         # Add primary company and employment details
         if @contact.primary_company.present?
           company = @contact.primary_company
-          company_record = Company.find_by(contact_id: company.id)
+          company_record = CorporateCompany.find_by(contact_id: company.id)
 
           contact_json[:primary_company] = {
             id: company.id,
@@ -336,7 +336,7 @@ module Api
           end
 
         # SSoT: If this contact is linked to a Company, include company data
-        linked_company = Company.find_by(contact_id: @contact.id)
+        linked_company = CorporateCompany.find_by(contact_id: @contact.id)
         if linked_company
           linked_company_data = {
             id: linked_company.id,
@@ -351,12 +351,12 @@ module Api
             registered_office_address: linked_company.registered_office_address,
             principal_place_of_business: linked_company.principal_place_of_business,
             company_group_id: linked_company.company_group_id,
-            company_group_name: linked_company.company_group&.name
+            company_group_name: linked_company.corporate_group&.name
           }
 
           # SSoT: Only include corporate data (directors, shareholdings) if user has permission
           if can_view_corporate?
-            linked_company_data[:directors] = linked_company.company_directors.includes(:contact).map do |d|
+            linked_company_data[:directors] = linked_company.corporate_company_directors.includes(:contact).map do |d|
               {
                 id: d.id,
                 contact_id: d.contact_id,
@@ -368,7 +368,7 @@ module Api
                 is_current: d.is_current
               }
             end
-            linked_company_data[:shareholdings] = linked_company.company_shareholdings.includes(:shareholder).map do |s|
+            linked_company_data[:shareholdings] = linked_company.corporate_company_shareholdings.includes(:shareholder).map do |s|
               {
                 id: s.id,
                 shareholder_type: s.shareholder_type,
@@ -380,9 +380,9 @@ module Api
                 date_acquired: s.acquisition_date
               }
             end
-            linked_company_data[:directors_count] = linked_company.company_directors.current.count
-            linked_company_data[:shareholdings_count] = linked_company.company_shareholdings.count
-            linked_company_data[:documents_count] = linked_company.company_documents.count
+            linked_company_data[:directors_count] = linked_company.corporate_company_directors.current.count
+            linked_company_data[:shareholdings_count] = linked_company.corporate_company_shareholdings.count
+            linked_company_data[:documents_count] = linked_company.corporate_company_documents.count
             # SSoT: Include bank accounts from the bank_accounts table
             linked_company_data[:bank_accounts] = linked_company.bank_accounts.active.map do |ba|
               {
@@ -468,7 +468,7 @@ module Api
         if @contact.link_to_cg
           if @contact.linked_company_id.present?
             # This contact is linked to a Company record
-            company = Company.find_by(id: @contact.linked_company_id)
+            company = CorporateCompany.find_by(id: @contact.linked_company_id)
             return render json: {
               success: false,
               error: "Cannot delete contact linked to Company '#{company&.name || 'Unknown'}'. Unlink from Company Group first.",
@@ -477,7 +477,7 @@ module Api
             }, status: :unprocessable_entity
           else
             # This is a person with Company Group memberships
-            membership_count = ContactCompanyGroupMembership.where(contact_id: @contact.id).count
+            membership_count = ContactCorporateGroupMembership.where(contact_id: @contact.id).count
             if membership_count > 0
               return render json: {
                 success: false,
@@ -490,7 +490,7 @@ module Api
         end
 
         # Check if this contact has a Company record pointing to it
-        linked_company = Company.find_by(contact_id: @contact.id)
+        linked_company = CorporateCompany.find_by(contact_id: @contact.id)
         if linked_company.present?
           return render json: {
             success: false,
@@ -749,7 +749,7 @@ module Api
         if existing_contact_with_company && existing_contact_with_company.primary_company
           # Found existing company for this domain - link to it
           company_contact = existing_contact_with_company.primary_company
-          company = Company.find_by(contact_id: company_contact.id)
+          company = CorporateCompany.find_by(contact_id: company_contact.id)
 
           @contact.update!(primary_company_id: company_contact.id)
 
@@ -811,8 +811,8 @@ module Api
 
           if has_acn || (has_abn && !is_sole_trader)
             # It's a company - check if company already exists
-            existing_company = Company.find_by(abn: website_details[:abn]) if website_details[:abn].present?
-            existing_company ||= Company.find_by(acn: website_details[:acn]) if website_details[:acn].present?
+            existing_company = CorporateCompany.find_by(abn: website_details[:abn]) if website_details[:abn].present?
+            existing_company ||= CorporateCompany.find_by(acn: website_details[:acn]) if website_details[:acn].present?
 
             if existing_company
               # Link to existing company
@@ -835,7 +835,7 @@ module Api
                 email: website_details[:email]
               )
 
-              company = Company.create!(
+              company = CorporateCompany.create!(
                 name: company_name,
                 contact_id: company_contact.id,
                 status: "active",
@@ -1186,7 +1186,7 @@ module Api
         source_id = params[:source_id]
         categories = params[:categories] # Optional array of categories to filter by
         set_as_default = params[:set_as_default] != false # Default to true unless explicitly false
-        effective_date = params[:effective_date].present? ? Date.parse(params[:effective_date]) : CompanySetting.today
+        effective_date = params[:effective_date].present? ? Date.parse(params[:effective_date]) : CorporateCompanySetting.today
 
         # Which price to copy: 'active' (default), 'latest', or 'oldest'
         # - active: Most recent date_effective (current active price)
@@ -1448,14 +1448,14 @@ module Api
               # Transfer linked_company_id if source has one and target doesn't
               if source.linked_company_id.present? && target_contact.linked_company_id.blank?
                 # Update the Company record to point to target contact
-                Company.where(contact_id: source.id).update_all(contact_id: target_id)
+                CorporateCompany.where(contact_id: source.id).update_all(contact_id: target_id)
                 target_contact.update(linked_company_id: source.linked_company_id, link_to_cg: true)
               end
 
               # Transfer Company Group memberships to target
-              ContactCompanyGroupMembership.where(contact_id: source.id).each do |membership|
+              ContactCorporateGroupMembership.where(contact_id: source.id).each do |membership|
                 # Check if target already has this membership
-                existing = ContactCompanyGroupMembership.find_by(
+                existing = ContactCorporateGroupMembership.find_by(
                   contact_id: target_id,
                   company_group_id: membership.company_group_id
                 )
@@ -1592,7 +1592,7 @@ module Api
             item_id = update[:item_id]
             new_price = update[:new_price].to_f
             change_reason = update[:change_reason].presence || "bulk_update"
-            date_effective = update[:date_effective].present? ? Date.parse(update[:date_effective].to_s) : CompanySetting.today
+            date_effective = update[:date_effective].present? ? Date.parse(update[:date_effective].to_s) : CorporateCompanySetting.today
 
             # Validate item exists
             item = PricebookItem.find_by(id: item_id)
@@ -2139,9 +2139,9 @@ module Api
       end
 
       # GET /api/v1/contacts/:id/company_group_memberships
-      # Returns all company group memberships for this contact
+      # Returns all corporate group memberships for this contact
       def company_group_memberships
-        memberships = @contact.company_group_memberships.includes(:company_group, :company)
+        memberships = @contact.corporate_group_memberships.includes(:corporate_group, :corporate_company)
 
         render json: {
           success: true,
@@ -2155,10 +2155,10 @@ module Api
       end
 
       # GET /api/v1/contacts/:id/directorships
-      # Returns all directorships for this contact (from CompanyDirector table)
+      # Returns all directorships for this contact (from CorporateCompanyDirector table)
       def directorships
-        directorships = @contact.company_directorships
-          .includes(company: :company_group)
+        directorships = @contact.corporate_company_directorships
+          .includes(company: :corporate_group)
           .order(is_current: :desc, appointment_date: :desc)
 
         render json: {
@@ -2173,7 +2173,7 @@ module Api
               company_status: d.company&.status,
               company_entity_type: d.company&.entity_type,
               company_group_id: d.company&.company_group_id,
-              company_group_name: d.company&.company_group&.name,
+              company_group_name: d.company&.corporate_group&.name,
               position: d.position,
               formatted_position: d.formatted_position,
               appointment_date: d.appointment_date,
@@ -2193,10 +2193,10 @@ module Api
       end
 
       # GET /api/v1/contacts/:id/shareholdings
-      # Returns all shareholdings for this contact (from CompanyShareholding table)
+      # Returns all shareholdings for this contact (from CorporateCompanyShareholding table)
       def shareholdings
-        shareholdings = @contact.company_shareholdings
-          .includes(company: :company_group)
+        shareholdings = @contact.corporate_company_shareholdings
+          .includes(company: :corporate_group)
           .order(created_at: :desc)
 
         render json: {
@@ -2211,7 +2211,7 @@ module Api
               company_status: s.company&.status,
               company_entity_type: s.company&.entity_type,
               company_group_id: s.company&.company_group_id,
-              company_group_name: s.company&.company_group&.name,
+              company_group_name: s.company&.corporate_group&.name,
               share_class: s.share_class,
               number_of_shares: s.number_of_shares,
               percentage_of_total: s.percentage_of_total,
@@ -2310,8 +2310,8 @@ module Api
       # and what those companies own (including trusts)
       def ownership_chain
         # Get direct shareholdings for this contact
-        direct_holdings = @contact.company_shareholdings
-          .includes(company: [ :company_group ])
+        direct_holdings = @contact.corporate_company_shareholdings
+          .includes(company: [ :corporate_group ])
           .where("number_of_shares > 0")
 
         chain = direct_holdings.map do |holding|
@@ -2545,7 +2545,7 @@ module Api
       # GET /api/v1/contacts/price_only_with_xero
       # Health check: Find price_only contacts that are synced to Xero (should never happen)
       def price_only_with_xero
-        violations = Contact.where(entity_type: 'price_only')
+        violations = Contact.where(entity_type: "price_only")
           .where.not(xero_id: nil)
           .select(:id, :display_name, :xero_id, :xero_contact_types, :is_active)
 
@@ -2571,7 +2571,7 @@ module Api
       # GET /api/v1/contacts/company_with_first_name
       # Health check: Find companies/trusts/price_only with first_name or last_name set
       def company_with_first_name
-        violations = Contact.where(entity_type: [ 'company', 'trust', 'price_only' ])
+        violations = Contact.where(entity_type: [ "company", "trust", "price_only" ])
           .where("first_name IS NOT NULL OR last_name IS NOT NULL")
           .select(:id, :display_name, :entity_type, :first_name, :last_name, :company_name_or_trust, :is_active)
 
@@ -2599,7 +2599,7 @@ module Api
       # GET /api/v1/contacts/person_without_name
       # Health check: Find person/sole_trader contacts without first_name
       def person_without_name
-        violations = Contact.where(entity_type: [ 'person', 'sole_trader' ])
+        violations = Contact.where(entity_type: [ "person", "sole_trader" ])
           .where("first_name IS NULL OR first_name = ''")
           .select(:id, :display_name, :entity_type, :first_name, :last_name, :is_active)
 
@@ -2628,7 +2628,7 @@ module Api
       def missing_contact_info
         begin
           # Exclude price_only - they're just pricebook placeholders
-          violations = Contact.where.not(entity_type: 'price_only')
+          violations = Contact.where.not(entity_type: "price_only")
             .where("(mobile_phone IS NULL OR mobile_phone = '') AND (email IS NULL OR email = '')")
             .select(:id, :display_name, :entity_type, :mobile_phone, :email, :is_active)
 
@@ -2706,7 +2706,7 @@ module Api
       def preview_employee_extraction
         # Parse email patterns - can be array or comma-separated string
         email_patterns = if params[:email_patterns].is_a?(String)
-          params[:email_patterns].split(',').map(&:strip).reject(&:blank?)
+          params[:email_patterns].split(",").map(&:strip).reject(&:blank?)
         else
           Array(params[:email_patterns]).reject(&:blank?)
         end
@@ -2756,8 +2756,8 @@ module Api
         # Step 2: Determine parent company context (use first pattern's domain)
         first_pattern = email_patterns.first
         if first_pattern
-          parent_domain = first_pattern.split('@').last
-          parent_company_name = parent_domain.split('.').first.titleize
+          parent_domain = first_pattern.split("@").last
+          parent_company_name = parent_domain.split(".").first.titleize
           parent_company = Contact.find_by(
             "LOWER(display_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?",
             "%#{parent_company_name.downcase}%",
@@ -2801,7 +2801,7 @@ module Api
         end
 
         # Filter out generic/system emails
-        generic_patterns = ['noreply', 'no-reply', 'donotreply', 'postmaster', 'mailer-daemon', 'accounts@', 'info@', 'support@', 'admin@']
+        generic_patterns = [ "noreply", "no-reply", "donotreply", "postmaster", "mailer-daemon", "accounts@", "info@", "support@", "admin@" ]
         candidate_emails = unique_emails.reject do |email_addr|
           generic_patterns.any? { |pattern| email_addr.downcase.include?(pattern) }
         end
@@ -2809,8 +2809,8 @@ module Api
         # Build preview data for each unique email address
         preview_data = candidate_emails.filter_map do |email_addr|
           # Extract person name from email (e.g., "sophie.harder" -> "Sophie Harder")
-          email_local = email_addr.split('@').first
-          person_name_from_email = email_local.split(/[._-]/).map(&:capitalize).join(' ')
+          email_local = email_addr.split("@").first
+          person_name_from_email = email_local.split(/[._-]/).map(&:capitalize).join(" ")
 
           # Check if this email already exists on any contact
           contact_with_email = Contact.find_by(email: email_addr)
@@ -2820,7 +2820,7 @@ module Api
           # 1. Single name (e.g., "andrew") - no matches, too ambiguous
           # 2. First name + single initial (e.g., "Justin S") - require initial to match START of last name
           # 3. First name + full last name (e.g., "Sophie Harder") - standard matching
-          name_parts = person_name_from_email.downcase.split(' ')
+          name_parts = person_name_from_email.downcase.split(" ")
 
           matching_contacts = if name_parts.length < 2
             # Single name part only (e.g., "andrew@tekna.com.au")
@@ -2839,13 +2839,13 @@ module Api
           else
             # Multiple full name parts (3+ chars each): require ALL parts to be present (AND logic)
             # e.g., "Sophie Harder" matches "Sophie Harder" and "Sophie Mee-jeong Harder"
-            Contact.where(entity_type: 'person')
-              .where(name_parts.map { "LOWER(display_name) ILIKE ?" }.join(' AND '), *name_parts.map { |p| "%#{p}%" })
+            Contact.where(entity_type: "person")
+              .where(name_parts.map { "LOWER(display_name) ILIKE ?" }.join(" AND "), *name_parts.map { |p| "%#{p}%" })
               .limit(5)
           end
 
           # Get email domain company (skip personal email providers)
-          domain = email_addr.split('@').last.downcase
+          domain = email_addr.split("@").last.downcase
 
           # Personal email domain patterns - match base name regardless of TLD
           personal_domain_bases = %w[
@@ -2856,7 +2856,7 @@ module Api
           ]
 
           # Check if domain matches any personal email pattern (e.g., outlook.com, outlook.com.au, hotmail.co.uk)
-          domain_base = domain.split('.').first
+          domain_base = domain.split(".").first
           is_personal_domain = personal_domain_bases.include?(domain_base)
 
           domain_company = nil
@@ -2865,7 +2865,7 @@ module Api
           unless is_personal_domain
             # For subdomains like "au.harveynorman.com", extract the main company name
             # Split by dots and find the most meaningful part (not "au", "com", etc.)
-            domain_parts = domain.split('.')
+            domain_parts = domain.split(".")
             tlds_and_country_codes = %w[com net org edu gov au uk nz us ca co]
             meaningful_parts = domain_parts.reject { |p| tlds_and_country_codes.include?(p.downcase) || p.length <= 2 }
             domain_company_name = (meaningful_parts.first || domain_parts.first).titleize
@@ -2875,13 +2875,13 @@ module Api
             # (e.g., contact might have incorrect data in company_name_or_trust field)
 
             # Step 1: Try exact-ish match on display_name first
-            domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+            domain_company = Contact.where(entity_type: [ "company", "trust", "sole_trader" ])
               .where("LOWER(display_name) LIKE ?", "%#{domain_company_name.downcase}%")
               .first
 
             # Step 2: If no display_name match, try with spaces removed on display_name
             if domain_company.nil?
-              domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+              domain_company = Contact.where(entity_type: [ "company", "trust", "sole_trader" ])
                 .where("LOWER(REPLACE(display_name, ' ', '')) LIKE ?",
                        "%#{domain_company_name.downcase.gsub(' ', '')}%")
                 .first
@@ -2890,7 +2890,7 @@ module Api
             # Step 3: Only fall back to company_name_or_trust if no display_name match
             # (company_name_or_trust can have stale/incorrect data)
             if domain_company.nil?
-              domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+              domain_company = Contact.where(entity_type: [ "company", "trust", "sole_trader" ])
                 .where("LOWER(company_name_or_trust) LIKE ?", "%#{domain_company_name.downcase}%")
                 .first
             end
@@ -2900,7 +2900,7 @@ module Api
             # e.g., "SVP" matches "SV Partners" (S-V from first two words)
             if domain_company.nil? && domain_company_name.length <= 5
               abbrev = domain_company_name.upcase
-              domain_company = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+              domain_company = Contact.where(entity_type: [ "company", "trust", "sole_trader" ])
                 .where("UPPER(display_name) LIKE ?", "#{abbrev[0..1]}%")
                 .first
             end
@@ -2917,7 +2917,7 @@ module Api
               if domain_company.nil? && first_match
                 employee_rel = ContactRelationship.find_by(
                   source_contact_id: first_match.id,
-                  relationship_type: 'employee_of'
+                  relationship_type: "employee_of"
                 )
                 domain_company = Contact.find_by(id: employee_rel&.related_contact_id)
               end
@@ -2944,7 +2944,7 @@ module Api
             ContactRelationship.exists?(
               source_contact_id: person_id,
               related_contact_id: company_id,
-              relationship_type: 'employee_of'
+              relationship_type: "employee_of"
             )
           }
 
@@ -2995,20 +2995,20 @@ module Api
                 website: domain_company.website,
                 exists: true
               }
-            elsif domain_company_name.present? && !is_personal_domain
+                            elsif domain_company_name.present? && !is_personal_domain
               # Only suggest creating a company for non-personal domains
               {
                 id: nil,
                 name: domain_company_name,
-                entity_type: 'company',
+                entity_type: "company",
                 office_phone: nil,
                 website: nil,
                 exists: false
               }
-            else
+                            else
               # Personal email domain - don't suggest any company
               nil
-            end,
+                            end,
 
             # Parent companies this person was communicating with
             parent_companies: parent_companies.map { |pc|
@@ -3088,7 +3088,7 @@ module Api
               display_name: extraction[:new_contact_name],
               email: extraction[:email],
               mobile_phone: extraction[:mobile],
-              entity_type: 'person',
+              entity_type: "person",
               is_active: true
             )
             contacts_created += 1
@@ -3162,7 +3162,7 @@ module Api
               company = Contact.create!(
                 display_name: extraction[:domain_company_name],
                 company_name_or_trust: extraction[:domain_company_name],
-                entity_type: 'company',
+                entity_type: "company",
                 is_active: true
               )
               companies_created += 1
@@ -3173,7 +3173,7 @@ module Api
               ContactRelationship.create!(
                 source_contact_id: contact.id,
                 related_contact_id: company.id,
-                relationship_type: 'employee_of',
+                relationship_type: "employee_of",
                 is_active: true
               )
               relationships_created += 1
@@ -3190,7 +3190,7 @@ module Api
               ContactRelationship.create!(
                 source_contact_id: contact.id,
                 related_contact_id: parent_company.id,
-                relationship_type: 'employee_of',
+                relationship_type: "employee_of",
                 is_active: true
               )
               relationships_created += 1
@@ -3375,7 +3375,7 @@ module Api
         primary.first_name ||= duplicate.first_name
         primary.last_name ||= duplicate.last_name
         primary.primary_role ||= duplicate.primary_role
-        primary.notes = [primary.notes, duplicate.notes].compact.reject(&:blank?).join("\n\n---\nMerged from #{duplicate.display_name}:\n") if duplicate.notes.present? && duplicate.notes != primary.notes
+        primary.notes = [ primary.notes, duplicate.notes ].compact.reject(&:blank?).join("\n\n---\nMerged from #{duplicate.display_name}:\n") if duplicate.notes.present? && duplicate.notes != primary.notes
         primary.save! if primary.changed?
 
         # Move outgoing relationships (where duplicate is source)
@@ -3557,7 +3557,7 @@ module Api
           id: membership.id,
           contact_id: membership.contact_id,
           company_group_id: membership.company_group_id,
-          company_group_name: membership.company_group&.name,
+          company_group_name: membership.corporate_group&.name,
           membership_type: membership.membership_type,
           company_id: membership.company_id,
           company_name: membership.company&.name,
@@ -3601,10 +3601,10 @@ module Api
         visited.add(company.id)
 
         # Get companies this company owns shares in
-        child_holdings = CompanyShareholding
+        child_holdings = CorporateCompanyShareholding
           .where(shareholder_type: "Company", shareholder_id: company.id)
           .where("number_of_shares > 0")
-          .includes(company: [ :company_group ])
+          .includes(company: [ :corporate_group ])
 
         children = child_holdings.map do |holding|
           child_percentage = holding.percentage_of_total
@@ -3615,7 +3615,7 @@ module Api
         # Check if this company is a trustee
         trust_entity = nil
         if company.is_trustee && company.trust_name.present?
-          trust_entity = Company.where(entity_type: [ "Trust", "Superfund" ]).find_by(name: company.trust_name)
+          trust_entity = CorporateCompany.where(entity_type: [ "Trust", "Superfund" ]).find_by(name: company.trust_name)
         end
 
         {

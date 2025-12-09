@@ -78,7 +78,7 @@ export function PDFViewer(props: PDFViewerProps) {
   const handleError = React.useCallback((e: Error) => {
     setError(e.message || "Failed to load PDF");
     props.onError?.(e);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [props.onError]);
 
   const handleRetry = React.useCallback(() => {

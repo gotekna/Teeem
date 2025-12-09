@@ -36,7 +36,7 @@ class CreateProfitLossReports < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :profit_loss_reports, [:company_id, :financial_year], unique: true, name: "idx_pl_reports_unique"
+    add_index :profit_loss_reports, [ :company_id, :financial_year ], unique: true, name: "idx_pl_reports_unique"
     add_index :profit_loss_reports, :financial_year
     add_index :profit_loss_reports, :status
     add_index :profit_loss_reports, :company_code

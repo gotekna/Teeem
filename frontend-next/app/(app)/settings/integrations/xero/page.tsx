@@ -25,12 +25,15 @@ import {
   Download,
   Upload,
   FileText,
+  Star,
+  Clock,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { XeroFieldMapping, XeroContactSync } from "./components/XeroTabs";
 import { XeroPdfSyncStatus } from "./components/XeroPdfSyncStatus";
+import { XeroConnectionsPopup } from "@/components/xero/XeroConnectionsPopup";
 
 interface XeroStatus {
   connected: boolean;
@@ -52,6 +55,17 @@ interface XeroTenant {
   expired?: boolean;
 }
 
+interface CompanyXeroConnection {
+  id: number;
+  company_id: number;
+  company: {
+    id: number;
+    name: string;
+  };
+  xero_tenant_name: string;
+  connection_status: string;
+}
+
 interface PdfSyncHealth {
   stage1_percentage: number;
   stage2_percentage: number;
@@ -66,12 +80,29 @@ export default function XeroIntegrationPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentTab = searchParams.get("tab") || "connection";
+  const showConnectionsParam = searchParams.get("connections");
   const [status, setStatus] = React.useState<XeroStatus | null>(null);
   const [tenants, setTenants] = React.useState<XeroTenant[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [connecting, setConnecting] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
   const [pdfSyncHealth, setPdfSyncHealth] = React.useState<PdfSyncHealth | null>(null);
+  const [showConnectionsPopup, setShowConnectionsPopup] = React.useState(showConnectionsParam === "true");
+  const [companyConnections, setCompanyConnections] = React.useState<CompanyXeroConnection[]>([]);
+  const [settingPrimary, setSettingPrimary] = React.useState<string | null>(null);
+  const [organizationsExpanded, setOrganizationsExpanded] = React.useState<boolean | null>(null);
+
+  // Compute if any tenant has expired (for default expanded state)
+  const hasExpiredTenants = React.useMemo(() => {
+    return tenants.some(t => t.expired);
+  }, [tenants]);
+
+  // Set default expanded state based on health - only once when tenants load
+  React.useEffect(() => {
+    if (tenants.length > 0 && organizationsExpanded === null) {
+      setOrganizationsExpanded(hasExpiredTenants);
+    }
+  }, [tenants, hasExpiredTenants, organizationsExpanded]);
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -80,13 +111,15 @@ export default function XeroIntegrationPage() {
         const statusResponse = await api.xero.getStatus();
         setStatus(statusResponse.data || { connected: false });
 
-        // Fetch all tenants and PDF sync status if connected
+        // Fetch all tenants, PDF sync status, and company connections if connected
         if (statusResponse.data?.connected) {
-          const [tenantsResponse, pdfSyncResponse] = await Promise.all([
+          const [tenantsResponse, pdfSyncResponse, connectionsResponse] = await Promise.all([
             api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants"),
             api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"),
+            api.get<{ success: boolean; companies: CompanyXeroConnection[] }>("/api/v1/company_xero_connections"),
           ]);
           setTenants(tenantsResponse.tenants || []);
+          setCompanyConnections(connectionsResponse.companies || []);
 
           // Extract health data from PDF sync response
           if (pdfSyncResponse.success && pdfSyncResponse.data) {
@@ -156,6 +189,49 @@ export default function XeroIntegrationPage() {
     }
   };
 
+  const handleSetPrimary = async (tenantId: string) => {
+    setSettingPrimary(tenantId);
+    try {
+      await api.post("/api/v1/xero/set_primary", { tenant_id: tenantId });
+      // Refresh tenants list
+      const tenantsResponse = await api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants");
+      setTenants(tenantsResponse.tenants || []);
+    } catch (error) {
+      console.error("Failed to set primary:", error);
+    } finally {
+      setSettingPrimary(null);
+    }
+  };
+
+  // Helper to format token expiry with time
+  const formatTokenExpiry = (expiresAt?: string, expired?: boolean) => {
+    if (!expiresAt) return "Unknown";
+    const date = new Date(expiresAt);
+    const now = new Date();
+    const diffMs = date.getTime() - now.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+
+    if (expired || diffMs <= 0) {
+      return "Expired";
+    }
+
+    if (diffMins < 60) {
+      return `${diffMins}m`;
+    }
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) {
+      return `${diffHours}h ${diffMins % 60}m`;
+    }
+
+    return date.toLocaleDateString("en-AU", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -208,7 +284,7 @@ export default function XeroIntegrationPage() {
 
         {/* Connection Tab */}
         <TabsContent value="connection" className="space-y-6">
-          {/* Status Card */}
+          {/* Simplified Status Card with Action Buttons */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -241,78 +317,30 @@ export default function XeroIntegrationPage() {
                 )}
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent>
               {status?.connected ? (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground">Organization</p>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{status.tenant_name || status.organization_name || "Unknown"}</p>
-                        {tenants.find(t => t.is_primary) && (
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-xs">
-                            Primary
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground">Connected</p>
-                      <p className="font-medium">
-                        {tenants.find(t => t.is_primary)?.connected_at
-                          ? new Date(tenants.find(t => t.is_primary)!.connected_at).toLocaleDateString("en-AU", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "Unknown"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground">Token Expires</p>
-                      <p className="font-medium">
-                        {status.expires_at
-                          ? new Date(status.expires_at).toLocaleDateString("en-AU", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })
-                          : "Unknown"}
-                      </p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground">Status</p>
-                      <p className="font-medium">
-                        {status.expired ? (
-                          <span className="text-red-600">Expired - Reconnect Required</span>
-                        ) : (
-                          <span className="text-green-600">Active</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={handleConnect} disabled={connecting}>
-                      <RefreshCw className={`h-4 w-4 mr-2 ${connecting ? "animate-spin" : ""}`} />
-                      Reconnect
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={handleDisconnect}
-                      disabled={disconnecting}
-                    >
-                      {disconnecting ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <XCircle className="h-4 w-4 mr-2" />
-                      )}
-                      Disconnect
-                    </Button>
-                  </div>
-                </>
+                <div className="flex items-center gap-2">
+                  <Button onClick={() => setShowConnectionsPopup(true)}>
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Manage Company Connections
+                  </Button>
+                  <Button variant="outline" onClick={handleConnect} disabled={connecting}>
+                    <RefreshCw className={`h-4 w-4 mr-2 ${connecting ? "animate-spin" : ""}`} />
+                    Reconnect
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDisconnect}
+                    disabled={disconnecting}
+                  >
+                    {disconnecting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <XCircle className="h-4 w-4 mr-2" />
+                    )}
+                    Disconnect
+                  </Button>
+                </div>
               ) : (
                 <>
                   <Alert>
@@ -322,8 +350,7 @@ export default function XeroIntegrationPage() {
                       Connect your Xero account to sync invoices, expenses, and financial data.
                     </AlertDescription>
                   </Alert>
-
-                  <Button onClick={handleConnect} disabled={connecting}>
+                  <Button onClick={handleConnect} disabled={connecting} className="mt-4">
                     {connecting ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     ) : (
@@ -335,6 +362,169 @@ export default function XeroIntegrationPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Connected Xero Organizations - Collapsible Section */}
+          {status?.connected && tenants.length > 0 && (
+            <div className="border rounded-lg bg-card">
+              <button
+                onClick={() => setOrganizationsExpanded(!organizationsExpanded)}
+                className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  {organizationsExpanded ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="font-medium">Connected Xero Organizations</span>
+                  <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100 text-xs">
+                    {tenants.length}
+                  </Badge>
+                  {hasExpiredTenants && (
+                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-xs">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Reconnection Required
+                    </Badge>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {organizationsExpanded ? "Click to collapse" : "Click to expand"}
+                </span>
+              </button>
+
+              {organizationsExpanded && (
+                <div className="px-4 pb-4 space-y-2">
+                  {tenants
+                    .sort((a, b) => {
+                      // Primary first, then alphabetical
+                      if (a.is_primary) return -1;
+                      if (b.is_primary) return 1;
+                      return a.tenant_name.localeCompare(b.tenant_name);
+                    })
+                    .map((tenant) => (
+                    <div
+                      key={tenant.tenant_id}
+                      className={`flex items-center justify-between p-3 rounded-lg border ${
+                        tenant.is_primary
+                          ? "bg-cyan-50 border-cyan-200"
+                          : tenant.expired
+                          ? "bg-red-50 border-red-200"
+                          : "bg-muted border-transparent"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded ${
+                          tenant.is_primary
+                            ? "bg-cyan-100"
+                            : tenant.expired
+                            ? "bg-red-100"
+                            : "bg-gray-100"
+                        }`}>
+                          {tenant.is_primary ? (
+                            <Star className="h-4 w-4 text-cyan-600" />
+                          ) : (
+                            <CreditCard className={`h-4 w-4 ${tenant.expired ? "text-red-600" : "text-gray-600"}`} />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{tenant.tenant_name}</p>
+                            {tenant.is_primary && (
+                              <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100 text-xs">
+                                Primary
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>
+                              Token: {formatTokenExpiry(tenant.expires_at, tenant.expired)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {tenant.expired ? (
+                          <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Expired
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Active
+                          </Badge>
+                        )}
+                        {!tenant.is_primary && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSetPrimary(tenant.tenant_id);
+                            }}
+                            disabled={settingPrimary === tenant.tenant_id}
+                          >
+                            {settingPrimary === tenant.tenant_id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Star className="h-3 w-3" />
+                            )}
+                            <span className="ml-1">Set Primary</span>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Company Connections Card */}
+          {status?.connected && companyConnections.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Connected Companies</CardTitle>
+                    <CardDescription>
+                      TEEEM companies linked to Xero organizations
+                    </CardDescription>
+                  </div>
+                  <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                    {companyConnections.length} {companyConnections.length === 1 ? 'Company' : 'Companies'}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {companyConnections.map((connection) => (
+                    <div
+                      key={connection.id}
+                      className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-cyan-100 rounded">
+                          <CreditCard className="h-4 w-4 text-cyan-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{connection.company.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Linked to: {connection.xero_tenant_name}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        {connection.connection_status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* PDF Sync Status - Above Health Check */}
           {status?.connected && (
@@ -507,6 +697,27 @@ export default function XeroIntegrationPage() {
           <XeroContactSync />
         </TabsContent>
       </Tabs>
+
+      {/* Xero Connections Popup */}
+      <XeroConnectionsPopup
+        isOpen={showConnectionsPopup}
+        onClose={async () => {
+          setShowConnectionsPopup(false);
+          // Refresh company connections list
+          try {
+            const connectionsResponse = await api.get<{ success: boolean; companies: CompanyXeroConnection[] }>(
+              "/api/v1/company_xero_connections"
+            );
+            setCompanyConnections(connectionsResponse.companies || []);
+          } catch (error) {
+            console.error("Failed to refresh connections:", error);
+          }
+          // Remove the connections parameter from URL
+          const params = new URLSearchParams(searchParams.toString());
+          params.delete("connections");
+          router.push(`/settings/integrations/xero?${params.toString()}`);
+        }}
+      />
     </div>
   );
 }

@@ -93,7 +93,7 @@ export function JobActivityTab({ jobId }: JobActivityTabProps) {
     if (jobId) {
       loadActivities();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [jobId, page]);
 
   const loadActivities = async () => {

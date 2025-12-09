@@ -90,6 +90,11 @@ class Api::V1::ChatMessagesController < ApplicationController
   # GET /api/v1/chat_messages?contact_id=101
   # GET /api/v1/chat_messages?case_id=102
   def index
+    # Disable HTTP caching for real-time chat
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
     if params[:job_id].present?
       @messages = ChatMessage.for_job(params[:job_id]).includes(:user).recent(100)
     elsif params[:contact_id].present?
@@ -127,7 +132,7 @@ class Api::V1::ChatMessagesController < ApplicationController
     if params[:chat_message][:file].present?
       @message.file.attach(params[:chat_message][:file])
       @message.file_name = params[:chat_message][:file].original_filename
-      @message.message_type ||= 'file'
+      @message.message_type ||= "file"
     end
 
     if @message.save
@@ -159,7 +164,7 @@ class Api::V1::ChatMessagesController < ApplicationController
   def unread_count
     last_read = current_user.last_chat_read_at || Time.at(0)
     count = ChatMessage.where("created_at > ?", last_read)
-                      .where.not(user_id: current_user.id)
+                      .where(recipient_user_id: current_user.id)
                       .count
     render json: { count: count }
   end

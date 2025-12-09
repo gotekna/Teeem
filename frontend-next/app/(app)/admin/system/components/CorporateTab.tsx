@@ -109,7 +109,7 @@ function GroupsSubTab() {
 
   React.useEffect(() => {
     loadGroups();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, []);
 
   const loadGroups = async () => {

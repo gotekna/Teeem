@@ -17,8 +17,46 @@ import {
   Download,
   Upload,
   ExternalLink,
+  Gauge,
+  Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
+
+// Rate limit types
+interface RateLimitUsage {
+  used: number;
+  limit: number;
+  remaining: number;
+  percentage: number;
+}
+
+interface TenantRateLimit {
+  tenant_id: string;
+  tenant_name: string;
+  minute: RateLimitUsage | null;
+  daily: RateLimitUsage | null;
+  total_7d: number;
+  can_make_request: boolean;
+  // SSoT: Credential status from backend
+  status?: 'connected' | 'degraded' | 'disconnected';
+  needs_reauth?: boolean;
+  expired?: boolean;
+  degraded?: boolean;
+}
+
+interface RateLimitsData {
+  limits: {
+    minute: number;
+    daily: number;
+    concurrent: number;
+  };
+  tenants: TenantRateLimit[];
+  aggregate: {
+    minute_requests: number;
+    daily_requests: number;
+    total_7d_requests: number;
+  };
+}
 
 interface Blocker {
   reason: string;
@@ -66,6 +104,14 @@ interface Stage2PdfDownload {
   blocker: Blocker | null;
 }
 
+interface SsotViolation {
+  type: string;
+  count: number;
+  severity: "info" | "warning" | "error";
+  description: string;
+  action_required: string | null;
+}
+
 interface Stage3Sharepoint {
   total_to_upload: number;
   uploaded: number;
@@ -73,6 +119,8 @@ interface Stage3Sharepoint {
   progress_percentage: number;
   blocker: Blocker | null;
   sharepoint_url: string | null;
+  last_synced_at?: string | null;  // SSoT: When last SharePoint upload occurred
+  violations?: SsotViolation[];  // SSoT: Data quality issues detected
 }
 
 interface PdfSyncStatus {
@@ -103,8 +151,10 @@ interface PdfSyncStatus {
 
 export function XeroPdfSyncStatus() {
   const [data, setData] = React.useState<PdfSyncStatus | null>(null);
+  const [rateLimits, setRateLimits] = React.useState<RateLimitsData | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [rateLimitsLoading, setRateLimitsLoading] = React.useState(false);
 
   const fetchStatus = React.useCallback(async () => {
     try {
@@ -123,16 +173,45 @@ export function XeroPdfSyncStatus() {
     }
   }, []);
 
+  const fetchRateLimits = React.useCallback(async () => {
+    setRateLimitsLoading(true);
+    try {
+      const response = await api.get<{ success: boolean; rate_limits: RateLimitsData }>("/api/v1/xero/rate_limits");
+      if (response.success) {
+        setRateLimits(response.rate_limits);
+      }
+    } catch (err) {
+      console.error("Failed to fetch rate limits:", err);
+    } finally {
+      setRateLimitsLoading(false);
+    }
+  }, []);
+
+  // Check if any tenant is approaching rate limits (>= 95%)
+  const isApproachingLimit = React.useMemo(() => {
+    if (!rateLimits) return false;
+    return rateLimits.tenants.some(
+      (t) => (t.minute?.percentage || 0) >= 95 || (t.daily?.percentage || 0) >= 95
+    );
+  }, [rateLimits]);
+
+  const isAtLimit = React.useMemo(() => {
+    if (!rateLimits) return false;
+    return rateLimits.tenants.some((t) => !t.can_make_request);
+  }, [rateLimits]);
+
   React.useEffect(() => {
     fetchStatus();
-    // Auto-refresh every 30 seconds if sync is in progress
-    const interval = setInterval(() => {
-      if (data?.health.status === "in_progress") {
-        fetchStatus();
-      }
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [fetchStatus, data?.health.status]);
+    fetchRateLimits();
+    // Auto-refresh every 5 seconds to show live syncing activity
+    const refreshInterval = setInterval(() => {
+      fetchStatus();
+      fetchRateLimits();
+    }, 5000);
+    return () => {
+      clearInterval(refreshInterval);
+    };
+  }, [fetchStatus, fetchRateLimits]);
 
   if (loading) {
     return (
@@ -405,11 +484,64 @@ export function XeroPdfSyncStatus() {
               completed={data.stage3_sharepoint?.uploaded || data.sharepoint_uploads}
               total={data.stage3_sharepoint?.total_to_upload || data.pdfs_synced}
               percentage={data.stage3_sharepoint?.progress_percentage || 0}
-              lastSync={null}
+              lastSync={data.stage3_sharepoint?.last_synced_at || null}
               schedule="Uploads with PDF sync"
               color="bg-green-100 text-green-600"
               blocker={data.stage3_sharepoint?.blocker}
             />
+            {/* SSoT Violations Display */}
+            {data.stage3_sharepoint?.violations && data.stage3_sharepoint.violations.length > 0 && (
+              <div className="p-2 border rounded-lg space-y-1">
+                <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Data Quality ({data.stage3_sharepoint.violations.length})
+                </div>
+                {data.stage3_sharepoint.violations.map((violation, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-2 rounded text-xs ${
+                      violation.severity === "error"
+                        ? "bg-red-50 border border-red-200"
+                        : violation.severity === "warning"
+                        ? "bg-amber-50 border border-amber-200"
+                        : "bg-blue-50 border border-blue-200"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div
+                          className={`font-medium ${
+                            violation.severity === "error"
+                              ? "text-red-800"
+                              : violation.severity === "warning"
+                              ? "text-amber-800"
+                              : "text-blue-800"
+                          }`}
+                        >
+                          {violation.count.toLocaleString()} {violation.description}
+                        </div>
+                        {violation.action_required && (
+                          <div className="text-muted-foreground mt-0.5 font-mono text-[10px]">
+                            {violation.action_required}
+                          </div>
+                        )}
+                      </div>
+                      <Badge
+                        className={`text-[10px] ${
+                          violation.severity === "error"
+                            ? "bg-red-100 text-red-700"
+                            : violation.severity === "warning"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}
+                      >
+                        {violation.severity}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -502,6 +634,186 @@ export function XeroPdfSyncStatus() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Live API Activity - Prominent Section */}
+        <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Activity className="h-5 w-5 text-blue-600" />
+                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-green-500 rounded-full animate-pulse" />
+              </div>
+              <span className="font-semibold text-blue-900">Smart Rate-Limited Sync</span>
+              <Badge className="bg-blue-100 text-blue-700 text-xs">
+                Live • 5s refresh
+              </Badge>
+            </div>
+            {rateLimits && (
+              <div className="text-sm text-blue-700">
+                <span className="font-semibold">{rateLimits.aggregate.daily_requests}</span>
+                <span className="text-blue-500"> / {rateLimits.limits.daily} API calls today</span>
+              </div>
+            )}
+          </div>
+
+          {/* Sync Mode Indicator */}
+          {data.pending > 0 && (
+            <div className="mb-3 p-3 bg-white/80 border border-blue-100 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {data.pending > 100 ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />
+                      <span className="font-medium text-blue-900">Catching Up Mode</span>
+                      <Badge className="bg-blue-500 text-white text-xs">
+                        Max speed
+                      </Badge>
+                    </>
+                  ) : data.pending > 0 ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 text-green-600 animate-spin" />
+                      <span className="font-medium text-green-900">Almost Caught Up</span>
+                      <Badge className="bg-green-500 text-white text-xs">
+                        Slowing down
+                      </Badge>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <span className="font-medium text-green-900">Near-Live</span>
+                      <Badge className="bg-green-100 text-green-700 text-xs">
+                        30min checks
+                      </Badge>
+                    </>
+                  )}
+                </div>
+                <div className="text-right text-sm">
+                  <div className="font-semibold text-blue-900">{data.pending.toLocaleString()} pending</div>
+                  <div className="text-xs text-muted-foreground">
+                    {data.pending > 100 ? "Batch every 1 min" : data.pending > 0 ? "Batch every 10 min" : "Checking every 30 min"}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                <Gauge className="h-3 w-3 inline mr-1" />
+                Auto-scaling: Uses up to 50 API calls/min, 4500/day while staying under Xero limits
+              </div>
+            </div>
+          )}
+
+          {/* Rate Limit Warning Banners */}
+          {isAtLimit && (
+            <div className="p-2 mb-3 bg-red-100 border border-red-300 rounded text-sm">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <span className="font-medium text-red-800">
+                  Rate limit reached - syncing paused until reset
+                </span>
+              </div>
+            </div>
+          )}
+          {!isAtLimit && isApproachingLimit && (
+            <div className="p-2 mb-3 bg-amber-100 border border-amber-300 rounded text-sm">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <span className="font-medium text-amber-800">
+                  Approaching 95% rate limit - sync slowing down
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Per-Tenant Rate Limits */}
+          {rateLimits && rateLimits.tenants.length > 0 ? (
+            <div className="space-y-2">
+              {rateLimits.tenants.map((tenant) => (
+                <div key={tenant.tenant_id} className="p-3 bg-white/80 border border-blue-100 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-sm">{tenant.tenant_name}</span>
+                    <div className="flex items-center gap-2">
+                      {/* SSoT: Show credential status FIRST (priority over rate limits) */}
+                      {tenant.needs_reauth || tenant.status === 'degraded' || tenant.status === 'disconnected' ? (
+                        <>
+                          <Badge className="bg-orange-100 text-orange-700 text-xs">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Needs Re-auth
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-xs text-orange-600 border-orange-300 hover:bg-orange-50"
+                            onClick={async () => {
+                              try {
+                                const response = await api.xero.getAuthUrl();
+                                const authUrl = response.auth_url || response.url;
+                                if (authUrl) {
+                                  window.location.href = authUrl;
+                                }
+                              } catch (error) {
+                                console.error("Failed to get Xero auth URL:", error);
+                              }
+                            }}
+                          >
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Reconnect
+                          </Button>
+                        </>
+                      ) : !tenant.can_make_request ? (
+                        <Badge className="bg-red-100 text-red-700 text-xs">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          Throttled
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-green-100 text-green-700 text-xs">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Ready
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Per-minute */}
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">This minute</span>
+                        <span className="font-mono font-medium">
+                          {tenant.minute?.used || 0}/{rateLimits.limits.minute}
+                        </span>
+                      </div>
+                      <Progress
+                        value={tenant.minute?.percentage || 0}
+                        className={`h-2 ${(tenant.minute?.percentage || 0) > 80 ? '[&>div]:bg-amber-500' : '[&>div]:bg-blue-500'} ${(tenant.minute?.percentage || 0) > 95 ? '[&>div]:bg-red-500' : ''}`}
+                      />
+                    </div>
+                    {/* Daily */}
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">Today</span>
+                        <span className="font-mono font-medium">
+                          {tenant.daily?.used || 0}/{rateLimits.limits.daily}
+                        </span>
+                      </div>
+                      <Progress
+                        value={tenant.daily?.percentage || 0}
+                        className={`h-2 ${(tenant.daily?.percentage || 0) > 80 ? '[&>div]:bg-amber-500' : '[&>div]:bg-purple-500'} ${(tenant.daily?.percentage || 0) > 95 ? '[&>div]:bg-red-500' : ''}`}
+                      />
+                    </div>
+                  </div>
+                  {tenant.total_7d > 0 && (
+                    <div className="text-xs text-muted-foreground mt-2 text-right">
+                      {tenant.total_7d.toLocaleString()} total requests (7 days)
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4 text-muted-foreground text-sm">
+              <Gauge className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              No Xero tenants connected
+            </div>
+          )}
         </div>
 
         {/* Time Estimate & Activity */}

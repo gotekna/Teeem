@@ -31,7 +31,7 @@ export function proxy(request: NextRequest) {
   // Check for auth token in cookies or localStorage via custom header
   // Note: In Next.js middleware, we can't access localStorage directly
   // We rely on cookies for server-side auth checks
-  const token = request.cookies.get('token')?.value;
+  const _token = request.cookies.get('token')?.value;
 
   // For now, let client-side handle auth
   // This middleware can be enhanced to check JWT validity

@@ -86,7 +86,7 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
   useEffect(() => {
     loadRainLogs();
     loadWeatherStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [jobId]);
 
   const loadRainLogs = async () => {

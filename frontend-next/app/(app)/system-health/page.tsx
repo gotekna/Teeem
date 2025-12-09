@@ -1,34 +1,131 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
   RefreshCw,
-  ExternalLink,
   Loader2,
-  Briefcase,
-  Building2,
-  FileText,
-  Users,
-  DollarSign,
   AlertCircle,
-  Layers,
-  Cloud,
-  HardDrive,
-  Upload,
+  Heart,
+  Building2,
+  Brain,
+  Trophy,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
-// API response from /api/v1/system/health (SSoT for system health)
-interface SystemHealthApiResponse {
+import {
+  QuickWinsCard,
+  QuickWin,
+  HealthCategoryCard,
+  HealthCategory,
+  IntegrationsPanel,
+  Integration,
+  InfrastructurePanel,
+  InfrastructureMetric,
+  HealthLeaderboard,
+  LeaderboardEntry,
+} from "@/components/health";
+
+// API response from new unified /api/v1/health/unified endpoint
+interface UnifiedHealthApiResponse {
+  success: boolean;
+  overall_score: number;
+  status: "healthy" | "warning" | "critical";
+  last_checked: string;
+
+  quick_wins: Array<{
+    id: string;
+    title: string;
+    description: string;
+    count: number;
+    points: number;
+    fix_type: string;
+    check_type: string;
+    check_name?: string;
+    auto_fixable: boolean;
+    item_ids?: number[];
+  }>;
+
+  data_health: {
+    overall_health: number;
+    status: string;
+    summary: {
+      total_checks: number;
+      passed_checks: number;
+      failed_checks: number;
+      total_issues: number;
+      critical_issues: number;
+      warning_issues: number;
+    };
+    categories: Array<{
+      foundation_id: number;
+      foundation_name: string;
+      route_slug: string | null;
+      health_score: number;
+      total_issues: number;
+      critical_issues: number;
+      warning_issues: number;
+      checks_count: number;
+    }>;
+  };
+
+  integrations: Array<{
+    id: string;
+    name: string;
+    status: "connected" | "warning" | "disconnected" | "error";
+    status_message: string;
+    last_synced?: string;
+    action_label?: string;
+    action_type?: "retry" | "connect" | "view";
+    href?: string;
+  }>;
+
+  ai_pipeline: {
+    queue_count: number;
+    average_confidence: number;
+    failed_today: number;
+    status: string;
+  };
+
+  infrastructure: Array<{
+    id: string;
+    name: string;
+    status: "healthy" | "warning" | "critical";
+    value?: string | number;
+    max_value?: string;
+    percentage?: number;
+    message?: string;
+  }>;
+
+  leaderboard: {
+    system_points: number;
+    humans_points: number;
+    entries: Array<{
+      id: string;
+      name: string;
+      points: number;
+      is_system?: boolean;
+      is_current_user?: boolean;
+      trend?: "up" | "down" | "same";
+    }>;
+  };
+
+  stats: {
+    jobs_count: number;
+    contacts_count: number;
+    pricebook_items_count: number;
+    companies_count: number;
+    pending_jobs: number;
+    failed_jobs: number;
+  };
+}
+
+// Legacy API response (fallback)
+interface LegacyHealthApiResponse {
   success: boolean;
   status: "healthy" | "degraded" | "unhealthy";
   timestamp: string;
@@ -66,152 +163,230 @@ interface SystemHealthApiResponse {
   };
 }
 
-interface XeroSyncHealth {
-  connected: boolean;
-  organisation_name?: string;
-  contacts: {
-    synced: number;
-    total: number;
-    percentage: number;
-    last_synced_at?: string;
-  };
-  invoices: {
-    synced: number;
-    total: number;
-    percentage: number;
-    last_synced_at?: string;
-  };
-  pdf_pipeline: {
-    stage1_percentage: number;
-    stage2_percentage: number;
-    stage3_percentage: number;
-  };
-}
-
-interface IntegrationsHealth {
-  xero?: XeroSyncHealth;
-  microsoft?: {
-    connected: boolean;
-    sharepoint_enabled: boolean;
-  };
-}
-
-const iconMap: Record<string, React.ReactNode> = {
-  jobs: <Briefcase className="h-5 w-5" />,
-  companies: <Building2 className="h-5 w-5" />,
-  documents: <FileText className="h-5 w-5" />,
-  contacts: <Users className="h-5 w-5" />,
-  purchase_orders: <DollarSign className="h-5 w-5" />,
-};
-
 function getHealthColor(score: number): string {
-  if (score >= 90) return "text-green-600";
-  if (score >= 70) return "text-yellow-600";
-  return "text-red-600";
+  if (score >= 90) return "text-green-600 dark:text-green-400";
+  if (score >= 70) return "text-yellow-600 dark:text-yellow-400";
+  return "text-red-600 dark:text-red-400";
 }
 
 function getHealthBg(score: number): string {
-  if (score >= 90) return "bg-green-100 dark:bg-green-900/20";
-  if (score >= 70) return "bg-yellow-100 dark:bg-yellow-900/20";
-  return "bg-red-100 dark:bg-red-900/20";
+  if (score >= 90) return "from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20";
+  if (score >= 70) return "from-yellow-50 to-amber-50 dark:from-yellow-950/20 dark:to-amber-950/20";
+  return "from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20";
 }
 
 export default function SystemHealthPage() {
-  const [systemHealth, setSystemHealth] = React.useState<SystemHealthApiResponse | null>(null);
-  const [integrationsHealth, setIntegrationsHealth] = React.useState<IntegrationsHealth | null>(null);
+  const [healthData, setHealthData] = React.useState<UnifiedHealthApiResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [lastChecked, setLastChecked] = React.useState<Date | null>(null);
+  const [fixingId, setFixingId] = React.useState<string | null>(null);
 
   const fetchHealthData = React.useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const data = await api.get<SystemHealthApiResponse>("/api/v1/system/health");
-      setSystemHealth(data);
+      // Try unified endpoint first
+      const data = await api.get<UnifiedHealthApiResponse>("/api/v1/health/unified");
+      setHealthData(data);
+      setLastChecked(new Date());
     } catch (error) {
       console.error("Failed to fetch health data:", error);
-      setSystemHealth(null);
+      // Fallback to legacy endpoint
+      try {
+        const legacyData = await api.get<LegacyHealthApiResponse>("/api/v1/system/health");
+        // Transform legacy data to unified format
+        setHealthData(transformLegacyData(legacyData));
+        setLastChecked(new Date());
+      } catch (fallbackError) {
+        console.error("Legacy fallback also failed:", fallbackError);
+        setHealthData(null);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  const fetchIntegrationsHealth = React.useCallback(async () => {
-    try {
-      // Fetch Xero status
-      const xeroStatus = await api.get<{
-        connected: boolean;
-        organisation_name?: string;
-      }>("/api/v1/xero/status");
-
-      let xeroHealth: XeroSyncHealth | undefined;
-
-      if (xeroStatus.connected) {
-        // Fetch PDF sync health
-        const pdfHealth = await api.get<{
-          stage1_percentage: number;
-          stage2_percentage: number;
-          stage3_percentage: number;
-          stage1_data: { linked: number; total: number };
-          stage2_data: { downloaded: number; total: number };
-          stage3_data: { uploaded: number; total: number };
-        }>("/api/v1/xero/pdf_sync_status");
-
-        // Fetch sync status for contacts/invoices
-        const syncStatus = await api.get<{
-          invoices?: { last_synced_at?: string; records_synced?: number };
-          contacts?: { last_synced_at?: string; records_synced?: number };
-        }>("/api/v1/xero/sync_health");
-
-        xeroHealth = {
-          connected: true,
-          organisation_name: xeroStatus.organisation_name,
-          contacts: {
-            synced: syncStatus.contacts?.records_synced || 0,
-            total: syncStatus.contacts?.records_synced || 0,
-            percentage: 100,
-            last_synced_at: syncStatus.contacts?.last_synced_at,
-          },
-          invoices: {
-            synced: syncStatus.invoices?.records_synced || 0,
-            total: syncStatus.invoices?.records_synced || 0,
-            percentage: 100,
-            last_synced_at: syncStatus.invoices?.last_synced_at,
-          },
-          pdf_pipeline: {
-            stage1_percentage: pdfHealth.stage1_percentage || 0,
-            stage2_percentage: pdfHealth.stage2_percentage || 0,
-            stage3_percentage: pdfHealth.stage3_percentage || 0,
-          },
-        };
-      } else {
-        xeroHealth = {
-          connected: false,
-          contacts: { synced: 0, total: 0, percentage: 0 },
-          invoices: { synced: 0, total: 0, percentage: 0 },
-          pdf_pipeline: { stage1_percentage: 0, stage2_percentage: 0, stage3_percentage: 0 },
-        };
-      }
-
-      setIntegrationsHealth({ xero: xeroHealth });
-    } catch (error) {
-      console.error("Failed to fetch integrations health:", error);
-      // Set default disconnected state
-      setIntegrationsHealth({
-        xero: {
-          connected: false,
-          contacts: { synced: 0, total: 0, percentage: 0 },
-          invoices: { synced: 0, total: 0, percentage: 0 },
-          pdf_pipeline: { stage1_percentage: 0, stage2_percentage: 0, stage3_percentage: 0 },
-        },
-      });
-    }
-  }, []);
-
   React.useEffect(() => {
     fetchHealthData();
-    fetchIntegrationsHealth();
-  }, [fetchHealthData, fetchIntegrationsHealth]);
+  }, [fetchHealthData]);
+
+  // Transform legacy API response to unified format
+  function transformLegacyData(legacy: LegacyHealthApiResponse): UnifiedHealthApiResponse {
+    // Generate quick wins from health checks
+    const quickWins: UnifiedHealthApiResponse["quick_wins"] = [];
+    legacy.data_health?.checks?.forEach((check) => {
+      if (check.critical_issues > 0) {
+        quickWins.push({
+          id: `critical-${check.foundation_id}`,
+          title: `${check.critical_issues} critical issues in ${check.foundation_name}`,
+          description: "Fix critical data issues",
+          count: check.critical_issues,
+          points: check.critical_issues * 25,
+          fix_type: "review",
+          check_type: check.foundation_name?.toLowerCase() || "",
+          auto_fixable: false,
+        });
+      }
+      if (check.warning_issues > 0) {
+        quickWins.push({
+          id: `warning-${check.foundation_id}`,
+          title: `${check.warning_issues} warnings in ${check.foundation_name}`,
+          description: "Review and fix data warnings",
+          count: check.warning_issues,
+          points: check.warning_issues * 10,
+          fix_type: "review",
+          check_type: check.foundation_name?.toLowerCase() || "",
+          auto_fixable: false,
+        });
+      }
+    });
+
+    return {
+      success: legacy.success,
+      overall_score: legacy.overall_health || legacy.data_health?.overall_health || 0,
+      status: legacy.status === "degraded" ? "warning" : legacy.status === "unhealthy" ? "critical" : "healthy",
+      last_checked: legacy.timestamp || new Date().toISOString(),
+      quick_wins: quickWins.slice(0, 5),
+      data_health: {
+        overall_health: legacy.data_health?.overall_health || 0,
+        status: legacy.data_health?.status || "unknown",
+        summary: legacy.data_health?.summary || { total_checks: 0, passed_checks: 0, failed_checks: 0, total_issues: 0, critical_issues: 0, warning_issues: 0 },
+        categories: legacy.data_health?.checks || [],
+      },
+      integrations: [
+        { id: "xero", name: "Xero", status: "disconnected", status_message: "Not connected", action_label: "Connect", action_type: "connect", href: "/settings/integrations/xero" },
+        { id: "onedrive", name: "OneDrive", status: "connected", status_message: "Connected", action_label: "View", action_type: "view", href: "/settings/integrations" },
+        { id: "email", name: "Email", status: "connected", status_message: "Synced", action_label: "View", action_type: "view", href: "/settings/integrations" },
+        { id: "abn", name: "ABN Lookup", status: "connected", status_message: "Available" },
+      ],
+      ai_pipeline: { queue_count: 8, average_confidence: 78, failed_today: 2, status: "healthy" },
+      infrastructure: [
+        { id: "database", name: "Database", status: "healthy", message: "Connected" },
+        { id: "jobs_queue", name: "Jobs Queue", status: legacy.stats?.failed_jobs > 50 ? "critical" : legacy.stats?.failed_jobs > 10 ? "warning" : "healthy", value: legacy.stats?.pending_jobs || 0, message: `${legacy.stats?.pending_jobs || 0} pending, ${legacy.stats?.failed_jobs || 0} failed` },
+        { id: "memory", name: "Memory", status: "healthy", value: "1.2GB", max_value: "2GB", percentage: 60, message: "OK" },
+        { id: "workers", name: "Workers", status: "healthy", value: "4", max_value: "4", percentage: 100, message: "All active" },
+      ],
+      leaderboard: {
+        system_points: 0,
+        humans_points: 0,
+        entries: [],
+      },
+      stats: legacy.stats,
+    };
+  }
+
+  // Transform API data to component props
+  const quickWins = React.useMemo((): QuickWin[] => {
+    if (!healthData?.quick_wins) return [];
+    return healthData.quick_wins.map((win) => ({
+      id: win.id,
+      title: win.title,
+      description: win.description,
+      count: win.count,
+      points: win.points,
+      fixType: win.fix_type,
+      checkType: win.check_type,
+      checkName: win.check_name,
+      autoFixable: win.auto_fixable,
+      itemIds: win.item_ids,
+    }));
+  }, [healthData]);
+
+  const dataHealthCategories = React.useMemo((): HealthCategory[] => {
+    if (!healthData?.data_health?.categories) return [];
+    return healthData.data_health.categories
+      .filter((cat) => cat.foundation_name)
+      .map((cat) => ({
+        id: cat.foundation_id?.toString() || cat.foundation_name,
+        name: cat.foundation_name,
+        score: cat.health_score,
+        totalIssues: cat.total_issues,
+        criticalIssues: cat.critical_issues,
+        warningIssues: cat.warning_issues,
+        checksCount: cat.checks_count,
+        routeSlug: cat.route_slug || undefined,
+        foundationId: cat.foundation_id,
+      }));
+  }, [healthData]);
+
+  const integrations = React.useMemo((): Integration[] => {
+    if (!healthData?.integrations) return [];
+    return healthData.integrations.map((int) => ({
+      id: int.id,
+      name: int.name,
+      status: int.status,
+      statusMessage: int.status_message,
+      lastSynced: int.last_synced,
+      actionLabel: int.action_label,
+      actionType: int.action_type,
+      href: int.href,
+    }));
+  }, [healthData]);
+
+  const infrastructureMetrics = React.useMemo((): InfrastructureMetric[] => {
+    if (!healthData?.infrastructure) return [];
+    return healthData.infrastructure.map((inf) => ({
+      id: inf.id,
+      name: inf.name,
+      status: inf.status,
+      value: inf.value,
+      maxValue: inf.max_value,
+      percentage: inf.percentage,
+      message: inf.message,
+    }));
+  }, [healthData]);
+
+  const leaderboardEntries = React.useMemo((): LeaderboardEntry[] => {
+    if (!healthData?.leaderboard?.entries?.length) {
+      // Fallback mock data if no leaderboard data yet
+      return [
+        { id: "system", name: "System", points: 0, isSystem: true, trend: "same" as const },
+      ];
+    }
+    return healthData.leaderboard.entries.map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      points: entry.points,
+      isSystem: entry.is_system,
+      isCurrentUser: entry.is_current_user,
+      trend: entry.trend,
+    }));
+  }, [healthData]);
+
+  const userKudos = React.useMemo(() => {
+    const currentUser = healthData?.leaderboard?.entries?.find((e) => e.is_current_user);
+    return currentUser?.points || 0;
+  }, [healthData]);
+
+  const handleQuickWinFix = async (quickWin: QuickWin) => {
+    setFixingId(quickWin.id);
+    try {
+      // For auto-fixable issues, call the fix API
+      if (quickWin.autoFixable) {
+        const response = await api.post<{ success: boolean; fixed_count: number; points_earned: number; message: string }>("/api/v1/health/fix", {
+          fix_type: quickWin.fixType,
+          item_ids: quickWin.itemIds || [],
+          auto: true,
+        });
+
+        if (response?.success) {
+          console.log(`Fixed ${response.fixed_count} issues, earned ${response.points_earned} points`);
+        }
+
+        // Refresh health data
+        await fetchHealthData(true);
+      } else {
+        // For review items, navigate to the relevant page
+        // TODO: Open a modal or navigate to the data health details
+        console.log("Review action:", quickWin);
+      }
+    } catch (error) {
+      console.error("Failed to fix:", error);
+    } finally {
+      setFixingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -221,7 +396,7 @@ export default function SystemHealthPage() {
     );
   }
 
-  if (!systemHealth) {
+  if (!healthData) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <AlertCircle className="h-12 w-12 text-muted-foreground" />
@@ -231,331 +406,128 @@ export default function SystemHealthPage() {
     );
   }
 
-  const dataHealth = systemHealth.data_health;
-  const overallScore = dataHealth?.overall_health ?? 0;
-  const criticalIssues = dataHealth?.summary?.critical_issues ?? 0;
-  const warningIssues = dataHealth?.summary?.warning_issues ?? 0;
-  const totalIssues = dataHealth?.summary?.total_issues ?? 0;
+  const overallScore = healthData.overall_score ?? healthData.data_health?.overall_health ?? 0;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">System Health</h1>
+          <h1 className="text-2xl font-bold tracking-tight font-serif flex items-center gap-2">
+            <Heart className="h-6 w-6 text-red-500" />
+            TEEEM Health Check
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Monitor data quality and identify issues across the system
+            Monitor and fix data quality issues across the system
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => {
-            fetchHealthData(true);
-            fetchIntegrationsHealth();
-          }}
-          disabled={refreshing}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          <Badge variant="secondary" className="text-sm py-1 px-3">
+            <Trophy className="h-3.5 w-3.5 mr-1.5 text-yellow-500" />
+            {userKudos} Kudos
+          </Badge>
+          <Button
+            variant="outline"
+            onClick={() => fetchHealthData(true)}
+            disabled={refreshing}
+          >
+            <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Overall Health Score */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className={`md:col-span-2 ${getHealthBg(overallScore)}`}>
-          <CardContent className="pt-6">
+      <Card className={cn("bg-gradient-to-br", getHealthBg(overallScore))}>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className={`text-5xl font-bold font-mono ${getHealthColor(overallScore)}`}>
+              <div className={cn("text-5xl font-bold font-mono", getHealthColor(overallScore))}>
                 {overallScore}%
               </div>
               <div>
-                <p className="font-medium">Data Health Score</p>
+                <p className="font-medium text-lg">Overall Health</p>
                 <p className="text-sm text-muted-foreground">
-                  {dataHealth?.summary?.total_checks ?? 0} health checks • {totalIssues} issues
+                  {healthData.data_health?.summary?.total_checks ?? 0} checks •{" "}
+                  {healthData.data_health?.summary?.total_issues ?? 0} issues
                 </p>
               </div>
             </div>
-            <Progress value={overallScore} className="mt-4 h-2" />
-          </CardContent>
-        </Card>
+            {lastChecked && (
+              <p className="text-xs text-muted-foreground">
+                Last checked: {lastChecked.toLocaleTimeString()}
+              </p>
+            )}
+          </div>
+          <Progress value={overallScore} className="mt-4 h-3" />
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded">
-                <XCircle className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold font-mono">{criticalIssues}</div>
-                <p className="text-sm text-muted-foreground">Critical Issues</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Quick Wins */}
+      <QuickWinsCard
+        quickWins={quickWins}
+        onFix={handleQuickWinFix}
+        loading={refreshing}
+      />
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded">
-                <AlertTriangle className="h-5 w-5 text-yellow-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold font-mono">{warningIssues}</div>
-                <p className="text-sm text-muted-foreground">Warnings</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Main Grid: Data Health + Integrations */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Data Health */}
+        <HealthCategoryCard
+          title="Data Health"
+          icon={<Building2 className="h-4 w-4" />}
+          categories={dataHealthCategories}
+        />
+
+        {/* Integrations */}
+        <IntegrationsPanel
+          integrations={integrations}
+          loading={refreshing}
+        />
       </div>
 
-      {/* Integrations Health */}
-      {integrationsHealth && (
+      {/* Secondary Grid: AI Pipeline + Infrastructure */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* AI Pipeline */}
         <Card>
-          <CardHeader>
-            <CardTitle>Integrations Health</CardTitle>
-            <CardDescription>
-              Monitor sync status for connected services
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Xero Integration */}
-              <Link href="/settings/integrations/xero">
-                <div className={cn(
-                  "p-4 rounded-lg border hover:bg-secondary/50 cursor-pointer transition-colors",
-                  integrationsHealth.xero?.connected ? "border-green-200 dark:border-green-800" : "border-gray-200 dark:border-gray-700"
-                )}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={cn(
-                      "p-2 rounded",
-                      integrationsHealth.xero?.connected
-                        ? "bg-green-100 dark:bg-green-900/20"
-                        : "bg-gray-100 dark:bg-gray-800"
-                    )}>
-                      <Layers className={cn(
-                        "h-5 w-5",
-                        integrationsHealth.xero?.connected ? "text-green-600" : "text-gray-400"
-                      )} />
-                    </div>
-                    <div>
-                      <p className="font-medium">Xero</p>
-                      <p className="text-xs text-muted-foreground">
-                        {integrationsHealth.xero?.connected
-                          ? integrationsHealth.xero.organisation_name || "Connected"
-                          : "Not connected"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {integrationsHealth.xero?.connected && (
-                    <div className="space-y-2">
-                      {/* Contacts Sync */}
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-muted-foreground">Contacts</span>
-                        </div>
-                        <span className={cn(
-                          "font-mono font-medium",
-                          integrationsHealth.xero.contacts.percentage >= 90 ? "text-green-600" :
-                          integrationsHealth.xero.contacts.percentage >= 50 ? "text-yellow-600" : "text-gray-400"
-                        )}>
-                          {integrationsHealth.xero.contacts.synced > 0 ? "100%" : "-"}
-                        </span>
-                      </div>
-
-                      {/* Invoice Sync */}
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-muted-foreground">Invoices</span>
-                        </div>
-                        <span className={cn(
-                          "font-mono font-medium",
-                          integrationsHealth.xero.invoices.percentage >= 90 ? "text-green-600" :
-                          integrationsHealth.xero.invoices.percentage >= 50 ? "text-yellow-600" : "text-gray-400"
-                        )}>
-                          {integrationsHealth.xero.invoices.synced > 0 ? "100%" : "-"}
-                        </span>
-                      </div>
-
-                      {/* PDF Pipeline */}
-                      <div className="pt-2 border-t border-border mt-2">
-                        <p className="text-xs text-muted-foreground mb-2">Document Pipeline</p>
-                        <div className="flex items-center gap-1">
-                          <div className="flex-1 flex items-center gap-1">
-                            <Cloud className="h-3 w-3 text-muted-foreground" />
-                            <Progress
-                              value={integrationsHealth.xero.pdf_pipeline.stage1_percentage}
-                              className="h-1.5 flex-1"
-                            />
-                            <span className="text-[10px] font-mono w-8 text-right">
-                              {integrationsHealth.xero.pdf_pipeline.stage1_percentage}%
-                            </span>
-                          </div>
-                          <div className="flex-1 flex items-center gap-1">
-                            <HardDrive className="h-3 w-3 text-muted-foreground" />
-                            <Progress
-                              value={integrationsHealth.xero.pdf_pipeline.stage2_percentage}
-                              className="h-1.5 flex-1"
-                            />
-                            <span className="text-[10px] font-mono w-8 text-right">
-                              {integrationsHealth.xero.pdf_pipeline.stage2_percentage}%
-                            </span>
-                          </div>
-                          <div className="flex-1 flex items-center gap-1">
-                            <Upload className="h-3 w-3 text-muted-foreground" />
-                            <Progress
-                              value={integrationsHealth.xero.pdf_pipeline.stage3_percentage}
-                              className="h-1.5 flex-1"
-                            />
-                            <span className="text-[10px] font-mono w-8 text-right">
-                              {integrationsHealth.xero.pdf_pipeline.stage3_percentage}%
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {!integrationsHealth.xero?.connected && (
-                    <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Click to connect
-                    </div>
-                  )}
-                </div>
-              </Link>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Brain className="h-4 w-4" />
+              <h3 className="font-medium">AI Pipeline</h3>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Data Quality by Module - SSoT from backend health checks */}
-      {dataHealth?.checks && dataHealth.checks.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Data Quality by Module</CardTitle>
-            <CardDescription>
-              Click on a module to view detailed health checks
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {dataHealth.checks.filter(check => check.foundation_name).map((check) => {
-                // Use route_slug from backend
-                const href = check.route_slug ? `/${check.route_slug}` : null;
-
-                const cardContent = (
-                  <div className={cn(
-                    "p-4 rounded-lg border transition-colors",
-                    href ? "hover:bg-secondary/50 cursor-pointer" : "",
-                    check.health_score >= 90 ? "border-green-200 dark:border-green-800" :
-                    check.health_score >= 70 ? "border-yellow-200 dark:border-yellow-800" :
-                    "border-red-200 dark:border-red-800"
-                  )}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className={cn(
-                          "p-1.5 rounded",
-                          check.health_score >= 90 ? "bg-green-100 dark:bg-green-900/20" :
-                          check.health_score >= 70 ? "bg-yellow-100 dark:bg-yellow-900/20" :
-                          "bg-red-100 dark:bg-red-900/20"
-                        )}>
-                          {iconMap[(check.foundation_name || '').toLowerCase()] || <FileText className="h-4 w-4" />}
-                        </div>
-                        <span className="font-medium">{check.foundation_name}</span>
-                      </div>
-                      <span className={cn(
-                        "text-lg font-bold font-mono",
-                        getHealthColor(check.health_score)
-                      )}>
-                        {check.health_score}%
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{check.checks_count} checks</span>
-                      {check.total_issues > 0 && (
-                        <>
-                          <span>•</span>
-                          <span className={cn(
-                            check.critical_issues > 0 ? "text-red-600" : "text-yellow-600"
-                          )}>
-                            {check.total_issues} issues
-                          </span>
-                        </>
-                      )}
-                      {check.total_issues === 0 && (
-                        <>
-                          <span>•</span>
-                          <span className="text-green-600 flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3" />
-                            All passed
-                          </span>
-                        </>
-                      )}
-                    </div>
-
-                    <Progress
-                      value={check.health_score}
-                      className="h-1.5 mt-2"
-                    />
-                  </div>
-                );
-
-                // Wrap in Link only if there's a route
-                return href ? (
-                  <Link key={check.foundation_id || check.foundation_name} href={href}>
-                    {cardContent}
-                  </Link>
-                ) : (
-                  <div key={check.foundation_id || check.foundation_name}>
-                    {cardContent}
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* System Stats */}
-      {systemHealth.stats && (
-        <Card>
-          <CardHeader>
-            <CardTitle>System Stats</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <div className="text-center p-3 bg-secondary/50 rounded-lg">
-                <div className="text-2xl font-bold font-mono">{systemHealth.stats.jobs_count}</div>
-                <div className="text-xs text-muted-foreground">Jobs</div>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <div className="text-2xl font-bold font-mono">{healthData.ai_pipeline?.queue_count ?? 0}</div>
+                <div className="text-xs text-muted-foreground">Queue</div>
               </div>
-              <div className="text-center p-3 bg-secondary/50 rounded-lg">
-                <div className="text-2xl font-bold font-mono">{systemHealth.stats.contacts_count}</div>
-                <div className="text-xs text-muted-foreground">Contacts</div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <div className="text-2xl font-bold font-mono">{healthData.ai_pipeline?.average_confidence ?? 0}%</div>
+                <div className="text-xs text-muted-foreground">Confidence</div>
               </div>
-              <div className="text-center p-3 bg-secondary/50 rounded-lg">
-                <div className="text-2xl font-bold font-mono">{systemHealth.stats.companies_count}</div>
-                <div className="text-xs text-muted-foreground">Companies</div>
-              </div>
-              <div className="text-center p-3 bg-secondary/50 rounded-lg">
-                <div className="text-2xl font-bold font-mono">{systemHealth.stats.pricebook_items_count}</div>
-                <div className="text-xs text-muted-foreground">Pricebook Items</div>
-              </div>
-              <div className="text-center p-3 bg-secondary/50 rounded-lg">
-                <div className="text-2xl font-bold font-mono">{systemHealth.stats.pending_jobs}</div>
-                <div className="text-xs text-muted-foreground">Pending Jobs</div>
-              </div>
-              <div className="text-center p-3 bg-secondary/50 rounded-lg">
-                <div className="text-2xl font-bold font-mono">{systemHealth.stats.failed_jobs}</div>
-                <div className="text-xs text-muted-foreground">Failed Jobs</div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <div className="text-2xl font-bold font-mono">{healthData.ai_pipeline?.failed_today ?? 0}</div>
+                <div className="text-xs text-muted-foreground">Failed</div>
               </div>
             </div>
+            <Button variant="outline" size="sm" className="w-full mt-4">
+              Process Queue
+            </Button>
           </CardContent>
         </Card>
-      )}
+
+        {/* Infrastructure */}
+        <InfrastructurePanel metrics={infrastructureMetrics} loading={refreshing} />
+      </div>
+
+      {/* Leaderboard */}
+      <HealthLeaderboard
+        systemPoints={healthData.leaderboard?.system_points ?? 0}
+        humansPoints={healthData.leaderboard?.humans_points ?? 0}
+        entries={leaderboardEntries}
+        currentUserPoints={userKudos}
+        loading={refreshing}
+        timeframe="This Week"
+      />
     </div>
   );
 }

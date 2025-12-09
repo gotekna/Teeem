@@ -33,7 +33,7 @@ class CreateBankStatementReports < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :bank_statement_reports, [:bank_account_id, :financial_year, :month], unique: true, name: "idx_bank_reports_unique"
+    add_index :bank_statement_reports, [ :bank_account_id, :financial_year, :month ], unique: true, name: "idx_bank_reports_unique"
     add_index :bank_statement_reports, :financial_year
     add_index :bank_statement_reports, :status
   end

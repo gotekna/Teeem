@@ -89,7 +89,7 @@ export function LookupEditor({
       // Initial load with empty search
       loadRecords('');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [open]);
 
   // Load records function

@@ -97,7 +97,7 @@ module Api
 
         # Get shareholdings at record date (for now, use current shareholdings)
         # TODO: Could track historical shareholdings for accurate calculation
-        shareholdings = @company.company_shareholdings.includes(:shareholder)
+        shareholdings = @company.corporate_company_shareholdings.includes(:shareholder)
 
         total_shares = shareholdings.sum(:number_of_shares)
 
@@ -150,7 +150,7 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        shareholdings = @company.company_shareholdings.includes(:shareholder)
+        shareholdings = @company.corporate_company_shareholdings.includes(:shareholder)
         total_shares = shareholdings.sum(:number_of_shares)
 
         if total_shares.zero?
@@ -214,7 +214,7 @@ module Api
       private
 
       def set_company
-        @company = Company.find(params[:company_id])
+        @company = CorporateCompany.find(params[:company_id])
       end
 
       def set_dividend

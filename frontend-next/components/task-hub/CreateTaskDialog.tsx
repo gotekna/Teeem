@@ -64,7 +64,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     if (open) {
       loadData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [open]);
 
   const loadData = async () => {

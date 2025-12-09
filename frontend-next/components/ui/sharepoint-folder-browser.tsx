@@ -271,7 +271,7 @@ export function SharePointFolderBrowser({
         setTreeNodes((prev) => updateNodeInTree(prev, node.id, { isExpanded: true }));
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [loadChildren]);
 
   // Helper to update a node in the tree

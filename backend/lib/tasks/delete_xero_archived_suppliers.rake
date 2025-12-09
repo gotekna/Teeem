@@ -7,7 +7,7 @@ namespace :xero do
     puts
 
     # Safety check - require DRY_RUN=false to actually delete
-    dry_run = ENV['DRY_RUN'] != 'false'
+    dry_run = ENV["DRY_RUN"] != "false"
 
     if dry_run
       puts "⚠️  DRY RUN MODE - No deletions will occur"

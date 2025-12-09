@@ -61,7 +61,7 @@ class CaseEmailAttachmentService
     end
 
     # Check for existing document with same hash
-    existing_doc = CompanyDocument.find_by_content_hash(content_hash)
+    existing_doc = CorporateCompanyDocument.find_by_content_hash(content_hash)
 
     if existing_doc
       link_existing_document(existing_doc, case_email, file)
@@ -160,13 +160,13 @@ class CaseEmailAttachmentService
 
   # Create company_document for the attachment
   def create_company_document(case_email, file, content_hash, graph_result)
-    company = case_record.company || case_record.companies.first
+    company = case_record.corporate_company || case_record.corporate_companies.first
     email = case_email.email_warehouse
 
     # Determine document type from mime type
     doc_type = classify_attachment(file)
 
-    CompanyDocument.create!(
+    CorporateCompanyDocument.create!(
       company: company,
       title: file.filename.to_s,
       document_type: doc_type,

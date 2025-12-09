@@ -30,7 +30,7 @@ class DropContactEmployments < ActiveRecord::Migration[8.0]
       t.integer :previous_employer_id
     end
 
-    add_index :contact_employments, [:employee_id, :employer_id], unique: true
-    add_index :contact_employments, [:employer_id, :is_active]
+    add_index :contact_employments, [ :employee_id, :employer_id ], unique: true
+    add_index :contact_employments, [ :employer_id, :is_active ]
   end
 end

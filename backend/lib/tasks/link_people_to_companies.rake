@@ -8,14 +8,14 @@ namespace :contacts do
 
     # Personal email domains that don't suggest a company
     personal_domains = [
-      'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com',
-      'icloud.com', 'live.com', 'bigpond.com', 'optusnet.com.au'
+      "gmail.com", "hotmail.com", "outlook.com", "yahoo.com",
+      "icloud.com", "live.com", "bigpond.com", "optusnet.com.au"
     ]
 
     # Find people without primary_company_id who have email addresses
-    people = Contact.where(entity_type: 'person')
+    people = Contact.where(entity_type: "person")
                    .where(primary_company_id: nil)
-                   .where.not(email: [nil, ''])
+                   .where.not(email: [ nil, "" ])
                    .order(:id)
 
     puts "Found #{people.count} people without companies who have email addresses"
@@ -37,7 +37,7 @@ namespace :contacts do
           next
         end
 
-        domain = email.split('@').last.downcase
+        domain = email.split("@").last.downcase
 
         if personal_domains.include?(domain)
           stats[:skipped_personal] += 1
@@ -45,8 +45,8 @@ namespace :contacts do
         end
 
         # Find company with matching website domain
-        company = Contact.where(entity_type: ['company', 'trust'])
-                        .where('LOWER(website) LIKE ?', "%#{domain}%")
+        company = Contact.where(entity_type: [ "company", "trust" ])
+                        .where("LOWER(website) LIKE ?", "%#{domain}%")
                         .first
 
         if company
@@ -77,13 +77,13 @@ namespace :contacts do
   desc "Preview people who could be linked to companies"
   task preview_linkable_people: :environment do
     personal_domains = [
-      'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com',
-      'icloud.com', 'live.com', 'bigpond.com', 'optusnet.com.au'
+      "gmail.com", "hotmail.com", "outlook.com", "yahoo.com",
+      "icloud.com", "live.com", "bigpond.com", "optusnet.com.au"
     ]
 
-    people = Contact.where(entity_type: 'person')
+    people = Contact.where(entity_type: "person")
                    .where(primary_company_id: nil)
-                   .where.not(email: [nil, ''])
+                   .where.not(email: [ nil, "" ])
                    .order(:id)
 
     puts "PREVIEW: People who could be linked to companies (#{people.count}):"
@@ -95,11 +95,11 @@ namespace :contacts do
       email = person.email.to_s.strip
       next unless email.match?(/@/)
 
-      domain = email.split('@').last.downcase
+      domain = email.split("@").last.downcase
       next if personal_domains.include?(domain)
 
-      company = Contact.where(entity_type: ['company', 'trust'])
-                      .where('LOWER(website) LIKE ?', "%#{domain}%")
+      company = Contact.where(entity_type: [ "company", "trust" ])
+                      .where("LOWER(website) LIKE ?", "%#{domain}%")
                       .first
 
       if company

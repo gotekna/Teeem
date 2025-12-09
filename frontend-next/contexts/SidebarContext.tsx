@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useMemo, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 interface SidebarContextType {
@@ -21,45 +21,75 @@ function getBaseRoute(pathname: string): string {
   return parts[0] || "dashboard";
 }
 
-export function SidebarProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const [isExpanded, setIsExpandedState] = useState(false);
-
-  // Load saved state for current route on mount and route change
-  useEffect(() => {
-    const baseRoute = getBaseRoute(pathname);
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const states: Record<string, boolean> = JSON.parse(saved);
-        // Use saved state for this route, or default to false (collapsed)
-        setIsExpandedState(states[baseRoute] ?? false);
-      }
-    } catch (_e) {
-      // Ignore localStorage errors
+// Get state from localStorage synchronously
+function getStoredState(baseRoute: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const states: Record<string, boolean> = JSON.parse(saved);
+      return states[baseRoute] ?? false;
     }
-  }, [pathname]);
+  } catch {
+    // Ignore localStorage errors
+  }
+  return false;
+}
 
-  // Wrapper to save state when changed
-  const setIsExpanded = (expanded: boolean) => {
-    setIsExpandedState(expanded);
-    const baseRoute = getBaseRoute(pathname);
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      const states: Record<string, boolean> = saved ? JSON.parse(saved) : {};
-      states[baseRoute] = expanded;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(states));
-    } catch (_e) {
-      // Ignore localStorage errors
-    }
-  };
+// Save state to localStorage
+function saveState(baseRoute: string, expanded: boolean): void {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    const states: Record<string, boolean> = saved ? JSON.parse(saved) : {};
+    states[baseRoute] = expanded;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(states));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+// Inner component that handles state for a specific route
+// Using key={baseRoute} on this component causes it to remount when route changes,
+// which resets state to the stored value for the new route (avoids setState in useEffect)
+function SidebarStateProvider({ baseRoute, children }: { baseRoute: string; children: ReactNode }) {
+  // Initialize state with stored value for this route
+  const [isExpanded, setIsExpandedState] = useState(() => getStoredState(baseRoute));
+
+  // Wrapper to save state when changed - stable reference since baseRoute doesn't change
+  // (component remounts with new key when baseRoute changes)
+  const setIsExpanded = useMemo(
+    () => (expanded: boolean) => {
+      setIsExpandedState(expanded);
+      saveState(baseRoute, expanded);
+    },
+    [baseRoute]
+  );
 
   const sidebarWidth = isExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
 
+  const value = useMemo(
+    () => ({ isExpanded, setIsExpanded, sidebarWidth }),
+    [isExpanded, setIsExpanded, sidebarWidth]
+  );
+
   return (
-    <SidebarContext.Provider value={{ isExpanded, setIsExpanded, sidebarWidth }}>
+    <SidebarContext.Provider value={value}>
       {children}
     </SidebarContext.Provider>
+  );
+}
+
+export function SidebarProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const baseRoute = getBaseRoute(pathname);
+
+  // Key forces remount when route changes, resetting state to stored value
+  // This is the React-recommended pattern to reset state on prop change
+  // without using useEffect + setState (PATTERN-005)
+  return (
+    <SidebarStateProvider key={baseRoute} baseRoute={baseRoute}>
+      {children}
+    </SidebarStateProvider>
   );
 }
 

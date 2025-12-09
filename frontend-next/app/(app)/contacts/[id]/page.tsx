@@ -1103,7 +1103,7 @@ export default function ContactDetailPage() {
 
   useEffect(() => {
     loadContact();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [id]);
 
   // Initialize contact_emails and contact_phones from legacy fields if needed
@@ -1157,11 +1157,14 @@ export default function ContactDetailPage() {
     if (contact?.id) {
       loadMemberships();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching contact?.id
+     
   }, [contact?.id]);
 
-  // Fetch all companies for multi-select dropdown
+  // Fetch all companies for multi-select dropdown - lazy load when edit modal opens
   useEffect(() => {
+    // Only fetch when edit modal opens and we haven't loaded companies yet
+    if (!editModalOpen || availableCompanies.length > 0) return;
+
     const fetchCompanies = async () => {
       setLoadingCompanies(true);
       try {
@@ -1183,7 +1186,7 @@ export default function ContactDetailPage() {
       }
     };
     fetchCompanies();
-  }, []);
+  }, [editModalOpen, availableCompanies.length]);
 
   // Populate selected companies and roles from contact.additional_companies
   useEffect(() => {
@@ -1370,8 +1373,11 @@ export default function ContactDetailPage() {
     fetchRelationshipsAndMetadata();
   }, [contact?.id, contact?.entity_type]);
 
-  // Fetch all contacts for the related entity selector
+  // Fetch all contacts for the related entity selector - lazy load when edit modal opens
   useEffect(() => {
+    // Only fetch when edit modal opens and we haven't loaded contacts yet
+    if (!editModalOpen || availableContacts.length > 0 || !contact?.id) return;
+
     const fetchAllContacts = async () => {
       try {
         const response = await api.get<{ contacts: any[] }>("/api/v1/contacts", {
@@ -1389,10 +1395,8 @@ export default function ContactDetailPage() {
         console.error("Failed to fetch contacts for related entity selector:", err);
       }
     };
-    if (contact?.id) {
-      fetchAllContacts();
-    }
-  }, [contact?.id]);
+    fetchAllContacts();
+  }, [editModalOpen, availableContacts.length, contact?.id]);
 
   // SSoT: Auto-open edit modal when ?edit=true is in URL (e.g., from CG page)
   useEffect(() => {
@@ -2449,7 +2453,7 @@ export default function ContactDetailPage() {
       resetFiltersForEmailsTab();
       loadEmails();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching activeTab and contact?.id
+     
   }, [activeTab, contact?.id]);
 
   // Reload emails when showAllInThread changes
@@ -2457,7 +2461,7 @@ export default function ContactDetailPage() {
     if (activeTab === "emails" && contact?.email) {
       loadEmails(1);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only watching showAllInThread
+     
   }, [showAllInThread]);
 
   const handleTabChange = (value: string) => {

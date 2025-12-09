@@ -23,7 +23,7 @@ export default function XeroCallbackPage() {
 
   useEffect(() => {
     handleCallback();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const handleCallback = async () => {

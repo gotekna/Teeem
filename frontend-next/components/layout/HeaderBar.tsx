@@ -36,7 +36,6 @@ import {
 } from "@/components/ui/popover";
 import { InspiringBanner } from "./InspiringBanner";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
-import { XeroConnectionsPopup } from "@/components/xero/XeroConnectionsPopup";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -63,8 +62,8 @@ interface HeaderBarProps {
   onMenuClick?: () => void;
 }
 
-// Connection status: 'connected' | 'disconnected' | 'error'
-type ConnectionStatus = 'connected' | 'disconnected' | 'error';
+// Connection status: 'connected' | 'disconnected' | 'error' | 'degraded'
+type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'degraded';
 
 export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const router = useRouter();
@@ -74,7 +73,6 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const [office365Status, setOffice365Status] = React.useState<ConnectionStatus>('disconnected');
   const [xeroTooltip, setXeroTooltip] = React.useState('Xero: Not Connected');
   const [office365Tooltip, setOffice365Tooltip] = React.useState('Office 365: Not Connected');
-  const [showXeroPopup, setShowXeroPopup] = React.useState(false);
 
   // Fetch unread message count and integration statuses
   React.useEffect(() => {
@@ -96,15 +94,21 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           connected?: boolean;
           expired?: boolean;
           tenant_name?: string;
-          data?: { connected?: boolean; expired?: boolean; message?: string; tenant_name?: string };
+          status?: string; // 'connected' | 'degraded' | 'disconnected'
+          data?: { connected?: boolean; expired?: boolean; message?: string; tenant_name?: string; status?: string };
           message?: string
         }>("/api/v1/xero/status");
-        const xeroData = xeroResponse?.data || xeroResponse as { connected?: boolean; expired?: boolean; tenant_name?: string; message?: string };
+        const xeroData = xeroResponse?.data || xeroResponse as { connected?: boolean; expired?: boolean; tenant_name?: string; message?: string; status?: string };
 
-        if (xeroData?.connected === true && xeroData?.expired !== true) {
+        // Check degraded FIRST - this takes priority over connected=true
+        if (xeroData?.status === 'degraded') {
+          // Some tenants need re-auth but some work - show orange warning
+          setXeroStatus('degraded');
+          setXeroTooltip(xeroData.message || `Xero: Needs Re-authentication`);
+        } else if (xeroData?.connected === true && xeroData?.expired !== true) {
           setXeroStatus('connected');
           setXeroTooltip(`Xero: Connected${xeroData.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
-        } else if (xeroData?.expired === true || xeroData?.message?.toLowerCase().includes('expired') || xeroData?.message?.toLowerCase().includes('reconnect')) {
+        } else if (xeroData?.expired === true || xeroData?.status === 'disconnected' || xeroData?.message?.toLowerCase().includes('expired') || xeroData?.message?.toLowerCase().includes('reconnect')) {
           setXeroStatus('error');
           setXeroTooltip(`Xero: Token Expired - Reconnect Required`);
         } else if (xeroData?.connected === false && xeroData?.message) {
@@ -167,6 +171,8 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     switch (status) {
       case 'connected':
         return "text-green-500 hover:text-green-600";
+      case 'degraded':
+        return "text-orange-500 hover:text-orange-600";
       case 'error':
         return "text-red-500 hover:text-red-600";
       default:
@@ -257,13 +263,14 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Notifications */}
-          <button
-            type="button"
+          <Link
+            href="/notifications"
             className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
+            title="Notifications"
           >
             <span className="sr-only">View notifications</span>
             <Bell className="h-4 w-4" />
-          </button>
+          </Link>
 
           {/* Office 365 Status */}
           <Link
@@ -279,8 +286,8 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Xero Status */}
-          <button
-            onClick={() => setShowXeroPopup(true)}
+          <Link
+            href="/settings/integrations/xero"
             className={cn(
               "relative p-1.5 rounded-md transition-colors",
               getStatusColors(xeroStatus)
@@ -293,10 +300,13 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             {xeroStatus === 'connected' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-gray-900" />
             )}
+            {xeroStatus === 'degraded' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-gray-900" />
+            )}
             {xeroStatus === 'error' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-gray-900" />
             )}
-          </button>
+          </Link>
 
           {/* Data Warehouse */}
           <Link
@@ -389,12 +399,6 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </DropdownMenu>
         </div>
       </div>
-
-      {/* Xero Connections Popup */}
-      <XeroConnectionsPopup
-        isOpen={showXeroPopup}
-        onClose={() => setShowXeroPopup(false)}
-      />
     </header>
   );
 }

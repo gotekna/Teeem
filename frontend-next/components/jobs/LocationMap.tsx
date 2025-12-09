@@ -174,7 +174,7 @@ export function LocationMap({
       setMapPosition(DEFAULT_POSITION);
     }
     setLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [latitude, longitude]);
 
   // Debounced address search

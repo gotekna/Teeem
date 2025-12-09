@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 /**
  * Table ID mappings from the API
@@ -36,7 +36,7 @@ interface TableIdsResponse {
 // Cache the table IDs globally so we only fetch once
 let cachedTableIds: TableIdMappings | null = null;
 let cachedTableSlugs: Record<number, string> | null = null;
-let fetchPromise: Promise<void> | null = null;
+let fetchPromise: Promise<TableIdMappings> | null = null;
 
 // Default fallback values (these should match the database)
 const DEFAULT_TABLE_IDS: TableIdMappings = {
@@ -51,9 +51,10 @@ const DEFAULT_TABLE_IDS: TableIdMappings = {
 
 /**
  * Fetch table IDs from the API
+ * Returns the table IDs (either from cache or freshly fetched)
  */
-async function fetchTableIds(): Promise<void> {
-  if (cachedTableIds) return;
+async function fetchTableIds(): Promise<TableIdMappings> {
+  if (cachedTableIds) return cachedTableIds;
 
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -81,41 +82,50 @@ async function fetchTableIds(): Promise<void> {
       for (const [id, info] of Object.entries(data.tables_by_id)) {
         cachedTableSlugs[parseInt(id)] = info.slug;
       }
+
+      return cachedTableIds;
     }
   } catch (error) {
     console.error('Failed to fetch table IDs, using defaults:', error);
     cachedTableIds = DEFAULT_TABLE_IDS;
   }
+
+  return cachedTableIds || DEFAULT_TABLE_IDS;
 }
 
 /**
  * Hook to get table ID mappings
  * Fetches from API on first use, then uses cached values
+ *
+ * Uses React-recommended pattern to avoid setState in useEffect (PATTERN-005):
+ * - Initialize with cached value if available (synchronous, no loading state)
+ * - Only show loading and trigger effect if cache is empty
  */
 export function useTableIds(): {
   tableIds: TableIdMappings;
   isLoading: boolean;
   getSlug: (tableId: number) => string;
 } {
-  const [isLoading, setIsLoading] = useState(!cachedTableIds);
-  const [tableIds, setTableIds] = useState<TableIdMappings>(cachedTableIds || DEFAULT_TABLE_IDS);
+  // Initialize with cached value immediately if available (avoids useEffect setState)
+  const [tableIds, setTableIds] = useState<TableIdMappings>(() => cachedTableIds || DEFAULT_TABLE_IDS);
+  const [isLoading, setIsLoading] = useState(() => !cachedTableIds);
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
-    if (cachedTableIds) {
-      setTableIds(cachedTableIds);
-      setIsLoading(false);
+    // If already cached, no need to fetch
+    if (cachedTableIds || fetchedRef.current) {
       return;
     }
+
+    fetchedRef.current = true;
 
     // Use a shared promise to avoid multiple fetches
     if (!fetchPromise) {
       fetchPromise = fetchTableIds();
     }
 
-    fetchPromise.then(() => {
-      if (cachedTableIds) {
-        setTableIds(cachedTableIds);
-      }
+    fetchPromise.then((ids) => {
+      setTableIds(ids);
       setIsLoading(false);
     });
   }, []);
@@ -171,11 +181,11 @@ export function getTableSlug(tableId: number): string {
  * Initialize table IDs (call early in app lifecycle)
  * Returns a promise that resolves when IDs are loaded
  */
-export function initTableIds(): Promise<void> {
+export async function initTableIds(): Promise<void> {
   if (!fetchPromise) {
     fetchPromise = fetchTableIds();
   }
-  return fetchPromise;
+  await fetchPromise;
 }
 
 export default useTableIds;

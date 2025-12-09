@@ -6,7 +6,7 @@ namespace :contacts do
     puts "=" * 60
     puts
 
-    sole_traders = Contact.where(entity_type: 'sole_trader').order(:id)
+    sole_traders = Contact.where(entity_type: "sole_trader").order(:id)
     puts "Found #{sole_traders.count} sole_trader contacts"
     puts
 
@@ -19,7 +19,7 @@ namespace :contacts do
       if contact.primary_company_id.present?
         # Has a company linked - should be 'person' not 'sole_trader'
         company = Contact.find_by(id: contact.primary_company_id)
-        contact.update_column(:entity_type, 'person')
+        contact.update_column(:entity_type, "person")
         puts "✓ [#{contact.id}] #{contact.full_name} → 'person' (works for #{company&.full_name})"
         stats[:converted_to_person] += 1
       else

@@ -56,7 +56,7 @@ class BatchDocumentVerificationJob < ApplicationJob
   private
 
   def build_query(scope, company_id)
-    query = CompanyDocument.all
+    query = CorporateCompanyDocument.all
 
     # Filter by company if specified
     query = query.where(company_id: company_id) if company_id.present?

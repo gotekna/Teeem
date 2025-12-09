@@ -1,9 +1,9 @@
 class Asset < ApplicationRecord
   # Associations
-  belongs_to :company
+  belongs_to :corporate_company, foreign_key: "company_id"
   has_one :asset_insurance, dependent: :destroy
   has_many :asset_service_histories, dependent: :destroy
-  has_many :company_documents, dependent: :nullify
+  has_many :corporate_company_documents, dependent: :nullify
 
   # Active Storage for photos
   has_many_attached :photos
@@ -93,7 +93,7 @@ class Asset < ApplicationRecord
   end
 
   def documents_count
-    company_documents.count
+    corporate_company_documents.count
   end
 
   private
@@ -103,7 +103,7 @@ class Asset < ApplicationRecord
     return if Rails.env.development? && caller.any? { |line| line.include?("import") }
 
     user = (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
-    company.company_activities.create!(
+    corporate_company.corporate_company_activities.create!(
       activity_type: "asset_added",
       description: "Asset added: #{display_name}",
       change_details: { asset_id: id, asset_type: asset_type, purchase_price: purchase_price },
@@ -121,14 +121,14 @@ class Asset < ApplicationRecord
     user = (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
 
     if saved_change_to_status? && status == "disposed"
-      company.company_activities.create!(
+      corporate_company.corporate_company_activities.create!(
         activity_type: "asset_disposed",
         description: "Asset disposed: #{display_name}",
         change_details: { asset_id: id },
         user: user
       )
     else
-      company.company_activities.create!(
+      corporate_company.corporate_company_activities.create!(
         activity_type: "asset_updated",
         description: "Asset updated: #{display_name}",
         change_details: { asset_id: id, changes: saved_changes.except("updated_at") },

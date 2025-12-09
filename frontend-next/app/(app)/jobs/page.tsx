@@ -80,7 +80,7 @@ export default function JobsPage() {
   useEffect(() => {
     loadJobs();
     loadJobMetadata();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, []);
 
   const loadJobMetadata = async () => {
@@ -147,32 +147,48 @@ export default function JobsPage() {
         const colKey = col.key || (col as unknown as { column_name?: string }).column_name || '';
         const isSysCol = isSystemColumn(colKey, col.column_type);
 
-        // Add choices for job_type and job_type_id columns
-        if (colKey === 'job_type' || colKey === 'job_type_id') {
-          return { ...col, choices: jobTypes.map(t => t.name), column_type: 'choice', editable: !isSysCol, system: isSysCol };
+        // Configure job_type_id as lookup column
+        if (colKey === 'job_type_id') {
+          return {
+            ...col,
+            label: 'Job Type',
+            column_type: 'lookup',
+            editable: !isSysCol,
+            system: isSysCol
+          };
         }
-        // Add choices for job_status and job_status_id columns
-        if (colKey === 'job_status' || colKey === 'job_status_id') {
-          return { ...col, choices: jobStatuses.map(s => s.name), column_type: 'choice', editable: !isSysCol, system: isSysCol };
+        // Configure job_status_id as lookup column
+        if (colKey === 'job_status_id') {
+          return {
+            ...col,
+            label: 'Job Status',
+            column_type: 'lookup',
+            editable: !isSysCol,
+            system: isSysCol
+          };
         }
         return { ...col, editable: !isSysCol, system: isSysCol };
+      }).filter(col => {
+        // Filter out the non-_id versions (job_type, job_status) to avoid duplicates
+        const colKey = col.key || (col as unknown as { column_name?: string }).column_name || '';
+        return colKey !== 'job_type' && colKey !== 'job_status';
       });
 
-      // Ensure job_status and job_type columns are always available for filtering
+      // Ensure job_status_id and job_type_id columns are always available for filtering
       // (they may not be returned by the API but exist in the data)
       const columnKeys = enrichedColumns.map(c => c.key || (c as unknown as { column_name?: string }).column_name);
       const additionalColumns: TableColumn[] = [];
 
-      if (!columnKeys.includes('job_status')) {
+      if (!columnKeys.includes('job_status_id')) {
         additionalColumns.push({
-          key: "job_status", label: "Job Status", width: 120, sortable: true, filterable: true,
-          filterType: "dropdown", column_type: "choice", choices: jobStatuses.map(s => s.name)
+          key: "job_status_id", label: "Job Status", width: 120, sortable: true, filterable: true,
+          filterType: "dropdown", column_type: "lookup"
         });
       }
-      if (!columnKeys.includes('job_type')) {
+      if (!columnKeys.includes('job_type_id')) {
         additionalColumns.push({
-          key: "job_type", label: "Job Type", width: 120, sortable: true, filterable: true,
-          filterType: "dropdown", column_type: "choice", choices: jobTypes.map(t => t.name)
+          key: "job_type_id", label: "Job Type", width: 120, sortable: true, filterable: true,
+          filterType: "dropdown", column_type: "lookup"
         });
       }
       if (!columnKeys.includes('ted_number')) {
@@ -189,17 +205,14 @@ export default function JobsPage() {
       ];
     }
 
-    // Default columns - include choices from loaded metadata
-    // Note: Include both job_type/job_status AND job_type_id/job_status_id for backward compatibility with saved views
+    // Default columns - include lookup configuration for foreign keys
     return [
       { key: "select", label: "", width: 40, sortable: false, filterable: false },
       { key: "id", label: "ID", width: 60, sortable: true, filterable: true, column_type: "whole_number", editable: false, system: true },
       { key: "ted_number", label: "TED #", width: 100, sortable: true, filterable: true, column_type: "single_line_text" },
       { key: "title", label: "Job Title", width: 250, sortable: true, filterable: true, column_type: "single_line_text" },
-      { key: "job_type", label: "Job Type", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice", choices: jobTypes.map(t => t.name) },
-      { key: "job_type_id", label: "Job Type", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice", choices: jobTypes.map(t => t.name), hidden: true },
-      { key: "job_status", label: "Job Status", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice", choices: jobStatuses.map(s => s.name) },
-      { key: "job_status_id", label: "Job Status", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice", choices: jobStatuses.map(s => s.name), hidden: true },
+      { key: "job_type_id", label: "Job Type", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "lookup" },
+      { key: "job_status_id", label: "Job Status", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "lookup" },
       { key: "stage", label: "Stage", width: 100, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice" },
       { key: "location", label: "Location", width: 200, sortable: true, filterable: true, column_type: "single_line_text" },
       { key: "site_supervisor_name", label: "Supervisor", width: 150, sortable: true, filterable: true, column_type: "single_line_text" },
@@ -207,7 +220,7 @@ export default function JobsPage() {
       { key: "start_date", label: "Start Date", width: 120, sortable: true, filterable: true, column_type: "date" },
       { key: "actions", label: "Actions", width: 100, sortable: false, filterable: false },
     ];
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excluding isSystemColumn (defined in component scope)
+     
   }, [columns, jobStatuses, jobTypes]);
 
   // Convert jobs to table rows - flatten nested objects for display
@@ -215,14 +228,7 @@ export default function JobsPage() {
     return jobs.map((job) => ({
       ...job,
       id: job.id,
-      // Flatten nested objects to display their name property
-      job_type: typeof job.job_type === 'object' && job.job_type !== null
-        ? (job.job_type as { name?: string }).name || ''
-        : job.job_type,
-      job_status: typeof job.job_status === 'object' && job.job_status !== null
-        ? (job.job_status as { name?: string }).name || ''
-        : job.job_status,
-      // Map _id columns to show names (for views that use job_type_id instead of job_type)
+      // Map _id columns to show names from the association objects
       job_type_id: typeof job.job_type === 'object' && job.job_type !== null
         ? (job.job_type as { name?: string }).name || ''
         : job.job_type,

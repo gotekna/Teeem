@@ -187,8 +187,8 @@ export interface FieldMapping {
   teeemField: string;
   xeroField: string;
   direction: 'import' | 'export' | 'bidirectional' | 'none';
-  teeemValue: any;
-  xeroValue: any;
+  teeemValue: unknown;
+  xeroValue: unknown;
   isDifferent: boolean;
   isReadOnly: boolean;
 }

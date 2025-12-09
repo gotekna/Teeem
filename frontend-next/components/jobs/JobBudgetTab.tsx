@@ -65,7 +65,7 @@ export function JobBudgetTab({ jobId }: JobBudgetTabProps) {
 
   useEffect(() => {
     loadBudgetData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [jobId]);
 
   const loadBudgetData = async () => {

@@ -1,3 +1,4 @@
+ 
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -25,6 +26,10 @@ import {
   Plus,
   Monitor,
   X,
+  Bookmark,
+  Building2,
+  UserCircle,
+  FolderOpen,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -42,56 +47,22 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-
-interface OnlineUser {
-  id: number;
-  name: string;
-  email: string;
-  presence_status: "online" | "away" | "offline";
-  is_online: boolean;
-  last_seen_at: string | null;
-}
-
-interface Conversation {
-  id: number | string;
-  type: "direct" | "group" | "job";
-  name: string;
-  participants: Participant[];
-  last_message: Message | null;
-  unread_count: number;
-  is_pinned: boolean;
-  job_id: number | null;
-  job_name: string | null;
-  updated_at: string;
-}
-
-interface Participant {
-  id: number;
-  name: string;
-  avatar_url: string | null;
-  is_online: boolean;
-}
-
-interface Message {
-  id: number;
-  conversation_id: number | string;
-  sender_id: number;
-  sender_name: string;
-  sender_avatar: string | null;
-  content: string;
-  message_type: "text" | "image" | "file";
-  file_url: string | null;
-  file_name: string | null;
-  created_at: string;
-  read_by: number[];
-  is_own: boolean;
-}
+import type {
+  ChatMessage,
+  Conversation,
+  OnlineUser,
+  Participant,
+  Construction,
+  Contact,
+  Case,
+  EntityType,
+} from "@/types/chat";
 
 export default function ChatPage() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -103,6 +74,14 @@ export default function ChatPage() {
   const [pastedImage, setPastedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Save to entity functionality
+  const [constructions, setConstructions] = useState<Construction[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [cases, setCases] = useState<Case[]>([]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [savingMessageId, setSavingMessageId] = useState<number | null>(null);
+  const [saveEntityType, setSaveEntityType] = useState<EntityType | null>(null);
 
   // Load online users
   useEffect(() => {
@@ -140,55 +119,76 @@ export default function ChatPage() {
     loadConversations();
   }, []);
 
-  const loadMessages = useCallback(async (conversationId: number | string) => {
+  const loadMessages = useCallback(async (conversationId: number | string, isInitialLoad = false) => {
     if (!user) return;
 
-    setLoadingMessages(true);
+    // Only show loading spinner on initial load, not during polling
+    if (isInitialLoad) {
+      setLoadingMessages(true);
+    }
+
     try {
-      // Extract user ID from conversation ID for direct messages
-      // Format: "dm-34-45" or "dm-new-45" where 45 is the other user's ID
-      let userId: string | null = null;
+      // Determine API parameters based on conversation type
+      const apiParams: Record<string, string | number> = {};
+
+      // Handle DM format: "dm-34-45" or "dm-new-45"
       if (typeof conversationId === "string" && conversationId.startsWith("dm-")) {
         const parts = conversationId.split("-");
-        // For "dm-new-45", userId is the last part
-        // For "dm-34-45", we need to find the user that isn't us
-        userId = parts[parts.length - 1];
+        const userId = parts[parts.length - 1];
+        apiParams.user_id = userId;
+      }
+      // Handle numeric conversation ID
+      else if (typeof conversationId === "number") {
+        apiParams.conversation_id = conversationId;
+      }
+      // Handle string conversation ID (could be job, contact, case)
+      else if (typeof conversationId === "string") {
+        apiParams.conversation_id = conversationId;
       }
 
-      if (userId) {
-        // API response has different shape than our Message interface
-        interface ApiMessage {
-          id: number;
-          user_id: number;
-          content: string;
-          created_at: string;
-          user?: { name?: string };
-        }
-        const response = await api.get<ApiMessage[]>(`/api/v1/chat_messages?user_id=${userId}`);
-        // Transform backend response to our Message format
-        const messages = (response || []).map((msg) => ({
-          id: msg.id,
-          conversation_id: Number(conversationId),
-          sender_id: msg.user_id,
-          sender_name: msg.user?.name || "Unknown",
-          sender_avatar: null,
-          content: msg.content,
-          message_type: "text" as const,
-          file_url: null,
-          file_name: null,
-          created_at: msg.created_at,
-          read_by: [msg.user_id],
-          is_own: msg.user_id === user.id,
-        }));
-        setMessages(messages);
-      } else {
-        setMessages([]);
+      // API response has different shape than our ChatMessage interface
+      interface ApiMessage {
+        id: number;
+        user_id: number;
+        content: string;
+        created_at: string;
+        user?: { name?: string };
       }
+
+      const response = await api.get<ApiMessage[]>("/api/v1/chat_messages", { params: apiParams });
+
+      // Transform backend response to our ChatMessage format
+      const newMessages = (response || []).map((msg) => ({
+        id: msg.id,
+        conversation_id: conversationId,
+        sender_id: msg.user_id,
+        sender_name: msg.user?.name || "Unknown",
+        sender_avatar: null,
+        content: msg.content,
+        message_type: "text" as const,
+        file_url: null,
+        file_name: null,
+        created_at: msg.created_at,
+        read_by: [msg.user_id],
+        is_own: msg.user_id === user.id,
+      }));
+
+      // Only update if messages actually changed (prevents flashing)
+      // Compare count AND IDs to detect new messages
+      setMessages(prevMessages => {
+        const prevIds = prevMessages.map(m => m.id).sort().join(',');
+        const newIds = newMessages.map(m => m.id).sort().join(',');
+        const hasChanged = prevIds !== newIds || prevMessages.length !== newMessages.length;
+        return hasChanged ? newMessages : prevMessages;
+      });
     } catch (error) {
       console.error("Failed to load messages:", error);
       setMessages(getMockMessages(Number(conversationId) || 1));
     }
-    setLoadingMessages(false);
+
+    if (isInitialLoad) {
+      setLoadingMessages(false);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -196,10 +196,12 @@ export default function ChatPage() {
 
     const conversationId = selectedConversation.id;
     let cancelled = false;
+    let isFirstFetch = true;
 
     async function fetchMessages() {
       try {
-        await loadMessages(conversationId);
+        await loadMessages(conversationId, isFirstFetch);
+        isFirstFetch = false;
       } catch (error) {
         if (!cancelled) {
           console.error("Failed to load messages in effect:", error);
@@ -207,16 +209,101 @@ export default function ChatPage() {
       }
     }
 
+    // Initial fetch with loading spinner
     fetchMessages();
+
+    // Poll for new messages every 10 seconds (silent updates, avoid rate limiting)
+    const pollInterval = setInterval(() => {
+      if (!cancelled) {
+        fetchMessages();
+      }
+    }, 10000);
 
     return () => {
       cancelled = true;
+      clearInterval(pollInterval);
     };
   }, [selectedConversation, loadMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Load entities for save-to-entity functionality - lazy load when dialog opens
+  const loadEntities = useCallback(async () => {
+    try {
+      // Load jobs
+      const jobsResponse = await api.get<{ constructions: Construction[] }>("/api/v1/jobs", {
+        params: { status: "Active", per_page: 100 },
+      });
+      setConstructions(jobsResponse?.constructions || []);
+
+      // Load contacts
+      const contactsResponse = await api.get<{ contacts: Contact[] }>("/api/v1/contacts", {
+        params: { per_page: 100 },
+      });
+      setContacts(contactsResponse?.contacts || []);
+
+      // Load cases (if you have a cases endpoint)
+      // const casesResponse = await api.get<{ cases: Case[] }>("/api/v1/cases", {
+      //   params: { per_page: 100 },
+      // });
+      // setCases(casesResponse?.cases || []);
+    } catch (error) {
+      console.error("Failed to load entities:", error);
+    }
+  }, []);
+
+  // Lazy load entities when save dialog opens (not on page mount)
+  const entitiesLoaded = useRef(false);
+  useEffect(() => {
+    if (showSaveDialog && !entitiesLoaded.current) {
+      entitiesLoaded.current = true;
+      loadEntities();
+    }
+  }, [showSaveDialog, loadEntities]);
+
+  // Save message to entity
+  const handleSaveToEntity = async (
+    messageId: number,
+    entityType: EntityType,
+    entityId: number
+  ) => {
+    setSavingMessageId(messageId);
+    try {
+      const payload: Record<string, number> = {};
+      if (entityType === "job") {
+        payload.construction_id = entityId;
+      } else if (entityType === "contact") {
+        payload.contact_id = entityId;
+      } else if (entityType === "case") {
+        payload.case_id = entityId;
+      }
+
+      await api.post(`/api/v1/chat_messages/${messageId}/save_to_${entityType}`, payload);
+
+      // Update message in state
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                ...(entityType === "job" && { saved_to_job: true, construction_id: entityId }),
+                ...(entityType === "contact" && { contact_id: entityId }),
+                ...(entityType === "case" && { case_id: entityId }),
+              }
+            : msg
+        )
+      );
+
+      setShowSaveDialog(false);
+      setSavingMessageId(null);
+      setSaveEntityType(null);
+    } catch (error) {
+      console.error(`Failed to save message to ${entityType}:`, error);
+      setSavingMessageId(null);
+    }
+  };
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
@@ -306,15 +393,24 @@ export default function ChatPage() {
     let recipientId: number | undefined;
 
     if (typeof selectedConversation.id === "string" && selectedConversation.id.startsWith("dm-")) {
+      // Conversation ID format: "dm-34-36" or "dm-new-36"
       const parts = selectedConversation.id.split("-");
-      recipientId = parseInt(parts[parts.length - 1], 10);
+      if (parts[1] === "new") {
+        // New conversation: "dm-new-36" → recipient is 36
+        recipientId = parseInt(parts[2], 10);
+      } else {
+        // Existing conversation: "dm-34-36" → find the ID that's NOT current user
+        const userId1 = parseInt(parts[1], 10);
+        const userId2 = parseInt(parts[2], 10);
+        recipientId = userId1 === user.id ? userId2 : userId1;
+      }
     } else {
       recipientId = selectedConversation.participants.find(p => p.id !== user?.id)?.id;
     }
 
     // Handle image upload if present
     if (pastedImage) {
-      const tempMessage: Message = {
+      const tempMessage: ChatMessage = {
         id: Date.now(),
         conversation_id: selectedConversation.id,
         sender_id: user.id,
@@ -351,7 +447,7 @@ export default function ChatPage() {
     }
 
     // Handle text message
-    const tempMessage: Message = {
+    const tempMessage: ChatMessage = {
       id: Date.now(),
       conversation_id: selectedConversation.id,
       sender_id: user.id,
@@ -399,6 +495,9 @@ export default function ChatPage() {
       is_pinned: false,
       job_id: null,
       job_name: null,
+      entity_type: null,
+      entity_id: null,
+      entity_name: null,
       updated_at: new Date().toISOString(),
     };
 
@@ -446,15 +545,10 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Messages</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Internal team communication
-          </p>
-        </div>
+    <div className="flex flex-col h-[calc(100vh-64px)]">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between py-2 px-1 shrink-0">
+        <h1 className="text-lg font-semibold">Messages</h1>
         <Dialog open={showNewChatDialog} onOpenChange={setShowNewChatDialog}>
           <DialogTrigger asChild>
             <Button>
@@ -530,17 +624,17 @@ export default function ChatPage() {
       </div>
 
       {/* Chat Interface */}
-      <div className="grid grid-cols-12 gap-4 h-[calc(100vh-220px)]">
+      <div className="grid grid-cols-12 gap-2 flex-1 min-h-0">
         {/* Online Users Sidebar */}
-        <Card className="col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Team ({onlineUsers.filter(u => u.is_online).length} online)
+        <Card className="col-span-2 flex flex-col min-h-0">
+          <CardHeader className="py-2 px-3 shrink-0">
+            <CardTitle className="text-xs font-medium flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              Team ({onlineUsers.filter(u => u.is_online).length})
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-340px)]">
+          <CardContent className="p-0 flex-1 min-h-0">
+            <ScrollArea className="h-full">
               <div className="px-3 pb-3 space-y-1">
                 {loadingUsers ? (
                   <div className="flex items-center justify-center py-8">
@@ -589,20 +683,20 @@ export default function ChatPage() {
         </Card>
 
         {/* Conversations List */}
-        <Card className="col-span-3">
-          <CardHeader className="pb-3">
+        <Card className="col-span-3 flex flex-col min-h-0">
+          <CardHeader className="py-2 px-3 shrink-0">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
               <Input
-                placeholder="Search conversations..."
+                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
+                className="pl-7 h-8 text-sm"
               />
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-340px)]">
+          <CardContent className="p-0 flex-1 min-h-0">
+            <ScrollArea className="h-full">
               {pinnedConversations.length > 0 && (
                 <div className="px-4 py-2">
                   <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
@@ -637,15 +731,15 @@ export default function ChatPage() {
         </Card>
 
         {/* Messages Area */}
-        <Card className="col-span-7 flex flex-col">
+        <Card className="col-span-7 flex flex-col min-h-0">
           {selectedConversation ? (
             <>
               {/* Conversation Header */}
-              <CardHeader className="pb-3 border-b">
+              <CardHeader className="py-2 px-3 border-b shrink-0">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback>
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="text-sm">
                         {selectedConversation.name
                           .split(" ")
                           .map((n) => n[0])
@@ -654,17 +748,14 @@ export default function ChatPage() {
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <div className="font-medium flex items-center gap-2">
+                      <div className="text-sm font-medium flex items-center gap-2">
                         {selectedConversation.name}
                         {selectedConversation.job_name && (
-                          <Badge variant="outline" className="text-xs">
-                            <Briefcase className="h-3 w-3 mr-1" />
+                          <Badge variant="outline" className="text-xs py-0">
+                            <Briefcase className="h-2.5 w-2.5 mr-1" />
                             {selectedConversation.job_name}
                           </Badge>
                         )}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {selectedConversation.participants.length} participants
                       </div>
                     </div>
                   </div>
@@ -689,22 +780,37 @@ export default function ChatPage() {
                           Save to Job
                         </DropdownMenuItem>
                       )}
+                      <DropdownMenuItem
+                        onClick={() => setMessages([])}
+                        className="text-destructive"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Clear Chat
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
               </CardHeader>
 
               {/* Messages */}
-              <CardContent className="flex-1 p-4 overflow-hidden">
+              <CardContent className="flex-1 p-3 overflow-hidden min-h-0">
                 {loadingMessages ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader />
                   </div>
                 ) : (
-                  <ScrollArea className="h-full pr-4">
-                    <div className="space-y-4">
-                      {messages.map((message) => (
-                        <MessageBubble key={message.id} message={message} />
+                  <ScrollArea className="h-full pr-2">
+                    <div className="space-y-3">
+                      {[...messages].reverse().map((message) => (
+                        <MessageBubble
+                          key={message.id}
+                          message={message}
+                          onSaveToEntity={(messageId, entityType) => {
+                            setSavingMessageId(messageId);
+                            setSaveEntityType(entityType);
+                            setShowSaveDialog(true);
+                          }}
+                        />
                       ))}
                       <div ref={messagesEndRef} />
                     </div>
@@ -712,30 +818,87 @@ export default function ChatPage() {
                 )}
               </CardContent>
 
+              {/* Save to Entity Dialog */}
+              <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>
+                      Save Message to {saveEntityType === "job" ? "Job" : saveEntityType === "contact" ? "Contact" : "Case"}
+                    </DialogTitle>
+                    <DialogDescription>
+                      Select a {saveEntityType} to save this message to
+                    </DialogDescription>
+                  </DialogHeader>
+                  <ScrollArea className="max-h-[400px]">
+                    <div className="space-y-1">
+                      {saveEntityType === "job" &&
+                        constructions.map((job) => (
+                          <Button
+                            key={job.id}
+                            variant="ghost"
+                            className="w-full justify-start"
+                            onClick={() => handleSaveToEntity(savingMessageId!, "job", job.id)}
+                            disabled={savingMessageId === null}
+                          >
+                            <Building2 className="h-4 w-4 mr-2" />
+                            {job.title}
+                          </Button>
+                        ))}
+                      {saveEntityType === "contact" &&
+                        contacts.map((contact) => (
+                          <Button
+                            key={contact.id}
+                            variant="ghost"
+                            className="w-full justify-start"
+                            onClick={() => handleSaveToEntity(savingMessageId!, "contact", contact.id)}
+                            disabled={savingMessageId === null}
+                          >
+                            <UserCircle className="h-4 w-4 mr-2" />
+                            {contact.name}
+                          </Button>
+                        ))}
+                      {saveEntityType === "case" &&
+                        cases.map((caseItem) => (
+                          <Button
+                            key={caseItem.id}
+                            variant="ghost"
+                            className="w-full justify-start"
+                            onClick={() => handleSaveToEntity(savingMessageId!, "case", caseItem.id)}
+                            disabled={savingMessageId === null}
+                          >
+                            <FolderOpen className="h-4 w-4 mr-2" />
+                            {caseItem.title}
+                          </Button>
+                        ))}
+                    </div>
+                  </ScrollArea>
+                </DialogContent>
+              </Dialog>
+
               {/* Message Input */}
-              <div className="p-4 border-t">
+              <div className="p-2 border-t shrink-0">
                 {/* Image Preview */}
                 {imagePreview && (
-                  <div className="mb-3 relative inline-block">
+                  <div className="mb-2 relative inline-block">
                     <img
                       src={imagePreview}
                       alt="Pasted screenshot"
-                      className="max-h-40 rounded-lg border"
+                      className="max-h-32 rounded-lg border"
                     />
                     <Button
                       variant="destructive"
                       size="icon"
-                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                      className="absolute -top-2 -right-2 h-5 w-5 rounded-full"
                       onClick={clearImagePreview}
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3 w-3" />
                     </Button>
                   </div>
                 )}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 w-full">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" title="Attach file">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Attach file">
                         <Paperclip className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -756,7 +919,8 @@ export default function ChatPage() {
                   </DropdownMenu>
                   <Button
                     variant="ghost"
-                    size="icon"
+                    size="sm"
+                    className="h-8 w-8 p-0"
                     onClick={handleScreenCapture}
                     title="Capture screen or window"
                   >
@@ -773,9 +937,9 @@ export default function ChatPage() {
                       }
                     }}
                     onPaste={handlePaste}
-                    className="flex-1"
+                    className="flex-1 h-8"
                   />
-                  <Button onClick={handleSend} disabled={!newMessage.trim() && !pastedImage}>
+                  <Button size="sm" className="h-8" onClick={handleSend} disabled={!newMessage.trim() && !pastedImage}>
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
@@ -807,14 +971,14 @@ function ConversationItem({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors mb-1",
+        "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors mb-0.5",
         isSelected ? "bg-secondary" : "hover:bg-secondary/50"
       )}
       onClick={onClick}
     >
       <div className="relative">
-        <Avatar className="h-10 w-10">
-          <AvatarFallback>
+        <Avatar className="h-8 w-8">
+          <AvatarFallback className="text-xs">
             {conversation.name
               .split(" ")
               .map((n) => n[0])
@@ -823,24 +987,24 @@ function ConversationItem({
           </AvatarFallback>
         </Avatar>
         {conversation.type === "job" && (
-          <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-0.5">
-            <Briefcase className="h-2.5 w-2.5 text-white" />
+          <div className="absolute -bottom-0.5 -right-0.5 bg-blue-500 rounded-full p-0.5">
+            <Briefcase className="h-2 w-2 text-white" />
           </div>
         )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <span className="font-medium truncate">{conversation.name}</span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-sm font-medium truncate">{conversation.name}</span>
+          <span className="text-[10px] text-muted-foreground">
             {formatTime(conversation.updated_at)}
           </span>
         </div>
-        <div className="flex items-center justify-between mt-0.5">
-          <span className="text-sm text-muted-foreground truncate">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground truncate">
             {conversation.last_message?.content || "No messages yet"}
           </span>
           {conversation.unread_count > 0 && (
-            <Badge className="bg-primary h-5 px-1.5 ml-2">
+            <Badge className="bg-primary h-4 px-1 ml-1 text-[10px]">
               {conversation.unread_count}
             </Badge>
           )}
@@ -850,12 +1014,20 @@ function ConversationItem({
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({
+  message,
+  onSaveToEntity,
+}: {
+  message: ChatMessage;
+  onSaveToEntity?: (messageId: number, entityType: EntityType) => void;
+}) {
+  const [showSaveMenu, setShowSaveMenu] = useState(false);
+
   return (
     <div className={cn("flex", message.is_own ? "justify-end" : "justify-start")}>
       <div className={cn("flex gap-2 max-w-[70%]", message.is_own && "flex-row-reverse")}>
         {!message.is_own && (
-          <Avatar className="h-8 w-8">
+          <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback className="text-xs">
               {message.sender_name
                 .split(" ")
@@ -864,13 +1036,13 @@ function MessageBubble({ message }: { message: Message }) {
             </AvatarFallback>
           </Avatar>
         )}
-        <div>
+        <div className="min-w-0 flex-1">
           {!message.is_own && (
             <div className="text-xs text-muted-foreground mb-1">{message.sender_name}</div>
           )}
           <div
             className={cn(
-              "rounded-lg overflow-hidden",
+              "rounded-lg overflow-hidden group relative break-words",
               message.message_type === "image" ? "p-0" : "px-3 py-2",
               message.is_own
                 ? "bg-primary text-primary-foreground"
@@ -887,21 +1059,21 @@ function MessageBubble({ message }: { message: Message }) {
                   />
                 )}
                 {message.content && message.content !== "[Image]" && (
-                  <p className="text-sm px-3 py-2">{message.content}</p>
+                  <p className="text-sm px-3 py-2 break-words">{message.content}</p>
                 )}
               </div>
             ) : message.message_type === "file" ? (
               <div className="flex items-center gap-2">
-                <File className="h-4 w-4" />
-                <span className="text-sm">{message.file_name}</span>
+                <File className="h-4 w-4 shrink-0" />
+                <span className="text-sm break-words">{message.file_name}</span>
               </div>
             ) : (
-              <p className="text-sm">{message.content}</p>
+              <p className="text-sm break-words">{message.content}</p>
             )}
           </div>
           <div
             className={cn(
-              "flex items-center gap-1 mt-1 text-xs text-muted-foreground",
+              "flex items-center gap-2 mt-1 text-xs text-muted-foreground",
               message.is_own && "justify-end"
             )}
           >
@@ -912,6 +1084,35 @@ function MessageBubble({ message }: { message: Message }) {
               ) : (
                 <Check className="h-3 w-3" />
               )
+            )}
+            {onSaveToEntity && !message.saved_to_job && !message.contact_id && !message.case_id && (
+              <DropdownMenu open={showSaveMenu} onOpenChange={setShowSaveMenu}>
+                <DropdownMenuTrigger asChild>
+                  <button className="text-muted-foreground hover:text-foreground">
+                    <Bookmark className="h-3 w-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => onSaveToEntity(message.id, "job")}>
+                    <Building2 className="h-4 w-4 mr-2" />
+                    Save to Job
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onSaveToEntity(message.id, "contact")}>
+                    <UserCircle className="h-4 w-4 mr-2" />
+                    Save to Contact
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onSaveToEntity(message.id, "case")}>
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    Save to Case
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {message.saved_to_job && (
+              <span className="flex items-center gap-1 text-green-600">
+                <Bookmark className="h-3 w-3 fill-current" />
+                <span className="text-xs">Saved to job</span>
+              </span>
             )}
           </div>
         </div>
@@ -965,6 +1166,9 @@ function getMockConversations(): Conversation[] {
       is_pinned: true,
       job_id: 1,
       job_name: "Harrison Residence",
+      entity_type: "job",
+      entity_id: 1,
+      entity_name: "Harrison Residence",
       updated_at: new Date(Date.now() - 300000).toISOString(),
     },
     {
@@ -993,6 +1197,9 @@ function getMockConversations(): Conversation[] {
       is_pinned: false,
       job_id: null,
       job_name: null,
+      entity_type: null,
+      entity_id: null,
+      entity_name: null,
       updated_at: new Date(Date.now() - 1800000).toISOString(),
     },
     {
@@ -1023,13 +1230,16 @@ function getMockConversations(): Conversation[] {
       is_pinned: true,
       job_id: null,
       job_name: null,
+      entity_type: null,
+      entity_id: null,
+      entity_name: null,
       updated_at: new Date(Date.now() - 7200000).toISOString(),
     },
   ];
 }
 
-function getMockMessages(conversationId: number): Message[] {
-  const messages: Record<number, Message[]> = {
+function getMockMessages(conversationId: number): ChatMessage[] {
+  const messages: Record<number, ChatMessage[]> = {
     1: [
       {
         id: 1001,

@@ -63,7 +63,7 @@ namespace :contacts do
 
     # Find contacts with website that doesn't start with http:// or https://
     Contact.unscoped
-           .where.not(website: [nil, ""])
+           .where.not(website: [ nil, "" ])
            .where.not("website LIKE 'http://%' OR website LIKE 'https://%'")
            .find_each do |contact|
       begin
@@ -82,7 +82,7 @@ namespace :contacts do
   end
 
   desc "Fix all contact issues (name casing + website URLs + company enrichment + full_name + clear person fields + orphaned relationships)"
-  task fix_all: [:fix_name_casing, :fix_website_urls, :enrich_company_websites, :fix_full_names, :clear_person_fields_from_non_persons, :fix_orphaned_relationships]
+  task fix_all: [ :fix_name_casing, :fix_website_urls, :enrich_company_websites, :fix_full_names, :clear_person_fields_from_non_persons, :fix_orphaned_relationships ]
 
   desc "Delete orphaned contact relationships (pointing to deleted/non-existent contacts)"
   task fix_orphaned_relationships: :environment do
@@ -123,13 +123,13 @@ namespace :contacts do
         correct_full_name = case contact.entity_type
         when "person", "sole_trader"
           # Person: first_name + middle_name + last_name
-          [contact.first_name, contact.middle_name, contact.last_name].compact.reject(&:blank?).join(" ")
+          [ contact.first_name, contact.middle_name, contact.last_name ].compact.reject(&:blank?).join(" ")
         when "company", "trust"
           # Company/Trust: use company_name_or_trust
           contact.company_name_or_trust.presence || contact.full_name
         else
           # Unknown type: try to build from parts or keep existing
-          parts = [contact.first_name, contact.middle_name, contact.last_name].compact.reject(&:blank?)
+          parts = [ contact.first_name, contact.middle_name, contact.last_name ].compact.reject(&:blank?)
           parts.any? ? parts.join(" ") : (contact.company_name_or_trust.presence || contact.full_name)
         end
 
@@ -162,7 +162,7 @@ namespace :contacts do
 
     # Find company, trust, and price_only contacts that have first_name, middle_name, or last_name set
     Contact.unscoped
-           .where(entity_type: ["company", "trust", "price_only"])
+           .where(entity_type: [ "company", "trust", "price_only" ])
            .where("first_name IS NOT NULL AND first_name != '' OR middle_name IS NOT NULL AND middle_name != '' OR last_name IS NOT NULL AND last_name != ''")
            .find_each do |contact|
       begin
@@ -264,7 +264,7 @@ namespace :contacts do
 
     # Find company/trust contacts without website
     Contact.unscoped
-           .where(entity_type: ["company", "trust"])
+           .where(entity_type: [ "company", "trust" ])
            .where("website IS NULL OR website = ''")
            .find_each do |contact|
       company_name = (contact.company_name_or_trust.presence || contact.full_name).to_s.downcase.strip

@@ -6,7 +6,7 @@ module Api
       # GET /api/v1/bank_accounts
       # GET /api/v1/companies/:company_id/bank_accounts
       def index
-        @bank_accounts = BankAccount.includes(:company).all
+        @bank_accounts = BankAccount.includes(:corporate_company).all
 
         # Filter by company (from nested route or query param)
         company_id = params[:company_id]

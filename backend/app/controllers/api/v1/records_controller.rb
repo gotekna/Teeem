@@ -409,8 +409,8 @@ module Api
         return true if contact.quote_request_contacts.exists?
         return true if contact.pricebook_items.exists?
         return true if contact.case_contacts.exists?
-        return true if contact.company_directorships.exists?
-        return true if contact.company_shareholdings.exists?
+        return true if contact.corporate_company_directorships.exists?
+        return true if contact.corporate_company_shareholdings.exists?
         return true if contact.contact_activities.exists?
 
         false
@@ -785,9 +785,9 @@ module Api
         when "Job"
           query.includes(:job_type, :job_status, :job_stage)
         when "Contact"
-          query.includes(:company_group, :primary_company)
+          query.includes(:corporate_group, :primary_company)
         when "Company"
-          query.includes(:company_group, :parent_company)
+          query.includes(:corporate_group, :parent_company)
         else
           query
         end

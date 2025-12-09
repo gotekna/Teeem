@@ -100,7 +100,7 @@ module Api
       private
 
       def set_company
-        @company = Company.find(params[:company_id])
+        @company = CorporateCompany.find(params[:company_id])
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Company not found" }, status: :not_found
       end

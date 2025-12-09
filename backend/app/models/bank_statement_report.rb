@@ -23,7 +23,7 @@ class BankStatementReport < ApplicationRecord
     "simple saver" => "SS"
   }.freeze
 
-  
+
   # Scopes
   scope :completed, -> { where(status: "completed") }
   scope :pending, -> { where(status: "pending") }
@@ -130,9 +130,9 @@ class BankStatementReport < ApplicationRecord
     # Period: "EOY" for annual, month abbreviation for monthly
     period = if month.present?
                Date::ABBR_MONTHNAMES[month]
-             else
+    else
                "EOY"
-             end
+    end
 
     # Extract FY year (e.g., "FY24" from "FY2024")
     fy_short = financial_year.to_s.gsub(/FY?(\d{4})/, 'FY\1').gsub(/FY(\d{4})/) { "FY#{$1[-2..]}" }

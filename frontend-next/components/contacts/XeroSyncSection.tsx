@@ -78,7 +78,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
   // Load Xero links for this contact
   useEffect(() => {
     loadXeroLinks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally watching contact.id only (loadXeroLinks is stable)
+     
   }, [contact.id]);
 
   // Load available tenants
@@ -92,7 +92,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
       loadXeroContactData();
       loadSyncConfig(selectedLink.xero_tenant_id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally watching selectedLinkId only (functions are stable, selectedLink derived from it)
+     
   }, [selectedLinkId]);
 
   const loadXeroLinks = async () => {
@@ -574,7 +574,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
                       <p className="text-xs text-muted-foreground font-medium">
                         TEEEM ({mapping.teeemField})
                       </p>
-                      <p className="text-sm">{mapping.teeemValue || <span className="text-muted-foreground italic">empty</span>}</p>
+                      <p className="text-sm">{mapping.teeemValue ? String(mapping.teeemValue) : <span className="text-muted-foreground italic">empty</span>}</p>
                     </div>
                     <div className="flex items-center">
                       {mapping.direction === "bidirectional" && <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />}
@@ -586,7 +586,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
                       <p className="text-xs text-muted-foreground font-medium">
                         Xero ({mapping.xeroField})
                       </p>
-                      <p className="text-sm">{mapping.xeroValue || <span className="text-muted-foreground italic">empty</span>}</p>
+                      <p className="text-sm">{mapping.xeroValue ? String(mapping.xeroValue) : <span className="text-muted-foreground italic">empty</span>}</p>
                     </div>
                   </div>
                 ))}

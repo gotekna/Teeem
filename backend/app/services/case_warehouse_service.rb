@@ -219,7 +219,7 @@ class CaseWarehouseService
     events += emails.map { |e| timeline_event_from_email(e) }
 
     # Add document events
-    docs = CompanyDocument
+    docs = CorporateCompanyDocument
       .where(company_id: case_record.related_company_ids)
       .where("document_date BETWEEN ? AND ? OR created_at BETWEEN ? AND ?",
              start_date, end_date, start_date, end_date)
@@ -249,27 +249,27 @@ class CaseWarehouseService
 
     {
       contact: contact,
-      directorships: contact.company_directors.includes(:company),
-      shareholdings: CompanyShareholding.where(shareholder_type: "Contact", shareholder_id: contact_id)
-                                        .includes(:company),
+      directorships: contact.corporate_company_directors.includes(:corporate_company),
+      shareholdings: CorporateCompanyShareholding.where(shareholder_type: "Contact", shareholder_id: contact_id)
+                                        .includes(:corporate_company),
       relationships: contact.contact_relationships.includes(:related_contact),
-      documents: CompanyDocument.where(contact_id: contact_id),
+      documents: CorporateCompanyDocument.where(contact_id: contact_id),
       emails: EmailWarehouse.involving_email(contact.email),
-      company_group_memberships: contact.company_group_memberships.includes(:company_group)
+      company_group_memberships: contact.corporate_group_memberships.includes(:corporate_group)
     }
   end
 
   # Deep analysis of a company
   def analyze_company(company_id)
-    company = Company.find(company_id)
+    company = CorporateCompany.find(company_id)
 
     # Get warehouse metrics
     job_ids = company.jobs.pluck(:id)
 
     {
       company: company,
-      directors: company.company_directors.includes(:contact),
-      shareholders: company.company_shareholdings.includes(:contact),
+      directors: company.corporate_company_directors.includes(:contact),
+      shareholders: company.corporate_company_shareholdings.includes(:contact),
       job_summary: query_mv("mv_job_summary", "job_id IN (?)", [ job_ids ]),
       financial_summary: query_mv("mv_financial_summary", "company_id = ?", [ company_id ]),
       document_summary: query_mv("mv_document_summary", "company_id = ?", [ company_id ]),
@@ -417,7 +417,7 @@ class CaseWarehouseService
       type: "document",
       title: doc.title || doc.filename,
       description: "Type: #{doc.document_type}",
-      source_type: "CompanyDocument",
+      source_type: "CorporateCompanyDocument",
       source_id: doc.id,
       icon: "file-text",
       color: "blue",

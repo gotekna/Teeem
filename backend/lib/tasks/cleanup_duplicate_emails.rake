@@ -18,11 +18,11 @@ namespace :contacts do
     puts
 
     generic_emails = [
-      'info@gmail.com',
-      'info@outlook.com',
-      'info@hotmail.com',
-      'admin@gmail.com',
-      'contact@gmail.com'
+      "info@gmail.com",
+      "info@outlook.com",
+      "info@hotmail.com",
+      "admin@gmail.com",
+      "contact@gmail.com"
     ]
 
     generic_emails.each do |email|
@@ -44,8 +44,8 @@ namespace :contacts do
 
     duplicate_pairs = [
       # [newer_id, older_id, email]
-      [2301, 2268, 'info@braidenbrothers.com.au'],  # Joshua Braiden vs Braidenbrothers
-      [2300, 2267, 'info@uniquewindowservices.com'] # Unique Window Services vs Uniquewindowservices
+      [ 2301, 2268, "info@braidenbrothers.com.au" ],  # Joshua Braiden vs Braidenbrothers
+      [ 2300, 2267, "info@uniquewindowservices.com" ] # Unique Window Services vs Uniquewindowservices
     ]
 
     duplicate_pairs.each do |newer_id, older_id, email|
@@ -93,7 +93,7 @@ namespace :contacts do
     puts "Step 3: Handling Tekna email duplicates..."
     puts
 
-    tekna_email = 'robert@tekna.com.au'
+    tekna_email = "robert@tekna.com.au"
     tekna_contacts = Contact.where(email: tekna_email).order(:id)
 
     if tekna_contacts.count > 1
@@ -105,7 +105,7 @@ namespace :contacts do
 
       duplicates.each do |dup|
         # Skip if it's a person (might legitimately have this email)
-        if dup.entity_type == 'person'
+        if dup.entity_type == "person"
           puts "  ⊘ SKIPPED [#{dup.id}] #{dup.full_name} (person)"
           next
         end
@@ -118,8 +118,8 @@ namespace :contacts do
 
     # Handle grace Harder with blank entity_type
     grace = Contact.find_by(id: 1743)
-    if grace && grace.full_name == 'grace Harder' && grace.entity_type.blank?
-      grace.update_columns(entity_type: 'person', email: nil)
+    if grace && grace.full_name == "grace Harder" && grace.entity_type.blank?
+      grace.update_columns(entity_type: "person", email: nil)
       puts "  ✓ Fixed [1743] grace Harder - set entity_type to person, cleared duplicate email"
       stats[:generic_cleared] += 1
     end
@@ -131,9 +131,9 @@ namespace :contacts do
     puts
 
     remaining_dupes = Contact.select(:email)
-                             .where.not(email: [nil, ''])
+                             .where.not(email: [ nil, "" ])
                              .group(:email)
-                             .having('COUNT(*) > 1')
+                             .having("COUNT(*) > 1")
                              .count
 
     if remaining_dupes.any?
@@ -164,9 +164,9 @@ namespace :contacts do
   desc "Preview duplicate emails"
   task preview_duplicate_emails: :environment do
     duplicate_emails = Contact.select(:email)
-                              .where.not(email: [nil, ''])
+                              .where.not(email: [ nil, "" ])
                               .group(:email)
-                              .having('COUNT(*) > 1')
+                              .having("COUNT(*) > 1")
                               .count
 
     puts "PREVIEW: Duplicate emails (#{duplicate_emails.count} emails):"

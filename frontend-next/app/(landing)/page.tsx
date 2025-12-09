@@ -1,3 +1,4 @@
+ 
 "use client";
 
 import * as React from "react";
@@ -61,7 +62,7 @@ function useInView(options = {}) {
     }
 
     return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- options is a static config object
+     
   }, []);
 
   return { ref, isInView };

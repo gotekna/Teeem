@@ -275,14 +275,14 @@ export interface FileValue {
  * Base cell editor props with any value type (for registry)
  * Uses 'any' intentionally to allow different editor components in the registry
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export type AnyCellEditorProps = CellEditorProps<any>;
 
 /**
  * Generic cell editor component type
  * Uses 'any' for the registry to allow mixing different value types
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export type CellEditorComponent = React.ComponentType<any>;
 
 /**

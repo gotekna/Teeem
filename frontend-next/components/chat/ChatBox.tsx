@@ -105,7 +105,7 @@ export function ChatBox({
     return () => {
       clearInterval(interval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [channel, projectId, userId, showSaveToJob]);
 
   React.useEffect(() => {

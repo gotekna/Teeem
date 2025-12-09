@@ -1,3 +1,4 @@
+ 
 "use client";
 
 import * as React from "react";
@@ -17,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDown, ChevronRight, ChevronLeft, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -26,7 +27,7 @@ import { useToast } from "@/components/ui/use-toast";
 const FOLDER_OPTIONS = [
   "ADVICE", "ASIC", "ASSETS", "ATO", "BANK", "COMPANY",
   "DIVIDENDS", "FINANCIALS", "GENERAL", "INSURANCE",
-  "LOANS", "MINUTES", "REGISTRY", "TRUST"
+  "LOANS", "MINUTES", "REGISTRY", "TRUST", "XERO"
 ];
 
 // Scope options
@@ -42,8 +43,10 @@ const FILE_EXTENSION_OPTIONS = [
   ".txt", ".csv", ".zip", ".msg", ".eml"
 ];
 
-// Placeholder definitions with scope
-const PLACEHOLDERS = {
+// Placeholder definitions with scope (DocType placeholders added dynamically)
+type PlaceholderItem = { code: string; example: string; color: string; longCode?: string; longExample?: string; label?: string };
+
+const BASE_PLACEHOLDERS: { company: PlaceholderItem[]; job: PlaceholderItem[] } = {
   company: [
     { code: "{CompanyCode}", example: "TH", longCode: "{CompanyName}", longExample: "Tekna Homes", color: "purple" },
     { code: "{LoanID}", example: "L001", longCode: "{LoanName}", longExample: "Loan to ABC Trust", color: "purple" },
@@ -102,7 +105,12 @@ export default function DocumentTypeDetailPage() {
   const [draggedPlaceholder, setDraggedPlaceholder] = React.useState<string | null>(null);
   const [draggedFromField, setDraggedFromField] = React.useState<"file_name" | "display_name" | "source" | null>(null);
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
+  const [dropTarget, setDropTarget] = React.useState<{ field: "file_name" | "display_name"; index: number } | null>(null);
   const [basicInfoExpanded, setBasicInfoExpanded] = React.useState(false);
+  const [namingOrgExpanded, setNamingOrgExpanded] = React.useState(true);
+  const [filingOrgExpanded, setFilingOrgExpanded] = React.useState(false);
+  const [fileExtensionsExpanded, setFileExtensionsExpanded] = React.useState(false);
+  const [complianceExpanded, setComplianceExpanded] = React.useState(false);
   const [displayNameSameAsFileName, setDisplayNameSameAsFileName] = React.useState(true);
   const [showFullDescription, setShowFullDescription] = React.useState(true);
   const [removeCompanyName, setRemoveCompanyName] = React.useState(true);
@@ -110,9 +118,53 @@ export default function DocumentTypeDetailPage() {
   const [companies, setCompanies] = React.useState<Array<{id: number; name: string; code: string}>>([]);
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
+  const [folderOptions, setFolderOptions] = React.useState<string[]>([]);
+  const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
+  const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Fetch available folders from API (SSoT)
+  React.useEffect(() => {
+    const fetchFolders = async () => {
+      try {
+        const data = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_folders?active=true");
+        if (data.success) {
+          // Extract folder names and sort alphabetically
+          const names = data.data.map((f: any) => f.name).sort();
+          setFolderOptions(names);
+        } else {
+          // Fallback to hard-coded list if API fails
+          setFolderOptions(FOLDER_OPTIONS);
+        }
+      } catch (error) {
+        console.error("Failed to fetch folders:", error);
+        // Fallback to hard-coded list if API fails
+        setFolderOptions(FOLDER_OPTIONS);
+      }
+    };
+    fetchFolders();
+  }, []);
+
+  // Fetch all document types for navigation
+  React.useEffect(() => {
+    const fetchAllDocumentTypes = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_types");
+        if (response.success && Array.isArray(response.data)) {
+          // Sort by name for consistent navigation, include scope
+          const sorted = response.data
+            .map((dt: any) => ({ id: dt.id, name: dt.name, scope: dt.scope || "company" }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          setAllDocumentTypes(sorted);
+        }
+      } catch (error) {
+        console.error("Failed to fetch document types for navigation:", error);
+      }
+    };
+    fetchAllDocumentTypes();
+  }, []);
 
   const documentTypeId = params.id as string;
 
@@ -162,8 +214,11 @@ export default function DocumentTypeDetailPage() {
   }, [documentType?.id]); // Only run when document type changes
 
   // Map short codes to long codes
-  const shortToLongMap: Record<string, string> = {};
-  const allPlaceholders = [...PLACEHOLDERS.company, ...PLACEHOLDERS.job];
+  const shortToLongMap: Record<string, string> = {
+    // DocType placeholder mapping
+    "{DocTypeCode}": "{DocTypeName}",
+  };
+  const allPlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
   allPlaceholders.forEach((p: any) => {
     if (p.longCode) {
       shortToLongMap[p.code] = p.longCode;
@@ -174,7 +229,9 @@ export default function DocumentTypeDetailPage() {
   const convertToLongCodes = (value: string): string => {
     let result = value;
     Object.entries(shortToLongMap).forEach(([short, long]) => {
-      result = result.replace(new RegExp(short.replace(/[{}]/g, '\\$&'), 'g'), long);
+      // Escape curly braces for regex
+      const escaped = short.replace(/\{/g, '\\{').replace(/\}/g, '\\}');
+      result = result.replace(new RegExp(escaped, 'g'), long);
     });
     return result;
   };
@@ -265,6 +322,25 @@ export default function DocumentTypeDetailPage() {
     }
   };
 
+  // Navigation functions - filter by current scope (case-insensitive)
+  const currentScope = (documentType?.scope || "company").toLowerCase();
+  const scopeFilteredTypes = allDocumentTypes.filter(dt => (dt.scope || "company").toLowerCase() === currentScope);
+  const currentIndex = scopeFilteredTypes.findIndex(dt => dt.id === parseInt(documentTypeId));
+  const hasPrevious = currentIndex > 0;
+  const hasNext = currentIndex < scopeFilteredTypes.length - 1 && currentIndex !== -1;
+
+  const navigateToPrevious = () => {
+    if (hasPrevious) {
+      router.push(`/admin/system/document-types/${scopeFilteredTypes[currentIndex - 1].id}`);
+    }
+  };
+
+  const navigateToNext = () => {
+    if (hasNext) {
+      router.push(`/admin/system/document-types/${scopeFilteredTypes[currentIndex + 1].id}`);
+    }
+  };
+
   const updateField = (field: keyof DocumentType, value: any) => {
     if (!documentType) return;
     setDocumentType({ ...documentType, [field]: value });
@@ -307,15 +383,35 @@ export default function DocumentTypeDetailPage() {
     return fileName.includes(placeholderCode) || displayName.includes(placeholderCode);
   };
 
+  // Extract clean name from document type (removes code prefix like "AA - ")
+  const getCleanDocTypeName = () => {
+    if (!documentType?.name) return "";
+    // Remove patterns like "AA - " or "CTR - " from the beginning
+    return documentType.name.replace(/^[A-Z0-9]+\s*-\s*/, "").trim();
+  };
+
   // Get placeholders based on scope
   const getAvailablePlaceholders = () => {
     const scope = documentType?.scope || "company";
-    let placeholders;
+
+    // Dynamic DocType placeholder based on current document type
+    const docTypePlaceholder = {
+      code: "{DocTypeCode}",
+      example: documentType?.abbreviation || "AA",
+      longCode: "{DocTypeName}",
+      longExample: getCleanDocTypeName() || "Accountant Advice",
+      color: "blue" as const
+    };
+
+    let basePlaceholders;
     if (scope === "both") {
-      placeholders = [...PLACEHOLDERS.company, ...PLACEHOLDERS.job];
+      basePlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
     } else {
-      placeholders = PLACEHOLDERS[scope as keyof typeof PLACEHOLDERS] || PLACEHOLDERS.company;
+      basePlaceholders = BASE_PLACEHOLDERS[scope as keyof typeof BASE_PLACEHOLDERS] || BASE_PLACEHOLDERS.company;
     }
+
+    // Add DocType placeholder at the beginning
+    const placeholders = [docTypePlaceholder, ...basePlaceholders];
 
     // Filter by search term
     if (placeholderSearch.trim()) {
@@ -332,6 +428,7 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Parse a field value into tokens (text and placeholders)
+  // Filters out whitespace-only text tokens - they don't need to be shown
   const parseTokens = (value: string): { type: "text" | "placeholder"; value: string }[] => {
     if (!value) return [];
     const tokens: { type: "text" | "placeholder"; value: string }[] = [];
@@ -340,18 +437,24 @@ export default function DocumentTypeDetailPage() {
     let match;
 
     while ((match = regex.exec(value)) !== null) {
-      // Add text before placeholder
+      // Add text before placeholder (only if not just whitespace)
       if (match.index > lastIndex) {
-        tokens.push({ type: "text", value: value.slice(lastIndex, match.index) });
+        const textValue = value.slice(lastIndex, match.index);
+        if (textValue.trim()) {
+          tokens.push({ type: "text", value: textValue.trim() });
+        }
       }
       // Add placeholder
       tokens.push({ type: "placeholder", value: match[0] });
       lastIndex = regex.lastIndex;
     }
 
-    // Add remaining text
+    // Add remaining text (only if not just whitespace)
     if (lastIndex < value.length) {
-      tokens.push({ type: "text", value: value.slice(lastIndex) });
+      const textValue = value.slice(lastIndex);
+      if (textValue.trim()) {
+        tokens.push({ type: "text", value: textValue.trim() });
+      }
     }
 
     return tokens;
@@ -384,8 +487,12 @@ export default function DocumentTypeDetailPage() {
 
   // Get color for placeholder
   const getPlaceholderColor = (placeholder: string): string => {
-    const allPlaceholders = [...PLACEHOLDERS.company, ...PLACEHOLDERS.job];
-    const found = allPlaceholders.find(p => p.code === placeholder);
+    // DocType placeholders are blue
+    if (placeholder === "{DocTypeCode}" || placeholder === "{DocTypeName}") {
+      return "blue";
+    }
+    const allPlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
+    const found = allPlaceholders.find(p => p.code === placeholder || p.longCode === placeholder);
     return found?.color || "purple";
   };
 
@@ -399,6 +506,10 @@ export default function DocumentTypeDetailPage() {
     const selectedCompany = previewCompanyId ? companies.find(c => c.id === previewCompanyId) : null;
     const companyCode = selectedCompany?.code || "TH";
     const companyName = selectedCompany?.name || "Tekna Homes";
+
+    // Replace DocType placeholders with current document type values
+    preview = preview.replace(/\{DocTypeCode\}/g, documentType?.abbreviation || "");
+    preview = preview.replace(/\{DocTypeName\}/g, getCleanDocTypeName());
 
     // Replace placeholders with example values
     // Use full names if checkbox is checked, otherwise use codes
@@ -458,6 +569,7 @@ export default function DocumentTypeDetailPage() {
     setDraggedPlaceholder(null);
     setDraggedFromField(null);
     setDraggedIndex(null);
+    setDropTarget(null);
   };
 
   // Handle drop to reorder within field
@@ -485,19 +597,72 @@ export default function DocumentTypeDetailPage() {
     // If dragging from source, insert
     else if (draggedFromField === "source") {
       const newTokens = [...tokens];
-      newTokens.splice(dropIndex, 0, { type: "placeholder", value: placeholder });
+      // Handle custom text - insert a text token with empty/default value
+      if (placeholder === "__CUSTOM_TEXT__") {
+        newTokens.splice(dropIndex, 0, { type: "text", value: "text" });
+        // Auto-focus the new text input
+        setFocusTextToken({ field, index: dropIndex });
+      } else {
+        newTokens.splice(dropIndex, 0, { type: "placeholder", value: placeholder });
+      }
+      updateField(field, rebuildFromTokens(newTokens));
+    }
+    // If dragging custom text without going through source state
+    else if (placeholder === "__CUSTOM_TEXT__") {
+      const newTokens = [...tokens];
+      newTokens.splice(dropIndex, 0, { type: "text", value: "text" });
+      // Auto-focus the new text input
+      setFocusTextToken({ field, index: dropIndex });
       updateField(field, rebuildFromTokens(newTokens));
     }
 
     setDraggedPlaceholder(null);
     setDraggedFromField(null);
     setDraggedIndex(null);
+    setDropTarget(null);
   };
 
   // Handle drag over (required to allow drop)
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = draggedFromField === "source" ? "copy" : "move";
+  };
+
+  // Handle drag over on a specific position
+  const handleDragOverPosition = (e: React.DragEvent, field: "file_name" | "display_name", index: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropTarget({ field, index });
+  };
+
+  // Handle drop on container (append to end)
+  const handleDropOnContainer = (e: React.DragEvent, field: "file_name" | "display_name") => {
+    e.preventDefault();
+    if (!documentType) return;
+
+    const placeholder = e.dataTransfer.getData("text/plain");
+    if (!placeholder) return;
+
+    // Only handle drops from source (not reordering)
+    if (draggedFromField === "source" || placeholder === "__CUSTOM_TEXT__") {
+      const currentValue = documentType[field] || "";
+      const tokens = parseTokens(currentValue);
+      // Handle custom text - insert plain text token
+      if (placeholder === "__CUSTOM_TEXT__") {
+        const newValue = currentValue + (currentValue ? " " : "") + "text";
+        updateField(field, newValue);
+        // Auto-focus the new text input (it will be at the end)
+        setFocusTextToken({ field, index: tokens.length });
+      } else {
+        const newValue = currentValue + (currentValue ? " " : "") + placeholder;
+        updateField(field, newValue);
+      }
+    }
+
+    setDraggedPlaceholder(null);
+    setDraggedFromField(null);
+    setDraggedIndex(null);
+    setDropTarget(null);
   };
 
   // Remove token from field
@@ -549,13 +714,36 @@ export default function DocumentTypeDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
+    <div className="h-[calc(100vh-4rem)] flex flex-col">
+      {/* Header - Fixed at top */}
+      <div className="flex items-start justify-between p-2 shrink-0">
         <div className="flex items-start gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.push("/admin/system?tab=document-types")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
+          {/* Previous/Next navigation - filtered by scope */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={navigateToPrevious}
+              disabled={!hasPrevious}
+              className="h-8 w-8"
+              title={hasPrevious ? `Previous: ${scopeFilteredTypes[currentIndex - 1]?.name}` : "No previous"}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={navigateToNext}
+              disabled={!hasNext}
+              className="h-8 w-8"
+              title={hasNext ? `Next: ${scopeFilteredTypes[currentIndex + 1]?.name}` : "No next"}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
           <div>
             <div className="flex items-center gap-3">
               <FileText className="h-6 w-6 text-muted-foreground" />
@@ -564,6 +752,11 @@ export default function DocumentTypeDetailPage() {
                 <Badge variant="outline" className="font-mono font-bold">
                   {documentType.abbreviation}
                 </Badge>
+              )}
+              {scopeFilteredTypes.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {currentIndex + 1} of {scopeFilteredTypes.length} {currentScope}
+                </span>
               )}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
@@ -591,6 +784,9 @@ export default function DocumentTypeDetailPage() {
           </Button>
         </div>
       </div>
+
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto space-y-6 p-2">
 
       {/* Basic Info */}
       <Card>
@@ -703,13 +899,24 @@ export default function DocumentTypeDetailPage() {
 
       {/* Naming & Organization */}
       <Card>
-        <CardHeader className="pb-2 pt-4">
-          <CardTitle className="text-base">Naming & Organization</CardTitle>
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
+          onClick={() => setNamingOrgExpanded(!namingOrgExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Naming & Organization</CardTitle>
+            {namingOrgExpanded ? (
+              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4 pt-2">
-          <div className="relative flex gap-6">
+        {namingOrgExpanded && (
+          <CardContent className="space-y-4 pt-2">
+          <div className="flex gap-4">
             {/* Left side - File Name and Display Name */}
-            <div className="flex-1 space-y-4 pr-[25rem]">
+            <div className="flex-1 space-y-4">
               {/* Preview Company Dropdown */}
               <div className="space-y-1 mb-6">
                 <Label htmlFor="preview-company" className="text-sm text-muted-foreground">
@@ -741,73 +948,121 @@ export default function DocumentTypeDetailPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="file_name">File Name</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => addBlankText("file_name")}
-                    className="text-xs h-7"
-                  >
-                    + Add Text
-                  </Button>
-                </div>
-            <div className="min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-2 items-center">
+                <Label htmlFor="file_name">File Name</Label>
+            <div
+              className={cn(
+                "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
+                draggedFromField && "border-dashed border-2 border-green-400 bg-green-50/50"
+              )}
+              onDrop={(e) => {
+                const tokens = parseTokens(documentType.file_name || "");
+                handleDropOnToken(e, "file_name", tokens.length);
+              }}
+              onDragOver={(e) => {
+                handleDragOver(e);
+                const tokens = parseTokens(documentType.file_name || "");
+                setDropTarget({ field: "file_name", index: tokens.length });
+              }}
+              onDragLeave={() => setDropTarget(null)}
+            >
               {parseTokens(documentType.file_name || "").map((token, index) => (
-                <div
-                  key={index}
-                  draggable={token.type === "placeholder"}
-                  onDragStart={(e) =>
-                    token.type === "placeholder" &&
-                    handleDragStartFromToken(e, "file_name", index, token.value)
-                  }
-                  onDragEnd={handleDragEnd}
-                  onDrop={(e) => handleDropOnToken(e, "file_name", index)}
-                  onDragOver={handleDragOver}
-                  className={cn(
-                    token.type === "placeholder" &&
-                      "cursor-grab active:cursor-grabbing transition-all",
-                    draggedFromField === "file_name" &&
-                      draggedIndex === index &&
-                      "opacity-30"
+                <React.Fragment key={index}>
+                  {/* Drop indicator line - only shows at current drop position */}
+                  {dropTarget?.field === "file_name" && dropTarget.index === index && (
+                    <div className="w-1 h-10 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
                   )}
-                >
-                  {token.type === "placeholder" ? (
-                    <Badge
-                      className={cn(
-                        "font-mono text-xs px-3 py-1.5 select-none",
-                        getPlaceholderColor(token.value) === "purple" &&
-                          "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
-                        getPlaceholderColor(token.value) === "orange" &&
-                          "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700"
-                      )}
-                    >
-                      <GripVertical className="h-3 w-3 mr-1 inline" />
-                      {token.value}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeToken("file_name", index);
-                        }}
-                        className="ml-2 hover:text-destructive"
+                  <div
+                    draggable={token.type === "placeholder"}
+                    onDragStart={(e) =>
+                      token.type === "placeholder" &&
+                      handleDragStartFromToken(e, "file_name", index, token.value)
+                    }
+                    onDragEnd={handleDragEnd}
+                    onDrop={(e) => {
+                      e.stopPropagation();
+                      handleDropOnToken(e, "file_name", index);
+                    }}
+                    onDragOver={(e) => handleDragOverPosition(e, "file_name", index)}
+                    className={cn(
+                      token.type === "placeholder" &&
+                        "cursor-grab active:cursor-grabbing transition-all",
+                      draggedFromField === "file_name" &&
+                        draggedIndex === index &&
+                        "opacity-30"
+                    )}
+                  >
+                    {token.type === "placeholder" ? (
+                      <Badge
+                        className={cn(
+                          "font-mono text-xs px-3 py-1.5 select-none",
+                          getPlaceholderColor(token.value) === "purple" &&
+                            "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
+                          getPlaceholderColor(token.value) === "orange" &&
+                            "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+                          getPlaceholderColor(token.value) === "blue" &&
+                            "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 border-blue-300 dark:border-blue-700"
+                        )}
                       >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ) : (
-                    <Input
-                      value={token.value}
-                      onChange={(e) => updateTextToken("file_name", index, e.target.value)}
-                      className="h-8 w-auto min-w-[50px] px-2 font-mono text-xs inline-block"
-                      style={{ width: `${Math.max(50, token.value.length * 8)}px` }}
-                    />
-                  )}
-                </div>
+                        <GripVertical className="h-3 w-3 mr-1 inline" />
+                        {token.value}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeToken("file_name", index);
+                          }}
+                          className="ml-2 hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ) : (
+                      // Text tokens - white/gray draggable badge with editable text
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-xs px-2 py-1.5 select-none bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 cursor-grab active:cursor-grabbing"
+                      >
+                        <GripVertical className="h-3 w-3 mr-1 inline text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={token.value}
+                          onChange={(e) => updateTextToken("file_name", index, e.target.value)}
+                          className="bg-transparent border-none outline-none w-auto min-w-[20px] max-w-[100px] text-xs font-mono"
+                          style={{ width: `${Math.max(20, token.value.length * 7)}px` }}
+                          placeholder="text"
+                          ref={(el) => {
+                            if (el && focusTextToken?.field === "file_name" && focusTextToken?.index === index) {
+                              el.focus();
+                              el.select();
+                              setFocusTextToken(null);
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeToken("file_name", index);
+                          }}
+                          className="ml-1 hover:text-destructive text-muted-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                  </div>
+                </React.Fragment>
               ))}
-              {parseTokens(documentType.file_name || "").length === 0 && (
+              {/* Drop indicator at end */}
+              {dropTarget?.field === "file_name" && dropTarget.index === parseTokens(documentType.file_name || "").length && (
+                <div className="w-1 h-10 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
+              )}
+              {parseTokens(documentType.file_name || "").length === 0 && !draggedFromField && (
                 <span className="text-sm text-muted-foreground">
                   Drag placeholders here to build your file name template
+                </span>
+              )}
+              {parseTokens(documentType.file_name || "").length === 0 && draggedFromField && (
+                <span className="text-sm text-green-600 font-medium animate-pulse">
+                  Drop here!
                 </span>
               )}
             </div>
@@ -832,17 +1087,6 @@ export default function DocumentTypeDetailPage() {
             <div className="flex items-start justify-between gap-4">
               <Label htmlFor="display_name">Display Name</Label>
               <div className="flex items-center gap-3">
-                {!displayNameSameAsFileName && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => addBlankText("display_name")}
-                    className="text-xs h-7 -mt-1"
-                  >
-                    + Add Text
-                  </Button>
-                )}
                 <div className="flex items-center gap-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <Checkbox
@@ -886,64 +1130,123 @@ export default function DocumentTypeDetailPage() {
                 </div>
               </div>
             </div>
-            <div className={cn(
-              "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-2 items-center",
-              displayNameSameAsFileName && "opacity-50 pointer-events-none"
-            )}>
+            <div
+              className={cn(
+                "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
+                displayNameSameAsFileName && "opacity-50 pointer-events-none",
+                !displayNameSameAsFileName && draggedFromField && "border-dashed border-2 border-green-400 bg-green-50/50"
+              )}
+              onDrop={(e) => {
+                if (displayNameSameAsFileName) return;
+                const tokens = parseTokens(documentType.display_name || "");
+                handleDropOnToken(e, "display_name", tokens.length);
+              }}
+              onDragOver={(e) => {
+                if (displayNameSameAsFileName) return;
+                handleDragOver(e);
+                const tokens = parseTokens(documentType.display_name || "");
+                setDropTarget({ field: "display_name", index: tokens.length });
+              }}
+              onDragLeave={() => setDropTarget(null)}
+            >
               {parseTokens(documentType.display_name || "").map((token, index) => (
-                <div
-                  key={index}
-                  draggable={token.type === "placeholder"}
-                  onDragStart={(e) =>
-                    token.type === "placeholder" &&
-                    handleDragStartFromToken(e, "display_name", index, token.value)
-                  }
-                  onDragEnd={handleDragEnd}
-                  onDrop={(e) => handleDropOnToken(e, "display_name", index)}
-                  onDragOver={handleDragOver}
-                  className={cn(
-                    token.type === "placeholder" &&
-                      "cursor-grab active:cursor-grabbing transition-all",
-                    draggedFromField === "display_name" &&
-                      draggedIndex === index &&
-                      "opacity-30"
+                <React.Fragment key={index}>
+                  {/* Drop indicator line - only shows at current drop position */}
+                  {dropTarget?.field === "display_name" && dropTarget.index === index && (
+                    <div className="w-1 h-10 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
                   )}
-                >
-                  {token.type === "placeholder" ? (
-                    <Badge
-                      className={cn(
-                        "font-mono text-xs px-3 py-1.5 select-none",
-                        getPlaceholderColor(token.value) === "purple" &&
-                          "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
-                        getPlaceholderColor(token.value) === "orange" &&
-                          "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700"
-                      )}
-                    >
-                      <GripVertical className="h-3 w-3 mr-1 inline" />
-                      {token.value}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeToken("display_name", index);
-                        }}
-                        className="ml-2 hover:text-destructive"
+                  <div
+                    draggable={token.type === "placeholder"}
+                    onDragStart={(e) =>
+                      token.type === "placeholder" &&
+                      handleDragStartFromToken(e, "display_name", index, token.value)
+                    }
+                    onDragEnd={handleDragEnd}
+                    onDrop={(e) => {
+                      e.stopPropagation();
+                      handleDropOnToken(e, "display_name", index);
+                    }}
+                    onDragOver={(e) => handleDragOverPosition(e, "display_name", index)}
+                    className={cn(
+                      token.type === "placeholder" &&
+                        "cursor-grab active:cursor-grabbing transition-all",
+                      draggedFromField === "display_name" &&
+                        draggedIndex === index &&
+                        "opacity-30"
+                    )}
+                  >
+                    {token.type === "placeholder" ? (
+                      <Badge
+                        className={cn(
+                          "font-mono text-xs px-3 py-1.5 select-none",
+                          getPlaceholderColor(token.value) === "purple" &&
+                            "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
+                          getPlaceholderColor(token.value) === "orange" &&
+                            "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+                          getPlaceholderColor(token.value) === "blue" &&
+                            "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 border-blue-300 dark:border-blue-700"
+                        )}
                       >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ) : (
-                    <Input
-                      value={token.value}
-                      onChange={(e) => updateTextToken("display_name", index, e.target.value)}
-                      className="h-8 w-auto min-w-[50px] px-2 font-mono text-xs inline-block"
-                      style={{ width: `${Math.max(50, token.value.length * 8)}px` }}
-                    />
-                  )}
-                </div>
+                        <GripVertical className="h-3 w-3 mr-1 inline" />
+                        {token.value}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeToken("display_name", index);
+                          }}
+                          className="ml-2 hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ) : (
+                      // Text tokens - white/gray draggable badge with editable text
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-xs px-2 py-1.5 select-none bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 cursor-grab active:cursor-grabbing"
+                      >
+                        <GripVertical className="h-3 w-3 mr-1 inline text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={token.value}
+                          onChange={(e) => updateTextToken("display_name", index, e.target.value)}
+                          className="bg-transparent border-none outline-none w-auto min-w-[20px] max-w-[100px] text-xs font-mono"
+                          style={{ width: `${Math.max(20, token.value.length * 7)}px` }}
+                          placeholder="text"
+                          ref={(el) => {
+                            if (el && focusTextToken?.field === "display_name" && focusTextToken?.index === index) {
+                              el.focus();
+                              el.select();
+                              setFocusTextToken(null);
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeToken("display_name", index);
+                          }}
+                          className="ml-1 hover:text-destructive text-muted-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                  </div>
+                </React.Fragment>
               ))}
-              {parseTokens(documentType.display_name || "").length === 0 && (
+              {/* Drop indicator at end */}
+              {dropTarget?.field === "display_name" && dropTarget.index === parseTokens(documentType.display_name || "").length && (
+                <div className="w-1 h-10 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
+              )}
+              {parseTokens(documentType.display_name || "").length === 0 && !draggedFromField && (
                 <span className="text-sm text-muted-foreground">
                   Optional: Leave empty to use Document Type Name, or drag placeholders here
+                </span>
+              )}
+              {parseTokens(documentType.display_name || "").length === 0 && !displayNameSameAsFileName && draggedFromField && (
+                <span className="text-sm text-green-600 font-medium animate-pulse">
+                  Drop here!
                 </span>
               )}
             </div>
@@ -969,106 +1272,117 @@ export default function DocumentTypeDetailPage() {
             {/* End left side */}
 
             {/* Right side - Available Placeholders */}
-            <div className="absolute right-0 top-0 w-[23rem]">
-              <div className="space-y-3 p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 sticky top-0 max-h-[calc(100vh-12rem)] overflow-y-auto">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <GripVertical className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                    <Label className="text-sm font-semibold text-blue-900 dark:text-blue-200">
-                      Available Placeholders
-                    </Label>
+            <div className="w-[17rem] shrink-0 self-start sticky top-4">
+              <div className="space-y-1.5 p-2 bg-muted/30 rounded-lg border max-h-[calc(100vh-8rem)] overflow-y-auto">
+                <div className="flex items-center gap-2 mb-1">
+                  <Label className="text-[10px] font-semibold text-muted-foreground shrink-0">
+                    Placeholders
+                  </Label>
+                  <Input
+                    type="text"
+                    placeholder="Search..."
+                    value={placeholderSearch}
+                    onChange={(e) => setPlaceholderSearch(e.target.value)}
+                    className="h-5 text-[10px] flex-1"
+                  />
+                </div>
+                {/* Custom Text draggable item */}
+                <div
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", "__CUSTOM_TEXT__");
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
+                  onDragEnd={handleDragEnd}
+                  className="cursor-grab active:cursor-grabbing px-2 py-1.5 rounded border bg-white border-gray-300 dark:bg-gray-800 dark:border-gray-600 mb-2"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Type className="h-3 w-3 text-gray-500" />
+                    <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300">Custom Text</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="text-[8px] text-muted-foreground">Drag to add editable text</div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="grid grid-cols-2 gap-x-2 flex-1 text-[9px] font-semibold text-muted-foreground uppercase">
+                    <div>Short</div>
+                    <div>Long</div>
+                  </div>
+                  <div className="flex items-center gap-1">
                     <Checkbox
-                      id="hide-description"
+                      id="hide-desc"
                       checked={hidePlaceholderDescriptions}
                       onCheckedChange={(checked) => setHidePlaceholderDescriptions(checked as boolean)}
+                      className="h-3 w-3"
                     />
-                    <Label
-                      htmlFor="hide-description"
-                      className="text-xs font-normal cursor-pointer text-blue-700 dark:text-blue-300"
-                    >
-                      Hide Description
+                    <Label htmlFor="hide-desc" className="text-[8px] text-muted-foreground cursor-pointer">
+                      Hide
                     </Label>
                   </div>
                 </div>
-                <Input
-                  type="text"
-                  placeholder="Search placeholders..."
-                  value={placeholderSearch}
-                  onChange={(e) => setPlaceholderSearch(e.target.value)}
-                  className="h-8 text-sm"
-                />
-                <div className="grid grid-cols-2 gap-x-3 gap-y-3">
-                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Short</div>
-                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Long</div>
-                  {getAvailablePlaceholders().map((placeholder: any) => (
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+                  {getAvailablePlaceholders().map((placeholder: any) => {
+                    const isBlue = placeholder.color === "blue";
+                    return (
                     <React.Fragment key={placeholder.code}>
-                      {/* Short column */}
+                      {/* Short code */}
                       <div
                         draggable
                         onDragStart={(e) => handleDragStartFromSource(e, placeholder.code)}
                         onDragEnd={handleDragEnd}
                         className={cn(
-                          "cursor-grab active:cursor-grabbing p-1 rounded border transition-all hover:scale-[1.01]",
+                          "cursor-grab active:cursor-grabbing px-1.5 py-1 rounded border",
                           isPlaceholderUsed(placeholder.code)
-                            ? getPlaceholderColor(placeholder.code) === "purple"
-                              ? "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950 dark:hover:bg-purple-900 border-purple-200 dark:border-purple-800"
-                              : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900 border-orange-200 dark:border-orange-800"
-                            : "bg-green-50 hover:bg-green-100 dark:bg-green-950 dark:hover:bg-green-900 border-green-300 dark:border-green-700",
-                          draggedPlaceholder === placeholder.code && draggedFromField === "source" && "opacity-50 scale-95"
+                            ? "bg-purple-50 border-purple-200 dark:bg-purple-900/50"
+                            : isBlue
+                              ? "bg-blue-50 border-blue-200 dark:bg-blue-900/50"
+                              : "bg-green-50 border-green-200 dark:bg-green-900/50",
+                          draggedPlaceholder === placeholder.code && draggedFromField === "source" && "opacity-50"
                         )}
                       >
-                        <div className="flex items-center gap-1">
-                          <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
-                          <code className={cn(
-                            "font-mono text-[10px] px-1 py-0.5 rounded",
-                            isPlaceholderUsed(placeholder.code)
-                              ? getPlaceholderColor(placeholder.code) === "purple"
-                                ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300"
-                                : "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
-                              : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                          )}>
-                            {placeholder.label || placeholder.code}
-                          </code>
+                        <div className={cn(
+                          "text-[9px] font-mono font-medium",
+                          isPlaceholderUsed(placeholder.code)
+                            ? "text-purple-700 dark:text-purple-300"
+                            : isBlue
+                              ? "text-blue-700 dark:text-blue-300"
+                              : "text-green-700 dark:text-green-300"
+                        )}>
+                          {(placeholder.label || placeholder.code).replace(/[{}]/g, '')}
                         </div>
                         {!hidePlaceholderDescriptions && (
-                          <div className="pl-4 mt-0.5 text-[10px] font-semibold">
+                          <div className="text-[8px] text-muted-foreground truncate">
                             {placeholder.example}
                           </div>
                         )}
                       </div>
-                      {/* Long column */}
+                      {/* Long code */}
                       {placeholder.longCode ? (
                         <div
                           draggable
                           onDragStart={(e) => handleDragStartFromSource(e, placeholder.longCode)}
                           onDragEnd={handleDragEnd}
                           className={cn(
-                            "cursor-grab active:cursor-grabbing p-1 rounded border transition-all hover:scale-[1.01]",
+                            "cursor-grab active:cursor-grabbing px-1.5 py-1 rounded border",
                             isPlaceholderUsed(placeholder.longCode)
-                              ? getPlaceholderColor(placeholder.longCode) === "purple"
-                                ? "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950 dark:hover:bg-purple-900 border-purple-200 dark:border-purple-800"
-                                : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900 border-orange-200 dark:border-orange-800"
-                              : "bg-green-50 hover:bg-green-100 dark:bg-green-950 dark:hover:bg-green-900 border-green-300 dark:border-green-700",
-                            draggedPlaceholder === placeholder.longCode && draggedFromField === "source" && "opacity-50 scale-95"
+                              ? "bg-purple-50 border-purple-200 dark:bg-purple-900/50"
+                              : isBlue
+                                ? "bg-blue-50 border-blue-200 dark:bg-blue-900/50"
+                                : "bg-green-50 border-green-200 dark:bg-green-900/50",
+                            draggedPlaceholder === placeholder.longCode && draggedFromField === "source" && "opacity-50"
                           )}
                         >
-                          <div className="flex items-center gap-1">
-                            <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
-                            <code className={cn(
-                              "font-mono text-[10px] px-1 py-0.5 rounded",
-                              isPlaceholderUsed(placeholder.longCode)
-                                ? getPlaceholderColor(placeholder.longCode) === "purple"
-                                  ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300"
-                                  : "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
-                                : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                            )}>
-                              {placeholder.longCode}
-                            </code>
+                          <div className={cn(
+                            "text-[9px] font-mono font-medium truncate",
+                            isPlaceholderUsed(placeholder.longCode)
+                              ? "text-purple-700 dark:text-purple-300"
+                              : isBlue
+                                ? "text-blue-700 dark:text-blue-300"
+                                : "text-green-700 dark:text-green-300"
+                          )}>
+                            {placeholder.longCode.replace(/[{}]/g, '')}
                           </div>
                           {!hidePlaceholderDescriptions && (
-                            <div className="pl-4 mt-0.5 text-[10px] font-semibold">
+                            <div className="text-[8px] text-muted-foreground truncate">
                               {placeholder.longExample}
                             </div>
                           )}
@@ -1077,115 +1391,138 @@ export default function DocumentTypeDetailPage() {
                         <div />
                       )}
                     </React.Fragment>
-                  ))}
+                  )})}
                 </div>
               </div>
             </div>
           </div>
-          {/* End flex container */}
         </CardContent>
+        )}
       </Card>
 
       {/* Filing & Organization */}
       <Card>
-        <CardHeader className="pb-2 pt-4">
-          <CardTitle className="text-base">Filing & Organization</CardTitle>
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
+          onClick={() => setFilingOrgExpanded(!filingOrgExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Filing & Organization</CardTitle>
+            {filingOrgExpanded ? (
+              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4 pt-2">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="folder">Folder</Label>
-              <Select
-                value={documentType.folder || "GENERAL"}
-                onValueChange={(value) => updateField("folder", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FOLDER_OPTIONS.map(f => (
-                    <SelectItem key={f} value={f}>{f}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Main folder location</p>
+        {filingOrgExpanded && (
+          <CardContent className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="folder">Folder</Label>
+                <Select
+                  value={documentType.folder || "GENERAL"}
+                  onValueChange={(value) => updateField("folder", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {folderOptions.map(f => (
+                      <SelectItem key={f} value={f}>{f}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Main folder location</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="primary_tab">Primary Tab</Label>
+                <Select
+                  value={documentType.primary_tab || "GENERAL"}
+                  onValueChange={(value) => updateField("primary_tab", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {folderOptions.map(f => (
+                      <SelectItem key={f} value={f}>{f}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Default tab to show</p>
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="primary_tab">Primary Tab</Label>
-              <Select
-                value={documentType.primary_tab || "GENERAL"}
-                onValueChange={(value) => updateField("primary_tab", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FOLDER_OPTIONS.map(f => (
-                    <SelectItem key={f} value={f}>{f}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Default tab to show</p>
+              <Label>Additional Tabs</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Select all tabs where this document type should appear
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                {folderOptions.map(tab => {
+                  const isSelected = (documentType.tabs || []).includes(tab);
+                  const isPrimary = documentType.primary_tab === tab;
+                  return (
+                    <div
+                      key={tab}
+                      className={cn(
+                        "flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors",
+                        isSelected && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700",
+                        isPrimary && "ring-2 ring-blue-500",
+                        !isSelected && "hover:bg-muted"
+                      )}
+                      onClick={() => toggleTab(tab)}
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleTab(tab)}
+                      />
+                      <Label className="cursor-pointer text-xs font-normal">
+                        {tab}
+                        {isPrimary && <span className="ml-1 text-blue-600">★</span>}
+                      </Label>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label>Additional Tabs</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Select all tabs where this document type should appear
-            </p>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
-              {FOLDER_OPTIONS.map(tab => {
-                const isSelected = (documentType.tabs || []).includes(tab);
-                const isPrimary = documentType.primary_tab === tab;
-                return (
-                  <div
-                    key={tab}
-                    className={cn(
-                      "flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors",
-                      isSelected && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700",
-                      isPrimary && "ring-2 ring-blue-500",
-                      !isSelected && "hover:bg-muted"
-                    )}
-                    onClick={() => toggleTab(tab)}
-                  >
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => toggleTab(tab)}
-                    />
-                    <Label className="cursor-pointer text-xs font-normal">
-                      {tab}
-                      {isPrimary && <span className="ml-1 text-blue-600">★</span>}
-                    </Label>
-                  </div>
-                );
-              })}
+            <div className="space-y-2">
+              <Label htmlFor="target_folder">Target Folder Path (OneDrive/SharePoint)</Label>
+              <Input
+                id="target_folder"
+                value={documentType.target_folder || ""}
+                onChange={(e) => updateField("target_folder", e.target.value)}
+                placeholder="/Corporate/Company Name/ATO"
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Cloud storage path for auto-filing
+              </p>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="target_folder">Target Folder Path (OneDrive/SharePoint)</Label>
-            <Input
-              id="target_folder"
-              value={documentType.target_folder || ""}
-              onChange={(e) => updateField("target_folder", e.target.value)}
-              placeholder="/Corporate/Company Name/ATO"
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              Cloud storage path for auto-filing
-            </p>
-          </div>
-        </CardContent>
+          </CardContent>
+        )}
       </Card>
 
       {/* File Extensions */}
       <Card>
-        <CardHeader>
-          <CardTitle>Allowed File Extensions</CardTitle>
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => setFileExtensionsExpanded(!fileExtensionsExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle>Allowed File Extensions</CardTitle>
+            {fileExtensionsExpanded ? (
+              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        {fileExtensionsExpanded && (
+          <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Current Extensions</Label>
             <div className="flex flex-wrap gap-2 min-h-[40px] p-3 border rounded-md">
@@ -1255,14 +1592,26 @@ export default function DocumentTypeDetailPage() {
             </p>
           </div>
         </CardContent>
+        )}
       </Card>
 
       {/* Compliance */}
       <Card>
-        <CardHeader>
-          <CardTitle>Compliance & Retention</CardTitle>
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => setComplianceExpanded(!complianceExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle>Compliance & Retention</CardTitle>
+            {complianceExpanded ? (
+              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        {complianceExpanded && (
+          <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="space-y-1">
               <Label htmlFor="requires_filing" className="text-base font-medium">
@@ -1301,6 +1650,7 @@ export default function DocumentTypeDetailPage() {
             </p>
           </div>
         </CardContent>
+        )}
       </Card>
 
       {/* Metadata */}
@@ -1353,6 +1703,8 @@ export default function DocumentTypeDetailPage() {
           )}
         </Button>
       </div>
+      </div>
+      {/* End scroll area */}
     </div>
   );
 }

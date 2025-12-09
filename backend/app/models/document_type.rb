@@ -1,9 +1,9 @@
 class DocumentType < ApplicationRecord
   # Associations
-  has_many :company_documents, dependent: :nullify
+  has_many :corporate_company_documents, dependent: :nullify
   has_many :job_documents, dependent: :nullify
 
-  # Callbacks - clear CompanyDocument abbreviation cache when document types change
+  # Callbacks - clear CorporateCompanyDocument abbreviation cache when document types change
   after_save :clear_abbreviation_cache
   after_destroy :clear_abbreviation_cache
 
@@ -187,6 +187,10 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Consultant}", "ABC Eng")
     format.gsub!("{Number}", "01")
 
+    # People placeholders
+    format.gsub!("{PersonName}", "Andrew Clememt")
+    format.gsub!("{IDType}", "Passport")
+
     # Common placeholders
     format.gsub!("{Description}", "Example")
     format.gsub!("{Date}", au_date)
@@ -243,8 +247,8 @@ class DocumentType < ApplicationRecord
 
   private
 
-  # Clear the CompanyDocument abbreviation cache when document types are updated
+  # Clear the CorporateCompanyDocument abbreviation cache when document types are updated
   def clear_abbreviation_cache
-    CompanyDocument.clear_abbreviations_cache!
+    CorporateCompanyDocument.clear_abbreviations_cache!
   end
 end

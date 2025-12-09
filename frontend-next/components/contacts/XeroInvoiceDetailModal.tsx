@@ -97,7 +97,7 @@ export function XeroInvoiceDetailModal({
       setError(null);
       setActiveTab("details");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [isOpen, invoiceId]);
 
   const loadInvoiceDetail = async () => {

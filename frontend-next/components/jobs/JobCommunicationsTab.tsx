@@ -115,7 +115,7 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
       loadMessages();
     }, 5000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [jobId]);
 
   useEffect(() => {
@@ -263,7 +263,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
   useEffect(() => {
     loadEmails();
     loadSyncStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [jobId, showAllInThread]);
 
   const loadEmails = async () => {

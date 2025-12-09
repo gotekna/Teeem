@@ -61,7 +61,7 @@ export const COLUMN_PRIORITY_CONFIG: Record<ColumnPriority, ColumnPriorityConfig
   },
 };
 
-export function getColumnPriority(columnName: string, columnType?: string): ColumnPriority {
+export function getColumnPriority(columnName: string, _columnType?: string): ColumnPriority {
   // Check hidden first
   if (COLUMN_PRIORITY_CONFIG.hidden.patterns.some(p => p.test(columnName))) {
     return 'hidden';

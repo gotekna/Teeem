@@ -191,7 +191,7 @@ export function ViewManagerSheet({
     if (open && foundationId) {
       loadViews();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [open, foundationId]);
 
   const loadViews = async (selectViewByName?: string) => {
@@ -202,7 +202,7 @@ export function ViewManagerSheet({
       );
 
       if (response?.success && response.views) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const mappedViews = (response.views as any[]).map((v) => ({
           ...v,
           filters: v.filters?.cascadeFilters || [],

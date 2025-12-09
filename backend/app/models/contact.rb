@@ -1,4 +1,6 @@
 class Contact < ApplicationRecord
+  include SelfHealing  # Auto-fix formatting issues and earn System kudos
+
   # Exclude soft-deleted contacts by default
   default_scope { where(deleted: [ false, nil ]) }
 
@@ -7,7 +9,7 @@ class Contact < ApplicationRecord
   has_many :sms_messages, dependent: :destroy
 
   # Company group for document filing (family members)
-  belongs_to :company_group, optional: true
+  belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
 
   # Multiple emails and phones
   has_many :contact_emails, -> { order(:position) }, dependent: :destroy
@@ -74,22 +76,22 @@ class Contact < ApplicationRecord
   has_many :pay_now_requests, dependent: :destroy
 
   # Corporate director/shareholder associations
-  has_many :company_directorships, class_name: "CompanyDirector", dependent: :destroy
-  has_many :directed_companies, through: :company_directorships, source: :company
-  has_many :current_directorships, -> { where(is_current: true) }, class_name: "CompanyDirector"
-  has_many :company_shareholdings, foreign_key: :shareholder_id, dependent: :destroy
-  has_many :shareholding_companies, through: :company_shareholdings, source: :company
+  has_many :corporate_company_directorships, class_name: "CorporateCompanyDirector", dependent: :destroy
+  has_many :directed_companies, through: :corporate_company_directorships, source: :corporate_company
+  has_many :current_directorships, -> { where(is_current: true) }, class_name: "CorporateCompanyDirector"
+  has_many :corporate_company_shareholdings, foreign_key: :shareholder_id, dependent: :destroy
+  has_many :shareholding_companies, through: :corporate_company_shareholdings, source: :corporate_company
   has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy
 
   # Personal documents (for family members, directors, etc.)
-  has_many :company_documents, dependent: :destroy
+  has_many :corporate_company_documents, dependent: :destroy
 
   # Company Group memberships (SSoT - links contact to company groups with permissions)
-  has_many :company_group_memberships, class_name: "ContactCompanyGroupMembership", dependent: :destroy
-  has_many :company_groups_via_membership, through: :company_group_memberships, source: :company_group
+  has_many :corporate_group_memberships, class_name: "ContactCorporateGroupMembership", dependent: :destroy
+  has_many :corporate_groups_via_membership, through: :corporate_group_memberships, source: :corporate_group
 
   # SSoT - if this contact is a company/trust, link to the Company record
-  has_one :company_record, class_name: "Company", foreign_key: "contact_id", dependent: :nullify
+  has_one :company_record, class_name: "CorporateCompany", foreign_key: "contact_id", dependent: :nullify
 
   # Encrypted TFN for directors
   encrypts :tfn, deterministic: true
@@ -186,14 +188,14 @@ class Contact < ApplicationRecord
     when "person"
       # Team contact: append company name for clarity
       if is_team_contact && primary_company.present?
-        person_name = [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence ||
+        person_name = [ first_name, middle_name, last_name ].compact.reject(&:blank?).join(" ").presence ||
                       raw_display_name.presence ||
                       email
         company_name = primary_company.company_name_or_trust.presence || primary_company.read_attribute(:display_name)
         "#{person_name} - #{company_name}"
       else
         # Person: prefer first + middle + last, fall back to display_name
-        [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence ||
+        [ first_name, middle_name, last_name ].compact.reject(&:blank?).join(" ").presence ||
           raw_display_name.presence ||
           email ||
           "Contact ##{id}"
@@ -201,7 +203,7 @@ class Contact < ApplicationRecord
     when "sole_trader"
       # Sole Trader: prefer business name, fall back to person name
       company_name_or_trust.presence ||
-        [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence ||
+        [ first_name, middle_name, last_name ].compact.reject(&:blank?).join(" ").presence ||
         raw_display_name.presence ||
         "Contact ##{id}"
     when "company", "trust"
@@ -340,7 +342,7 @@ class Contact < ApplicationRecord
   end
 
   def company_group_memberships_count
-    company_group_memberships.count
+    corporate_group_memberships.count
   end
 
   def trustees_of
@@ -630,7 +632,7 @@ class Contact < ApplicationRecord
   # Used for document storage in OneDrive/SharePoint
   # @return [String] folder name (e.g., "123 - ABC Supplies" or "ABC Supplies" or "123")
   def document_folder_name
-    format = CompanySetting.instance.contact_folder_format || "id_name"
+    format = CorporateCompanySetting.instance.contact_folder_format || "id_name"
     sanitized_name = (display_name || "Unknown").gsub(/[<>:"\/\\|?*]/, "_") # Remove invalid filename chars
 
     case format
@@ -648,7 +650,7 @@ class Contact < ApplicationRecord
   # Class method to generate folder name for a contact
   # Useful when you only have the ID and display_name
   def self.generate_folder_name(contact_id:, display_name:, format: nil)
-    format ||= CompanySetting.instance.contact_folder_format || "id_name"
+    format ||= CorporateCompanySetting.instance.contact_folder_format || "id_name"
     sanitized_name = (display_name || "Unknown").gsub(/[<>:"\/\\|?*]/, "_")
 
     case format

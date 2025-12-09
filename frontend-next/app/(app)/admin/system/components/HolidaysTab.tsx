@@ -89,7 +89,7 @@ export function HolidaysTab() {
 
   React.useEffect(() => {
     loadHolidays();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
+     
   }, [selectedYear, selectedRegion]);
 
   const loadHolidays = async () => {

@@ -18,7 +18,7 @@ class BackfillDirectorShareholderRelationships < ActiveRecord::Migration[8.0]
 
       begin
         add_index :contact_relationships,
-                  [:source_contact_id, :related_contact_id, :relationship_type],
+                  [ :source_contact_id, :related_contact_id, :relationship_type ],
                   unique: true,
                   name: "index_contact_relationships_unique_by_type"
       rescue StandardError => e
@@ -130,7 +130,7 @@ class BackfillDirectorShareholderRelationships < ActiveRecord::Migration[8.0]
 
       begin
         add_index :contact_relationships,
-                  [:source_contact_id, :related_contact_id],
+                  [ :source_contact_id, :related_contact_id ],
                   unique: true,
                   name: "index_contact_relationships_on_source_and_related"
       rescue StandardError => e

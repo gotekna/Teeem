@@ -1,3 +1,4 @@
+ 
 "use client";
 
 import * as React from "react";
@@ -159,9 +160,9 @@ export function XeroFieldMapping() {
         setSelectedTenant(tenantsResponse.tenants[0].tenant_id);
       }
 
-      // Load sync status for last sync time
-      const statusResponse = await api.get<{ success: boolean; data: { last_sync_at: string | null } }>("/api/v1/xero/sync_status");
-      setLastSyncAt(statusResponse.data?.last_sync_at || null);
+      // Load sync status for last sync time (SSoT: use last_synced_at)
+      const statusResponse = await api.get<{ success: boolean; data: { last_synced_at: string | null; last_sync_at?: string | null } }>("/api/v1/xero/sync_status");
+      setLastSyncAt(statusResponse.data?.last_synced_at || statusResponse.data?.last_sync_at || null);
     } catch (error) {
       console.error("Failed to load data:", error);
     } finally {
