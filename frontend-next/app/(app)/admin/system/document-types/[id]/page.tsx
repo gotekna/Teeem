@@ -120,7 +120,7 @@ export default function DocumentTypeDetailPage() {
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
-  const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string }>>([]);
+  const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
@@ -153,9 +153,9 @@ export default function DocumentTypeDetailPage() {
       try {
         const response = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_types");
         if (response.success && Array.isArray(response.data)) {
-          // Sort by name for consistent navigation
+          // Sort by name for consistent navigation, include scope
           const sorted = response.data
-            .map((dt: any) => ({ id: dt.id, name: dt.name }))
+            .map((dt: any) => ({ id: dt.id, name: dt.name, scope: dt.scope || "company" }))
             .sort((a, b) => a.name.localeCompare(b.name));
           setAllDocumentTypes(sorted);
         }
@@ -322,20 +322,22 @@ export default function DocumentTypeDetailPage() {
     }
   };
 
-  // Navigation functions
-  const currentIndex = allDocumentTypes.findIndex(dt => dt.id === parseInt(documentTypeId));
+  // Navigation functions - filter by current scope (case-insensitive)
+  const currentScope = (documentType?.scope || "company").toLowerCase();
+  const scopeFilteredTypes = allDocumentTypes.filter(dt => (dt.scope || "company").toLowerCase() === currentScope);
+  const currentIndex = scopeFilteredTypes.findIndex(dt => dt.id === parseInt(documentTypeId));
   const hasPrevious = currentIndex > 0;
-  const hasNext = currentIndex < allDocumentTypes.length - 1 && currentIndex !== -1;
+  const hasNext = currentIndex < scopeFilteredTypes.length - 1 && currentIndex !== -1;
 
   const navigateToPrevious = () => {
     if (hasPrevious) {
-      router.push(`/admin/system/document-types/${allDocumentTypes[currentIndex - 1].id}`);
+      router.push(`/admin/system/document-types/${scopeFilteredTypes[currentIndex - 1].id}`);
     }
   };
 
   const navigateToNext = () => {
     if (hasNext) {
-      router.push(`/admin/system/document-types/${allDocumentTypes[currentIndex + 1].id}`);
+      router.push(`/admin/system/document-types/${scopeFilteredTypes[currentIndex + 1].id}`);
     }
   };
 
@@ -719,7 +721,7 @@ export default function DocumentTypeDetailPage() {
           <Button variant="ghost" size="icon" onClick={() => router.push("/admin/system?tab=document-types")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          {/* Previous/Next navigation */}
+          {/* Previous/Next navigation - filtered by scope */}
           <div className="flex items-center gap-1">
             <Button
               variant="outline"
@@ -727,7 +729,7 @@ export default function DocumentTypeDetailPage() {
               onClick={navigateToPrevious}
               disabled={!hasPrevious}
               className="h-8 w-8"
-              title={hasPrevious ? `Previous: ${allDocumentTypes[currentIndex - 1]?.name}` : "No previous"}
+              title={hasPrevious ? `Previous: ${scopeFilteredTypes[currentIndex - 1]?.name}` : "No previous"}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -737,7 +739,7 @@ export default function DocumentTypeDetailPage() {
               onClick={navigateToNext}
               disabled={!hasNext}
               className="h-8 w-8"
-              title={hasNext ? `Next: ${allDocumentTypes[currentIndex + 1]?.name}` : "No next"}
+              title={hasNext ? `Next: ${scopeFilteredTypes[currentIndex + 1]?.name}` : "No next"}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -751,9 +753,9 @@ export default function DocumentTypeDetailPage() {
                   {documentType.abbreviation}
                 </Badge>
               )}
-              {allDocumentTypes.length > 0 && (
+              {scopeFilteredTypes.length > 0 && (
                 <span className="text-xs text-muted-foreground">
-                  {currentIndex + 1} of {allDocumentTypes.length}
+                  {currentIndex + 1} of {scopeFilteredTypes.length} {currentScope}
                 </span>
               )}
             </div>
