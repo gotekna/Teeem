@@ -25,6 +25,8 @@ import {
   Download,
   Upload,
   FileText,
+  Star,
+  Clock,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -87,6 +89,7 @@ export default function XeroIntegrationPage() {
   const [pdfSyncHealth, setPdfSyncHealth] = React.useState<PdfSyncHealth | null>(null);
   const [showConnectionsPopup, setShowConnectionsPopup] = React.useState(showConnectionsParam === "true");
   const [companyConnections, setCompanyConnections] = React.useState<CompanyXeroConnection[]>([]);
+  const [settingPrimary, setSettingPrimary] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -171,6 +174,49 @@ export default function XeroIntegrationPage() {
     } finally {
       setDisconnecting(false);
     }
+  };
+
+  const handleSetPrimary = async (tenantId: string) => {
+    setSettingPrimary(tenantId);
+    try {
+      await api.post("/api/v1/xero/set_primary", { tenant_id: tenantId });
+      // Refresh tenants list
+      const tenantsResponse = await api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants");
+      setTenants(tenantsResponse.tenants || []);
+    } catch (error) {
+      console.error("Failed to set primary:", error);
+    } finally {
+      setSettingPrimary(null);
+    }
+  };
+
+  // Helper to format token expiry with time
+  const formatTokenExpiry = (expiresAt?: string, expired?: boolean) => {
+    if (!expiresAt) return "Unknown";
+    const date = new Date(expiresAt);
+    const now = new Date();
+    const diffMs = date.getTime() - now.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+
+    if (expired || diffMs <= 0) {
+      return "Expired";
+    }
+
+    if (diffMins < 60) {
+      return `${diffMins}m`;
+    }
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) {
+      return `${diffHours}h ${diffMins % 60}m`;
+    }
+
+    return date.toLocaleDateString("en-AU", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   if (loading) {
@@ -265,9 +311,11 @@ export default function XeroIntegrationPage() {
                     <div className="p-4 bg-muted rounded-lg">
                       <p className="text-sm text-muted-foreground">Organization</p>
                       <div className="flex items-center gap-2">
-                        <p className="font-medium">{status.tenant_name || status.organization_name || "Unknown"}</p>
+                        <p className="font-medium">
+                          {tenants.find(t => t.is_primary)?.tenant_name || status.tenant_name || status.organization_name || "Unknown"}
+                        </p>
                         {tenants.find(t => t.is_primary) && (
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-xs">
+                          <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100 text-xs">
                             Primary
                           </Badge>
                         )}
@@ -290,19 +338,24 @@ export default function XeroIntegrationPage() {
                     <div className="p-4 bg-muted rounded-lg">
                       <p className="text-sm text-muted-foreground">Token Expires</p>
                       <p className="font-medium">
-                        {status.expires_at
-                          ? new Date(status.expires_at).toLocaleDateString("en-AU", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })
-                          : "Unknown"}
+                        {(() => {
+                          const primaryTenant = tenants.find(t => t.is_primary);
+                          const expiresAt = primaryTenant?.expires_at || status.expires_at;
+                          if (!expiresAt) return "Unknown";
+                          return new Date(expiresAt).toLocaleDateString("en-AU", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          });
+                        })()}
                       </p>
                     </div>
                     <div className="p-4 bg-muted rounded-lg">
                       <p className="text-sm text-muted-foreground">Status</p>
                       <p className="font-medium">
-                        {status.expired ? (
+                        {(tenants.find(t => t.is_primary)?.expired || status.expired) ? (
                           <span className="text-red-600">Expired - Reconnect Required</span>
                         ) : (
                           <span className="text-green-600">Active</span>
@@ -356,6 +409,108 @@ export default function XeroIntegrationPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Connected Xero Organizations Card */}
+          {status?.connected && tenants.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Connected Xero Organizations</CardTitle>
+                    <CardDescription>
+                      All Xero tenants connected to TEEEM. The primary organization is used for default sync operations.
+                    </CardDescription>
+                  </div>
+                  <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100">
+                    {tenants.length} {tenants.length === 1 ? 'Organization' : 'Organizations'}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {tenants
+                    .sort((a, b) => {
+                      // Primary first, then alphabetical
+                      if (a.is_primary) return -1;
+                      if (b.is_primary) return 1;
+                      return a.tenant_name.localeCompare(b.tenant_name);
+                    })
+                    .map((tenant) => (
+                    <div
+                      key={tenant.tenant_id}
+                      className={`flex items-center justify-between p-3 rounded-lg border ${
+                        tenant.is_primary
+                          ? "bg-cyan-50 border-cyan-200"
+                          : tenant.expired
+                          ? "bg-red-50 border-red-200"
+                          : "bg-muted border-transparent"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded ${
+                          tenant.is_primary
+                            ? "bg-cyan-100"
+                            : tenant.expired
+                            ? "bg-red-100"
+                            : "bg-gray-100"
+                        }`}>
+                          {tenant.is_primary ? (
+                            <Star className="h-4 w-4 text-cyan-600" />
+                          ) : (
+                            <CreditCard className={`h-4 w-4 ${tenant.expired ? "text-red-600" : "text-gray-600"}`} />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{tenant.tenant_name}</p>
+                            {tenant.is_primary && (
+                              <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100 text-xs">
+                                Primary
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>
+                              Token: {formatTokenExpiry(tenant.expires_at, tenant.expired)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {tenant.expired ? (
+                          <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Expired
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Active
+                          </Badge>
+                        )}
+                        {!tenant.is_primary && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSetPrimary(tenant.tenant_id)}
+                            disabled={settingPrimary === tenant.tenant_id}
+                          >
+                            {settingPrimary === tenant.tenant_id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Star className="h-3 w-3" />
+                            )}
+                            <span className="ml-1">Set Primary</span>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Company Connections Card */}
           {status?.connected && companyConnections.length > 0 && (
