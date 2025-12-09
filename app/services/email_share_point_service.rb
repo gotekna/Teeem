@@ -1,3 +1,27 @@
+# ==================================================================================
+# ⚠️  DEPRECATED - DO NOT USE
+# ==================================================================================
+# This service is DEPRECATED and will be removed in a future release.
+#
+# REASON FOR DEPRECATION:
+# This service uses the OLD OrganizationOneDriveCredential pattern (per-org OneDrive)
+# instead of the NEW centralized TEEEM SharePoint pattern.
+#
+# REPLACEMENT:
+# Use SyncEmailsToSharePointJob instead, which:
+# - Uses centralized TEEEM SharePoint (OrganizationMicrosoftAppCredential.teeem_sharepoint_config)
+# - Already handles email .eml file uploads to /Emails/{org_name}/
+# - Already handles attachment uploads to /Email Attachments/{org_name}/
+# - Called via admin API endpoint: /api/v1/microsoft_app/sync_to_sharepoint
+#
+# MIGRATION PATH:
+# - Replace all calls to EmailSharePointService with SyncEmailsToSharePointJob
+# - Remove rake tasks in lib/tasks/email_sharepoint.rake
+# - Remove EmailSharePointSyncJob background job
+#
+# See: backend/app/jobs/sync_emails_to_share_point_job.rb
+# ==================================================================================
+#
 # EmailSharePointService - Store emails in SharePoint as SSoT
 #
 # This service stores email content in SharePoint/OneDrive instead of the database.
