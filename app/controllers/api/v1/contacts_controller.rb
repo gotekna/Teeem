@@ -184,7 +184,7 @@ module Api
             contact_addresses: { only: [ :id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary ] },
             contact_groups: { only: [ :id, :name, :status, :xero_contact_group_id ] },
             portal_user: { only: [ :id, :email, :portal_type, :active, :last_login_at, :created_at ] },
-            company_group: { only: [ :id, :name ] }
+            corporate_group: { only: [ :id, :name ] }
           },
           methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies, :display_name ]
         )
