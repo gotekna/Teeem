@@ -37,6 +37,12 @@ production:
       command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
       schedule: every hour at minute 12
 
+    # Monitor integration token health daily
+    token_health_check:
+      class: TokenHealthCheckJob
+      queue: low
+      schedule: at 6am every day
+
     # ============================================
     # TOKEN REFRESH (every 30 minutes)
     # ============================================
