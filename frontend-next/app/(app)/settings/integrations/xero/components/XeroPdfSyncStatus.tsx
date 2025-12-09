@@ -139,6 +139,7 @@ export function XeroPdfSyncStatus() {
   const [rateLimits, setRateLimits] = React.useState<RateLimitsData | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [rateLimitsLoading, setRateLimitsLoading] = React.useState(false);
 
   const fetchStatus = React.useCallback(async () => {
     try {
@@ -158,6 +159,7 @@ export function XeroPdfSyncStatus() {
   }, []);
 
   const fetchRateLimits = React.useCallback(async () => {
+    setRateLimitsLoading(true);
     try {
       const response = await api.get<{ success: boolean; rate_limits: RateLimitsData }>("/api/v1/xero/rate_limits");
       if (response.success) {
@@ -165,22 +167,36 @@ export function XeroPdfSyncStatus() {
       }
     } catch (err) {
       console.error("Failed to fetch rate limits:", err);
+    } finally {
+      setRateLimitsLoading(false);
     }
   }, []);
+
+  // Check if any tenant is approaching rate limits (>= 95%)
+  const isApproachingLimit = React.useMemo(() => {
+    if (!rateLimits) return false;
+    return rateLimits.tenants.some(
+      (t) => (t.minute?.percentage || 0) >= 95 || (t.daily?.percentage || 0) >= 95
+    );
+  }, [rateLimits]);
+
+  const isAtLimit = React.useMemo(() => {
+    if (!rateLimits) return false;
+    return rateLimits.tenants.some((t) => !t.can_make_request);
+  }, [rateLimits]);
 
   React.useEffect(() => {
     fetchStatus();
     fetchRateLimits();
-    // Auto-refresh every 30 seconds if sync is in progress, or every 10 seconds for rate limits
+    // Auto-refresh status every 30 seconds if sync is in progress
     const statusInterval = setInterval(() => {
       if (data?.health.status === "in_progress") {
         fetchStatus();
       }
     }, 30000);
-    const rateLimitInterval = setInterval(fetchRateLimits, 10000);
+    // No auto-refresh for rate limits - manual refresh only (saves API calls)
     return () => {
       clearInterval(statusInterval);
-      clearInterval(rateLimitInterval);
     };
   }, [fetchStatus, fetchRateLimits, data?.health.status]);
 
@@ -554,15 +570,49 @@ export function XeroPdfSyncStatus() {
           </div>
         </div>
 
-        {/* Rate Limits - Live API Usage */}
+        {/* Rate Limit Warning Banner */}
+        {isAtLimit && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <span className="text-sm font-medium text-red-800">
+                Xero API rate limit reached - syncing paused until limit resets
+              </span>
+            </div>
+          </div>
+        )}
+        {!isAtLimit && isApproachingLimit && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <span className="text-sm font-medium text-amber-800">
+                Approaching Xero API rate limit (95%) - syncing will slow down
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Rate Limits - API Usage */}
         {rateLimits && rateLimits.tenants.length > 0 && (
           <div className="space-y-2 border-t pt-3">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Activity className="h-4 w-4" />
-              <span>API Rate Limits (Live)</span>
-              <Badge variant="outline" className="text-xs">
-                {rateLimits.aggregate.daily_requests} / {rateLimits.limits.daily} today
-              </Badge>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Gauge className="h-4 w-4" />
+                <span>API Rate Limits</span>
+                <Badge variant="outline" className="text-xs">
+                  {rateLimits.aggregate.daily_requests} / {rateLimits.limits.daily} today
+                </Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={fetchRateLimits}
+                disabled={rateLimitsLoading}
+                className="h-7 px-2"
+              >
+                <RefreshCw className={`h-3 w-3 mr-1 ${rateLimitsLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {rateLimits.tenants.map((tenant) => (

@@ -119,6 +119,7 @@ export default function DocumentTypeDetailPage() {
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]);
+  const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
@@ -388,6 +389,7 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Parse a field value into tokens (text and placeholders)
+  // Filters out whitespace-only text tokens - they don't need to be shown
   const parseTokens = (value: string): { type: "text" | "placeholder"; value: string }[] => {
     if (!value) return [];
     const tokens: { type: "text" | "placeholder"; value: string }[] = [];
@@ -396,18 +398,24 @@ export default function DocumentTypeDetailPage() {
     let match;
 
     while ((match = regex.exec(value)) !== null) {
-      // Add text before placeholder
+      // Add text before placeholder (only if not just whitespace)
       if (match.index > lastIndex) {
-        tokens.push({ type: "text", value: value.slice(lastIndex, match.index) });
+        const textValue = value.slice(lastIndex, match.index);
+        if (textValue.trim()) {
+          tokens.push({ type: "text", value: textValue.trim() });
+        }
       }
       // Add placeholder
       tokens.push({ type: "placeholder", value: match[0] });
       lastIndex = regex.lastIndex;
     }
 
-    // Add remaining text
+    // Add remaining text (only if not just whitespace)
     if (lastIndex < value.length) {
-      tokens.push({ type: "text", value: value.slice(lastIndex) });
+      const textValue = value.slice(lastIndex);
+      if (textValue.trim()) {
+        tokens.push({ type: "text", value: textValue.trim() });
+      }
     }
 
     return tokens;
@@ -553,6 +561,8 @@ export default function DocumentTypeDetailPage() {
       // Handle custom text - insert a text token with empty/default value
       if (placeholder === "__CUSTOM_TEXT__") {
         newTokens.splice(dropIndex, 0, { type: "text", value: "text" });
+        // Auto-focus the new text input
+        setFocusTextToken({ field, index: dropIndex });
       } else {
         newTokens.splice(dropIndex, 0, { type: "placeholder", value: placeholder });
       }
@@ -562,6 +572,8 @@ export default function DocumentTypeDetailPage() {
     else if (placeholder === "__CUSTOM_TEXT__") {
       const newTokens = [...tokens];
       newTokens.splice(dropIndex, 0, { type: "text", value: "text" });
+      // Auto-focus the new text input
+      setFocusTextToken({ field, index: dropIndex });
       updateField(field, rebuildFromTokens(newTokens));
     }
 
@@ -595,10 +607,13 @@ export default function DocumentTypeDetailPage() {
     // Only handle drops from source (not reordering)
     if (draggedFromField === "source" || placeholder === "__CUSTOM_TEXT__") {
       const currentValue = documentType[field] || "";
+      const tokens = parseTokens(currentValue);
       // Handle custom text - insert plain text token
       if (placeholder === "__CUSTOM_TEXT__") {
         const newValue = currentValue + (currentValue ? " " : "") + "text";
         updateField(field, newValue);
+        // Auto-focus the new text input (it will be at the end)
+        setFocusTextToken({ field, index: tokens.length });
       } else {
         const newValue = currentValue + (currentValue ? " " : "") + placeholder;
         updateField(field, newValue);
@@ -947,6 +962,13 @@ export default function DocumentTypeDetailPage() {
                           className="bg-transparent border-none outline-none w-auto min-w-[20px] max-w-[100px] text-xs font-mono"
                           style={{ width: `${Math.max(20, token.value.length * 7)}px` }}
                           placeholder="text"
+                          ref={(el) => {
+                            if (el && focusTextToken?.field === "file_name" && focusTextToken?.index === index) {
+                              el.focus();
+                              el.select();
+                              setFocusTextToken(null);
+                            }
+                          }}
                         />
                         <button
                           onClick={(e) => {
@@ -1124,6 +1146,13 @@ export default function DocumentTypeDetailPage() {
                           className="bg-transparent border-none outline-none w-auto min-w-[20px] max-w-[100px] text-xs font-mono"
                           style={{ width: `${Math.max(20, token.value.length * 7)}px` }}
                           placeholder="text"
+                          ref={(el) => {
+                            if (el && focusTextToken?.field === "display_name" && focusTextToken?.index === index) {
+                              el.focus();
+                              el.select();
+                              setFocusTextToken(null);
+                            }
+                          }}
                         />
                         <button
                           onClick={(e) => {

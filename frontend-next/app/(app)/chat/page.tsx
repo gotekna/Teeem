@@ -229,7 +229,7 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Load entities for save-to-entity functionality
+  // Load entities for save-to-entity functionality - lazy load when dialog opens
   const loadEntities = useCallback(async () => {
     try {
       // Load jobs
@@ -254,10 +254,14 @@ export default function ChatPage() {
     }
   }, []);
 
-  // Load entities on mount
+  // Lazy load entities when save dialog opens (not on page mount)
+  const entitiesLoaded = useRef(false);
   useEffect(() => {
-    loadEntities();
-  }, [loadEntities]);
+    if (showSaveDialog && !entitiesLoaded.current) {
+      entitiesLoaded.current = true;
+      loadEntities();
+    }
+  }, [showSaveDialog, loadEntities]);
 
   // Save message to entity
   const handleSaveToEntity = async (
