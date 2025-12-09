@@ -8,16 +8,15 @@
 # - Dispatcher handles job queuing/dequeuing
 # - Scheduler is a SEPARATE process that handles recurring tasks
 # - recurring_tasks MUST be at root level (not nested under dispatcher)
+#
+# NOTE: YAML anchors/aliases (<<: *default) removed for Psych 5.x compatibility
 
-default: &default
+production:
   workers:
     - queues: "*"
       threads: 3
       processes: 1
       polling_interval: 0.1
-
-production:
-  <<: *default
 
   # Dispatcher handles job queuing
   dispatchers:
@@ -124,14 +123,6 @@ production:
     # EMAIL MAINTENANCE
     # ============================================
 
-    # DEPRECATED: Old SharePoint sync using OrganizationOneDriveCredential
-    # Replaced by SyncEmailsToSharePointJob which uses centralized TEEEM SharePoint
-    # email_share_point_sync:
-    #   class: EmailSharePointSyncJob
-    #   queue: low
-    #   args: [{ limit: 50 }]
-    #   schedule: every 2 hours at minute 20
-
     # Clean up expired ephemeral emails daily (GitHub notifications, calendar, etc.)
     cleanup_ephemeral_emails:
       class: CleanupEphemeralEmailsJob
@@ -140,7 +131,11 @@ production:
       schedule: at 3am every day
 
 development:
-  <<: *default
+  workers:
+    - queues: "*"
+      threads: 3
+      processes: 1
+      polling_interval: 0.1
 
   # Dispatcher handles job queuing
   dispatchers:
@@ -163,3 +158,10 @@ development:
       class: ProcessNewJobEmailsJob
       queue: default
       schedule: every 10 minutes
+
+test:
+  workers:
+    - queues: "*"
+      threads: 1
+      processes: 1
+      polling_interval: 0.1
