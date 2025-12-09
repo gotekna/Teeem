@@ -51,7 +51,7 @@ const PLACEHOLDERS = {
     { code: "{FY}", label: "FY{FY}", example: "FY25", color: "purple" },
     { code: "{Period}", example: "Q1", longCode: "{PeriodLong}", longExample: "Q1 Jul-Sep", color: "purple" },
     { code: "{LenderCode}", example: "ABC", longCode: "{LenderName}", longExample: "ABC Property Trust", color: "purple" },
-    { code: "{Date}", example: "09-12-2025", color: "purple" },
+    { code: "{Date}", example: "9-12-25", color: "purple" },
     { code: "{Description}", example: "Example", color: "purple" },
     { code: "{BankCode}", example: "NAB", color: "purple" },
     { code: "{BankBSB}", example: "082-123", color: "purple" },
@@ -63,7 +63,7 @@ const PLACEHOLDERS = {
     { code: "{CertType}", example: "Occupancy", color: "orange" },
     { code: "{Consultant}", example: "ABC Eng", color: "orange" },
     { code: "{Number}", example: "01", color: "orange" },
-    { code: "{Date}", example: "09-12-2025", color: "orange" },
+    { code: "{Date}", example: "9-12-25", color: "orange" },
     { code: "{Description}", example: "Example", color: "orange" },
   ]
 };
@@ -105,6 +105,7 @@ export default function DocumentTypeDetailPage() {
   const [basicInfoExpanded, setBasicInfoExpanded] = React.useState(false);
   const [displayNameSameAsFileName, setDisplayNameSameAsFileName] = React.useState(true);
   const [showFullDescription, setShowFullDescription] = React.useState(true);
+  const [removeCompanyName, setRemoveCompanyName] = React.useState(true);
   const [previewCompanyId, setPreviewCompanyId] = React.useState<number | null>(null);
   const [companies, setCompanies] = React.useState<Array<{id: number; name: string; code: string}>>([]);
 
@@ -130,6 +131,11 @@ export default function DocumentTypeDetailPage() {
         // Filter to only show corporate-linked companies (those with a company_group_id)
         const corporateLinkedCompanies = companiesData.filter((c: any) => c.company_group_id != null);
         setCompanies(corporateLinkedCompanies);
+
+        // Auto-select first company if no preview company is set
+        if (corporateLinkedCompanies.length > 0 && previewCompanyId === null) {
+          setPreviewCompanyId(corporateLinkedCompanies[0].id);
+        }
       } else {
         console.warn("Companies data is not an array:", companiesData);
         setCompanies([]);
@@ -142,9 +148,10 @@ export default function DocumentTypeDetailPage() {
   // Initialize checkbox state based on whether display_name exists
   React.useEffect(() => {
     if (documentType) {
-      // Always default both to true - user can uncheck if they want custom display name
+      // Always default all to true - user can uncheck if they want custom display name
       setDisplayNameSameAsFileName(true);
       setShowFullDescription(true);
+      setRemoveCompanyName(true);
     }
   }, [documentType?.id]); // Only run when document type changes
 
@@ -169,15 +176,21 @@ export default function DocumentTypeDetailPage() {
   // Sync display_name with file_name when checkbox is checked
   React.useEffect(() => {
     if (displayNameSameAsFileName && documentType) {
-      const fileName = documentType.file_name || "";
+      let fileName = documentType.file_name || "";
+
       if (showFullDescription) {
         // Convert short codes to long codes
-        updateField("display_name", convertToLongCodes(fileName));
-      } else {
-        updateField("display_name", fileName);
+        fileName = convertToLongCodes(fileName);
       }
+
+      // Remove {CompanyName} if the checkbox is checked
+      if (removeCompanyName) {
+        fileName = fileName.replace(/\{CompanyName\}\s*/g, '').replace(/\{CompanyCode\}\s*/g, '');
+      }
+
+      updateField("display_name", fileName);
     }
-  }, [displayNameSameAsFileName, showFullDescription, documentType?.file_name]);
+  }, [displayNameSameAsFileName, showFullDescription, removeCompanyName, documentType?.file_name]);
 
   const loadDocumentType = async () => {
     try {
@@ -674,7 +687,15 @@ export default function DocumentTypeDetailPage() {
                 onValueChange={(value) => setPreviewCompanyId(value === "default" ? null : parseInt(value))}
               >
                 <SelectTrigger id="preview-company" className="h-8 text-sm">
-                  <SelectValue placeholder="Select company..." />
+                  <SelectValue>
+                    {previewCompanyId
+                      ? (() => {
+                          const company = companies.find(c => c.id === previewCompanyId);
+                          return company ? `${company.code} - ${company.name}` : "Example Data";
+                        })()
+                      : "Example Data"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="default">Example Data</SelectItem>
@@ -798,22 +819,15 @@ export default function DocumentTypeDetailPage() {
                 <div className="flex items-center gap-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <Checkbox
-                      id="remove-display-name"
-                      checked={!displayNameSameAsFileName && !documentType.display_name}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setDisplayNameSameAsFileName(false);
-                          updateField("display_name", "");
-                        } else {
-                          setDisplayNameSameAsFileName(true);
-                        }
-                      }}
+                      id="remove-company-name"
+                      checked={removeCompanyName}
+                      onCheckedChange={(checked) => setRemoveCompanyName(checked as boolean)}
                     />
                     <Label
-                      htmlFor="remove-display-name"
+                      htmlFor="remove-company-name"
                       className="text-sm font-normal cursor-pointer text-muted-foreground"
                     >
-                      Remove Display Name
+                      Remove Company Name
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">
