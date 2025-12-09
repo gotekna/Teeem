@@ -332,7 +332,7 @@ module Api
         end
 
         # Get investments (companies this company owns)
-        investments = company.investments.includes(:company).map do |inv|
+        investments = company.investments.includes(:corporate_company).map do |inv|
           {
             company_id: inv.company_id,
             company_name: inv.corporate_company&.name,
