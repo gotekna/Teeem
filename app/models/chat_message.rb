@@ -4,7 +4,7 @@ class ChatMessage < ApplicationRecord
   belongs_to :recipient_user, class_name: "User", optional: true
   belongs_to :job, optional: true
   belongs_to :contact, optional: true
-  belongs_to :legal_case, class_name: "Case", foreign_key: "case_id", optional: true
+  belongs_to :legal_case, class_name: "CaseRecord", foreign_key: "case_id", optional: true
 
   has_one_attached :file
 

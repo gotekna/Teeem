@@ -22,8 +22,8 @@ module HealthChecks
 
     # Documents pending AI verification
     def check_needs_ai_verification
-      docs = CompanyDocument.where(ai_verification_status: [ nil, "pending" ])
-                           .includes(:company)
+      docs = CorporateCompanyDocument.where(ai_verification_status: [ nil, "pending" ])
+                           .includes(:corporate_company)
                            .limit(100)
 
       build_result(
@@ -38,8 +38,8 @@ module HealthChecks
 
     # Documents flagged for user validation
     def check_needs_user_validation
-      docs = CompanyDocument.where(validation_required: true, user_validated_at: nil)
-                           .includes(:company)
+      docs = CorporateCompanyDocument.where(validation_required: true, user_validated_at: nil)
+                           .includes(:corporate_company)
                            .limit(100)
 
       build_result(
@@ -150,8 +150,8 @@ module HealthChecks
 
     # Documents missing date
     def check_documents_missing_date
-      docs = CompanyDocument.where(document_date: nil)
-                           .includes(:company)
+      docs = CorporateCompanyDocument.where(document_date: nil)
+                           .includes(:corporate_company)
                            .limit(100)
 
       build_result(
@@ -202,9 +202,9 @@ module HealthChecks
 
     # Find companies missing specific document types
     def find_companies_missing_document(folder:, pattern:, financial_year: nil, calendar_year: nil, months_ago: nil, period: nil)
-      companies = Company.where(active: [ true, nil ])
+      companies = CorporateCompany.where(active: [ true, nil ])
 
-      query = CompanyDocument.where(folder: folder)
+      query = CorporateCompanyDocument.where(folder: folder)
                             .where("LOWER(document_type) LIKE ? OR LOWER(title) LIKE ?", pattern, pattern)
 
       if financial_year

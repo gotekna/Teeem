@@ -49,7 +49,7 @@ class EnrichContactsFromEmailsJob < ApplicationJob
       # 1. Have an email address
       # 2. Are missing phone OR address
       # 3. Have emails in the warehouse from them
-      Contact.where.not(email: [nil, ''])
+      Contact.where.not(email: [ nil, "" ])
              .where("(mobile_phone IS NULL OR mobile_phone = '') OR (office_phone IS NULL OR office_phone = '') OR (address IS NULL OR address = '')")
              .where("EXISTS (SELECT 1 FROM email_warehouse WHERE LOWER(email_warehouse.from_email) = LOWER(contacts.email))")
              .limit(limit)
@@ -64,7 +64,7 @@ class EnrichContactsFromEmailsJob < ApplicationJob
     # Find most recent email FROM this contact (signature is in sent emails)
     recent_email = EmailWarehouse
       .where("LOWER(from_email) = ?", contact.email.downcase)
-      .where.not(body_text: [nil, ''])
+      .where.not(body_text: [ nil, "" ])
       .order(received_at: :desc)
       .first
 

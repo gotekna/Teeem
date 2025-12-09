@@ -93,7 +93,7 @@ module Api
 
       # DELETE /api/v1/document_types/:id
       def destroy
-        if @document_type.company_documents.any?
+        if @document_type.corporate_company_documents.any?
           return render json: {
             success: false,
             errors: [ "Cannot delete document type with existing documents" ]
@@ -149,7 +149,7 @@ module Api
           scope: document_type.scope,
           file_extensions: document_type.file_extensions || [],
           target_folder: document_type.target_folder,
-          documents_count: document_type.company_documents.count,
+          documents_count: document_type.corporate_company_documents.count,
           created_at: document_type.created_at,
           updated_at: document_type.updated_at
         }

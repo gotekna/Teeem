@@ -81,7 +81,7 @@ class CorporateOneDriveService
   # Create folder structure for all companies in a group
   def create_group_folders(company_group)
     results = []
-    company_group.companies.each do |company|
+    company_group.corporate_companies.each do |company|
       result = create_company_folders(company)
       results << { company: company.name, result: result }
     end
@@ -126,14 +126,14 @@ class CorporateOneDriveService
       groups: []
     }
 
-    CompanyGroup.includes(:companies).order(:name).each do |group|
+    CorporateGroup.includes(:companies).order(:name).each do |group|
       group_info = {
         name: group.name,
         folder_path: "00 TEEEM PRIVATE/#{group.name}",
         entities: []
       }
 
-      group.companies.order(:name).each do |company|
+      group.corporate_companies.order(:name).each do |company|
         company_folder_name = "#{company.code.presence || company.name[0..2].upcase} - #{company.name}"
         entity_info = {
           id: company.id,
@@ -179,7 +179,7 @@ class CorporateOneDriveService
       stats: @stats
     }
 
-    CompanyGroup.includes(:companies).order(:name).each do |group|
+    CorporateGroup.includes(:companies).order(:name).each do |group|
       Rails.logger.info "Creating folder for group: #{group.name}"
 
       # Create group folder
@@ -192,7 +192,7 @@ class CorporateOneDriveService
         entities: []
       }
 
-      group.companies.order(:name).each do |company|
+      group.corporate_companies.order(:name).each do |company|
         company_folder_name = "#{company.code.presence || company.name[0..2].upcase} - #{company.name}"
         Rails.logger.info "  Creating folder for company: #{company_folder_name}"
 
@@ -351,7 +351,7 @@ class CorporateOneDriveService
     parsed = parse_document_name(file["name"])
     document_type = DocumentType.find_by(name: parsed[:type])
 
-    company_document = company.company_documents.find_or_initialize_by(
+    company_document = company.corporate_company_documents.find_or_initialize_by(
       onedrive_file_id: file_id
     )
 
@@ -392,7 +392,7 @@ class CorporateOneDriveService
     end
 
     # Try to find any known company code in the filename
-    Company.where.not(code: [ nil, "" ]).find_each do |c|
+    CorporateCompany.where.not(code: [ nil, "" ]).find_each do |c|
       if name_without_ext.match?(/\b#{Regexp.escape(c.code)}\b/i)
         return c.code.upcase
       end

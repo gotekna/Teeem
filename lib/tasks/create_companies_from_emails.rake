@@ -8,11 +8,11 @@ namespace :contacts do
 
     # Personal/test domains to skip
     skip_domains = [
-      'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'icloud.com',
-      'live.com', 'bigpond.com', 'optusnet.com.au',
-      'yahoo.com.au', 'live.com.au',  # Personal domains with country codes
-      'test.com', 'y7mail.com',  # Test/demo domains
-      'hsmithdemo.co', 'yarratransport.co', 'storypro.me'  # Demo domains
+      "gmail.com", "hotmail.com", "outlook.com", "yahoo.com", "icloud.com",
+      "live.com", "bigpond.com", "optusnet.com.au",
+      "yahoo.com.au", "live.com.au",  # Personal domains with country codes
+      "test.com", "y7mail.com",  # Test/demo domains
+      "hsmithdemo.co", "yarratransport.co", "storypro.me"  # Demo domains
     ]
 
     stats = {
@@ -23,9 +23,9 @@ namespace :contacts do
     }
 
     # Find people without companies who have business emails
-    people = Contact.where(entity_type: 'person')
+    people = Contact.where(entity_type: "person")
                    .where(primary_company_id: nil)
-                   .where.not(email: [nil, ''])
+                   .where.not(email: [ nil, "" ])
                    .order(:id)
 
     # Group by domain
@@ -35,12 +35,12 @@ namespace :contacts do
       email = person.email.to_s.strip
       next unless email.match?(/@/)
 
-      domain = email.split('@').last.downcase
+      domain = email.split("@").last.downcase
       next if skip_domains.include?(domain)
 
       # Check if company already exists with this domain
-      company = Contact.where(entity_type: ['company', 'trust'])
-                      .where('LOWER(website) LIKE ?', "%#{domain}%")
+      company = Contact.where(entity_type: [ "company", "trust" ])
+                      .where("LOWER(website) LIKE ?", "%#{domain}%")
                       .first
 
       if company.nil?
@@ -54,7 +54,7 @@ namespace :contacts do
     domains.each do |domain, domain_people|
       begin
         # Create company name from domain
-        company_name = domain.split('.').first.split('-').map(&:capitalize).join(' ')
+        company_name = domain.split(".").first.split("-").map(&:capitalize).join(" ")
 
         # Create company contact
         company_contact = Contact.new(
@@ -111,16 +111,16 @@ namespace :contacts do
   desc "Preview companies that would be created from email domains"
   task preview_companies_from_emails: :environment do
     skip_domains = [
-      'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'icloud.com',
-      'live.com', 'bigpond.com', 'optusnet.com.au',
-      'yahoo.com.au', 'live.com.au',
-      'test.com', 'y7mail.com',
-      'hsmithdemo.co', 'yarratransport.co', 'storypro.me'
+      "gmail.com", "hotmail.com", "outlook.com", "yahoo.com", "icloud.com",
+      "live.com", "bigpond.com", "optusnet.com.au",
+      "yahoo.com.au", "live.com.au",
+      "test.com", "y7mail.com",
+      "hsmithdemo.co", "yarratransport.co", "storypro.me"
     ]
 
-    people = Contact.where(entity_type: 'person')
+    people = Contact.where(entity_type: "person")
                    .where(primary_company_id: nil)
-                   .where.not(email: [nil, ''])
+                   .where.not(email: [ nil, "" ])
 
     domains = Hash.new { |h, k| h[k] = [] }
 
@@ -128,11 +128,11 @@ namespace :contacts do
       email = person.email.to_s.strip
       next unless email.match?(/@/)
 
-      domain = email.split('@').last.downcase
+      domain = email.split("@").last.downcase
       next if skip_domains.include?(domain)
 
-      company = Contact.where(entity_type: ['company', 'trust'])
-                      .where('LOWER(website) LIKE ?', "%#{domain}%")
+      company = Contact.where(entity_type: [ "company", "trust" ])
+                      .where("LOWER(website) LIKE ?", "%#{domain}%")
                       .first
 
       if company.nil?
@@ -144,7 +144,7 @@ namespace :contacts do
     puts
 
     domains.each do |domain, domain_people|
-      company_name = domain.split('.').first.split('-').map(&:capitalize).join(' ')
+      company_name = domain.split(".").first.split("-").map(&:capitalize).join(" ")
       puts "#{company_name} (#{domain}) - #{domain_people.count} people:"
       domain_people.each do |p|
         puts "  [#{p.id}] #{p.full_name} - #{p.email}"

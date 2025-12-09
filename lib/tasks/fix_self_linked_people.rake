@@ -7,8 +7,8 @@ namespace :contacts do
     puts
 
     # Find people where primary_company_id points to themselves
-    self_linked = Contact.where(entity_type: 'person')
-                        .where('id = primary_company_id')
+    self_linked = Contact.where(entity_type: "person")
+                        .where("id = primary_company_id")
 
     puts "Found #{self_linked.count} people linked to themselves"
     puts

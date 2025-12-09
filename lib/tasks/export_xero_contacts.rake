@@ -1,4 +1,4 @@
-require 'csv'
+require "csv"
 
 namespace :xero do
   desc "Export all Xero contacts to CSV without importing (read-only)"

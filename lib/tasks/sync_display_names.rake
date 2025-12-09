@@ -8,19 +8,19 @@ namespace :contacts do
   desc "Sync display_name from source fields (first/last name for person, company_name_or_trust for company/trust)"
   task sync_display_names: :environment do
     puts "Syncing display_name for all contacts..."
-    
+
     updated_count = 0
     error_count = 0
-    
+
     Contact.unscoped.find_each do |contact|
       begin
         old_display_name = contact.display_name
         new_display_name = nil
-        
+
         case contact.entity_type
         when "person", "sole_trader"
           # Construct from first + middle + last name
-          name_parts = [contact.first_name, contact.middle_name, contact.last_name].map(&:presence).compact
+          name_parts = [ contact.first_name, contact.middle_name, contact.last_name ].map(&:presence).compact
           new_display_name = name_parts.join(" ") if name_parts.any?
         when "company", "trust"
           # Use company_name_or_trust
@@ -31,7 +31,7 @@ namespace :contacts do
             new_display_name = contact.display_name.upcase
           end
         end
-        
+
         # Update if different
         if new_display_name.present? && new_display_name != old_display_name
           contact.update_column(:display_name, new_display_name)
@@ -43,7 +43,7 @@ namespace :contacts do
         error_count += 1
       end
     end
-    
+
     puts "\nDone!"
     puts "  Updated: #{updated_count}"
     puts "  Errors: #{error_count}"

@@ -70,7 +70,7 @@ namespace :contacts do
             puts "✓ PERSON [#{contact.id}] Split: '#{current_first_name}' → first='#{new_first_name}' last='#{new_last_name}'"
           end
 
-        elsif contact.entity_type.in?(["company", "trust"])
+        elsif contact.entity_type.in?([ "company", "trust" ])
           # COMPANY: Move to full_name, clear first_name/last_name
           contact.full_name = current_first_name
           contact.first_name = nil

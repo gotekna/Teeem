@@ -29,7 +29,7 @@ namespace :purchase_orders do
     print "Create purchase orders for #{total_bills - bills_with_existing_po.count} bills? (y/n): "
     confirmation = STDIN.gets.chomp.downcase
 
-    unless confirmation == 'y' || confirmation == 'yes'
+    unless confirmation == "y" || confirmation == "yes"
       puts "Cancelled."
       exit
     end

@@ -785,23 +785,23 @@ module Api
                                                .maximum(:last_synced_at)
 
           # Count PDFs per contact (documents linked to their invoices)
-          pdf_counts_by_contact = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
-                                                  .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                                  .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+          pdf_counts_by_contact = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                                  .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                                  .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                                   .group("external_invoices.contact_id")
                                                   .count
 
           # Get latest PDF sync time per contact
-          pdf_sync_times = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
-                                           .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                           .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+          pdf_sync_times = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                           .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                           .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                            .group("external_invoices.contact_id")
-                                           .maximum("company_documents.created_at")
+                                           .maximum("corporate_company_documents.created_at")
 
           contacts_data = contacts.map do |contact|
             # Get invoice/bill counts for this contact
-            invoices_count = invoice_counts[[contact.id, "sales_invoice"]] || 0
-            bills_count = invoice_counts[[contact.id, "bill"]] || 0
+            invoices_count = invoice_counts[[ contact.id, "sales_invoice" ]] || 0
+            bills_count = invoice_counts[[ contact.id, "bill" ]] || 0
             total_docs = invoices_count + bills_count
 
             # Get PDF sync count
@@ -1410,7 +1410,10 @@ module Api
           invoices_with_contacts = ExternalInvoice.where.not(contact_id: nil)
           total_with_contacts = invoices_with_contacts.count
           invoices_without_contacts = total_invoices_in_db - total_with_contacts
-          last_invoice_sync = ExternalInvoice.maximum(:last_synced_at)
+
+          # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
+          invoice_sync_status = XeroSyncStatus.where(sync_type: 'invoices').order(last_synced_at: :desc).first
+          last_invoice_sync = invoice_sync_status&.last_synced_at || ExternalInvoice.maximum(:last_synced_at)
 
           # Invoice breakdown by type
           invoice_breakdown = {
@@ -1438,7 +1441,7 @@ module Api
           # STAGE 2: PDF Download (Xero -> Active Storage)
           # ============================================
           # Count invoices that have PDFs downloaded
-          invoices_with_pdfs = CompanyDocument.where(source: "xero")
+          invoices_with_pdfs = CorporateCompanyDocument.where(source: "xero")
                                               .where("external_id LIKE ?", "xero:%:pdf")
                                               .where(documentable_type: "ExternalInvoice")
                                               .distinct
@@ -1447,13 +1450,14 @@ module Api
           pdfs_pending = total_with_contacts - invoices_with_pdfs
           pdf_progress = total_with_contacts.zero? ? 0 : ((invoices_with_pdfs.to_f / total_with_contacts) * 100).round(1)
 
-          # Get last PDF sync time
-          last_pdf_sync = CompanyDocument.where(source: "xero")
+          # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
+          pdf_sync_status = XeroSyncStatus.where(sync_type: 'pdfs').order(last_synced_at: :desc).first
+          last_pdf_sync = pdf_sync_status&.last_synced_at || CorporateCompanyDocument.where(source: "xero")
                                          .where(documentable_type: "ExternalInvoice")
                                          .maximum(:created_at)
 
           # Recent PDF activity (last 24 hours)
-          pdfs_last_24h = CompanyDocument.where(source: "xero")
+          pdfs_last_24h = CorporateCompanyDocument.where(source: "xero")
                                          .where(documentable_type: "ExternalInvoice")
                                          .where("created_at > ?", 24.hours.ago)
                                          .count
@@ -1461,54 +1465,63 @@ module Api
           # ============================================
           # STAGE 3: SharePoint Upload (Active Storage -> OneDrive)
           # ============================================
-          # Count PDFs that have been uploaded to SharePoint (have expected_onedrive_path set)
+          # SSoT: Count PDFs ACTUALLY uploaded to SharePoint (have onedrive_file_id set)
+          # onedrive_file_id is set by OneDrive after successful upload - this is the SSoT
+          # expected_onedrive_path is just the PLAN, not the reality
           # Only count PDFs (not attachments) to match Stage 2's count
-          sharepoint_pdfs_uploaded = CompanyDocument.where(source: "xero")
+          sharepoint_pdfs_uploaded = CorporateCompanyDocument.where(source: "xero")
                                                     .where("external_id LIKE ?", "xero:%:pdf")
-                                                    .where.not(expected_onedrive_path: nil)
+                                                    .where.not(onedrive_file_id: nil)  # SSoT: Actually uploaded
                                                     .where(documentable_type: "ExternalInvoice")
                                                     .count
 
           # PDFs downloaded but not yet on SharePoint
-          sharepoint_pending = [invoices_with_pdfs - sharepoint_pdfs_uploaded, 0].max
+          sharepoint_pending = [ invoices_with_pdfs - sharepoint_pdfs_uploaded, 0 ].max
           sharepoint_progress = invoices_with_pdfs.zero? ? 0 : ((sharepoint_pdfs_uploaded.to_f / invoices_with_pdfs) * 100).round(1)
-          sharepoint_progress = [sharepoint_progress, 100].min # Cap at 100%
+          sharepoint_progress = [ sharepoint_progress, 100 ].min # Cap at 100%
+
+          # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
+          sharepoint_sync_status = XeroSyncStatus.where(sync_type: 'sharepoint').order(last_synced_at: :desc).first
+          last_sharepoint_sync = sharepoint_sync_status&.last_synced_at || CorporateCompanyDocument.where(source: "xero")
+                                                         .where(documentable_type: "ExternalInvoice")
+                                                         .where.not(onedrive_file_id: nil)
+                                                         .maximum(:updated_at)
 
           # ============================================
           # Breakdown by invoice type (for PDF stage)
           # ============================================
           bills_total = invoices_with_contacts.bills.count
-          bills_with_pdfs = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
-                                           .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                           .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+          bills_with_pdfs = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                           .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                           .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                            .where(external_invoices: { invoice_type: "bill" })
                                            .distinct
-                                           .count("company_documents.documentable_id")
+                                           .count("corporate_company_documents.documentable_id")
 
           sales_total = invoices_with_contacts.sales_invoices.count
-          sales_with_pdfs = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
-                                           .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                           .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+          sales_with_pdfs = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                           .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                           .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                            .where(external_invoices: { invoice_type: "sales_invoice" })
                                            .distinct
-                                           .count("company_documents.documentable_id")
+                                           .count("corporate_company_documents.documentable_id")
 
           quotes_total = invoices_with_contacts.quotes.count
-          quotes_with_pdfs = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
-                                            .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                            .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+          quotes_with_pdfs = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                            .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                            .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                             .where(external_invoices: { invoice_type: "quote" })
                                             .distinct
-                                            .count("company_documents.documentable_id")
+                                            .count("corporate_company_documents.documentable_id")
 
           # Credit notes breakdown (SSoT fix - was missing from PDF breakdown)
           credit_notes_total = invoices_with_contacts.where(invoice_type: "credit_note").count
-          credit_notes_with_pdfs = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
-                                                  .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                                  .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+          credit_notes_with_pdfs = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                                  .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                                  .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                                   .where(external_invoices: { invoice_type: "credit_note" })
                                                   .distinct
-                                                  .count("company_documents.documentable_id")
+                                                  .count("corporate_company_documents.documentable_id")
 
           # Estimate time remaining for PDF sync (based on 10s per invoice)
           estimated_remaining_seconds = pdfs_pending * 10
@@ -1518,22 +1531,35 @@ module Api
           brisbane_tz = ActiveSupport::TimeZone["Australia/Brisbane"]
           now_brisbane = Time.current.in_time_zone(brisbane_tz)
 
-          # Invoice sync runs every 30 minutes
-          next_invoice_sync = calculate_next_run(now_brisbane, 30, 0)
+          # Invoice sync runs every 5 minutes
+          next_invoice_sync = calculate_next_run(now_brisbane, 5, 0)
 
-          # PDF sync runs every 2 hours at minute 45
-          next_pdf_sync = calculate_next_run(now_brisbane, 120, 45)
+          # PDF sync uses smart rate limiting - calculates next run based on pending count
+          # When catching up (>100 pending): batches every 5 min
+          # Almost caught up (<100 pending): batches every 10 min
+          # Caught up (0 pending): checks every 30 min
+          next_pdf_sync = if pdfs_pending > 100
+            5.minutes.from_now
+          elsif pdfs_pending > 0
+            10.minutes.from_now
+          else
+            30.minutes.from_now
+          end
 
-          # Stage 2 blocker info - why isn't PDF sync faster?
-          stage2_blocker = if pdfs_pending > 0
-            hours_remaining = (estimated_remaining_minutes / 60.0).round(1)
-            days_remaining = (hours_remaining / 24.0).round(1)
+          # Stage 2 info - smart rate-limited sync status
+          stage2_blocker = if pdfs_pending > 100
             {
-              reason: "Rate limited: 50 PDFs every 2 hours",
-              detail: "Xero API limits prevent faster syncing. #{pdfs_pending} PDFs pending.",
+              reason: "Catching up - syncing at max safe speed",
+              detail: "Processing ~20 PDFs per batch, auto-queuing next batch. #{pdfs_pending} remaining.",
               pending_count: pdfs_pending,
-              estimated_hours: hours_remaining,
-              estimated_days: days_remaining > 1 ? days_remaining : nil
+              sync_mode: "catching_up"
+            }
+          elsif pdfs_pending > 0
+            {
+              reason: "Almost caught up - slowing down",
+              detail: "#{pdfs_pending} PDFs remaining, will be near-live soon.",
+              pending_count: pdfs_pending,
+              sync_mode: "almost_done"
             }
           else
             nil
@@ -1550,12 +1576,57 @@ module Api
             nil
           end
 
+          # ============================================
+          # SSoT VIOLATION TRACKING
+          # ============================================
+          # Check for documents with wrong external_id format
+          # SSoT (Bible #16.002): external_id for attachments should be "xero:attachment:ID" NOT "xero:invoice-uuid:attachment:ID"
+          # This catches both old formats:
+          #   - xero:invoice:123:attachment:456 (old integer format)
+          #   - xero:uuid:attachment:uuid (current wrong format with invoice UUID)
+          wrong_format_count = CorporateCompanyDocument.where(source: "xero")
+                                                       .where("external_id LIKE ? OR external_id LIKE ?",
+                                                              "%:invoice:%:attachment:%",
+                                                              "xero:%:attachment:%")
+                                                       .where.not("external_id LIKE ?", "xero:attachment:%")
+                                                       .count
+
+          # Check for PDF documents missing expected_onedrive_path (should all have it after upload)
+          pdfs_missing_onedrive_path = CorporateCompanyDocument.where(source: "xero")
+                                                               .where("external_id LIKE ?", "xero:%:pdf")
+                                                               .where(documentable_type: "ExternalInvoice")
+                                                               .where(expected_onedrive_path: nil)
+                                                               .count
+
+          # Build violations array for Stage 3 display
+          stage3_violations = []
+          if wrong_format_count > 0
+            stage3_violations << {
+              type: "external_id_format",
+              count: wrong_format_count,
+              severity: "warning",
+              description: "Attachments with old external_id format (should be 'xero:attachment:ID')",
+              action_required: "Run: rails xero:fix_external_id_format"
+            }
+          end
+
+          if pdfs_missing_onedrive_path > 0 && sharepoint_pdfs_uploaded > 0
+            # Only flag as violation if we have uploads (meaning system is working)
+            stage3_violations << {
+              type: "missing_onedrive_path",
+              count: pdfs_missing_onedrive_path,
+              severity: "info",
+              description: "PDFs without OneDrive path (may be in progress)",
+              action_required: nil
+            }
+          end
+
           # Get SharePoint URL for Contacts folder
           sharepoint_contacts_url = nil
           begin
             credential = OrganizationOneDriveCredential.active_credential
             if credential&.metadata&.dig("site_web_url")
-              settings = CompanySetting.first
+              settings = CorporateCompanySetting.first
               contacts_folder = settings&.contact_documents_path || "Contacts"
               encoded_folder = ERB::Util.url_encode(contacts_folder)
               sharepoint_contacts_url = "#{credential.metadata["site_web_url"]}/Shared%20Documents/#{encoded_folder}"
@@ -1575,7 +1646,7 @@ module Api
                 last_synced_at: last_invoice_sync,           # SSoT: Use last_synced_at consistently
                 last_sync_at: last_invoice_sync,             # Deprecated: kept for backwards compatibility
                 next_sync_at: next_invoice_sync,
-                schedule: "Every 30 minutes",
+                schedule: "Every 5 minutes",
                 breakdown: invoice_breakdown,
                 blocker: stage1_blocker
               },
@@ -1589,7 +1660,7 @@ module Api
                 last_synced_at: last_pdf_sync,               # SSoT: Use last_synced_at consistently
                 last_sync_at: last_pdf_sync,                 # Deprecated: kept for backwards compatibility
                 next_sync_at: next_pdf_sync,
-                schedule: "Every 2 hours (50 per batch)",
+                schedule: pdfs_pending > 100 ? "Smart sync: max speed (every 5 min)" : pdfs_pending > 0 ? "Smart sync: slowing down (every 10 min)" : "Smart sync: near-live (every 30 min)",
                 synced_last_24h: pdfs_last_24h,
                 breakdown: {
                   bills: { total: bills_total, synced: bills_with_pdfs },
@@ -1606,8 +1677,11 @@ module Api
                 uploaded: sharepoint_pdfs_uploaded,
                 pending: sharepoint_pending,
                 progress_percentage: sharepoint_progress,
+                last_synced_at: last_sharepoint_sync,
+                schedule: "Uploads with PDF sync",
                 blocker: stage3_blocker,
-                sharepoint_url: sharepoint_contacts_url
+                sharepoint_url: sharepoint_contacts_url,
+                violations: stage3_violations  # SSoT: Show data quality issues
               },
 
               # Overall metrics (for backwards compatibility)

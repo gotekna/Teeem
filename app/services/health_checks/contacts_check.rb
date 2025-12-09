@@ -140,12 +140,14 @@ module HealthChecks
 
       build_result(
         name: "Contacts with Invalid Website URL",
-        description: "Website must start with http:// or https://. Fix by adding the protocol or clearing the field.",
+        description: "Website must start with http:// or https://. Click Fix All to add https:// prefix.",
         severity: :warning,
         items: contacts,
         icon: "globe",
         action_path: "/contacts/:id",
-        check_name: "invalid_website"
+        check_name: "invalid_website",
+        auto_fixable: true,
+        fix_type: "website_prefix"
       )
     end
 
@@ -163,12 +165,14 @@ module HealthChecks
 
       build_result(
         name: "Person Names in ALL CAPS",
-        description: "Person names should be Title Case (e.g., 'John Smith' not 'JOHN SMITH'). Fix by editing name to proper case.",
+        description: "Person names should be Title Case (e.g., 'John Smith' not 'JOHN SMITH'). Click Fix All to auto-fix.",
         severity: :warning,
         items: contacts,
         icon: "text-cursor",
         action_path: "/contacts/:id",
-        check_name: "all_caps_names"
+        check_name: "all_caps_names",
+        auto_fixable: true,
+        fix_type: "name_casing"
       )
     end
 
@@ -182,12 +186,14 @@ module HealthChecks
 
       build_result(
         name: "Person Names in lowercase",
-        description: "Person names should be Title Case (e.g., 'John Smith' not 'john smith'). Fix by editing name to proper case.",
+        description: "Person names should be Title Case (e.g., 'John Smith' not 'john smith'). Click Fix All to auto-fix.",
         severity: :warning,
         items: contacts,
         icon: "text-cursor-input",
         action_path: "/contacts/:id",
-        check_name: "all_lowercase_names"
+        check_name: "all_lowercase_names",
+        auto_fixable: true,
+        fix_type: "name_casing"
       )
     end
 
@@ -278,6 +284,52 @@ module HealthChecks
         icon: "store",
         action_path: "/contacts/:id",
         check_name: "sole_trader_missing_business_name"
+      )
+    end
+
+    # ============================================
+    # DATA FORMATTING CHECKS (Auto-fixable)
+    # ============================================
+
+    # Contacts with uppercase email addresses (should be lowercase)
+    def check_uppercase_emails
+      contacts = Contact.where(deleted: [false, nil])
+                       .where.not(email: [nil, ''])
+                       .where("email != LOWER(email)")
+                       .select(:id, :display_name, :email, :entity_type, :is_team_contact, :primary_company_id)
+
+      build_result(
+        name: "Emails with Uppercase",
+        description: "Email addresses should be lowercase. Click Fix All to convert to lowercase.",
+        severity: :info,
+        items: contacts,
+        icon: "at-sign",
+        action_path: "/contacts/:id",
+        check_name: "uppercase_emails",
+        auto_fixable: true,
+        fix_type: "email_lowercase"
+      )
+    end
+
+    # Contacts with unformatted phone numbers
+    def check_unformatted_phone
+      # Find contacts with phone numbers that aren't properly formatted
+      # Properly formatted: 0X XXXX XXXX or +61 X XXXX XXXX
+      contacts = Contact.where(deleted: [false, nil])
+                       .where.not(mobile_phone: [nil, ''])
+                       .where("mobile_phone !~ '^[0-9]{2} [0-9]{4} [0-9]{4}$' AND mobile_phone !~ '^\\+61 [0-9] [0-9]{4} [0-9]{4}$'")
+                       .select(:id, :display_name, :mobile_phone, :entity_type, :is_team_contact, :primary_company_id)
+
+      build_result(
+        name: "Unformatted Phone Numbers",
+        description: "Phone numbers should be formatted as 0X XXXX XXXX or +61 X XXXX XXXX. Click Fix All to format.",
+        severity: :info,
+        items: contacts,
+        icon: "phone",
+        action_path: "/contacts/:id",
+        check_name: "unformatted_phone",
+        auto_fixable: true,
+        fix_type: "phone_format"
       )
     end
 

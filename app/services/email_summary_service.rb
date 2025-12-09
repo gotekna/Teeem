@@ -196,7 +196,7 @@ class EmailSummaryService
   def find_company(reference)
     return nil if reference.blank?
 
-    company = Company.where("name ILIKE ?", "%#{reference}%").first
+    company = CorporateCompany.where("name ILIKE ?", "%#{reference}%").first
     return { id: company.id, name: company.name } if company
 
     nil

@@ -146,7 +146,7 @@ namespace :xero do
 
   desc "Export full validation report to CSV"
   task export_validation_report: :environment do
-    require 'csv'
+    require "csv"
 
     # Get all contacts
     all_contacts = Contact.all.to_a
@@ -164,7 +164,7 @@ namespace :xero do
 
     CSV.open(filename, "w") do |csv|
       # Header
-      csv << ["Contact ID", "Name", "Entity Type", "Should Sync?", "Valid?", "Error Fields", "Error Messages"]
+      csv << [ "Contact ID", "Name", "Entity Type", "Should Sync?", "Valid?", "Error Fields", "Error Messages" ]
 
       # Data
       all_contacts.each do |contact|

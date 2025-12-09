@@ -6,7 +6,7 @@ namespace :contacts do
     puts "=" * 60
     puts
 
-    trade_companies = [1654, 1825, 1877]
+    trade_companies = [ 1654, 1825, 1877 ]
 
     trade_companies.each do |contact_id|
       contact = Contact.find(contact_id)

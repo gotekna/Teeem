@@ -10,47 +10,47 @@ namespace :teeem do
 
       competitor_features = {
         # Chapter 1: Pre-Construction & Sales
-        "Lead Capture & CRM" => [ :buildertrend, :buildexact, :clickhome, :jacks, :wunderbuilt ],
+        "Lead Capture & CRM" => [ :buildertrend, :buildexact, :clickhome, :jacks, :wunderbuilt, :evolve ],
         "Lead Nurturing & Email Marketing" => [ :buildertrend, :clickhome ],
-        "Estimating & Takeoffs" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome ],
-        "Quote/Proposal Generation" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome ],
+        "Estimating & Takeoffs" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome, :evolve ],
+        "Quote/Proposal Generation" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome, :evolve ],
         "Digital Signatures & Contracts" => [ :buildertrend, :buildexact, :jacks, :clickhome ],
         "Tender Management" => [ :wunderbuilt, :clickhome ],
-        "Pre-Construction Workflow & Approvals" => [ :clickhome, :wunderbuilt ],
+        "Pre-Construction Workflow & Approvals" => [ :clickhome, :wunderbuilt, :evolve ],
 
         # Chapter 2: Project Setup & Job Management
-        "Project/Job Creation" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome ],
+        "Project/Job Creation" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome, :evolve ],
         "Project Templates" => [ :buildertrend, :jacks, :wunderbuilt, :smartebuild, :clickhome ],
-        "Budget Setup & Tracking" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome ],
-        "Job Status Management" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome ],
-        "Change Orders / Variations" => [ :buildertrend, :jacks, :wunderbuilt, :clickhome ],
+        "Budget Setup & Tracking" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome, :evolve ],
+        "Job Status Management" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome, :evolve ],
+        "Change Orders / Variations" => [ :buildertrend, :jacks, :wunderbuilt, :clickhome, :evolve ],
         "Daily Logs / Site Diary" => [ :buildertrend, :wunderbuilt, :smartebuild ],
         "Job Costing" => [ :buildertrend, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild ],
 
         # Chapter 3: Scheduling & Coordination
-        "Gantt Chart Scheduling" => [ :buildertrend, :jacks, :wunderbuilt, :smartebuild ],
+        "Gantt Chart Scheduling" => [ :buildertrend, :jacks, :wunderbuilt, :smartebuild, :evolve ],
         "Critical Path Analysis" => [ :wunderbuilt ],
         "Schedule Templates" => [ :buildertrend, :jacks, :wunderbuilt, :smartebuild ],
         "Task Management & Dependencies" => [ :buildertrend, :jacks, :wunderbuilt, :smartebuild, :clickhome ],
         "Calendar Views" => [ :buildertrend, :jacks, :simpro, :clickhome ],
-        "Trade Call-Ups & Notifications" => [ :smartebuild, :clickhome ],
+        "Trade Call-Ups & Notifications" => [ :smartebuild, :clickhome, :evolve ],
         "Automatic Schedule Adjustments" => [ :wunderbuilt, :smartebuild ],
 
         # Chapter 4: Financial Management
-        "Budgeting & Cost Tracking" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome ],
-        "Purchase Orders" => [ :buildertrend, :jacks, :wunderbuilt, :databuild, :smartebuild, :clickhome ],
-        "Invoicing & Progress Claims" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome ],
+        "Budgeting & Cost Tracking" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome, :evolve ],
+        "Purchase Orders" => [ :buildertrend, :jacks, :wunderbuilt, :databuild, :smartebuild, :clickhome, :evolve ],
+        "Invoicing & Progress Claims" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome, :evolve ],
         "Payment Processing" => [ :buildertrend, :simpro ],
-        "Cashflow Forecasting" => [ :jacks, :smartebuild ],
-        "Expense Tracking" => [ :buildertrend, :simpro ],
+        "Cashflow Forecasting" => [ :jacks, :smartebuild, :evolve ],
+        "Expense Tracking" => [ :buildertrend, :simpro, :evolve ],
         "Financial Reconciliation" => [ :buildertrend, :databuild, :wunderbuilt ],
 
         # Chapter 5: Accounting Integration
-        "Xero Integration" => [ :buildertrend, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild ],
-        "QuickBooks Integration" => [ :buildertrend, :wunderbuilt ],
-        "MYOB Integration" => [ :wunderbuilt, :databuild ],
-        "Auto Invoice Checking" => [ :databuild ],
-        "Real-Time Financial Sync" => [ :buildertrend, :wunderbuilt, :databuild ],
+        "Xero Integration" => [ :buildertrend, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :evolve ],
+        "QuickBooks Integration" => [ :buildertrend, :wunderbuilt, :evolve ],
+        "MYOB Integration" => [ :wunderbuilt, :databuild, :evolve ],
+        "Auto Invoice Checking" => [ :databuild, :evolve ],
+        "Real-Time Financial Sync" => [ :buildertrend, :wunderbuilt, :databuild, :evolve ],
         "Bank Reconciliation" => [ :buildertrend, :databuild ],
         "Payroll Integration (Australia)" => [ :databuild ],
 
@@ -64,16 +64,16 @@ namespace :teeem do
         "Photo Galleries for Clients" => [ :buildertrend ],
 
         # Chapter 7: Supplier & Subcontractor Management
-        "Supplier Database" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :clickhome ],
-        "Subcontractor Database" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :simpro, :clickhome ],
-        "Supplier Portal" => [ :buildertrend, :clickhome ],
-        "Subcontractor Portal" => [ :buildertrend, :jacks, :clickhome ],
+        "Supplier Database" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :databuild, :simpro, :clickhome, :evolve ],
+        "Subcontractor Database" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :simpro, :clickhome, :evolve ],
+        "Supplier Portal" => [ :buildertrend, :clickhome, :evolve ],
+        "Subcontractor Portal" => [ :buildertrend, :jacks, :clickhome, :evolve ],
         "Quote Requests (RFQ)" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt ],
         "Trade Scheduling & Call-Ups" => [ :buildertrend, :jacks, :simpro, :smartebuild, :clickhome ],
         "Pricing Database & Assemblies" => [ :buildexact, :wunderbuilt, :databuild, :simpro ],
 
         # Chapter 8: Document & File Management
-        "Cloud File Storage" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :clickhome ],
+        "Cloud File Storage" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :clickhome, :evolve ],
         "Plan/Drawing Management" => [ :buildertrend, :buildexact, :simpro, :clickhome ],
         "Photo Management" => [ :buildertrend, :buildexact, :jacks, :clickhome ],
         "Document Templates" => [ :buildertrend, :buildexact, :wunderbuilt, :clickhome ],
@@ -93,14 +93,14 @@ namespace :teeem do
         # Chapter 10: Quality & Site Management
         "Quality Inspections (Trade)" => [ :buildertrend, :clickhome ],
         "Quality Inspections (Supervisor)" => [ :buildertrend, :clickhome ],
-        "Defects Management" => [ :buildertrend, :clickhome ],
+        "Defects Management" => [ :buildertrend, :clickhome, :evolve ],
         "Handover Checklists" => [ :buildertrend, :clickhome ],
-        "Warranty Management" => [ :buildertrend ],
+        "Warranty Management" => [ :buildertrend, :evolve ],
         "Practical Completion" => [ :buildertrend, :clickhome ],
         "Final Signoffs" => [ :buildertrend, :clickhome ],
 
         # Chapter 11: Reporting & Analytics
-        "Financial Reports" => [ :buildertrend, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome ],
+        "Financial Reports" => [ :buildertrend, :jacks, :wunderbuilt, :databuild, :simpro, :smartebuild, :clickhome, :evolve ],
         "Project Dashboards" => [ :buildertrend, :jacks, :wunderbuilt, :clickhome ],
         "Custom Report Builder" => [ :buildertrend, :simpro ],
         "Performance Metrics" => [ :buildertrend, :buildexact, :clickhome ],
@@ -109,7 +109,7 @@ namespace :teeem do
         "One-Click Reports" => [ :smartebuild ],
 
         # Chapter 12: Mobile & Field Operations
-        "Mobile App (iOS/Android)" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :simpro, :smartebuild, :clickhome ],
+        "Mobile App (iOS/Android)" => [ :buildertrend, :buildexact, :jacks, :wunderbuilt, :simpro, :smartebuild, :clickhome, :evolve ],
         "Offline Mode" => [ :buildertrend, :simpro, :clickhome ],
         "Time Tracking & Timesheets" => [ :buildertrend, :jacks, :simpro ],
         "Field Photo Capture" => [ :buildertrend, :buildexact, :jacks, :clickhome ],
@@ -120,9 +120,9 @@ namespace :teeem do
         # Chapter 13: Integrations & Automation
         "Email Integration (Outlook/Gmail)" => [ :buildertrend ],
         "SMS Integration" => [ :buildertrend, :simpro ],
-        "API Platform & Webhooks" => [ :buildertrend, :simpro ],
-        "Zapier / Third-Party Apps" => [ :buildertrend ],
-        "Workflow Automation" => [ :buildertrend, :simpro ],
+        "API Platform & Webhooks" => [ :buildertrend, :simpro, :evolve ],
+        "Zapier / Third-Party Apps" => [ :buildertrend, :evolve ],
+        "Workflow Automation" => [ :buildertrend, :simpro, :evolve ],
         "AI-Powered Features" => [ :buildexact ],
         "Materials Marketplace Integration" => [ :buildertrend ]
       }
@@ -136,7 +136,9 @@ namespace :teeem do
         databuild: :databuild_has,
         simpro: :simpro_has,
         smartebuild: :smarterbuild_has,
-        clickhome: :clickhome_has
+        clickhome: :clickhome_has,
+        clickup: :clickup_has,
+        evolve: :evolve_has
       }
 
       updated_count = 0

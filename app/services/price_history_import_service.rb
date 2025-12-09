@@ -210,7 +210,7 @@ class PriceHistoryImportService
     end
 
     # Determine effective date: override > row data > today
-    effective_date = @effective_date_override || row_data[:date_effective] || CompanySetting.today
+    effective_date = @effective_date_override || row_data[:date_effective] || CorporateCompanySetting.today
 
     # Create new price history record
     PriceHistory.new(

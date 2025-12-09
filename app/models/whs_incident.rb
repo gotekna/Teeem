@@ -45,7 +45,7 @@ class WHSIncident < ApplicationRecord
   scope :lti, -> { where(incident_category: "lti") }
   scope :near_miss, -> { where(incident_category: "near_miss") }
   scope :requiring_workcov, -> { where(workcov_notification_required: true) }
-  scope :this_month, -> { where("incident_date >= ?", CompanySetting.today.beginning_of_month) }
+  scope :this_month, -> { where("incident_date >= ?", CorporateCompanySetting.today.beginning_of_month) }
   scope :recent, -> { order(incident_date: :desc) }
 
   # State machine methods
@@ -63,7 +63,7 @@ class WHSIncident < ApplicationRecord
     update!(
       status: "under_investigation",
       investigated_by_user: investigating_user,
-      investigation_date: CompanySetting.today
+      investigation_date: CorporateCompanySetting.today
     )
   end
 
@@ -111,7 +111,7 @@ class WHSIncident < ApplicationRecord
   end
 
   def days_since_incident
-    (CompanySetting.today - incident_date.to_date).to_i
+    (CorporateCompanySetting.today - incident_date.to_date).to_i
   end
 
   def witness_count
@@ -131,7 +131,7 @@ class WHSIncident < ApplicationRecord
   def generate_incident_number
     return if incident_number.present?
 
-    date_str = CompanySetting.today.strftime("%Y%m%d")
+    date_str = CorporateCompanySetting.today.strftime("%Y%m%d")
     last_incident = WhsIncident.where("incident_number LIKE ?", "INC-#{date_str}-%")
                                 .order(:incident_number).last
 
@@ -175,7 +175,7 @@ class WHSIncident < ApplicationRecord
       category: "safety",
       status: "not_started",
       assigned_to: wphs_appointee,
-      planned_end_date: CompanySetting.today + 3.days,
+      planned_end_date: CorporateCompanySetting.today + 3.days,
       duration_days: 3,
       tags: [ "whs", "incident", severity_level ]
     )

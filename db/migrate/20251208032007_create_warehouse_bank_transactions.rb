@@ -53,7 +53,7 @@ class CreateWarehouseBankTransactions < ActiveRecord::Migration[8.0]
       t.index :tenant_id
       t.index :bank_account_id
       t.index :transaction_date
-      t.index [:transaction_year, :transaction_month]
+      t.index [ :transaction_year, :transaction_month ]
       t.index :financial_year
       t.index :xero_contact_id
     end

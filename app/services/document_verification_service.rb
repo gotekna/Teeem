@@ -12,7 +12,7 @@ class DocumentVerificationService
 
   def initialize(document)
     @document = document
-    @company = document.company
+    @company = document.corporate_company
   end
 
   def verify!

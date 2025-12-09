@@ -170,7 +170,9 @@ namespace :teeem do
           databuild_has: false,
           simpro_has: false,
           smarterbuild_has: false,
-          clickhome_has: false
+          clickhome_has: false,
+          clickup_has: false,
+          evolve_has: false
         )
         created_count += 1
         puts "   ✓ #{feature.chapter}: #{feature.feature_name}"

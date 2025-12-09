@@ -66,7 +66,7 @@ module Api
         invoice = ExternalInvoice.find_by!(external_id: params[:external_id])
 
         # Check if PDF is available in warehouse
-        pdf_doc = invoice.company_documents.find_by(document_type: invoice.invoice_type)
+        pdf_doc = invoice.corporate_company_documents.find_by(document_type: invoice.invoice_type)
         has_pdf = pdf_doc&.file&.attached?
 
         render json: {
@@ -390,7 +390,7 @@ module Api
         invoice = ExternalInvoice.find(params[:id])
 
         # Check warehouse first (SSoT) - look for PDF linked to this invoice
-        existing_pdf = invoice.company_documents.find_by(document_type: invoice.invoice_type)
+        existing_pdf = invoice.corporate_company_documents.find_by(document_type: invoice.invoice_type)
 
         if existing_pdf&.file&.attached?
           # Return existing PDF from warehouse
@@ -420,7 +420,7 @@ module Api
         invoice = ExternalInvoice.find(params[:id])
 
         # Return documents linked to this invoice
-        documents = invoice.company_documents.map do |doc|
+        documents = invoice.corporate_company_documents.map do |doc|
           {
             id: doc.id,
             title: doc.title,

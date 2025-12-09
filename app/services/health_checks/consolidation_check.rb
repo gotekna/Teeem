@@ -41,8 +41,8 @@ module HealthChecks
       # Only check if CompanyGroup model exists
       return [] unless defined?(CompanyGroup)
 
-      CompanyGroup.where(active: true).includes(:companies).find_each do |group|
-        next if group.companies.count < 2
+      CorporateGroup.where(active: true).includes(:companies).find_each do |group|
+        next if group.corporate_companies.count < 2
 
         begin
           # Only run if ConsolidationReconciliationService exists

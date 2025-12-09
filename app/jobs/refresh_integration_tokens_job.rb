@@ -48,20 +48,45 @@ class RefreshIntegrationTokensJob < ApplicationJob
   end
 
   def refresh_xero_tokens
-    # Find credentials expiring in the next 15 minutes
-    XeroCredential.all.each do |credential|
-      next unless credential.expires_at.present?
-      next unless credential.expired?
+    # Use XeroTokenManager for proactive token refresh
+    # Refreshes tokens 15 minutes BEFORE expiry (proactive, not reactive)
+    credentials_needing_refresh = XeroTokenManager.credentials_needing_refresh
 
-      Rails.logger.info "[TokenRefresh] Refreshing Xero token expiring at #{credential.expires_at}"
+    if credentials_needing_refresh.none?
+      Rails.logger.debug "[TokenRefresh] No Xero tokens need refresh"
+      return
+    end
+
+    Rails.logger.info "[TokenRefresh] Refreshing #{credentials_needing_refresh.count} Xero tokens"
+
+    credentials_needing_refresh.find_each do |credential|
+      Rails.logger.info "[TokenRefresh] Refreshing Xero token for #{credential.tenant_name} (expires: #{credential.expires_at})"
+
+      # Create sync event for tracking
+      event = XeroSyncEvent.start!(
+        credential: credential,
+        sync_type: 'token_refresh',
+        trigger: 'scheduled'
+      )
 
       begin
-        service = XeroAuthService.new
-        service.refresh_access_token(credential)
-        Rails.logger.info "[TokenRefresh] Xero token refreshed successfully"
+        result = XeroTokenManager.refresh_credential(credential)
+
+        if result[:success]
+          event.complete!(records_processed: 1)
+          Rails.logger.info "[TokenRefresh] Xero token refreshed for #{credential.tenant_name}, new expiry: #{result[:expires_at]}"
+        else
+          event.fail!(error: result[:error])
+          Rails.logger.warn "[TokenRefresh] Xero token refresh failed for #{credential.tenant_name}: #{result[:error]}"
+        end
       rescue StandardError => e
-        Rails.logger.error "[TokenRefresh] Failed to refresh Xero token: #{e.message}"
+        event.fail!(error: e.message, error_class: e.class.name)
+        Rails.logger.error "[TokenRefresh] Xero token refresh error for #{credential.tenant_name}: #{e.message}"
       end
     end
+
+    # Log health summary after refresh
+    summary = XeroTokenManager.health_summary
+    Rails.logger.info "[TokenRefresh] Xero health: #{summary[:connected]} connected, #{summary[:degraded]} degraded, #{summary[:disconnected]} disconnected"
   end
 end

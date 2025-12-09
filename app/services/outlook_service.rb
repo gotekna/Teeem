@@ -138,7 +138,7 @@ class OutlookService
 
   # Move email to Deleted Items
   def move_to_trash(message_id)
-    deleted_folder_id = get_special_folder_id('deleteditems')
+    deleted_folder_id = get_special_folder_id("deleteditems")
     return false unless deleted_folder_id
 
     move_to_folder(message_id, deleted_folder_id)
@@ -146,7 +146,7 @@ class OutlookService
 
   # Move email to Junk folder
   def move_to_junk(message_id)
-    junk_folder_id = get_special_folder_id('junkemail')
+    junk_folder_id = get_special_folder_id("junkemail")
     return false unless junk_folder_id
 
     move_to_folder(message_id, junk_folder_id)
@@ -159,7 +159,7 @@ class OutlookService
 
     if response.is_a?(Net::HTTPSuccess)
       data = JSON.parse(response.body)
-      data['id']
+      data["id"]
     else
       Rails.logger.error "Failed to get special folder #{folder_name}: #{response.code} - #{response.body}"
       nil

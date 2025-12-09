@@ -81,7 +81,7 @@ class Job < ApplicationRecord
       project_code: "PROJ-#{id}",
       project_manager: project_manager,
       status: "planning",
-      start_date: CompanySetting.today
+      start_date: CorporateCompanySetting.today
     )
   end
 

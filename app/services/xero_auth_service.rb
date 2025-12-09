@@ -17,19 +17,23 @@ class XeroAuthService
     raise AuthenticationError, "Missing Xero credentials in environment" unless credentials_present?
   end
 
+  # OAuth scopes for Xero API access (company-level connections)
+  # Includes attachments for two-way document sync
+  OAUTH_SCOPES = "offline_access accounting.transactions accounting.contacts accounting.settings accounting.reports.read accounting.attachments"
+
   # Generate OAuth authorization URL for a specific company
   def authorization_url(state = nil)
     client = oauth_client
     client.auth_code.authorize_url(
       redirect_uri: @redirect_uri,
-      scope: "offline_access accounting.transactions accounting.contacts accounting.settings accounting.reports.read",
+      scope: OAUTH_SCOPES,
       state: state # Pass company_id as state to retrieve after callback
     )
   end
 
   # Exchange authorization code for access token
   def exchange_code_for_token(code, company_id)
-    company = Company.find(company_id)
+    company = CorporateCompany.find(company_id)
 
     begin
       client = oauth_client
@@ -46,7 +50,7 @@ class XeroAuthService
       tenant = tenant_info.first
 
       # Create or update Xero connection for this company
-      connection = company.company_xero_connection || company.build_company_xero_connection
+      connection = company.corporate_company_xero_connection || company.build_corporate_company_xero_connection
 
       connection.assign_attributes(
         xero_tenant_id: tenant["tenantId"],

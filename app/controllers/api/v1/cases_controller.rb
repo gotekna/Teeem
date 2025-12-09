@@ -15,7 +15,7 @@ module Api
 
       # GET /api/v1/cases
       def index
-        cases = CaseRecord.includes(:contact, :company, :company_group, :assigned_to, :created_by)
+        cases = CaseRecord.includes(:contact, :corporate_company, :corporate_group, :assigned_to, :created_by)
 
         # Filter by status
         cases = cases.by_status(params[:status]) if params[:status].present?
@@ -168,7 +168,7 @@ module Api
 
       # GET /api/v1/cases/:id/companies
       def companies
-        companies = @case.case_companies.includes(:company)
+        companies = @case.case_companies.includes(:corporate_company)
 
         render json: {
           success: true,
@@ -303,7 +303,7 @@ module Api
 
       # POST /api/v1/cases/:id/add_document
       def add_document
-        doc = CompanyDocument.find(params[:document_id])
+        doc = CorporateCompanyDocument.find(params[:document_id])
         case_doc = @case.add_document(doc,
           relevance: params[:relevance] || "supporting",
           notes: params[:notes],
@@ -359,7 +359,7 @@ module Api
 
       # POST /api/v1/cases/:id/add_company
       def add_company
-        company = Company.find(params[:company_id])
+        company = CorporateCompany.find(params[:company_id])
         case_company = @case.add_company(company,
           role: params[:role] || "related_entity",
           notes: params[:notes],
@@ -555,7 +555,7 @@ module Api
         when "replace"
           review.replace!(current_user)
         when "keep_both"
-          new_doc = CompanyDocument.create!(
+          new_doc = CorporateCompanyDocument.create!(
             company_id: @case.company_id,
             title: review.new_file_name,
             filename: review.new_file_name,
@@ -1067,9 +1067,9 @@ module Api
           contact_id: c.contact_id,
           contact_name: c.contact&.display_name,
           company_id: c.company_id,
-          company_name: c.company&.name,
+          company_name: c.corporate_company&.name,
           company_group_id: c.company_group_id,
-          company_group_name: c.company_group&.name,
+          company_group_name: c.corporate_group&.name,
           investigation_start_date: c.investigation_start_date,
           investigation_end_date: c.investigation_end_date,
           ai_summary: c.ai_summary,

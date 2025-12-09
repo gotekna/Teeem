@@ -1,4 +1,4 @@
-require 'csv'
+require "csv"
 
 namespace :contacts do
   desc "Analyze email domains AND names and match them to company contacts, export to CSV"
@@ -87,7 +87,7 @@ namespace :contacts do
 
     CSV.open(csv_path, "w") do |csv|
       # Header
-      csv << ["Company ID", "Company Name", "Contact Count", "Contact ID", "Contact Name", "Contact Type", "Email", "Mobile", "Match Type"]
+      csv << [ "Company ID", "Company Name", "Contact Count", "Contact ID", "Contact Name", "Contact Type", "Email", "Mobile", "Match Type" ]
 
       # Data rows
       company_matches.sort_by { |_, data| -data[:contacts].count }.each do |company_id, data|

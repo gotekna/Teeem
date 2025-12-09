@@ -32,13 +32,13 @@ class EmailWarehouse < ApplicationRecord
   scope :received_before, ->(date) { where("received_at <= ?", date) }
 
   # SSoT scopes
-  scope :sent, -> { where(direction: 'sent') }
-  scope :received, -> { where(direction: 'received') }
+  scope :sent, -> { where(direction: "sent") }
+  scope :received, -> { where(direction: "received") }
   scope :owned_by, ->(user) { where(ssot_owner: user) }
   scope :with_ai_summary, -> { where.not(ai_summary: nil) }
   scope :needs_ai_summary, -> { where(ai_summary: nil) }
-  scope :spam, -> { where("email_classification->>'email_type' = ?", 'spam') }
-  scope :not_spam, -> { where("email_classification->>'email_type' != ? OR email_classification IS NULL", 'spam') }
+  scope :spam, -> { where("email_classification->>'email_type' = ?", "spam") }
+  scope :not_spam, -> { where("email_classification->>'email_type' != ? OR email_classification IS NULL", "spam") }
 
   # Microsoft organization scopes
   scope :for_microsoft_credential, ->(credential_id) { where(microsoft_credential_id: credential_id) }
@@ -318,21 +318,21 @@ class EmailWarehouse < ApplicationRecord
 
   # Determine direction based on folder and user email
   def determine_direction(user_email)
-    return 'sent' if folder_name&.downcase&.include?('sent')
-    return 'sent' if from_email&.downcase == user_email&.downcase
+    return "sent" if folder_name&.downcase&.include?("sent")
+    return "sent" if from_email&.downcase == user_email&.downcase
 
     if to_emails&.any? { |e| e.downcase == user_email&.downcase }
-      'received'
+      "received"
     elsif cc_emails&.any? { |e| e.downcase == user_email&.downcase }
-      'cc'
+      "cc"
     else
-      'received'  # Default for inbox
+      "received"  # Default for inbox
     end
   end
 
   # Set SSoT owner (sender owns sent emails, syncing user owns received)
   def set_ssot_owner!(syncing_user)
-    if direction == 'sent'
+    if direction == "sent"
       # Sender owns sent emails
       owner = User.find_by("LOWER(email) = ?", from_email&.downcase) || syncing_user
     else
@@ -348,7 +348,7 @@ class EmailWarehouse < ApplicationRecord
     return if body_text.blank?
 
     preview = body_text.to_s
-      .gsub(/\s+/, ' ')  # Normalize whitespace
+      .gsub(/\s+/, " ")  # Normalize whitespace
       .strip
       .truncate(500)
 
@@ -362,30 +362,30 @@ class EmailWarehouse < ApplicationRecord
 
     # Add sender
     if from_email.present?
-      EmailRecipient.find_or_create_for_email(self, from_email, 'from')
+      EmailRecipient.find_or_create_for_email(self, from_email, "from")
     end
 
     # Add to recipients
     to_emails&.each do |email|
-      EmailRecipient.find_or_create_for_email(self, email, 'to')
+      EmailRecipient.find_or_create_for_email(self, email, "to")
     end
 
     # Add cc recipients
     cc_emails&.each do |email|
-      EmailRecipient.find_or_create_for_email(self, email, 'cc')
+      EmailRecipient.find_or_create_for_email(self, email, "cc")
     end
   end
 
   # Check if this email is spam
   def spam?
-    email_classification&.dig('email_type') == 'spam'
+    email_classification&.dig("email_type") == "spam"
   end
 
   # Mark as spam and optionally delete from Outlook
   def mark_as_spam!(delete_from_outlook: false, outlook_service: nil)
     update!(
-      user_classification: 'spam',
-      email_classification: (email_classification || {}).merge('email_type' => 'spam', 'user_override' => true)
+      user_classification: "spam",
+      email_classification: (email_classification || {}).merge("email_type" => "spam", "user_override" => true)
     )
 
     if delete_from_outlook && outlook_service && outlook_id.present?

@@ -243,7 +243,7 @@ module Api
                   supplier_id: new_supplier_id,
                   old_price: existing_price&.new_price || item.current_price,
                   new_price: item.current_price,
-                  date_effective: CompanySetting.today,
+                  date_effective: CorporateCompanySetting.today,
                   change_reason: "Updated to match current default price when setting as default supplier"
                 )
                 results[:prices_updated] += 1
@@ -269,7 +269,7 @@ module Api
                   supplier_id: new_supplier_id,
                   old_price: new_price, # For new entries, old and new are the same
                   new_price: new_price,
-                  date_effective: CompanySetting.today,
+                  date_effective: CorporateCompanySetting.today,
                   change_reason: "Initial price set when assigning as default supplier"
                 )
                 results[:prices_updated] += 1
@@ -280,7 +280,7 @@ module Api
                   supplier_id: new_supplier_id,
                   old_price: existing_price.new_price,
                   new_price: new_price,
-                  date_effective: CompanySetting.today,
+                  date_effective: CorporateCompanySetting.today,
                   change_reason: "Price updated when setting as default supplier"
                 )
                 results[:prices_updated] += 1
@@ -430,7 +430,7 @@ module Api
             new_price: params[:price],
             supplier_id: params[:supplier_id],
             lga: params[:lga],
-            date_effective: params[:date_effective] || CompanySetting.today,
+            date_effective: params[:date_effective] || CorporateCompanySetting.today,
             change_reason: "manual_price_update"
           )
 
@@ -545,7 +545,7 @@ module Api
       def recalculate_current_price(item)
         # Find the active price history (most recent price from default supplier that's effective today or earlier)
         if item.default_supplier_id
-          today = CompanySetting.today
+          today = CorporateCompanySetting.today
           active_history = item.price_histories
             .where(supplier_id: item.default_supplier_id)
             .where("date_effective IS NULL OR date_effective <= ?", today)
@@ -616,7 +616,7 @@ module Api
       # GET /api/v1/pricebook/price_health_check
       def price_health_check
         issues = []
-        today = CompanySetting.today
+        today = CorporateCompanySetting.today
 
         # Find all items with default suppliers
         items_with_defaults = PricebookItem.includes(:default_supplier, :price_histories)

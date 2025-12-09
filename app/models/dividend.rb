@@ -1,6 +1,6 @@
 class Dividend < ApplicationRecord
   # Associations
-  belongs_to :company
+  belongs_to :corporate_company, foreign_key: "company_id"
   has_many :dividend_payments, dependent: :destroy
 
   # Validations
@@ -39,7 +39,7 @@ class Dividend < ApplicationRecord
 
   # Calculate per-share dividend
   def dividend_per_share
-    return 0 unless company.shares_on_issue.to_i > 0
-    (total_amount / company.shares_on_issue).round(4)
+    return 0 unless corporate_company.shares_on_issue.to_i > 0
+    (total_amount / corporate_company.shares_on_issue).round(4)
   end
 end

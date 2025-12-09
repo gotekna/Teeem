@@ -26,12 +26,12 @@ class CreateContactEmployments < ActiveRecord::Migration[8.0]
     end
 
     # Ensure one employee can't have duplicate records for the same employer
-    add_index :contact_employments, [:employee_id, :employer_id], unique: true, name: 'idx_employee_employer_unique', if_not_exists: true
+    add_index :contact_employments, [ :employee_id, :employer_id ], unique: true, name: 'idx_employee_employer_unique', if_not_exists: true
 
     # Index for finding all employees of a company
     add_index :contact_employments, :employer_id, if_not_exists: true
 
     # Index for active employments
-    add_index :contact_employments, [:employee_id, :is_active], if_not_exists: true
+    add_index :contact_employments, [ :employee_id, :is_active ], if_not_exists: true
   end
 end

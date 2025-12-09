@@ -7,9 +7,9 @@ namespace :contacts do
     puts
 
     # Find all people with BOTH primary_company_id AND company_name_or_trust set
-    contacts = Contact.where(entity_type: 'person')
+    contacts = Contact.where(entity_type: "person")
                      .where.not(primary_company_id: nil)
-                     .where.not(company_name_or_trust: [nil, ''])
+                     .where.not(company_name_or_trust: [ nil, "" ])
                      .order(:id)
 
     puts "Found #{contacts.count} people with both primary_company_id and company_name_or_trust"

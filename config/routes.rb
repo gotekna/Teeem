@@ -67,7 +67,12 @@ Rails.application.routes.draw do
       get "system/performance", to: "system#performance"
       get "system/metrics", to: "system#metrics"
 
-      # Health checks
+      # Health checks - NEW unified endpoints
+      get "health/unified", to: "health#unified"       # Main unified health dashboard
+      post "health/fix", to: "health#fix"              # Fix health issues
+      get "health/leaderboard", to: "health#leaderboard"  # Kudos leaderboard
+
+      # Health checks - Legacy endpoints (kept for backwards compatibility)
       get "health/system", to: "health#system"
       get "health/pricebook", to: "health#pricebook"
       get "health/pricebook/missing_items", to: "health#missing_items"
@@ -1034,6 +1039,13 @@ Rails.application.routes.draw do
       post "xero/webhooks", to: "xero_webhooks#receive"
       get "xero/webhooks/intent", to: "xero_webhooks#verify_intent"
 
+      # Xero Alerts (notification system for Xero health issues)
+      get "xero/alerts", to: "xero_alerts#index"
+      get "xero/alerts/count", to: "xero_alerts#count"
+      post "xero/alerts/:id/dismiss", to: "xero_alerts#dismiss"
+      get "xero/health", to: "xero_alerts#health"
+      get "xero/rate_limits", to: "xero_alerts#rate_limits"
+
       # Sync Configurations (per-Xero-org settings for contact sync)
       resources :sync_configurations, param: :xero_tenant_id, only: [ :index, :show, :update ] do
         member do
@@ -1227,7 +1239,7 @@ Rails.application.routes.draw do
       resources :unreal_variables
 
       # Corporate Entity Management
-      resources :companies do
+      resources :companies, controller: "corporate_companies" do
         collection do
           post :import
           post :reload
@@ -1237,8 +1249,8 @@ Rails.application.routes.draw do
         member do
           get :directors
           post :add_director
-          put "directors/:director_id", to: "companies#update_director"
-          delete "directors/:director_id", to: "companies#remove_director"
+          put "directors/:director_id", action: :update_director
+          delete "directors/:director_id", action: :remove_director
           get :compliance_items
           get :activities
           get :documents
@@ -1249,13 +1261,14 @@ Rails.application.routes.draw do
           get :trust_roles  # SSoT: Trustee, Beneficiaries, Appointor for Trust/Superfund entities
           get :data_stats   # Data warehouse statistics for this company
           get :warehouse_health   # Data warehouse health checks for this company
+          get :health   # Single company health score (fast - loads only this company)
         end
 
         # Bank Accounts (nested under companies)
         resources :bank_accounts, only: [ :index ]
 
         # Shareholdings (nested under companies)
-        resources :shareholdings, controller: "company_shareholdings", only: [ :index, :show, :create, :update, :destroy ] do
+        resources :shareholdings, controller: "corporate_company_shareholdings", only: [ :index, :show, :create, :update, :destroy ] do
           collection do
             post :transfer
           end
@@ -1265,7 +1278,7 @@ Rails.application.routes.draw do
         resources :share_transfers, only: [ :index, :show, :create, :update, :destroy ]
 
         # Loans (nested under companies)
-        resources :loans, controller: "company_loans", only: [ :index, :show, :create, :update, :destroy ] do
+        resources :loans, controller: "corporate_company_loans", only: [ :index, :show, :create, :update, :destroy ] do
           member do
             post :payment
           end
@@ -1282,7 +1295,7 @@ Rails.application.routes.draw do
         end
 
         # Minutes (nested under companies)
-        resources :minutes, controller: "company_minutes", only: [ :index, :show, :create, :update, :destroy ] do
+        resources :minutes, controller: "corporate_company_minutes", only: [ :index, :show, :create, :update, :destroy ] do
           member do
             post :sign
             post :generate_from_template
@@ -1293,29 +1306,29 @@ Rails.application.routes.draw do
         end
 
         # Per-Company Xero Integration
-        get "xero/status", to: "company_xero#status"
-        get "xero/authorize", to: "company_xero#authorize"
-        get "xero/callback", to: "company_xero#callback"
-        post "xero/link", to: "company_xero#link"
-        post "xero/disconnect", to: "company_xero#disconnect"
-        post "xero/sync", to: "company_xero#sync"
-        get "xero/tenants", to: "company_xero#tenants"
+        get "xero/status", to: "corporate_company_xero#status"
+        get "xero/authorize", to: "corporate_company_xero#authorize"
+        get "xero/callback", to: "corporate_company_xero#callback"
+        post "xero/link", to: "corporate_company_xero#link"
+        post "xero/disconnect", to: "corporate_company_xero#disconnect"
+        post "xero/sync", to: "corporate_company_xero#sync"
+        get "xero/tenants", to: "corporate_company_xero#tenants"
         # Bank sync endpoints
-        get "xero/bank_accounts", to: "company_xero#bank_accounts"
-        post "xero/link_bank_account", to: "company_xero#link_bank_account"
-        post "xero/sync_transactions", to: "company_xero#sync_transactions"
-        get "xero/transactions", to: "company_xero#transactions"
+        get "xero/bank_accounts", to: "corporate_company_xero#bank_accounts"
+        post "xero/link_bank_account", to: "corporate_company_xero#link_bank_account"
+        post "xero/sync_transactions", to: "corporate_company_xero#sync_transactions"
+        get "xero/transactions", to: "corporate_company_xero#transactions"
         # Chart of Accounts from Xero
-        get "xero/accounts", to: "company_xero#accounts"
-        get "xero/accounts/compare", to: "company_xero#compare_accounts"
+        get "xero/accounts", to: "corporate_company_xero#accounts"
+        get "xero/accounts/compare", to: "corporate_company_xero#compare_accounts"
         # Financial Reports from Xero
-        get "xero/profit_loss", to: "company_xero#profit_loss"
-        get "xero/balance_sheet", to: "company_xero#balance_sheet"
+        get "xero/profit_loss", to: "corporate_company_xero#profit_loss"
+        get "xero/balance_sheet", to: "corporate_company_xero#balance_sheet"
         # Bank transactions by account
-        get "xero/bank_transactions", to: "company_xero#bank_transactions"
+        get "xero/bank_transactions", to: "corporate_company_xero#bank_transactions"
 
         # PDF Financial Reports (Gold Standard tables)
-        resources :profit_loss_reports, only: [:index, :show] do
+        resources :profit_loss_reports, only: [ :index, :show ] do
           collection do
             post :generate
           end
@@ -1324,7 +1337,7 @@ Rails.application.routes.draw do
             get :download
           end
         end
-        resources :balance_sheet_reports, only: [:index, :show] do
+        resources :balance_sheet_reports, only: [ :index, :show ] do
           collection do
             post :generate
           end
@@ -1336,7 +1349,7 @@ Rails.application.routes.draw do
       end
 
       # Company Groups
-      resources :company_groups do
+      resources :company_groups, controller: "corporate_groups" do
         member do
           get :companies
           get :structure
@@ -1420,7 +1433,7 @@ Rails.application.routes.draw do
       end
 
       # Company Loans (global view)
-      get "company_loans", to: "company_loans#all"
+      get "company_loans", to: "corporate_company_loans#all"
 
       # Minute Templates
       resources :minute_templates do
@@ -1484,6 +1497,13 @@ Rails.application.routes.draw do
         end
       end
 
+      # Document Folders (tabs/folders configuration)
+      resources :document_folders do
+        collection do
+          post :reorder
+        end
+      end
+
       # Bank Accounts
       resources :bank_accounts
 
@@ -1499,8 +1519,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Company Documents
-      resources :company_documents do
+      # Company Documents (routes to CorporateCompanyDocumentsController)
+      resources :company_documents, controller: "corporate_company_documents" do
         collection do
           get :duplicates
           post :analyze_duplicates
@@ -1526,7 +1546,7 @@ Rails.application.routes.draw do
       end
 
       # Company Xero Connections
-      resources :company_xero_connections, only: [ :index, :show, :destroy ] do
+      resources :company_xero_connections, controller: "corporate_company_xero_connections", only: [ :index, :show, :destroy ] do
         collection do
           get :auth_url
           post :callback
@@ -1534,12 +1554,12 @@ Rails.application.routes.draw do
         member do
           post :sync_accounts
           get :status
-          delete :disconnect, to: "company_xero_connections#disconnect"
+          delete :disconnect
         end
       end
 
-      # Company Compliance Items
-      resources :company_compliance_items, only: [ :index, :show, :create, :update, :destroy ] do
+      # Company Compliance Items (routes to CorporateCompanyComplianceItemsController)
+      resources :company_compliance_items, controller: "corporate_company_compliance_items", only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :mark_completed
         end

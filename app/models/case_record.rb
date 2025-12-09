@@ -10,8 +10,8 @@ class CaseRecord < ApplicationRecord
 
   # Primary entity being investigated (optional)
   belongs_to :contact, optional: true
-  belongs_to :company, optional: true
-  belongs_to :company_group, optional: true
+  belongs_to :corporate_company, foreign_key: "company_id", optional: true
+  belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
 
   # Case management
   belongs_to :assigned_to, class_name: "User", optional: true
@@ -25,14 +25,14 @@ class CaseRecord < ApplicationRecord
   has_many :case_contacts, foreign_key: :case_id, dependent: :destroy
   has_many :contacts, through: :case_contacts
   has_many :case_companies, foreign_key: :case_id, dependent: :destroy
-  has_many :companies, through: :case_companies
+  has_many :corporate_companies, through: :case_companies
   has_many :case_jobs, foreign_key: :case_id, dependent: :destroy
   has_many :jobs, through: :case_jobs
 
   # Case content
   has_many :case_actions, foreign_key: :case_id, dependent: :destroy
   has_many :case_documents, foreign_key: :case_id, dependent: :destroy
-  has_many :company_documents, through: :case_documents
+  has_many :corporate_company_documents, through: :case_documents
   has_many :case_emails, foreign_key: :case_id, dependent: :destroy
   has_many :emails, through: :case_emails, source: :email_warehouse
   has_many :case_timeline_events, foreign_key: :case_id, dependent: :destroy
@@ -118,15 +118,15 @@ class CaseRecord < ApplicationRecord
   def related_job_ids
     job_ids = jobs.pluck(:id)
     job_ids += contact.jobs.pluck(:id) if contact
-    job_ids += companies.flat_map { |c| c.jobs.pluck(:id) }
+    job_ids += corporate_companies.flat_map { |c| c.jobs.pluck(:id) }
     job_ids.uniq
   end
 
   # Get all related company IDs for warehouse queries
   def related_company_ids
-    company_ids = companies.pluck(:id)
+    company_ids = corporate_companies.pluck(:id)
     company_ids << company_id if company_id
-    company_ids += company_group.companies.pluck(:id) if company_group
+    company_ids += corporate_group.corporate_companies.pluck(:id) if corporate_group
     company_ids.uniq
   end
 
@@ -186,7 +186,7 @@ class CaseRecord < ApplicationRecord
   end
 
   def primary_entity
-    contact || company || company_group
+    contact || corporate_company || corporate_group
   end
 
   def primary_entity_name

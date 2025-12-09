@@ -252,6 +252,77 @@ namespace :xero do
     puts "Documents are now available in contact tabs under BILLS/INVOICES folders."
   end
 
+  desc "Fix external_id format for attachments (SSoT Bible #16.002)"
+  task fix_external_id_format: :environment do
+    puts "=" * 70
+    puts "FIXING EXTERNAL_ID FORMAT (SSoT Bible #16.002)"
+    puts "=" * 70
+    puts ""
+    puts "SSoT: external_id should be 'xero:attachment:ID'"
+    puts "Wrong: 'xero:invoice-uuid:attachment:attachment-uuid'"
+    puts ""
+
+    # Find all documents with wrong format
+    wrong_format_docs = CorporateCompanyDocument.where(source: "xero")
+                                                .where("external_id LIKE ? OR external_id LIKE ?",
+                                                       "%:invoice:%:attachment:%",
+                                                       "xero:%:attachment:%")
+                                                .where.not("external_id LIKE ?", "xero:attachment:%")
+
+    total_count = wrong_format_docs.count
+    puts "Found #{total_count} documents with wrong external_id format"
+    puts ""
+
+    if total_count == 0
+      puts "✓ All documents already have correct format!"
+      exit 0
+    end
+
+    puts "Fixing external_id format..."
+    fixed_count = 0
+    errors = []
+
+    wrong_format_docs.find_each do |doc|
+      begin
+        # Extract attachment ID from old format
+        # Old: xero:invoice-uuid:attachment:attachment-uuid
+        # New: xero:attachment:attachment-uuid
+        if doc.external_id =~ /xero:[^:]+:attachment:([a-f0-9-]+)/i
+          attachment_id = $1
+          new_external_id = "xero:attachment:#{attachment_id}"
+
+          doc.update!(external_id: new_external_id)
+          fixed_count += 1
+
+          if fixed_count % 100 == 0
+            puts "  Progress: #{fixed_count}/#{total_count} fixed"
+          end
+        else
+          errors << "Could not parse external_id: #{doc.external_id}"
+        end
+      rescue StandardError => e
+        errors << "ID #{doc.id}: #{e.message}"
+      end
+    end
+
+    puts ""
+    puts "=" * 70
+    puts "COMPLETE!"
+    puts "=" * 70
+    puts "  Fixed: #{fixed_count}"
+    puts "  Errors: #{errors.count}"
+    puts ""
+
+    if errors.any?
+      puts "Errors:"
+      errors.first(10).each { |e| puts "  - #{e}" }
+      puts "  ... and #{errors.count - 10} more" if errors.count > 10
+    else
+      puts "✓ All documents now have correct SSoT format!"
+    end
+    puts ""
+  end
+
   desc "Sync PDFs only (for invoices already in warehouse)"
   task sync_pdfs: :environment do
     puts "Syncing PDFs for existing invoices..."

@@ -1,7 +1,7 @@
 class IntercompanyBalance < ApplicationRecord
   # Associations
-  belongs_to :company
-  belongs_to :related_company, class_name: "Company"
+  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :related_company, class_name: "CorporateCompany"
 
   # Constants
   BALANCE_TYPES = %w[loan receivable payable investment].freeze
@@ -38,10 +38,10 @@ class IntercompanyBalance < ApplicationRecord
 
   # Sync balances from loan register for a company group
   def self.sync_from_loans(company_group, as_of_date: Date.today)
-    company_ids = company_group.companies.pluck(:id)
+    company_ids = company_group.corporate_companies.pluck(:id)
 
     # Find all active loans between companies in the group
-    loans = CompanyLoan.active
+    loans = CorporateCompanyLoan.active
       .where(lender_company_id: company_ids, borrower_company_id: company_ids)
 
     synced_count = 0
@@ -120,7 +120,7 @@ class IntercompanyBalance < ApplicationRecord
   end
 
   def company_name
-    company&.name
+    corporate_company&.name
   end
 
   def related_company_name

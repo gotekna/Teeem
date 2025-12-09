@@ -112,7 +112,7 @@ class DocumentRelocateService
 
   # Find the OneDrive folder ID for the target company/folder
   def find_target_folder_id(company_id:, folder:)
-    company = Company.find_by(id: company_id)
+    company = CorporateCompany.find_by(id: company_id)
     return nil unless company
 
     drive_id = @credential.drive_id

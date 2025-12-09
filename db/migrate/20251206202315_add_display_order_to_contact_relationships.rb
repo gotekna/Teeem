@@ -28,7 +28,7 @@ class AddDisplayOrderToContactRelationships < ActiveRecord::Migration[8.0]
     end
 
     # Add index for efficient ordering queries
-    add_index :contact_relationships, [:related_contact_id, :display_order],
+    add_index :contact_relationships, [ :related_contact_id, :display_order ],
               name: 'index_contact_relationships_on_company_and_order'
   end
 end
