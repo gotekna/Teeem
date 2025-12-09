@@ -15,7 +15,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
   office: {
     label: 'Office',
     description: 'Admin & office staff',
-    items: ['/dashboard', '/leads', '/tasks', '/quote-requests', '/contacts', '/purchase_orders', '/pricebook', '/xero']
+    items: ['/dashboard', '/leads', '/tasks', '/quote-requests', '/contacts', '/purchase_orders', '/pricebook', '/xero', '/corporate']
   },
   manager: {
     label: 'All',

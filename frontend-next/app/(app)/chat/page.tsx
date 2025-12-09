@@ -25,6 +25,10 @@ import {
   Plus,
   Monitor,
   X,
+  Bookmark,
+  Building2,
+  UserCircle,
+  FolderOpen,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -42,56 +46,22 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-
-interface OnlineUser {
-  id: number;
-  name: string;
-  email: string;
-  presence_status: "online" | "away" | "offline";
-  is_online: boolean;
-  last_seen_at: string | null;
-}
-
-interface Conversation {
-  id: number | string;
-  type: "direct" | "group" | "job";
-  name: string;
-  participants: Participant[];
-  last_message: Message | null;
-  unread_count: number;
-  is_pinned: boolean;
-  job_id: number | null;
-  job_name: string | null;
-  updated_at: string;
-}
-
-interface Participant {
-  id: number;
-  name: string;
-  avatar_url: string | null;
-  is_online: boolean;
-}
-
-interface Message {
-  id: number;
-  conversation_id: number | string;
-  sender_id: number;
-  sender_name: string;
-  sender_avatar: string | null;
-  content: string;
-  message_type: "text" | "image" | "file";
-  file_url: string | null;
-  file_name: string | null;
-  created_at: string;
-  read_by: number[];
-  is_own: boolean;
-}
+import type {
+  ChatMessage,
+  Conversation,
+  OnlineUser,
+  Participant,
+  Construction,
+  Contact,
+  Case,
+  EntityType,
+} from "@/types/chat";
 
 export default function ChatPage() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -103,6 +73,14 @@ export default function ChatPage() {
   const [pastedImage, setPastedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Save to entity functionality
+  const [constructions, setConstructions] = useState<Construction[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [cases, setCases] = useState<Case[]>([]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [savingMessageId, setSavingMessageId] = useState<number | null>(null);
+  const [saveEntityType, setSaveEntityType] = useState<EntityType | null>(null);
 
   // Load online users
   useEffect(() => {
@@ -145,45 +123,51 @@ export default function ChatPage() {
 
     setLoadingMessages(true);
     try {
-      // Extract user ID from conversation ID for direct messages
-      // Format: "dm-34-45" or "dm-new-45" where 45 is the other user's ID
-      let userId: string | null = null;
+      // Determine API parameters based on conversation type
+      let apiParams: Record<string, string | number> = {};
+
+      // Handle DM format: "dm-34-45" or "dm-new-45"
       if (typeof conversationId === "string" && conversationId.startsWith("dm-")) {
         const parts = conversationId.split("-");
-        // For "dm-new-45", userId is the last part
-        // For "dm-34-45", we need to find the user that isn't us
-        userId = parts[parts.length - 1];
+        const userId = parts[parts.length - 1];
+        apiParams.user_id = userId;
+      }
+      // Handle numeric conversation ID
+      else if (typeof conversationId === "number") {
+        apiParams.conversation_id = conversationId;
+      }
+      // Handle string conversation ID (could be job, contact, case)
+      else if (typeof conversationId === "string") {
+        apiParams.conversation_id = conversationId;
       }
 
-      if (userId) {
-        // API response has different shape than our Message interface
-        interface ApiMessage {
-          id: number;
-          user_id: number;
-          content: string;
-          created_at: string;
-          user?: { name?: string };
-        }
-        const response = await api.get<ApiMessage[]>(`/api/v1/chat_messages?user_id=${userId}`);
-        // Transform backend response to our Message format
-        const messages = (response || []).map((msg) => ({
-          id: msg.id,
-          conversation_id: Number(conversationId),
-          sender_id: msg.user_id,
-          sender_name: msg.user?.name || "Unknown",
-          sender_avatar: null,
-          content: msg.content,
-          message_type: "text" as const,
-          file_url: null,
-          file_name: null,
-          created_at: msg.created_at,
-          read_by: [msg.user_id],
-          is_own: msg.user_id === user.id,
-        }));
-        setMessages(messages);
-      } else {
-        setMessages([]);
+      // API response has different shape than our ChatMessage interface
+      interface ApiMessage {
+        id: number;
+        user_id: number;
+        content: string;
+        created_at: string;
+        user?: { name?: string };
       }
+
+      const response = await api.get<ApiMessage[]>("/api/v1/chat_messages", { params: apiParams });
+
+      // Transform backend response to our ChatMessage format
+      const messages = (response || []).map((msg) => ({
+        id: msg.id,
+        conversation_id: conversationId,
+        sender_id: msg.user_id,
+        sender_name: msg.user?.name || "Unknown",
+        sender_avatar: null,
+        content: msg.content,
+        message_type: "text" as const,
+        file_url: null,
+        file_name: null,
+        created_at: msg.created_at,
+        read_by: [msg.user_id],
+        is_own: msg.user_id === user.id,
+      }));
+      setMessages(messages);
     } catch (error) {
       console.error("Failed to load messages:", error);
       setMessages(getMockMessages(Number(conversationId) || 1));
@@ -217,6 +201,78 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Load entities for save-to-entity functionality
+  const loadEntities = useCallback(async () => {
+    try {
+      // Load jobs
+      const jobsResponse = await api.get<{ constructions: Construction[] }>("/api/v1/jobs", {
+        params: { status: "Active", per_page: 100 },
+      });
+      setConstructions(jobsResponse?.constructions || []);
+
+      // Load contacts
+      const contactsResponse = await api.get<{ contacts: Contact[] }>("/api/v1/contacts", {
+        params: { per_page: 100 },
+      });
+      setContacts(contactsResponse?.contacts || []);
+
+      // Load cases (if you have a cases endpoint)
+      // const casesResponse = await api.get<{ cases: Case[] }>("/api/v1/cases", {
+      //   params: { per_page: 100 },
+      // });
+      // setCases(casesResponse?.cases || []);
+    } catch (error) {
+      console.error("Failed to load entities:", error);
+    }
+  }, []);
+
+  // Load entities on mount
+  useEffect(() => {
+    loadEntities();
+  }, [loadEntities]);
+
+  // Save message to entity
+  const handleSaveToEntity = async (
+    messageId: number,
+    entityType: EntityType,
+    entityId: number
+  ) => {
+    setSavingMessageId(messageId);
+    try {
+      const payload: Record<string, number> = {};
+      if (entityType === "job") {
+        payload.construction_id = entityId;
+      } else if (entityType === "contact") {
+        payload.contact_id = entityId;
+      } else if (entityType === "case") {
+        payload.case_id = entityId;
+      }
+
+      await api.post(`/api/v1/chat_messages/${messageId}/save_to_${entityType}`, payload);
+
+      // Update message in state
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                ...(entityType === "job" && { saved_to_job: true, construction_id: entityId }),
+                ...(entityType === "contact" && { contact_id: entityId }),
+                ...(entityType === "case" && { case_id: entityId }),
+              }
+            : msg
+        )
+      );
+
+      setShowSaveDialog(false);
+      setSavingMessageId(null);
+      setSaveEntityType(null);
+    } catch (error) {
+      console.error(`Failed to save message to ${entityType}:`, error);
+      setSavingMessageId(null);
+    }
+  };
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
@@ -314,7 +370,7 @@ export default function ChatPage() {
 
     // Handle image upload if present
     if (pastedImage) {
-      const tempMessage: Message = {
+      const tempMessage: ChatMessage = {
         id: Date.now(),
         conversation_id: selectedConversation.id,
         sender_id: user.id,
@@ -351,7 +407,7 @@ export default function ChatPage() {
     }
 
     // Handle text message
-    const tempMessage: Message = {
+    const tempMessage: ChatMessage = {
       id: Date.now(),
       conversation_id: selectedConversation.id,
       sender_id: user.id,
@@ -399,6 +455,9 @@ export default function ChatPage() {
       is_pinned: false,
       job_id: null,
       job_name: null,
+      entity_type: null,
+      entity_id: null,
+      entity_name: null,
       updated_at: new Date().toISOString(),
     };
 
@@ -704,13 +763,78 @@ export default function ChatPage() {
                   <ScrollArea className="h-full pr-4">
                     <div className="space-y-4">
                       {messages.map((message) => (
-                        <MessageBubble key={message.id} message={message} />
+                        <MessageBubble
+                          key={message.id}
+                          message={message}
+                          onSaveToEntity={(messageId, entityType) => {
+                            setSavingMessageId(messageId);
+                            setSaveEntityType(entityType);
+                            setShowSaveDialog(true);
+                          }}
+                        />
                       ))}
                       <div ref={messagesEndRef} />
                     </div>
                   </ScrollArea>
                 )}
               </CardContent>
+
+              {/* Save to Entity Dialog */}
+              <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>
+                      Save Message to {saveEntityType === "job" ? "Job" : saveEntityType === "contact" ? "Contact" : "Case"}
+                    </DialogTitle>
+                    <DialogDescription>
+                      Select a {saveEntityType} to save this message to
+                    </DialogDescription>
+                  </DialogHeader>
+                  <ScrollArea className="max-h-[400px]">
+                    <div className="space-y-1">
+                      {saveEntityType === "job" &&
+                        constructions.map((job) => (
+                          <Button
+                            key={job.id}
+                            variant="ghost"
+                            className="w-full justify-start"
+                            onClick={() => handleSaveToEntity(savingMessageId!, "job", job.id)}
+                            disabled={savingMessageId === null}
+                          >
+                            <Building2 className="h-4 w-4 mr-2" />
+                            {job.title}
+                          </Button>
+                        ))}
+                      {saveEntityType === "contact" &&
+                        contacts.map((contact) => (
+                          <Button
+                            key={contact.id}
+                            variant="ghost"
+                            className="w-full justify-start"
+                            onClick={() => handleSaveToEntity(savingMessageId!, "contact", contact.id)}
+                            disabled={savingMessageId === null}
+                          >
+                            <UserCircle className="h-4 w-4 mr-2" />
+                            {contact.name}
+                          </Button>
+                        ))}
+                      {saveEntityType === "case" &&
+                        cases.map((caseItem) => (
+                          <Button
+                            key={caseItem.id}
+                            variant="ghost"
+                            className="w-full justify-start"
+                            onClick={() => handleSaveToEntity(savingMessageId!, "case", caseItem.id)}
+                            disabled={savingMessageId === null}
+                          >
+                            <FolderOpen className="h-4 w-4 mr-2" />
+                            {caseItem.title}
+                          </Button>
+                        ))}
+                    </div>
+                  </ScrollArea>
+                </DialogContent>
+              </Dialog>
 
               {/* Message Input */}
               <div className="p-4 border-t">
@@ -850,7 +974,15 @@ function ConversationItem({
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({
+  message,
+  onSaveToEntity,
+}: {
+  message: ChatMessage;
+  onSaveToEntity?: (messageId: number, entityType: EntityType) => void;
+}) {
+  const [showSaveMenu, setShowSaveMenu] = useState(false);
+
   return (
     <div className={cn("flex", message.is_own ? "justify-end" : "justify-start")}>
       <div className={cn("flex gap-2 max-w-[70%]", message.is_own && "flex-row-reverse")}>
@@ -870,7 +1002,7 @@ function MessageBubble({ message }: { message: Message }) {
           )}
           <div
             className={cn(
-              "rounded-lg overflow-hidden",
+              "rounded-lg overflow-hidden group relative",
               message.message_type === "image" ? "p-0" : "px-3 py-2",
               message.is_own
                 ? "bg-primary text-primary-foreground"
@@ -901,7 +1033,7 @@ function MessageBubble({ message }: { message: Message }) {
           </div>
           <div
             className={cn(
-              "flex items-center gap-1 mt-1 text-xs text-muted-foreground",
+              "flex items-center gap-2 mt-1 text-xs text-muted-foreground",
               message.is_own && "justify-end"
             )}
           >
@@ -912,6 +1044,35 @@ function MessageBubble({ message }: { message: Message }) {
               ) : (
                 <Check className="h-3 w-3" />
               )
+            )}
+            {onSaveToEntity && !message.saved_to_job && !message.contact_id && !message.case_id && (
+              <DropdownMenu open={showSaveMenu} onOpenChange={setShowSaveMenu}>
+                <DropdownMenuTrigger asChild>
+                  <button className="text-muted-foreground hover:text-foreground">
+                    <Bookmark className="h-3 w-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => onSaveToEntity(message.id, "job")}>
+                    <Building2 className="h-4 w-4 mr-2" />
+                    Save to Job
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onSaveToEntity(message.id, "contact")}>
+                    <UserCircle className="h-4 w-4 mr-2" />
+                    Save to Contact
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onSaveToEntity(message.id, "case")}>
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    Save to Case
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {message.saved_to_job && (
+              <span className="flex items-center gap-1 text-green-600">
+                <Bookmark className="h-3 w-3 fill-current" />
+                <span className="text-xs">Saved to job</span>
+              </span>
             )}
           </div>
         </div>
@@ -965,6 +1126,9 @@ function getMockConversations(): Conversation[] {
       is_pinned: true,
       job_id: 1,
       job_name: "Harrison Residence",
+      entity_type: "job",
+      entity_id: 1,
+      entity_name: "Harrison Residence",
       updated_at: new Date(Date.now() - 300000).toISOString(),
     },
     {
@@ -993,6 +1157,9 @@ function getMockConversations(): Conversation[] {
       is_pinned: false,
       job_id: null,
       job_name: null,
+      entity_type: null,
+      entity_id: null,
+      entity_name: null,
       updated_at: new Date(Date.now() - 1800000).toISOString(),
     },
     {
@@ -1023,13 +1190,16 @@ function getMockConversations(): Conversation[] {
       is_pinned: true,
       job_id: null,
       job_name: null,
+      entity_type: null,
+      entity_id: null,
+      entity_name: null,
       updated_at: new Date(Date.now() - 7200000).toISOString(),
     },
   ];
 }
 
-function getMockMessages(conversationId: number): Message[] {
-  const messages: Record<number, Message[]> = {
+function getMockMessages(conversationId: number): ChatMessage[] {
+  const messages: Record<number, ChatMessage[]> = {
     1: [
       {
         id: 1001,
