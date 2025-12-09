@@ -545,15 +545,10 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Messages</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Internal team communication
-          </p>
-        </div>
+    <div className="flex flex-col h-[calc(100vh-64px)]">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between py-2 px-1 shrink-0">
+        <h1 className="text-lg font-semibold">Messages</h1>
         <Dialog open={showNewChatDialog} onOpenChange={setShowNewChatDialog}>
           <DialogTrigger asChild>
             <Button>
@@ -629,17 +624,17 @@ export default function ChatPage() {
       </div>
 
       {/* Chat Interface */}
-      <div className="grid grid-cols-12 gap-4 h-[calc(100vh-220px)]">
+      <div className="grid grid-cols-12 gap-2 flex-1 min-h-0">
         {/* Online Users Sidebar */}
-        <Card className="col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Team ({onlineUsers.filter(u => u.is_online).length} online)
+        <Card className="col-span-2 flex flex-col min-h-0">
+          <CardHeader className="py-2 px-3 shrink-0">
+            <CardTitle className="text-xs font-medium flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              Team ({onlineUsers.filter(u => u.is_online).length})
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-340px)]">
+          <CardContent className="p-0 flex-1 min-h-0">
+            <ScrollArea className="h-full">
               <div className="px-3 pb-3 space-y-1">
                 {loadingUsers ? (
                   <div className="flex items-center justify-center py-8">
@@ -688,20 +683,20 @@ export default function ChatPage() {
         </Card>
 
         {/* Conversations List */}
-        <Card className="col-span-3">
-          <CardHeader className="pb-3">
+        <Card className="col-span-3 flex flex-col min-h-0">
+          <CardHeader className="py-2 px-3 shrink-0">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
               <Input
-                placeholder="Search conversations..."
+                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
+                className="pl-7 h-8 text-sm"
               />
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-340px)]">
+          <CardContent className="p-0 flex-1 min-h-0">
+            <ScrollArea className="h-full">
               {pinnedConversations.length > 0 && (
                 <div className="px-4 py-2">
                   <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
@@ -736,15 +731,15 @@ export default function ChatPage() {
         </Card>
 
         {/* Messages Area */}
-        <Card className="col-span-7 flex flex-col">
+        <Card className="col-span-7 flex flex-col min-h-0">
           {selectedConversation ? (
             <>
               {/* Conversation Header */}
-              <CardHeader className="pb-3 border-b">
+              <CardHeader className="py-2 px-3 border-b shrink-0">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback>
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="text-sm">
                         {selectedConversation.name
                           .split(" ")
                           .map((n) => n[0])
@@ -753,17 +748,14 @@ export default function ChatPage() {
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <div className="font-medium flex items-center gap-2">
+                      <div className="text-sm font-medium flex items-center gap-2">
                         {selectedConversation.name}
                         {selectedConversation.job_name && (
-                          <Badge variant="outline" className="text-xs">
-                            <Briefcase className="h-3 w-3 mr-1" />
+                          <Badge variant="outline" className="text-xs py-0">
+                            <Briefcase className="h-2.5 w-2.5 mr-1" />
                             {selectedConversation.job_name}
                           </Badge>
                         )}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {selectedConversation.participants.length} participants
                       </div>
                     </div>
                   </div>
@@ -801,14 +793,14 @@ export default function ChatPage() {
               </CardHeader>
 
               {/* Messages */}
-              <CardContent className="flex-1 p-4 overflow-hidden">
+              <CardContent className="flex-1 p-3 overflow-hidden min-h-0">
                 {loadingMessages ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader />
                   </div>
                 ) : (
-                  <ScrollArea className="h-full pr-4">
-                    <div className="space-y-4">
+                  <ScrollArea className="h-full pr-2">
+                    <div className="space-y-3">
                       {[...messages].reverse().map((message) => (
                         <MessageBubble
                           key={message.id}
@@ -884,29 +876,29 @@ export default function ChatPage() {
               </Dialog>
 
               {/* Message Input */}
-              <div className="p-4 border-t shrink-0">
+              <div className="p-2 border-t shrink-0">
                 {/* Image Preview */}
                 {imagePreview && (
-                  <div className="mb-3 relative inline-block">
+                  <div className="mb-2 relative inline-block">
                     <img
                       src={imagePreview}
                       alt="Pasted screenshot"
-                      className="max-h-40 rounded-lg border"
+                      className="max-h-32 rounded-lg border"
                     />
                     <Button
                       variant="destructive"
                       size="icon"
-                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                      className="absolute -top-2 -right-2 h-5 w-5 rounded-full"
                       onClick={clearImagePreview}
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3 w-3" />
                     </Button>
                   </div>
                 )}
-                <div className="flex items-center gap-2 w-full">
+                <div className="flex items-center gap-1 w-full">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" title="Attach file">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Attach file">
                         <Paperclip className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -927,7 +919,8 @@ export default function ChatPage() {
                   </DropdownMenu>
                   <Button
                     variant="ghost"
-                    size="icon"
+                    size="sm"
+                    className="h-8 w-8 p-0"
                     onClick={handleScreenCapture}
                     title="Capture screen or window"
                   >
@@ -944,9 +937,9 @@ export default function ChatPage() {
                       }
                     }}
                     onPaste={handlePaste}
-                    className="flex-1"
+                    className="flex-1 h-8"
                   />
-                  <Button onClick={handleSend} disabled={!newMessage.trim() && !pastedImage}>
+                  <Button size="sm" className="h-8" onClick={handleSend} disabled={!newMessage.trim() && !pastedImage}>
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
@@ -978,14 +971,14 @@ function ConversationItem({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors mb-1",
+        "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors mb-0.5",
         isSelected ? "bg-secondary" : "hover:bg-secondary/50"
       )}
       onClick={onClick}
     >
       <div className="relative">
-        <Avatar className="h-10 w-10">
-          <AvatarFallback>
+        <Avatar className="h-8 w-8">
+          <AvatarFallback className="text-xs">
             {conversation.name
               .split(" ")
               .map((n) => n[0])
@@ -994,24 +987,24 @@ function ConversationItem({
           </AvatarFallback>
         </Avatar>
         {conversation.type === "job" && (
-          <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-0.5">
-            <Briefcase className="h-2.5 w-2.5 text-white" />
+          <div className="absolute -bottom-0.5 -right-0.5 bg-blue-500 rounded-full p-0.5">
+            <Briefcase className="h-2 w-2 text-white" />
           </div>
         )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <span className="font-medium truncate">{conversation.name}</span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-sm font-medium truncate">{conversation.name}</span>
+          <span className="text-[10px] text-muted-foreground">
             {formatTime(conversation.updated_at)}
           </span>
         </div>
-        <div className="flex items-center justify-between mt-0.5">
-          <span className="text-sm text-muted-foreground truncate">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground truncate">
             {conversation.last_message?.content || "No messages yet"}
           </span>
           {conversation.unread_count > 0 && (
-            <Badge className="bg-primary h-5 px-1.5 ml-2">
+            <Badge className="bg-primary h-4 px-1 ml-1 text-[10px]">
               {conversation.unread_count}
             </Badge>
           )}
