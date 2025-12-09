@@ -93,15 +93,15 @@ class CorporateCompany < ApplicationRecord
   # Scopes
   scope :active, -> { where(status: "active") }
   scope :by_group, ->(group) { where(company_group: group) }
-  scope :with_xero, -> { joins(:company_xero_connection).where(company_xero_connections: { connection_status: "connected" }) }
+  scope :with_xero, -> { joins(:corporate_company_xero_connection).where(corporate_company_xero_connections: { connection_status: "connected" }) }
   scope :top_level, -> { where(parent_company_id: nil) }
   scope :with_parent, -> { where.not(parent_company_id: nil) }
   scope :trustees, -> { where(is_trustee: true) }
   scope :trusts, -> { where.not(trust_name: [ nil, "" ]) }
   scope :compliance_due_soon, -> {
-    joins(:company_compliance_items)
-      .where("company_compliance_items.due_date BETWEEN ? AND ?", Date.today, 90.days.from_now)
-      .where(company_compliance_items: { completed: false })
+    joins(:corporate_company_compliance_items)
+      .where("corporate_company_compliance_items.due_date BETWEEN ? AND ?", Date.today, 90.days.from_now)
+      .where(corporate_company_compliance_items: { completed: false })
       .distinct
   }
 
@@ -172,11 +172,11 @@ class CorporateCompany < ApplicationRecord
   end
 
   def overdue_compliance_items
-    company_compliance_items.where("due_date < ? AND completed = ?", Date.today, false)
+    corporate_company_compliance_items.where("due_date < ? AND completed = ?", Date.today, false)
   end
 
   def upcoming_compliance_items(days = 30)
-    company_compliance_items.where(
+    corporate_company_compliance_items.where(
       "due_date BETWEEN ? AND ? AND completed = ?",
       Date.today,
       days.days.from_now,
@@ -201,16 +201,16 @@ class CorporateCompany < ApplicationRecord
     # Critical issues (major impact)
     issues << "Missing ACN" if acn.blank?
     issues << "Missing ABN" if abn.blank?
-    issues << "No current directors" if company_directors.where(is_current: true).empty?
+    issues << "No current directors" if corporate_company_directors.where(is_current: true).empty?
     issues << "Missing registered office address" if registered_office_address.blank?
 
     # Warnings (minor impact)
     warnings << "Missing TFN" if tfn.blank?
     warnings << "No bank accounts" if bank_accounts.empty?
-    warnings << "No shareholders recorded" if company_shareholdings.empty?
+    warnings << "No shareholders recorded" if corporate_company_shareholdings.empty?
     warnings << "Missing incorporation date" if date_incorporated.blank?
-    warnings << "No secretary appointed" if company_directors.where(is_current: true, position: "secretary").empty?
-    warnings << "No public officer" unless company_directors.where(is_current: true).any? { |d| d.notes&.downcase&.include?("public officer") }
+    warnings << "No secretary appointed" if corporate_company_directors.where(is_current: true, position: "secretary").empty?
+    warnings << "No public officer" unless corporate_company_directors.where(is_current: true).any? { |d| d.notes&.downcase&.include?("public officer") }
 
     # Only check for corporate credentials if this is an actual company (has ACN)
     # Individuals and trusts don't need ASIC logins
@@ -221,7 +221,7 @@ class CorporateCompany < ApplicationRecord
 
     warnings << "No review date set" if review_date.blank?
     warnings << "Missing principal place of business" if principal_place_of_business.blank?
-    warnings << "No compliance items tracked" if company_compliance_items.empty?
+    warnings << "No compliance items tracked" if corporate_company_compliance_items.empty?
 
     # Calculate score
     total_checks = 15
@@ -414,7 +414,7 @@ class CorporateCompany < ApplicationRecord
     user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
     user ||= User.first
 
-    company_activities.create!(
+    corporate_company_activities.create!(
       activity_type: "company_created",
       description: "Company #{name} was created",
       user: user
@@ -427,7 +427,7 @@ class CorporateCompany < ApplicationRecord
     user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
     user ||= User.first
 
-    company_activities.create!(
+    corporate_company_activities.create!(
       activity_type: "company_updated",
       description: "Company information was updated",
       user: user,
