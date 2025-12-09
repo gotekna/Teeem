@@ -100,7 +100,7 @@ export default function XeroIntegrationPage() {
           const [tenantsResponse, pdfSyncResponse, connectionsResponse] = await Promise.all([
             api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants"),
             api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"),
-            api.get<{ success: boolean; companies: CompanyXeroConnection[] }>("/api/v1/xero/corporate_company_xero_connections"),
+            api.get<{ success: boolean; companies: CompanyXeroConnection[] }>("/api/v1/company_xero_connections"),
           ]);
           setTenants(tenantsResponse.tenants || []);
           setCompanyConnections(connectionsResponse.companies || []);
@@ -582,7 +582,7 @@ export default function XeroIntegrationPage() {
           // Refresh company connections list
           try {
             const connectionsResponse = await api.get<{ success: boolean; companies: CompanyXeroConnection[] }>(
-              "/api/v1/xero/corporate_company_xero_connections"
+              "/api/v1/company_xero_connections"
             );
             setCompanyConnections(connectionsResponse.companies || []);
           } catch (error) {
