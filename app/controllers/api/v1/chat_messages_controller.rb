@@ -159,7 +159,7 @@ class Api::V1::ChatMessagesController < ApplicationController
   def unread_count
     last_read = current_user.last_chat_read_at || Time.at(0)
     count = ChatMessage.where("created_at > ?", last_read)
-                      .where.not(user_id: current_user.id)
+                      .where(recipient_user_id: current_user.id)
                       .count
     render json: { count: count }
   end
