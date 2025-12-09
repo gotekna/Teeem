@@ -32,6 +32,7 @@ interface FeatureTracker extends TableRow {
   smarterbuild_has: boolean;
   jacks_has: boolean;
   clickup_has: boolean;
+  evolve_has: boolean;
 }
 
 interface CompetitorStat {
@@ -208,6 +209,16 @@ const COLUMNS: ExtendedColumn[] = [
   {
     key: "clickup_has",
     label: "ClickUp",
+    column_type: "boolean",
+    resizable: true,
+    sortable: true,
+    filterable: true,
+    filterType: "dropdown",
+    width: 80,
+  },
+  {
+    key: "evolve_has",
+    label: "Evolve",
     column_type: "boolean",
     resizable: true,
     sortable: true,
