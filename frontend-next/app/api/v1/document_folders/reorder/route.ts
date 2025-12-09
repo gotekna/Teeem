@@ -7,11 +7,18 @@ export async function POST(request: Request) {
     const body = await request.json();
     const url = `${BACKEND_URL}/api/v1/document_folders/reorder`;
 
+    // Forward authorization header from client request
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    const authHeader = request.headers.get("Authorization");
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
     const response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify(body),
     });
 

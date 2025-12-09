@@ -10,10 +10,17 @@ export async function GET(
     const { id } = await params;
     const url = `${BACKEND_URL}/api/v1/document_folders/${id}`;
 
+    // Forward authorization header from client request
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    const authHeader = request.headers.get("Authorization");
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
     const response = await fetch(url, {
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
     });
 
     const data = await response.json();
@@ -36,11 +43,18 @@ export async function PATCH(
     const body = await request.json();
     const url = `${BACKEND_URL}/api/v1/document_folders/${id}`;
 
+    // Forward authorization header from client request
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    const authHeader = request.headers.get("Authorization");
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
     const response = await fetch(url, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
@@ -63,11 +77,18 @@ export async function DELETE(
     const { id } = await params;
     const url = `${BACKEND_URL}/api/v1/document_folders/${id}`;
 
+    // Forward authorization header from client request
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    const authHeader = request.headers.get("Authorization");
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
     const response = await fetch(url, {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
     });
 
     const data = await response.json();
