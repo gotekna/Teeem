@@ -28,8 +28,8 @@ module Api
                 id: conn.id,
                 company_id: conn.company_id,
                 company: {
-                  id: conn.company.id,
-                  name: conn.company.name
+                  id: conn.corporate_company.id,
+                  name: conn.corporate_company.name
                 },
                 xero_tenant_id: conn.xero_tenant_id,
                 xero_tenant_name: conn.xero_tenant_name,
@@ -56,7 +56,7 @@ module Api
           success: true,
           connection: @connection.as_json(
             include: {
-              company: { only: [ :id, :name ] },
+              corporate_company: { only: [ :id, :name ] },
               company_xero_accounts: {
                 only: [ :id, :account_code, :account_name, :account_type, :status ],
                 methods: [ :display_name, :mapped? ]

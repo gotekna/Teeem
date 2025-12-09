@@ -6,7 +6,7 @@ module Api
       # GET /api/v1/companies/:company_id/xero/status
       # Returns the Xero connection status for this company
       def status
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.nil?
           render json: {
@@ -57,7 +57,7 @@ module Api
         end
 
         # Check if this company already has a Xero connection
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.present?
           render json: { success: false, error: "This company is already linked to #{connection.xero_tenant_name}" }, status: :unprocessable_entity
@@ -183,7 +183,7 @@ module Api
       # POST /api/v1/companies/:company_id/xero/disconnect
       # Disconnects the company from Xero
       def disconnect
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.nil?
           return render json: {
@@ -212,7 +212,7 @@ module Api
       # POST /api/v1/companies/:company_id/xero/sync
       # Triggers a sync with Xero for this company
       def sync
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.nil? || !connection.connected?
           return render json: {
@@ -276,7 +276,7 @@ module Api
       # GET /api/v1/companies/:company_id/xero/tenants
       # Returns available Xero tenants for selection (if user has multiple orgs)
       def tenants
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.nil? || !connection.connected?
           return render json: {
@@ -305,7 +305,7 @@ module Api
       # GET /api/v1/companies/:company_id/xero/bank_accounts
       # Returns Xero bank accounts and their mapping status to local accounts
       def bank_accounts
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.nil? || !connection.connected?
           return render json: {
@@ -355,7 +355,7 @@ module Api
       # POST /api/v1/companies/:company_id/xero/link_bank_account
       # Links a local bank account to a Xero bank account
       def link_bank_account
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.nil? || !connection.connected?
           return render json: {
@@ -404,7 +404,7 @@ module Api
       # POST /api/v1/companies/:company_id/xero/sync_transactions
       # Syncs bank transactions from Xero
       def sync_transactions
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.nil? || !connection.connected?
           return render json: {
@@ -447,7 +447,7 @@ module Api
       # GET /api/v1/companies/:company_id/xero/transactions
       # Returns synced bank transactions
       def transactions
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.nil? || !connection.connected?
           return render json: {
@@ -500,7 +500,7 @@ module Api
       # GET /api/v1/companies/:company_id/xero/accounts
       # Returns Chart of Accounts from Xero for this company
       def accounts
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.nil? || !connection.connected?
           return render json: {
@@ -590,7 +590,7 @@ module Api
 
         companies_with_xero = CorporateCompany.where(id: consolidated_company_ids)
           .includes(:company_xero_connection)
-          .select { |c| c.company_xero_connection&.connected? }
+          .select { |c| c.corporate_company_xero_connection&.connected? }
 
         if companies_with_xero.empty?
           return render json: {
@@ -604,7 +604,7 @@ module Api
         company_accounts = {}
 
         companies_with_xero.each do |company|
-          connection = company.company_xero_connection
+          connection = company.corporate_company_xero_connection
 
           # Refresh if needed
           connection.refresh_tokens! if connection.needs_refresh?
@@ -668,7 +668,7 @@ module Api
       # GET /api/v1/companies/:company_id/xero/profit_loss
       # Returns Profit & Loss report from Xero
       def profit_loss
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.nil? || !connection.connected?
           return render json: {
@@ -740,7 +740,7 @@ module Api
       # GET /api/v1/companies/:company_id/xero/balance_sheet
       # Returns Balance Sheet report from Xero
       def balance_sheet
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.nil? || !connection.connected?
           return render json: {
@@ -810,7 +810,7 @@ module Api
       # GET /api/v1/companies/:company_id/xero/bank_transactions
       # Returns bank transactions for a specific bank account from Xero
       def bank_transactions
-        connection = @company.company_xero_connection
+        connection = @company.corporate_company_xero_connection
 
         if connection.nil? || !connection.connected?
           return render json: {

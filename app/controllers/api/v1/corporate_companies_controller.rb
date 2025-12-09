@@ -36,7 +36,7 @@ module Api
           companies: @companies.as_json(
             include: {
               current_directors: { only: [ :id, :display_name, :email ] },
-              company_xero_connection: { only: [ :id, :connection_status, :xero_tenant_name ] }
+              corporate_company_xero_connection: { only: [ :id, :connection_status, :xero_tenant_name ] }
             },
             methods: [ :formatted_acn, :formatted_abn, :has_xero_connection? ]
           ),
@@ -51,7 +51,7 @@ module Api
             bank_accounts: { only: [ :id, :institution_name, :status ], methods: [ :display_name, :masked_account_number ] },
             # Note: active_assets removed - assets table not yet migrated
             pending_compliance_items: { only: [ :id, :title, :due_date, :completed ], methods: [ :days_until_due ] },
-            company_xero_connection: { only: [ :id, :connection_status, :xero_tenant_name, :last_sync_at ] },
+            corporate_company_xero_connection: { only: [ :id, :connection_status, :xero_tenant_name, :last_sync_at ] },
             consolidation_parent: { only: [ :id, :name ] }
           },
           methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :sharepoint_folder_url ]
@@ -477,7 +477,7 @@ module Api
         }
 
         # Xero connection stats
-        xero_connection = @company.company_xero_connection
+        xero_connection = @company.corporate_company_xero_connection
         xero_stats = if xero_connection
           {
             connected: xero_connection.connection_status == "connected",
@@ -583,7 +583,7 @@ module Api
         }
 
         # 4. Xero Connection
-        xero = @company.company_xero_connection
+        xero = @company.corporate_company_xero_connection
         xero_connected = xero&.connection_status == "connected"
         xero_last_sync = xero&.last_sync_at
         xero_stale = xero_last_sync.nil? || xero_last_sync < 24.hours.ago
