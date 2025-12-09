@@ -4,7 +4,7 @@ module Api
       before_action :set_company, only: [ :show, :update, :destroy, :directors, :add_director,
                                          :update_director, :remove_director, :compliance_items,
                                          :activities, :documents, :assets, :hierarchy, :shareholders,
-                                         :investments, :trust_roles, :data_stats, :warehouse_health ]
+                                         :investments, :trust_roles, :data_stats, :warehouse_health, :health ]
 
       # GET /api/v1/companies
       def index
@@ -438,6 +438,21 @@ module Api
           summary: summary,
           companies: report
         }
+      end
+
+      # GET /api/v1/companies/:id/health
+      # Returns health score for a single company (fast endpoint - loads only one company)
+      def health
+        health_data = CompanyImportService.company_health(@company.id)
+
+        if health_data
+          render json: {
+            success: true,
+            health: health_data
+          }
+        else
+          render json: { success: false, error: "Could not calculate health" }, status: :unprocessable_entity
+        end
       end
 
       # GET /api/v1/companies/:id/data_stats

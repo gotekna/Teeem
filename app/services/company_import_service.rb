@@ -79,72 +79,86 @@ class CompanyImportService
     result
   end
 
+  # Calculate health for a single company (reusable helper)
+  def self.calculate_company_health(company)
+    issues = []
+    warnings = []
+
+    # Critical issues
+    issues << "Missing ACN" if company.acn.blank?
+    issues << "Missing ABN" if company.abn.blank?
+    issues << "No current directors" if company.corporate_company_directors.current.empty?
+    issues << "Missing registered office address" if company.registered_office_address.blank?
+
+    # Warnings
+    warnings << "Missing TFN" if company.tfn.blank?
+    warnings << "No bank accounts" if company.bank_accounts.empty?
+    warnings << "No shareholders recorded" if company.corporate_company_shareholdings.empty?
+    warnings << "Missing date of incorporation" if company.date_incorporated.blank?
+    warnings << "No secretary appointed" unless company.corporate_company_directors.current.any? { |d| d.position&.include?("secretary") }
+    warnings << "No public officer appointed" unless company.corporate_company_directors.current.any? { |d| d.position&.include?("public_officer") }
+    warnings << "Missing corporate key" if company.corporate_key.blank?
+    warnings << "Missing ASIC credentials" if company.asic_username.blank?
+    warnings << "Review date overdue" if company.review_date.present? && company.review_date < Date.today
+    warnings << "Missing principal place of business" if company.principal_place_of_business.blank?
+
+    # Compliance warnings
+    overdue = company.corporate_company_compliance_items.where("due_date < ? AND completed = ?", Date.today, false).count
+    warnings << "#{overdue} overdue compliance items" if overdue > 0
+
+    upcoming = company.corporate_company_compliance_items.where("due_date BETWEEN ? AND ?", Date.today, 30.days.from_now).where(completed: false).count
+    warnings << "#{upcoming} compliance items due within 30 days" if upcoming > 0
+
+    # Calculate health score
+    total_checks = 15
+    passed = total_checks - issues.count - (warnings.count * 0.5)
+    health_score = [ (passed / total_checks * 100).round, 0 ].max
+
+    health_status = case health_score
+    when 90..100 then "excellent"
+    when 70..89 then "good"
+    when 50..69 then "needs_attention"
+    else "critical"
+    end
+
+    {
+      id: company.id,
+      name: company.name,
+      group: company.group_name,
+      status: company.status,
+      health_score: health_score,
+      health_status: health_status,
+      issues: issues,
+      warnings: warnings,
+      director_count: company.corporate_company_directors.current.count,
+      bank_account_count: company.bank_accounts.where(status: "active").count,
+      shareholder_count: company.corporate_company_shareholdings.count,
+      has_acn: company.acn.present?,
+      has_abn: company.abn.present?,
+      has_tfn: company.tfn.present?,
+      has_registered_office: company.registered_office_address.present?,
+      has_corporate_key: company.corporate_key.present?,
+      review_date: company.review_date,
+      review_overdue: company.review_date.present? && company.review_date < Date.today
+    }
+  end
+
+  # Get health for a single company by ID (fast endpoint)
+  def self.company_health(company_id)
+    company = CorporateCompany
+      .includes(:corporate_company_directors, :bank_accounts, :corporate_company_shareholdings, :corporate_company_compliance_items)
+      .find_by(id: company_id)
+
+    return nil unless company
+
+    calculate_company_health(company)
+  end
+
   # Generate health report for all companies
   def self.health_report
     companies = CorporateCompany.includes(:corporate_company_directors, :bank_accounts, :corporate_company_shareholdings, :corporate_company_compliance_items).all
 
-    companies.map do |company|
-      issues = []
-      warnings = []
-
-      # Critical issues
-      issues << "Missing ACN" if company.acn.blank?
-      issues << "Missing ABN" if company.abn.blank?
-      issues << "No current directors" if company.corporate_company_directors.current.empty?
-      issues << "Missing registered office address" if company.registered_office_address.blank?
-
-      # Warnings
-      warnings << "Missing TFN" if company.tfn.blank?
-      warnings << "No bank accounts" if company.bank_accounts.empty?
-      warnings << "No shareholders recorded" if company.corporate_company_shareholdings.empty?
-      warnings << "Missing date of incorporation" if company.date_incorporated.blank?
-      warnings << "No secretary appointed" unless company.corporate_company_directors.current.any? { |d| d.position&.include?("secretary") }
-      warnings << "No public officer appointed" unless company.corporate_company_directors.current.any? { |d| d.position&.include?("public_officer") }
-      warnings << "Missing corporate key" if company.corporate_key.blank?
-      warnings << "Missing ASIC credentials" if company.asic_username.blank?
-      warnings << "Review date overdue" if company.review_date.present? && company.review_date < Date.today
-      warnings << "Missing principal place of business" if company.principal_place_of_business.blank?
-
-      # Compliance warnings
-      overdue = company.corporate_company_compliance_items.where("due_date < ? AND completed = ?", Date.today, false).count
-      warnings << "#{overdue} overdue compliance items" if overdue > 0
-
-      upcoming = company.corporate_company_compliance_items.where("due_date BETWEEN ? AND ?", Date.today, 30.days.from_now).where(completed: false).count
-      warnings << "#{upcoming} compliance items due within 30 days" if upcoming > 0
-
-      # Calculate health score
-      total_checks = 15
-      passed = total_checks - issues.count - (warnings.count * 0.5)
-      health_score = [ (passed / total_checks * 100).round, 0 ].max
-
-      health_status = case health_score
-      when 90..100 then "excellent"
-      when 70..89 then "good"
-      when 50..69 then "needs_attention"
-      else "critical"
-      end
-
-      {
-        id: company.id,
-        name: company.name,
-        group: company.group_name,
-        status: company.status,
-        health_score: health_score,
-        health_status: health_status,
-        issues: issues,
-        warnings: warnings,
-        director_count: company.corporate_company_directors.current.count,
-        bank_account_count: company.bank_accounts.where(status: "active").count,
-        shareholder_count: company.corporate_company_shareholdings.count,
-        has_acn: company.acn.present?,
-        has_abn: company.abn.present?,
-        has_tfn: company.tfn.present?,
-        has_registered_office: company.registered_office_address.present?,
-        has_corporate_key: company.corporate_key.present?,
-        review_date: company.review_date,
-        review_overdue: company.review_date.present? && company.review_date < Date.today
-      }
-    end.sort_by { |h| h[:health_score] }
+    companies.map { |company| calculate_company_health(company) }.sort_by { |h| h[:health_score] }
   end
 
   # Enrich company data from individual sheets
