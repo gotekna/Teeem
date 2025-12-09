@@ -144,6 +144,7 @@ interface Folder {
   order_position: number;
   entity_types: string[];
   description: string;
+  sharepoint_path?: string;
   active: boolean;
 }
 
@@ -255,6 +256,13 @@ export function FoldersTabsConfigTab() {
     setHasChanges(true);
   };
 
+  const updateSharepointPath = (folderId: number, sharepoint_path: string) => {
+    setFolders(folders.map(f =>
+      f.id === folderId ? { ...f, sharepoint_path } : f
+    ));
+    setHasChanges(true);
+  };
+
   const saveChanges = async () => {
     try {
       setIsSaving(true);
@@ -266,6 +274,7 @@ export function FoldersTabsConfigTab() {
             name: folder.name,
             description: folder.description,
             order_position: folder.order_position,
+            sharepoint_path: folder.sharepoint_path,
             entity_types: folder.entity_types,
             active: folder.active
           }
@@ -419,6 +428,19 @@ export function FoldersTabsConfigTab() {
                     onChange={(e) => updateDescription(folder.id, e.target.value)}
                     placeholder="Description..."
                     className="h-7 text-sm"
+                  />
+                </div>
+
+                {/* SharePoint path */}
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground w-24 shrink-0">
+                    SharePoint:
+                  </Label>
+                  <Input
+                    value={folder.sharepoint_path || ""}
+                    onChange={(e) => updateSharepointPath(folder.id, e.target.value)}
+                    placeholder="/Corporate/{company_code}/FolderName"
+                    className="h-7 text-xs font-mono"
                   />
                 </div>
 

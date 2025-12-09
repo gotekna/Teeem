@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_09_042509) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_09_064738) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1429,6 +1429,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_042509) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "sharepoint_path"
     t.index ["entity_types"], name: "index_document_folders_on_entity_types", using: :gin
     t.index ["name"], name: "index_document_folders_on_name", unique: true
     t.index ["order_position"], name: "index_document_folders_on_order_position"
