@@ -1,46 +1,22 @@
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "https://teeem-backend-39604ccca45a.herokuapp.com";
 
 export async function POST(request: Request) {
   try {
-    const { folders } = await request.json();
+    const body = await request.json();
+    const url = `${BACKEND_URL}/api/v1/document_folders/reorder`;
 
-    if (!Array.isArray(folders)) {
-      return NextResponse.json(
-        { success: false, error: "Invalid request: folders must be an array" },
-        { status: 400 }
-      );
-    }
-
-    // Update each folder's order_position
-    for (const folder of folders) {
-      await query(
-        `UPDATE document_folders SET order_position = $1, updated_at = NOW() WHERE id = $2`,
-        [folder.order_position, folder.id]
-      );
-    }
-
-    // Fetch and return all folders in new order
-    const updatedFolders = await query(
-      `
-      SELECT
-        id,
-        name,
-        description,
-        order_position,
-        entity_types,
-        active,
-        created_at,
-        updated_at
-      FROM document_folders
-      ORDER BY order_position ASC
-      `
-    );
-
-    return NextResponse.json({
-      success: true,
-      data: updatedFolders,
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     });
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error("Failed to reorder document folders:", error);
     return NextResponse.json(

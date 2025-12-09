@@ -1,53 +1,28 @@
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "https://teeem-backend-39604ccca45a.herokuapp.com";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const entityType = searchParams.get("entity_type");
-    const active = searchParams.get("active");
+    const queryString = searchParams.toString();
+    const url = `${BACKEND_URL}/api/v1/document_folders${queryString ? `?${queryString}` : ""}`;
 
-    let sql = `
-      SELECT
-        id,
-        name,
-        description,
-        order_position,
-        entity_types,
-        active,
-        created_at,
-        updated_at
-      FROM document_folders
-      WHERE 1=1
-    `;
-
-    const params: any[] = [];
-
-    if (entityType) {
-      sql += ` AND entity_types @> $${params.length + 1}::jsonb`;
-      params.push(JSON.stringify([entityType]));
-    }
-
-    if (active !== null) {
-      sql += ` AND active = $${params.length + 1}`;
-      params.push(active === "true");
-    }
-
-    sql += ` ORDER BY order_position ASC`;
-
-    const folders = params.length > 0 ? await query(sql, params) : await query(sql);
-
-    return NextResponse.json({
-      success: true,
-      data: folders,
+    const response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error("Failed to fetch document folders:", error);
     return NextResponse.json(
       {
         success: false,
         error: "Failed to fetch document folders",
-        details: error instanceof Error ? error.message : String(error)
+        details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     );
@@ -56,34 +31,26 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { folder } = await request.json();
+    const body = await request.json();
+    const url = `${BACKEND_URL}/api/v1/document_folders`;
 
-    const result = await query(
-      `
-      INSERT INTO document_folders (name, description, order_position, entity_types, active, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-      RETURNING *
-      `,
-      [
-        folder.name,
-        folder.description || "",
-        folder.order_position || 0,
-        JSON.stringify(folder.entity_types || []),
-        folder.active !== false,
-      ]
-    );
-
-    return NextResponse.json({
-      success: true,
-      data: result[0],
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     });
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error("Failed to create document folder:", error);
     return NextResponse.json(
       {
         success: false,
         error: "Failed to create document folder",
-        details: error instanceof Error ? error.message : String(error)
+        details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     );
