@@ -130,7 +130,8 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   # Disconnect and clear all credentials
   # This removes all sensitive data until the user grants access again
   def disconnect!
-    update!(
+    # Use update_columns to bypass validations (allowing nil values)
+    update_columns(
       client_id: nil,
       client_secret: nil,
       tenant_id: nil,
@@ -138,7 +139,8 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
       token_expires_at: nil,
       status: "disconnected",
       is_active: false,
-      last_error: nil
+      last_error: nil,
+      updated_at: Time.current
     )
   end
 
