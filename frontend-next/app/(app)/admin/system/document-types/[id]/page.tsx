@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDown, ChevronRight, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -550,7 +550,18 @@ export default function DocumentTypeDetailPage() {
     // If dragging from source, insert
     else if (draggedFromField === "source") {
       const newTokens = [...tokens];
-      newTokens.splice(dropIndex, 0, { type: "placeholder", value: placeholder });
+      // Handle custom text - insert a text token with empty/default value
+      if (placeholder === "__CUSTOM_TEXT__") {
+        newTokens.splice(dropIndex, 0, { type: "text", value: "text" });
+      } else {
+        newTokens.splice(dropIndex, 0, { type: "placeholder", value: placeholder });
+      }
+      updateField(field, rebuildFromTokens(newTokens));
+    }
+    // If dragging custom text without going through source state
+    else if (placeholder === "__CUSTOM_TEXT__") {
+      const newTokens = [...tokens];
+      newTokens.splice(dropIndex, 0, { type: "text", value: "text" });
       updateField(field, rebuildFromTokens(newTokens));
     }
 
@@ -582,10 +593,16 @@ export default function DocumentTypeDetailPage() {
     if (!placeholder) return;
 
     // Only handle drops from source (not reordering)
-    if (draggedFromField === "source") {
+    if (draggedFromField === "source" || placeholder === "__CUSTOM_TEXT__") {
       const currentValue = documentType[field] || "";
-      const newValue = currentValue + (currentValue ? " " : "") + placeholder;
-      updateField(field, newValue);
+      // Handle custom text - insert plain text token
+      if (placeholder === "__CUSTOM_TEXT__") {
+        const newValue = currentValue + (currentValue ? " " : "") + "text";
+        updateField(field, newValue);
+      } else {
+        const newValue = currentValue + (currentValue ? " " : "") + placeholder;
+        updateField(field, newValue);
+      }
     }
 
     setDraggedPlaceholder(null);
@@ -981,17 +998,6 @@ export default function DocumentTypeDetailPage() {
             <div className="flex items-start justify-between gap-4">
               <Label htmlFor="display_name">Display Name</Label>
               <div className="flex items-center gap-3">
-                {!displayNameSameAsFileName && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => addBlankText("display_name")}
-                    className="text-xs h-7"
-                  >
-                    + Add Text
-                  </Button>
-                )}
                 <div className="flex items-center gap-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <Checkbox
@@ -1183,6 +1189,22 @@ export default function DocumentTypeDetailPage() {
                     onChange={(e) => setPlaceholderSearch(e.target.value)}
                     className="h-5 text-[10px] flex-1"
                   />
+                </div>
+                {/* Custom Text draggable item */}
+                <div
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", "__CUSTOM_TEXT__");
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
+                  onDragEnd={handleDragEnd}
+                  className="cursor-grab active:cursor-grabbing px-2 py-1.5 rounded border bg-white border-gray-300 dark:bg-gray-800 dark:border-gray-600 mb-2"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Type className="h-3 w-3 text-gray-500" />
+                    <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300">Custom Text</span>
+                  </div>
+                  <div className="text-[8px] text-muted-foreground">Drag to add editable text</div>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="grid grid-cols-2 gap-x-2 flex-1 text-[9px] font-semibold text-muted-foreground uppercase">

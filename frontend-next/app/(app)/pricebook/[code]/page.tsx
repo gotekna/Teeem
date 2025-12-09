@@ -195,9 +195,15 @@ export default function PriceBookItemDetailPage() {
 
   useEffect(() => {
     loadItem();
-    loadSuppliers();
-     
   }, [code]);
+
+  // Lazy load suppliers when any supplier popover opens
+  const anySupplierPopoverOpen = Object.values(supplierPopoverOpen).some(Boolean) || newPriceSupplierPopoverOpen;
+  useEffect(() => {
+    if (anySupplierPopoverOpen && suppliers.length === 0) {
+      loadSuppliers();
+    }
+  }, [anySupplierPopoverOpen, suppliers.length]);
 
   const loadItem = async () => {
     try {

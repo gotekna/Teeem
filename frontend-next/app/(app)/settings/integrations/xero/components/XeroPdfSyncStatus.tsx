@@ -17,8 +17,41 @@ import {
   Download,
   Upload,
   ExternalLink,
+  Gauge,
+  Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
+
+// Rate limit types
+interface RateLimitUsage {
+  used: number;
+  limit: number;
+  remaining: number;
+  percentage: number;
+}
+
+interface TenantRateLimit {
+  tenant_id: string;
+  tenant_name: string;
+  minute: RateLimitUsage | null;
+  daily: RateLimitUsage | null;
+  total_7d: number;
+  can_make_request: boolean;
+}
+
+interface RateLimitsData {
+  limits: {
+    minute: number;
+    daily: number;
+    concurrent: number;
+  };
+  tenants: TenantRateLimit[];
+  aggregate: {
+    minute_requests: number;
+    daily_requests: number;
+    total_7d_requests: number;
+  };
+}
 
 interface Blocker {
   reason: string;
@@ -103,6 +136,7 @@ interface PdfSyncStatus {
 
 export function XeroPdfSyncStatus() {
   const [data, setData] = React.useState<PdfSyncStatus | null>(null);
+  const [rateLimits, setRateLimits] = React.useState<RateLimitsData | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -123,16 +157,32 @@ export function XeroPdfSyncStatus() {
     }
   }, []);
 
+  const fetchRateLimits = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; rate_limits: RateLimitsData }>("/api/v1/xero/rate_limits");
+      if (response.success) {
+        setRateLimits(response.rate_limits);
+      }
+    } catch (err) {
+      console.error("Failed to fetch rate limits:", err);
+    }
+  }, []);
+
   React.useEffect(() => {
     fetchStatus();
-    // Auto-refresh every 30 seconds if sync is in progress
-    const interval = setInterval(() => {
+    fetchRateLimits();
+    // Auto-refresh every 30 seconds if sync is in progress, or every 10 seconds for rate limits
+    const statusInterval = setInterval(() => {
       if (data?.health.status === "in_progress") {
         fetchStatus();
       }
     }, 30000);
-    return () => clearInterval(interval);
-  }, [fetchStatus, data?.health.status]);
+    const rateLimitInterval = setInterval(fetchRateLimits, 10000);
+    return () => {
+      clearInterval(statusInterval);
+      clearInterval(rateLimitInterval);
+    };
+  }, [fetchStatus, fetchRateLimits, data?.health.status]);
 
   if (loading) {
     return (
@@ -503,6 +553,68 @@ export function XeroPdfSyncStatus() {
             </div>
           </div>
         </div>
+
+        {/* Rate Limits - Live API Usage */}
+        {rateLimits && rateLimits.tenants.length > 0 && (
+          <div className="space-y-2 border-t pt-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Activity className="h-4 w-4" />
+              <span>API Rate Limits (Live)</span>
+              <Badge variant="outline" className="text-xs">
+                {rateLimits.aggregate.daily_requests} / {rateLimits.limits.daily} today
+              </Badge>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {rateLimits.tenants.map((tenant) => (
+                <div key={tenant.tenant_id} className="p-2 border rounded-lg bg-muted/30">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium truncate">{tenant.tenant_name}</span>
+                    {tenant.can_make_request ? (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        <CheckCircle2 className="h-2.5 w-2.5 mr-1" />
+                        OK
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+                        <AlertTriangle className="h-2.5 w-2.5 mr-1" />
+                        Throttled
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Per-minute usage */}
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Per min</span>
+                        <span>{tenant.minute?.used || 0}/{rateLimits.limits.minute}</span>
+                      </div>
+                      <Progress
+                        value={tenant.minute?.percentage || 0}
+                        className={`h-1 mt-0.5 ${(tenant.minute?.percentage || 0) > 80 ? '[&>div]:bg-amber-500' : ''} ${(tenant.minute?.percentage || 0) > 95 ? '[&>div]:bg-red-500' : ''}`}
+                      />
+                    </div>
+                    {/* Daily usage */}
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Daily</span>
+                        <span>{tenant.daily?.used || 0}/{rateLimits.limits.daily}</span>
+                      </div>
+                      <Progress
+                        value={tenant.daily?.percentage || 0}
+                        className={`h-1 mt-0.5 ${(tenant.daily?.percentage || 0) > 80 ? '[&>div]:bg-amber-500' : ''} ${(tenant.daily?.percentage || 0) > 95 ? '[&>div]:bg-red-500' : ''}`}
+                      />
+                    </div>
+                  </div>
+                  {tenant.total_7d > 0 && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {tenant.total_7d.toLocaleString()} requests (7d)
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Time Estimate & Activity */}
         <div className="flex items-center justify-between text-sm border-t pt-3">

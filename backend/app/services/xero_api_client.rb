@@ -826,6 +826,9 @@ class XeroApiClient
           next  # Retry the loop
         end
 
+        # Track the API request for rate limiting visibility
+        XeroRateLimitTracker.record_request(request_tenant_id)
+
         return handle_response(response)
       rescue AuthenticationError => e
         # Re-raise auth errors without retry (already tried in response handling)
@@ -883,6 +886,9 @@ class XeroApiClient
       }
 
       response = HTTParty.get(url, headers: headers, timeout: 60)
+
+      # Track the API request for rate limiting visibility
+      XeroRateLimitTracker.record_request(request_tenant_id)
 
       case response.code
       when 200..299

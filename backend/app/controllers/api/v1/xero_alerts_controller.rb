@@ -56,6 +56,34 @@ module Api
         }
       end
 
+      # GET /api/v1/xero/rate_limits
+      # Get current rate limit usage for all tenants
+      def rate_limits
+        usage = XeroRateLimitTracker.aggregate_usage
+
+        render json: {
+          success: true,
+          rate_limits: {
+            limits: {
+              minute: XeroRateLimitTracker::MINUTE_LIMIT,
+              daily: XeroRateLimitTracker::DAILY_LIMIT,
+              concurrent: XeroRateLimitTracker::CONCURRENT_LIMIT
+            },
+            tenants: usage[:per_tenant].map do |tenant|
+              {
+                tenant_id: tenant[:tenant_id],
+                tenant_name: tenant[:tenant_name],
+                minute: tenant[:usage]&.dig(:minute),
+                daily: tenant[:usage]&.dig(:daily),
+                total_7d: tenant[:usage]&.dig(:total_7d),
+                can_make_request: tenant[:usage]&.dig(:can_make_request)
+              }
+            end,
+            aggregate: usage[:aggregate]
+          }
+        }
+      end
+
       # GET /api/v1/xero/alerts/count
       # Quick endpoint to get alert counts for notification badge
       def count

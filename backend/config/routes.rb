@@ -1033,6 +1033,7 @@ Rails.application.routes.draw do
       get "xero/alerts/count", to: "xero_alerts#count"
       post "xero/alerts/:id/dismiss", to: "xero_alerts#dismiss"
       get "xero/health", to: "xero_alerts#health"
+      get "xero/rate_limits", to: "xero_alerts#rate_limits"
 
       # Sync Configurations (per-Xero-org settings for contact sync)
       resources :sync_configurations, param: :xero_tenant_id, only: [ :index, :show, :update ] do
