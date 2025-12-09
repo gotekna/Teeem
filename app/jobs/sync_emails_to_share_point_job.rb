@@ -1,11 +1,12 @@
-# SyncEmailsToSharePointJob - Sync emails to EmailWarehouse and upload attachments to SharePoint
+# SyncEmailsToSharePointJob - Sync emails to EmailWarehouse and upload emails + attachments to SharePoint
 #
 # Usage:
 #   SyncEmailsToSharePointJob.perform_later(credential_id)
 #
 # This job:
 # 1. Syncs all emails from the org's users to EmailWarehouse using OrgEmailSyncJob
-# 2. Uploads email attachments to SharePoint in a dedicated folder structure
+# 2. Uploads email attachments to SharePoint in folder structure: /Email Attachments/{org_name}/{year}/{month}/
+# 3. Uploads email messages (.eml) to SharePoint in folder structure: /Emails/{org_name}/{year}/{month}/
 
 class SyncEmailsToSharePointJob < ApplicationJob
   queue_as :low
@@ -30,13 +31,20 @@ class SyncEmailsToSharePointJob < ApplicationJob
     attachment_result = sync_attachments_to_sharepoint
     Rails.logger.info "[SyncToSharePoint] Uploaded #{attachment_result[:uploaded]} attachments"
 
+    # Step 3: Upload email messages to SharePoint
+    Rails.logger.info "[SyncToSharePoint] Step 3: Uploading email messages to SharePoint..."
+    email_upload_result = sync_emails_to_sharepoint
+    Rails.logger.info "[SyncToSharePoint] Uploaded #{email_upload_result[:uploaded]} emails"
+
     Rails.logger.info "[SyncToSharePoint] Completed for #{@credential.name}"
 
     {
       emails_synced: email_result[:total_synced],
       attachments_processed: attachment_result[:uploaded],
       attachments_created: attachment_result[:created],
-      attachments_skipped: attachment_result[:skipped]
+      attachments_skipped: attachment_result[:skipped],
+      emails_uploaded: email_upload_result[:uploaded],
+      emails_skipped: email_upload_result[:skipped]
     }
   rescue StandardError => e
     Rails.logger.error "[SyncToSharePoint] Error: #{e.message}"
@@ -214,6 +222,105 @@ class SyncEmailsToSharePointJob < ApplicationJob
     year = email_date.year
     month = email_date.strftime("%m")
     "#{@credential.attachment_root_path}/#{year}/#{month}"
+  end
+
+  def sync_emails_to_sharepoint
+    uploaded = 0
+    skipped = 0
+
+    # Check SharePoint configuration
+    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    unless sp_config
+      Rails.logger.info "[SyncEmailsToSharePoint] SharePoint not configured, skipping email upload"
+      return { uploaded: 0, skipped: 0 }
+    end
+
+    # Get emails from this org that haven't been uploaded yet
+    emails_to_upload = EmailWarehouse
+      .where(microsoft_credential_id: @credential.id)
+      .where(sharepoint_email_file_id: nil)  # Not yet uploaded
+      .where.not(mailbox_owner_email: nil)   # Only emails with mailbox owner tracked
+      .order(received_at: :desc)
+      .limit(100)  # Limit for performance
+
+    Rails.logger.info "[SyncEmailsToSharePoint] Found #{emails_to_upload.count} emails to upload"
+
+    return { uploaded: 0, skipped: 0 } if emails_to_upload.empty?
+
+    client = MicrosoftAppGraphClient.new(@credential)
+    teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
+
+    emails_to_upload.each do |email|
+      begin
+        # Skip if already uploaded
+        if email.sharepoint_email_file_id.present?
+          skipped += 1
+          next
+        end
+
+        # Fetch email in MIME format (.eml)
+        email_mime_content = client.get_email_mime_content(email.mailbox_owner_email, email.outlook_id)
+
+        # Upload to SharePoint
+        result = upload_email_to_sharepoint(
+          teeem_client,
+          email,
+          email_mime_content
+        )
+
+        # Update email record with SharePoint file info
+        email.update!(
+          sharepoint_email_file_id: result[:id],
+          sharepoint_email_path: result[:path]
+        )
+
+        Rails.logger.info "[SyncEmailsToSharePoint] Uploaded email #{email.id}: #{result[:path]}"
+        uploaded += 1
+
+        # Throttle to avoid rate limits
+        sleep(0.1) if uploaded % 10 == 0
+      rescue StandardError => e
+        Rails.logger.error "[SyncEmailsToSharePoint] Error uploading email #{email.id}: #{e.message}"
+        skipped += 1
+      end
+    end
+
+    { uploaded: uploaded, skipped: skipped }
+  end
+
+  def upload_email_to_sharepoint(teeem_client, email, mime_content)
+    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+
+    # Build folder path: /Emails/{org_name}/{year}/{month}
+    year = email.received_at.year
+    month = email.received_at.strftime("%m")
+    folder_path = "Emails/#{@credential.name}/#{year}/#{month}"
+
+    # Build filename: {email_id}.eml
+    filename = "#{email.id}.eml"
+
+    # Upload email
+    if mime_content.bytesize >= 4 * 1024 * 1024
+      # Large email (>= 4MB) - use chunked upload
+      session = teeem_client.create_upload_session(
+        sp_config[:site_id],
+        sp_config[:drive_id],
+        folder_path,
+        filename
+      )
+      result = teeem_client.upload_large_file(session["uploadUrl"], mime_content)
+    else
+      # Small email (< 4MB)
+      result = teeem_client.upload_file_content(
+        sp_config[:site_id],
+        sp_config[:drive_id],
+        folder_path,
+        filename,
+        mime_content
+      )
+    end
+
+    result
   end
 
   def sanitize_filename(filename)
