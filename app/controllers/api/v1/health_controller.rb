@@ -527,9 +527,15 @@ module Api
         when 'name_casing', 'all_caps_names', 'lowercase_names'
           fix_name_casing(item_ids, auto)
         when 'website_prefix'
-          fix_website_prefix(item_ids)
+          fix_website_prefix(item_ids, auto)
         when 'phone_format'
-          fix_phone_format(item_ids)
+          fix_phone_format(item_ids, auto)
+        when 'email_lowercase'
+          fix_email_lowercase(item_ids, auto)
+        when 'abn_format'
+          fix_abn_format(item_ids, auto)
+        when 'acn_format'
+          fix_acn_format(item_ids, auto)
         else
           { success: false, error: "Unknown fix type: #{fix_type}" }
         end
@@ -607,14 +613,257 @@ module Api
         end
       end
 
-      def fix_website_prefix(item_ids)
-        # TODO: Implement website prefix fix
-        { success: false, error: 'Website prefix fix not yet implemented' }
+      def fix_website_prefix(item_ids, auto)
+        fixed_count = 0
+        points_earned = 0
+        fixed_ids = []
+
+        if item_ids.present?
+          contacts = Contact.where(id: item_ids)
+        else
+          # Find contacts with websites missing http/https prefix
+          contacts = Contact.where.not(website: [nil, ''])
+                           .where.not("website LIKE 'http://%' OR website LIKE 'https://%'")
+        end
+
+        contacts.find_each do |contact|
+          next unless contact.website.present? && !contact.website.start_with?('http')
+
+          contact.website = "https://#{contact.website}"
+          if contact.save(validate: false)
+            fixed_count += 1
+            fixed_ids << contact.id
+            points_earned += HealthKudosEvent::POINTS[:website_prefix]
+          end
+        end
+
+        if fixed_count > 0
+          HealthKudosEvent.record_bulk_fix(
+            user: auto ? nil : current_user,
+            fix_type: 'website_prefix',
+            record_type: 'Contact',
+            record_ids: fixed_ids,
+            points_per_record: HealthKudosEvent::POINTS[:website_prefix]
+          )
+        end
+
+        {
+          success: true,
+          fixed_count: fixed_count,
+          points_earned: points_earned,
+          message: "Fixed #{fixed_count} website URLs with https:// prefix"
+        }
       end
 
-      def fix_phone_format(item_ids)
-        # TODO: Implement phone format fix
-        { success: false, error: 'Phone format fix not yet implemented' }
+      def fix_phone_format(item_ids, auto)
+        fixed_count = 0
+        points_earned = 0
+        fixed_ids = []
+
+        if item_ids.present?
+          contacts = Contact.where(id: item_ids)
+        else
+          # Find contacts with Australian phone numbers that need formatting
+          # Australian numbers: 0X XXXX XXXX (10 digits) or +61 X XXXX XXXX
+          contacts = Contact.where.not(phone: [nil, ''])
+        end
+
+        contacts.find_each do |contact|
+          next unless contact.phone.present?
+
+          # Remove all non-digit characters
+          digits = contact.phone.gsub(/\D/, '')
+
+          # Skip if not a valid Australian phone number length
+          next unless [10, 11, 12].include?(digits.length)
+
+          formatted = format_australian_phone(digits)
+          next if formatted == contact.phone
+
+          contact.phone = formatted
+          if contact.save(validate: false)
+            fixed_count += 1
+            fixed_ids << contact.id
+            points_earned += HealthKudosEvent::POINTS[:phone_format]
+          end
+        end
+
+        if fixed_count > 0
+          HealthKudosEvent.record_bulk_fix(
+            user: auto ? nil : current_user,
+            fix_type: 'phone_format',
+            record_type: 'Contact',
+            record_ids: fixed_ids,
+            points_per_record: HealthKudosEvent::POINTS[:phone_format]
+          )
+        end
+
+        {
+          success: true,
+          fixed_count: fixed_count,
+          points_earned: points_earned,
+          message: "Formatted #{fixed_count} phone numbers"
+        }
+      end
+
+      def fix_email_lowercase(item_ids, auto)
+        fixed_count = 0
+        points_earned = 0
+        fixed_ids = []
+
+        if item_ids.present?
+          contacts = Contact.where(id: item_ids)
+        else
+          # Find contacts with uppercase characters in email
+          contacts = Contact.where.not(email: [nil, ''])
+                           .where("email != LOWER(email)")
+        end
+
+        contacts.find_each do |contact|
+          next unless contact.email.present? && contact.email != contact.email.downcase
+
+          contact.email = contact.email.downcase
+          if contact.save(validate: false)
+            fixed_count += 1
+            fixed_ids << contact.id
+            points_earned += HealthKudosEvent::POINTS[:email_lowercase]
+          end
+        end
+
+        if fixed_count > 0
+          HealthKudosEvent.record_bulk_fix(
+            user: auto ? nil : current_user,
+            fix_type: 'email_lowercase',
+            record_type: 'Contact',
+            record_ids: fixed_ids,
+            points_per_record: HealthKudosEvent::POINTS[:email_lowercase]
+          )
+        end
+
+        {
+          success: true,
+          fixed_count: fixed_count,
+          points_earned: points_earned,
+          message: "Converted #{fixed_count} emails to lowercase"
+        }
+      end
+
+      def fix_abn_format(item_ids, auto)
+        fixed_count = 0
+        points_earned = 0
+        fixed_ids = []
+
+        if item_ids.present?
+          companies = CorporateCompany.where(id: item_ids)
+        else
+          # Find companies with ABN that needs formatting (should be XX XXX XXX XXX)
+          companies = CorporateCompany.where.not(abn: [nil, ''])
+        end
+
+        companies.find_each do |company|
+          next unless company.abn.present?
+
+          digits = company.abn.gsub(/\D/, '')
+          next unless digits.length == 11
+
+          formatted = "#{digits[0..1]} #{digits[2..4]} #{digits[5..7]} #{digits[8..10]}"
+          next if formatted == company.abn
+
+          company.abn = formatted
+          if company.save(validate: false)
+            fixed_count += 1
+            fixed_ids << company.id
+            points_earned += HealthKudosEvent::POINTS[:abn_format]
+          end
+        end
+
+        if fixed_count > 0
+          HealthKudosEvent.record_bulk_fix(
+            user: auto ? nil : current_user,
+            fix_type: 'abn_format',
+            record_type: 'CorporateCompany',
+            record_ids: fixed_ids,
+            points_per_record: HealthKudosEvent::POINTS[:abn_format]
+          )
+        end
+
+        {
+          success: true,
+          fixed_count: fixed_count,
+          points_earned: points_earned,
+          message: "Formatted #{fixed_count} ABN numbers (XX XXX XXX XXX)"
+        }
+      end
+
+      def fix_acn_format(item_ids, auto)
+        fixed_count = 0
+        points_earned = 0
+        fixed_ids = []
+
+        if item_ids.present?
+          companies = CorporateCompany.where(id: item_ids)
+        else
+          # Find companies with ACN that needs formatting (should be XXX XXX XXX)
+          companies = CorporateCompany.where.not(acn: [nil, ''])
+        end
+
+        companies.find_each do |company|
+          next unless company.acn.present?
+
+          digits = company.acn.gsub(/\D/, '')
+          next unless digits.length == 9
+
+          formatted = "#{digits[0..2]} #{digits[3..5]} #{digits[6..8]}"
+          next if formatted == company.acn
+
+          company.acn = formatted
+          if company.save(validate: false)
+            fixed_count += 1
+            fixed_ids << company.id
+            points_earned += HealthKudosEvent::POINTS[:acn_format]
+          end
+        end
+
+        if fixed_count > 0
+          HealthKudosEvent.record_bulk_fix(
+            user: auto ? nil : current_user,
+            fix_type: 'acn_format',
+            record_type: 'CorporateCompany',
+            record_ids: fixed_ids,
+            points_per_record: HealthKudosEvent::POINTS[:acn_format]
+          )
+        end
+
+        {
+          success: true,
+          fixed_count: fixed_count,
+          points_earned: points_earned,
+          message: "Formatted #{fixed_count} ACN numbers (XXX XXX XXX)"
+        }
+      end
+
+      def format_australian_phone(digits)
+        case digits.length
+        when 10
+          # 0X XXXX XXXX format (landline or mobile)
+          "#{digits[0..1]} #{digits[2..5]} #{digits[6..9]}"
+        when 11
+          # +61 X XXXX XXXX (assuming starts with 61)
+          if digits.start_with?('61')
+            "+61 #{digits[2]} #{digits[3..6]} #{digits[7..10]}"
+          else
+            digits # Return as-is if not valid Australian format
+          end
+        when 12
+          # Possibly +614 XXXX XXXX
+          if digits.start_with?('614')
+            "+61 4#{digits[3..6]} #{digits[7..10]}"
+          else
+            digits
+          end
+        else
+          digits
+        end
       end
 
       def check_database_status

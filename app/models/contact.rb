@@ -1,4 +1,6 @@
 class Contact < ApplicationRecord
+  include SelfHealing  # Auto-fix formatting issues and earn System kudos
+
   # Exclude soft-deleted contacts by default
   default_scope { where(deleted: [ false, nil ]) }
 

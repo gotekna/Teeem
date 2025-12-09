@@ -67,6 +67,14 @@ production:
       queue: low
       schedule: at 6am every day
 
+    # Daily health check and self-healing (6am Brisbane time)
+    # Runs all data quality checks, auto-fixes formatting issues,
+    # and awards System kudos for auto-fixes
+    daily_health_check:
+      class: DailyHealthCheckJob
+      queue: low
+      schedule: at 6am every day
+
     # ============================================
     # TOKEN REFRESH (every 30 minutes)
     # ============================================

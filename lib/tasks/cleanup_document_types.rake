@@ -1,4 +1,31 @@
 namespace :document_types do
+  # Helper to perform the cleanup logic
+  def self.cleanup_file_name(file_name, clean_name, abbrev)
+    return file_name if file_name.blank?
+
+    result = file_name.dup
+
+    # Strategy: Replace the EXACT full name as a complete segment
+    # Only replace if it appears as a standalone segment (surrounded by spaces, braces, or string boundaries)
+    if clean_name.present? && clean_name.length > 3
+      escaped_name = Regexp.escape(clean_name)
+      # Match the full name as a complete word/segment
+      name_regex = /(?<=\s|^|\})#{escaped_name}(?=\s|$|\{)/i
+      result = result.gsub(name_regex, '{DocTypeName}')
+    end
+
+    # Replace abbreviation only if it's a standalone word (2+ chars)
+    # and NOT already inside braces
+    if abbrev.present? && abbrev.length >= 2
+      escaped_abbrev = Regexp.escape(abbrev)
+      # Match abbreviation as standalone word, not inside curly braces
+      abbrev_regex = /(?<!\{)(?<=\s|^)#{escaped_abbrev}(?=\s|$)(?!\})/i
+      result = result.gsub(abbrev_regex, '{DocTypeCode}')
+    end
+
+    result
+  end
+
   desc "Clean up legacy hardcoded text in file_name and display_name, replace with placeholders"
   task cleanup_legacy: :environment do
     puts "Cleaning up legacy document type naming patterns..."
@@ -18,32 +45,11 @@ namespace :document_types do
                      name
                    end
 
-      file_name = doc_type.file_name || ""
-      display_name = doc_type.display_name || ""
+      original_file_name = doc_type.file_name || ""
+      original_display_name = doc_type.display_name || ""
 
-      original_file_name = file_name.dup
-      original_display_name = display_name.dup
-
-      # Replace hardcoded document type name with placeholder (case insensitive)
-      if clean_name.present? && clean_name.length > 2
-        # Escape special regex characters
-        escaped_name = Regexp.escape(clean_name)
-        name_regex = /#{escaped_name}/i
-
-        file_name = file_name.gsub(name_regex, '{DocTypeName}')
-        display_name = display_name.gsub(name_regex, '{DocTypeName}')
-      end
-
-      # Replace hardcoded abbreviation with placeholder
-      # Only if it's a standalone word (not inside braces)
-      if abbrev.present? && abbrev.length >= 2
-        escaped_abbrev = Regexp.escape(abbrev)
-        # Match abbreviation as a word boundary, not inside curly braces
-        abbrev_regex = /(?<!\{)\b#{escaped_abbrev}\b(?!\})/i
-
-        file_name = file_name.gsub(abbrev_regex, '{DocTypeCode}')
-        display_name = display_name.gsub(abbrev_regex, '{DocTypeCode}')
-      end
+      file_name = cleanup_file_name(original_file_name, clean_name, abbrev)
+      display_name = cleanup_file_name(original_display_name, clean_name, abbrev)
 
       # Check if anything changed
       if file_name != original_file_name || display_name != original_display_name
@@ -94,25 +100,11 @@ namespace :document_types do
                      name
                    end
 
-      file_name = doc_type.file_name || ""
-      display_name = doc_type.display_name || ""
+      original_file_name = doc_type.file_name || ""
+      original_display_name = doc_type.display_name || ""
 
-      original_file_name = file_name.dup
-      original_display_name = display_name.dup
-
-      if clean_name.present? && clean_name.length > 2
-        escaped_name = Regexp.escape(clean_name)
-        name_regex = /#{escaped_name}/i
-        file_name = file_name.gsub(name_regex, '{DocTypeName}')
-        display_name = display_name.gsub(name_regex, '{DocTypeName}')
-      end
-
-      if abbrev.present? && abbrev.length >= 2
-        escaped_abbrev = Regexp.escape(abbrev)
-        abbrev_regex = /(?<!\{)\b#{escaped_abbrev}\b(?!\})/i
-        file_name = file_name.gsub(abbrev_regex, '{DocTypeCode}')
-        display_name = display_name.gsub(abbrev_regex, '{DocTypeCode}')
-      end
+      file_name = cleanup_file_name(original_file_name, clean_name, abbrev)
+      display_name = cleanup_file_name(original_display_name, clean_name, abbrev)
 
       if file_name != original_file_name || display_name != original_display_name
         puts "\n#{doc_type.id}: #{doc_type.name} (abbrev: #{abbrev})"
