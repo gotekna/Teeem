@@ -118,13 +118,13 @@ class CaseRecord < ApplicationRecord
   def related_job_ids
     job_ids = jobs.pluck(:id)
     job_ids += contact.jobs.pluck(:id) if contact
-    job_ids += companies.flat_map { |c| c.jobs.pluck(:id) }
+    job_ids += corporate_companies.flat_map { |c| c.jobs.pluck(:id) }
     job_ids.uniq
   end
 
   # Get all related company IDs for warehouse queries
   def related_company_ids
-    company_ids = companies.pluck(:id)
+    company_ids = corporate_companies.pluck(:id)
     company_ids << company_id if company_id
     company_ids += company_group.corporate_companies.pluck(:id) if company_group
     company_ids.uniq
