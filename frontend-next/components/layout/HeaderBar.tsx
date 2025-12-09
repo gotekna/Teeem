@@ -257,13 +257,14 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Notifications */}
-          <button
-            type="button"
+          <Link
+            href="/notifications"
             className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
+            title="Notifications"
           >
             <span className="sr-only">View notifications</span>
             <Bell className="h-4 w-4" />
-          </button>
+          </Link>
 
           {/* Office 365 Status */}
           <Link
