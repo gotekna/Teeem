@@ -136,7 +136,9 @@ namespace :teeem do
         databuild: :databuild_has,
         simpro: :simpro_has,
         smartebuild: :smarterbuild_has,
-        clickhome: :clickhome_has
+        clickhome: :clickhome_has,
+        clickup: :clickup_has,
+        evolve: :evolve_has
       }
 
       updated_count = 0
