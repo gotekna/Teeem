@@ -81,7 +81,7 @@ class CorporateOneDriveService
   # Create folder structure for all companies in a group
   def create_group_folders(company_group)
     results = []
-    company_group.companies.each do |company|
+    company_group.corporate_companies.each do |company|
       result = create_company_folders(company)
       results << { company: company.name, result: result }
     end
@@ -133,7 +133,7 @@ class CorporateOneDriveService
         entities: []
       }
 
-      group.companies.order(:name).each do |company|
+      group.corporate_companies.order(:name).each do |company|
         company_folder_name = "#{company.code.presence || company.name[0..2].upcase} - #{company.name}"
         entity_info = {
           id: company.id,
@@ -192,7 +192,7 @@ class CorporateOneDriveService
         entities: []
       }
 
-      group.companies.order(:name).each do |company|
+      group.corporate_companies.order(:name).each do |company|
         company_folder_name = "#{company.code.presence || company.name[0..2].upcase} - #{company.name}"
         Rails.logger.info "  Creating folder for company: #{company_folder_name}"
 

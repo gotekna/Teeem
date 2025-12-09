@@ -67,10 +67,10 @@ module Api
 
       # DELETE /api/v1/company_groups/:id
       def destroy
-        if @company_group.companies.any?
+        if @company_group.corporate_companies.any?
           render json: {
             success: false,
-            errors: [ "Cannot delete group with #{@company_group.companies.count} companies. Reassign companies first." ]
+            errors: [ "Cannot delete group with #{@company_group.corporate_companies.count} companies. Reassign companies first." ]
           }, status: :unprocessable_entity
         else
           @company_group.destroy
@@ -80,7 +80,7 @@ module Api
 
       # GET /api/v1/company_groups/:id/companies
       def companies
-        companies = @company_group.companies.order(:name)
+        companies = @company_group.corporate_companies.order(:name)
 
         render json: {
           success: true,
@@ -93,13 +93,13 @@ module Api
         # Get top-level companies (no consolidation parent) in this group
         # Uses consolidation_parent_id for financial grouping hierarchy
         # Exclude Trust entities that have a Trustee company (they'll be shown under the Trustee)
-        all_top_level = @company_group.companies.where(consolidation_parent_id: nil).order(:name)
+        all_top_level = @company_group.corporate_companies.where(consolidation_parent_id: nil).order(:name)
 
         # Find trusts/superfunds that have a trustee company in this group
         # Match by Trust/Superfund's name (not trust_name field) since trustee's trust_name = Trust's name
-        trusts_with_trustees = @company_group.companies
+        trusts_with_trustees = @company_group.corporate_companies
           .where(entity_type: [ "Trust", "Superfund" ])
-          .select { |trust| @company_group.companies.exists?(is_trustee: true, trust_name: trust.name) }
+          .select { |trust| @company_group.corporate_companies.exists?(is_trustee: true, trust_name: trust.name) }
           .map(&:id)
 
         # Exclude those trusts from top level (they'll appear under their trustee)
@@ -122,10 +122,10 @@ module Api
             companies: top_level.map { |c| build_hierarchy_tree(c, @company_group) },
             people: people,
             stats: {
-              total_companies: @company_group.companies.count,
+              total_companies: @company_group.corporate_companies.count,
               top_level_count: top_level.count,
-              trustees_count: @company_group.companies.where(is_trustee: true).count,
-              trusts_count: @company_group.companies.where(entity_type: "Trust").count,
+              trustees_count: @company_group.corporate_companies.where(is_trustee: true).count,
+              trusts_count: @company_group.corporate_companies.where(entity_type: "Trust").count,
               people_count: people.count
             }
           }
@@ -179,13 +179,13 @@ module Api
           default_accountant: group.default_accountant,
           default_accountant_contact: group.default_accountant_contact,
           active: group.active,
-          companies_count: group.companies_count,
+          companies_count: group.corporate_companies_count,
           created_at: group.created_at,
           updated_at: group.updated_at
         }
 
         if include_companies
-          data[:companies] = group.companies.order(:name).map { |c| serialize_company_summary(c) }
+          data[:companies] = group.corporate_companies.order(:name).map { |c| serialize_company_summary(c) }
         end
 
         data
@@ -350,7 +350,7 @@ module Api
         # If this company is a trustee, add the Trust/Superfund entity as a child
         # Match by Trust/Superfund's name (the trustee's trust_name = Trust entity's name)
         if company.is_trustee && company.trust_name.present? && company_group
-          trust_entity = company_group.companies.where(entity_type: [ "Trust", "Superfund" ]).find_by(name: company.trust_name)
+          trust_entity = company_group.corporate_companies.where(entity_type: [ "Trust", "Superfund" ]).find_by(name: company.trust_name)
           if trust_entity
             # Add the trust at the beginning of children
             trust_node = {

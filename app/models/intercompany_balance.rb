@@ -38,7 +38,7 @@ class IntercompanyBalance < ApplicationRecord
 
   # Sync balances from loan register for a company group
   def self.sync_from_loans(company_group, as_of_date: Date.today)
-    company_ids = company_group.companies.pluck(:id)
+    company_ids = company_group.corporate_companies.pluck(:id)
 
     # Find all active loans between companies in the group
     loans = CorporateCompanyLoan.active

@@ -47,7 +47,7 @@ class ConsolidationReconciliationService
 
   # Get current intercompany relationships and balances
   def intercompany_relationships
-    companies = company_group.companies.to_a
+    companies = company_group.corporate_companies.to_a
     relationships = []
 
     # For each pair of companies, find balances
@@ -131,7 +131,7 @@ class ConsolidationReconciliationService
 
   def sync_xero_balances
     # For each company with a Xero connection, try to fetch intercompany balances
-    company_group.companies.each do |company|
+    company_group.corporate_companies.each do |company|
       connection = company.company_xero_connection
       next unless connection&.connected?
 
@@ -147,7 +147,7 @@ class ConsolidationReconciliationService
   def sync_xero_balances_for_company(company, connection)
     # Get contacts from Xero that match other companies in the group
     client = XeroApiClient.new
-    group_company_names = company_group.companies.where.not(id: company.id).pluck(:name)
+    group_company_names = company_group.corporate_companies.where.not(id: company.id).pluck(:name)
 
     # Fetch aged receivables and payables from Xero
     # This would require implementing aged_receivables and aged_payables endpoints in XeroApiClient
