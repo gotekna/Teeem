@@ -407,7 +407,7 @@ module Api
           rejection_reason: feedback_params[:reason],
           # Context for learning
           document_text_snippet: @document.extracted_text&.first(500),
-          company_code: @document.company&.code
+          company_code: @document.corporate_company&.code
         )
 
         render json: {
