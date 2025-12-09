@@ -625,6 +625,184 @@ class Api::V1::MicrosoftAppController < ApplicationController
     }, status: :unprocessable_entity
   end
 
+  # ==========================================
+  # SharePoint Configuration for Attachments (TEEEM's Single SharePoint)
+  # ==========================================
+
+  # GET /api/v1/microsoft_app/sharepoint_config
+  # Get current TEEEM SharePoint configuration for attachment storage
+  def sharepoint_config
+    unless current_user_admin?
+      return render json: { error: "Only admins can view SharePoint configuration" }, status: :forbidden
+    end
+
+    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+
+    if sp_config
+      render json: {
+        configured: true,
+        site_id: sp_config[:site_id],
+        drive_id: sp_config[:drive_id],
+        drive_name: sp_config[:drive_name],
+        credential_name: sp_config[:credential].name
+      }
+    else
+      render json: {
+        configured: false,
+        message: "SharePoint not configured for attachment storage. Please configure TEEEM's SharePoint site and drive."
+      }
+    end
+  end
+
+  # POST /api/v1/microsoft_app/configure_sharepoint
+  # Configure TEEEM's SharePoint site/drive for attachment storage
+  # This discovers available sites and drives for selection
+  def configure_sharepoint
+    unless current_user_admin?
+      return render json: { error: "Only admins can configure SharePoint" }, status: :forbidden
+    end
+
+    # Get the credential to use for SharePoint (either specified or first active)
+    credential = if params[:credential_id].present?
+                   OrganizationMicrosoftAppCredential.find_by(id: params[:credential_id])
+                 else
+                   OrganizationMicrosoftAppCredential.active_credential
+                 end
+
+    unless credential&.status == "connected"
+      return render json: { error: "No connected Microsoft credential found" }, status: :not_found
+    end
+
+    begin
+      # Auto-discover SharePoint sites
+      client = MicrosoftAppGraphClient.new(credential)
+      sites = client.list_sharepoint_sites(top: 50)
+
+      # Get drives for each site
+      sites_with_drives = sites.map do |site|
+        begin
+          drives = client.get_site_drives(site[:id])
+          {
+            site_id: site[:id],
+            site_name: site[:display_name] || site[:name],
+            site_url: site[:web_url],
+            drives: drives.map { |d| { id: d["id"], name: d["name"], type: d["driveType"] } }
+          }
+        rescue => e
+          Rails.logger.error "[MicrosoftApp] Failed to get drives for site #{site[:id]}: #{e.message}"
+          nil
+        end
+      end.compact
+
+      # Get current config
+      current_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+
+      render json: {
+        success: true,
+        sites: sites_with_drives,
+        current_config: current_config ? {
+          site_id: current_config[:site_id],
+          drive_id: current_config[:drive_id],
+          drive_name: current_config[:drive_name],
+          credential_name: current_config[:credential].name
+        } : nil
+      }
+    rescue StandardError => e
+      Rails.logger.error "[MicrosoftApp] Failed to discover SharePoint sites: #{e.message}"
+      render json: {
+        success: false,
+        error: e.message
+      }, status: :unprocessable_entity
+    end
+  end
+
+  # PUT /api/v1/microsoft_app/update_sharepoint_config
+  # Update TEEEM's SharePoint configuration for attachment storage
+  def update_sharepoint_config
+    unless current_user_admin?
+      return render json: { error: "Only admins can configure SharePoint" }, status: :forbidden
+    end
+
+    site_id = params[:site_id]
+    drive_id = params[:drive_id]
+    drive_name = params[:drive_name]
+
+    unless site_id.present? && drive_id.present?
+      return render json: { error: "site_id and drive_id are required" }, status: :bad_request
+    end
+
+    # Get the credential to store the config on (either specified or first active)
+    credential = if params[:credential_id].present?
+                   OrganizationMicrosoftAppCredential.find_by(id: params[:credential_id])
+                 else
+                   OrganizationMicrosoftAppCredential.active_credential
+                 end
+
+    unless credential
+      return render json: { error: "No Microsoft credential found" }, status: :not_found
+    end
+
+    # Update the SharePoint configuration
+    credential.update!(
+      sharepoint_site_id: site_id,
+      sharepoint_drive_id: drive_id,
+      sharepoint_drive_name: drive_name
+    )
+
+    render json: {
+      success: true,
+      message: "SharePoint configuration saved. All attachment uploads will now go to TEEEM's SharePoint.",
+      config: {
+        site_id: credential.sharepoint_site_id,
+        drive_id: credential.sharepoint_drive_id,
+        drive_name: credential.sharepoint_drive_name,
+        credential_name: credential.name
+      }
+    }
+  rescue StandardError => e
+    Rails.logger.error "[MicrosoftApp] Failed to update SharePoint config: #{e.message}"
+    render json: {
+      success: false,
+      error: e.message
+    }, status: :unprocessable_entity
+  end
+
+  # POST /api/v1/microsoft_app/backfill_attachments
+  # Trigger backfill job to upload existing attachments to SharePoint
+  def backfill_attachments
+    unless current_user_admin?
+      return render json: { error: "Only admins can trigger attachment backfill" }, status: :forbidden
+    end
+
+    organization_id = params[:organization_id]
+    unless organization_id.present?
+      return render json: { error: "organization_id is required" }, status: :bad_request
+    end
+
+    credential = OrganizationMicrosoftAppCredential.find_by(id: organization_id)
+    unless credential&.status == "connected"
+      return render json: { error: "Organization not connected" }, status: :not_found
+    end
+
+    unless OrganizationMicrosoftAppCredential.sharepoint_configured?
+      return render json: { error: "SharePoint not configured. Please configure TEEEM's SharePoint first." }, status: :unprocessable_entity
+    end
+
+    # Queue the backfill job
+    BackfillAttachmentUploadsJob.perform_later(credential.id)
+
+    render json: {
+      success: true,
+      message: "Backfill job queued for #{credential.name}. Existing attachments will be uploaded to SharePoint."
+    }
+  rescue StandardError => e
+    Rails.logger.error "[MicrosoftApp] Attachment backfill failed: #{e.message}"
+    render json: {
+      success: false,
+      error: e.message
+    }, status: :unprocessable_entity
+  end
+
   private
 
   def current_user_admin?

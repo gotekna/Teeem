@@ -442,4 +442,116 @@ class MicrosoftAppGraphClient
       parent_path: item.dig("parentReference", "path")
     }
   end
+
+  # ===== SharePoint Upload Methods =====
+
+  # Upload file content to SharePoint (small files < 4MB)
+  # parent_folder_path: e.g., "Email Attachments/Tekna/2024/12"
+  # filename: e.g., "a3d8f9c7_Invoice.pdf"
+  # content: binary content
+  def upload_file_content(site_id, drive_id, parent_folder_path, filename, content)
+    # Ensure folder exists first
+    folder_id = ensure_folder_exists(site_id, drive_id, parent_folder_path)
+
+    # URL encode filename
+    encoded_filename = CGI.escape(filename)
+
+    # Upload via PUT request
+    endpoint = "/sites/#{site_id}/drives/#{drive_id}/items/#{folder_id}:/#{encoded_filename}:/content"
+
+    result = put(endpoint, content, { "Content-Type" => "application/octet-stream" })
+
+    {
+      id: result["id"],
+      name: result["name"],
+      web_url: result["webUrl"],
+      size: result["size"],
+      path: "#{parent_folder_path}/#{filename}"
+    }
+  end
+
+  # Create upload session for large files (>= 4MB)
+  def create_upload_session(site_id, drive_id, parent_folder_path, filename)
+    folder_id = ensure_folder_exists(site_id, drive_id, parent_folder_path)
+    encoded_filename = CGI.escape(filename)
+
+    endpoint = "/sites/#{site_id}/drives/#{drive_id}/items/#{folder_id}:/#{encoded_filename}:/createUploadSession"
+
+    post(endpoint, {
+      item: {
+        "@microsoft.graph.conflictBehavior": "rename",
+        name: filename
+      }
+    })
+  end
+
+  # Upload large file in chunks
+  def upload_large_file(upload_url, content, chunk_size = 320 * 1024)
+    total_size = content.bytesize
+    offset = 0
+
+    while offset < total_size
+      chunk_end = [offset + chunk_size, total_size].min - 1
+      chunk = content.byteslice(offset, chunk_end - offset + 1)
+
+      headers = {
+        "Content-Length" => chunk.bytesize.to_s,
+        "Content-Range" => "bytes #{offset}-#{chunk_end}/#{total_size}"
+      }
+
+      response = HTTP.auth("Bearer #{valid_access_token}")
+                     .headers(headers)
+                     .put(upload_url, body: chunk)
+
+      raise ApiError, "Upload chunk failed: #{response.code}" unless response.status.success?
+
+      offset = chunk_end + 1
+    end
+
+    # Return final response
+    JSON.parse(response.body)
+  end
+
+  # Ensure folder path exists, create if needed
+  def ensure_folder_exists(site_id, drive_id, folder_path)
+    return "root" if folder_path.blank?
+
+    path_parts = folder_path.split("/")
+    current_folder_id = "root"
+
+    path_parts.each do |folder_name|
+      # Try to get folder
+      begin
+        encoded_name = CGI.escape(folder_name)
+        result = get("/sites/#{site_id}/drives/#{drive_id}/items/#{current_folder_id}:/#{encoded_name}")
+        current_folder_id = result["id"]
+      rescue ApiError => e
+        # Folder doesn't exist, create it
+        if e.message.include?("itemNotFound")
+          result = create_folder(site_id, drive_id, current_folder_id, folder_name)
+          current_folder_id = result["id"]
+        else
+          raise
+        end
+      end
+    end
+
+    current_folder_id
+  end
+
+  # Create a folder
+  def create_folder(site_id, drive_id, parent_folder_id, folder_name)
+    endpoint = "/sites/#{site_id}/drives/#{drive_id}/items/#{parent_folder_id}/children"
+
+    post(endpoint, {
+      name: folder_name,
+      folder: {},
+      "@microsoft.graph.conflictBehavior": "fail"
+    })
+  end
+
+  # Helper to determine if file is large
+  def large_file?(size)
+    size >= 4 * 1024 * 1024  # 4MB threshold
+  end
 end

@@ -486,6 +486,11 @@ Rails.application.routes.draw do
           get :user_onedrive
           get :search_files
           post :test_sharepoint
+          # SharePoint Configuration for Attachments (TEEEM's Single SharePoint)
+          get :sharepoint_config
+          post :configure_sharepoint
+          put :update_sharepoint_config
+          post :backfill_attachments
         end
       end
 
