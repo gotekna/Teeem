@@ -135,7 +135,7 @@ module Api
       # GET /api/v1/company_groups/:id/contacts
       def contacts
         memberships = @company_group.contact_memberships
-          .includes(:contact, :company)
+          .includes(:contact, :corporate_company)
 
         if params[:type].present?
           memberships = memberships.where(membership_type: params[:type])
@@ -233,7 +233,7 @@ module Api
           company_group_id: membership.company_group_id,
           membership_type: membership.membership_type,
           company_id: membership.company_id,
-          company_name: membership.company&.name,
+          company_name: membership.corporate_company&.name,
           can_view_confidential: membership.can_view_confidential,
           can_edit: membership.can_edit,
           is_active: membership.is_active,
@@ -249,8 +249,8 @@ module Api
         roles = []
 
         # Get directorship/officer roles (director, secretary, corporate_officer, public_officer)
-        contact.company_directorships.includes(:company).each do |dir|
-          next unless dir.company&.company_group_id == company_group_id
+        contact.corporate_company_directorships.includes(:corporate_company).each do |dir|
+          next unless dir.corporate_company&.company_group_id == company_group_id
 
           position = dir.position.to_s
 
@@ -259,7 +259,7 @@ module Api
             roles << {
               type: "director",
               company_id: dir.company_id,
-              company_name: dir.company.name,
+              company_name: dir.corporate_company.name,
               position: dir.position,
               is_current: dir.is_current
             }
@@ -270,7 +270,7 @@ module Api
             roles << {
               type: "secretary",
               company_id: dir.company_id,
-              company_name: dir.company.name,
+              company_name: dir.corporate_company.name,
               position: dir.position,
               is_current: dir.is_current
             }
@@ -281,7 +281,7 @@ module Api
             roles << {
               type: "corporate_officer",
               company_id: dir.company_id,
-              company_name: dir.company.name,
+              company_name: dir.corporate_company.name,
               position: dir.position,
               is_current: dir.is_current
             }
@@ -292,7 +292,7 @@ module Api
             roles << {
               type: "public_officer",
               company_id: dir.company_id,
-              company_name: dir.company.name,
+              company_name: dir.corporate_company.name,
               position: dir.position,
               is_current: dir.is_current
             }
@@ -300,12 +300,12 @@ module Api
         end
 
         # Get shareholder roles
-        contact.company_shareholdings.includes(:company).each do |sh|
-          next unless sh.company&.company_group_id == company_group_id
+        contact.corporate_company_shareholdings.includes(:corporate_company).each do |sh|
+          next unless sh.corporate_company&.company_group_id == company_group_id
           roles << {
             type: "shareholder",
             company_id: sh.company_id,
-            company_name: sh.company.name,
+            company_name: sh.corporate_company.name,
             shares: sh.number_of_shares,
             percentage: sh.percentage_of_total
           }
@@ -316,7 +316,7 @@ module Api
 
       def build_hierarchy_tree(company, company_group = nil)
         # Get shareholdings where this company is owned
-        shareholders = company.company_shareholdings.includes(:shareholder).map do |sh|
+        shareholders = company.corporate_company_shareholdings.includes(:shareholder).map do |sh|
           # Use centralized DisplayValueResolver (SSoT for display values)
           shareholder_name = DisplayValueResolver.resolve(sh.shareholder)
           {
@@ -335,7 +335,7 @@ module Api
         investments = company.investments.includes(:company).map do |inv|
           {
             company_id: inv.company_id,
-            company_name: inv.company&.name,
+            company_name: inv.corporate_company&.name,
             shares: inv.number_of_shares,
             percentage: inv.percentage_of_total
           }

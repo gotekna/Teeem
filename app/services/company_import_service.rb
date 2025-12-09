@@ -96,7 +96,7 @@ class CompanyImportService
       # Warnings
       warnings << "Missing TFN" if company.tfn.blank?
       warnings << "No bank accounts" if company.bank_accounts.empty?
-      warnings << "No shareholders recorded" if company.company_shareholdings.empty?
+      warnings << "No shareholders recorded" if company.corporate_company_shareholdings.empty?
       warnings << "Missing date of incorporation" if company.date_incorporated.blank?
       warnings << "No secretary appointed" unless company.company_directors.current.any? { |d| d.position&.include?("secretary") }
       warnings << "No public officer appointed" unless company.company_directors.current.any? { |d| d.position&.include?("public_officer") }
@@ -135,7 +135,7 @@ class CompanyImportService
         warnings: warnings,
         director_count: company.company_directors.current.count,
         bank_account_count: company.bank_accounts.where(status: "active").count,
-        shareholder_count: company.company_shareholdings.count,
+        shareholder_count: company.corporate_company_shareholdings.count,
         has_acn: company.acn.present?,
         has_abn: company.abn.present?,
         has_tfn: company.tfn.present?,
@@ -412,10 +412,10 @@ class CompanyImportService
 
       next unless shareholder
 
-      existing = company.company_shareholdings.find_by(shareholder: shareholder)
+      existing = company.corporate_company_shareholdings.find_by(shareholder: shareholder)
       next if existing
 
-      company.company_shareholdings.create!(
+      company.corporate_company_shareholdings.create!(
         shareholder: shareholder,
         number_of_shares: share_data[:shares],
         share_class: "ordinary",

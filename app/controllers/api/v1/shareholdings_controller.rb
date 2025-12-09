@@ -5,7 +5,7 @@ module Api
       # Returns all shareholdings across all companies
       def index
         @shareholdings = CorporateCompanyShareholding
-                          .includes(:company, :shareholder)
+                          .includes(:corporate_company, :shareholder)
                           .order(created_at: :desc)
 
         render json: {
@@ -43,7 +43,7 @@ module Api
       def calculate_percentage(shareholding)
         return 0 unless shareholding.company
 
-        total = shareholding.company.company_shareholdings
+        total = shareholding.company.corporate_company_shareholdings
                             .where(share_class: shareholding.share_class)
                             .sum(:number_of_shares)
         return 0 if total.zero?

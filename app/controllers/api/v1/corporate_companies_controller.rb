@@ -58,8 +58,8 @@ module Api
           # Note: total_asset_value removed - depends on assets table
         )
 
-        # Serialize current directors separately (company_directors.current returns CorporateCompanyDirector objects)
-        company_json["current_directors"] = @company.company_directors.current.includes(:contact).map do |director|
+        # Serialize current directors separately (corporate_company_directors returns CorporateCompanyDirector objects)
+        company_json["current_directors"] = @company.corporate_company_directors.current.includes(:contact).map do |director|
           director.as_json(
             include: { contact: { only: [ :id, :display_name, :email, :mobile_phone ] } },
             methods: [ :formatted_position ]
@@ -114,7 +114,7 @@ module Api
 
       # GET /api/v1/companies/:id/directors
       def directors
-        directors = @company.company_directors.includes(:contact).order(appointment_date: :desc)
+        directors = @company.corporate_company_directors.includes(:contact).order(appointment_date: :desc)
 
         render json: {
           success: true,
@@ -134,7 +134,7 @@ module Api
       def add_director
         contact = Contact.find(params[:contact_id])
 
-        director = @company.company_directors.build(
+        director = @company.corporate_company_directors.build(
           contact: contact,
           position: params[:position],
           appointment_date: params[:appointment_date] || Date.today,
@@ -160,7 +160,7 @@ module Api
 
       # PUT /api/v1/companies/:id/directors/:director_id
       def update_director
-        director = @company.company_directors.find(params[:director_id])
+        director = @company.corporate_company_directors.find(params[:director_id])
 
         if director.update(director_params)
           render json: {
@@ -181,7 +181,7 @@ module Api
 
       # DELETE /api/v1/companies/:id/directors/:director_id
       def remove_director
-        director = @company.company_directors.find(params[:director_id])
+        director = @company.corporate_company_directors.find(params[:director_id])
 
         if director.update(resignation_date: params[:resignation_date] || Date.today, is_current: false)
           render json: {
@@ -198,7 +198,7 @@ module Api
 
       # GET /api/v1/companies/:id/compliance_items
       def compliance_items
-        items = @company.company_compliance_items.order(:due_date)
+        items = @company.corporate_company_compliance_items.order(:due_date)
 
         # Filter by status
         items = items.where(status: params[:status]) if params[:status].present?
@@ -211,7 +211,7 @@ module Api
 
       # GET /api/v1/companies/:id/activities
       def activities
-        activities = @company.company_activities
+        activities = @company.corporate_company_activities
           .includes(:user)
           .order(created_at: :desc)
           .limit(params[:limit]&.to_i || 50)
@@ -226,7 +226,7 @@ module Api
 
       # GET /api/v1/companies/:id/documents
       def documents
-        documents = @company.company_documents.order(created_at: :desc)
+        documents = @company.corporate_company_documents.order(created_at: :desc)
 
         # Filter by type
         documents = documents.by_type(params[:document_type]) if params[:document_type].present?
@@ -283,7 +283,7 @@ module Api
       # GET /api/v1/companies/:id/shareholders
       # Returns all shareholders of this company
       def shareholders
-        shareholdings = @company.company_shareholdings.includes(:shareholder)
+        shareholdings = @company.corporate_company_shareholdings.includes(:shareholder)
 
         render json: {
           success: true,
@@ -312,7 +312,7 @@ module Api
       # GET /api/v1/companies/:id/investments
       # Returns companies that this company owns shares in
       def investments
-        investments = @company.investments.includes(:company)
+        investments = @company.investments.includes(:corporate_company)
 
         render json: {
           success: true,
@@ -444,7 +444,7 @@ module Api
       # Returns data warehouse statistics for a company
       def data_stats
         # Document statistics
-        documents = @company.company_documents
+        documents = @company.corporate_company_documents
         doc_stats = {
           total_documents: documents.count,
           by_source: documents.group(:source).count,
@@ -463,9 +463,9 @@ module Api
 
         # Document types breakdown
         doc_type_stats = documents
-          .joins("LEFT JOIN document_types ON document_types.name = company_documents.document_type")
-          .select("company_documents.document_type, document_types.abbreviation, COUNT(*) as count")
-          .group("company_documents.document_type, document_types.abbreviation")
+          .joins("LEFT JOIN document_types ON document_types.name = corporate_company_documents.document_type")
+          .select("corporate_company_documents.document_type, document_types.abbreviation, COUNT(*) as count")
+          .group("corporate_company_documents.document_type, document_types.abbreviation")
           .map { |d| { type: d.document_type, abbreviation: d.abbreviation, count: d.count } }
 
         # OneDrive sync status
@@ -532,7 +532,7 @@ module Api
         checks = []
 
         # 1. Documents Health Check
-        documents = @company.company_documents
+        documents = @company.corporate_company_documents
         total_docs = documents.count
         verified_docs = documents.where(ai_verification_status: "verified").count
         doc_rate = total_docs > 0 ? (verified_docs.to_f / total_docs * 100).round(1) : 0

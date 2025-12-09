@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_09_011723) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_09_042509) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1419,6 +1419,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_011723) do
     t.index ["existing_document_id"], name: "index_document_duplicate_reviews_on_existing_document_id"
     t.index ["new_document_id"], name: "index_document_duplicate_reviews_on_new_document_id"
     t.index ["resolved_by_id"], name: "index_document_duplicate_reviews_on_resolved_by_id"
+  end
+
+  create_table "document_folders", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.integer "order_position", default: 0, null: false
+    t.jsonb "entity_types", default: [], null: false
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["entity_types"], name: "index_document_folders_on_entity_types", using: :gin
+    t.index ["name"], name: "index_document_folders_on_name", unique: true
+    t.index ["order_position"], name: "index_document_folders_on_order_position"
   end
 
   create_table "document_tasks", force: :cascade do |t|

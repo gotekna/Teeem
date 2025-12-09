@@ -14,7 +14,7 @@ module Api
         # Build includes array based on what tables exist
         # Check if table exists using raw SQL to avoid loading the model
         has_insurance_table = ActiveRecord::Base.connection.table_exists?("asset_insurances")
-        includes_array = [ :company ]
+        includes_array = [ :corporate_company ]
         includes_array << :asset_insurance if has_insurance_table
 
         @assets = Asset.includes(includes_array).all
@@ -38,7 +38,7 @@ module Api
         end
 
         # Build include hash based on what tables exist
-        include_hash = { company: { only: [ :id, :name ] } }
+        include_hash = { corporate_company: { only: [ :id, :name ] } }
         if has_insurance_table
           include_hash[:asset_insurance] = { only: [ :id, :renewal_date, :status ], methods: [ :days_until_renewal ] }
         end
@@ -58,7 +58,7 @@ module Api
           success: true,
           asset: @asset.as_json(
             include: {
-              company: { only: [ :id, :name ] },
+              corporate_company: { only: [ :id, :name ] },
               asset_insurance: {
                 methods: [ :days_until_renewal, :expired?, :expiring_soon? ]
               }
@@ -215,13 +215,13 @@ module Api
 
       # GET /api/v1/assets/:id/documents
       def documents
-        documents = @asset.company_documents.includes(:company, :user, :document_type_record).order(created_at: :desc)
+        documents = @asset.corporate_company_documents.includes(:corporate_company, :user, :document_type_record).order(created_at: :desc)
 
         render json: {
           success: true,
           documents: documents.as_json(
             include: {
-              company: { only: [ :id, :name, :code ] },
+              corporate_company: { only: [ :id, :name, :code ] },
               user: { only: [ :id, :name, :email ] },
               document_type_record: { only: [ :id, :name, :folder ] }
             },

@@ -1477,6 +1477,13 @@ Rails.application.routes.draw do
         end
       end
 
+      # Document Folders (tabs/folders configuration)
+      resources :document_folders do
+        collection do
+          post :reorder
+        end
+      end
+
       # Bank Accounts
       resources :bank_accounts
 

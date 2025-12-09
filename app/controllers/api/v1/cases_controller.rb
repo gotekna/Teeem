@@ -15,7 +15,7 @@ module Api
 
       # GET /api/v1/cases
       def index
-        cases = CaseRecord.includes(:contact, :company, :company_group, :assigned_to, :created_by)
+        cases = CaseRecord.includes(:contact, :corporate_company, :company_group, :assigned_to, :created_by)
 
         # Filter by status
         cases = cases.by_status(params[:status]) if params[:status].present?
@@ -168,7 +168,7 @@ module Api
 
       # GET /api/v1/cases/:id/companies
       def companies
-        companies = @case.case_companies.includes(:company)
+        companies = @case.case_companies.includes(:corporate_company)
 
         render json: {
           success: true,

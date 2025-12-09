@@ -25,10 +25,10 @@ class CorporateOnedriveService
   ].freeze
 
   # Tab folders within each company folder (matching UI tabs)
-  TAB_FOLDERS = %w[
-    ADVICE ASIC ASSETS ATO BANK COMPANY DIVIDENDS
-    FINANCIALS GENERAL INSURANCE LOANS MINUTES REGISTRY TRUST
-  ].freeze
+  # SSoT: Fetch from database
+  def self.tab_folders
+    @tab_folders ||= DocumentFolder.active.ordered.pluck(:name)
+  end
 
   def initialize(credential = nil, folder_path: nil)
     @credential = credential || OrganizationOneDriveCredential.active_credential
