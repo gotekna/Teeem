@@ -3,9 +3,10 @@ import { query, queryOne } from "@/lib/db";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const folder = await queryOne(
       `
       SELECT
@@ -20,7 +21,7 @@ export async function GET(
       FROM document_folders
       WHERE id = $1
       `,
-      [params.id]
+      [id]
     );
 
     if (!folder) {
@@ -45,9 +46,10 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { folder } = await request.json();
 
     const result = await query(
@@ -69,7 +71,7 @@ export async function PATCH(
         folder.order_position,
         folder.entity_types ? JSON.stringify(folder.entity_types) : null,
         folder.active,
-        params.id,
+        id,
       ]
     );
 
@@ -95,12 +97,13 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const result = await query(
       `DELETE FROM document_folders WHERE id = $1 RETURNING id`,
-      [params.id]
+      [id]
     );
 
     if (result.length === 0) {
