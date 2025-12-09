@@ -31,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { XeroFieldMapping, XeroContactSync } from "./components/XeroTabs";
 import { XeroPdfSyncStatus } from "./components/XeroPdfSyncStatus";
+import { XeroConnectionsPopup } from "@/components/xero/XeroConnectionsPopup";
 
 interface XeroStatus {
   connected: boolean;
@@ -52,6 +53,17 @@ interface XeroTenant {
   expired?: boolean;
 }
 
+interface CompanyXeroConnection {
+  id: number;
+  company_id: number;
+  company: {
+    id: number;
+    name: string;
+  };
+  xero_tenant_name: string;
+  connection_status: string;
+}
+
 interface PdfSyncHealth {
   stage1_percentage: number;
   stage2_percentage: number;
@@ -66,12 +78,15 @@ export default function XeroIntegrationPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentTab = searchParams.get("tab") || "connection";
+  const showConnectionsParam = searchParams.get("connections");
   const [status, setStatus] = React.useState<XeroStatus | null>(null);
   const [tenants, setTenants] = React.useState<XeroTenant[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [connecting, setConnecting] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
   const [pdfSyncHealth, setPdfSyncHealth] = React.useState<PdfSyncHealth | null>(null);
+  const [showConnectionsPopup, setShowConnectionsPopup] = React.useState(showConnectionsParam === "true");
+  const [companyConnections, setCompanyConnections] = React.useState<CompanyXeroConnection[]>([]);
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -80,13 +95,15 @@ export default function XeroIntegrationPage() {
         const statusResponse = await api.xero.getStatus();
         setStatus(statusResponse.data || { connected: false });
 
-        // Fetch all tenants and PDF sync status if connected
+        // Fetch all tenants, PDF sync status, and company connections if connected
         if (statusResponse.data?.connected) {
-          const [tenantsResponse, pdfSyncResponse] = await Promise.all([
+          const [tenantsResponse, pdfSyncResponse, connectionsResponse] = await Promise.all([
             api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants"),
             api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"),
+            api.get<{ success: boolean; companies: CompanyXeroConnection[] }>("/api/v1/xero/corporate_company_xero_connections"),
           ]);
           setTenants(tenantsResponse.tenants || []);
+          setCompanyConnections(connectionsResponse.companies || []);
 
           // Extract health data from PDF sync response
           if (pdfSyncResponse.success && pdfSyncResponse.data) {
@@ -295,6 +312,10 @@ export default function XeroIntegrationPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <Button onClick={() => setShowConnectionsPopup(true)}>
+                      <Link2 className="h-4 w-4 mr-2" />
+                      Manage Company Connections
+                    </Button>
                     <Button variant="outline" onClick={handleConnect} disabled={connecting}>
                       <RefreshCw className={`h-4 w-4 mr-2 ${connecting ? "animate-spin" : ""}`} />
                       Reconnect
@@ -335,6 +356,51 @@ export default function XeroIntegrationPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Company Connections Card */}
+          {status?.connected && companyConnections.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Connected Companies</CardTitle>
+                    <CardDescription>
+                      TEEEM companies linked to Xero organizations
+                    </CardDescription>
+                  </div>
+                  <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                    {companyConnections.length} {companyConnections.length === 1 ? 'Company' : 'Companies'}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {companyConnections.map((connection) => (
+                    <div
+                      key={connection.id}
+                      className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-cyan-100 rounded">
+                          <CreditCard className="h-4 w-4 text-cyan-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{connection.company.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Linked to: {connection.xero_tenant_name}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        {connection.connection_status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* PDF Sync Status - Above Health Check */}
           {status?.connected && (
@@ -507,6 +573,28 @@ export default function XeroIntegrationPage() {
           <XeroContactSync />
         </TabsContent>
       </Tabs>
+
+      {/* Xero Connections Popup */}
+      {showConnectionsPopup && (
+        <XeroConnectionsPopup
+          onClose={async () => {
+            setShowConnectionsPopup(false);
+            // Refresh company connections list
+            try {
+              const connectionsResponse = await api.get<{ success: boolean; companies: CompanyXeroConnection[] }>(
+                "/api/v1/xero/corporate_company_xero_connections"
+              );
+              setCompanyConnections(connectionsResponse.companies || []);
+            } catch (error) {
+              console.error("Failed to refresh connections:", error);
+            }
+            // Remove the connections parameter from URL
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete("connections");
+            router.push(`/settings/integrations/xero?${params.toString()}`);
+          }}
+        />
+      )}
     </div>
   );
 }
