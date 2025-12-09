@@ -25,7 +25,7 @@
 #  updated_at           :datetime         not null
 #
 class BalanceSheetReport < ApplicationRecord
-  belongs_to :company
+  belongs_to :corporate_company, foreign_key: 'company_id'
 
   # Validations
   validates :company_name, presence: true
@@ -87,7 +87,7 @@ class BalanceSheetReport < ApplicationRecord
     update!(status: "generating", error_message: nil)
 
     begin
-      connection = company.company_xero_connection
+      connection = corporate_company.company_xero_connection
       raise "Company is not connected to Xero" unless connection&.connected?
 
       # Fetch Balance Sheet from Xero
