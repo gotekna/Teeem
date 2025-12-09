@@ -101,7 +101,7 @@ module Api
           only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status, :is_family_member, :is_potential_director, :company_group_id, :is_team_contact ] + director_fields,
           include: {
             portal_user: { only: [ :id, :email, :portal_type, :active ] },
-            company_group: { only: [ :id, :name ] }
+            corporate_group: { only: [ :id, :name ] }
           },
           methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?, :company_group_memberships_count ]
         )
