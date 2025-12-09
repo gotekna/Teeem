@@ -1220,7 +1220,7 @@ Rails.application.routes.draw do
       resources :unreal_variables
 
       # Corporate Entity Management
-      resources :companies do
+      resources :companies, controller: "corporate_companies" do
         collection do
           post :import
           post :reload
@@ -1230,8 +1230,8 @@ Rails.application.routes.draw do
         member do
           get :directors
           post :add_director
-          put "directors/:director_id", to: "corporate_companies#update_director"
-          delete "directors/:director_id", to: "corporate_companies#remove_director"
+          put "directors/:director_id", action: :update_director
+          delete "directors/:director_id", action: :remove_director
           get :compliance_items
           get :activities
           get :documents
@@ -1329,7 +1329,7 @@ Rails.application.routes.draw do
       end
 
       # Company Groups
-      resources :company_groups do
+      resources :company_groups, controller: "corporate_groups" do
         member do
           get :companies
           get :structure
@@ -1519,7 +1519,7 @@ Rails.application.routes.draw do
       end
 
       # Company Xero Connections
-      resources :company_xero_connections, only: [ :index, :show, :destroy ] do
+      resources :company_xero_connections, controller: "corporate_company_xero_connections", only: [ :index, :show, :destroy ] do
         collection do
           get :auth_url
           post :callback
@@ -1527,7 +1527,7 @@ Rails.application.routes.draw do
         member do
           post :sync_accounts
           get :status
-          delete :disconnect, to: "corporate_company_xero_connections#disconnect"
+          delete :disconnect
         end
       end
 
