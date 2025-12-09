@@ -80,66 +80,65 @@ class SyncEmailsToSharePointJob < ApplicationJob
         # (the mailbox where this email is stored, not the sender)
         attachments = client.get_email_attachments(email.mailbox_owner_email, email.outlook_id)
 
-        attachments.each do |attachment|
+        attachments.each do |attachment_data|
           # Only process file attachments (skip inline/embedded)
-          next unless attachment["@odata.type"] == "#microsoft.graph.fileAttachment"
+          next unless attachment_data["@odata.type"] == "#microsoft.graph.fileAttachment"
 
-          outlook_attachment_id = attachment["id"]
-          filename = attachment["name"]
-          content_type = attachment["contentType"]
-          file_size = attachment["size"]
-          content_bytes_base64 = attachment["contentBytes"]
+          outlook_attachment_id = attachment_data["id"]
+          filename = attachment_data["name"]
+          content_type = attachment_data["contentType"]
+          file_size = attachment_data["size"]
+          content_bytes_base64 = attachment_data["contentBytes"]
 
-          # Skip if already tracked in EmailAttachment
-          existing = EmailAttachment.find_by(
-            email_warehouse: email,
-            outlook_attachment_id: outlook_attachment_id
-          )
-
-          if existing
-            Rails.logger.info "[SyncToSharePoint] Skipping existing: #{filename}"
-            skipped += 1
-            next
-          end
-
-          # Decode base64 content
+          # Decode content
           content_binary = Base64.decode64(content_bytes_base64)
-          content_hash = EmailAttachment.compute_hash(content_binary)
+          content_hash = Attachment.compute_hash(content_binary)
 
-          # Check if this attachment matches an existing company document
-          existing_doc = CompanyDocument.find_by(content_hash: content_hash)
+          # Check if attachment already exists globally (by content_hash)
+          existing_attachment = Attachment.find_by(content_hash: content_hash)
 
-          if existing_doc
-            # Link to existing document (avoid duplicate storage)
-            EmailAttachment.create!(
+          if existing_attachment
+            # File already exists in SharePoint - just create link
+            link = EmailAttachment.find_or_create_by(
               email_warehouse: email,
-              company_document: existing_doc,
-              outlook_attachment_id: outlook_attachment_id,
-              filename: filename,
-              content_type: content_type,
-              file_size: file_size,
-              content_hash: content_hash,
-              is_existing_doc: true,
-              sharepoint_file_id: existing_doc.sharepoint_file_id,
-              sharepoint_path: existing_doc.sharepoint_path
-            )
-            Rails.logger.info "[SyncToSharePoint] Linked to existing doc: #{filename}"
-            created += 1
+              attachment: existing_attachment
+            ) do |l|
+              l.outlook_attachment_id = outlook_attachment_id
+            end
+
+            Rails.logger.info "[SyncToSharePoint] Linked existing attachment: #{filename} (#{content_hash[0..7]})"
+            skipped += 1
           else
-            # Create new EmailAttachment record (will be uploaded to SharePoint later)
-            EmailAttachment.create!(
-              email_warehouse: email,
-              outlook_attachment_id: outlook_attachment_id,
+            # New file - upload to SharePoint
+            result = upload_attachment_to_sharepoint(
+              client,
+              filename,
+              content_binary,
+              content_type,
+              file_size,
+              email.received_at
+            )
+
+            # Create attachment record
+            attachment = Attachment.create!(
+              sharepoint_file_id: result[:id],
+              sharepoint_path: result[:path],
               filename: filename,
               content_type: content_type,
               file_size: file_size,
               content_hash: content_hash,
-              is_existing_doc: false
+              organization_microsoft_app_credential: @credential
             )
-            Rails.logger.info "[SyncToSharePoint] Created attachment record: #{filename}"
+
+            # Create link
+            EmailAttachment.create!(
+              email_warehouse: email,
+              attachment: attachment,
+              outlook_attachment_id: outlook_attachment_id
+            )
+
+            Rails.logger.info "[SyncToSharePoint] Uploaded new attachment: #{filename} (#{content_hash[0..7]})"
             created += 1
-            # TODO: Upload to SharePoint and set sharepoint_file_id/sharepoint_path
-            # For now, just track the attachment - upload can be done in a separate job
           end
 
           uploaded += 1
@@ -163,5 +162,62 @@ class SyncEmailsToSharePointJob < ApplicationJob
       # Use configured user emails
       sync_config["user_emails"] || []
     end
+  end
+
+  def upload_attachment_to_sharepoint(client, filename, content, content_type, file_size, email_date)
+    # Check SharePoint configuration (TEEEM's single SharePoint)
+    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    unless sp_config
+      raise "SharePoint not configured. Please configure TEEEM's SharePoint site and drive."
+    end
+
+    # Use TEEEM's SharePoint credential for upload
+    teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
+
+    # Build folder path: /Email Attachments/{org_name}/{year}/{month}
+    folder_path = build_folder_path(email_date)
+
+    # Build filename: {content_hash}_{original_filename}
+    content_hash = Attachment.compute_hash(content)
+    hash_prefix = content_hash[0..7]  # First 8 chars
+    safe_filename = sanitize_filename(filename)
+    final_filename = "#{hash_prefix}_#{safe_filename}"
+
+    # Upload based on size (to TEEEM's SharePoint)
+    if teeem_client.large_file?(file_size)
+      # Large file upload (>= 4MB)
+      Rails.logger.info "[SyncToSharePoint] Large file detected (#{file_size} bytes), using upload session"
+
+      session = teeem_client.create_upload_session(
+        sp_config[:site_id],
+        sp_config[:drive_id],
+        folder_path,
+        final_filename
+      )
+
+      result = teeem_client.upload_large_file(session["uploadUrl"], content)
+    else
+      # Small file upload (< 4MB)
+      result = teeem_client.upload_file_content(
+        sp_config[:site_id],
+        sp_config[:drive_id],
+        folder_path,
+        final_filename,
+        content
+      )
+    end
+
+    result
+  end
+
+  def build_folder_path(email_date)
+    year = email_date.year
+    month = email_date.strftime("%m")
+    "#{@credential.attachment_root_path}/#{year}/#{month}"
+  end
+
+  def sanitize_filename(filename)
+    # Remove or replace invalid SharePoint characters: <>:"/\|?*
+    filename.gsub(/[<>:"\/\\|?*]/, "_")
   end
 end

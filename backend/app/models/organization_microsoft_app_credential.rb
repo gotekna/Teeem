@@ -5,6 +5,7 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   # Supports MULTIPLE Microsoft 365 tenants (Tekna, 100xBestLife, Homes of Hope, Love Your World)
 
   belongs_to :setup_by, class_name: "User", optional: true
+  has_many :attachments, dependent: :nullify
 
   # Encrypt sensitive data
   encrypts :client_secret
@@ -149,5 +150,33 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   rescue StandardError => e
     Rails.logger.error "[MicrosoftApp] Error listing users: #{e.message}"
     []
+  end
+
+  # SharePoint configuration helpers
+  # TEEEM's single SharePoint config (all orgs store attachments here)
+  # Use the first credential with SharePoint configured (should be TEEEM's)
+  def self.teeem_sharepoint_config
+    configured = active.find_by("sharepoint_site_id IS NOT NULL AND sharepoint_drive_id IS NOT NULL")
+    return nil unless configured
+
+    {
+      site_id: configured.sharepoint_site_id,
+      drive_id: configured.sharepoint_drive_id,
+      drive_name: configured.sharepoint_drive_name,
+      credential: configured
+    }
+  end
+
+  def self.sharepoint_configured?
+    teeem_sharepoint_config.present?
+  end
+
+  # Instance method for backward compatibility
+  def sharepoint_configured?
+    self.class.sharepoint_configured?
+  end
+
+  def attachment_root_path
+    "Email Attachments/#{name}"
   end
 end

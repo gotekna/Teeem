@@ -13,6 +13,7 @@ class EmailWarehouse < ApplicationRecord
   # SSoT associations
   has_many :email_recipients, dependent: :destroy
   has_many :email_attachments, dependent: :destroy
+  has_many :attachments, through: :email_attachments
 
   # Direction constants (for SSoT tracking)
   DIRECTIONS = %w[sent received cc bcc].freeze
