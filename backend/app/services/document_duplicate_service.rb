@@ -16,7 +16,7 @@ class DocumentDuplicateService
     duplicates = []
     scope.each do |dup|
       docs = CorporateCompanyDocument.where(title: dup.title, company_id: dup.company_id)
-                           .includes(:company)
+                           .includes(:corporate_company)
                            .order(:created_at)
       duplicates << {
         title: dup.title,
@@ -32,7 +32,7 @@ class DocumentDuplicateService
 
   # Analyze a set of duplicate documents and get AI recommendation
   def self.analyze_duplicates(document_ids)
-    documents = CorporateCompanyDocument.where(id: document_ids).includes(:company)
+    documents = CorporateCompanyDocument.where(id: document_ids).includes(:corporate_company)
     return { error: "No documents found" } if documents.empty?
     return { error: "Need at least 2 documents to compare" } if documents.count < 2
 
@@ -437,7 +437,7 @@ class DocumentDuplicateService
 
   # Merge multiple PDFs into one combined PDF
   def self.merge_documents(document_ids, keep_id)
-    docs = CorporateCompanyDocument.where(id: document_ids).includes(:company)
+    docs = CorporateCompanyDocument.where(id: document_ids).includes(:corporate_company)
     return { error: "No documents found" } if docs.empty?
 
     # Determine which doc to keep (use provided keep_id or newest)
@@ -609,7 +609,7 @@ class DocumentDuplicateService
   def self.find_marked_for_deletion(company_id: nil)
     scope = CorporateCompanyDocument.where("title LIKE ?", "#{DELETE_PREFIX}%")
     scope = scope.where(company_id: company_id) if company_id.present?
-    scope.includes(:company).map { |d| document_summary(d) }
+    scope.includes(:corporate_company).map { |d| document_summary(d) }
   end
 
   # Restore a document marked for deletion (remove DELETE prefix)

@@ -16,7 +16,7 @@ class ComplianceCalendarService
       .joins(:company)
       .left_joins(company: :company_group)
       .where("company_compliance_items.due_date BETWEEN ? AND ?", @start_date, @end_date)
-      .includes(:company)
+      .includes(:corporate_company)
 
     items = items.where(company_id: @company_id) if @company_id.present?
     items = items.where(companies: { company_group_id: @company_group_id }) if @company_group_id.present?
@@ -56,7 +56,7 @@ class ComplianceCalendarService
       .joins(:company)
       .left_joins(company: :company_group)
       .where("company_compliance_items.due_date < ? AND company_compliance_items.completed = ?", Date.today, false)
-      .includes(:company)
+      .includes(:corporate_company)
       .order(:due_date)
   end
 
@@ -66,7 +66,7 @@ class ComplianceCalendarService
       .joins(:company)
       .left_joins(company: :company_group)
       .where("company_compliance_items.due_date BETWEEN ? AND ? AND company_compliance_items.completed = ?", Date.today, days.days.from_now, false)
-      .includes(:company)
+      .includes(:corporate_company)
       .order(:due_date)
   end
 
@@ -197,7 +197,7 @@ class ComplianceCalendarService
         .where(due_date: target_date, completed: false)
         .where(last_reminder_sent_at: nil)
         .or(CorporateCompanyComplianceItem.where(due_date: target_date, completed: false).where("last_reminder_sent_at < ?", 7.days.ago))
-        .includes(:company)
+        .includes(:corporate_company)
 
       items.find_each do |item|
         # Queue email notification

@@ -81,7 +81,7 @@ class CompanyImportService
 
   # Generate health report for all companies
   def self.health_report
-    companies = CorporateCompany.includes(:company_directors, :bank_accounts, :company_shareholdings, :company_compliance_items).all
+    companies = CorporateCompany.includes(:corporate_company_directorships, :bank_accounts, :corporate_company_shareholdings, :company_compliance_items).all
 
     companies.map do |company|
       issues = []
@@ -90,7 +90,7 @@ class CompanyImportService
       # Critical issues
       issues << "Missing ACN" if company.acn.blank?
       issues << "Missing ABN" if company.abn.blank?
-      issues << "No current directors" if company.company_directors.current.empty?
+      issues << "No current directors" if company.corporate_company_directorships.current.empty?
       issues << "Missing registered office address" if company.registered_office_address.blank?
 
       # Warnings
@@ -98,8 +98,8 @@ class CompanyImportService
       warnings << "No bank accounts" if company.bank_accounts.empty?
       warnings << "No shareholders recorded" if company.corporate_company_shareholdings.empty?
       warnings << "Missing date of incorporation" if company.date_incorporated.blank?
-      warnings << "No secretary appointed" unless company.company_directors.current.any? { |d| d.position&.include?("secretary") }
-      warnings << "No public officer appointed" unless company.company_directors.current.any? { |d| d.position&.include?("public_officer") }
+      warnings << "No secretary appointed" unless company.corporate_company_directorships.current.any? { |d| d.position&.include?("secretary") }
+      warnings << "No public officer appointed" unless company.corporate_company_directorships.current.any? { |d| d.position&.include?("public_officer") }
       warnings << "Missing corporate key" if company.corporate_key.blank?
       warnings << "Missing ASIC credentials" if company.asic_username.blank?
       warnings << "Review date overdue" if company.review_date.present? && company.review_date < Date.today
@@ -133,7 +133,7 @@ class CompanyImportService
         health_status: health_status,
         issues: issues,
         warnings: warnings,
-        director_count: company.company_directors.current.count,
+        director_count: company.corporate_company_directorships.current.count,
         bank_account_count: company.bank_accounts.where(status: "active").count,
         shareholder_count: company.corporate_company_shareholdings.count,
         has_acn: company.acn.present?,
@@ -391,10 +391,10 @@ class CompanyImportService
 
       next unless contact
 
-      existing = company.company_directors.find_by(contact: contact, is_current: true)
+      existing = company.corporate_company_directorships.find_by(contact: contact, is_current: true)
       next if existing
 
-      company.company_directors.find_or_create_by!(
+      company.corporate_company_directorships.find_or_create_by!(
         contact: contact,
         position: dir_data[:position],
         appointment_date: dir_data[:date] || company.date_incorporated,

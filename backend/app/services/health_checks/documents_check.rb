@@ -23,7 +23,7 @@ module HealthChecks
     # Documents pending AI verification
     def check_needs_ai_verification
       docs = CorporateCompanyDocument.where(ai_verification_status: [ nil, "pending" ])
-                           .includes(:company)
+                           .includes(:corporate_company)
                            .limit(100)
 
       build_result(
@@ -39,7 +39,7 @@ module HealthChecks
     # Documents flagged for user validation
     def check_needs_user_validation
       docs = CorporateCompanyDocument.where(validation_required: true, user_validated_at: nil)
-                           .includes(:company)
+                           .includes(:corporate_company)
                            .limit(100)
 
       build_result(
@@ -151,7 +151,7 @@ module HealthChecks
     # Documents missing date
     def check_documents_missing_date
       docs = CorporateCompanyDocument.where(document_date: nil)
-                           .includes(:company)
+                           .includes(:corporate_company)
                            .limit(100)
 
       build_result(

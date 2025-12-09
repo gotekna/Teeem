@@ -249,9 +249,9 @@ class CaseWarehouseService
 
     {
       contact: contact,
-      directorships: contact.company_directors.includes(:company),
+      directorships: contact.corporate_company_directorships.includes(:corporate_company),
       shareholdings: CorporateCompanyShareholding.where(shareholder_type: "Contact", shareholder_id: contact_id)
-                                        .includes(:company),
+                                        .includes(:corporate_company),
       relationships: contact.contact_relationships.includes(:related_contact),
       documents: CorporateCompanyDocument.where(contact_id: contact_id),
       emails: EmailWarehouse.involving_email(contact.email),
