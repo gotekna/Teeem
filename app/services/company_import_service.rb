@@ -81,7 +81,7 @@ class CompanyImportService
 
   # Generate health report for all companies
   def self.health_report
-    companies = CorporateCompany.includes(:corporate_company_directors, :bank_accounts, :corporate_company_shareholdings, :company_compliance_items).all
+    companies = CorporateCompany.includes(:corporate_company_directors, :bank_accounts, :corporate_company_shareholdings, :corporate_company_compliance_items).all
 
     companies.map do |company|
       issues = []
@@ -106,10 +106,10 @@ class CompanyImportService
       warnings << "Missing principal place of business" if company.principal_place_of_business.blank?
 
       # Compliance warnings
-      overdue = company.company_compliance_items.where("due_date < ? AND completed = ?", Date.today, false).count
+      overdue = company.corporate_company_compliance_items.where("due_date < ? AND completed = ?", Date.today, false).count
       warnings << "#{overdue} overdue compliance items" if overdue > 0
 
-      upcoming = company.company_compliance_items.where("due_date BETWEEN ? AND ?", Date.today, 30.days.from_now).where(completed: false).count
+      upcoming = company.corporate_company_compliance_items.where("due_date BETWEEN ? AND ?", Date.today, 30.days.from_now).where(completed: false).count
       warnings << "#{upcoming} compliance items due within 30 days" if upcoming > 0
 
       # Calculate health score
