@@ -1,3 +1,12 @@
+# SSoT Architecture:
+# - OAuth tokens: XeroCredential (access_token, refresh_token, expires_at, status)
+# - Sync timing: XeroSyncStatus (last_synced_at, next_sync_at per sync_type)
+# - Company mapping: This model (which company links to which Xero tenant)
+#
+# DEPRECATED columns on this model (kept for backwards compatibility):
+# - last_sync_at -> Use XeroSyncStatus.last_synced_at instead
+# - last_sync_error -> Use XeroSyncStatus.last_error instead
+#
 class CorporateCompanyXeroConnection < ApplicationRecord
   # Associations
   belongs_to :corporate_company, foreign_key: "company_id"
@@ -12,6 +21,7 @@ class CorporateCompanyXeroConnection < ApplicationRecord
   scope :connected, -> { where(connection_status: "connected") }
   scope :disconnected, -> { where(connection_status: "disconnected") }
   scope :with_errors, -> { where(connection_status: "error") }
+  # DEPRECATED: Use XeroSyncStatus for sync timing checks instead
   scope :needs_sync, -> { where("last_sync_at IS NULL OR last_sync_at < ?", 7.days.ago) }
 
   # Callbacks
@@ -99,17 +109,38 @@ class CorporateCompanyXeroConnection < ApplicationRecord
     )
   end
 
-  def sync_successful!
+  # SSoT: Delegates sync tracking to XeroSyncStatus
+  # The last_sync_at column on this model is DEPRECATED - use XeroSyncStatus instead
+  def sync_successful!(sync_type: "invoices")
+    # Update local status for connection health only
     update!(
       connection_status: "connected",
-      last_sync_at: Time.current,
+      last_sync_at: Time.current,  # DEPRECATED: kept for backwards compatibility
       last_sync_error: nil
+    )
+
+    # SSoT: Update the authoritative sync status record
+    XeroSyncStatus.complete_sync!(
+      sync_type,
+      tenant_id: xero_tenant_id,
+      records_synced: 0,  # Caller should use XeroSyncStatus.complete_sync! directly with actual count
+      next_sync_at: 30.minutes.from_now
     )
   end
 
+  # SSoT: Read from XeroSyncStatus, fallback to deprecated local column
   def days_since_last_sync
-    return nil unless last_sync_at.present?
-    ((Time.current - last_sync_at) / 1.day).to_i
+    # Try SSoT first
+    sync_status = XeroSyncStatus.for_tenant(xero_tenant_id).successful.order(last_synced_at: :desc).first
+    last_sync = sync_status&.last_synced_at || last_sync_at  # Fallback to deprecated column
+    return nil unless last_sync.present?
+    ((Time.current - last_sync) / 1.day).to_i
+  end
+
+  # SSoT: Get the actual last sync time from XeroSyncStatus
+  def last_synced_at
+    sync_status = XeroSyncStatus.for_tenant(xero_tenant_id).successful.order(last_synced_at: :desc).first
+    sync_status&.last_synced_at || last_sync_at  # Fallback to deprecated column
   end
 
   # Refresh tokens using XeroApiClient (delegates to credential)

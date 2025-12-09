@@ -1,3 +1,16 @@
+# SSoT (Single Source of Truth) for Xero OAuth tokens and connection health.
+#
+# SSoT Architecture:
+# - OAuth tokens: This model (access_token, refresh_token, expires_at)
+# - Connection health: This model (status: connected/degraded/disconnected)
+# - Sync timing: XeroSyncStatus (NOT this model)
+# - Company mapping: CorporateCompanyXeroConnection
+#
+# Key status values:
+# - connected: Healthy, tokens valid and working
+# - degraded: Refresh failed but still retrying (1-2 failures)
+# - disconnected: Requires user re-authentication (3+ failures or fatal error)
+#
 class XeroCredential < ApplicationRecord
   # Associations - SSoT for OAuth tokens
   has_many :corporate_company_xero_connections, dependent: :nullify, foreign_key: :xero_credential_id
