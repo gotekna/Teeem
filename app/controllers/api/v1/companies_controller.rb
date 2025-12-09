@@ -451,7 +451,7 @@ module Api
           by_folder: documents.group(:folder).count,
           by_document_type: documents.group(:document_type).count,
           by_ai_status: documents.group(:ai_verification_status).count,
-          with_files: documents.where.not(cloudinary_public_id: [ nil, "" ]).count,
+          with_files: documents.where.not(file_url: [ nil, "" ]).count,
           verified: documents.where(ai_verification_status: "verified").count,
           needs_review: documents.where(ai_verification_status: %w[mismatch needs_review pending]).count,
           latest_upload: documents.maximum(:created_at),
@@ -497,7 +497,7 @@ module Api
 
         # File types (CAD/BIM from job_documents if this company has associated jobs)
         # For now, just company documents file breakdown
-        file_extensions = documents.where.not(cloudinary_public_id: nil)
+        file_extensions = documents.where.not(file_url: nil)
           .pluck(:title)
           .map { |t| File.extname(t.to_s).downcase }
           .compact
@@ -550,7 +550,7 @@ module Api
         }
 
         # 2. Documents with Files
-        docs_with_files = documents.where.not(cloudinary_public_id: [ nil, "" ]).count
+        docs_with_files = documents.where.not(file_url: [ nil, "" ]).count
         file_rate = total_docs > 0 ? (docs_with_files.to_f / total_docs * 100).round(1) : 100
 
         checks << {
@@ -762,7 +762,7 @@ module Api
           :encrypted_recovery_answer, :review_date, :gst_registration_status, :accounting_method,
           :shares_on_issue, :carry_forward_losses, :franking_balance, :amount_owing, :entity_type,
           :bank_name, :bank_bsb, :bank_account_number, :bank_account_name, :bank_start_date, :bank_end_date,
-          :consolidation_parent_id, :company_group_id, :parent_company_id,
+          :consolidation_parent_id, :company_group_id, :parent_company_id, :business_names,
           metadata: {},
           previous_names: []
         )
@@ -802,6 +802,8 @@ module Api
           contact_email: membership.contact&.email,
           contact_entity_type: membership.contact&.entity_type,
           membership_type: membership.membership_type,
+          beneficiary_type: membership.beneficiary_type,
+          class_description: membership.class_description,
           can_view_confidential: membership.can_view_confidential,
           is_active: membership.is_active
         }

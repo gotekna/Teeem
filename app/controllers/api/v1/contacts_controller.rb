@@ -383,6 +383,23 @@ module Api
             linked_company_data[:directors_count] = linked_company.company_directors.current.count
             linked_company_data[:shareholdings_count] = linked_company.company_shareholdings.count
             linked_company_data[:documents_count] = linked_company.company_documents.count
+            # SSoT: Include bank accounts from the bank_accounts table
+            linked_company_data[:bank_accounts] = linked_company.bank_accounts.active.map do |ba|
+              {
+                id: ba.id,
+                institution_name: ba.institution_name,
+                bsb: ba.bsb,
+                account_number: ba.account_number,
+                account_name: ba.account_name,
+                bank_code: ba.bank_code,
+                xero_account_id: ba.xero_account_id,
+                status: ba.status,
+                display_name: ba.display_name,
+                formatted_bsb: ba.formatted_bsb,
+                linked_to_xero: ba.linked_to_xero?
+              }
+            end
+            linked_company_data[:bank_accounts_count] = linked_company.bank_accounts.active.count
           else
             # For users without corporate permission, hide corporate data
             linked_company_data[:directors] = []
@@ -390,6 +407,8 @@ module Api
             linked_company_data[:directors_count] = 0
             linked_company_data[:shareholdings_count] = 0
             linked_company_data[:documents_count] = 0
+            linked_company_data[:bank_accounts] = []
+            linked_company_data[:bank_accounts_count] = 0
           end
 
           contact_json[:linked_company] = linked_company_data
@@ -2653,6 +2672,28 @@ module Api
       rescue => e
         Rails.logger.error("Connected mailboxes error: #{e.message}")
         render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/health
+      # Quick health score for header display
+      def health
+        begin
+          checker = HealthChecks::ContactsCheck.new
+          results = checker.run_all
+
+          health_score = HealthChecks::BaseCheck.calculate_health_score(results)
+          total_issues = results.sum { |r| r[:count] || 0 }
+
+          render json: {
+            success: true,
+            health_score: health_score,
+            total_issues: total_issues,
+            checked_at: Time.current.iso8601
+          }
+        rescue => e
+          Rails.logger.error("Contacts health check error: #{e.message}")
+          render json: { success: false, health_score: nil, error: e.message }, status: :internal_server_error
+        end
       end
 
       # GET /api/v1/contacts/preview_employee_extraction

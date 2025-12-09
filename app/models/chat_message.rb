@@ -6,7 +6,10 @@ class ChatMessage < ApplicationRecord
   belongs_to :contact, optional: true
   belongs_to :legal_case, class_name: "Case", foreign_key: "case_id", optional: true
 
+  has_one_attached :file
+
   validates :content, presence: true
+  validates :message_type, inclusion: { in: %w[text image file] }, allow_nil: true
 
   scope :in_channel, ->(channel) { where(channel: channel).order(created_at: :asc) }
   scope :for_project, ->(project_id) { where(project_id: project_id).order(created_at: :asc) }

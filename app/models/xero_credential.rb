@@ -1,4 +1,7 @@
 class XeroCredential < ApplicationRecord
+  # Associations - SSoT for OAuth tokens
+  has_many :company_xero_connections, dependent: :nullify
+
   # Encrypt sensitive OAuth tokens
   encrypts :access_token
   encrypts :refresh_token
