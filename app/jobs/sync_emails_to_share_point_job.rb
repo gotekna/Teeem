@@ -66,7 +66,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
       .where(microsoft_credential_id: @credential.id)
       .where(has_attachments: true)
       .where.not(mailbox_owner_email: nil)  # Only emails with mailbox owner tracked
-      .where("received_at >= ?", 30.days.ago) # Only recent emails
+      # .where("received_at >= ?", 30.days.ago) # Time filter commented out for historical data
       .order(received_at: :desc)
       .limit(100) # Limit for performance
 
