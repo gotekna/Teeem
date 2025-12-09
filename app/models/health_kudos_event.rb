@@ -163,38 +163,68 @@ class HealthKudosEvent < ApplicationRecord
     end
 
     # Get quick wins - fixable issues with their point values
+    # Prioritizes auto-fixable issues as they provide easiest points
     def quick_wins_from_health(health_data)
       wins = []
 
+      # First, extract individual checks that are auto-fixable
       health_data[:checks]&.each do |check|
-        next unless check[:critical_issues].to_i > 0 || check[:warning_issues].to_i > 0
+        next unless check[:count].to_i > 0
 
-        if check[:critical_issues].to_i > 0
+        # Auto-fixable checks are prioritized as quick wins
+        if check[:auto_fixable] && check[:fix_type].present?
+          points_per = POINTS[check[:fix_type].to_sym] || 5
           wins << {
-            id: "critical-#{check[:foundation_id] || check[:foundation_name]}",
-            title: "#{check[:critical_issues]} critical issues in #{check[:foundation_name]}",
-            description: "Fix critical data issues",
-            count: check[:critical_issues],
-            points: check[:critical_issues] * POINTS[:critical_fix],
-            fix_type: 'review',
-            check_type: check[:foundation_name]&.downcase
-          }
-        end
-
-        if check[:warning_issues].to_i > 0
-          wins << {
-            id: "warning-#{check[:foundation_id] || check[:foundation_name]}",
-            title: "#{check[:warning_issues]} warnings in #{check[:foundation_name]}",
-            description: "Review and fix data warnings",
-            count: check[:warning_issues],
-            points: check[:warning_issues] * POINTS[:warning_fix],
-            fix_type: 'review',
-            check_type: check[:foundation_name]&.downcase
+            id: "auto-#{check[:check_type]}-#{check[:check_name]}",
+            title: "#{check[:count]} #{check[:name].downcase}",
+            description: check[:description],
+            count: check[:count],
+            points: check[:count] * points_per,
+            fix_type: check[:fix_type],
+            check_type: check[:check_type],
+            check_name: check[:check_name],
+            auto_fixable: true,
+            item_ids: check[:items]&.map { |i| i[:id] }&.compact
           }
         end
       end
 
-      wins.sort_by { |w| -w[:points] }.first(5)
+      # Then add summary-level quick wins for critical/warning issues
+      health_data[:checks]&.group_by { |c| c[:check_type] }&.each do |check_type, checks|
+        next if check_type.blank?
+
+        critical_count = checks.select { |c| c[:severity] == 'critical' }.sum { |c| c[:count].to_i }
+        warning_count = checks.select { |c| c[:severity] == 'warning' && !c[:auto_fixable] }.sum { |c| c[:count].to_i }
+
+        if critical_count > 0
+          wins << {
+            id: "critical-#{check_type}",
+            title: "#{critical_count} critical issues in #{check_type.titleize}",
+            description: "Fix critical data issues",
+            count: critical_count,
+            points: critical_count * POINTS[:critical_fix],
+            fix_type: 'review',
+            check_type: check_type,
+            auto_fixable: false
+          }
+        end
+
+        if warning_count > 0
+          wins << {
+            id: "warning-#{check_type}",
+            title: "#{warning_count} warnings in #{check_type.titleize}",
+            description: "Review and fix data warnings",
+            count: warning_count,
+            points: warning_count * POINTS[:warning_fix],
+            fix_type: 'review',
+            check_type: check_type,
+            auto_fixable: false
+          }
+        end
+      end
+
+      # Sort: auto-fixable first (easiest wins), then by points
+      wins.sort_by { |w| [w[:auto_fixable] ? 0 : 1, -w[:points]] }.first(5)
     end
 
     private
