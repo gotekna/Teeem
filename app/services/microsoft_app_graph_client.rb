@@ -388,82 +388,6 @@ class MicrosoftAppGraphClient
     size >= 4 * 1024 * 1024  # 4MB threshold
   end
 
-  private
-
-  def access_token
-    @credential.valid_access_token
-  end
-
-  def get(endpoint, params = {}, include_search: false)
-    url = "#{GRAPH_API_BASE}#{endpoint}"
-    if params.any?
-      url += "?#{URI.encode_www_form(params)}"
-      # Add empty search= for SharePoint sites enumeration
-      url += "&search=" if include_search && !params.key?("$search")
-    elsif include_search
-      url += "?search="
-    end
-
-    response = HTTP.auth("Bearer #{access_token}")
-                   .headers("Content-Type" => "application/json")
-                   .get(url)
-
-    handle_response(response)
-  end
-
-  def get_url(full_url)
-    response = HTTP.auth("Bearer #{access_token}")
-                   .headers("Content-Type" => "application/json")
-                   .get(full_url)
-
-    handle_response(response)
-  end
-
-  def post(endpoint, body)
-    url = "#{GRAPH_API_BASE}#{endpoint}"
-
-    response = HTTP.auth("Bearer #{access_token}")
-                   .headers("Content-Type" => "application/json")
-                   .post(url, json: body)
-
-    handle_response(response)
-  end
-
-  def handle_response(response)
-    if response.status.success?
-      JSON.parse(response.body.to_s)
-    else
-      error_body = JSON.parse(response.body.to_s) rescue { "error" => { "message" => response.body.to_s } }
-      error_msg = error_body.dig("error", "message") || "HTTP #{response.status}"
-
-      # Check if token expired and try to refresh
-      if response.status.code == 401
-        Rails.logger.info "[MicrosoftAppGraph] Token expired, refreshing..."
-        @credential.fetch_access_token!
-        # Retry would need to be implemented by caller
-      end
-
-      raise ApiError, "Microsoft Graph API error: #{error_msg}"
-    end
-  end
-
-  def format_drive_item(item)
-    {
-      id: item["id"],
-      name: item["name"],
-      size: item["size"],
-      created_at: item["createdDateTime"],
-      modified_at: item["lastModifiedDateTime"],
-      web_url: item["webUrl"],
-      is_folder: item["folder"].present?,
-      child_count: item.dig("folder", "childCount"),
-      mime_type: item.dig("file", "mimeType"),
-      download_url: item["@microsoft.graph.downloadUrl"],
-      parent_drive_id: item.dig("parentReference", "driveId"),
-      parent_path: item.dig("parentReference", "path")
-    }
-  end
-
   # ===== SharePoint Upload Methods =====
 
   # Upload file content to SharePoint (small files < 4MB)
@@ -569,5 +493,81 @@ class MicrosoftAppGraphClient
       folder: {},
       "@microsoft.graph.conflictBehavior": "fail"
     })
+  end
+
+  private
+
+  def access_token
+    @credential.valid_access_token
+  end
+
+  def get(endpoint, params = {}, include_search: false)
+    url = "#{GRAPH_API_BASE}#{endpoint}"
+    if params.any?
+      url += "?#{URI.encode_www_form(params)}"
+      # Add empty search= for SharePoint sites enumeration
+      url += "&search=" if include_search && !params.key?("$search")
+    elsif include_search
+      url += "?search="
+    end
+
+    response = HTTP.auth("Bearer #{access_token}")
+                   .headers("Content-Type" => "application/json")
+                   .get(url)
+
+    handle_response(response)
+  end
+
+  def get_url(full_url)
+    response = HTTP.auth("Bearer #{access_token}")
+                   .headers("Content-Type" => "application/json")
+                   .get(full_url)
+
+    handle_response(response)
+  end
+
+  def post(endpoint, body)
+    url = "#{GRAPH_API_BASE}#{endpoint}"
+
+    response = HTTP.auth("Bearer #{access_token}")
+                   .headers("Content-Type" => "application/json")
+                   .post(url, json: body)
+
+    handle_response(response)
+  end
+
+  def handle_response(response)
+    if response.status.success?
+      JSON.parse(response.body.to_s)
+    else
+      error_body = JSON.parse(response.body.to_s) rescue { "error" => { "message" => response.body.to_s } }
+      error_msg = error_body.dig("error", "message") || "HTTP #{response.status}"
+
+      # Check if token expired and try to refresh
+      if response.status.code == 401
+        Rails.logger.info "[MicrosoftAppGraph] Token expired, refreshing..."
+        @credential.fetch_access_token!
+        # Retry would need to be implemented by caller
+      end
+
+      raise ApiError, "Microsoft Graph API error: #{error_msg}"
+    end
+  end
+
+  def format_drive_item(item)
+    {
+      id: item["id"],
+      name: item["name"],
+      size: item["size"],
+      created_at: item["createdDateTime"],
+      modified_at: item["lastModifiedDateTime"],
+      web_url: item["webUrl"],
+      is_folder: item["folder"].present?,
+      child_count: item.dig("folder", "childCount"),
+      mime_type: item.dig("file", "mimeType"),
+      download_url: item["@microsoft.graph.downloadUrl"],
+      parent_drive_id: item.dig("parentReference", "driveId"),
+      parent_path: item.dig("parentReference", "path")
+    }
   end
 end
