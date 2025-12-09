@@ -100,7 +100,13 @@ class XeroAttachmentSyncService
       Rails.logger.info("[XeroAttachmentSync] Saved PDF: #{filename}")
 
       # Also upload to SharePoint
-      upload_to_sharepoint(pdf_result[:content], filename)
+      upload_result = upload_to_sharepoint(pdf_result[:content], filename)
+
+      # Update document with OneDrive file ID if upload succeeded
+      if upload_result && upload_result[:id]
+        document.update(onedrive_file_id: upload_result[:id])
+        Rails.logger.info("[XeroAttachmentSync] Updated document with OneDrive file ID: #{upload_result[:id]}")
+      end
     else
       results[:errors] << "Failed to save PDF: #{document.errors.full_messages.join(', ')}"
     end
@@ -191,7 +197,13 @@ class XeroAttachmentSyncService
       Rails.logger.info("[XeroAttachmentSync] Saved attachment: #{filename}")
 
       # Also upload to SharePoint
-      upload_to_sharepoint(download_result[:content], filename)
+      upload_result = upload_to_sharepoint(download_result[:content], filename)
+
+      # Update document with OneDrive file ID if upload succeeded
+      if upload_result && upload_result[:id]
+        document.update(onedrive_file_id: upload_result[:id])
+        Rails.logger.info("[XeroAttachmentSync] Updated document with OneDrive file ID: #{upload_result[:id]}")
+      end
     else
       results[:errors] << "Failed to save #{filename}: #{document.errors.full_messages.join(', ')}"
     end
