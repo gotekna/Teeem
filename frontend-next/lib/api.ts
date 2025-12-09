@@ -3,7 +3,7 @@
  * Fetch-based API client with authentication headers, timeouts, retry logic, and request deduplication
  */
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000').trim();
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://teeemlive-ce8e2660a615.herokuapp.com').trim();
 
 // Configuration
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
