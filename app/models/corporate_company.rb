@@ -14,7 +14,7 @@ class CorporateCompany < ApplicationRecord
   # Investments - what this company owns (as shareholder)
   has_many :investments, class_name: "CorporateCompanyShareholding", as: :shareholder, dependent: :destroy
 
-  has_many :corporate_company_directors, dependent: :destroy
+  has_many :corporate_company_directors, foreign_key: 'company_id', dependent: :destroy
   has_many :directors, through: :corporate_company_directors, source: :contact
   has_many :current_directors, -> { where(corporate_company_directors: { is_current: true }) },
            through: :corporate_company_directors, source: :contact
