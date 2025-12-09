@@ -1,4 +1,6 @@
 class CorporateCompany < ApplicationRecord
+  include SelfHealing  # Auto-fix formatting issues (ABN, ACN) and earn System kudos
+
   # Associations
   belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
   belongs_to :contact, optional: true  # SSoT - links Company to Contact identity store

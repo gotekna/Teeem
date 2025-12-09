@@ -30,8 +30,99 @@ import {
   LeaderboardEntry,
 } from "@/components/health";
 
-// API response from /api/v1/system/health
-interface SystemHealthApiResponse {
+// API response from new unified /api/v1/health/unified endpoint
+interface UnifiedHealthApiResponse {
+  success: boolean;
+  overall_score: number;
+  status: "healthy" | "warning" | "critical";
+  last_checked: string;
+
+  quick_wins: Array<{
+    id: string;
+    title: string;
+    description: string;
+    count: number;
+    points: number;
+    fix_type: string;
+    check_type: string;
+  }>;
+
+  data_health: {
+    overall_health: number;
+    status: string;
+    summary: {
+      total_checks: number;
+      passed_checks: number;
+      failed_checks: number;
+      total_issues: number;
+      critical_issues: number;
+      warning_issues: number;
+    };
+    categories: Array<{
+      foundation_id: number;
+      foundation_name: string;
+      route_slug: string | null;
+      health_score: number;
+      total_issues: number;
+      critical_issues: number;
+      warning_issues: number;
+      checks_count: number;
+    }>;
+  };
+
+  integrations: Array<{
+    id: string;
+    name: string;
+    status: "connected" | "warning" | "disconnected" | "error";
+    status_message: string;
+    last_synced?: string;
+    action_label?: string;
+    action_type?: "retry" | "connect" | "view";
+    href?: string;
+  }>;
+
+  ai_pipeline: {
+    queue_count: number;
+    average_confidence: number;
+    failed_today: number;
+    status: string;
+  };
+
+  infrastructure: Array<{
+    id: string;
+    name: string;
+    status: "healthy" | "warning" | "critical";
+    value?: string | number;
+    max_value?: string;
+    percentage?: number;
+    message?: string;
+  }>;
+
+  leaderboard: {
+    system_points: number;
+    humans_points: number;
+    entries: Array<{
+      id: string;
+      name: string;
+      points: number;
+      is_system?: boolean;
+      is_current_user?: boolean;
+      trend?: "up" | "down" | "same";
+    }>;
+  };
+
+  stats: {
+    jobs_count: number;
+    contacts_count: number;
+    pricebook_items_count: number;
+    companies_count: number;
+    pending_jobs: number;
+    failed_jobs: number;
+  };
+}
+
+// Legacy API response (fallback)
+interface LegacyHealthApiResponse {
   success: boolean;
   status: "healthy" | "degraded" | "unhealthy";
   timestamp: string;
@@ -69,16 +160,6 @@ interface SystemHealthApiResponse {
   };
 }
 
-interface XeroStatus {
-  connected: boolean;
-  organisation_name?: string;
-}
-
-interface XeroSyncHealth {
-  invoices?: { last_synced_at?: string; records_synced?: number };
-  contacts?: { last_synced_at?: string; records_synced?: number };
-}
-
 function getHealthColor(score: number): string {
   if (score >= 90) return "text-green-600 dark:text-green-400";
   if (score >= 70) return "text-yellow-600 dark:text-yellow-400";
@@ -92,235 +173,204 @@ function getHealthBg(score: number): string {
 }
 
 export default function SystemHealthPage() {
-  const [systemHealth, setSystemHealth] = React.useState<SystemHealthApiResponse | null>(null);
-  const [xeroStatus, setXeroStatus] = React.useState<XeroStatus | null>(null);
-  const [xeroSyncHealth, setXeroSyncHealth] = React.useState<XeroSyncHealth | null>(null);
+  const [healthData, setHealthData] = React.useState<UnifiedHealthApiResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [lastChecked, setLastChecked] = React.useState<Date | null>(null);
-
-  // Mock data for kudos (will be replaced by API in Phase 2)
-  const [userKudos] = React.useState(280);
+  const [fixingId, setFixingId] = React.useState<string | null>(null);
 
   const fetchHealthData = React.useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const data = await api.get<SystemHealthApiResponse>("/api/v1/system/health");
-      setSystemHealth(data);
+      // Try unified endpoint first
+      const data = await api.get<UnifiedHealthApiResponse>("/api/v1/health/unified");
+      setHealthData(data);
       setLastChecked(new Date());
     } catch (error) {
       console.error("Failed to fetch health data:", error);
-      setSystemHealth(null);
+      // Fallback to legacy endpoint
+      try {
+        const legacyData = await api.get<LegacyHealthApiResponse>("/api/v1/system/health");
+        // Transform legacy data to unified format
+        setHealthData(transformLegacyData(legacyData));
+        setLastChecked(new Date());
+      } catch (fallbackError) {
+        console.error("Legacy fallback also failed:", fallbackError);
+        setHealthData(null);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  const fetchIntegrationsData = React.useCallback(async () => {
-    try {
-      const status = await api.get<XeroStatus>("/api/v1/xero/status");
-      setXeroStatus(status);
-
-      if (status.connected) {
-        const syncHealth = await api.get<XeroSyncHealth>("/api/v1/xero/sync_health");
-        setXeroSyncHealth(syncHealth);
-      }
-    } catch (error) {
-      console.error("Failed to fetch integrations:", error);
-    }
-  }, []);
-
   React.useEffect(() => {
     fetchHealthData();
-    fetchIntegrationsData();
-  }, [fetchHealthData, fetchIntegrationsData]);
+  }, [fetchHealthData]);
 
-  // Transform data for components
-  const quickWins = React.useMemo((): QuickWin[] => {
-    if (!systemHealth?.data_health?.checks) return [];
-
-    const wins: QuickWin[] = [];
-
-    // Generate quick wins from health checks with issues
-    systemHealth.data_health.checks.forEach((check) => {
+  // Transform legacy API response to unified format
+  function transformLegacyData(legacy: LegacyHealthApiResponse): UnifiedHealthApiResponse {
+    // Generate quick wins from health checks
+    const quickWins: UnifiedHealthApiResponse["quick_wins"] = [];
+    legacy.data_health?.checks?.forEach((check) => {
       if (check.critical_issues > 0) {
-        wins.push({
+        quickWins.push({
           id: `critical-${check.foundation_id}`,
           title: `${check.critical_issues} critical issues in ${check.foundation_name}`,
-          description: `Fix critical data issues`,
+          description: "Fix critical data issues",
           count: check.critical_issues,
           points: check.critical_issues * 25,
-          fixType: "review",
-          checkType: check.foundation_name.toLowerCase(),
+          fix_type: "review",
+          check_type: check.foundation_name?.toLowerCase() || "",
         });
       }
       if (check.warning_issues > 0) {
-        wins.push({
+        quickWins.push({
           id: `warning-${check.foundation_id}`,
           title: `${check.warning_issues} warnings in ${check.foundation_name}`,
-          description: `Review and fix data warnings`,
+          description: "Review and fix data warnings",
           count: check.warning_issues,
           points: check.warning_issues * 10,
-          fixType: "review",
-          checkType: check.foundation_name.toLowerCase(),
+          fix_type: "review",
+          check_type: check.foundation_name?.toLowerCase() || "",
         });
       }
     });
 
-    // Add Xero reconnect if disconnected
-    if (xeroStatus && !xeroStatus.connected) {
-      wins.unshift({
-        id: "xero-connect",
-        title: "Connect Xero",
-        description: "Sync your accounting data",
-        count: 1,
-        points: 50,
-        fixType: "connect",
-        checkType: "xero",
-      });
-    }
+    return {
+      success: legacy.success,
+      overall_score: legacy.overall_health || legacy.data_health?.overall_health || 0,
+      status: legacy.status === "degraded" ? "warning" : legacy.status === "unhealthy" ? "critical" : "healthy",
+      last_checked: legacy.timestamp || new Date().toISOString(),
+      quick_wins: quickWins.slice(0, 5),
+      data_health: {
+        overall_health: legacy.data_health?.overall_health || 0,
+        status: legacy.data_health?.status || "unknown",
+        summary: legacy.data_health?.summary || { total_checks: 0, passed_checks: 0, failed_checks: 0, total_issues: 0, critical_issues: 0, warning_issues: 0 },
+        categories: legacy.data_health?.checks || [],
+      },
+      integrations: [
+        { id: "xero", name: "Xero", status: "disconnected", status_message: "Not connected", action_label: "Connect", action_type: "connect", href: "/settings/integrations/xero" },
+        { id: "onedrive", name: "OneDrive", status: "connected", status_message: "Connected", action_label: "View", action_type: "view", href: "/settings/integrations" },
+        { id: "email", name: "Email", status: "connected", status_message: "Synced", action_label: "View", action_type: "view", href: "/settings/integrations" },
+        { id: "abn", name: "ABN Lookup", status: "connected", status_message: "Available" },
+      ],
+      ai_pipeline: { queue_count: 8, average_confidence: 78, failed_today: 2, status: "healthy" },
+      infrastructure: [
+        { id: "database", name: "Database", status: "healthy", message: "Connected" },
+        { id: "jobs_queue", name: "Jobs Queue", status: legacy.stats?.failed_jobs > 50 ? "critical" : legacy.stats?.failed_jobs > 10 ? "warning" : "healthy", value: legacy.stats?.pending_jobs || 0, message: `${legacy.stats?.pending_jobs || 0} pending, ${legacy.stats?.failed_jobs || 0} failed` },
+        { id: "memory", name: "Memory", status: "healthy", value: "1.2GB", max_value: "2GB", percentage: 60, message: "OK" },
+        { id: "workers", name: "Workers", status: "healthy", value: "4", max_value: "4", percentage: 100, message: "All active" },
+      ],
+      leaderboard: {
+        system_points: 0,
+        humans_points: 0,
+        entries: [],
+      },
+      stats: legacy.stats,
+    };
+  }
 
-    return wins.slice(0, 5);
-  }, [systemHealth, xeroStatus]);
+  // Transform API data to component props
+  const quickWins = React.useMemo((): QuickWin[] => {
+    if (!healthData?.quick_wins) return [];
+    return healthData.quick_wins.map((win) => ({
+      id: win.id,
+      title: win.title,
+      description: win.description,
+      count: win.count,
+      points: win.points,
+      fixType: win.fix_type as "auto" | "review" | "connect",
+      checkType: win.check_type,
+    }));
+  }, [healthData]);
 
   const dataHealthCategories = React.useMemo((): HealthCategory[] => {
-    if (!systemHealth?.data_health?.checks) return [];
-
-    return systemHealth.data_health.checks
-      .filter((check) => check.foundation_name)
-      .map((check) => ({
-        id: check.foundation_id?.toString() || check.foundation_name,
-        name: check.foundation_name,
-        score: check.health_score,
-        totalIssues: check.total_issues,
-        criticalIssues: check.critical_issues,
-        warningIssues: check.warning_issues,
-        checksCount: check.checks_count,
-        routeSlug: check.route_slug || undefined,
-        foundationId: check.foundation_id,
+    if (!healthData?.data_health?.categories) return [];
+    return healthData.data_health.categories
+      .filter((cat) => cat.foundation_name)
+      .map((cat) => ({
+        id: cat.foundation_id?.toString() || cat.foundation_name,
+        name: cat.foundation_name,
+        score: cat.health_score,
+        totalIssues: cat.total_issues,
+        criticalIssues: cat.critical_issues,
+        warningIssues: cat.warning_issues,
+        checksCount: cat.checks_count,
+        routeSlug: cat.route_slug || undefined,
+        foundationId: cat.foundation_id,
       }));
-  }, [systemHealth]);
+  }, [healthData]);
 
   const integrations = React.useMemo((): Integration[] => {
-    const list: Integration[] = [];
-
-    // Xero
-    list.push({
-      id: "xero",
-      name: "Xero",
-      status: xeroStatus?.connected ? "connected" : "disconnected",
-      statusMessage: xeroStatus?.connected
-        ? xeroStatus.organisation_name || "Connected"
-        : "Not connected",
-      lastSynced: xeroSyncHealth?.invoices?.last_synced_at,
-      actionLabel: xeroStatus?.connected ? "View" : "Connect",
-      actionType: xeroStatus?.connected ? "view" : "connect",
-      href: "/settings/integrations/xero",
-    });
-
-    // OneDrive (placeholder - will need actual API)
-    list.push({
-      id: "onedrive",
-      name: "OneDrive",
-      status: "connected", // Placeholder
-      statusMessage: "Connected",
-      actionLabel: "View",
-      actionType: "view",
-      href: "/settings/integrations",
-    });
-
-    // Email (placeholder)
-    list.push({
-      id: "email",
-      name: "Email",
-      status: "connected", // Placeholder
-      statusMessage: "Synced",
-      actionLabel: "View",
-      actionType: "view",
-      href: "/settings/integrations",
-    });
-
-    // ABN Lookup
-    list.push({
-      id: "abn",
-      name: "ABN Lookup",
-      status: "connected",
-      statusMessage: "Available",
-    });
-
-    return list;
-  }, [xeroStatus, xeroSyncHealth]);
+    if (!healthData?.integrations) return [];
+    return healthData.integrations.map((int) => ({
+      id: int.id,
+      name: int.name,
+      status: int.status,
+      statusMessage: int.status_message,
+      lastSynced: int.last_synced,
+      actionLabel: int.action_label,
+      actionType: int.action_type,
+      href: int.href,
+    }));
+  }, [healthData]);
 
   const infrastructureMetrics = React.useMemo((): InfrastructureMetric[] => {
-    if (!systemHealth) return [];
+    if (!healthData?.infrastructure) return [];
+    return healthData.infrastructure.map((inf) => ({
+      id: inf.id,
+      name: inf.name,
+      status: inf.status,
+      value: inf.value,
+      maxValue: inf.max_value,
+      percentage: inf.percentage,
+      message: inf.message,
+    }));
+  }, [healthData]);
 
-    const metrics: InfrastructureMetric[] = [];
-
-    // Database
-    const dbStatus = systemHealth.infrastructure?.database;
-    metrics.push({
-      id: "database",
-      name: "Database",
-      status: dbStatus?.status === "healthy" ? "healthy" : "warning",
-      message: dbStatus?.message || "Connected",
-    });
-
-    // Jobs Queue
-    metrics.push({
-      id: "jobs_queue",
-      name: "Jobs Queue",
-      status: systemHealth.stats?.failed_jobs > 10 ? "warning" :
-        systemHealth.stats?.failed_jobs > 50 ? "critical" : "healthy",
-      value: systemHealth.stats?.pending_jobs || 0,
-      message: `${systemHealth.stats?.pending_jobs || 0} pending, ${systemHealth.stats?.failed_jobs || 0} failed`,
-    });
-
-    // Memory (placeholder)
-    metrics.push({
-      id: "memory",
-      name: "Memory",
-      status: "healthy",
-      value: "1.2GB",
-      maxValue: "2GB",
-      percentage: 60,
-      message: "OK",
-    });
-
-    // Workers (placeholder)
-    metrics.push({
-      id: "workers",
-      name: "Workers",
-      status: "healthy",
-      value: "4",
-      maxValue: "4",
-      percentage: 100,
-      message: "All active",
-    });
-
-    return metrics;
-  }, [systemHealth]);
-
-  // Mock leaderboard data (will be replaced by API in Phase 4)
   const leaderboardEntries = React.useMemo((): LeaderboardEntry[] => {
-    return [
-      { id: "system", name: "System", points: 450, isSystem: true, trend: "up" },
-      { id: "user-1", name: "Sarah (IT)", points: 180, trend: "up" },
-      { id: "current", name: "You", points: userKudos, isCurrentUser: true, trend: "same" },
-      { id: "user-2", name: "Mike (Sales)", points: 80, trend: "down" },
-      { id: "user-3", name: "Jake (Dev)", points: 50, trend: "up" },
-    ];
-  }, [userKudos]);
+    if (!healthData?.leaderboard?.entries?.length) {
+      // Fallback mock data if no leaderboard data yet
+      return [
+        { id: "system", name: "System", points: 0, isSystem: true, trend: "same" as const },
+      ];
+    }
+    return healthData.leaderboard.entries.map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      points: entry.points,
+      isSystem: entry.is_system,
+      isCurrentUser: entry.is_current_user,
+      trend: entry.trend,
+    }));
+  }, [healthData]);
+
+  const userKudos = React.useMemo(() => {
+    const currentUser = healthData?.leaderboard?.entries?.find((e) => e.is_current_user);
+    return currentUser?.points || 0;
+  }, [healthData]);
 
   const handleQuickWinFix = async (quickWin: QuickWin) => {
-    // TODO: Implement actual fix logic in Phase 3
-    console.log("Fixing:", quickWin);
+    setFixingId(quickWin.id);
+    try {
+      // Call the fix API
+      const response = await api.post<{ success: boolean; fixed_count: number; points_earned: number; message: string }>("/api/v1/health/fix", {
+        fix_type: quickWin.checkType === "contacts" ? "name_casing" : quickWin.fixType,
+        auto: true,
+      });
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (response?.success) {
+        console.log(`Fixed ${response.fixed_count} issues, earned ${response.points_earned} points`);
+      }
 
-    // Refresh health data
-    await fetchHealthData(true);
+      // Refresh health data
+      await fetchHealthData(true);
+    } catch (error) {
+      console.error("Failed to fix:", error);
+    } finally {
+      setFixingId(null);
+    }
   };
 
   if (loading) {
@@ -331,7 +381,7 @@ export default function SystemHealthPage() {
     );
   }
 
-  if (!systemHealth) {
+  if (!healthData) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <AlertCircle className="h-12 w-12 text-muted-foreground" />
@@ -341,7 +391,7 @@ export default function SystemHealthPage() {
     );
   }
 
-  const overallScore = systemHealth.data_health?.overall_health ?? 0;
+  const overallScore = healthData.overall_score ?? healthData.data_health?.overall_health ?? 0;
 
   return (
     <div className="space-y-6">
@@ -363,10 +413,7 @@ export default function SystemHealthPage() {
           </Badge>
           <Button
             variant="outline"
-            onClick={() => {
-              fetchHealthData(true);
-              fetchIntegrationsData();
-            }}
+            onClick={() => fetchHealthData(true)}
             disabled={refreshing}
           >
             <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
@@ -386,8 +433,8 @@ export default function SystemHealthPage() {
               <div>
                 <p className="font-medium text-lg">Overall Health</p>
                 <p className="text-sm text-muted-foreground">
-                  {systemHealth.data_health?.summary?.total_checks ?? 0} checks •{" "}
-                  {systemHealth.data_health?.summary?.total_issues ?? 0} issues
+                  {healthData.data_health?.summary?.total_checks ?? 0} checks •{" "}
+                  {healthData.data_health?.summary?.total_issues ?? 0} issues
                 </p>
               </div>
             </div>
@@ -426,7 +473,7 @@ export default function SystemHealthPage() {
 
       {/* Secondary Grid: AI Pipeline + Infrastructure */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* AI Pipeline (placeholder) */}
+        {/* AI Pipeline */}
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-4">
@@ -435,15 +482,15 @@ export default function SystemHealthPage() {
             </div>
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="p-3 rounded-lg bg-secondary/50">
-                <div className="text-2xl font-bold font-mono">8</div>
+                <div className="text-2xl font-bold font-mono">{healthData.ai_pipeline?.queue_count ?? 0}</div>
                 <div className="text-xs text-muted-foreground">Queue</div>
               </div>
               <div className="p-3 rounded-lg bg-secondary/50">
-                <div className="text-2xl font-bold font-mono">78%</div>
+                <div className="text-2xl font-bold font-mono">{healthData.ai_pipeline?.average_confidence ?? 0}%</div>
                 <div className="text-xs text-muted-foreground">Confidence</div>
               </div>
               <div className="p-3 rounded-lg bg-secondary/50">
-                <div className="text-2xl font-bold font-mono">2</div>
+                <div className="text-2xl font-bold font-mono">{healthData.ai_pipeline?.failed_today ?? 0}</div>
                 <div className="text-xs text-muted-foreground">Failed</div>
               </div>
             </div>
@@ -459,10 +506,8 @@ export default function SystemHealthPage() {
 
       {/* Leaderboard */}
       <HealthLeaderboard
-        systemPoints={450}
-        humansPoints={leaderboardEntries
-          .filter((e) => !e.isSystem)
-          .reduce((sum, e) => sum + e.points, 0)}
+        systemPoints={healthData.leaderboard?.system_points ?? 0}
+        humansPoints={healthData.leaderboard?.humans_points ?? 0}
         entries={leaderboardEntries}
         currentUserPoints={userKudos}
         loading={refreshing}

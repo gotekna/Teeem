@@ -392,7 +392,7 @@ class ExternalInvoiceSyncService
   def link_to_contact(invoice)
     return if invoice.external_contact_id.blank?
 
-    # Find contact link
+    # First try: Find via ContactExternalLink (newer approach)
     link = ContactExternalLink.find_by(
       source: @source,
       tenant_id: @tenant_id,
@@ -402,7 +402,16 @@ class ExternalInvoiceSyncService
     if link&.contact
       invoice.update!(contact: link.contact)
       @stats[:linked_to_contacts] += 1
-      Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{link.contact.display_name}")
+      Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{link.contact.display_name} via external link")
+      return
+    end
+
+    # Fallback: Find contact directly by xero_id on Contact model
+    contact = Contact.find_by(xero_id: invoice.external_contact_id)
+    if contact
+      invoice.update!(contact: contact)
+      @stats[:linked_to_contacts] += 1
+      Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{contact.display_name} via xero_id")
     end
   end
 
