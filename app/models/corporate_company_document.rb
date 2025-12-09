@@ -1,6 +1,6 @@
 class CorporateCompanyDocument < ApplicationRecord
   # Associations
-  belongs_to :company, optional: true
+  belongs_to :corporate_company, foreign_key: 'company_id', optional: true
   belongs_to :contact, optional: true  # For documents linked to people (family members, directors)
   belongs_to :user, optional: true
   belongs_to :asset, optional: true
@@ -102,8 +102,8 @@ class CorporateCompanyDocument < ApplicationRecord
     # Match documents either by:
     # 1. folder field matching the tab name (SharePoint synced documents)
     # 2. document_type matching a DocumentType whose tabs array contains this tab
-    joins("LEFT JOIN document_types ON document_types.name = company_documents.document_type")
-      .where("UPPER(company_documents.folder) = ? OR document_types.tabs @> ?", tab.upcase, [ tab ].to_json)
+    joins("LEFT JOIN document_types ON document_types.name = corporate_company_documents.document_type")
+      .where("UPPER(corporate_company_documents.folder) = ? OR document_types.tabs @> ?", tab.upcase, [ tab ].to_json)
   }
   scope :by_source, ->(source) { where(source: source) }
   scope :by_asset, ->(asset_id) { where(asset_id: asset_id) }
@@ -161,10 +161,10 @@ class CorporateCompanyDocument < ApplicationRecord
 
   def create_activity
     # Only create activity if there's a company (contacts don't have company_activities)
-    return unless company.present?
+    return unless corporate_company.present?
 
     performer = user || (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
-    company.company_activities.create!(
+    corporate_company.company_activities.create!(
       activity_type: "document_uploaded",
       description: "Document uploaded: #{title}",
       change_details: {
@@ -195,9 +195,9 @@ class CorporateCompanyDocument < ApplicationRecord
 
     # Remove company code prefix (e.g., "TD ", "THFT ")
     # Company codes are typically 1-5 uppercase letters at the start
-    if company&.code.present?
+    if corporate_company&.code.present?
       # Match exact company code at start (case insensitive)
-      display = display.sub(/\A#{Regexp.escape(company.code)}\s+/i, "")
+      display = display.sub(/\A#{Regexp.escape(corporate_company.code)}\s+/i, "")
     end
 
     # Expand FY to full year (FY21 → 2021, FY2021 → 2021)
@@ -265,7 +265,7 @@ class CorporateCompanyDocument < ApplicationRecord
   # Class method to generate display_title for all existing documents
   def self.backfill_display_titles!
     count = 0
-    CorporateCompanyDocument.includes(:company).find_each do |doc|
+    CorporateCompanyDocument.includes(:corporate_company).find_each do |doc|
       doc.send(:generate_display_title)
       if doc.display_title_changed?
         doc.save(validate: false)
