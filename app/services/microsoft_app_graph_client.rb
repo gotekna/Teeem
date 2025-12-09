@@ -44,7 +44,7 @@ class MicrosoftAppGraphClient
 
   # List emails for a specific user
   # user_identifier: email address or user ID
-  def get_user_emails(user_identifier, folder: "inbox", top: 50, filter: nil, search: nil, since: nil)
+  def get_user_emails(user_identifier, folder: "inbox", top: 50, filter: nil, search: nil, since: nil, skip: nil)
     endpoint = "/users/#{CGI.escape(user_identifier)}/mailFolders/#{folder}/messages"
 
     params = {
@@ -53,6 +53,7 @@ class MicrosoftAppGraphClient
       "$select" => "id,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,bodyPreview,internetMessageId,conversationId,isRead"
     }
 
+    params["$skip"] = skip if skip
     params["$filter"] = filter if filter
     params["$search"] = "\"#{search}\"" if search
 
