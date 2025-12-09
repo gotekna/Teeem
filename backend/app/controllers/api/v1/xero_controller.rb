@@ -1465,11 +1465,13 @@ module Api
           # ============================================
           # STAGE 3: SharePoint Upload (Active Storage -> OneDrive)
           # ============================================
-          # Count PDFs that have been uploaded to SharePoint (have expected_onedrive_path set)
+          # SSoT: Count PDFs ACTUALLY uploaded to SharePoint (have onedrive_file_id set)
+          # onedrive_file_id is set by OneDrive after successful upload - this is the SSoT
+          # expected_onedrive_path is just the PLAN, not the reality
           # Only count PDFs (not attachments) to match Stage 2's count
           sharepoint_pdfs_uploaded = CorporateCompanyDocument.where(source: "xero")
                                                     .where("external_id LIKE ?", "xero:%:pdf")
-                                                    .where.not(expected_onedrive_path: nil)
+                                                    .where.not(onedrive_file_id: nil)  # SSoT: Actually uploaded
                                                     .where(documentable_type: "ExternalInvoice")
                                                     .count
 
