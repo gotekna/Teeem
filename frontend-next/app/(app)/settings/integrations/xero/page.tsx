@@ -90,6 +90,19 @@ export default function XeroIntegrationPage() {
   const [showConnectionsPopup, setShowConnectionsPopup] = React.useState(showConnectionsParam === "true");
   const [companyConnections, setCompanyConnections] = React.useState<CompanyXeroConnection[]>([]);
   const [settingPrimary, setSettingPrimary] = React.useState<string | null>(null);
+  const [organizationsExpanded, setOrganizationsExpanded] = React.useState<boolean | null>(null);
+
+  // Compute if any tenant has expired (for default expanded state)
+  const hasExpiredTenants = React.useMemo(() => {
+    return tenants.some(t => t.expired);
+  }, [tenants]);
+
+  // Set default expanded state based on health - only once when tenants load
+  React.useEffect(() => {
+    if (tenants.length > 0 && organizationsExpanded === null) {
+      setOrganizationsExpanded(hasExpiredTenants);
+    }
+  }, [tenants, hasExpiredTenants, organizationsExpanded]);
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -410,24 +423,37 @@ export default function XeroIntegrationPage() {
             </CardContent>
           </Card>
 
-          {/* Connected Xero Organizations Card */}
+          {/* Connected Xero Organizations - Collapsible Section */}
           {status?.connected && tenants.length > 0 && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Connected Xero Organizations</CardTitle>
-                    <CardDescription>
-                      All Xero tenants connected to TEEEM. The primary organization is used for default sync operations.
-                    </CardDescription>
-                  </div>
-                  <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100">
-                    {tenants.length} {tenants.length === 1 ? 'Organization' : 'Organizations'}
+            <div className="border rounded-lg bg-card">
+              <button
+                onClick={() => setOrganizationsExpanded(!organizationsExpanded)}
+                className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  {organizationsExpanded ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="font-medium">Connected Xero Organizations</span>
+                  <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100 text-xs">
+                    {tenants.length}
                   </Badge>
+                  {hasExpiredTenants && (
+                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-xs">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Reconnection Required
+                    </Badge>
+                  )}
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
+                <span className="text-xs text-muted-foreground">
+                  {organizationsExpanded ? "Click to collapse" : "Click to expand"}
+                </span>
+              </button>
+
+              {organizationsExpanded && (
+                <div className="px-4 pb-4 space-y-2">
                   {tenants
                     .sort((a, b) => {
                       // Primary first, then alphabetical
@@ -493,7 +519,10 @@ export default function XeroIntegrationPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleSetPrimary(tenant.tenant_id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSetPrimary(tenant.tenant_id);
+                            }}
                             disabled={settingPrimary === tenant.tenant_id}
                           >
                             {settingPrimary === tenant.tenant_id ? (
@@ -508,8 +537,8 @@ export default function XeroIntegrationPage() {
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </div>
           )}
 
           {/* Company Connections Card */}
