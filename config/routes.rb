@@ -1499,8 +1499,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Company Documents
-      resources :company_documents do
+      # Company Documents (routes to CorporateCompanyDocumentsController)
+      resources :company_documents, controller: "corporate_company_documents" do
         collection do
           get :duplicates
           post :analyze_duplicates
