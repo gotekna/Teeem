@@ -34,7 +34,7 @@ class CorporateCompany < ApplicationRecord
   has_one :corporate_company_xero_connection, foreign_key: 'company_id', dependent: :destroy
 
   # New corporate associations
-  has_many :corporate_company_shareholdings, dependent: :destroy
+  has_many :corporate_company_shareholdings, foreign_key: 'company_id', dependent: :destroy
   has_many :shareholders, through: :corporate_company_shareholdings, source: :shareholder
   has_many :share_transfers, dependent: :destroy
   has_many :dividends, dependent: :destroy
