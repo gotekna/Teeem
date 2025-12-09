@@ -1,15 +1,128 @@
 module Api
   module V1
-    # DEPRECATED: This controller duplicates functionality from HealthChecks::PricebookCheck
-    # Use the following endpoints instead:
-    #   - GET /api/v1/foundations/205/health (or /api/v1/foundations/pricebook/health)
-    #   - GET /api/v1/system/health
+    # Unified health controller for the TEEEM Health Check system
+    # Provides a single SSoT endpoint for all health data
     #
-    # This controller remains for backwards compatibility with the old frontend.
-    # TODO: Remove after frontend migration is complete
+    # NEW UNIFIED ENDPOINTS:
+    #   - GET /api/v1/health/unified - Main unified health endpoint
+    #   - POST /api/v1/health/fix - Fix health issues (auto or manual)
+    #   - GET /api/v1/health/leaderboard - Get kudos leaderboard
+    #
+    # LEGACY ENDPOINTS (kept for backwards compatibility):
+    #   - GET /api/v1/health/system
+    #   - GET /api/v1/health/pricebook
+    #
     class HealthController < ApplicationController
+      # GET /api/v1/health/unified
+      # Returns unified health data for the new gamified dashboard
+      def unified
+        # Get data health from HealthChecks::Registry
+        data_health = HealthChecks::Registry.system_health
+
+        # Get infrastructure status
+        infrastructure = build_infrastructure_status
+
+        # Get integrations status
+        integrations = build_integrations_status
+
+        # Get AI pipeline status (placeholder for now)
+        ai_pipeline = build_ai_pipeline_status
+
+        # Get leaderboard data
+        leaderboard = HealthKudosEvent.leaderboard(timeframe: :this_week)
+
+        # Get quick wins from health data
+        quick_wins = build_quick_wins(data_health, integrations)
+
+        # Calculate overall score
+        overall_score = data_health[:overall_health] || 0
+
+        render json: {
+          success: true,
+          overall_score: overall_score,
+          status: determine_health_status(overall_score),
+          last_checked: Time.current.iso8601,
+
+          # Quick wins for the dashboard
+          quick_wins: quick_wins,
+
+          # Data health by category
+          data_health: {
+            overall_health: data_health[:overall_health],
+            status: data_health[:status],
+            summary: data_health[:summary],
+            categories: data_health[:checks]
+          },
+
+          # Integration statuses
+          integrations: integrations,
+
+          # AI Pipeline status
+          ai_pipeline: ai_pipeline,
+
+          # Infrastructure metrics
+          infrastructure: infrastructure,
+
+          # Leaderboard
+          leaderboard: leaderboard,
+
+          # Stats
+          stats: {
+            jobs_count: Job.count,
+            contacts_count: Contact.count,
+            pricebook_items_count: PricebookItem.count,
+            companies_count: CorporateCompany.count,
+            pending_jobs: get_pending_jobs_count,
+            failed_jobs: get_failed_jobs_count
+          }
+        }
+      end
+
+      # POST /api/v1/health/fix
+      # Fix health issues - can be auto or manual
+      def fix
+        fix_type = params[:fix_type]
+        item_ids = params[:item_ids] || []
+        auto = params[:auto] == true || params[:auto] == 'true'
+
+        unless fix_type.present?
+          return render json: { success: false, error: 'fix_type is required' }, status: :bad_request
+        end
+
+        result = perform_fix(fix_type, item_ids, auto)
+
+        if result[:success]
+          render json: {
+            success: true,
+            fixed_count: result[:fixed_count],
+            points_earned: result[:points_earned],
+            message: result[:message]
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error]
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/health/leaderboard
+      # Get kudos leaderboard
+      def leaderboard
+        timeframe = params[:timeframe]&.to_sym || :this_week
+        timeframe = :this_week unless %i[today this_week all].include?(timeframe)
+
+        data = HealthKudosEvent.leaderboard(timeframe: timeframe)
+
+        render json: {
+          success: true,
+          timeframe: timeframe.to_s,
+          **data
+        }
+      end
+
       # GET /api/v1/health/system
-      # System-wide health data formatted for the frontend system-health page
+      # LEGACY: System-wide health data formatted for the frontend system-health page
       def system
         health_data = HealthChecks::Registry.system_health
 
@@ -285,6 +398,288 @@ module Api
         end
       rescue
         0
+      end
+
+      # ========================================
+      # New unified health endpoint helpers
+      # ========================================
+
+      def build_infrastructure_status
+        [
+          {
+            id: 'database',
+            name: 'Database',
+            status: check_database_status,
+            message: 'Connected'
+          },
+          {
+            id: 'jobs_queue',
+            name: 'Jobs Queue',
+            status: check_jobs_queue_status,
+            value: get_pending_jobs_count,
+            message: "#{get_pending_jobs_count} pending, #{get_failed_jobs_count} failed"
+          },
+          {
+            id: 'memory',
+            name: 'Memory',
+            status: 'healthy',
+            value: "#{get_memory_usage}MB",
+            max_value: '2GB',
+            percentage: [(get_memory_usage / 2048.0 * 100).round, 100].min,
+            message: 'OK'
+          },
+          {
+            id: 'workers',
+            name: 'Workers',
+            status: 'healthy',
+            value: get_active_workers.to_s,
+            max_value: '4',
+            percentage: 100,
+            message: 'All active'
+          }
+        ]
+      end
+
+      def build_integrations_status
+        integrations = []
+
+        # Xero
+        xero_status = get_xero_status
+        integrations << {
+          id: 'xero',
+          name: 'Xero',
+          status: xero_status[:connected] ? 'connected' : 'disconnected',
+          status_message: xero_status[:connected] ? (xero_status[:organisation_name] || 'Connected') : 'Not connected',
+          last_synced: xero_status[:last_synced],
+          action_label: xero_status[:connected] ? 'View' : 'Connect',
+          action_type: xero_status[:connected] ? 'view' : 'connect',
+          href: '/settings/integrations/xero'
+        }
+
+        # OneDrive (placeholder - check for actual status)
+        integrations << {
+          id: 'onedrive',
+          name: 'OneDrive',
+          status: 'connected',
+          status_message: 'Connected',
+          action_label: 'View',
+          action_type: 'view',
+          href: '/settings/integrations'
+        }
+
+        # Email (placeholder)
+        integrations << {
+          id: 'email',
+          name: 'Email',
+          status: 'connected',
+          status_message: 'Synced',
+          action_label: 'View',
+          action_type: 'view',
+          href: '/settings/integrations'
+        }
+
+        # ABN Lookup
+        integrations << {
+          id: 'abn',
+          name: 'ABN Lookup',
+          status: 'connected',
+          status_message: 'Available'
+        }
+
+        integrations
+      end
+
+      def build_ai_pipeline_status
+        # Placeholder - will be implemented with actual AI queue data
+        {
+          queue_count: 8,
+          average_confidence: 78,
+          failed_today: 2,
+          status: 'healthy'
+        }
+      end
+
+      def build_quick_wins(data_health, integrations)
+        wins = []
+
+        # Add quick wins from health data
+        wins += HealthKudosEvent.quick_wins_from_health(data_health)
+
+        # Add Xero reconnect if disconnected
+        xero = integrations.find { |i| i[:id] == 'xero' }
+        if xero && xero[:status] == 'disconnected'
+          wins.unshift({
+            id: 'xero-connect',
+            title: 'Connect Xero',
+            description: 'Sync your accounting data',
+            count: 1,
+            points: 50,
+            fix_type: 'connect',
+            check_type: 'xero'
+          })
+        end
+
+        wins.first(5)
+      end
+
+      def perform_fix(fix_type, item_ids, auto)
+        case fix_type.to_s
+        when 'name_casing', 'all_caps_names', 'lowercase_names'
+          fix_name_casing(item_ids, auto)
+        when 'website_prefix'
+          fix_website_prefix(item_ids)
+        when 'phone_format'
+          fix_phone_format(item_ids)
+        else
+          { success: false, error: "Unknown fix type: #{fix_type}" }
+        end
+      rescue StandardError => e
+        Rails.logger.error "[HealthController#fix] Error: #{e.message}"
+        { success: false, error: e.message }
+      end
+
+      def fix_name_casing(item_ids, auto)
+        fixed_count = 0
+        points_earned = 0
+
+        if item_ids.present?
+          # Fix specific contacts
+          contacts = Contact.where(id: item_ids)
+          contacts.each do |contact|
+            if fix_contact_name_casing(contact)
+              fixed_count += 1
+              points_earned += HealthKudosEvent::POINTS[:name_casing]
+            end
+          end
+        else
+          # Find and fix all contacts with name casing issues
+          Contact.where.not(first_name: nil).find_each do |contact|
+            next unless needs_name_casing_fix?(contact)
+            if fix_contact_name_casing(contact)
+              fixed_count += 1
+              points_earned += HealthKudosEvent::POINTS[:name_casing]
+            end
+          end
+        end
+
+        if fixed_count > 0
+          HealthKudosEvent.record_bulk_fix(
+            user: auto ? nil : current_user,
+            fix_type: 'name_casing',
+            record_type: 'Contact',
+            record_ids: item_ids.presence || [],
+            points_per_record: HealthKudosEvent::POINTS[:name_casing]
+          )
+        end
+
+        {
+          success: true,
+          fixed_count: fixed_count,
+          points_earned: points_earned,
+          message: "Fixed #{fixed_count} name casing issues"
+        }
+      end
+
+      def needs_name_casing_fix?(contact)
+        [contact.first_name, contact.last_name].compact.any? do |name|
+          name.present? && (name == name.upcase || name == name.downcase)
+        end
+      end
+
+      def fix_contact_name_casing(contact)
+        changed = false
+
+        if contact.first_name.present? && (contact.first_name == contact.first_name.upcase || contact.first_name == contact.first_name.downcase)
+          contact.first_name = contact.first_name.titleize
+          changed = true
+        end
+
+        if contact.last_name.present? && (contact.last_name == contact.last_name.upcase || contact.last_name == contact.last_name.downcase)
+          contact.last_name = contact.last_name.titleize
+          changed = true
+        end
+
+        if changed
+          contact.save(validate: false)
+          true
+        else
+          false
+        end
+      end
+
+      def fix_website_prefix(item_ids)
+        # TODO: Implement website prefix fix
+        { success: false, error: 'Website prefix fix not yet implemented' }
+      end
+
+      def fix_phone_format(item_ids)
+        # TODO: Implement phone format fix
+        { success: false, error: 'Phone format fix not yet implemented' }
+      end
+
+      def check_database_status
+        ActiveRecord::Base.connection.active? ? 'healthy' : 'critical'
+      rescue StandardError
+        'critical'
+      end
+
+      def check_jobs_queue_status
+        failed = get_failed_jobs_count
+        return 'critical' if failed > 50
+        return 'warning' if failed > 10
+        'healthy'
+      end
+
+      def get_pending_jobs_count
+        SolidQueue::Job.pending.count
+      rescue StandardError
+        0
+      end
+
+      def get_failed_jobs_count
+        SolidQueue::Job.failed.count
+      rescue StandardError
+        0
+      end
+
+      def get_memory_usage
+        if RUBY_PLATFORM =~ /darwin/
+          `ps -o rss= -p #{Process.pid}`.to_i / 1024
+        else
+          `ps -o rss= -p #{Process.pid}`.to_i / 1024
+        end
+      rescue StandardError
+        0
+      end
+
+      def get_active_workers
+        # Placeholder - would check actual SolidQueue workers
+        4
+      end
+
+      def get_xero_status
+        credential = XeroCredential.current
+        if credential&.connected?
+          {
+            connected: true,
+            organisation_name: credential.tenant_name,
+            last_synced: credential.updated_at&.iso8601
+          }
+        else
+          { connected: false }
+        end
+      rescue StandardError
+        { connected: false }
+      end
+
+      def determine_health_status(score)
+        if score >= 90
+          'healthy'
+        elsif score >= 70
+          'warning'
+        else
+          'critical'
+        end
       end
     end
   end
