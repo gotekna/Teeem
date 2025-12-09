@@ -143,10 +143,10 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
     organizations.flatMap(org => org.companies.map(c => c.company_id))
   );
 
-  // Filter to show all companies without existing Xero connections
-  // Multiple companies in the same company group can connect to different Xero orgs
+  // Show ALL companies without Xero connections
+  // No filtering by company group or consolidation
   const availableCompanies = companies.filter(c => {
-    // Must not already have a Xero connection
+    // Only exclude companies that already have a Xero connection
     return !linkedCompanyIds.has(c.id);
   });
 

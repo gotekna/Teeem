@@ -108,6 +108,8 @@ export default function DocumentTypeDetailPage() {
   const [removeCompanyName, setRemoveCompanyName] = React.useState(true);
   const [previewCompanyId, setPreviewCompanyId] = React.useState<number | null>(null);
   const [companies, setCompanies] = React.useState<Array<{id: number; name: string; code: string}>>([]);
+  const [placeholderSearch, setPlaceholderSearch] = React.useState("");
+  const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
@@ -298,13 +300,35 @@ export default function DocumentTypeDetailPage() {
     updateField("file_extensions", currentExts.filter(e => e !== ext));
   };
 
+  // Check if a placeholder is used in file name or display name
+  const isPlaceholderUsed = (placeholderCode: string): boolean => {
+    const fileName = documentType?.file_name || "";
+    const displayName = documentType?.display_name || "";
+    return fileName.includes(placeholderCode) || displayName.includes(placeholderCode);
+  };
+
   // Get placeholders based on scope
   const getAvailablePlaceholders = () => {
     const scope = documentType?.scope || "company";
+    let placeholders;
     if (scope === "both") {
-      return [...PLACEHOLDERS.company, ...PLACEHOLDERS.job];
+      placeholders = [...PLACEHOLDERS.company, ...PLACEHOLDERS.job];
+    } else {
+      placeholders = PLACEHOLDERS[scope as keyof typeof PLACEHOLDERS] || PLACEHOLDERS.company;
     }
-    return PLACEHOLDERS[scope as keyof typeof PLACEHOLDERS] || PLACEHOLDERS.company;
+
+    // Filter by search term
+    if (placeholderSearch.trim()) {
+      const search = placeholderSearch.toLowerCase();
+      return placeholders.filter((p: any) =>
+        p.code.toLowerCase().includes(search) ||
+        p.longCode?.toLowerCase().includes(search) ||
+        p.example?.toLowerCase().includes(search) ||
+        p.longExample?.toLowerCase().includes(search)
+      );
+    }
+
+    return placeholders;
   };
 
   // Parse a field value into tokens (text and placeholders)
@@ -571,11 +595,11 @@ export default function DocumentTypeDetailPage() {
       {/* Basic Info */}
       <Card>
         <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
           onClick={() => setBasicInfoExpanded(!basicInfoExpanded)}
         >
           <div className="flex items-center justify-between">
-            <CardTitle>Basic Information</CardTitle>
+            <CardTitle className="text-base">Basic Information</CardTitle>
             {basicInfoExpanded ? (
               <ChevronDown className="h-5 w-5 text-muted-foreground" />
             ) : (
@@ -584,7 +608,7 @@ export default function DocumentTypeDetailPage() {
           </div>
         </CardHeader>
         {basicInfoExpanded && (
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-2">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Document Type Name *</Label>
@@ -679,15 +703,15 @@ export default function DocumentTypeDetailPage() {
 
       {/* Naming & Organization */}
       <Card>
-        <CardHeader>
-          <CardTitle>Naming & Organization</CardTitle>
+        <CardHeader className="pb-2 pt-4">
+          <CardTitle className="text-base">Naming & Organization</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-6 items-start">
+        <CardContent className="space-y-4 pt-2">
+          <div className="relative flex gap-6">
             {/* Left side - File Name and Display Name */}
-            <div className="flex-1 space-y-4">
+            <div className="flex-1 space-y-4 pr-[25rem]">
               {/* Preview Company Dropdown */}
-              <div className="space-y-1">
+              <div className="space-y-1 mb-6">
                 <Label htmlFor="preview-company" className="text-sm text-muted-foreground">
                   Preview Company
                 </Label>
@@ -822,15 +846,15 @@ export default function DocumentTypeDetailPage() {
                 <div className="flex items-center gap-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <Checkbox
-                      id="remove-company-name"
+                      id="hide-company"
                       checked={removeCompanyName}
                       onCheckedChange={(checked) => setRemoveCompanyName(checked as boolean)}
                     />
                     <Label
-                      htmlFor="remove-company-name"
+                      htmlFor="hide-company"
                       className="text-sm font-normal cursor-pointer text-muted-foreground"
                     >
-                      Remove Company Name
+                      Hide Company
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">
@@ -945,18 +969,37 @@ export default function DocumentTypeDetailPage() {
             {/* End left side */}
 
             {/* Right side - Available Placeholders */}
-            <div className="w-96 shrink-0">
+            <div className="absolute right-0 top-0 w-96">
               <div className="space-y-3 p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 sticky top-0 max-h-[calc(100vh-8rem)] overflow-y-auto">
-                <div className="flex items-center gap-2">
-                  <GripVertical className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <Label className="text-sm font-semibold text-blue-900 dark:text-blue-200">
-                    Available Placeholders
-                  </Label>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <GripVertical className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <Label className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                      Available Placeholders
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="hide-description"
+                      checked={hidePlaceholderDescriptions}
+                      onCheckedChange={(checked) => setHidePlaceholderDescriptions(checked as boolean)}
+                    />
+                    <Label
+                      htmlFor="hide-description"
+                      className="text-xs font-normal cursor-pointer text-blue-700 dark:text-blue-300"
+                    >
+                      Hide Description
+                    </Label>
+                  </div>
                 </div>
-                <p className="text-xs text-blue-600 dark:text-blue-400 mb-2">
-                  Drag chips to fields or click to add
-                </p>
-                <div className="grid grid-cols-2 gap-3">
+                <Input
+                  type="text"
+                  placeholder="Search placeholders..."
+                  value={placeholderSearch}
+                  onChange={(e) => setPlaceholderSearch(e.target.value)}
+                  className="h-8 text-sm"
+                />
+                <div className="grid grid-cols-2 gap-x-3 gap-y-3">
                   <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Short</div>
                   <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Long</div>
                   {getAvailablePlaceholders().map((placeholder: any) => (
@@ -967,9 +1010,10 @@ export default function DocumentTypeDetailPage() {
                         onDragStart={(e) => handleDragStartFromSource(e, placeholder.code)}
                         onDragEnd={handleDragEnd}
                         className={cn(
-                          "cursor-grab active:cursor-grabbing p-1.5 rounded border transition-all hover:scale-[1.01]",
-                          placeholder.color === "purple" && "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950 dark:hover:bg-purple-900 border-purple-200 dark:border-purple-800",
-                          placeholder.color === "orange" && "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900 border-orange-200 dark:border-orange-800",
+                          "cursor-grab active:cursor-grabbing p-1 rounded border transition-all hover:scale-[1.01]",
+                          getPlaceholderColor(placeholder.code) === "purple"
+                            ? "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950 dark:hover:bg-purple-900 border-purple-200 dark:border-purple-800"
+                            : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900 border-orange-200 dark:border-orange-800",
                           draggedPlaceholder === placeholder.code && draggedFromField === "source" && "opacity-50 scale-95"
                         )}
                       >
@@ -977,15 +1021,20 @@ export default function DocumentTypeDetailPage() {
                           <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
                           <code className={cn(
                             "font-mono text-[10px] px-1 py-0.5 rounded",
-                            placeholder.color === "purple" && "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-                            placeholder.color === "orange" && "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
+                            isPlaceholderUsed(placeholder.code)
+                              ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                              : placeholder.color === "purple"
+                                ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300"
+                                : "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
                           )}>
                             {placeholder.label || placeholder.code}
                           </code>
                         </div>
-                        <div className="pl-4 mt-0.5 text-[10px] font-semibold">
-                          {placeholder.example}
-                        </div>
+                        {!hidePlaceholderDescriptions && (
+                          <div className="pl-4 mt-0.5 text-[10px] font-semibold">
+                            {placeholder.example}
+                          </div>
+                        )}
                       </div>
                       {/* Long column */}
                       {placeholder.longCode ? (
@@ -994,9 +1043,12 @@ export default function DocumentTypeDetailPage() {
                           onDragStart={(e) => handleDragStartFromSource(e, placeholder.longCode)}
                           onDragEnd={handleDragEnd}
                           className={cn(
-                            "cursor-grab active:cursor-grabbing p-1.5 rounded border transition-all hover:scale-[1.01]",
-                            placeholder.color === "purple" && "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950 dark:hover:bg-purple-900 border-purple-200 dark:border-purple-800",
-                            placeholder.color === "orange" && "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900 border-orange-200 dark:border-orange-800",
+                            "cursor-grab active:cursor-grabbing p-1 rounded border transition-all hover:scale-[1.01]",
+                            isPlaceholderUsed(placeholder.longCode)
+                              ? "bg-green-50 hover:bg-green-100 dark:bg-green-950 dark:hover:bg-green-900 border-green-300 dark:border-green-700"
+                              : placeholder.color === "purple"
+                                ? "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950 dark:hover:bg-purple-900 border-purple-200 dark:border-purple-800"
+                                : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900 border-orange-200 dark:border-orange-800",
                             draggedPlaceholder === placeholder.longCode && draggedFromField === "source" && "opacity-50 scale-95"
                           )}
                         >
@@ -1004,15 +1056,20 @@ export default function DocumentTypeDetailPage() {
                             <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
                             <code className={cn(
                               "font-mono text-[10px] px-1 py-0.5 rounded",
-                              placeholder.color === "purple" && "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-                              placeholder.color === "orange" && "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
+                              isPlaceholderUsed(placeholder.longCode)
+                                ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                                : placeholder.color === "purple"
+                                  ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300"
+                                  : "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
                             )}>
                               {placeholder.longCode}
                             </code>
                           </div>
-                          <div className="pl-4 mt-0.5 text-[10px] font-semibold">
-                            {placeholder.longExample}
-                          </div>
+                          {!hidePlaceholderDescriptions && (
+                            <div className="pl-4 mt-0.5 text-[10px] font-semibold">
+                              {placeholder.longExample}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div />
