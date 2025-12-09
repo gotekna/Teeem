@@ -1,3 +1,22 @@
+# ==================================================================================
+# ⚠️  DEPRECATED - DO NOT USE
+# ==================================================================================
+# These rake tasks are DEPRECATED and will be removed in a future release.
+#
+# REASON FOR DEPRECATION:
+# These tasks call the deprecated EmailSharePointService which uses the OLD
+# OrganizationOneDriveCredential pattern instead of centralized TEEEM SharePoint.
+#
+# REPLACEMENT:
+# Trigger email sync via admin UI or API:
+#   POST /api/v1/microsoft_app/sync_to_sharepoint
+#
+# Or use the replacement job directly:
+#   SyncEmailsToSharePointJob.perform_later(credential_id)
+#
+# See: backend/app/jobs/sync_emails_to_share_point_job.rb
+# ==================================================================================
+
 namespace :emails do
   namespace :sharepoint do
     desc "Show SharePoint sync stats"

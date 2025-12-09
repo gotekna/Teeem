@@ -1,3 +1,22 @@
+# ==================================================================================
+# ⚠️  DEPRECATED - DO NOT USE
+# ==================================================================================
+# This job is DEPRECATED and will be removed in a future release.
+#
+# REASON FOR DEPRECATION:
+# This job calls the deprecated EmailSharePointService which uses the OLD
+# OrganizationOneDriveCredential pattern instead of centralized TEEEM SharePoint.
+#
+# REPLACEMENT:
+# Use SyncEmailsToSharePointJob instead:
+#   SyncEmailsToSharePointJob.perform_later(credential_id)
+#
+# Or trigger via admin API:
+#   POST /api/v1/microsoft_app/sync_to_sharepoint
+#
+# See: backend/app/jobs/sync_emails_to_share_point_job.rb
+# ==================================================================================
+#
 # EmailSharePointSyncJob - Sync emails to SharePoint storage
 #
 # This job runs periodically to sync pending emails to SharePoint.
