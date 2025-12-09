@@ -383,6 +383,11 @@ class MicrosoftAppGraphClient
     response["value"] || []
   end
 
+  # Helper to determine if file is large
+  def large_file?(size)
+    size >= 4 * 1024 * 1024  # 4MB threshold
+  end
+
   private
 
   def access_token
@@ -564,10 +569,5 @@ class MicrosoftAppGraphClient
       folder: {},
       "@microsoft.graph.conflictBehavior": "fail"
     })
-  end
-
-  # Helper to determine if file is large
-  def large_file?(size)
-    size >= 4 * 1024 * 1024  # 4MB threshold
   end
 end
