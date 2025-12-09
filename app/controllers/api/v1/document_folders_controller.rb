@@ -89,7 +89,7 @@ module Api
       end
 
       def folder_params
-        params.require(:folder).permit(:name, :description, :order_position, :active, entity_types: [])
+        params.require(:folder).permit(:name, :description, :order_position, :sharepoint_path, :active, entity_types: [])
       end
 
       def serialize_folder(folder)
@@ -98,6 +98,7 @@ module Api
           name: folder.name,
           description: folder.description,
           order_position: folder.order_position,
+          sharepoint_path: folder.sharepoint_path,
           entity_types: folder.entity_types,
           active: folder.active,
           created_at: folder.created_at,
