@@ -376,8 +376,17 @@ export default function ChatPage() {
     let recipientId: number | undefined;
 
     if (typeof selectedConversation.id === "string" && selectedConversation.id.startsWith("dm-")) {
+      // Conversation ID format: "dm-34-36" or "dm-new-36"
       const parts = selectedConversation.id.split("-");
-      recipientId = parseInt(parts[parts.length - 1], 10);
+      if (parts[1] === "new") {
+        // New conversation: "dm-new-36" → recipient is 36
+        recipientId = parseInt(parts[2], 10);
+      } else {
+        // Existing conversation: "dm-34-36" → find the ID that's NOT current user
+        const userId1 = parseInt(parts[1], 10);
+        const userId2 = parseInt(parts[2], 10);
+        recipientId = userId1 === user.id ? userId2 : userId1;
+      }
     } else {
       recipientId = selectedConversation.participants.find(p => p.id !== user?.id)?.id;
     }
