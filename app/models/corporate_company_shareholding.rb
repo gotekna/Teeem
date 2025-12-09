@@ -1,4 +1,4 @@
-class CorporateCorporateCompanyShareholding < ApplicationRecord
+class CorporateCompanyShareholding < ApplicationRecord
   # Associations
   belongs_to :company
   belongs_to :shareholder, polymorphic: true

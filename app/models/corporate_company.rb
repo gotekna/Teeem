@@ -12,11 +12,11 @@ class CorporateCompany < ApplicationRecord
   has_many :consolidated_children, class_name: "CorporateCompany", foreign_key: "consolidation_parent_id", dependent: :nullify
 
   # Investments - what this company owns (as shareholder)
-  has_many :investments, class_name: "CorporateCorporateCompanyShareholding", as: :shareholder, dependent: :destroy
+  has_many :investments, class_name: "CorporateCompanyShareholding", as: :shareholder, dependent: :destroy
 
   has_many :corporate_company_directors, dependent: :destroy
   has_many :directors, through: :corporate_company_directors, source: :contact
-  has_many :current_directors, -> { where(company_directors: { is_current: true }) },
+  has_many :current_directors, -> { where(corporate_company_directors: { is_current: true }) },
            through: :corporate_company_directors, source: :contact
 
   has_many :bank_accounts, dependent: :destroy
@@ -27,20 +27,20 @@ class CorporateCompany < ApplicationRecord
   has_many :active_assets, -> { where(status: "active") }, class_name: "Asset"
 
   has_many :corporate_company_compliance_items, dependent: :destroy
-  has_many :pending_compliance_items, -> { where(completed: false) }, class_name: "CorporateCorporateCompanyComplianceItem"
+  has_many :pending_compliance_items, -> { where(completed: false) }, class_name: "CorporateCompanyComplianceItem"
 
   has_many :corporate_company_documents, dependent: :destroy
   has_many :corporate_company_activities, dependent: :destroy
-  has_one :corporate_company_xero_connection, dependent: :destroy
+  has_one :corporate_company_xero_connection, foreign_key: 'company_id', dependent: :destroy
 
   # New corporate associations
   has_many :corporate_company_shareholdings, dependent: :destroy
-  has_many :shareholders, through: :company_shareholdings, source: :shareholder
+  has_many :shareholders, through: :corporate_company_shareholdings, source: :shareholder
   has_many :share_transfers, dependent: :destroy
   has_many :dividends, dependent: :destroy
   has_many :corporate_company_minutes, dependent: :destroy
-  has_many :loans_as_lender, class_name: "CorporateCorporateCompanyLoan", foreign_key: "lender_company_id", dependent: :destroy
-  has_many :loans_as_borrower, class_name: "CorporateCorporateCompanyLoan", foreign_key: "borrower_company_id", dependent: :destroy
+  has_many :loans_as_lender, class_name: "CorporateCompanyLoan", foreign_key: "lender_company_id", dependent: :destroy
+  has_many :loans_as_borrower, class_name: "CorporateCompanyLoan", foreign_key: "borrower_company_id", dependent: :destroy
 
   # Intercompany balances for consolidated financials
   has_many :intercompany_balances, dependent: :destroy

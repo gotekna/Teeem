@@ -1,4 +1,4 @@
-class CorporateCorporateCompanyLoan < ApplicationRecord
+class CorporateCompanyLoan < ApplicationRecord
   # Associations
   belongs_to :lender_company, class_name: "CorporateCompany"
   belongs_to :borrower_company, class_name: "CorporateCompany"

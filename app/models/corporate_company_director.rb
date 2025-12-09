@@ -1,4 +1,4 @@
-class CorporateCorporateCompanyDirector < ApplicationRecord
+class CorporateCompanyDirector < ApplicationRecord
   # Associations
   belongs_to :company
   belongs_to :contact
