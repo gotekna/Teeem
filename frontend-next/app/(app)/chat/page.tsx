@@ -211,12 +211,12 @@ export default function ChatPage() {
     // Initial fetch with loading spinner
     fetchMessages();
 
-    // Poll for new messages every 3 seconds (silent updates)
+    // Poll for new messages every 10 seconds (silent updates, avoid rate limiting)
     const pollInterval = setInterval(() => {
       if (!cancelled) {
         fetchMessages();
       }
-    }, 3000);
+    }, 10000);
 
     return () => {
       cancelled = true;
