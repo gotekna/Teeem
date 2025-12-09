@@ -154,7 +154,6 @@ export default function JobsPage() {
             label: 'Job Type',
             column_type: 'lookup',
             lookup_table: 'job_types',
-            lookup_config: { table: 'job_types', display_field: 'name' },
             editable: !isSysCol,
             system: isSysCol
           };
@@ -166,7 +165,6 @@ export default function JobsPage() {
             label: 'Job Status',
             column_type: 'lookup',
             lookup_table: 'job_status',
-            lookup_config: { table: 'job_status', display_field: 'name' },
             editable: !isSysCol,
             system: isSysCol
           };
@@ -186,15 +184,13 @@ export default function JobsPage() {
       if (!columnKeys.includes('job_status_id')) {
         additionalColumns.push({
           key: "job_status_id", label: "Job Status", width: 120, sortable: true, filterable: true,
-          filterType: "dropdown", column_type: "lookup", lookup_table: "job_status",
-          lookup_config: { table: 'job_status', display_field: 'name' }
+          filterType: "dropdown", column_type: "lookup", lookup_table: "job_status"
         });
       }
       if (!columnKeys.includes('job_type_id')) {
         additionalColumns.push({
           key: "job_type_id", label: "Job Type", width: 120, sortable: true, filterable: true,
-          filterType: "dropdown", column_type: "lookup", lookup_table: "job_types",
-          lookup_config: { table: 'job_types', display_field: 'name' }
+          filterType: "dropdown", column_type: "lookup", lookup_table: "job_types"
         });
       }
       if (!columnKeys.includes('ted_number')) {
@@ -217,8 +213,8 @@ export default function JobsPage() {
       { key: "id", label: "ID", width: 60, sortable: true, filterable: true, column_type: "whole_number", editable: false, system: true },
       { key: "ted_number", label: "TED #", width: 100, sortable: true, filterable: true, column_type: "single_line_text" },
       { key: "title", label: "Job Title", width: 250, sortable: true, filterable: true, column_type: "single_line_text" },
-      { key: "job_type_id", label: "Job Type", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "lookup", lookup_table: "job_types", lookup_config: { table: 'job_types', display_field: 'name' } },
-      { key: "job_status_id", label: "Job Status", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "lookup", lookup_table: "job_status", lookup_config: { table: 'job_status', display_field: 'name' } },
+      { key: "job_type_id", label: "Job Type", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "lookup", lookup_table: "job_types" },
+      { key: "job_status_id", label: "Job Status", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "lookup", lookup_table: "job_status" },
       { key: "stage", label: "Stage", width: 100, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice" },
       { key: "location", label: "Location", width: 200, sortable: true, filterable: true, column_type: "single_line_text" },
       { key: "site_supervisor_name", label: "Supervisor", width: 150, sortable: true, filterable: true, column_type: "single_line_text" },
