@@ -45,6 +45,9 @@ interface UnifiedHealthApiResponse {
     points: number;
     fix_type: string;
     check_type: string;
+    check_name?: string;
+    auto_fixable: boolean;
+    item_ids?: number[];
   }>;
 
   data_health: {
@@ -222,6 +225,7 @@ export default function SystemHealthPage() {
           points: check.critical_issues * 25,
           fix_type: "review",
           check_type: check.foundation_name?.toLowerCase() || "",
+          auto_fixable: false,
         });
       }
       if (check.warning_issues > 0) {
@@ -233,6 +237,7 @@ export default function SystemHealthPage() {
           points: check.warning_issues * 10,
           fix_type: "review",
           check_type: check.foundation_name?.toLowerCase() || "",
+          auto_fixable: false,
         });
       }
     });
@@ -280,8 +285,11 @@ export default function SystemHealthPage() {
       description: win.description,
       count: win.count,
       points: win.points,
-      fixType: win.fix_type as "auto" | "review" | "connect",
+      fixType: win.fix_type,
       checkType: win.check_type,
+      checkName: win.check_name,
+      autoFixable: win.auto_fixable,
+      itemIds: win.item_ids,
     }));
   }, [healthData]);
 
@@ -354,18 +362,25 @@ export default function SystemHealthPage() {
   const handleQuickWinFix = async (quickWin: QuickWin) => {
     setFixingId(quickWin.id);
     try {
-      // Call the fix API
-      const response = await api.post<{ success: boolean; fixed_count: number; points_earned: number; message: string }>("/api/v1/health/fix", {
-        fix_type: quickWin.checkType === "contacts" ? "name_casing" : quickWin.fixType,
-        auto: true,
-      });
+      // For auto-fixable issues, call the fix API
+      if (quickWin.autoFixable) {
+        const response = await api.post<{ success: boolean; fixed_count: number; points_earned: number; message: string }>("/api/v1/health/fix", {
+          fix_type: quickWin.fixType,
+          item_ids: quickWin.itemIds || [],
+          auto: true,
+        });
 
-      if (response?.success) {
-        console.log(`Fixed ${response.fixed_count} issues, earned ${response.points_earned} points`);
+        if (response?.success) {
+          console.log(`Fixed ${response.fixed_count} issues, earned ${response.points_earned} points`);
+        }
+
+        // Refresh health data
+        await fetchHealthData(true);
+      } else {
+        // For review items, navigate to the relevant page
+        // TODO: Open a modal or navigate to the data health details
+        console.log("Review action:", quickWin);
       }
-
-      // Refresh health data
-      await fetchHealthData(true);
     } catch (error) {
       console.error("Failed to fix:", error);
     } finally {

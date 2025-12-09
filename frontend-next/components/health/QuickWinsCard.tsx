@@ -13,8 +13,10 @@ export interface QuickWin {
   description: string;
   count: number;
   points: number;
-  fixType: "auto" | "review" | "connect";
+  fixType: string; // 'name_casing', 'website_prefix', 'phone_format', 'review', 'connect', etc.
   checkType: string;
+  checkName?: string;
+  autoFixable: boolean;
   itemIds?: number[];
 }
 
@@ -48,10 +50,11 @@ export function QuickWinsCard({ quickWins, onFix, loading }: QuickWinsCardProps)
     }
   };
 
-  const getButtonLabel = (fixType: string, count: number) => {
-    switch (fixType) {
-      case "auto":
-        return `Fix All`;
+  const getButtonLabel = (quickWin: QuickWin) => {
+    if (quickWin.autoFixable) {
+      return `Fix All`;
+    }
+    switch (quickWin.fixType) {
       case "review":
         return `Review`;
       case "connect":
@@ -145,9 +148,9 @@ export function QuickWinsCard({ quickWins, onFix, loading }: QuickWinsCardProps)
               </Badge>
               <Button
                 size="sm"
-                variant={quickWin.fixType === "auto" ? "default" : "outline"}
+                variant={quickWin.autoFixable ? "default" : "outline"}
                 className={cn(
-                  quickWin.fixType === "auto" && "bg-orange-500 hover:bg-orange-600 text-white"
+                  quickWin.autoFixable && "bg-orange-500 hover:bg-orange-600 text-white"
                 )}
                 onClick={() => handleFix(quickWin)}
                 disabled={fixingId === quickWin.id}
@@ -157,7 +160,7 @@ export function QuickWinsCard({ quickWins, onFix, loading }: QuickWinsCardProps)
                 ) : justFixed === quickWin.id ? (
                   <Check className="h-3 w-3" />
                 ) : (
-                  getButtonLabel(quickWin.fixType, quickWin.count)
+                  getButtonLabel(quickWin)
                 )}
               </Button>
             </div>

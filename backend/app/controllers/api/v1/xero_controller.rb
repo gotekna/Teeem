@@ -1474,6 +1474,12 @@ module Api
           sharepoint_progress = invoices_with_pdfs.zero? ? 0 : ((sharepoint_pdfs_uploaded.to_f / invoices_with_pdfs) * 100).round(1)
           sharepoint_progress = [ sharepoint_progress, 100 ].min # Cap at 100%
 
+          # Get last SharePoint upload time - documents with onedrive_file_id are actually uploaded
+          last_sharepoint_sync = CorporateCompanyDocument.where(source: "xero")
+                                                         .where(documentable_type: "ExternalInvoice")
+                                                         .where.not(onedrive_file_id: nil)
+                                                         .maximum(:updated_at)
+
           # ============================================
           # Breakdown by invoice type (for PDF stage)
           # ============================================
@@ -1619,6 +1625,8 @@ module Api
                 uploaded: sharepoint_pdfs_uploaded,
                 pending: sharepoint_pending,
                 progress_percentage: sharepoint_progress,
+                last_synced_at: last_sharepoint_sync,
+                schedule: "Uploads with PDF sync",
                 blocker: stage3_blocker,
                 sharepoint_url: sharepoint_contacts_url
               },

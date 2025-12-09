@@ -665,22 +665,22 @@ module Api
         else
           # Find contacts with Australian phone numbers that need formatting
           # Australian numbers: 0X XXXX XXXX (10 digits) or +61 X XXXX XXXX
-          contacts = Contact.where.not(phone: [nil, ''])
+          contacts = Contact.where.not(mobile_phone: [nil, ''])
         end
 
         contacts.find_each do |contact|
-          next unless contact.phone.present?
+          next unless contact.mobile_phone.present?
 
           # Remove all non-digit characters
-          digits = contact.phone.gsub(/\D/, '')
+          digits = contact.mobile_phone.gsub(/\D/, '')
 
           # Skip if not a valid Australian phone number length
           next unless [10, 11, 12].include?(digits.length)
 
           formatted = format_australian_phone(digits)
-          next if formatted == contact.phone
+          next if formatted == contact.mobile_phone
 
-          contact.phone = formatted
+          contact.mobile_phone = formatted
           if contact.save(validate: false)
             fixed_count += 1
             fixed_ids << contact.id

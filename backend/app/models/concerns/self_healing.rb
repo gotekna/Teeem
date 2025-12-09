@@ -47,7 +47,7 @@ module SelfHealing
     fix_website_prefix if respond_to?(:website)
 
     # Phone formatting
-    fix_phone_format if respond_to?(:phone) || respond_to?(:mobile)
+    fix_phone_format if respond_to?(:phone) || respond_to?(:mobile) || respond_to?(:mobile_phone)
 
     # Email lowercase
     fix_email_lowercase if respond_to?(:email)
@@ -122,6 +122,16 @@ module SelfHealing
       if formatted != mobile
         @self_healing_original_values[:mobile] = mobile
         self.mobile = formatted
+        @self_healing_fixes_applied << :phone_format unless @self_healing_fixes_applied.include?(:phone_format)
+      end
+    end
+
+    # Fix mobile_phone (Contact model)
+    if respond_to?(:mobile_phone) && mobile_phone.present?
+      formatted = format_australian_phone(mobile_phone)
+      if formatted != mobile_phone
+        @self_healing_original_values[:mobile_phone] = mobile_phone
+        self.mobile_phone = formatted
         @self_healing_fixes_applied << :phone_format unless @self_healing_fixes_applied.include?(:phone_format)
       end
     end
