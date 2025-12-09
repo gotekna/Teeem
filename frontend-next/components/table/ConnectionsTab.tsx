@@ -123,9 +123,9 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
 
     // Outgoing connections (columns in this table that link to other tables)
     columns.forEach((column) => {
-      // Get lookup target from schema details or lookup_config
+      // Get lookup target from schema details or column properties
       const details = schemaDetails[column.key];
-      const lookupFoundationId = details?.lookup_foundation_id || column.lookup_config?.target_table_id;
+      const lookupFoundationId = details?.lookup_foundation_id || column.lookup_foundation_id;
 
       if (lookupFoundationId) {
         const targetFoundation = foundations.find((f) => f.id === lookupFoundationId);
@@ -137,7 +137,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
           columnName: column.label,
           targetFoundationId: lookupFoundationId,
           targetFoundationName: targetFoundation?.name || `Table #${lookupFoundationId}`,
-          targetColumnName: details?.lookup_display_column || column.lookup_config?.display_column,
+          targetColumnName: details?.lookup_display_column || column.lookup_display_column,
           isMultiple: !!isMultiple,
         });
       }

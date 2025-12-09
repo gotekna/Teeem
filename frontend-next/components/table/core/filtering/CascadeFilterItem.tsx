@@ -38,7 +38,7 @@ export const CascadeFilterItem = memo(function CascadeFilterItem({
   // Fetch lookup options when column changes to a lookup type
   useEffect(() => {
     if (column && (column.column_type === 'lookup' || column.column_type === 'relation') &&
-        column.lookup_config?.target_table_id && onFetchLookupOptions) {
+        column.lookup_foundation_id && onFetchLookupOptions) {
       onFetchLookupOptions(column);
     }
   }, [column, onFetchLookupOptions]);
@@ -96,7 +96,7 @@ export const CascadeFilterItem = memo(function CascadeFilterItem({
     }
 
     // Lookup column - show lookup values dropdown
-    if (isLookupColumn && column?.lookup_config?.target_table_id) {
+    if (isLookupColumn && column?.lookup_foundation_id) {
       if (isLoading) {
         return (
           <div className="flex-1 h-8 flex items-center px-3 text-sm text-muted-foreground bg-muted rounded-md">

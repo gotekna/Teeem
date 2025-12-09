@@ -184,7 +184,7 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
               const isUnique = details.is_unique as boolean | undefined;
               const maxLength = details.max_length as number | undefined;
               const description = details.description as string | undefined;
-              const lookupFoundationId = (details.lookup_foundation_id as number) || column.lookup_config?.target_table_id;
+              const lookupFoundationId = (details.lookup_foundation_id as number) || column.lookup_foundation_id;
               const isMultiple = details.is_multiple as boolean | undefined;
 
               return (
