@@ -104,6 +104,14 @@ interface Stage2PdfDownload {
   blocker: Blocker | null;
 }
 
+interface SsotViolation {
+  type: string;
+  count: number;
+  severity: "info" | "warning" | "error";
+  description: string;
+  action_required: string | null;
+}
+
 interface Stage3Sharepoint {
   total_to_upload: number;
   uploaded: number;
@@ -112,6 +120,7 @@ interface Stage3Sharepoint {
   blocker: Blocker | null;
   sharepoint_url: string | null;
   last_synced_at?: string | null;  // SSoT: When last SharePoint upload occurred
+  violations?: SsotViolation[];  // SSoT: Data quality issues detected
 }
 
 interface PdfSyncStatus {
@@ -480,6 +489,59 @@ export function XeroPdfSyncStatus() {
               color="bg-green-100 text-green-600"
               blocker={data.stage3_sharepoint?.blocker}
             />
+            {/* SSoT Violations Display */}
+            {data.stage3_sharepoint?.violations && data.stage3_sharepoint.violations.length > 0 && (
+              <div className="p-2 border rounded-lg space-y-1">
+                <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Data Quality ({data.stage3_sharepoint.violations.length})
+                </div>
+                {data.stage3_sharepoint.violations.map((violation, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-2 rounded text-xs ${
+                      violation.severity === "error"
+                        ? "bg-red-50 border border-red-200"
+                        : violation.severity === "warning"
+                        ? "bg-amber-50 border border-amber-200"
+                        : "bg-blue-50 border border-blue-200"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div
+                          className={`font-medium ${
+                            violation.severity === "error"
+                              ? "text-red-800"
+                              : violation.severity === "warning"
+                              ? "text-amber-800"
+                              : "text-blue-800"
+                          }`}
+                        >
+                          {violation.count.toLocaleString()} {violation.description}
+                        </div>
+                        {violation.action_required && (
+                          <div className="text-muted-foreground mt-0.5 font-mono text-[10px]">
+                            {violation.action_required}
+                          </div>
+                        )}
+                      </div>
+                      <Badge
+                        className={`text-[10px] ${
+                          violation.severity === "error"
+                            ? "bg-red-100 text-red-700"
+                            : violation.severity === "warning"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}
+                      >
+                        {violation.severity}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
