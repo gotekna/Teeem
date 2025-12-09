@@ -576,9 +576,9 @@ export function XeroPdfSyncStatus() {
                 <Activity className="h-5 w-5 text-blue-600" />
                 <span className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-green-500 rounded-full animate-pulse" />
               </div>
-              <span className="font-semibold text-blue-900">Live Xero API Activity</span>
+              <span className="font-semibold text-blue-900">Smart Rate-Limited Sync</span>
               <Badge className="bg-blue-100 text-blue-700 text-xs">
-                Auto-refresh 5s
+                Live • 5s refresh
               </Badge>
             </div>
             {rateLimits && (
@@ -588,6 +588,51 @@ export function XeroPdfSyncStatus() {
               </div>
             )}
           </div>
+
+          {/* Sync Mode Indicator */}
+          {data.pending > 0 && (
+            <div className="mb-3 p-3 bg-white/80 border border-blue-100 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {data.pending > 100 ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />
+                      <span className="font-medium text-blue-900">Catching Up Mode</span>
+                      <Badge className="bg-blue-500 text-white text-xs">
+                        Max speed
+                      </Badge>
+                    </>
+                  ) : data.pending > 0 ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 text-green-600 animate-spin" />
+                      <span className="font-medium text-green-900">Almost Caught Up</span>
+                      <Badge className="bg-green-500 text-white text-xs">
+                        Slowing down
+                      </Badge>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <span className="font-medium text-green-900">Near-Live</span>
+                      <Badge className="bg-green-100 text-green-700 text-xs">
+                        30min checks
+                      </Badge>
+                    </>
+                  )}
+                </div>
+                <div className="text-right text-sm">
+                  <div className="font-semibold text-blue-900">{data.pending.toLocaleString()} pending</div>
+                  <div className="text-xs text-muted-foreground">
+                    {data.pending > 100 ? "Batch every 1 min" : data.pending > 0 ? "Batch every 10 min" : "Checking every 30 min"}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                <Gauge className="h-3 w-3 inline mr-1" />
+                Auto-scaling: Uses up to 50 API calls/min, 4500/day while staying under Xero limits
+              </div>
+            </div>
+          )}
 
           {/* Rate Limit Warning Banners */}
           {isAtLimit && (
