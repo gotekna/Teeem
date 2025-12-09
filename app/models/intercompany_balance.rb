@@ -1,7 +1,7 @@
 class IntercompanyBalance < ApplicationRecord
   # Associations
   belongs_to :company
-  belongs_to :related_company, class_name: "Company"
+  belongs_to :related_company, class_name: "CorporateCompany"
 
   # Constants
   BALANCE_TYPES = %w[loan receivable payable investment].freeze
@@ -41,7 +41,7 @@ class IntercompanyBalance < ApplicationRecord
     company_ids = company_group.companies.pluck(:id)
 
     # Find all active loans between companies in the group
-    loans = CompanyLoan.active
+    loans = CorporateCompanyLoan.active
       .where(lender_company_id: company_ids, borrower_company_id: company_ids)
 
     synced_count = 0

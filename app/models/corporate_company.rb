@@ -1,23 +1,23 @@
-class Company < ApplicationRecord
+class CorporateCompany < ApplicationRecord
   # Associations
-  belongs_to :company_group, optional: true
+  belongs_to :corporate_group, optional: true, foreign_key: 'company_group_id'
   belongs_to :contact, optional: true  # SSoT - links Company to Contact identity store
 
   # Hierarchy - parent/subsidiary relationships
-  belongs_to :parent_company, class_name: "Company", optional: true
-  has_many :subsidiaries, class_name: "Company", foreign_key: "parent_company_id", dependent: :nullify
+  belongs_to :parent_company, class_name: "CorporateCompany", optional: true
+  has_many :subsidiaries, class_name: "CorporateCompany", foreign_key: "parent_company_id", dependent: :nullify
 
   # Consolidation - financial consolidation parent/children
-  belongs_to :consolidation_parent, class_name: "Company", optional: true
-  has_many :consolidated_children, class_name: "Company", foreign_key: "consolidation_parent_id", dependent: :nullify
+  belongs_to :consolidation_parent, class_name: "CorporateCompany", optional: true
+  has_many :consolidated_children, class_name: "CorporateCompany", foreign_key: "consolidation_parent_id", dependent: :nullify
 
   # Investments - what this company owns (as shareholder)
-  has_many :investments, class_name: "CompanyShareholding", as: :shareholder, dependent: :destroy
+  has_many :investments, class_name: "CorporateCorporateCompanyShareholding", as: :shareholder, dependent: :destroy
 
-  has_many :company_directors, dependent: :destroy
-  has_many :directors, through: :company_directors, source: :contact
+  has_many :corporate_company_directors, dependent: :destroy
+  has_many :directors, through: :corporate_company_directors, source: :contact
   has_many :current_directors, -> { where(company_directors: { is_current: true }) },
-           through: :company_directors, source: :contact
+           through: :corporate_company_directors, source: :contact
 
   has_many :bank_accounts, dependent: :destroy
   has_many :active_bank_accounts, -> { where(status: "active") }, class_name: "BankAccount"
@@ -26,21 +26,21 @@ class Company < ApplicationRecord
   has_many :assets, dependent: :destroy
   has_many :active_assets, -> { where(status: "active") }, class_name: "Asset"
 
-  has_many :company_compliance_items, dependent: :destroy
-  has_many :pending_compliance_items, -> { where(completed: false) }, class_name: "CompanyComplianceItem"
+  has_many :corporate_company_compliance_items, dependent: :destroy
+  has_many :pending_compliance_items, -> { where(completed: false) }, class_name: "CorporateCorporateCompanyComplianceItem"
 
-  has_many :company_documents, dependent: :destroy
-  has_many :company_activities, dependent: :destroy
-  has_one :company_xero_connection, dependent: :destroy
+  has_many :corporate_company_documents, dependent: :destroy
+  has_many :corporate_company_activities, dependent: :destroy
+  has_one :corporate_company_xero_connection, dependent: :destroy
 
   # New corporate associations
-  has_many :company_shareholdings, dependent: :destroy
+  has_many :corporate_company_shareholdings, dependent: :destroy
   has_many :shareholders, through: :company_shareholdings, source: :shareholder
   has_many :share_transfers, dependent: :destroy
   has_many :dividends, dependent: :destroy
-  has_many :company_minutes, dependent: :destroy
-  has_many :loans_as_lender, class_name: "CompanyLoan", foreign_key: "lender_company_id", dependent: :destroy
-  has_many :loans_as_borrower, class_name: "CompanyLoan", foreign_key: "borrower_company_id", dependent: :destroy
+  has_many :corporate_company_minutes, dependent: :destroy
+  has_many :loans_as_lender, class_name: "CorporateCorporateCompanyLoan", foreign_key: "lender_company_id", dependent: :destroy
+  has_many :loans_as_borrower, class_name: "CorporateCorporateCompanyLoan", foreign_key: "borrower_company_id", dependent: :destroy
 
   # Intercompany balances for consolidated financials
   has_many :intercompany_balances, dependent: :destroy
@@ -190,7 +190,7 @@ class Company < ApplicationRecord
 
   # All loans (as lender or borrower)
   def all_loans
-    CompanyLoan.where("lender_company_id = ? OR borrower_company_id = ?", id, id)
+    CorporateCompanyLoan.where("lender_company_id = ? OR borrower_company_id = ?", id, id)
   end
 
   # Calculate and update health score
@@ -363,7 +363,7 @@ class Company < ApplicationRecord
   private
 
   def calculate_hierarchy_level(parent_id)
-    parent = Company.find_by(id: parent_id)
+    parent = CorporateCompany.find_by(id: parent_id)
     return 0 unless parent
     parent.hierarchy_level + 1
   end
@@ -402,7 +402,7 @@ class Company < ApplicationRecord
     # Ensure uniqueness by adding a number suffix if needed
     candidate = base_slug
     counter = 1
-    while Company.where(slug: candidate).where.not(id: id).exists?
+    while CorporateCompany.where(slug: candidate).where.not(id: id).exists?
       counter += 1
       candidate = "#{base_slug}-#{counter}"
     end
@@ -435,7 +435,7 @@ class Company < ApplicationRecord
     )
   end
 
-  # SSoT: Automatically create Contact and ContactCompanyGroupMembership for new companies
+  # SSoT: Automatically create Contact and ContactCorporateGroupMembership for new companies
   def ensure_ssot_contact_and_membership
     # 1. Create Contact for this company (SSoT identity)
     entity_type = trust_name.present? ? "trust" : "company"
@@ -466,7 +466,7 @@ class Company < ApplicationRecord
 
   def create_ssot_membership(contact_record)
     membership_type = trust_name.present? ? "trust_entity" : "company_entity"
-    ContactCompanyGroupMembership.find_or_create_by!(
+    ContactCorporateGroupMembership.find_or_create_by!(
       contact_id: contact_record.id,
       company_group_id: company_group_id,
       membership_type: membership_type

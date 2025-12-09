@@ -81,7 +81,7 @@ class CompanyImportService
 
   # Generate health report for all companies
   def self.health_report
-    companies = Company.includes(:company_directors, :bank_accounts, :company_shareholdings, :company_compliance_items).all
+    companies = CorporateCompany.includes(:company_directors, :bank_accounts, :company_shareholdings, :company_compliance_items).all
 
     companies.map do |company|
       issues = []
@@ -172,7 +172,7 @@ class CompanyImportService
       next if row[1].blank? # Skip if company name is blank
 
       company_name = row[1].to_s.strip
-      company = Company.find_by("LOWER(name) LIKE ?", "%#{company_name.downcase.gsub(/\s+pty\s+ltd.*$/i, '').strip}%")
+      company = CorporateCompany.find_by("LOWER(name) LIKE ?", "%#{company_name.downcase.gsub(/\s+pty\s+ltd.*$/i, '').strip}%")
 
       next unless company
 
@@ -249,7 +249,7 @@ class CompanyImportService
       next if row[1].blank? # Skip if entity name is blank
 
       entity_name = row[1].to_s.strip
-      company = Company.find_by("LOWER(name) LIKE ?", "%#{entity_name.downcase}%")
+      company = CorporateCompany.find_by("LOWER(name) LIKE ?", "%#{entity_name.downcase}%")
       next unless company
 
       bsb = clean_bsb(row[3])
@@ -298,7 +298,7 @@ class CompanyImportService
 
     # Find company by partial name match
     search_name = company_name.gsub(/\s+pty\s+ltd.*$/i, "").strip
-    company = Company.find_by("LOWER(name) LIKE ?", "%#{search_name.downcase}%")
+    company = CorporateCompany.find_by("LOWER(name) LIKE ?", "%#{search_name.downcase}%")
 
     return unless company
 
@@ -407,7 +407,7 @@ class CompanyImportService
       next if share_data[:name].blank? || share_data[:shares].to_i.zero?
 
       # Try to find shareholder as a company first, then as a contact
-      shareholder = Company.find_by("LOWER(name) LIKE ?", "%#{share_data[:name].downcase}%")
+      shareholder = CorporateCompany.find_by("LOWER(name) LIKE ?", "%#{share_data[:name].downcase}%")
       shareholder ||= Contact.find_by("LOWER(display_name) LIKE ?", "%#{share_data[:name].downcase}%")
 
       next unless shareholder
@@ -456,7 +456,7 @@ class CompanyImportService
         status: "active"
       }
 
-      company = Company.create!(company_data)
+      company = CorporateCompany.create!(company_data)
       count += 1
 
       @import_log << "Imported company: #{company.name}"
@@ -519,7 +519,7 @@ class CompanyImportService
       next if row[0].blank? # Skip if company name is blank
 
       # Find company by name
-      company = Company.find_by(name: row[0])
+      company = CorporateCompany.find_by(name: row[0])
 
       unless company
         @errors << "Row #{row_num}: Company not found - #{row[0]}"

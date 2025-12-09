@@ -3,7 +3,7 @@ class ExternalInvoice < ApplicationRecord
   belongs_to :job, optional: true
 
   # Documents attached to this invoice (PDF attachments from Xero, etc.)
-  has_many :company_documents, as: :documentable, dependent: :nullify
+  has_many :corporate_company_documents, as: :documentable, dependent: :nullify
 
   # Sources
   SOURCES = %w[xero myob quickbooks].freeze

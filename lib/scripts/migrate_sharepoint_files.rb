@@ -267,7 +267,7 @@ puts ""
 puts "=== Step 2: Mapping files to companies ==="
 
 # Build company lookups
-all_companies = Company.pluck(:id, :code, :name)
+all_companies = CorporateCompany.pluck(:id, :code, :name)
 company_codes = all_companies.to_h { |id, code, name| [ code&.downcase, { id: id, code: code, name: name } ] }
 company_names = all_companies.to_h { |id, code, name| [ name&.downcase, { id: id, code: code, name: name } ] }
 
@@ -383,7 +383,7 @@ files_by_company.each do |company_id, files|
   if company_id == :unknown
     puts "  Unknown: #{files.count} files"
   else
-    company = Company.find_by(id: company_id)
+    company = CorporateCompany.find_by(id: company_id)
     puts "  #{company&.code || 'N/A'} - #{company&.name}: #{files.count} files"
   end
 end
@@ -418,7 +418,7 @@ puts "#{PRIVATE_FOLDER_NAME} folder ID: #{private_folder['id']}"
 # Create group and company folders
 company_folder_ids = {}
 
-CompanyGroup.includes(:companies).order(:name).each do |group|
+CorporateGroup.includes(:companies).order(:name).each do |group|
   puts "Creating folders for group: #{group.name}"
 
   # Create group folder
@@ -475,7 +475,7 @@ files_by_company.each do |company_id, files|
   next if company_id == :unknown
   next unless company_folder_ids[company_id]
 
-  company = Company.find_by(id: company_id)
+  company = CorporateCompany.find_by(id: company_id)
   next unless company
 
   puts "Processing #{files.count} files for #{company.code} - #{company.name}"

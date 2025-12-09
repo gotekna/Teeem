@@ -5,7 +5,7 @@ class DocumentVerificationJob < ApplicationJob
   retry_on StandardError, wait: :polynomially_longer, attempts: 3
 
   def perform(document_id)
-    document = CompanyDocument.find(document_id)
+    document = CorporateCompanyDocument.find(document_id)
 
     Rails.logger.info("Starting AI verification for document #{document_id}: #{document.title}")
 

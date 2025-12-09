@@ -1,6 +1,6 @@
 module Api
   module V1
-    class CompanyMinutesController < ApplicationController
+    class CorporateCompanyMinutesController < ApplicationController
       before_action :set_company
       before_action :set_minute, only: [ :show, :update, :destroy, :sign, :generate_pdf ]
 
@@ -197,7 +197,7 @@ module Api
       private
 
       def set_company
-        @company = Company.find(params[:company_id])
+        @company = CorporateCompany.find(params[:company_id])
       end
 
       def set_minute

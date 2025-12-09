@@ -62,7 +62,7 @@ module Api
           return render json: { success: false, error: "OneDrive not connected" }
         end
 
-        company = Company.find(params[:company_id])
+        company = CorporateCompany.find(params[:company_id])
         service = CorporateOnedriveService.new(@credential, folder_path: params[:folder_path])
         result = service.scan_company(company)
 
@@ -81,13 +81,13 @@ module Api
         errors = []
 
         docs.each do |doc|
-          company = Company.find_by(name: doc[:company_name])
+          company = CorporateCompany.find_by(name: doc[:company_name])
           unless company
             errors << "Company not found: #{doc[:company_name]}"
             next
           end
 
-          company_doc = CompanyDocument.find_or_initialize_by(
+          company_doc = CorporateCompanyDocument.find_or_initialize_by(
             company: company,
             title: doc[:title]
           )
@@ -112,7 +112,7 @@ module Api
           success: true,
           imported: imported,
           errors: errors,
-          total_documents: CompanyDocument.count
+          total_documents: CorporateCompanyDocument.count
         }
       end
 

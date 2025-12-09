@@ -1,7 +1,7 @@
-class ContactCompanyGroupMembership < ApplicationRecord
+class ContactCorporateGroupMembership < ApplicationRecord
   # Associations
   belongs_to :contact
-  belongs_to :company_group
+  belongs_to :corporate_group, foreign_key: 'company_group_id'
   belongs_to :company, optional: true  # If this contact IS a company in the group
 
   # Constants

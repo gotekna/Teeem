@@ -77,7 +77,7 @@ module Api
 
       # GET /api/v1/purchase_orders/:id
       def show
-        company_setting = CompanySetting.instance
+        company_setting = CorporateCompanySetting.instance
 
         render json: {
           **@purchase_order.as_json(

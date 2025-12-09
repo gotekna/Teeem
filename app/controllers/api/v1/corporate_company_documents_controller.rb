@@ -1,12 +1,12 @@
 module Api
   module V1
-    class CompanyDocumentsController < ApplicationController
+    class CorporateCompanyDocumentsController < ApplicationController
       skip_before_action :authorize_request, only: [ :content ]
       before_action :set_document, only: [ :show, :update, :destroy, :download, :content, :preview, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback, :upload_edited, :split, :restore ]
 
       # GET /api/v1/company_documents
       def index
-        @documents = CompanyDocument.includes(:company, :user, :asset).all
+        @documents = CorporateCompanyDocument.includes(:company, :user, :asset).all
 
         # Filter by company
         @documents = @documents.where(company_id: params[:company_id]) if params[:company_id].present?
@@ -69,7 +69,7 @@ module Api
 
       # POST /api/v1/company_documents
       def create
-        @document = CompanyDocument.new(document_params)
+        @document = CorporateCompanyDocument.new(document_params)
         @document.user = current_user
 
         # Handle file upload via Active Storage
@@ -538,7 +538,7 @@ module Api
             result = client.upload_file_content(parent_folder_id, new_filename, content)
 
             # Create new document record
-            new_document = CompanyDocument.create!(
+            new_document = CorporateCompanyDocument.create!(
               company_id: @document.company_id,
               title: new_filename,
               folder: @document.folder,
@@ -716,7 +716,7 @@ module Api
       def counts
         return render json: { success: false, error: "company_id required" }, status: :bad_request unless params[:company_id].present?
 
-        base_documents = CompanyDocument.where(company_id: params[:company_id])
+        base_documents = CorporateCompanyDocument.where(company_id: params[:company_id])
 
         # Define all tabs to count
         tabs = %w[advice asic assets-docs ato bank company dividends-docs financials general insurance loans-docs minutes-docs registry trust]
@@ -735,7 +735,7 @@ module Api
       private
 
       def set_document
-        @document = CompanyDocument.find(params[:id])
+        @document = CorporateCompanyDocument.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Document not found" }, status: :not_found
       end

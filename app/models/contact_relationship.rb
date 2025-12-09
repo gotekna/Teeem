@@ -353,14 +353,14 @@ class ContactRelationship < ApplicationRecord
   end
 
   # SSoT: Sync director_of/shareholder_of relationships to Corporate tables
-  # This ensures CompanyDirector/CompanyShareholding stay in sync with Overview tab changes
+  # This ensures CorporateCompanyDirector/CorporateCompanyShareholding stay in sync with Overview tab changes
   def sync_to_corporate_tables
     # Prevent infinite loops
     return if Thread.current[:syncing_director_relationship]
     return if Thread.current[:syncing_shareholder_relationship]
 
     # Find the Company record linked to the related Contact (company contact)
-    company = Company.find_by(contact_id: related_contact_id)
+    company = CorporateCompany.find_by(contact_id: related_contact_id)
     return unless company # Skip if no linked Company record
 
     case relationship_type
@@ -376,7 +376,7 @@ class ContactRelationship < ApplicationRecord
 
     if is_active
       # Create or activate director record
-      director = CompanyDirector.find_or_initialize_by(
+      director = CorporateCompanyDirector.find_or_initialize_by(
         contact_id: source_contact_id,
         company_id: company.id
       )
@@ -387,7 +387,7 @@ class ContactRelationship < ApplicationRecord
       director.save!
     else
       # Deactivate the director record
-      director = CompanyDirector.find_by(contact_id: source_contact_id, company_id: company.id)
+      director = CorporateCompanyDirector.find_by(contact_id: source_contact_id, company_id: company.id)
       director&.update!(is_current: false, resignation_date: end_date || Date.today)
     end
   rescue StandardError => e
@@ -401,7 +401,7 @@ class ContactRelationship < ApplicationRecord
 
     if is_active
       # Create or update shareholding record
-      shareholding = CompanyShareholding.find_or_initialize_by(
+      shareholding = CorporateCompanyShareholding.find_or_initialize_by(
         shareholder_id: source_contact_id,
         shareholder_type: "Contact",
         company_id: company.id,
@@ -413,7 +413,7 @@ class ContactRelationship < ApplicationRecord
       shareholding.save!
     else
       # Set disposal date on shareholding
-      shareholding = CompanyShareholding.find_by(
+      shareholding = CorporateCompanyShareholding.find_by(
         shareholder_id: source_contact_id,
         shareholder_type: "Contact",
         company_id: company.id

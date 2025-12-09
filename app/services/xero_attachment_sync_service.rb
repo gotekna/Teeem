@@ -1,4 +1,4 @@
-# Service to sync attachments from Xero invoices/bills to CompanyDocuments
+# Service to sync attachments from Xero invoices/bills to CorporateCompanyDocuments
 # Links downloaded documents to ExternalInvoice via polymorphic documentable
 # Also uploads PDFs to SharePoint folder structure: Contacts/{contact_folder}/BILLS|INVOICES/
 class XeroAttachmentSyncService
@@ -12,7 +12,7 @@ class XeroAttachmentSyncService
   end
 
   # Sync all attachments for this invoice
-  # @return [Hash] - { pdf: CompanyDocument, attachments: [CompanyDocument...], errors: [...] }
+  # @return [Hash] - { pdf: CorporateCompanyDocument, attachments: [CorporateCompanyDocument...], errors: [...] }
   def sync!
     return error_result("No external_id on invoice") unless external_invoice.external_id.present?
     return error_result("No tenant_id on invoice") unless external_invoice.tenant_id.present?
@@ -40,7 +40,7 @@ class XeroAttachmentSyncService
   def sync_invoice_pdf
     # Check if PDF already exists - skip API call if we have it
     external_doc_id = "xero:#{external_invoice.external_id}:pdf"
-    existing_pdf = CompanyDocument.find_by(source: "xero", external_id: external_doc_id)
+    existing_pdf = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
 
     if existing_pdf.present? && existing_pdf.file.attached?
       Rails.logger.info("[XeroAttachmentSync] PDF already synced, skipping: #{existing_pdf.title}")
@@ -63,11 +63,11 @@ class XeroAttachmentSyncService
       return
     end
 
-    # Create or update CompanyDocument
+    # Create or update CorporateCompanyDocument
     filename = build_pdf_filename
     external_doc_id = "xero:#{external_invoice.external_id}:pdf"
 
-    document = CompanyDocument.find_or_initialize_by(
+    document = CorporateCompanyDocument.find_or_initialize_by(
       source: "xero",
       external_id: external_doc_id
     )
@@ -140,7 +140,7 @@ class XeroAttachmentSyncService
 
     # Skip if already synced
     external_doc_id = "xero:#{external_invoice.external_id}:#{attachment_id}"
-    existing = CompanyDocument.find_by(source: "xero", external_id: external_doc_id)
+    existing = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
 
     if existing.present?
       Rails.logger.debug("[XeroAttachmentSync] Skipping existing attachment: #{filename}")
@@ -161,9 +161,9 @@ class XeroAttachmentSyncService
       return
     end
 
-    # Create CompanyDocument
+    # Create CorporateCompanyDocument
     # Link to contact (for contact document tabs) AND to external_invoice (for warehouse queries)
-    document = CompanyDocument.new(
+    document = CorporateCompanyDocument.new(
       source: "xero",
       external_id: external_doc_id,
       title: filename,
@@ -237,7 +237,7 @@ class XeroAttachmentSyncService
   end
 
   def document_type_for_invoice
-    # Map invoice types to valid CompanyDocument document_types
+    # Map invoice types to valid CorporateCompanyDocument document_types
     # These must match DocumentType.pluck(:name) or LEGACY_DOCUMENT_TYPES
     case external_invoice.invoice_type
     when "sales_invoice" then "Sales Document"
@@ -261,10 +261,10 @@ class XeroAttachmentSyncService
   end
 
   # Generate the expected OneDrive path for this document
-  # Uses CompanySetting.contact_documents_path + contact folder name + invoice type folder
+  # Uses CorporateCompanySetting.contact_documents_path + contact folder name + invoice type folder
   # e.g., "Contacts/123 - ABC Supplies/BILLS/BILL-001234.pdf"
   def expected_document_path(filename)
-    settings = CompanySetting.instance
+    settings = CorporateCompanySetting.instance
     base_path = settings.contact_documents_path || "Contacts"
     contact_folder = contact_folder_name
     type_folder = folder_for_invoice_type
@@ -285,7 +285,7 @@ class XeroAttachmentSyncService
     ext = File.extname(filename).downcase
     name = filename.downcase
 
-    # Map attachment filenames to valid CompanyDocument document_types
+    # Map attachment filenames to valid CorporateCompanyDocument document_types
     # Uses existing DocumentType names from the database
     return "Sales Document" if name.include?("invoice") || name.include?("inv")
     return "Purchases" if name.include?("bill")
@@ -316,7 +316,7 @@ class XeroAttachmentSyncService
       graph_client = MicrosoftGraphClient.new(credential)
 
       # Get or create Contacts folder at root
-      settings = CompanySetting.instance
+      settings = CorporateCompanySetting.instance
       base_folder_name = settings.contact_documents_path || "Contacts"
 
       # Find or create the base Contacts folder

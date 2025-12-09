@@ -95,7 +95,7 @@ class Api::V1::WHSInductionsController < ApplicationController
 
     updates = {
       status: "valid",
-      completion_date: CompanySetting.today
+      completion_date: CorporateCompanySetting.today
     }
 
     updates[:quiz_score] = quiz_score if quiz_score.present?

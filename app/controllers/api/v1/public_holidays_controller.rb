@@ -24,8 +24,8 @@ module Api
       # Returns just array of date strings for Gantt view
       def dates
         region = params[:region] || "QLD"
-        year_start = params[:year_start]&.to_i || CompanySetting.today.year
-        year_end = params[:year_end]&.to_i || (CompanySetting.today.year + 2)
+        year_start = params[:year_start]&.to_i || CorporateCompanySetting.today.year
+        year_end = params[:year_end]&.to_i || (CorporateCompanySetting.today.year + 2)
 
         dates = PublicHoliday
           .for_region(region)

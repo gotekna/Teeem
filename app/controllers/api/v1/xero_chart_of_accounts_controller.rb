@@ -79,7 +79,7 @@ module Api
 
       # GET /api/v1/xero_chart_of_accounts/for_company/:company_id
       def for_company
-        company = Company.find(params[:company_id])
+        company = CorporateCompany.find(params[:company_id])
         @accounts = XeroChartOfAccount.for_company(company).by_code
 
         render json: {
@@ -255,7 +255,7 @@ module Api
         {
           total_accounts: @accounts.count,
           by_type: @accounts.group(:account_type).count,
-          groups: CompanyGroup.all.map { |g|
+          groups: CorporateGroup.all.map { |g|
             { id: g.id, name: g.name, accounts_count: g.xero_chart_of_accounts.count }
           }
         }

@@ -1230,8 +1230,8 @@ Rails.application.routes.draw do
         member do
           get :directors
           post :add_director
-          put "directors/:director_id", to: "companies#update_director"
-          delete "directors/:director_id", to: "companies#remove_director"
+          put "directors/:director_id", to: "corporate_companies#update_director"
+          delete "directors/:director_id", to: "corporate_companies#remove_director"
           get :compliance_items
           get :activities
           get :documents
@@ -1248,7 +1248,7 @@ Rails.application.routes.draw do
         resources :bank_accounts, only: [ :index ]
 
         # Shareholdings (nested under companies)
-        resources :shareholdings, controller: "company_shareholdings", only: [ :index, :show, :create, :update, :destroy ] do
+        resources :shareholdings, controller: "corporate_company_shareholdings", only: [ :index, :show, :create, :update, :destroy ] do
           collection do
             post :transfer
           end
@@ -1258,7 +1258,7 @@ Rails.application.routes.draw do
         resources :share_transfers, only: [ :index, :show, :create, :update, :destroy ]
 
         # Loans (nested under companies)
-        resources :loans, controller: "company_loans", only: [ :index, :show, :create, :update, :destroy ] do
+        resources :loans, controller: "corporate_company_loans", only: [ :index, :show, :create, :update, :destroy ] do
           member do
             post :payment
           end
@@ -1275,7 +1275,7 @@ Rails.application.routes.draw do
         end
 
         # Minutes (nested under companies)
-        resources :minutes, controller: "company_minutes", only: [ :index, :show, :create, :update, :destroy ] do
+        resources :minutes, controller: "corporate_company_minutes", only: [ :index, :show, :create, :update, :destroy ] do
           member do
             post :sign
             post :generate_from_template
@@ -1286,26 +1286,26 @@ Rails.application.routes.draw do
         end
 
         # Per-Company Xero Integration
-        get "xero/status", to: "company_xero#status"
-        get "xero/authorize", to: "company_xero#authorize"
-        get "xero/callback", to: "company_xero#callback"
-        post "xero/link", to: "company_xero#link"
-        post "xero/disconnect", to: "company_xero#disconnect"
-        post "xero/sync", to: "company_xero#sync"
-        get "xero/tenants", to: "company_xero#tenants"
+        get "xero/status", to: "corporate_company_xero#status"
+        get "xero/authorize", to: "corporate_company_xero#authorize"
+        get "xero/callback", to: "corporate_company_xero#callback"
+        post "xero/link", to: "corporate_company_xero#link"
+        post "xero/disconnect", to: "corporate_company_xero#disconnect"
+        post "xero/sync", to: "corporate_company_xero#sync"
+        get "xero/tenants", to: "corporate_company_xero#tenants"
         # Bank sync endpoints
-        get "xero/bank_accounts", to: "company_xero#bank_accounts"
-        post "xero/link_bank_account", to: "company_xero#link_bank_account"
-        post "xero/sync_transactions", to: "company_xero#sync_transactions"
-        get "xero/transactions", to: "company_xero#transactions"
+        get "xero/bank_accounts", to: "corporate_company_xero#bank_accounts"
+        post "xero/link_bank_account", to: "corporate_company_xero#link_bank_account"
+        post "xero/sync_transactions", to: "corporate_company_xero#sync_transactions"
+        get "xero/transactions", to: "corporate_company_xero#transactions"
         # Chart of Accounts from Xero
-        get "xero/accounts", to: "company_xero#accounts"
-        get "xero/accounts/compare", to: "company_xero#compare_accounts"
+        get "xero/accounts", to: "corporate_company_xero#accounts"
+        get "xero/accounts/compare", to: "corporate_company_xero#compare_accounts"
         # Financial Reports from Xero
-        get "xero/profit_loss", to: "company_xero#profit_loss"
-        get "xero/balance_sheet", to: "company_xero#balance_sheet"
+        get "xero/profit_loss", to: "corporate_company_xero#profit_loss"
+        get "xero/balance_sheet", to: "corporate_company_xero#balance_sheet"
         # Bank transactions by account
-        get "xero/bank_transactions", to: "company_xero#bank_transactions"
+        get "xero/bank_transactions", to: "corporate_company_xero#bank_transactions"
 
         # PDF Financial Reports (Gold Standard tables)
         resources :profit_loss_reports, only: [:index, :show] do
@@ -1413,7 +1413,7 @@ Rails.application.routes.draw do
       end
 
       # Company Loans (global view)
-      get "company_loans", to: "company_loans#all"
+      get "company_loans", to: "corporate_company_loans#all"
 
       # Minute Templates
       resources :minute_templates do
@@ -1527,7 +1527,7 @@ Rails.application.routes.draw do
         member do
           post :sync_accounts
           get :status
-          delete :disconnect, to: "company_xero_connections#disconnect"
+          delete :disconnect, to: "corporate_company_xero_connections#disconnect"
         end
       end
 

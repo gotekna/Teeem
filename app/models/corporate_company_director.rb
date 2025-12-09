@@ -1,4 +1,4 @@
-class CompanyDirector < ApplicationRecord
+class CorporateCorporateCompanyDirector < ApplicationRecord
   # Associations
   belongs_to :company
   belongs_to :contact
@@ -72,12 +72,12 @@ class CompanyDirector < ApplicationRecord
     )
   end
 
-  # SSoT: Automatically create ContactCompanyGroupMembership for directors
+  # SSoT: Automatically create ContactCorporateGroupMembership for directors
   def ensure_ssot_director_membership
     return unless company&.company_group_id.present?
     return unless contact_id.present?
 
-    ContactCompanyGroupMembership.find_or_create_by!(
+    ContactCorporateGroupMembership.find_or_create_by!(
       contact_id: contact_id,
       company_group_id: company.company_group_id,
       membership_type: "director"
@@ -88,20 +88,20 @@ class CompanyDirector < ApplicationRecord
     # Also set company_group_id and link_to_cg on the Contact (for person contacts)
     contact.update_columns(company_group_id: company.company_group_id, link_to_cg: true) if contact.company_group_id.nil?
   rescue StandardError => e
-    Rails.logger.error("CompanyDirector##{id}: SSoT director membership creation failed - #{e.message}")
+    Rails.logger.error("CorporateCompanyDirector##{id}: SSoT director membership creation failed - #{e.message}")
   end
 
   def update_ssot_director_membership
     return unless company&.company_group_id.present?
 
-    membership = ContactCompanyGroupMembership.find_by(
+    membership = ContactCorporateGroupMembership.find_by(
       contact_id: contact_id,
       company_group_id: company.company_group_id,
       membership_type: "director"
     )
     membership&.update!(is_active: is_current)
   rescue StandardError => e
-    Rails.logger.error("CompanyDirector##{id}: SSoT director membership update failed - #{e.message}")
+    Rails.logger.error("CorporateCompanyDirector##{id}: SSoT director membership update failed - #{e.message}")
   end
 
   # SSoT: Sync director status to ContactRelationship table
@@ -138,7 +138,7 @@ class CompanyDirector < ApplicationRecord
       end
     end
   rescue StandardError => e
-    Rails.logger.error("CompanyDirector##{id}: SSoT contact relationship sync failed - #{e.message}")
+    Rails.logger.error("CorporateCompanyDirector##{id}: SSoT contact relationship sync failed - #{e.message}")
   ensure
     Thread.current[:syncing_director_relationship] = false
   end

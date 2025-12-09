@@ -1,6 +1,6 @@
 module Api
   module V1
-    class CompanyXeroController < ApplicationController
+    class CorporateCompanyXeroController < ApplicationController
       before_action :set_company
 
       # GET /api/v1/companies/:company_id/xero/status
@@ -588,7 +588,7 @@ module Api
         consolidated_company_ids << @company.id
         consolidated_company_ids.uniq!
 
-        companies_with_xero = Company.where(id: consolidated_company_ids)
+        companies_with_xero = CorporateCompany.where(id: consolidated_company_ids)
           .includes(:company_xero_connection)
           .select { |c| c.company_xero_connection&.connected? }
 
@@ -936,7 +936,7 @@ module Api
       end
 
       def set_company
-        @company = Company.find_by_slug_or_id(params[:company_id])
+        @company = CorporateCompany.find_by_slug_or_id(params[:company_id])
         unless @company
           render json: { success: false, error: "Company not found" }, status: :not_found
         end

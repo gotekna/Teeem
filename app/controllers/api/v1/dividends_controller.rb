@@ -214,7 +214,7 @@ module Api
       private
 
       def set_company
-        @company = Company.find(params[:company_id])
+        @company = CorporateCompany.find(params[:company_id])
       end
 
       def set_dividend

@@ -1,4 +1,4 @@
-# Job to sync attachments from Xero invoices/bills to CompanyDocuments
+# Job to sync attachments from Xero invoices/bills to CorporateCompanyDocuments
 # Can run for a single invoice or batch process all invoices missing attachments
 class XeroAttachmentSyncJob < ApplicationJob
   queue_as :low
@@ -62,7 +62,7 @@ class XeroAttachmentSyncJob < ApplicationJob
 
     # Find invoices that DON'T already have PDF synced
     # More efficient than checking for ANY documents - specifically looks for PDFs
-    already_synced_ids = CompanyDocument
+    already_synced_ids = CorporateCompanyDocument
       .where(source: "xero")
       .where("external_id LIKE ?", "xero:%:pdf")
       .where(documentable_type: "ExternalInvoice")

@@ -3,7 +3,7 @@ class Asset < ApplicationRecord
   belongs_to :company
   has_one :asset_insurance, dependent: :destroy
   has_many :asset_service_histories, dependent: :destroy
-  has_many :company_documents, dependent: :nullify
+  has_many :corporate_company_documents, dependent: :nullify
 
   # Active Storage for photos
   has_many_attached :photos

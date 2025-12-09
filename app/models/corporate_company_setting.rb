@@ -1,4 +1,4 @@
-class CompanySetting < ApplicationRecord
+class CorporateCorporateCompanySetting < ApplicationRecord
   # Validations
   validates :company_name, presence: true
 

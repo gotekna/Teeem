@@ -22,10 +22,10 @@ class ScheduleCascadeService
     @template = task.schedule_template
     # Use company timezone-aware today as reference date for day offset calculations
     # In real implementation, this would come from the actual project start date
-    @reference_date = CompanySetting.today
+    @reference_date = CorporateCompanySetting.today
 
     # Load company settings and holidays for working day calculations
-    @company_settings = CompanySetting.instance
+    @company_settings = CorporateCompanySetting.instance
     @region = timezone_to_region(@company_settings.timezone)
     @holidays = load_holidays
   end
@@ -210,7 +210,7 @@ class ScheduleCascadeService
   def load_holidays
     # Load holidays for current year and next 2 years to cover project schedules
     # Use company timezone-aware today
-    today = CompanySetting.today
+    today = CorporateCompanySetting.today
     year_range = (today.year..today.year + 2)
 
     holiday_dates = PublicHoliday

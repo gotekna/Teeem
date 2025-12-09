@@ -101,7 +101,7 @@ class XeroApiClient
   end
 
   # Exchange authorization code for access token for a specific company
-  # Stores tokens in CompanyXeroConnection instead of XeroCredential
+  # Stores tokens in CorporateCompanyXeroConnection instead of XeroCredential
   def exchange_code_for_company_token(code, company)
     begin
       client = oauth_client
@@ -218,7 +218,7 @@ class XeroApiClient
     end
   end
 
-  # Refresh the access token for a CompanyXeroConnection
+  # Refresh the access token for a CorporateCompanyXeroConnection
   def refresh_access_token_for_connection(connection)
     return { success: false, error: "No connection provided" } unless connection
 
@@ -257,7 +257,7 @@ class XeroApiClient
     end
   end
 
-  # Get available tenants for a CompanyXeroConnection
+  # Get available tenants for a CorporateCompanyXeroConnection
   def get_tenants_for_connection(connection)
     return [] unless connection&.access_token.present?
 
@@ -615,13 +615,13 @@ class XeroApiClient
     attempts = 0
     max_attempts = 2  # Initial attempt + 1 retry after 401
 
-    # First try to find a CompanyXeroConnection for this tenant_id (per-company connections)
+    # First try to find a CorporateCompanyXeroConnection for this tenant_id (per-company connections)
     # Then fall back to XeroCredential (global job/invoice connections)
     credential = nil
 
     if tenant_id.present?
-      # Try CompanyXeroConnection first (for corporate entity Xero integrations)
-      credential = CompanyXeroConnection.find_by(xero_tenant_id: tenant_id)
+      # Try CorporateCompanyXeroConnection first (for corporate entity Xero integrations)
+      credential = CorporateCompanyXeroConnection.find_by(xero_tenant_id: tenant_id)
 
       # Fall back to XeroCredential (for job/invoice Xero integrations)
       credential ||= XeroCredential.find_by(tenant_id: tenant_id)
@@ -647,7 +647,7 @@ class XeroApiClient
 
     # Refresh token if expired - handle both credential types
     if credential.respond_to?(:needs_refresh?) ? credential.needs_refresh? : credential.expired?
-      if credential.is_a?(CompanyXeroConnection)
+      if credential.is_a?(CorporateCompanyXeroConnection)
         credential.refresh_tokens!
       else
         refresh_access_token_for(credential)
@@ -657,7 +657,7 @@ class XeroApiClient
     # Reload credential to get updated token
     credential.reload
 
-    # Get tenant_id - CompanyXeroConnection uses xero_tenant_id, XeroCredential uses tenant_id
+    # Get tenant_id - CorporateCompanyXeroConnection uses xero_tenant_id, XeroCredential uses tenant_id
     request_tenant_id = credential.respond_to?(:xero_tenant_id) ? credential.xero_tenant_id : credential.tenant_id
 
     url = "#{BASE_URL}/#{endpoint}"
@@ -687,7 +687,7 @@ class XeroApiClient
         # Handle 401 with retry
         if response.code == 401 && attempts < max_attempts
           Rails.logger.info("[Xero] Got 401, attempting token refresh and retry...")
-          if credential.is_a?(CompanyXeroConnection)
+          if credential.is_a?(CorporateCompanyXeroConnection)
             credential.refresh_tokens!
           else
             refresh_access_token_for(credential)
@@ -720,7 +720,7 @@ class XeroApiClient
     # Find credential (same logic as make_request)
     credential = nil
     if tenant_id.present?
-      credential = CompanyXeroConnection.find_by(xero_tenant_id: tenant_id)
+      credential = CorporateCompanyXeroConnection.find_by(xero_tenant_id: tenant_id)
       credential ||= XeroCredential.find_by(tenant_id: tenant_id)
     end
     credential ||= XeroCredential.current
@@ -731,7 +731,7 @@ class XeroApiClient
 
     # Refresh token if needed
     if credential.respond_to?(:needs_refresh?) ? credential.needs_refresh? : credential.expired?
-      if credential.is_a?(CompanyXeroConnection)
+      if credential.is_a?(CorporateCompanyXeroConnection)
         credential.refresh_tokens!
       else
         refresh_access_token_for(credential)
@@ -774,7 +774,7 @@ class XeroApiClient
         # Try refreshing token once and retry
         if attempts < max_attempts
           Rails.logger.info("[Xero] Got 401, attempting token refresh and retry...")
-          if credential.is_a?(CompanyXeroConnection)
+          if credential.is_a?(CorporateCompanyXeroConnection)
             credential.refresh_tokens!
           else
             refresh_access_token_for(credential)

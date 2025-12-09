@@ -1,4 +1,4 @@
-class CompanyShareholding < ApplicationRecord
+class CorporateCorporateCompanyShareholding < ApplicationRecord
   # Associations
   belongs_to :company
   belongs_to :shareholder, polymorphic: true
@@ -36,12 +36,12 @@ class CompanyShareholding < ApplicationRecord
 
   private
 
-  # SSoT: Automatically create ContactCompanyGroupMembership for shareholders
+  # SSoT: Automatically create ContactCorporateGroupMembership for shareholders
   def ensure_ssot_shareholder_membership
     return unless company&.company_group_id.present?
     return unless shareholder_type == "Contact" && shareholder_id.present?
 
-    ContactCompanyGroupMembership.find_or_create_by!(
+    ContactCorporateGroupMembership.find_or_create_by!(
       contact_id: shareholder_id,
       company_group_id: company.company_group_id,
       membership_type: "shareholder"
@@ -53,7 +53,7 @@ class CompanyShareholding < ApplicationRecord
     shareholder_contact = Contact.find_by(id: shareholder_id)
     shareholder_contact&.update_columns(company_group_id: company.company_group_id, link_to_cg: true) if shareholder_contact&.company_group_id.nil?
   rescue StandardError => e
-    Rails.logger.error("CompanyShareholding##{id}: SSoT shareholder membership creation failed - #{e.message}")
+    Rails.logger.error("CorporateCompanyShareholding##{id}: SSoT shareholder membership creation failed - #{e.message}")
   end
 
   # SSoT: Sync shareholder status to ContactRelationship table
@@ -101,7 +101,7 @@ class CompanyShareholding < ApplicationRecord
       end
     end
   rescue StandardError => e
-    Rails.logger.error("CompanyShareholding##{id}: SSoT contact relationship sync failed - #{e.message}")
+    Rails.logger.error("CorporateCompanyShareholding##{id}: SSoT contact relationship sync failed - #{e.message}")
   ensure
     Thread.current[:syncing_shareholder_relationship] = false
   end

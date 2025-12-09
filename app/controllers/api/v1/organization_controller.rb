@@ -6,7 +6,7 @@ module Api
       # GET /api/v1/organization_settings
       # Returns organization settings including job folder name format
       def settings
-        company_setting = CompanySetting.instance
+        company_setting = CorporateCompanySetting.instance
 
         render json: {
           success: true,
@@ -20,7 +20,7 @@ module Api
       # PATCH /api/v1/organization_settings
       # Updates organization settings
       def update_settings
-        company_setting = CompanySetting.instance
+        company_setting = CorporateCompanySetting.instance
 
         if params[:job_folder_name_format].present?
           company_setting.job_folder_name_format = params[:job_folder_name_format].to_unsafe_h
@@ -37,10 +37,10 @@ module Api
       # Returns organization-wide data warehouse statistics
       def data_stats
         # Get company settings for organization name
-        company_setting = CompanySetting.first
+        company_setting = CorporateCompanySetting.first
 
         # Document statistics (all company_documents)
-        documents = CompanyDocument.all
+        documents = CorporateCompanyDocument.all
         doc_stats = {
           total_documents: documents.count,
           by_source: documents.group(:source).count,
@@ -152,7 +152,7 @@ module Api
         }
 
         # Xero stats
-        xero_connections = CompanyXeroConnection.where(connection_status: "connected")
+        xero_connections = CorporateCompanyXeroConnection.where(connection_status: "connected")
         xero_stats = {
           connected: xero_connections.exists?,
           tenant_name: xero_connections.first&.xero_tenant_name,
@@ -183,7 +183,7 @@ module Api
         end
 
         # Corporate (Companies) stats
-        active_companies = Company.where(active: [ true, nil ])
+        active_companies = CorporateCompany.where(active: [ true, nil ])
         total_companies = active_companies.count
         missing_abn = active_companies.where(abn: [ nil, "" ]).count
         missing_acn = active_companies.where(acn: [ nil, "" ])
@@ -209,7 +209,7 @@ module Api
           data: {
             organization: {
               name: company_setting&.company_name || "Organization",
-              total_companies: Company.count,
+              total_companies: CorporateCompany.count,
               total_jobs: Job.count
             },
             documents: doc_stats,

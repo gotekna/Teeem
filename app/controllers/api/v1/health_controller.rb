@@ -277,9 +277,9 @@ module Api
         when "pricebook"
           PricebookItem.active.count
         when "companies"
-          Company.count
+          CorporateCompany.count
         when "documents"
-          CompanyDocument.count
+          CorporateCompanyDocument.count
         else
           0
         end

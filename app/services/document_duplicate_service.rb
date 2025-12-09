@@ -7,7 +7,7 @@ class DocumentDuplicateService
 
   # Find all duplicate documents (same title within same company)
   def self.find_duplicates(company_id: nil)
-    scope = CompanyDocument.select(:title, :company_id)
+    scope = CorporateCompanyDocument.select(:title, :company_id)
                           .group(:title, :company_id)
                           .having("COUNT(*) > 1")
 
@@ -15,7 +15,7 @@ class DocumentDuplicateService
 
     duplicates = []
     scope.each do |dup|
-      docs = CompanyDocument.where(title: dup.title, company_id: dup.company_id)
+      docs = CorporateCompanyDocument.where(title: dup.title, company_id: dup.company_id)
                            .includes(:company)
                            .order(:created_at)
       duplicates << {
@@ -32,7 +32,7 @@ class DocumentDuplicateService
 
   # Analyze a set of duplicate documents and get AI recommendation
   def self.analyze_duplicates(document_ids)
-    documents = CompanyDocument.where(id: document_ids).includes(:company)
+    documents = CorporateCompanyDocument.where(id: document_ids).includes(:company)
     return { error: "No documents found" } if documents.empty?
     return { error: "Need at least 2 documents to compare" } if documents.count < 2
 
@@ -360,7 +360,7 @@ class DocumentDuplicateService
   # Note: "delete" actions actually rename with DELETE prefix for safety
   # Users can review and permanently delete later
   def self.keep_newest(document_ids)
-    docs = CompanyDocument.where(id: document_ids).order(created_at: :desc)
+    docs = CorporateCompanyDocument.where(id: document_ids).order(created_at: :desc)
     keep = docs.first
     to_mark = docs.offset(1)
 
@@ -375,7 +375,7 @@ class DocumentDuplicateService
   end
 
   def self.keep_oldest(document_ids)
-    docs = CompanyDocument.where(id: document_ids).order(created_at: :asc)
+    docs = CorporateCompanyDocument.where(id: document_ids).order(created_at: :asc)
     keep = docs.first
     to_mark = docs.offset(1)
 
@@ -390,7 +390,7 @@ class DocumentDuplicateService
   end
 
   def self.keep_verified(document_ids)
-    docs = CompanyDocument.where(id: document_ids)
+    docs = CorporateCompanyDocument.where(id: document_ids)
     verified = docs.find_by(ai_verification_status: "verified")
 
     unless verified
@@ -409,7 +409,7 @@ class DocumentDuplicateService
   end
 
   def self.rename_document(document_id, new_name)
-    doc = CompanyDocument.find(document_id)
+    doc = CorporateCompanyDocument.find(document_id)
 
     # Rename in SharePoint
     if doc.onedrive_file_id.present?
@@ -437,7 +437,7 @@ class DocumentDuplicateService
 
   # Merge multiple PDFs into one combined PDF
   def self.merge_documents(document_ids, keep_id)
-    docs = CompanyDocument.where(id: document_ids).includes(:company)
+    docs = CorporateCompanyDocument.where(id: document_ids).includes(:company)
     return { error: "No documents found" } if docs.empty?
 
     # Determine which doc to keep (use provided keep_id or newest)
@@ -542,7 +542,7 @@ class DocumentDuplicateService
   def self.mark_for_deletion(document_ids)
     results = []
 
-    CompanyDocument.where(id: document_ids).find_each do |doc|
+    CorporateCompanyDocument.where(id: document_ids).find_each do |doc|
       # Skip if already marked for deletion
       if doc.title.start_with?(DELETE_PREFIX)
         results << { id: doc.id, title: doc.title, status: :already_marked }
@@ -578,7 +578,7 @@ class DocumentDuplicateService
 
   # Actually delete documents (for when user confirms deletion of marked files)
   def self.permanently_delete(document_ids)
-    CompanyDocument.where(id: document_ids).find_each do |doc|
+    CorporateCompanyDocument.where(id: document_ids).find_each do |doc|
       # Delete from SharePoint
       if doc.onedrive_file_id.present?
         begin
@@ -607,14 +607,14 @@ class DocumentDuplicateService
 
   # Find all documents marked for deletion
   def self.find_marked_for_deletion(company_id: nil)
-    scope = CompanyDocument.where("title LIKE ?", "#{DELETE_PREFIX}%")
+    scope = CorporateCompanyDocument.where("title LIKE ?", "#{DELETE_PREFIX}%")
     scope = scope.where(company_id: company_id) if company_id.present?
     scope.includes(:company).map { |d| document_summary(d) }
   end
 
   # Restore a document marked for deletion (remove DELETE prefix)
   def self.restore_document(document_id)
-    doc = CompanyDocument.find(document_id)
+    doc = CorporateCompanyDocument.find(document_id)
 
     unless doc.title.start_with?(DELETE_PREFIX)
       return { error: "Document is not marked for deletion" }

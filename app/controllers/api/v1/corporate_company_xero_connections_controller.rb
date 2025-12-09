@@ -1,6 +1,6 @@
 module Api
   module V1
-    class CompanyXeroConnectionsController < ApplicationController
+    class CorporateCompanyXeroConnectionsController < ApplicationController
       before_action :set_connection, only: [ :show, :disconnect, :sync_accounts ]
 
       # GET /api/v1/company_xero_connections
@@ -10,7 +10,7 @@ module Api
         all_credentials = XeroCredential.all.order(created_at: :desc)
 
         # Get all company connections
-        all_connections = CompanyXeroConnection.includes(:company).all
+        all_connections = CorporateCompanyXeroConnection.includes(:company).all
 
         # Build response showing all Xero orgs with their linked companies
         organizations = all_credentials.map do |credential|
@@ -125,7 +125,7 @@ module Api
 
       # GET /api/v1/company_xero_connections/:id/status
       def status
-        connection = CompanyXeroConnection.find(params[:id])
+        connection = CorporateCompanyXeroConnection.find(params[:id])
 
         render json: {
           success: true,
@@ -142,7 +142,7 @@ module Api
       private
 
       def set_connection
-        @connection = CompanyXeroConnection.find(params[:id])
+        @connection = CorporateCompanyXeroConnection.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Xero connection not found" }, status: :not_found
       end

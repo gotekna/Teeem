@@ -29,7 +29,7 @@ class XeroAuthService
 
   # Exchange authorization code for access token
   def exchange_code_for_token(code, company_id)
-    company = Company.find(company_id)
+    company = CorporateCompany.find(company_id)
 
     begin
       client = oauth_client

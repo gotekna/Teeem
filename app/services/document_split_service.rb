@@ -157,7 +157,7 @@ class DocumentSplitService
   end
 
   def create_document_record(split_config, onedrive_file_id, file_size)
-    CompanyDocument.create!(
+    CorporateCompanyDocument.create!(
       company_id: @document.company_id,
       title: split_config[:title],
       folder: split_config[:folder] || @document.folder,

@@ -370,28 +370,28 @@ class CorporateOnedriveService
     # Extract company code from folder name
     if folder_name.match?(/^[A-Z]{2,10}\s*-\s*/)
       code = folder_name.split(/\s*-\s*/).first.strip.upcase
-      company = Company.find_by("UPPER(code) = ?", code)
+      company = CorporateCompany.find_by("UPPER(code) = ?", code)
       return company if company
     end
 
     # PRIORITY 2: Check for explicit SharePoint folder name mapping (TEEEM is source of truth)
-    company = Company.find_by("LOWER(sharepoint_folder_name) = ?", folder_name.downcase)
+    company = CorporateCompany.find_by("LOWER(sharepoint_folder_name) = ?", folder_name.downcase)
     return company if company
 
     # PRIORITY 3: Try exact name match
-    company = Company.find_by("LOWER(name) = ?", folder_name.downcase)
+    company = CorporateCompany.find_by("LOWER(name) = ?", folder_name.downcase)
     return company if company
 
     # PRIORITY 4: Try matching by ACN if folder contains ACN
     acn_match = folder_name.match(/(\d{9})/)
     if acn_match
-      company = Company.find_by(acn: acn_match[1])
+      company = CorporateCompany.find_by(acn: acn_match[1])
       return company if company
     end
 
     # PRIORITY 5: Try fuzzy matching on company name (fallback only)
     normalized_folder = normalize_name(folder_name)
-    Company.all.find do |c|
+    CorporateCompany.all.find do |c|
       normalized_name = normalize_name(c.name)
       normalized_name == normalized_folder ||
         normalized_folder.include?(normalized_name) ||
@@ -451,7 +451,7 @@ class CorporateOnedriveService
 
     # Create or update company document record
     # Find by onedrive_file_id only (unique constraint), then update company if needed
-    company_doc = CompanyDocument.find_or_initialize_by(
+    company_doc = CorporateCompanyDocument.find_or_initialize_by(
       onedrive_file_id: doc["id"]
     )
     # Update company_id to the correct company (may have been synced to wrong company before)
