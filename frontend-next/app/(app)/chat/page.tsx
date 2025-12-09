@@ -173,8 +173,11 @@ export default function ChatPage() {
       }));
 
       // Only update if messages actually changed (prevents flashing)
+      // Compare count AND IDs to detect new messages
       setMessages(prevMessages => {
-        const hasChanged = JSON.stringify(prevMessages.map(m => m.id)) !== JSON.stringify(newMessages.map(m => m.id));
+        const prevIds = prevMessages.map(m => m.id).sort().join(',');
+        const newIds = newMessages.map(m => m.id).sort().join(',');
+        const hasChanged = prevIds !== newIds || prevMessages.length !== newMessages.length;
         return hasChanged ? newMessages : prevMessages;
       });
     } catch (error) {
