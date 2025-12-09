@@ -110,7 +110,8 @@ production:
     warehouse_xero_attachments:
       class: XeroAttachmentSyncJob
       queue: low
-      args: [null, { limit: 50 }]
+      args: [null]
+      kwargs: { limit: 50 }
       schedule: every 2 hours at minute 45
 
     # Batch document verification (AI classification)
