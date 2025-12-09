@@ -26,7 +26,7 @@ import { useToast } from "@/components/ui/use-toast";
 const FOLDER_OPTIONS = [
   "ADVICE", "ASIC", "ASSETS", "ATO", "BANK", "COMPANY",
   "DIVIDENDS", "FINANCIALS", "GENERAL", "INSURANCE",
-  "LOANS", "MINUTES", "REGISTRY", "TRUST"
+  "LOANS", "MINUTES", "REGISTRY", "TRUST", "XERO"
 ];
 
 // Scope options
@@ -123,7 +123,7 @@ export default function DocumentTypeDetailPage() {
   React.useEffect(() => {
     const fetchFolders = async () => {
       try {
-        const response = await fetch("/api/v1/document_folders");
+        const response = await fetch("/api/v1/document_folders?active=true");
         const data = await response.json();
         if (data.success) {
           // Extract folder names and sort alphabetically
@@ -745,10 +745,19 @@ export default function DocumentTypeDetailPage() {
           </div>
         </CardHeader>
         {namingOrgExpanded && (
-          <CardContent className="space-y-4 pt-2">
-          <div className="relative flex gap-6 mb-6 min-h-[1000px]">
+          <CardContent className="space-y-4 pt-2 border-2 border-blue-500 bg-blue-50 dark:bg-blue-900/10">
+            <div className="bg-blue-600 text-white px-2 py-1 text-xs font-bold inline-block mb-2">
+              [1] CARD CONTENT (BLUE) - Main container
+            </div>
+          <div className="relative flex gap-6 mb-6 min-h-[1000px] border-2 border-green-500 bg-green-50 dark:bg-green-900/10 p-2">
+            <div className="absolute top-0 left-0 bg-green-600 text-white px-2 py-1 text-xs font-bold z-10">
+              [2] FLEX CONTAINER (GREEN) - relative flex gap-6
+            </div>
             {/* Left side - File Name and Display Name */}
-            <div className="flex-1 space-y-4 pr-[20rem]">
+            <div className="flex-1 space-y-4 pr-[20rem] border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/10 p-2">
+              <div className="bg-purple-600 text-white px-2 py-1 text-xs font-bold inline-block mb-2">
+                [3] LEFT CONTENT (PURPLE) - flex-1 pr-[20rem]
+              </div>
               {/* Preview Company Dropdown */}
               <div className="space-y-1 mb-6">
                 <Label htmlFor="preview-company" className="text-sm text-muted-foreground">
@@ -1008,7 +1017,10 @@ export default function DocumentTypeDetailPage() {
             {/* End left side */}
 
             {/* Right side - Available Placeholders */}
-            <div className="absolute right-0 top-0 w-[19rem]">
+            <div className="absolute right-0 top-0 bottom-0 w-[19rem] border-4 border-orange-500 bg-orange-100 dark:bg-orange-950/50 p-1">
+              <div className="bg-orange-600 text-white px-2 py-1 text-xs font-bold mb-2">
+                [4] SIDEBAR (ORANGE) - absolute right-0 top-0 bottom-0 w-[19rem]
+              </div>
               <div className="space-y-3 p-3 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 sticky top-0 max-h-[calc(100vh-12rem)] overflow-y-auto">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
