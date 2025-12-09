@@ -152,7 +152,8 @@ class OrgEmailSyncJob < ApplicationJob
       folder_name: folder_name,
       is_read: email_data["isRead"] || false,
       last_synced_at: Time.current,
-      microsoft_credential_id: @credential&.id  # Track which org this email came from
+      microsoft_credential_id: @credential&.id,  # Track which org this email came from
+      mailbox_owner_email: owner_email  # Track which mailbox this email came from (for fetching attachments)
     )
 
     # Set first_synced_at if new record

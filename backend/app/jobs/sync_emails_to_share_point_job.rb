@@ -60,10 +60,12 @@ class SyncEmailsToSharePointJob < ApplicationJob
       return { uploaded: 0, skipped: 0, created: 0 }
     end
 
-    # Find emails with attachments that need uploading
+    # Find emails with attachments from this org's mailboxes (both sent and received)
+    # Use mailbox_owner_email to find emails that belong to this org
     emails_with_attachments = EmailWarehouse
-      .where(from_email: user_emails)
+      .where(microsoft_credential_id: @credential.id)
       .where(has_attachments: true)
+      .where.not(mailbox_owner_email: nil)  # Only emails with mailbox owner tracked
       .where("received_at >= ?", 30.days.ago) # Only recent emails
       .order(received_at: :desc)
       .limit(100) # Limit for performance
@@ -74,8 +76,9 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     emails_with_attachments.each do |email|
       begin
-        # Fetch attachments from Microsoft Graph API
-        attachments = client.get_email_attachments(email.from_email, email.outlook_id)
+        # Fetch attachments from Microsoft Graph API using the mailbox owner
+        # (the mailbox where this email is stored, not the sender)
+        attachments = client.get_email_attachments(email.mailbox_owner_email, email.outlook_id)
 
         attachments.each do |attachment|
           # Only process file attachments (skip inline/embedded)
