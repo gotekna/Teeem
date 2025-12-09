@@ -122,9 +122,24 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
     )
   end
 
-  # Deactivate this credential
+  # Deactivate this credential (soft delete - keeps record but marks inactive)
   def deactivate!
     update!(is_active: false)
+  end
+
+  # Disconnect and clear all credentials
+  # This removes all sensitive data until the user grants access again
+  def disconnect!
+    update!(
+      client_id: nil,
+      client_secret: nil,
+      tenant_id: nil,
+      access_token: nil,
+      token_expires_at: nil,
+      status: "disconnected",
+      is_active: false,
+      last_error: nil
+    )
   end
 
   # Get list of users in the tenant (for sync configuration)
