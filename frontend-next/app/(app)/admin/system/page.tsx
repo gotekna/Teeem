@@ -37,6 +37,7 @@ import {
   FileText,
   Tag,
   UserCog,
+  Folder,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -64,6 +65,7 @@ import { InspiringQuotesTab } from "./components/InspiringQuotesTab";
 import { PerformanceTab } from "./components/PerformanceTab";
 import { DocumentTypesTab } from "./components/DocumentTypesTab";
 import { ContactTypesTab } from "./components/ContactTypesTab";
+import { FoldersTabsConfigTab } from "./components/FoldersTabsConfigTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -83,6 +85,7 @@ const TIMEZONES = [
 const MAIN_TABS = [
   { id: "company", label: "Company", icon: Building2 },
   { id: "document-types", label: "Document Types", icon: FileText },
+  { id: "folders-tabs", label: "Folders & Tabs", icon: Folder },
   { id: "contact-types", label: "Contacts", icon: Tag },
   { id: "contact-roles", label: "Contact Roles", icon: UserCog },
   { id: "gold-standard", label: "Gold Standard View", icon: Star },
@@ -460,6 +463,9 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="document-types">
             <DocumentTypesTab />
+          </TabsContent>
+          <TabsContent value="folders-tabs">
+            <FoldersTabsConfigTab />
           </TabsContent>
           <TabsContent value="contact-types">
             <ContactTypesTab />
