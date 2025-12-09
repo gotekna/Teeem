@@ -134,7 +134,7 @@ module Api
             tenant_name: connection.xero_tenant_name,
             last_sync: connection.last_sync_at,
             days_since_sync: connection.days_since_last_sync,
-            account_count: connection.company_xero_accounts.active.count
+            account_count: connection.corporate_company_xero_accounts.active.count
           }
         }
       end
