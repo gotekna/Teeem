@@ -27,7 +27,7 @@ class CorporateCompanyShareholding < ApplicationRecord
     case shareholder
     when Contact
       shareholder.display_name || shareholder.first_name
-    when Company
+    when CorporateCompany
       shareholder.name
     else
       "Unknown"
@@ -62,7 +62,7 @@ class CorporateCompanyShareholding < ApplicationRecord
     # Prevent infinite loop when ContactRelationship triggers this callback
     return if Thread.current[:syncing_shareholder_relationship]
 
-    # Only sync if shareholder is a Contact (not a Company)
+    # Only sync if shareholder is a Contact (not a CorporateCompany)
     return unless shareholder_type == "Contact"
 
     # Company must be linked to a Contact for this to work
