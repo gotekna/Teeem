@@ -168,7 +168,7 @@ class WHSSWMS < ApplicationRecord
   def generate_swms_number
     return if swms_number.present?
 
-    date_str = CompanySetting.today.strftime("%Y%m%d")
+    date_str = CorporateCompanySetting.today.strftime("%Y%m%d")
     last_swms = WHSSWMS.where("swms_number LIKE ?", "SWMS-#{date_str}-%")
                         .order(:swms_number).last
 
@@ -216,7 +216,7 @@ class WHSSWMS < ApplicationRecord
       category: "safety",
       status: "not_started",
       assigned_to: wphs_appointee,
-      planned_end_date: CompanySetting.today + 2.days,
+      planned_end_date: CorporateCompanySetting.today + 2.days,
       duration_days: 1,
       tags: [ "whs", "swms", "approval" ]
     )

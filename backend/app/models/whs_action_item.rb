@@ -30,8 +30,8 @@ class WHSActionItem < ApplicationRecord
   scope :critical, -> { where(priority: "critical") }
   scope :high_priority, -> { where(priority: [ "critical", "high" ]) }
   scope :assigned_to, ->(user) { where(assigned_to_user: user) }
-  scope :overdue, -> { where("due_date < ? AND status NOT IN (?)", CompanySetting.today, [ "completed", "cancelled" ]) }
-  scope :due_soon, ->(days = 7) { where("due_date <= ? AND due_date >= ? AND status NOT IN (?)", CompanySetting.today + days.days, CompanySetting.today, [ "completed", "cancelled" ]) }
+  scope :overdue, -> { where("due_date < ? AND status NOT IN (?)", CorporateCompanySetting.today, [ "completed", "cancelled" ]) }
+  scope :due_soon, ->(days = 7) { where("due_date <= ? AND due_date >= ? AND status NOT IN (?)", CorporateCompanySetting.today + days.days, CorporateCompanySetting.today, [ "completed", "cancelled" ]) }
 
   # State machine methods
   def can_start?
@@ -66,21 +66,21 @@ class WHSActionItem < ApplicationRecord
     return false unless due_date.present?
     return false if completed? || cancelled?
 
-    due_date < CompanySetting.today
+    due_date < CorporateCompanySetting.today
   end
 
   def due_soon?(days = 7)
     return false unless due_date.present?
     return false if completed? || cancelled?
 
-    due_date <= CompanySetting.today + days.days && due_date >= CompanySetting.today
+    due_date <= CorporateCompanySetting.today + days.days && due_date >= CorporateCompanySetting.today
   end
 
   def days_until_due
     return nil unless due_date.present?
     return 0 if overdue?
 
-    (due_date - CompanySetting.today).to_i
+    (due_date - CorporateCompanySetting.today).to_i
   end
 
   def completed?

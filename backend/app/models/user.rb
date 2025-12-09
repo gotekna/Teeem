@@ -64,11 +64,11 @@ class User < ApplicationRecord
   # SSoT: Get accessible company groups for this user
   def accessible_company_groups
     if admin?
-      CompanyGroup.all
+      CorporateGroup.all
     else
       # TODO: Add UserCompanyGroupAssignment when needed
       # For now, all internal users can see all groups
-      CompanyGroup.all
+      CorporateGroup.all
     end
   end
 

@@ -2032,7 +2032,7 @@ module Api
         when "assets", "asset"
           Asset
         when "documents", "document", "company_documents"
-          CompanyDocument
+          CorporateCompanyDocument
         when "pay_now_requests", "pay_now_request"
           PayNowRequest
         when "financial_transactions", "financial_transaction"
@@ -2044,7 +2044,7 @@ module Api
             # Whitelist valid model classes to prevent RCE via constantize
             valid_models = %w[
               Job Contact Supplier Case Invoice Quote Estimate Task
-              SmTask SmTemplate Foundation Record CompanyDocument
+              SmTask SmTemplate Foundation Record CorporateCompanyDocument
               PayNowRequest FinancialTransaction User PricebookItem
               Column FoundationView WhsIncident WhsInspection WhsInduction
             ]

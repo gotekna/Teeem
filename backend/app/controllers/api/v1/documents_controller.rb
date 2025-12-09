@@ -8,7 +8,7 @@ module Api
       # GET /api/v1/documents
       # Returns documents with folder structure for the documents page
       def index
-        documents = CompanyDocument.includes(:company, :user, :document_type_record)
+        documents = CorporateCompanyDocument.includes(:company, :user, :document_type_record)
                                    .order(created_at: :desc)
                                    .limit(params[:limit] || 100)
 
@@ -16,7 +16,7 @@ module Api
         documents = documents.by_folder(params[:folder]) if params[:folder].present?
 
         # Get unique folders
-        folders = CompanyDocument.where.not(folder: [ nil, "" ])
+        folders = CorporateCompanyDocument.where.not(folder: [ nil, "" ])
                                  .group(:folder)
                                  .pluck(:folder)
                                  .map.with_index do |folder_name, index|
@@ -24,7 +24,7 @@ module Api
             id: (index + 1).to_s,
             name: folder_name.titleize,
             path: "/#{folder_name.downcase}",
-            documents_count: CompanyDocument.by_folder(folder_name).count
+            documents_count: CorporateCompanyDocument.by_folder(folder_name).count
           }
         end
 
@@ -67,7 +67,7 @@ module Api
       # POST /api/v1/documents/analyze
       # AI analysis of document content
       def analyze
-        document = CompanyDocument.find(params[:document_id])
+        document = CorporateCompanyDocument.find(params[:document_id])
 
         # Return mock suggestion for now - can integrate with AI service later
         suggestion = {
@@ -84,7 +84,7 @@ module Api
       private
 
       def set_document
-        @document = CompanyDocument.find(params[:id])
+        @document = CorporateCompanyDocument.find(params[:id])
       end
 
       def document_params
@@ -106,7 +106,7 @@ module Api
           type: doc.mime_type || "application/octet-stream",
           size: doc.file_size || 0,
           url: doc.sharepoint_url,
-          job_title: nil, # CompanyDocuments aren't linked to jobs
+          job_title: nil, # CorporateCompanyDocuments aren't linked to jobs
           job_id: nil,
           uploaded_at: doc.created_at&.iso8601,
           uploaded_by: doc.user&.name || "Unknown",

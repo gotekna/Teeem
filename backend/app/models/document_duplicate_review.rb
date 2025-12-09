@@ -1,8 +1,8 @@
 class DocumentDuplicateReview < ApplicationRecord
   # Associations
   belongs_to :case, class_name: "CaseRecord"
-  belongs_to :existing_document, class_name: "CompanyDocument"
-  belongs_to :new_document, class_name: "CompanyDocument", optional: true
+  belongs_to :existing_document, class_name: "CorporateCorporateCompanyDocument"
+  belongs_to :new_document, class_name: "CorporateCorporateCompanyDocument", optional: true
   belongs_to :resolved_by, class_name: "User", optional: true
 
   # Validations

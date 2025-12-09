@@ -1,10 +1,10 @@
-class CompanyDocument < ApplicationRecord
+class CorporateCorporateCompanyDocument < ApplicationRecord
   # Associations
   belongs_to :company, optional: true
   belongs_to :contact, optional: true  # For documents linked to people (family members, directors)
   belongs_to :user, optional: true
   belongs_to :asset, optional: true
-  belongs_to :loan, class_name: "CompanyLoan", optional: true
+  belongs_to :loan, class_name: "CorporateCorporateCompanyLoan", optional: true
   belongs_to :document_type_record, class_name: "DocumentType", foreign_key: "document_type_id", optional: true
   belongs_to :user_validated_by, class_name: "User", optional: true
 
@@ -71,7 +71,7 @@ class CompanyDocument < ApplicationRecord
       # Merge with legacy fallback (DB takes precedence)
       LEGACY_ABBREVIATIONS.merge(db_abbrs)
     rescue => e
-      Rails.logger.warn "[CompanyDocument] Failed to load abbreviations from DB: #{e.message}"
+      Rails.logger.warn "[CorporateCompanyDocument] Failed to load abbreviations from DB: #{e.message}"
       LEGACY_ABBREVIATIONS
     end
   end
@@ -149,8 +149,8 @@ class CompanyDocument < ApplicationRecord
 
   # Find all documents with matching content (duplicates)
   def find_duplicates
-    return CompanyDocument.none if content_hash.blank?
-    CompanyDocument.by_content_hash(content_hash).where.not(id: id)
+    return CorporateCompanyDocument.none if content_hash.blank?
+    CorporateCompanyDocument.by_content_hash(content_hash).where.not(id: id)
   end
 
   def has_duplicates?
@@ -256,7 +256,7 @@ class CompanyDocument < ApplicationRecord
 
   # Class method to update financial years for all existing documents
   def self.backfill_financial_years!
-    CompanyDocument.find_each do |doc|
+    CorporateCompanyDocument.find_each do |doc|
       doc.extract_financial_years_from_title
       doc.save(validate: false) if doc.financial_years_changed?
     end
@@ -265,7 +265,7 @@ class CompanyDocument < ApplicationRecord
   # Class method to generate display_title for all existing documents
   def self.backfill_display_titles!
     count = 0
-    CompanyDocument.includes(:company).find_each do |doc|
+    CorporateCompanyDocument.includes(:company).find_each do |doc|
       doc.send(:generate_display_title)
       if doc.display_title_changed?
         doc.save(validate: false)

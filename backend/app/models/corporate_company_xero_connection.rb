@@ -1,4 +1,4 @@
-class CompanyXeroConnection < ApplicationRecord
+class CorporateCorporateCompanyXeroConnection < ApplicationRecord
   # Associations
   belongs_to :company
   belongs_to :xero_credential, optional: true  # SSoT for OAuth tokens

@@ -94,12 +94,12 @@ class Meeting < ApplicationRecord
     end
   end
 
-  # Following B03.002: Timezone handling - use CompanySetting.timezone
+  # Following B03.002: Timezone handling - use CorporateCompanySetting.timezone
   def ensure_timezone_consistency
-    return unless CompanySetting.instance
+    return unless CorporateCompanySetting.instance
 
     # Ensure times are in the company timezone
-    timezone = CompanySetting.instance.timezone
+    timezone = CorporateCompanySetting.instance.timezone
     self.start_time = start_time.in_time_zone(timezone) if start_time_changed?
     self.end_time = end_time.in_time_zone(timezone) if end_time_changed?
   end

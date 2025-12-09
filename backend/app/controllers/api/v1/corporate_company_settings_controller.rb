@@ -1,15 +1,15 @@
 module Api
   module V1
-    class CompanySettingsController < ApplicationController
+    class CorporateCompanySettingsController < ApplicationController
       # GET /api/v1/company_settings
       def show
-        @company_setting = CompanySetting.instance
+        @company_setting = CorporateCompanySetting.instance
         render json: @company_setting
       end
 
       # PATCH/PUT /api/v1/company_settings
       def update
-        @company_setting = CompanySetting.instance
+        @company_setting = CorporateCompanySetting.instance
 
         if @company_setting.update(company_setting_params)
           render json: @company_setting

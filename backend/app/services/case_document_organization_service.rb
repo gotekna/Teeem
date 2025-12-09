@@ -136,7 +136,7 @@ class CaseDocumentOrganizationService
   def process_file(file_info)
     # Step 1: Check if file already exists in company_documents (by hash)
     if file_info[:content_hash].present?
-      existing_doc = CompanyDocument.find_by_content_hash(file_info[:content_hash])
+      existing_doc = CorporateCompanyDocument.find_by_content_hash(file_info[:content_hash])
 
       if existing_doc
         # File already exists - just link to case
@@ -181,7 +181,7 @@ class CaseDocumentOrganizationService
 
   # Queue a file for duplicate review
   def queue_for_duplicate_review(file_info)
-    existing = CompanyDocument.find_by_content_hash(file_info[:content_hash])
+    existing = CorporateCompanyDocument.find_by_content_hash(file_info[:content_hash])
     return unless existing
 
     DocumentDuplicateReview.find_or_create_by!(
@@ -319,7 +319,7 @@ class CaseDocumentOrganizationService
     # Determine company
     company = case_record.company || case_record.companies.first
 
-    CompanyDocument.create!(
+    CorporateCompanyDocument.create!(
       company: company,
       title: file_info[:name],
       document_type: doc_type,

@@ -6,7 +6,7 @@ module Api
       # GET /api/v1/consolidation
       # Returns list of company groups with consolidation summary
       def index
-        groups = CompanyGroup.active.includes(:companies)
+        groups = CorporateGroup.active.includes(:companies)
 
         render json: {
           success: true,
@@ -111,7 +111,7 @@ module Api
 
         all_mismatches = []
 
-        CompanyGroup.active.includes(:companies).each do |group|
+        CorporateGroup.active.includes(:companies).each do |group|
           next if group.companies.count < 2
 
           service = ConsolidationReconciliationService.new(group, as_of_date: as_of_date)
@@ -138,7 +138,7 @@ module Api
       # GET /api/v1/consolidation/company/:company_id
       # Returns intercompany summary for a specific company
       def company_summary
-        company = Company.find_by_slug_or_id(params[:company_id])
+        company = CorporateCompany.find_by_slug_or_id(params[:company_id])
         unless company
           return render json: { success: false, error: "Company not found" }, status: :not_found
         end
@@ -162,7 +162,7 @@ module Api
       private
 
       def set_company_group
-        @company_group = CompanyGroup.find(params[:company_group_id] || params[:id])
+        @company_group = CorporateGroup.find(params[:company_group_id] || params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Company group not found" }, status: :not_found
       end

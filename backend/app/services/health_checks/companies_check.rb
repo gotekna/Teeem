@@ -23,7 +23,7 @@ module HealthChecks
 
     # Companies missing ABN
     def check_companies_without_abn
-      companies = Company.where(active: [ true, nil ])
+      companies = CorporateCompany.where(active: [ true, nil ])
                         .where(abn: [ nil, "" ])
                         .select(:id, :name, :code, :company_type)
 
@@ -39,7 +39,7 @@ module HealthChecks
 
     # Companies missing ACN (for Pty Ltd companies)
     def check_companies_without_acn
-      companies = Company.where(active: [ true, nil ])
+      companies = CorporateCompany.where(active: [ true, nil ])
                         .where(acn: [ nil, "" ])
                         .where("company_type ILIKE '%pty%' OR company_type ILIKE '%proprietary%' OR company_type ILIKE '%limited%'")
                         .select(:id, :name, :code, :company_type)
@@ -56,7 +56,7 @@ module HealthChecks
 
     # Companies without review date set
     def check_companies_without_review_date
-      companies = Company.where(active: [ true, nil ])
+      companies = CorporateCompany.where(active: [ true, nil ])
                         .where(review_date: nil)
                         .select(:id, :name, :code)
 
@@ -87,7 +87,7 @@ module HealthChecks
 
     # Companies with overdue review
     def check_companies_overdue_review
-      companies = Company.where(active: [ true, nil ])
+      companies = CorporateCompany.where(active: [ true, nil ])
                         .where("review_date < ?", Date.current)
                         .select(:id, :name, :code, :review_date)
 

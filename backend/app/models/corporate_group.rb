@@ -1,11 +1,11 @@
-class CompanyGroup < ApplicationRecord
+class CorporateGroup < ApplicationRecord
   # Associations
-  has_many :companies, dependent: :nullify
+  has_many :corporate_companies, dependent: :nullify
   has_many :xero_chart_of_accounts, dependent: :destroy
   has_many :reconciliation_reports, dependent: :destroy
 
   # Contact memberships (SSoT - all contacts linked to this group)
-  has_many :contact_memberships, class_name: "ContactCompanyGroupMembership", dependent: :destroy
+  has_many :contact_memberships, class_name: "ContactCorporateGroupMembership", dependent: :destroy
   has_many :contacts, through: :contact_memberships
 
   # Validations

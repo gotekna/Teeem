@@ -19,7 +19,7 @@ class ComplianceReminderService
     end
 
     # Also send overdue reminders
-    overdue_items = CompanyComplianceItem.overdue
+    overdue_items = CorporateCompanyComplianceItem.overdue
     overdue_items.each do |item|
       if send_overdue_reminder(item)
         sent_count += 1
@@ -38,7 +38,7 @@ class ComplianceReminderService
   def find_items_needing_reminder(days_before)
     target_date = @today + days_before.days
 
-    CompanyComplianceItem
+    CorporateCompanyComplianceItem
       .includes(:company)
       .where(status: "pending")
       .where(due_date: target_date)

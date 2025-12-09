@@ -11,7 +11,7 @@ class CaseRecord < ApplicationRecord
   # Primary entity being investigated (optional)
   belongs_to :contact, optional: true
   belongs_to :company, optional: true
-  belongs_to :company_group, optional: true
+  belongs_to :corporate_group, optional: true, foreign_key: 'company_group_id'
 
   # Case management
   belongs_to :assigned_to, class_name: "User", optional: true
@@ -25,14 +25,14 @@ class CaseRecord < ApplicationRecord
   has_many :case_contacts, foreign_key: :case_id, dependent: :destroy
   has_many :contacts, through: :case_contacts
   has_many :case_companies, foreign_key: :case_id, dependent: :destroy
-  has_many :companies, through: :case_companies
+  has_many :corporate_companies, through: :case_companies
   has_many :case_jobs, foreign_key: :case_id, dependent: :destroy
   has_many :jobs, through: :case_jobs
 
   # Case content
   has_many :case_actions, foreign_key: :case_id, dependent: :destroy
   has_many :case_documents, foreign_key: :case_id, dependent: :destroy
-  has_many :company_documents, through: :case_documents
+  has_many :corporate_company_documents, through: :case_documents
   has_many :case_emails, foreign_key: :case_id, dependent: :destroy
   has_many :emails, through: :case_emails, source: :email_warehouse
   has_many :case_timeline_events, foreign_key: :case_id, dependent: :destroy

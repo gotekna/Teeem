@@ -36,7 +36,7 @@ class MaintenanceRequest < ApplicationRecord
   scope :by_construction, ->(construction_id) { where(construction_id: construction_id) }
   scope :by_priority, ->(priority) { where(priority: priority) }
   scope :warranty_claims, -> { where(warranty_claim: true) }
-  scope :overdue, -> { where("due_date < ? AND status NOT IN (?)", CompanySetting.today, %w[resolved closed]) }
+  scope :overdue, -> { where("due_date < ? AND status NOT IN (?)", CorporateCompanySetting.today, %w[resolved closed]) }
   scope :recent, -> { order(created_at: :desc) }
 
   # Instance methods
@@ -57,7 +57,7 @@ class MaintenanceRequest < ApplicationRecord
   end
 
   def overdue?
-    due_date.present? && due_date < CompanySetting.today && !completed?
+    due_date.present? && due_date < CorporateCompanySetting.today && !completed?
   end
 
   def completed?
@@ -74,7 +74,7 @@ class MaintenanceRequest < ApplicationRecord
   def mark_resolved!(notes: nil, actual_cost: nil)
     update!(
       status: "resolved",
-      resolved_date: CompanySetting.today,
+      resolved_date: CorporateCompanySetting.today,
       resolution_notes: notes || resolution_notes,
       actual_cost: actual_cost || self.actual_cost
     )
@@ -99,7 +99,7 @@ class MaintenanceRequest < ApplicationRecord
     if completed? && resolved_date
       (resolved_date - reported_date).to_i
     else
-      (CompanySetting.today - reported_date).to_i
+      (CorporateCompanySetting.today - reported_date).to_i
     end
   end
 
@@ -135,7 +135,7 @@ class MaintenanceRequest < ApplicationRecord
   def generate_request_number
     return if request_number.present?
 
-    date_str = CompanySetting.today.strftime("%Y%m%d")
+    date_str = CorporateCompanySetting.today.strftime("%Y%m%d")
     last_request = MaintenanceRequest.where("request_number LIKE ?", "MR-#{date_str}-%").order(:request_number).last
 
     if last_request
@@ -149,6 +149,6 @@ class MaintenanceRequest < ApplicationRecord
   end
 
   def set_reported_date
-    self.reported_date ||= CompanySetting.today
+    self.reported_date ||= CorporateCompanySetting.today
   end
 end

@@ -21,7 +21,7 @@ module Api
 
         # Filter to only show actual company directors (from company_directors table)
         if params[:is_director] == "true"
-          director_contact_ids = CompanyDirector.where(is_current: true).pluck(:contact_id).uniq
+          director_contact_ids = CorporateCompanyDirector.where(is_current: true).pluck(:contact_id).uniq
           @contacts = @contacts.where(id: director_contact_ids)
         end
 
@@ -230,7 +230,7 @@ module Api
         # Add primary company and employment details
         if @contact.primary_company.present?
           company = @contact.primary_company
-          company_record = Company.find_by(contact_id: company.id)
+          company_record = CorporateCompany.find_by(contact_id: company.id)
 
           contact_json[:primary_company] = {
             id: company.id,
@@ -336,7 +336,7 @@ module Api
           end
 
         # SSoT: If this contact is linked to a Company, include company data
-        linked_company = Company.find_by(contact_id: @contact.id)
+        linked_company = CorporateCompany.find_by(contact_id: @contact.id)
         if linked_company
           linked_company_data = {
             id: linked_company.id,
@@ -468,7 +468,7 @@ module Api
         if @contact.link_to_cg
           if @contact.linked_company_id.present?
             # This contact is linked to a Company record
-            company = Company.find_by(id: @contact.linked_company_id)
+            company = CorporateCompany.find_by(id: @contact.linked_company_id)
             return render json: {
               success: false,
               error: "Cannot delete contact linked to Company '#{company&.name || 'Unknown'}'. Unlink from Company Group first.",
@@ -477,7 +477,7 @@ module Api
             }, status: :unprocessable_entity
           else
             # This is a person with Company Group memberships
-            membership_count = ContactCompanyGroupMembership.where(contact_id: @contact.id).count
+            membership_count = ContactCorporateGroupMembership.where(contact_id: @contact.id).count
             if membership_count > 0
               return render json: {
                 success: false,
@@ -490,7 +490,7 @@ module Api
         end
 
         # Check if this contact has a Company record pointing to it
-        linked_company = Company.find_by(contact_id: @contact.id)
+        linked_company = CorporateCompany.find_by(contact_id: @contact.id)
         if linked_company.present?
           return render json: {
             success: false,
@@ -749,7 +749,7 @@ module Api
         if existing_contact_with_company && existing_contact_with_company.primary_company
           # Found existing company for this domain - link to it
           company_contact = existing_contact_with_company.primary_company
-          company = Company.find_by(contact_id: company_contact.id)
+          company = CorporateCompany.find_by(contact_id: company_contact.id)
 
           @contact.update!(primary_company_id: company_contact.id)
 
@@ -811,8 +811,8 @@ module Api
 
           if has_acn || (has_abn && !is_sole_trader)
             # It's a company - check if company already exists
-            existing_company = Company.find_by(abn: website_details[:abn]) if website_details[:abn].present?
-            existing_company ||= Company.find_by(acn: website_details[:acn]) if website_details[:acn].present?
+            existing_company = CorporateCompany.find_by(abn: website_details[:abn]) if website_details[:abn].present?
+            existing_company ||= CorporateCompany.find_by(acn: website_details[:acn]) if website_details[:acn].present?
 
             if existing_company
               # Link to existing company
@@ -835,7 +835,7 @@ module Api
                 email: website_details[:email]
               )
 
-              company = Company.create!(
+              company = CorporateCompany.create!(
                 name: company_name,
                 contact_id: company_contact.id,
                 status: "active",
@@ -1186,7 +1186,7 @@ module Api
         source_id = params[:source_id]
         categories = params[:categories] # Optional array of categories to filter by
         set_as_default = params[:set_as_default] != false # Default to true unless explicitly false
-        effective_date = params[:effective_date].present? ? Date.parse(params[:effective_date]) : CompanySetting.today
+        effective_date = params[:effective_date].present? ? Date.parse(params[:effective_date]) : CorporateCompanySetting.today
 
         # Which price to copy: 'active' (default), 'latest', or 'oldest'
         # - active: Most recent date_effective (current active price)
@@ -1448,14 +1448,14 @@ module Api
               # Transfer linked_company_id if source has one and target doesn't
               if source.linked_company_id.present? && target_contact.linked_company_id.blank?
                 # Update the Company record to point to target contact
-                Company.where(contact_id: source.id).update_all(contact_id: target_id)
+                CorporateCompany.where(contact_id: source.id).update_all(contact_id: target_id)
                 target_contact.update(linked_company_id: source.linked_company_id, link_to_cg: true)
               end
 
               # Transfer Company Group memberships to target
-              ContactCompanyGroupMembership.where(contact_id: source.id).each do |membership|
+              ContactCorporateGroupMembership.where(contact_id: source.id).each do |membership|
                 # Check if target already has this membership
-                existing = ContactCompanyGroupMembership.find_by(
+                existing = ContactCorporateGroupMembership.find_by(
                   contact_id: target_id,
                   company_group_id: membership.company_group_id
                 )
@@ -1592,7 +1592,7 @@ module Api
             item_id = update[:item_id]
             new_price = update[:new_price].to_f
             change_reason = update[:change_reason].presence || "bulk_update"
-            date_effective = update[:date_effective].present? ? Date.parse(update[:date_effective].to_s) : CompanySetting.today
+            date_effective = update[:date_effective].present? ? Date.parse(update[:date_effective].to_s) : CorporateCompanySetting.today
 
             # Validate item exists
             item = PricebookItem.find_by(id: item_id)
@@ -2155,7 +2155,7 @@ module Api
       end
 
       # GET /api/v1/contacts/:id/directorships
-      # Returns all directorships for this contact (from CompanyDirector table)
+      # Returns all directorships for this contact (from CorporateCompanyDirector table)
       def directorships
         directorships = @contact.company_directorships
           .includes(company: :company_group)
@@ -2193,7 +2193,7 @@ module Api
       end
 
       # GET /api/v1/contacts/:id/shareholdings
-      # Returns all shareholdings for this contact (from CompanyShareholding table)
+      # Returns all shareholdings for this contact (from CorporateCompanyShareholding table)
       def shareholdings
         shareholdings = @contact.company_shareholdings
           .includes(company: :company_group)
@@ -3601,7 +3601,7 @@ module Api
         visited.add(company.id)
 
         # Get companies this company owns shares in
-        child_holdings = CompanyShareholding
+        child_holdings = CorporateCompanyShareholding
           .where(shareholder_type: "Company", shareholder_id: company.id)
           .where("number_of_shares > 0")
           .includes(company: [ :company_group ])
@@ -3615,7 +3615,7 @@ module Api
         # Check if this company is a trustee
         trust_entity = nil
         if company.is_trustee && company.trust_name.present?
-          trust_entity = Company.where(entity_type: [ "Trust", "Superfund" ]).find_by(name: company.trust_name)
+          trust_entity = CorporateCompany.where(entity_type: [ "Trust", "Superfund" ]).find_by(name: company.trust_name)
         end
 
         {

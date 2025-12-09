@@ -1,6 +1,6 @@
 class XeroChartOfAccount < ApplicationRecord
   # Associations
-  belongs_to :company_group, optional: true  # nil = global/default COA
+  belongs_to :corporate_group, optional: true  # nil = global/default COA
 
   # Validations
   validates :account_code, presence: true

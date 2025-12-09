@@ -17,7 +17,7 @@ class EmailAttachment < ApplicationRecord
   def find_matching_document
     return nil if content_hash.blank?
 
-    CompanyDocument.find_by(content_hash: content_hash)
+    CorporateCompanyDocument.find_by(content_hash: content_hash)
   end
 
   # Link this attachment to an existing company document (avoid storing twice)

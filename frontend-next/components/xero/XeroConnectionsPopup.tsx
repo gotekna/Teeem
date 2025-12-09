@@ -144,14 +144,16 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
     organizations.flatMap(org => org.companies.map(c => c.company_id))
   );
 
-  // Show ONLY corporate entities (entity_type = "Company" or "company") without Xero connections
+  // Show ONLY corporate entities that belong to a Company Group
   const availableCompanies = companies.filter(c => {
     // Only include companies that:
-    // 1. Are corporate entities (not Trust, Superfund, Person, etc.)
-    // 2. Don't already have a Xero connection
+    // 1. Belong to a Company Group (company_group_id != null) - excludes suppliers/vendors
+    // 2. Are corporate entities (entity_type = "Company" or "company") - excludes Trusts/Superfunds
+    // 3. Don't already have a Xero connection
+    const belongsToGroup = c.company_group_id != null;
     const isCorporateEntity = c.entity_type === "Company" || c.entity_type === "company";
     const hasNoConnection = !linkedCompanyIds.has(c.id);
-    return isCorporateEntity && hasNoConnection;
+    return belongsToGroup && isCorporateEntity && hasNoConnection;
   });
 
   return (

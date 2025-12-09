@@ -1,4 +1,4 @@
-class CompanyActivity < ApplicationRecord
+class CorporateCorporateCompanyActivity < ApplicationRecord
   # Associations
   belongs_to :company
   belongs_to :user, optional: true

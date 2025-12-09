@@ -30,7 +30,7 @@ class WarehouseDataLinkerService
   # Link documents to ExternalInvoices based on matching criteria
   def link_invoice_documents!
     # Find documents that look like invoices but aren't linked
-    invoice_docs = CompanyDocument
+    invoice_docs = CorporateCompanyDocument
       .where(documentable_type: nil)
       .where("document_type ILIKE '%invoice%' OR document_type ILIKE '%bill%' OR title ILIKE '%INV-%' OR title ILIKE '%BILL-%'")
 
@@ -52,7 +52,7 @@ class WarehouseDataLinkerService
   # Link documents to PurchaseOrders based on matching criteria
   def link_po_documents!
     # Find documents that look like POs but aren't linked
-    po_docs = CompanyDocument
+    po_docs = CorporateCompanyDocument
       .where(documentable_type: nil)
       .where("document_type ILIKE '%purchase%' OR document_type ILIKE '%po%' OR title ILIKE '%PO-%'")
 
@@ -74,7 +74,7 @@ class WarehouseDataLinkerService
   def link_job_documents!
     # Find documents with job references that aren't linked
     # Skip documents already linked to something or that are company-level docs
-    unlinked_docs = CompanyDocument
+    unlinked_docs = CorporateCompanyDocument
       .where(documentable_type: nil)
       .where.not(document_type: [ "invoice", "bill", "purchase_order" ]) # Skip invoice/PO types
 

@@ -78,7 +78,7 @@ class PayNowRequest < ApplicationRecord
     where("created_at >= ? AND created_at <= ?", start_date, start_date.end_of_week(:monday))
   }
   scope :current_week, -> {
-    today = CompanySetting.today
+    today = CorporateCompanySetting.today
     for_week(today.beginning_of_week(:monday))
   }
 
@@ -130,7 +130,7 @@ class PayNowRequest < ApplicationRecord
       # Create payment record
       new_payment = purchase_order.payments.create!(
         amount: discounted_amount,
-        payment_date: CompanySetting.today,
+        payment_date: CorporateCompanySetting.today,
         payment_method: "bank_transfer",
         reference_number: "PAY-NOW-#{id}",
         notes: "Early payment with #{discount_percentage}% discount. Discount amount: $#{discount_amount}. Original amount: $#{original_amount}.",
@@ -147,7 +147,7 @@ class PayNowRequest < ApplicationRecord
       # Apply invoice to PO if not already invoiced
       unless purchase_order.invoice_date.present?
         purchase_order.update!(
-          invoice_date: CompanySetting.today,
+          invoice_date: CorporateCompanySetting.today,
           invoice_reference: "PAY-NOW-#{id}",
           invoiced_amount: discounted_amount
         )

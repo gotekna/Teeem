@@ -1,6 +1,6 @@
 module Api
   module V1
-    class CompaniesController < ApplicationController
+    class CorporateCompaniesController < ApplicationController
       before_action :set_company, only: [ :show, :update, :destroy, :directors, :add_director,
                                          :update_director, :remove_director, :compliance_items,
                                          :activities, :documents, :assets, :hierarchy, :shareholders,
@@ -8,7 +8,7 @@ module Api
 
       # GET /api/v1/companies
       def index
-        @companies = Company.all
+        @companies = CorporateCompany.all
 
         # Filtering
         @companies = @companies.by_group(params[:group]) if params[:group].present?
@@ -58,7 +58,7 @@ module Api
           # Note: total_asset_value removed - depends on assets table
         )
 
-        # Serialize current directors separately (company_directors.current returns CompanyDirector objects)
+        # Serialize current directors separately (company_directors.current returns CorporateCompanyDirector objects)
         company_json["current_directors"] = @company.company_directors.current.includes(:contact).map do |director|
           director.as_json(
             include: { contact: { only: [ :id, :display_name, :email, :mobile_phone ] } },
@@ -71,7 +71,7 @@ module Api
 
       # POST /api/v1/companies
       def create
-        @company = Company.new(company_params)
+        @company = CorporateCompany.new(company_params)
 
         if @company.save
           render json: {
@@ -354,15 +354,15 @@ module Api
         # For a Corporate Trustee, find the trust it manages
         if is_trust
           trust = @company
-          corporate_trustee = Company.find_by(trust_name: @company.name, is_trustee: true)
+          corporate_trustee = CorporateCompany.find_by(trust_name: @company.name, is_trustee: true)
         else
           corporate_trustee = @company
-          trust = Company.find_by(name: @company.trust_name)
+          trust = CorporateCompany.find_by(name: @company.trust_name)
         end
 
-        # Get trust roles from ContactCompanyGroupMemberships
+        # Get trust roles from ContactCorporateGroupMemberships
         trust_group_id = trust&.company_group_id || @company.company_group_id
-        memberships = ContactCompanyGroupMembership
+        memberships = ContactCorporateGroupMembership
           .where(company_group_id: trust_group_id, membership_type: [ "beneficiary", "appointor", "trustee" ])
           .includes(:contact)
 
@@ -711,7 +711,7 @@ module Api
       # Returns all companies' ASIC login credentials for table view
       # Only shows entity_type = Company (excludes Person, Trust, Superfund)
       def asic_logins
-        @companies = Company.where(entity_type: [ "Company", "company" ]).order(:name)
+        @companies = CorporateCompany.where(entity_type: [ "Company", "company" ]).order(:name)
 
         # Filter by company group
         if params[:company_group_id].present?
@@ -748,7 +748,7 @@ module Api
       private
 
       def set_company
-        @company = Company.find_by_slug_or_id(params[:id])
+        @company = CorporateCompany.find_by_slug_or_id(params[:id])
         unless @company
           render json: { success: false, error: "Company not found" }, status: :not_found
         end

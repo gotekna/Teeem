@@ -1,6 +1,6 @@
 module Api
   module V1
-    class CompanyShareholdingsController < ApplicationController
+    class CorporateCompanyShareholdingsController < ApplicationController
       before_action :set_company
       before_action :set_shareholding, only: [ :show, :update, :destroy ]
 
@@ -128,7 +128,7 @@ module Api
       private
 
       def set_company
-        @company = Company.find(params[:company_id])
+        @company = CorporateCompany.find(params[:company_id])
       end
 
       def set_shareholding

@@ -4,7 +4,7 @@ module Api
       # GET /api/v1/shareholdings
       # Returns all shareholdings across all companies
       def index
-        @shareholdings = CompanyShareholding
+        @shareholdings = CorporateCompanyShareholding
                           .includes(:company, :shareholder)
                           .order(created_at: :desc)
 

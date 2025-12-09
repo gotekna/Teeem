@@ -1,4 +1,4 @@
-class CompanyMinute < ApplicationRecord
+class CorporateCorporateCompanyMinute < ApplicationRecord
   # Associations
   belongs_to :company
   belongs_to :minute_template, optional: true

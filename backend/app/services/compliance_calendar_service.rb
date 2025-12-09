@@ -12,7 +12,7 @@ class ComplianceCalendarService
 
   def calendar_items
     # Use left outer join to include companies without company_groups
-    items = CompanyComplianceItem
+    items = CorporateCompanyComplianceItem
       .joins(:company)
       .left_joins(company: :company_group)
       .where("company_compliance_items.due_date BETWEEN ? AND ?", @start_date, @end_date)
@@ -52,7 +52,7 @@ class ComplianceCalendarService
 
   # Get overdue items
   def overdue_items
-    CompanyComplianceItem
+    CorporateCompanyComplianceItem
       .joins(:company)
       .left_joins(company: :company_group)
       .where("company_compliance_items.due_date < ? AND company_compliance_items.completed = ?", Date.today, false)
@@ -62,7 +62,7 @@ class ComplianceCalendarService
 
   # Get upcoming items (next 30 days)
   def upcoming_items(days = 30)
-    CompanyComplianceItem
+    CorporateCompanyComplianceItem
       .joins(:company)
       .left_joins(company: :company_group)
       .where("company_compliance_items.due_date BETWEEN ? AND ? AND company_compliance_items.completed = ?", Date.today, days.days.from_now, false)
@@ -92,7 +92,7 @@ class ComplianceCalendarService
     generated = 0
     errors = []
 
-    Company.active.includes(:company_group).find_each do |company|
+    CorporateCompany.active.includes(:company_group).find_each do |company|
       begin
         # ASIC Annual Review - due on anniversary of incorporation
         if company.date_incorporated.present?
@@ -193,10 +193,10 @@ class ComplianceCalendarService
     days_before.each do |days|
       target_date = Date.today + days.days
 
-      items = CompanyComplianceItem
+      items = CorporateCompanyComplianceItem
         .where(due_date: target_date, completed: false)
         .where(last_reminder_sent_at: nil)
-        .or(CompanyComplianceItem.where(due_date: target_date, completed: false).where("last_reminder_sent_at < ?", 7.days.ago))
+        .or(CorporateCompanyComplianceItem.where(due_date: target_date, completed: false).where("last_reminder_sent_at < ?", 7.days.ago))
         .includes(:company)
 
       items.find_each do |item|

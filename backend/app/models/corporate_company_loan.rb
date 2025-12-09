@@ -1,8 +1,8 @@
-class CompanyLoan < ApplicationRecord
+class CorporateCorporateCompanyLoan < ApplicationRecord
   # Associations
-  belongs_to :lender_company, class_name: "Company"
-  belongs_to :borrower_company, class_name: "Company"
-  has_many :company_documents, foreign_key: "loan_id", dependent: :nullify
+  belongs_to :lender_company, class_name: "CorporateCompany"
+  belongs_to :borrower_company, class_name: "CorporateCompany"
+  has_many :corporate_company_documents, foreign_key: "loan_id", dependent: :nullify
 
   # Validations
   validates :principal_amount, presence: true, numericality: { greater_than: 0 }

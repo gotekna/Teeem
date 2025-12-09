@@ -1,4 +1,4 @@
-class CompanyXeroAccount < ApplicationRecord
+class CorporateCorporateCompanyXeroAccount < ApplicationRecord
   # Associations
   belongs_to :company_xero_connection
 

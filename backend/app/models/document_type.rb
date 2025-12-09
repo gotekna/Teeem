@@ -1,9 +1,9 @@
 class DocumentType < ApplicationRecord
   # Associations
-  has_many :company_documents, dependent: :nullify
+  has_many :corporate_company_documents, dependent: :nullify
   has_many :job_documents, dependent: :nullify
 
-  # Callbacks - clear CompanyDocument abbreviation cache when document types change
+  # Callbacks - clear CorporateCompanyDocument abbreviation cache when document types change
   after_save :clear_abbreviation_cache
   after_destroy :clear_abbreviation_cache
 
@@ -243,8 +243,8 @@ class DocumentType < ApplicationRecord
 
   private
 
-  # Clear the CompanyDocument abbreviation cache when document types are updated
+  # Clear the CorporateCompanyDocument abbreviation cache when document types are updated
   def clear_abbreviation_cache
-    CompanyDocument.clear_abbreviations_cache!
+    CorporateCompanyDocument.clear_abbreviations_cache!
   end
 end

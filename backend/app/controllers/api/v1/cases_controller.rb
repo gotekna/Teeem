@@ -303,7 +303,7 @@ module Api
 
       # POST /api/v1/cases/:id/add_document
       def add_document
-        doc = CompanyDocument.find(params[:document_id])
+        doc = CorporateCompanyDocument.find(params[:document_id])
         case_doc = @case.add_document(doc,
           relevance: params[:relevance] || "supporting",
           notes: params[:notes],
@@ -359,7 +359,7 @@ module Api
 
       # POST /api/v1/cases/:id/add_company
       def add_company
-        company = Company.find(params[:company_id])
+        company = CorporateCompany.find(params[:company_id])
         case_company = @case.add_company(company,
           role: params[:role] || "related_entity",
           notes: params[:notes],
@@ -555,7 +555,7 @@ module Api
         when "replace"
           review.replace!(current_user)
         when "keep_both"
-          new_doc = CompanyDocument.create!(
+          new_doc = CorporateCompanyDocument.create!(
             company_id: @case.company_id,
             title: review.new_file_name,
             filename: review.new_file_name,

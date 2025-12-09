@@ -126,7 +126,7 @@ class CorporateOneDriveService
       groups: []
     }
 
-    CompanyGroup.includes(:companies).order(:name).each do |group|
+    CorporateGroup.includes(:companies).order(:name).each do |group|
       group_info = {
         name: group.name,
         folder_path: "00 TEEEM PRIVATE/#{group.name}",
@@ -179,7 +179,7 @@ class CorporateOneDriveService
       stats: @stats
     }
 
-    CompanyGroup.includes(:companies).order(:name).each do |group|
+    CorporateGroup.includes(:companies).order(:name).each do |group|
       Rails.logger.info "Creating folder for group: #{group.name}"
 
       # Create group folder
@@ -392,7 +392,7 @@ class CorporateOneDriveService
     end
 
     # Try to find any known company code in the filename
-    Company.where.not(code: [ nil, "" ]).find_each do |c|
+    CorporateCompany.where.not(code: [ nil, "" ]).find_each do |c|
       if name_without_ext.match?(/\b#{Regexp.escape(c.code)}\b/i)
         return c.code.upcase
       end

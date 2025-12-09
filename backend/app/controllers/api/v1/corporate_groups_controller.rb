@@ -1,11 +1,11 @@
 module Api
   module V1
-    class CompanyGroupsController < ApplicationController
+    class CorporateGroupsController < ApplicationController
       before_action :set_company_group, only: [ :show, :update, :destroy, :companies, :structure, :contacts ]
 
       # GET /api/v1/company_groups
       def index
-        @company_groups = CompanyGroup.all
+        @company_groups = CorporateGroup.all
 
         # Filter by active status
         if params[:active].present?
@@ -35,7 +35,7 @@ module Api
 
       # POST /api/v1/company_groups
       def create
-        @company_group = CompanyGroup.new(company_group_params)
+        @company_group = CorporateGroup.new(company_group_params)
 
         if @company_group.save
           render json: {
@@ -154,7 +154,7 @@ module Api
       private
 
       def set_company_group
-        @company_group = CompanyGroup.find(params[:id])
+        @company_group = CorporateGroup.find(params[:id])
       end
 
       def company_group_params
@@ -223,7 +223,7 @@ module Api
         return nil unless contact  # Skip orphaned memberships
 
         # Check if this contact has a linked Company record
-        linked_company = Company.find_by(contact_id: contact.id)
+        linked_company = CorporateCompany.find_by(contact_id: contact.id)
         {
           id: membership.id,
           contact_id: contact.id,
