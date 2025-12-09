@@ -65,7 +65,7 @@ module Api
         end
 
         # Create the connection
-        connection = @company.build_company_xero_connection
+        connection = @company.build_corporate_company_xero_connection
         connection.assign_attributes(
           xero_credential_id: credential.id,
           xero_tenant_id: credential.tenant_id,

@@ -148,10 +148,14 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
   const availableCompanies = companies.filter(c => {
     // Only include companies that:
     // 1. Belong to a Company Group (company_group_id != null) - excludes suppliers/vendors
-    // 2. Are corporate entities (entity_type = "Company" or "company") - excludes Trusts/Superfunds
+    // 2. Are corporate entities (entity_type = "Company", "company", "Trust", or "trust")
     // 3. Don't already have a Xero connection
     const belongsToGroup = c.company_group_id != null;
-    const isCorporateEntity = c.entity_type === "Company" || c.entity_type === "company";
+    const isCorporateEntity =
+      c.entity_type === "Company" ||
+      c.entity_type === "company" ||
+      c.entity_type === "Trust" ||
+      c.entity_type === "trust";
     const hasNoConnection = !linkedCompanyIds.has(c.id);
     return belongsToGroup && isCorporateEntity && hasNoConnection;
   });
