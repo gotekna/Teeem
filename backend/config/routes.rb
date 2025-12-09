@@ -1538,8 +1538,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Company Compliance Items
-      resources :company_compliance_items, only: [ :index, :show, :create, :update, :destroy ] do
+      # Company Compliance Items (routes to CorporateCompanyComplianceItemsController)
+      resources :company_compliance_items, controller: "corporate_company_compliance_items", only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :mark_completed
         end
