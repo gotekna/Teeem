@@ -681,10 +681,20 @@ export function XeroPdfSyncStatus() {
                             variant="outline"
                             size="sm"
                             className="h-6 px-2 text-xs text-orange-600 border-orange-300 hover:bg-orange-50"
-                            onClick={() => window.open('/settings/integrations/xero', '_self')}
+                            onClick={async () => {
+                              try {
+                                const response = await api.xero.getAuthUrl();
+                                const authUrl = response.auth_url || response.url;
+                                if (authUrl) {
+                                  window.location.href = authUrl;
+                                }
+                              } catch (error) {
+                                console.error("Failed to get Xero auth URL:", error);
+                              }
+                            }}
                           >
-                            <ExternalLink className="h-3 w-3 mr-1" />
-                            Fix
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Reconnect
                           </Button>
                         </>
                       ) : !tenant.can_make_request ? (
