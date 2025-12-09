@@ -94,14 +94,18 @@ export function BulkUpdateModal({
           <div className="space-y-2">
             <Label>Column to update</Label>
             <ComboboxDropdown
-              items={COLUMNS.filter(
-                (c) =>
-                  c.key !== "select" &&
-                  c.key !== "actions" &&
-                  c.key !== "id" &&
-                  c.editable !== false &&
-                  c.column_type !== "computed" &&
-                  c.column_type !== "searchable_text"
+              items={Array.from(
+                new Map(
+                  COLUMNS.filter(
+                    (c) =>
+                      c.key !== "select" &&
+                      c.key !== "actions" &&
+                      c.key !== "id" &&
+                      c.editable !== false &&
+                      c.column_type !== "computed" &&
+                      c.column_type !== "searchable_text"
+                  ).map((col) => [col.key, col])
+                ).values()
               )
                 .sort((a, b) => a.label.localeCompare(b.label))
                 .map((col) => ({
