@@ -4239,8 +4239,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_042509) do
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
-  create_table "versions", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "versions", force: :cascade do |t|
     t.integer "current_version", default: 101, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
