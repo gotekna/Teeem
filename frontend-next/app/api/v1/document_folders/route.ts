@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 
     sql += ` ORDER BY order_position ASC`;
 
-    const folders = await query(sql, params);
+    const folders = params.length > 0 ? await query(sql, params) : await query(sql);
 
     return NextResponse.json({
       success: true,
@@ -44,7 +44,11 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Failed to fetch document folders:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to fetch document folders" },
+      {
+        success: false,
+        error: "Failed to fetch document folders",
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }
@@ -76,7 +80,11 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Failed to create document folder:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to create document folder" },
+      {
+        success: false,
+        error: "Failed to create document folder",
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }

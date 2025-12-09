@@ -311,7 +311,16 @@ class XeroAttachmentSyncService
 
     begin
       credential = OrganizationOneDriveCredential.active_credential
-      return nil unless credential.present?
+
+      # Check if credential exists and is valid (not expired)
+      unless credential.present? && credential.valid_credential?
+        if credential.present? && credential.token_expired?
+          Rails.logger.error("[XeroAttachmentSync] OneDrive credential expired - SharePoint uploads disabled until credential is refreshed")
+        else
+          Rails.logger.error("[XeroAttachmentSync] No valid OneDrive credential found - SharePoint uploads disabled")
+        end
+        return nil
+      end
 
       graph_client = MicrosoftGraphClient.new(credential)
 
