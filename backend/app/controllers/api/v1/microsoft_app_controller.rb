@@ -86,10 +86,11 @@ class Api::V1::MicrosoftAppController < ApplicationController
       }, status: :unprocessable_entity
     end
 
-    # Check if org with this name already exists
-    existing = OrganizationMicrosoftAppCredential.find_by(name: org_name)
+    # Check if org with this name already exists AND is active
+    # Only update if there's an active record, otherwise create new
+    existing = OrganizationMicrosoftAppCredential.find_by(name: org_name, is_active: true)
     if existing
-      # Update existing credential instead of creating new
+      # Update existing active credential instead of creating new
       existing.update!(
         client_id: client_id,
         client_secret: client_secret,
@@ -106,7 +107,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
         client_secret: client_secret,
         tenant_id: tenant_id,
         setup_by: current_user,
-        status: "pending"
+        status: "pending",
+        is_active: true
       )
     end
 
@@ -142,8 +144,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
       }, status: :unprocessable_entity
     end
 
-    # Check if org with this name already exists
-    existing = OrganizationMicrosoftAppCredential.find_by(name: org_name)
+    # Check if org with this name already exists AND is active
+    # Only update if there's an active record, otherwise create new
+    existing = OrganizationMicrosoftAppCredential.find_by(name: org_name, is_active: true)
     if existing
       existing.update!(
         client_id: client_id,
@@ -161,7 +164,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
         client_secret: client_secret,
         tenant_id: tenant_id,
         setup_by: current_user,
-        status: "pending"
+        status: "pending",
+        is_active: true
       )
     end
 
