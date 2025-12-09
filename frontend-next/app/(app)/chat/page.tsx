@@ -1029,7 +1029,7 @@ function MessageBubble({
     <div className={cn("flex", message.is_own ? "justify-end" : "justify-start")}>
       <div className={cn("flex gap-2 max-w-[70%]", message.is_own && "flex-row-reverse")}>
         {!message.is_own && (
-          <Avatar className="h-8 w-8">
+          <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback className="text-xs">
               {message.sender_name
                 .split(" ")
@@ -1038,13 +1038,13 @@ function MessageBubble({
             </AvatarFallback>
           </Avatar>
         )}
-        <div>
+        <div className="min-w-0 flex-1">
           {!message.is_own && (
             <div className="text-xs text-muted-foreground mb-1">{message.sender_name}</div>
           )}
           <div
             className={cn(
-              "rounded-lg overflow-hidden group relative",
+              "rounded-lg overflow-hidden group relative break-words",
               message.message_type === "image" ? "p-0" : "px-3 py-2",
               message.is_own
                 ? "bg-primary text-primary-foreground"
@@ -1061,16 +1061,16 @@ function MessageBubble({
                   />
                 )}
                 {message.content && message.content !== "[Image]" && (
-                  <p className="text-sm px-3 py-2">{message.content}</p>
+                  <p className="text-sm px-3 py-2 break-words">{message.content}</p>
                 )}
               </div>
             ) : message.message_type === "file" ? (
               <div className="flex items-center gap-2">
-                <File className="h-4 w-4" />
-                <span className="text-sm">{message.file_name}</span>
+                <File className="h-4 w-4 shrink-0" />
+                <span className="text-sm break-words">{message.file_name}</span>
               </div>
             ) : (
-              <p className="text-sm">{message.content}</p>
+              <p className="text-sm break-words">{message.content}</p>
             )}
           </div>
           <div
