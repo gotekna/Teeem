@@ -133,8 +133,12 @@ class OrgEmailSyncJob < ApplicationJob
     # Transform Graph API response to our format
     internet_message_id = email_data["internetMessageId"] || email_data["id"]
 
-    # Find or create
-    email = EmailWarehouse.find_or_initialize_by(internet_message_id: internet_message_id)
+    # Find or create - use composite key (internet_message_id + mailbox_owner_email)
+    # This ensures each mailbox has its own copy with the correct outlook_id
+    email = EmailWarehouse.find_or_initialize_by(
+      internet_message_id: internet_message_id,
+      mailbox_owner_email: owner_email
+    )
 
     # Extract sender info
     from_data = email_data["from"]&.dig("emailAddress") || {}
