@@ -1,8 +1,8 @@
 class CorporateCompanyXeroConnection < ApplicationRecord
   # Associations
-  belongs_to :company
+  belongs_to :corporate_company, foreign_key: 'company_id'
   belongs_to :xero_credential, optional: true  # SSoT for OAuth tokens
-  has_many :company_xero_accounts, dependent: :destroy
+  has_many :corporate_company_xero_accounts, foreign_key: 'company_xero_connection_id', dependent: :destroy
 
   # Validations
   validates :xero_tenant_id, presence: true, uniqueness: { scope: :company_id }
@@ -83,7 +83,7 @@ class CorporateCompanyXeroConnection < ApplicationRecord
       last_sync_error: error_message
     )
 
-    company.company_activities.create!(
+    corporate_company.corporate_company_activities.create!(
       activity_type: "xero_disconnected",
       description: "Xero connection disconnected#{error_message.present? ? ": #{error_message}" : ''}",
       metadata: { xero_tenant_id: xero_tenant_id },
@@ -140,20 +140,20 @@ class CorporateCompanyXeroConnection < ApplicationRecord
 
   # SSoT: Auto-sync bank accounts when Xero connection is established
   def sync_bank_accounts_from_xero
-    return unless company.present? && connected?
+    return unless corporate_company.present? && connected?
 
-    Rails.logger.info("[XeroConnection] Auto-syncing bank accounts for company #{company.id} after Xero connection")
+    Rails.logger.info("[XeroConnection] Auto-syncing bank accounts for company #{corporate_company.id} after Xero connection")
 
     begin
-      sync_service = XeroBankSyncService.new(company)
+      sync_service = XeroBankSyncService.new(corporate_company)
       result = sync_service.sync_bank_accounts(auto_create: true)
 
       if result[:success]
-        Rails.logger.info("[XeroConnection] Auto-synced #{result[:auto_created_count]} bank accounts from Xero for company #{company.id}")
+        Rails.logger.info("[XeroConnection] Auto-synced #{result[:auto_created_count]} bank accounts from Xero for company #{corporate_company.id}")
 
         # Create activity if any accounts were created
         if result[:auto_created_count] > 0
-          company.company_activities.create!(
+          corporate_company.corporate_company_activities.create!(
             activity_type: "bank_accounts_synced",
             description: "#{result[:auto_created_count]} bank account(s) auto-synced from Xero",
             metadata: { created_count: result[:auto_created_count], linked_count: result[:auto_linked_count] },
@@ -170,9 +170,9 @@ class CorporateCompanyXeroConnection < ApplicationRecord
   end
 
   def create_connection_activity
-    return unless company.present?
+    return unless corporate_company.present?
 
-    company.company_activities.create!(
+    corporate_company.corporate_company_activities.create!(
       activity_type: "xero_connected",
       description: "Xero organization connected: #{xero_tenant_name}",
       metadata: { xero_tenant_id: xero_tenant_id, xero_tenant_name: xero_tenant_name },
