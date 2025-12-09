@@ -80,6 +80,22 @@ class MicrosoftAppGraphClient
     response["value"] || []
   end
 
+  # Get email in MIME format (.eml)
+  # Returns the raw MIME content of the email message
+  def get_email_mime_content(user_identifier, message_id)
+    endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/$value"
+
+    # This endpoint returns raw MIME content, not JSON
+    response = HTTP.auth("Bearer #{valid_access_token}")
+                   .get("#{GRAPH_API_BASE}#{endpoint}")
+
+    unless response.status.success?
+      raise ApiError, "Failed to get email MIME content: #{response.code} - #{response.body}"
+    end
+
+    response.body.to_s
+  end
+
   # List mail folders for a user
   def get_user_mail_folders(user_identifier)
     response = get("/users/#{CGI.escape(user_identifier)}/mailFolders", { "$top" => 100 })
