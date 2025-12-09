@@ -57,9 +57,12 @@ module Api
       end
 
       # GET /api/v1/xero/rate_limits
-      # Get current rate limit usage for all tenants
+      # Get current rate limit usage for all tenants (SSoT: includes credential status)
       def rate_limits
         usage = XeroRateLimitTracker.aggregate_usage
+
+        # Build credential lookup by tenant_id for status info
+        credentials_by_tenant = XeroCredential.all.index_by(&:tenant_id)
 
         render json: {
           success: true,
@@ -70,13 +73,19 @@ module Api
               concurrent: XeroRateLimitTracker::CONCURRENT_LIMIT
             },
             tenants: usage[:per_tenant].map do |tenant|
+              credential = credentials_by_tenant[tenant[:tenant_id]]
               {
                 tenant_id: tenant[:tenant_id],
                 tenant_name: tenant[:tenant_name],
                 minute: tenant[:usage]&.dig(:minute),
                 daily: tenant[:usage]&.dig(:daily),
                 total_7d: tenant[:usage]&.dig(:total_7d),
-                can_make_request: tenant[:usage]&.dig(:can_make_request)
+                can_make_request: tenant[:usage]&.dig(:can_make_request),
+                # SSoT: Include credential status so UI shows actual token health
+                status: credential&.status || 'disconnected',
+                needs_reauth: credential ? !credential.effectively_connected? : true,
+                expired: credential&.expired?,
+                degraded: credential&.degraded?
               }
             end,
             aggregate: usage[:aggregate]
