@@ -1524,8 +1524,8 @@ module Api
           brisbane_tz = ActiveSupport::TimeZone["Australia/Brisbane"]
           now_brisbane = Time.current.in_time_zone(brisbane_tz)
 
-          # Invoice sync runs every 30 minutes
-          next_invoice_sync = calculate_next_run(now_brisbane, 30, 0)
+          # Invoice sync runs every 5 minutes
+          next_invoice_sync = calculate_next_run(now_brisbane, 5, 0)
 
           # PDF sync uses smart rate limiting - calculates next run based on pending count
           # When catching up (>100 pending): batches every 5 min
@@ -1594,7 +1594,7 @@ module Api
                 last_synced_at: last_invoice_sync,           # SSoT: Use last_synced_at consistently
                 last_sync_at: last_invoice_sync,             # Deprecated: kept for backwards compatibility
                 next_sync_at: next_invoice_sync,
-                schedule: "Every 30 minutes",
+                schedule: "Every 5 minutes",
                 breakdown: invoice_breakdown,
                 blocker: stage1_blocker
               },
