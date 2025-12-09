@@ -103,6 +103,10 @@ export default function DocumentTypeDetailPage() {
   const [draggedFromField, setDraggedFromField] = React.useState<"file_name" | "display_name" | "source" | null>(null);
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
   const [basicInfoExpanded, setBasicInfoExpanded] = React.useState(false);
+  const [namingOrgExpanded, setNamingOrgExpanded] = React.useState(true);
+  const [filingOrgExpanded, setFilingOrgExpanded] = React.useState(false);
+  const [fileExtensionsExpanded, setFileExtensionsExpanded] = React.useState(false);
+  const [complianceExpanded, setComplianceExpanded] = React.useState(false);
   const [displayNameSameAsFileName, setDisplayNameSameAsFileName] = React.useState(true);
   const [showFullDescription, setShowFullDescription] = React.useState(true);
   const [removeCompanyName, setRemoveCompanyName] = React.useState(true);
@@ -703,10 +707,21 @@ export default function DocumentTypeDetailPage() {
 
       {/* Naming & Organization */}
       <Card>
-        <CardHeader className="pb-2 pt-4">
-          <CardTitle className="text-base">Naming & Organization</CardTitle>
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
+          onClick={() => setNamingOrgExpanded(!namingOrgExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Naming & Organization</CardTitle>
+            {namingOrgExpanded ? (
+              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4 pt-2">
+        {namingOrgExpanded && (
+          <CardContent className="space-y-4 pt-2">
           <div className="relative flex gap-6 mb-6 min-h-[1000px]">
             {/* Left side - File Name and Display Name */}
             <div className="flex-1 space-y-4 pr-[20rem]">
@@ -1083,105 +1098,133 @@ export default function DocumentTypeDetailPage() {
             </div>
           </div>
           {/* End flex container */}
-
-          {/* Filing & Organization */}
-          <div className="pt-4 border-t">
-            <h3 className="text-base font-semibold mb-4">Filing & Organization</h3>
-            <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="folder">Folder</Label>
-              <Select
-                value={documentType.folder || "GENERAL"}
-                onValueChange={(value) => updateField("folder", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FOLDER_OPTIONS.map(f => (
-                    <SelectItem key={f} value={f}>{f}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Main folder location</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="primary_tab">Primary Tab</Label>
-              <Select
-                value={documentType.primary_tab || "GENERAL"}
-                onValueChange={(value) => updateField("primary_tab", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FOLDER_OPTIONS.map(f => (
-                    <SelectItem key={f} value={f}>{f}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Default tab to show</p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Additional Tabs</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Select all tabs where this document type should appear
-            </p>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
-              {FOLDER_OPTIONS.map(tab => {
-                const isSelected = (documentType.tabs || []).includes(tab);
-                const isPrimary = documentType.primary_tab === tab;
-                return (
-                  <div
-                    key={tab}
-                    className={cn(
-                      "flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors",
-                      isSelected && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700",
-                      isPrimary && "ring-2 ring-blue-500",
-                      !isSelected && "hover:bg-muted"
-                    )}
-                    onClick={() => toggleTab(tab)}
-                  >
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => toggleTab(tab)}
-                    />
-                    <Label className="cursor-pointer text-xs font-normal">
-                      {tab}
-                      {isPrimary && <span className="ml-1 text-blue-600">★</span>}
-                    </Label>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="target_folder">Target Folder Path (OneDrive/SharePoint)</Label>
-            <Input
-              id="target_folder"
-              value={documentType.target_folder || ""}
-              onChange={(e) => updateField("target_folder", e.target.value)}
-              placeholder="/Corporate/Company Name/ATO"
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              Cloud storage path for auto-filing
-            </p>
-          </div>
-          </div>
         </CardContent>
+        )}
+      </Card>
+
+      {/* Filing & Organization */}
+      <Card>
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
+          onClick={() => setFilingOrgExpanded(!filingOrgExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Filing & Organization</CardTitle>
+            {filingOrgExpanded ? (
+              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
+        </CardHeader>
+        {filingOrgExpanded && (
+          <CardContent className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="folder">Folder</Label>
+                <Select
+                  value={documentType.folder || "GENERAL"}
+                  onValueChange={(value) => updateField("folder", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FOLDER_OPTIONS.map(f => (
+                      <SelectItem key={f} value={f}>{f}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Main folder location</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="primary_tab">Primary Tab</Label>
+                <Select
+                  value={documentType.primary_tab || "GENERAL"}
+                  onValueChange={(value) => updateField("primary_tab", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FOLDER_OPTIONS.map(f => (
+                      <SelectItem key={f} value={f}>{f}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Default tab to show</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Additional Tabs</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Select all tabs where this document type should appear
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                {FOLDER_OPTIONS.map(tab => {
+                  const isSelected = (documentType.tabs || []).includes(tab);
+                  const isPrimary = documentType.primary_tab === tab;
+                  return (
+                    <div
+                      key={tab}
+                      className={cn(
+                        "flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors",
+                        isSelected && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700",
+                        isPrimary && "ring-2 ring-blue-500",
+                        !isSelected && "hover:bg-muted"
+                      )}
+                      onClick={() => toggleTab(tab)}
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleTab(tab)}
+                      />
+                      <Label className="cursor-pointer text-xs font-normal">
+                        {tab}
+                        {isPrimary && <span className="ml-1 text-blue-600">★</span>}
+                      </Label>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="target_folder">Target Folder Path (OneDrive/SharePoint)</Label>
+              <Input
+                id="target_folder"
+                value={documentType.target_folder || ""}
+                onChange={(e) => updateField("target_folder", e.target.value)}
+                placeholder="/Corporate/Company Name/ATO"
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Cloud storage path for auto-filing
+              </p>
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {/* File Extensions */}
       <Card>
-        <CardHeader>
-          <CardTitle>Allowed File Extensions</CardTitle>
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => setFileExtensionsExpanded(!fileExtensionsExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle>Allowed File Extensions</CardTitle>
+            {fileExtensionsExpanded ? (
+              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        {fileExtensionsExpanded && (
+          <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Current Extensions</Label>
             <div className="flex flex-wrap gap-2 min-h-[40px] p-3 border rounded-md">
@@ -1251,14 +1294,26 @@ export default function DocumentTypeDetailPage() {
             </p>
           </div>
         </CardContent>
+        )}
       </Card>
 
       {/* Compliance */}
       <Card>
-        <CardHeader>
-          <CardTitle>Compliance & Retention</CardTitle>
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => setComplianceExpanded(!complianceExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle>Compliance & Retention</CardTitle>
+            {complianceExpanded ? (
+              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        {complianceExpanded && (
+          <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="space-y-1">
               <Label htmlFor="requires_filing" className="text-base font-medium">
@@ -1297,6 +1352,7 @@ export default function DocumentTypeDetailPage() {
             </p>
           </div>
         </CardContent>
+        )}
       </Card>
 
       {/* Metadata */}
