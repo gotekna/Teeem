@@ -2139,9 +2139,9 @@ module Api
       end
 
       # GET /api/v1/contacts/:id/company_group_memberships
-      # Returns all company group memberships for this contact
+      # Returns all corporate group memberships for this contact
       def company_group_memberships
-        memberships = @contact.company_group_memberships.includes(:corporate_group, :corporate_company)
+        memberships = @contact.corporate_group_memberships.includes(:corporate_group, :corporate_company)
 
         render json: {
           success: true,

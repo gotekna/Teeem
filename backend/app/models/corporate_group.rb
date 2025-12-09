@@ -24,22 +24,22 @@ class CorporateGroup < ApplicationRecord
 
   # SSoT Entity Queries - get entities by type from this group
   def people_in_group
-    contacts.joins(:company_group_memberships)
-            .where(contact_company_group_memberships: { company_group_id: id })
+    contacts.joins(:corporate_group_memberships)
+            .where(contact_corporate_group_memberships: { corporate_group_id: id })
             .where(entity_type: "person")
             .distinct
   end
 
   def companies_in_group
-    contacts.joins(:company_group_memberships)
-            .where(contact_company_group_memberships: { company_group_id: id })
+    contacts.joins(:corporate_group_memberships)
+            .where(contact_corporate_group_memberships: { corporate_group_id: id })
             .where(entity_type: "company")
             .distinct
   end
 
   def trusts_in_group
-    contacts.joins(:company_group_memberships)
-            .where(contact_company_group_memberships: { company_group_id: id })
+    contacts.joins(:corporate_group_memberships)
+            .where(contact_corporate_group_memberships: { corporate_group_id: id })
             .where(entity_type: "trust")
             .distinct
   end
