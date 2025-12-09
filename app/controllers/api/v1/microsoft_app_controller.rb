@@ -375,7 +375,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
     if credential
       org_name = credential.name
-      credential.deactivate!
+      credential.disconnect!  # Clear credentials when disconnecting
       render json: {
         success: true,
         message: "Organization-wide Microsoft access for #{org_name} has been disconnected"
