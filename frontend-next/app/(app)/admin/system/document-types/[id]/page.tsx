@@ -132,9 +132,13 @@ export default function DocumentTypeDetailPage() {
         const corporateLinkedCompanies = companiesData.filter((c: any) => c.company_group_id != null);
         setCompanies(corporateLinkedCompanies);
 
-        // Auto-select first company if no preview company is set
+        // Auto-select Tekna Homes (TH) as default if no preview company is set
         if (corporateLinkedCompanies.length > 0 && previewCompanyId === null) {
-          setPreviewCompanyId(corporateLinkedCompanies[0].id);
+          // Try to find Tekna Homes by code "TH" or name containing "Tekna"
+          const teknaHomes = corporateLinkedCompanies.find((c: any) =>
+            c.code === "TH" || c.name?.toLowerCase().includes("tekna")
+          );
+          setPreviewCompanyId(teknaHomes ? teknaHomes.id : corporateLinkedCompanies[0].id);
         }
       } else {
         console.warn("Companies data is not an array:", companiesData);
@@ -676,43 +680,42 @@ export default function DocumentTypeDetailPage() {
       {/* Naming & Organization */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <CardTitle>Naming & Organization</CardTitle>
-            <div className="space-y-1 min-w-[300px]">
-              <Label htmlFor="preview-company" className="text-xs text-muted-foreground">
-                Preview Company
-              </Label>
-              <Select
-                value={previewCompanyId?.toString() || "default"}
-                onValueChange={(value) => setPreviewCompanyId(value === "default" ? null : parseInt(value))}
-              >
-                <SelectTrigger id="preview-company" className="h-8 text-sm">
-                  <SelectValue>
-                    {previewCompanyId
-                      ? (() => {
-                          const company = companies.find(c => c.id === previewCompanyId);
-                          return company ? `${company.code} - ${company.name}` : "Example Data";
-                        })()
-                      : "Example Data"
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Example Data</SelectItem>
-                  {companies.map(company => (
-                    <SelectItem key={company.id} value={company.id.toString()}>
-                      {company.code} - {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <CardTitle>Naming & Organization</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-6">
+          <div className="flex gap-6 items-start">
             {/* Left side - File Name and Display Name */}
             <div className="flex-1 space-y-4">
+              {/* Preview Company Dropdown */}
+              <div className="space-y-1">
+                <Label htmlFor="preview-company" className="text-sm text-muted-foreground">
+                  Preview Company
+                </Label>
+                <Select
+                  value={previewCompanyId?.toString() || "default"}
+                  onValueChange={(value) => setPreviewCompanyId(value === "default" ? null : parseInt(value))}
+                >
+                  <SelectTrigger id="preview-company" className="h-9">
+                    <SelectValue>
+                      {previewCompanyId
+                        ? (() => {
+                            const company = companies.find(c => c.id === previewCompanyId);
+                            return company ? `${company.code} - ${company.name}` : "Example Data";
+                          })()
+                        : "Example Data"
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Example Data</SelectItem>
+                    {companies.map(company => (
+                      <SelectItem key={company.id} value={company.id.toString()}>
+                        {company.code} - {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="file_name">File Name</Label>
@@ -943,7 +946,7 @@ export default function DocumentTypeDetailPage() {
 
             {/* Right side - Available Placeholders */}
             <div className="w-96 shrink-0">
-              <div className="space-y-3 p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 sticky top-4">
+              <div className="space-y-3 p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 sticky top-0 max-h-[calc(100vh-8rem)] overflow-y-auto">
                 <div className="flex items-center gap-2">
                   <GripVertical className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   <Label className="text-sm font-semibold text-blue-900 dark:text-blue-200">
