@@ -118,10 +118,14 @@ export default function ChatPage() {
     loadConversations();
   }, []);
 
-  const loadMessages = useCallback(async (conversationId: number | string) => {
+  const loadMessages = useCallback(async (conversationId: number | string, isInitialLoad = false) => {
     if (!user) return;
 
-    setLoadingMessages(true);
+    // Only show loading spinner on initial load, not during polling
+    if (isInitialLoad) {
+      setLoadingMessages(true);
+    }
+
     try {
       // Determine API parameters based on conversation type
       let apiParams: Record<string, string | number> = {};
@@ -177,7 +181,10 @@ export default function ChatPage() {
       console.error("Failed to load messages:", error);
       setMessages(getMockMessages(Number(conversationId) || 1));
     }
-    setLoadingMessages(false);
+
+    if (isInitialLoad) {
+      setLoadingMessages(false);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -185,10 +192,12 @@ export default function ChatPage() {
 
     const conversationId = selectedConversation.id;
     let cancelled = false;
+    let isFirstFetch = true;
 
     async function fetchMessages() {
       try {
-        await loadMessages(conversationId);
+        await loadMessages(conversationId, isFirstFetch);
+        isFirstFetch = false;
       } catch (error) {
         if (!cancelled) {
           console.error("Failed to load messages in effect:", error);
@@ -196,10 +205,10 @@ export default function ChatPage() {
       }
     }
 
-    // Initial fetch
+    // Initial fetch with loading spinner
     fetchMessages();
 
-    // Poll for new messages every 3 seconds
+    // Poll for new messages every 3 seconds (silent updates)
     const pollInterval = setInterval(() => {
       if (!cancelled) {
         fetchMessages();
