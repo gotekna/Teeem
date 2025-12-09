@@ -35,8 +35,6 @@ class EmailWarehouse < ApplicationRecord
   scope :sent, -> { where(direction: 'sent') }
   scope :received, -> { where(direction: 'received') }
   scope :owned_by, ->(user) { where(ssot_owner: user) }
-  scope :synced_to_sharepoint, -> { where.not(sharepoint_file_id: nil) }
-  scope :pending_sharepoint_sync, -> { where(sharepoint_file_id: nil) }
   scope :with_ai_summary, -> { where.not(ai_summary: nil) }
   scope :needs_ai_summary, -> { where(ai_summary: nil) }
   scope :spam, -> { where("email_classification->>'email_type' = ?", 'spam') }
