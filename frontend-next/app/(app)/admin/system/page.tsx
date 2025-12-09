@@ -66,6 +66,7 @@ import { PerformanceTab } from "./components/PerformanceTab";
 import { DocumentTypesTab } from "./components/DocumentTypesTab";
 import { ContactTypesTab } from "./components/ContactTypesTab";
 import { FoldersTabsConfigTab } from "./components/FoldersTabsConfigTab";
+import { WarehouseTab } from "./components/WarehouseTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -84,8 +85,7 @@ const TIMEZONES = [
 
 const MAIN_TABS = [
   { id: "company", label: "Company", icon: Building2 },
-  { id: "document-types", label: "Document Types", icon: FileText },
-  { id: "folders-tabs", label: "Folders & Tabs", icon: Folder },
+  { id: "warehouse", label: "Warehouse", icon: BarChart },
   { id: "contact-types", label: "Contacts", icon: Tag },
   { id: "contact-roles", label: "Contact Roles", icon: UserCog },
   { id: "gold-standard", label: "Gold Standard View", icon: Star },
@@ -461,11 +461,8 @@ function SystemAdminPageContent() {
           <TabsContent value="company">
             <CompanySettingsTab />
           </TabsContent>
-          <TabsContent value="document-types">
-            <DocumentTypesTab />
-          </TabsContent>
-          <TabsContent value="folders-tabs">
-            <FoldersTabsConfigTab />
+          <TabsContent value="warehouse">
+            <WarehouseTab />
           </TabsContent>
           <TabsContent value="contact-types">
             <ContactTypesTab />
