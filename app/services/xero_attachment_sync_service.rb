@@ -311,17 +311,10 @@ class XeroAttachmentSyncService
 
     begin
       credential = OrganizationOneDriveCredential.active_credential
+      return nil unless credential.present?
 
-      # Check if credential exists and is valid (not expired)
-      unless credential.present? && credential.valid_credential?
-        if credential.present? && credential.token_expired?
-          Rails.logger.error("[XeroAttachmentSync] OneDrive credential expired - SharePoint uploads disabled until credential is refreshed")
-        else
-          Rails.logger.error("[XeroAttachmentSync] No valid OneDrive credential found - SharePoint uploads disabled")
-        end
-        return nil
-      end
-
+      # MicrosoftGraphClient.new automatically refreshes expired tokens via ensure_valid_token!
+      # If refresh fails (e.g., refresh token expired), it will raise AuthenticationError
       graph_client = MicrosoftGraphClient.new(credential)
 
       # Get or create Contacts folder at root
@@ -364,8 +357,9 @@ class XeroAttachmentSyncService
 
       upload_result
     rescue MicrosoftGraphClient::AuthenticationError => e
-      results[:errors] << "SharePoint auth error: #{e.message}"
-      Rails.logger.error("[XeroAttachmentSync] SharePoint auth error: #{e.message}")
+      error_msg = "OneDrive credential authentication failed - token refresh unsuccessful. Please reconnect OneDrive in Settings > Integrations."
+      results[:errors] << error_msg
+      Rails.logger.error("[XeroAttachmentSync] #{error_msg} Details: #{e.message}")
       nil
     rescue MicrosoftGraphClient::APIError => e
       results[:errors] << "SharePoint API error: #{e.message}"
