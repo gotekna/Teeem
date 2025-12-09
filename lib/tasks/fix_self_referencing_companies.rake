@@ -37,7 +37,7 @@ namespace :contacts do
         end
 
         # Check if company already exists
-        existing = Contact.where(entity_type: ["company", "trust"])
+        existing = Contact.where(entity_type: [ "company", "trust" ])
                          .where("LOWER(full_name) = ? OR LOWER(company_name_or_trust) = ?",
                                 company_name.downcase, company_name.downcase)
                          .first

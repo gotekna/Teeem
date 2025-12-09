@@ -9,7 +9,7 @@ class CreateEmailRecipients < ActiveRecord::Migration[8.0]
       t.boolean :is_internal, default: false
       t.timestamps
 
-      t.index [:email_warehouse_id, :email_address], unique: true, name: 'idx_email_recipients_unique'
+      t.index [ :email_warehouse_id, :email_address ], unique: true, name: 'idx_email_recipients_unique'
       t.index :recipient_type
       t.index :is_internal
     end

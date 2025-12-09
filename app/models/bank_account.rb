@@ -16,7 +16,7 @@ class BankAccount < ApplicationRecord
   }.freeze
 
   # Associations
-  belongs_to :corporate_company, foreign_key: 'company_id'
+  belongs_to :corporate_company, foreign_key: "company_id"
   has_many :bank_transactions, dependent: :nullify
 
   # Validations

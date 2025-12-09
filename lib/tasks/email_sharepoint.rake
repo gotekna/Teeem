@@ -137,7 +137,7 @@ namespace :emails do
     end
 
     desc "Test sync a single email by ID"
-    task :test, [:email_id] => :environment do |_t, args|
+    task :test, [ :email_id ] => :environment do |_t, args|
       email_id = args[:email_id] || ENV["EMAIL_ID"]
 
       unless email_id

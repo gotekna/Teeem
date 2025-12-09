@@ -17,7 +17,31 @@ default: &default
       polling_interval: 0.1
 
 production:
-  <<: *default
+  # Workers handle different queue priorities
+  workers:
+    # Critical Xero operations (token refresh, health checks)
+    - queues: [xero_critical]
+      threads: 2
+      processes: 1
+      polling_interval: 0.1
+
+    # Regular Xero sync operations (invoices, contacts)
+    - queues: [xero_sync]
+      threads: 3
+      processes: 1
+      polling_interval: 0.5
+
+    # Bulk Xero operations (attachments, bank transactions)
+    - queues: [xero_bulk]
+      threads: 2
+      processes: 1
+      polling_interval: 1
+
+    # Default queue for everything else
+    - queues: [default, low, "*"]
+      threads: 3
+      processes: 1
+      polling_interval: 0.1
 
   # Dispatcher handles job queuing
   dispatchers:
@@ -71,23 +95,38 @@ production:
       schedule: every 15 minutes
 
     # ============================================
-    # XERO INTEGRATION
+    # XERO INTEGRATION - Self-Healing Architecture
     # ============================================
+    # Token refresh now runs more frequently (every 10 min) and proactively
+    # (refreshes 15 min BEFORE expiry, not after)
+    xero_token_refresh:
+      class: RefreshIntegrationTokensJob
+      queue: xero_critical
+      schedule: every 10 minutes
+
+    # Health monitor checks for stale syncs, disconnected credentials, etc.
+    xero_health_monitor:
+      class: XeroHealthMonitorJob
+      queue: xero_critical
+      schedule: every 1 hour at minute 5
+
+    # Invoice sync (primary business data)
     xero_invoice_incremental_sync:
       class: XeroInvoiceSyncJob
-      queue: default
+      queue: xero_sync
       args: [{ incremental: true }]
       schedule: every 30 minutes
 
+    # Contact sync (bidirectional)
     xero_contact_sync:
       class: XeroContactSyncJob
-      queue: default
+      queue: xero_sync
       schedule: every 30 minutes
 
-    # Bank transaction sync (every 6 hours)
+    # Bank transaction sync (lower priority, less frequent)
     xero_bank_transaction_sync:
       class: XeroBankTransactionSyncJob
-      queue: low
+      queue: xero_bulk
       schedule: every 6 hours at minute 30
 
     # ============================================
@@ -109,7 +148,7 @@ production:
     # Sync Xero invoice attachments (PDFs) - runs after invoice sync
     warehouse_xero_attachments:
       class: XeroAttachmentSyncJob
-      queue: low
+      queue: xero_bulk
       args: [null]
       kwargs: { limit: 50 }
       schedule: every 2 hours at minute 45

@@ -8,9 +8,9 @@ namespace :contacts do
 
     # Personal email domains to skip
     personal_domains = [
-      'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com',
-      'icloud.com', 'live.com', 'bigpond.com', 'optusnet.com.au',
-      'me.com', 'msn.com', 'aol.com', 'protonmail.com'
+      "gmail.com", "hotmail.com", "outlook.com", "yahoo.com",
+      "icloud.com", "live.com", "bigpond.com", "optusnet.com.au",
+      "me.com", "msn.com", "aol.com", "protonmail.com"
     ]
 
     # Find people with non-personal email domains
@@ -37,7 +37,7 @@ namespace :contacts do
         email = person.email.to_s.strip
         next unless email.match?(/@/)
 
-        domain = email.split('@').last.downcase
+        domain = email.split("@").last.downcase
 
         # Skip personal domains
         if personal_domains.include?(domain)
@@ -51,7 +51,7 @@ namespace :contacts do
         end
 
         # Check if company with this domain already exists
-        existing = Contact.where(entity_type: ["company", "trust"])
+        existing = Contact.where(entity_type: [ "company", "trust" ])
                          .where("LOWER(website) LIKE ?", "%#{domain}%")
                          .first
 
@@ -63,10 +63,10 @@ namespace :contacts do
         # Create company name from domain
         # e.g., "blutek.com.au" → "Blutek"
         # e.g., "theonegroup.au" → "The One Group"
-        company_name = domain.split('.').first
+        company_name = domain.split(".").first
 
         # Capitalize and clean up
-        company_name = company_name.split(/[-_]/).map(&:capitalize).join(' ')
+        company_name = company_name.split(/[-_]/).map(&:capitalize).join(" ")
 
         # Create the company
         company = Contact.new(
@@ -110,9 +110,9 @@ namespace :contacts do
   desc "Preview companies that would be created from people's emails"
   task preview_companies_from_emails: :environment do
     personal_domains = [
-      'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com',
-      'icloud.com', 'live.com', 'bigpond.com', 'optusnet.com.au',
-      'me.com', 'msn.com', 'aol.com', 'protonmail.com'
+      "gmail.com", "hotmail.com", "outlook.com", "yahoo.com",
+      "icloud.com", "live.com", "bigpond.com", "optusnet.com.au",
+      "me.com", "msn.com", "aol.com", "protonmail.com"
     ]
 
     people = Contact.where(entity_type: "person")
@@ -128,13 +128,13 @@ namespace :contacts do
       email = p.email.to_s.strip
       next unless email.match?(/@/)
 
-      domain = email.split('@').last.downcase
+      domain = email.split("@").last.downcase
 
       # Skip personal domains
       next if personal_domains.include?(domain)
 
       # Check if company exists
-      existing = Contact.where(entity_type: ["company", "trust"])
+      existing = Contact.where(entity_type: [ "company", "trust" ])
                        .where("LOWER(website) LIKE ?", "%#{domain}%")
                        .first
 
@@ -144,11 +144,11 @@ namespace :contacts do
       if domains_to_create[domain]
         domains_to_create[domain][:people] << p.full_name
       else
-        company_name = domain.split('.').first.split(/[-_]/).map(&:capitalize).join(' ')
+        company_name = domain.split(".").first.split(/[-_]/).map(&:capitalize).join(" ")
         domains_to_create[domain] = {
           company_name: company_name,
           website: "https://#{domain}",
-          people: [p.full_name]
+          people: [ p.full_name ]
         }
       end
     end
@@ -171,9 +171,9 @@ namespace :contacts do
     puts
 
     personal_domains = [
-      'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com',
-      'icloud.com', 'live.com', 'bigpond.com', 'optusnet.com.au',
-      'me.com', 'msn.com', 'aol.com', 'protonmail.com'
+      "gmail.com", "hotmail.com", "outlook.com", "yahoo.com",
+      "icloud.com", "live.com", "bigpond.com", "optusnet.com.au",
+      "me.com", "msn.com", "aol.com", "protonmail.com"
     ]
 
     people = Contact.where(entity_type: "person")
@@ -195,7 +195,7 @@ namespace :contacts do
         email = person.email.to_s.strip
         next unless email.match?(/@/)
 
-        domain = email.split('@').last.downcase
+        domain = email.split("@").last.downcase
 
         # Skip personal domains
         if personal_domains.include?(domain)
@@ -204,7 +204,7 @@ namespace :contacts do
         end
 
         # Find company with this domain
-        company = Contact.where(entity_type: ["company", "trust"])
+        company = Contact.where(entity_type: [ "company", "trust" ])
                         .where("LOWER(website) LIKE ?", "%#{domain}%")
                         .first
 

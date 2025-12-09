@@ -303,7 +303,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     if outlook_service.delete_email(@email.outlook_id)
       # Mark as deleted in our database
       @email.update!(
-        email_classification: (@email.email_classification || {}).merge('deleted_from_outlook' => true, 'deleted_at' => Time.current.iso8601)
+        email_classification: (@email.email_classification || {}).merge("deleted_from_outlook" => true, "deleted_at" => Time.current.iso8601)
       )
 
       render json: {
@@ -410,7 +410,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
       if outlook_service.delete_email(email.outlook_id)
         # Mark as deleted in our database
         email.update!(
-          email_classification: (email.email_classification || {}).merge('deleted_from_outlook' => true, 'deleted_at' => Time.current.iso8601)
+          email_classification: (email.email_classification || {}).merge("deleted_from_outlook" => true, "deleted_at" => Time.current.iso8601)
         )
         deleted_count += 1
       else
@@ -424,7 +424,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     # Optionally delete from our database too
     if params[:delete_from_database] == "true"
-      EmailWarehouse.spam.where("email_classification->>'deleted_from_outlook' = ?", 'true').destroy_all
+      EmailWarehouse.spam.where("email_classification->>'deleted_from_outlook' = ?", "true").destroy_all
     end
 
     render json: {

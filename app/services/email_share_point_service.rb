@@ -50,7 +50,7 @@ class EmailSharePointService
     return nil if email.sharepoint_file_id.present?  # Already saved
 
     # Determine owner email (sender for sent, ssot_owner for received)
-    owner_email = if email.direction == 'sent'
+    owner_email = if email.direction == "sent"
       email.from_email
     else
       email.ssot_owner&.email || email.to_emails&.first || email.from_email
@@ -257,9 +257,9 @@ class EmailSharePointService
       return text_part.decoded if text_part
 
       html_part = mail.html_part
-      return strip_html(html_part.decoded) if html_part
+      strip_html(html_part.decoded) if html_part
     else
-      return mail.decoded
+      mail.decoded
     end
   rescue StandardError => e
     Rails.logger.error "[EmailSharePoint] Failed to extract body: #{e.message}"

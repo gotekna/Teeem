@@ -1,6 +1,6 @@
 class CorporateCompany < ApplicationRecord
   # Associations
-  belongs_to :corporate_group, optional: true, foreign_key: 'company_group_id'
+  belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
   belongs_to :contact, optional: true  # SSoT - links Company to Contact identity store
 
   # Hierarchy - parent/subsidiary relationships
@@ -14,41 +14,41 @@ class CorporateCompany < ApplicationRecord
   # Investments - what this company owns (as shareholder)
   has_many :investments, class_name: "CorporateCompanyShareholding", as: :shareholder, dependent: :destroy
 
-  has_many :corporate_company_directors, foreign_key: 'company_id', dependent: :destroy
+  has_many :corporate_company_directors, foreign_key: "company_id", dependent: :destroy
   has_many :directors, through: :corporate_company_directors, source: :contact
   has_many :current_directors, -> { where(corporate_company_directors: { is_current: true }) },
            through: :corporate_company_directors, source: :contact
 
-  has_many :bank_accounts, foreign_key: 'company_id', dependent: :destroy
-  has_many :active_bank_accounts, -> { where(status: "active") }, class_name: "BankAccount", foreign_key: 'company_id'
-  has_many :bank_transactions, foreign_key: 'company_id', dependent: :destroy
+  has_many :bank_accounts, foreign_key: "company_id", dependent: :destroy
+  has_many :active_bank_accounts, -> { where(status: "active") }, class_name: "BankAccount", foreign_key: "company_id"
+  has_many :bank_transactions, foreign_key: "company_id", dependent: :destroy
 
-  has_many :assets, foreign_key: 'company_id', dependent: :destroy
-  has_many :active_assets, -> { where(status: "active") }, class_name: "Asset", foreign_key: 'company_id'
+  has_many :assets, foreign_key: "company_id", dependent: :destroy
+  has_many :active_assets, -> { where(status: "active") }, class_name: "Asset", foreign_key: "company_id"
 
-  has_many :corporate_company_compliance_items, foreign_key: 'company_id', dependent: :destroy
-  has_many :pending_compliance_items, -> { where(completed: false) }, class_name: "CorporateCompanyComplianceItem", foreign_key: 'company_id'
+  has_many :corporate_company_compliance_items, foreign_key: "company_id", dependent: :destroy
+  has_many :pending_compliance_items, -> { where(completed: false) }, class_name: "CorporateCompanyComplianceItem", foreign_key: "company_id"
 
-  has_many :corporate_company_documents, foreign_key: 'company_id', dependent: :destroy
-  has_many :corporate_company_activities, foreign_key: 'company_id', dependent: :destroy
-  has_one :corporate_company_xero_connection, foreign_key: 'company_id', dependent: :destroy
+  has_many :corporate_company_documents, foreign_key: "company_id", dependent: :destroy
+  has_many :corporate_company_activities, foreign_key: "company_id", dependent: :destroy
+  has_one :corporate_company_xero_connection, foreign_key: "company_id", dependent: :destroy
 
   # New corporate associations
-  has_many :corporate_company_shareholdings, foreign_key: 'company_id', dependent: :destroy
+  has_many :corporate_company_shareholdings, foreign_key: "company_id", dependent: :destroy
   has_many :shareholders, through: :corporate_company_shareholdings, source: :shareholder
-  has_many :share_transfers, foreign_key: 'company_id', dependent: :destroy
-  has_many :dividends, foreign_key: 'company_id', dependent: :destroy
-  has_many :corporate_company_minutes, foreign_key: 'company_id', dependent: :destroy
+  has_many :share_transfers, foreign_key: "company_id", dependent: :destroy
+  has_many :dividends, foreign_key: "company_id", dependent: :destroy
+  has_many :corporate_company_minutes, foreign_key: "company_id", dependent: :destroy
   has_many :loans_as_lender, class_name: "CorporateCompanyLoan", foreign_key: "lender_company_id", dependent: :destroy
   has_many :loans_as_borrower, class_name: "CorporateCompanyLoan", foreign_key: "borrower_company_id", dependent: :destroy
 
   # Intercompany balances for consolidated financials
-  has_many :intercompany_balances, foreign_key: 'company_id', dependent: :destroy
+  has_many :intercompany_balances, foreign_key: "company_id", dependent: :destroy
   has_many :intercompany_balances_as_related, class_name: "IntercompanyBalance", foreign_key: "related_company_id", dependent: :destroy
 
   # Financial reports
-  has_many :profit_loss_reports, foreign_key: 'company_id', dependent: :destroy
-  has_many :balance_sheet_reports, foreign_key: 'company_id', dependent: :destroy
+  has_many :profit_loss_reports, foreign_key: "company_id", dependent: :destroy
+  has_many :balance_sheet_reports, foreign_key: "company_id", dependent: :destroy
 
   # Encrypted attributes
   encrypts :tfn, deterministic: true

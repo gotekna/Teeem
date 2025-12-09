@@ -12,7 +12,7 @@ class DocumentFolder < ApplicationRecord
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(:order_position) }
   scope :for_entity_type, ->(entity_type) {
-    where("entity_types @> ?", [entity_type].to_json)
+    where("entity_types @> ?", [ entity_type ].to_json)
   }
 
   # Class methods

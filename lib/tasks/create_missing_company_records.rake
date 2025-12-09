@@ -7,7 +7,7 @@ namespace :contacts do
     puts
 
     # Find company contacts without Company records
-    companies_without_record = Contact.where(entity_type: ['company', 'trust'])
+    companies_without_record = Contact.where(entity_type: [ "company", "trust" ])
                                       .where.not("EXISTS (SELECT 1 FROM companies WHERE companies.contact_id = contacts.id)")
                                       .order(:id)
 
@@ -56,7 +56,7 @@ namespace :contacts do
 
   desc "Preview company contacts without Company records"
   task preview_missing_company_records: :environment do
-    companies_without_record = Contact.where(entity_type: ['company', 'trust'])
+    companies_without_record = Contact.where(entity_type: [ "company", "trust" ])
                                       .where.not("EXISTS (SELECT 1 FROM companies WHERE companies.contact_id = contacts.id)")
                                       .order(:id)
 

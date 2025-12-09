@@ -10,7 +10,7 @@ namespace :contacts do
     puts
 
     # Find contacts where full_name is all uppercase
-    all_contacts = Contact.where.not(full_name: [nil, ''])
+    all_contacts = Contact.where.not(full_name: [ nil, "" ])
 
     all_caps_contacts = all_contacts.select do |c|
       c.full_name == c.full_name.upcase && c.full_name.match?(/[A-Z]/)
@@ -27,7 +27,7 @@ namespace :contacts do
     puts
 
     # Filter to only those that need conversion (not already company)
-    to_convert = all_caps_contacts.reject { |c| c.entity_type == 'company' }
+    to_convert = all_caps_contacts.reject { |c| c.entity_type == "company" }
 
     puts "Need to convert: #{to_convert.count} contacts"
     puts
@@ -53,7 +53,7 @@ namespace :contacts do
       begin
         # Update entity_type and clear first_name/last_name (companies don't have first/last name)
         contact.update_columns(
-          entity_type: 'company',
+          entity_type: "company",
           first_name: nil,
           last_name: nil
         )

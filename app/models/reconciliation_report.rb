@@ -1,6 +1,6 @@
 class ReconciliationReport < ApplicationRecord
   # Associations
-  belongs_to :corporate_group, optional: true, foreign_key: 'company_group_id'
+  belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
 
   # Constants
   STATUSES = %w[pending running completed failed].freeze

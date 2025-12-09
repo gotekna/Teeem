@@ -1,6 +1,6 @@
 class Asset < ApplicationRecord
   # Associations
-  belongs_to :corporate_company, foreign_key: 'company_id'
+  belongs_to :corporate_company, foreign_key: "company_id"
   has_one :asset_insurance, dependent: :destroy
   has_many :asset_service_histories, dependent: :destroy
   has_many :corporate_company_documents, dependent: :nullify

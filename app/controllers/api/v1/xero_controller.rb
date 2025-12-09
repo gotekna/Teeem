@@ -800,8 +800,8 @@ module Api
 
           contacts_data = contacts.map do |contact|
             # Get invoice/bill counts for this contact
-            invoices_count = invoice_counts[[contact.id, "sales_invoice"]] || 0
-            bills_count = invoice_counts[[contact.id, "bill"]] || 0
+            invoices_count = invoice_counts[[ contact.id, "sales_invoice" ]] || 0
+            bills_count = invoice_counts[[ contact.id, "bill" ]] || 0
             total_docs = invoices_count + bills_count
 
             # Get PDF sync count
@@ -1470,9 +1470,9 @@ module Api
                                                     .count
 
           # PDFs downloaded but not yet on SharePoint
-          sharepoint_pending = [invoices_with_pdfs - sharepoint_pdfs_uploaded, 0].max
+          sharepoint_pending = [ invoices_with_pdfs - sharepoint_pdfs_uploaded, 0 ].max
           sharepoint_progress = invoices_with_pdfs.zero? ? 0 : ((sharepoint_pdfs_uploaded.to_f / invoices_with_pdfs) * 100).round(1)
-          sharepoint_progress = [sharepoint_progress, 100].min # Cap at 100%
+          sharepoint_progress = [ sharepoint_progress, 100 ].min # Cap at 100%
 
           # ============================================
           # Breakdown by invoice type (for PDF stage)

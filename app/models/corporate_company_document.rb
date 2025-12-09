@@ -1,6 +1,6 @@
 class CorporateCompanyDocument < ApplicationRecord
   # Associations
-  belongs_to :corporate_company, foreign_key: 'company_id', optional: true
+  belongs_to :corporate_company, foreign_key: "company_id", optional: true
   belongs_to :contact, optional: true  # For documents linked to people (family members, directors)
   belongs_to :user, optional: true
   belongs_to :asset, optional: true

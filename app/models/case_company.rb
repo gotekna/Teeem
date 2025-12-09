@@ -1,7 +1,7 @@
 # CaseCompany - links companies to cases
 class CaseCompany < ApplicationRecord
   belongs_to :case_record, foreign_key: :case_id, class_name: "CaseRecord"
-  belongs_to :corporate_company, foreign_key: 'company_id'
+  belongs_to :corporate_company, foreign_key: "company_id"
 
   validates :case_id, uniqueness: { scope: :company_id }
   validates :role, inclusion: {

@@ -1028,6 +1028,12 @@ Rails.application.routes.draw do
       post "xero/webhooks", to: "xero_webhooks#receive"
       get "xero/webhooks/intent", to: "xero_webhooks#verify_intent"
 
+      # Xero Alerts (notification system for Xero health issues)
+      get "xero/alerts", to: "xero_alerts#index"
+      get "xero/alerts/count", to: "xero_alerts#count"
+      post "xero/alerts/:id/dismiss", to: "xero_alerts#dismiss"
+      get "xero/health", to: "xero_alerts#health"
+
       # Sync Configurations (per-Xero-org settings for contact sync)
       resources :sync_configurations, param: :xero_tenant_id, only: [ :index, :show, :update ] do
         member do
@@ -1308,7 +1314,7 @@ Rails.application.routes.draw do
         get "xero/bank_transactions", to: "corporate_company_xero#bank_transactions"
 
         # PDF Financial Reports (Gold Standard tables)
-        resources :profit_loss_reports, only: [:index, :show] do
+        resources :profit_loss_reports, only: [ :index, :show ] do
           collection do
             post :generate
           end
@@ -1317,7 +1323,7 @@ Rails.application.routes.draw do
             get :download
           end
         end
-        resources :balance_sheet_reports, only: [:index, :show] do
+        resources :balance_sheet_reports, only: [ :index, :show ] do
           collection do
             post :generate
           end

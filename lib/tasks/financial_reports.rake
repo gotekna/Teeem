@@ -150,7 +150,7 @@ namespace :financial_reports do
   end
 
   desc "Generate bank statements for a company"
-  task :generate_bank_statements, [:company_id, :financial_year] => :environment do |_t, args|
+  task :generate_bank_statements, [ :company_id, :financial_year ] => :environment do |_t, args|
     company = Company.find(args[:company_id])
     financial_year = args[:financial_year] || "FY2025"
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_09_125023) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_10_035103) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1109,6 +1109,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_125023) do
     t.string "external_id"
     t.integer "job_id"
     t.string "mime_type"
+    t.datetime "synced_to_xero_at"
+    t.string "xero_attachment_id"
+    t.boolean "sync_to_xero", default: false, null: false
     t.index ["asset_id"], name: "index_corporate_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_corporate_company_documents_on_company_code"
     t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"
@@ -1129,6 +1132,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_125023) do
     t.index ["onedrive_file_id"], name: "index_corporate_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
     t.index ["source"], name: "index_corporate_company_documents_on_source"
     t.index ["storage_type"], name: "index_corporate_company_documents_on_storage_type"
+    t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_corp_docs_pending_xero_sync"
     t.index ["user_validated_by_id"], name: "index_corporate_company_documents_on_user_validated_by_id"
   end
 
@@ -1821,6 +1825,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_125023) do
     t.string "sync_error"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "source_of_truth", default: "xero"
+    t.boolean "sync_to_xero", default: false, null: false
+    t.datetime "synced_to_xero_at"
+    t.datetime "xero_updated_at"
+    t.datetime "local_updated_at"
+    t.boolean "sync_conflict", default: false, null: false
     t.index ["contact_id"], name: "index_external_invoices_on_contact_id"
     t.index ["created_in_teeem"], name: "index_external_invoices_on_created_in_teeem"
     t.index ["external_contact_id"], name: "index_external_invoices_on_external_contact_id"
@@ -1833,7 +1843,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_125023) do
     t.index ["source", "tenant_id", "external_id"], name: "idx_external_invoices_unique", unique: true
     t.index ["source"], name: "index_external_invoices_on_source"
     t.index ["status"], name: "index_external_invoices_on_status"
+    t.index ["sync_conflict"], name: "idx_external_invoices_conflicts", where: "(sync_conflict = true)"
     t.index ["sync_enabled"], name: "index_external_invoices_on_sync_enabled"
+    t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_external_invoices_pending_sync"
     t.index ["tenant_id"], name: "index_external_invoices_on_tenant_id"
     t.index ["tracking_data"], name: "index_external_invoices_on_tracking_data", using: :gin
   end
@@ -4665,6 +4677,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_125023) do
     t.index ["code"], name: "index_xero_accounts_on_code", unique: true
   end
 
+  create_table "xero_alerts", force: :cascade do |t|
+    t.bigint "xero_credential_id"
+    t.bigint "corporate_company_id"
+    t.string "alert_type", null: false
+    t.string "severity", null: false
+    t.string "title", null: false
+    t.text "message"
+    t.boolean "dismissed", default: false, null: false
+    t.datetime "dismissed_at"
+    t.bigint "dismissed_by_id"
+    t.boolean "auto_resolved", default: false, null: false
+    t.datetime "auto_resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "dismissed", "created_at"], name: "idx_xero_alerts_company_active"
+    t.index ["corporate_company_id"], name: "index_xero_alerts_on_corporate_company_id"
+    t.index ["dismissed_by_id"], name: "index_xero_alerts_on_dismissed_by_id"
+    t.index ["severity", "dismissed"], name: "idx_xero_alerts_severity_active"
+    t.index ["xero_credential_id", "alert_type", "dismissed"], name: "idx_xero_alerts_credential_type"
+    t.index ["xero_credential_id"], name: "index_xero_alerts_on_xero_credential_id"
+  end
+
   create_table "xero_chart_of_accounts", force: :cascade do |t|
     t.bigint "company_group_id"
     t.string "account_code", null: false
@@ -4692,8 +4726,45 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_125023) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "is_primary", default: false, null: false
+    t.string "status", default: "connected", null: false
+    t.datetime "refresh_token_expires_at"
+    t.datetime "last_refresh_at"
+    t.text "last_refresh_error"
+    t.integer "refresh_failure_count", default: 0, null: false
+    t.datetime "last_successful_api_call_at"
+    t.string "circuit_state", default: "closed", null: false
+    t.datetime "circuit_opened_at"
+    t.integer "circuit_failure_count", default: 0, null: false
+    t.string "granted_scopes"
+    t.index ["circuit_state"], name: "index_xero_credentials_on_circuit_state"
     t.index ["is_primary"], name: "index_xero_credentials_on_is_primary"
+    t.index ["last_successful_api_call_at"], name: "index_xero_credentials_on_last_successful_api_call_at"
+    t.index ["status"], name: "index_xero_credentials_on_status"
     t.index ["tenant_id"], name: "index_xero_credentials_on_tenant_id"
+  end
+
+  create_table "xero_sync_events", force: :cascade do |t|
+    t.bigint "xero_credential_id"
+    t.string "sync_type", null: false
+    t.string "event_type", null: false
+    t.string "trigger", null: false
+    t.integer "records_processed", default: 0, null: false
+    t.integer "records_created", default: 0, null: false
+    t.integer "records_updated", default: 0, null: false
+    t.integer "records_skipped", default: 0, null: false
+    t.integer "records_failed", default: 0, null: false
+    t.text "error_message"
+    t.string "error_class"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.integer "duration_ms"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_xero_sync_events_on_created_at"
+    t.index ["sync_type", "event_type", "created_at"], name: "idx_xero_sync_events_type_status"
+    t.index ["xero_credential_id", "sync_type", "created_at"], name: "idx_xero_sync_events_cred_type_time"
+    t.index ["xero_credential_id"], name: "index_xero_sync_events_on_xero_credential_id"
   end
 
   create_table "xero_sync_statuses", force: :cascade do |t|
@@ -5061,5 +5132,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_125023) do
   add_foreign_key "whs_swms_hazards", "whs_swms"
   add_foreign_key "workflow_instances", "workflow_definitions"
   add_foreign_key "workflow_steps", "workflow_instances"
+  add_foreign_key "xero_alerts", "corporate_companies"
+  add_foreign_key "xero_alerts", "users", column: "dismissed_by_id"
+  add_foreign_key "xero_alerts", "xero_credentials"
   add_foreign_key "xero_chart_of_accounts", "corporate_groups", column: "company_group_id"
+  add_foreign_key "xero_sync_events", "xero_credentials"
 end

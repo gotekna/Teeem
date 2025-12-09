@@ -1,8 +1,8 @@
 class CorporateCompanyXeroConnection < ApplicationRecord
   # Associations
-  belongs_to :corporate_company, foreign_key: 'company_id'
+  belongs_to :corporate_company, foreign_key: "company_id"
   belongs_to :xero_credential, optional: true  # SSoT for OAuth tokens
-  has_many :corporate_company_xero_accounts, foreign_key: 'company_xero_connection_id', dependent: :destroy
+  has_many :corporate_company_xero_accounts, foreign_key: "company_xero_connection_id", dependent: :destroy
 
   # Validations
   validates :xero_tenant_id, presence: true, uniqueness: { scope: :company_id }
