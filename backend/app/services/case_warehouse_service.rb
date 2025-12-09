@@ -249,7 +249,7 @@ class CaseWarehouseService
 
     {
       contact: contact,
-      directorships: contact.corporate_company_directorships.includes(:corporate_company),
+      directorships: contact.corporate_company_directors.includes(:corporate_company),
       shareholdings: CorporateCompanyShareholding.where(shareholder_type: "Contact", shareholder_id: contact_id)
                                         .includes(:corporate_company),
       relationships: contact.contact_relationships.includes(:related_contact),
