@@ -17,9 +17,17 @@ module Api
           @folders = params[:active] == "true" ? @folders.active : @folders.where(active: false)
         end
 
+        # Include children if hierarchy param is true
+        include_children = params[:hierarchy] == "true"
+
+        # If hierarchy is requested, only return top-level folders (parent_id is null)
+        if include_children
+          @folders = @folders.where(parent_id: nil)
+        end
+
         render json: {
           success: true,
-          data: @folders.map { |f| serialize_folder(f) }
+          data: @folders.map { |f| serialize_folder(f, include_children: include_children) }
         }
       end
 
@@ -89,11 +97,11 @@ module Api
       end
 
       def folder_params
-        params.require(:folder).permit(:name, :description, :order_position, :sharepoint_path, :active, entity_types: [])
+        params.require(:folder).permit(:name, :description, :order_position, :sharepoint_path, :active, :parent_id, entity_types: [])
       end
 
-      def serialize_folder(folder)
-        {
+      def serialize_folder(folder, include_children: false)
+        data = {
           id: folder.id,
           name: folder.name,
           description: folder.description,
@@ -101,9 +109,17 @@ module Api
           sharepoint_path: folder.sharepoint_path,
           entity_types: folder.entity_types,
           active: folder.active,
+          parent_id: folder.parent_id,
           created_at: folder.created_at,
           updated_at: folder.updated_at
         }
+
+        if include_children
+          children = DocumentFolder.where(parent_id: folder.id).ordered
+          data[:children] = children.map { |child| serialize_folder(child, include_children: false) }
+        end
+
+        data
       end
     end
   end
