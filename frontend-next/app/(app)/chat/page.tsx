@@ -153,7 +153,7 @@ export default function ChatPage() {
       const response = await api.get<ApiMessage[]>("/api/v1/chat_messages", { params: apiParams });
 
       // Transform backend response to our ChatMessage format
-      const messages = (response || []).map((msg) => ({
+      const newMessages = (response || []).map((msg) => ({
         id: msg.id,
         conversation_id: conversationId,
         sender_id: msg.user_id,
@@ -167,7 +167,12 @@ export default function ChatPage() {
         read_by: [msg.user_id],
         is_own: msg.user_id === user.id,
       }));
-      setMessages(messages);
+
+      // Only update if messages actually changed (prevents flashing)
+      setMessages(prevMessages => {
+        const hasChanged = JSON.stringify(prevMessages.map(m => m.id)) !== JSON.stringify(newMessages.map(m => m.id));
+        return hasChanged ? newMessages : prevMessages;
+      });
     } catch (error) {
       console.error("Failed to load messages:", error);
       setMessages(getMockMessages(Number(conversationId) || 1));
@@ -757,6 +762,13 @@ export default function ChatPage() {
                           Save to Job
                         </DropdownMenuItem>
                       )}
+                      <DropdownMenuItem
+                        onClick={() => setMessages([])}
+                        className="text-destructive"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Clear Chat
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
