@@ -62,8 +62,8 @@ interface HeaderBarProps {
   onMenuClick?: () => void;
 }
 
-// Connection status: 'connected' | 'disconnected' | 'error'
-type ConnectionStatus = 'connected' | 'disconnected' | 'error';
+// Connection status: 'connected' | 'disconnected' | 'error' | 'degraded'
+type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'degraded';
 
 export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const router = useRouter();
@@ -94,15 +94,20 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           connected?: boolean;
           expired?: boolean;
           tenant_name?: string;
-          data?: { connected?: boolean; expired?: boolean; message?: string; tenant_name?: string };
+          status?: string; // 'connected' | 'degraded' | 'disconnected'
+          data?: { connected?: boolean; expired?: boolean; message?: string; tenant_name?: string; status?: string };
           message?: string
         }>("/api/v1/xero/status");
-        const xeroData = xeroResponse?.data || xeroResponse as { connected?: boolean; expired?: boolean; tenant_name?: string; message?: string };
+        const xeroData = xeroResponse?.data || xeroResponse as { connected?: boolean; expired?: boolean; tenant_name?: string; message?: string; status?: string };
 
         if (xeroData?.connected === true && xeroData?.expired !== true) {
           setXeroStatus('connected');
           setXeroTooltip(`Xero: Connected${xeroData.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
-        } else if (xeroData?.expired === true || xeroData?.message?.toLowerCase().includes('expired') || xeroData?.message?.toLowerCase().includes('reconnect')) {
+        } else if (xeroData?.status === 'degraded') {
+          // Degraded state - refresh failed but not fully disconnected
+          setXeroStatus('degraded');
+          setXeroTooltip(`Xero: Needs Re-authentication${xeroData.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
+        } else if (xeroData?.expired === true || xeroData?.status === 'disconnected' || xeroData?.message?.toLowerCase().includes('expired') || xeroData?.message?.toLowerCase().includes('reconnect')) {
           setXeroStatus('error');
           setXeroTooltip(`Xero: Token Expired - Reconnect Required`);
         } else if (xeroData?.connected === false && xeroData?.message) {
@@ -165,6 +170,8 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     switch (status) {
       case 'connected':
         return "text-green-500 hover:text-green-600";
+      case 'degraded':
+        return "text-orange-500 hover:text-orange-600";
       case 'error':
         return "text-red-500 hover:text-red-600";
       default:
@@ -291,6 +298,9 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             {/* Status indicator dot */}
             {xeroStatus === 'connected' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-gray-900" />
+            )}
+            {xeroStatus === 'degraded' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-gray-900" />
             )}
             {xeroStatus === 'error' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-gray-900" />

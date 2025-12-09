@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, CheckCircle, XCircle, RefreshCw, Building2, Calendar, ArrowRight } from "lucide-react";
+import { X, CheckCircle, XCircle, RefreshCw, Building2, Calendar, ArrowRight, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface CompanyLink {
@@ -25,6 +25,8 @@ interface XeroOrganization {
   connected: boolean;
   expired: boolean;
   expires_at: string;
+  status?: string; // 'connected' | 'degraded' | 'disconnected'
+  degraded?: boolean;
   companies: CompanyLink[];
 }
 
@@ -214,6 +216,11 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                             <CheckCircle className="h-6 w-6 text-green-500" />
                             <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-green-500 border-2 border-white dark:border-gray-800" />
                           </>
+                        ) : org.degraded || org.status === 'degraded' ? (
+                          <>
+                            <AlertTriangle className="h-6 w-6 text-orange-500" />
+                            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-orange-500 border-2 border-white dark:border-gray-800" />
+                          </>
                         ) : (
                           <>
                             <XCircle className="h-6 w-6 text-red-500" />
@@ -251,8 +258,12 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                           <p className="text-xs text-gray-500 dark:text-gray-400">linked</p>
                         </>
                       ) : (
-                        <span className={`text-sm font-medium ${org.connected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                          {org.connected ? 'Connected' : 'Expired'}
+                        <span className={`text-sm font-medium ${
+                          org.connected ? 'text-green-600 dark:text-green-400' :
+                          org.degraded || org.status === 'degraded' ? 'text-orange-600 dark:text-orange-400' :
+                          'text-red-600 dark:text-red-400'
+                        }`}>
+                          {org.connected ? 'Connected' : org.degraded || org.status === 'degraded' ? 'Needs Re-auth' : 'Expired'}
                         </span>
                       )}
                     </div>

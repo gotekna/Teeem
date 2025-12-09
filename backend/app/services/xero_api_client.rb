@@ -338,6 +338,27 @@ class XeroApiClient
       }
     end
 
+    # Check if credential is disconnected or degraded (refresh tokens have failed)
+    if credential.status == 'disconnected'
+      return {
+        connected: false,
+        status: 'disconnected',
+        message: "Xero connection requires re-authentication. Please reconnect to Xero.",
+        tenant_name: credential.tenant_name,
+        tenant_id: credential.tenant_id
+      }
+    end
+
+    if credential.status == 'degraded'
+      return {
+        connected: false,
+        status: 'degraded',
+        message: "Xero connection is degraded. Please reconnect to Xero.",
+        tenant_name: credential.tenant_name,
+        tenant_id: credential.tenant_id
+      }
+    end
+
     # If token is expired but we have a refresh token, try to refresh
     if credential.expired? && credential.refresh_token.present?
       begin
@@ -349,6 +370,7 @@ class XeroApiClient
         Rails.logger.error "[Xero Status] Token refresh failed: #{e.message}"
         return {
           connected: false,
+          status: credential.status || 'error',
           message: "Session expired. Please reconnect to Xero.",
           error: "Token refresh failed"
         }
@@ -357,6 +379,7 @@ class XeroApiClient
 
     {
       connected: true,
+      status: 'connected',
       tenant_name: credential.tenant_name,
       tenant_id: credential.tenant_id,
       expires_at: credential.expires_at,
