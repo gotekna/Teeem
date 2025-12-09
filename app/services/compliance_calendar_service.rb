@@ -92,7 +92,7 @@ class ComplianceCalendarService
     generated = 0
     errors = []
 
-    CorporateCompany.active.includes(:company_group).find_each do |company|
+    CorporateCompany.active.includes(:corporate_group).find_each do |company|
       begin
         # ASIC Annual Review - due on anniversary of incorporation
         if company.date_incorporated.present?

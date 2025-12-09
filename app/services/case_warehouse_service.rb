@@ -255,7 +255,7 @@ class CaseWarehouseService
       relationships: contact.contact_relationships.includes(:related_contact),
       documents: CorporateCompanyDocument.where(contact_id: contact_id),
       emails: EmailWarehouse.involving_email(contact.email),
-      company_group_memberships: contact.company_group_memberships.includes(:company_group)
+      company_group_memberships: contact.company_group_memberships.includes(:corporate_group)
     }
   end
 

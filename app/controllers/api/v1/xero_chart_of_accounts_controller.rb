@@ -5,7 +5,7 @@ module Api
 
       # GET /api/v1/xero_chart_of_accounts
       def index
-        @accounts = XeroChartOfAccount.includes(:company_group)
+        @accounts = XeroChartOfAccount.includes(:corporate_group)
 
         # Filter by company group
         if params[:company_group_id].present?
@@ -88,7 +88,7 @@ module Api
           company: {
             id: company.id,
             name: company.name,
-            company_group: company.company_group&.name
+            company_group: company.corporate_group&.name
           }
         }
       end
@@ -238,7 +238,7 @@ module Api
         {
           id: account.id,
           company_group_id: account.company_group_id,
-          company_group_name: account.company_group&.name,
+          company_group_name: account.corporate_group&.name,
           account_code: account.account_code,
           account_name: account.account_name,
           display_name: account.display_name,

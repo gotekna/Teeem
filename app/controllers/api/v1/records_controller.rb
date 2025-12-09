@@ -785,9 +785,9 @@ module Api
         when "Job"
           query.includes(:job_type, :job_status, :job_stage)
         when "Contact"
-          query.includes(:company_group, :primary_company)
+          query.includes(:corporate_group, :primary_company)
         when "Company"
-          query.includes(:company_group, :parent_company)
+          query.includes(:corporate_group, :parent_company)
         else
           query
         end

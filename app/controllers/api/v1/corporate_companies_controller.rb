@@ -732,7 +732,7 @@ module Api
               acn: company.acn,
               formatted_acn: company.formatted_acn,
               company_group_id: company.company_group_id,
-              company_group_name: company.company_group&.name,
+              company_group_name: company.corporate_group&.name,
               corporate_key: company.corporate_key,
               asic_username: company.asic_username,
               asic_password: company.encrypted_asic_password,
