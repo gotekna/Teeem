@@ -191,10 +191,19 @@ export default function ChatPage() {
       }
     }
 
+    // Initial fetch
     fetchMessages();
+
+    // Poll for new messages every 3 seconds
+    const pollInterval = setInterval(() => {
+      if (!cancelled) {
+        fetchMessages();
+      }
+    }, 3000);
 
     return () => {
       cancelled = true;
+      clearInterval(pollInterval);
     };
   }, [selectedConversation, loadMessages]);
 
