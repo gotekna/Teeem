@@ -443,7 +443,7 @@ export default function DocumentTypeDetailPage() {
       return "blue";
     }
     const allPlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
-    const found = allPlaceholders.find(p => p.code === placeholder || p.longCode === placeholder);
+    const found = allPlaceholders.find((p: { code: string; longCode?: string; color: string }) => p.code === placeholder || p.longCode === placeholder);
     return found?.color || "purple";
   };
 
@@ -926,12 +926,30 @@ export default function DocumentTypeDetailPage() {
                         </button>
                       </Badge>
                     ) : (
-                      <Input
-                        value={token.value}
-                        onChange={(e) => updateTextToken("file_name", index, e.target.value)}
-                        className="h-8 w-auto min-w-[50px] px-2 font-mono text-xs inline-block"
-                        style={{ width: `${Math.max(50, token.value.length * 8)}px` }}
-                      />
+                      // Text tokens - white/gray draggable badge with editable text
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-xs px-2 py-1.5 select-none bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 cursor-grab active:cursor-grabbing"
+                      >
+                        <GripVertical className="h-3 w-3 mr-1 inline text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={token.value}
+                          onChange={(e) => updateTextToken("file_name", index, e.target.value)}
+                          className="bg-transparent border-none outline-none w-auto min-w-[20px] max-w-[100px] text-xs font-mono"
+                          style={{ width: `${Math.max(20, token.value.length * 7)}px` }}
+                          placeholder="text"
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeToken("file_name", index);
+                          }}
+                          className="ml-1 hover:text-destructive text-muted-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
                     )}
                   </div>
                 </React.Fragment>
@@ -978,7 +996,7 @@ export default function DocumentTypeDetailPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => addBlankText("display_name")}
-                    className="text-xs h-7 -mt-1"
+                    className="text-xs h-7"
                   >
                     + Add Text
                   </Button>
@@ -1096,12 +1114,30 @@ export default function DocumentTypeDetailPage() {
                         </button>
                       </Badge>
                     ) : (
-                      <Input
-                        value={token.value}
-                        onChange={(e) => updateTextToken("display_name", index, e.target.value)}
-                        className="h-8 w-auto min-w-[50px] px-2 font-mono text-xs inline-block"
-                        style={{ width: `${Math.max(50, token.value.length * 8)}px` }}
-                      />
+                      // Text tokens - white/gray draggable badge with editable text
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-xs px-2 py-1.5 select-none bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 cursor-grab active:cursor-grabbing"
+                      >
+                        <GripVertical className="h-3 w-3 mr-1 inline text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={token.value}
+                          onChange={(e) => updateTextToken("display_name", index, e.target.value)}
+                          className="bg-transparent border-none outline-none w-auto min-w-[20px] max-w-[100px] text-xs font-mono"
+                          style={{ width: `${Math.max(20, token.value.length * 7)}px` }}
+                          placeholder="text"
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeToken("display_name", index);
+                          }}
+                          className="ml-1 hover:text-destructive text-muted-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
                     )}
                   </div>
                 </React.Fragment>

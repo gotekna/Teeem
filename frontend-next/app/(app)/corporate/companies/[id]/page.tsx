@@ -5112,15 +5112,14 @@ export default function CompanyDetailPage() {
     }
   }, [companyId]);
 
-  // Load health score for header badge
+  // Load health score for header badge (fast endpoint - loads only this company)
   const loadHealthScore = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; companies: Array<{ id: number; health_score: number; health_status: string }> }>(
-        `/api/v1/companies/health_report`
+      const response = await api.get<{ success: boolean; health: { health_score: number; health_status: string } }>(
+        `/api/v1/companies/${companyId}/health`
       );
-      const companyHealth = response.companies?.find((c) => c.id === parseInt(companyId));
-      if (companyHealth) {
-        setHealthScore({ score: companyHealth.health_score, status: companyHealth.health_status });
+      if (response.health) {
+        setHealthScore({ score: response.health.health_score, status: response.health.health_status });
       }
     } catch (error) {
       console.error("Failed to load health score:", error);
