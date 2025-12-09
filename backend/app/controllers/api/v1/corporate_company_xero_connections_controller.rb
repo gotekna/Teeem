@@ -10,7 +10,7 @@ module Api
         all_credentials = XeroCredential.all.order(created_at: :desc)
 
         # Get all company connections
-        all_connections = CorporateCompanyXeroConnection.includes(:company).all
+        all_connections = CorporateCompanyXeroConnection.includes(:corporate_company).all
 
         # Build response showing all Xero orgs with their linked companies
         organizations = all_credentials.map do |credential|

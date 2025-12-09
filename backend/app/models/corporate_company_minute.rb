@@ -1,6 +1,6 @@
 class CorporateCompanyMinute < ApplicationRecord
   # Associations
-  belongs_to :company
+  belongs_to :corporate_company, foreign_key: 'company_id'
   belongs_to :minute_template, optional: true
 
   # Validations
