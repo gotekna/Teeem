@@ -22,10 +22,9 @@ export interface TableColumn {
   id?: number;
   foundation_id?: number;
   choices?: string[];
-  lookup_config?: {
-    target_table_id?: number;
-    display_column?: string;
-  };
+  // Lookup column configuration (matches backend API)
+  lookup_foundation_id?: number;
+  lookup_display_column?: string;
   editable?: boolean; // Whether the column can be edited (default: true)
   system?: boolean; // System column like id, created_at, updated_at (default: false)
   defaultHidden?: boolean; // Whether the column is hidden by default (default: false)

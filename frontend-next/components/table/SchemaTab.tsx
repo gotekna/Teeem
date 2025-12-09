@@ -87,10 +87,10 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
   useEffect(() => {
     const fetchFoundationNames = async () => {
       try {
-        // Get lookup target IDs from lookup_config
+        // Get lookup target IDs from lookup_foundation_id
         const lookupFoundationIds = columns
-          .filter((c) => c.lookup_config?.target_table_id)
-          .map((c) => c.lookup_config?.target_table_id)
+          .filter((c) => c.lookup_foundation_id)
+          .map((c) => c.lookup_foundation_id)
           .filter((id, index, self) => id && self.indexOf(id) === index) as number[];
 
         if (lookupFoundationIds.length === 0) {

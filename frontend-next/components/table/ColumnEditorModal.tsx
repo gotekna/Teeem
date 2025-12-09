@@ -191,8 +191,8 @@ export function ColumnEditorModal({
   // Sync state when column changes
   useEffect(() => {
     if (column) {
-      console.log('[ColumnEditorModal] Column changed:', column.key, 'lookup_config:', column.lookup_config);
-      const newLookupTableId = column.lookup_config?.target_table_id || null;
+      console.log('[ColumnEditorModal] Column changed:', column.key, 'lookup_foundation_id:', column.lookup_foundation_id);
+      const newLookupTableId = column.lookup_foundation_id || null;
       console.log('[ColumnEditorModal] Setting lookup_table_id to:', newLookupTableId);
 
       setEditedColumn({
@@ -205,7 +205,7 @@ export function ColumnEditorModal({
         formula: (column as any).formula || "",
         choices: column.choices || [],
         lookup_table_id: newLookupTableId,
-        lookup_display_column: column.lookup_config?.display_column || "",
+        lookup_display_column: column.lookup_display_column || "",
       });
       setNewColumnType(column.column_type || "text");
     }

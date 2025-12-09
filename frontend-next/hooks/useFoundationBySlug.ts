@@ -253,10 +253,8 @@ export function useFoundationBySlug(
         filterable: true,
         width: getDefaultWidth(col.column_name, col.column_type),
         choices: col.available_choices,
-        lookup_config: col.lookup_foundation_id ? {
-          target_table_id: col.lookup_foundation_id,
-          display_column: col.lookup_display_column,
-        } : undefined,
+        lookup_foundation_id: col.lookup_foundation_id,
+        lookup_display_column: col.lookup_display_column,
       });
     });
 

@@ -1191,7 +1191,7 @@ export default function TeeemTableView({
 
   // Fetch lookup options for a column (uses module-level cache)
   const fetchLookupOptions = useCallback(async (column: TableColumn) => {
-    const targetTableId = column.lookup_config?.target_table_id;
+    const targetTableId = column.lookup_foundation_id;
     const cacheKey = `${column.key}_${targetTableId}`;
 
     if (!targetTableId) return;
@@ -1236,7 +1236,7 @@ export default function TeeemTableView({
         }
       }
 
-      const displayColumn = column.lookup_config?.display_column || 'name';
+      const displayColumn = column.lookup_display_column || 'name';
       return records.map((record) => ({
         id: record.id as number,
         display: String(record[displayColumn] || record.name || record.title || record.id),
@@ -1264,7 +1264,7 @@ export default function TeeemTableView({
     // Pre-fetch lookup options for lookup columns (including multiple_lookups)
     COLUMNS.forEach(col => {
       if ((col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') &&
-          col.lookup_config?.target_table_id) {
+          col.lookup_foundation_id) {
         fetchLookupOptions(col);
       }
     });
@@ -1285,7 +1285,7 @@ export default function TeeemTableView({
     // Pre-fetch lookup options for lookup columns (including multiple_lookups)
     COLUMNS.forEach(col => {
       if (col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') {
-        if (col.lookup_config?.target_table_id) {
+        if (col.lookup_foundation_id) {
           fetchLookupOptions(col);
         }
       }
@@ -1545,7 +1545,7 @@ export default function TeeemTableView({
     const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
     if (!selectedCol) return;
 
-    const isLookup = selectedCol.column_type === 'lookup' || selectedCol.column_type === 'multiple_lookups' || selectedCol.lookup_config;
+    const isLookup = selectedCol.column_type === 'lookup' || selectedCol.column_type === 'multiple_lookups' || !!selectedCol.lookup_foundation_id;
     if (isLookup && !lookupOptions[bulkUpdateColumn] && !lookupLoading[bulkUpdateColumn]) {
       fetchLookupOptions(selectedCol);
     }
@@ -1559,7 +1559,7 @@ export default function TeeemTableView({
   const isDropdownColumn = useCallback((column: TableColumn): boolean => {
     const colType = column.column_type || '';
     const hasChoices = column.choices && column.choices.length > 0;
-    const isLookup = colType === 'lookup' || colType === 'relation' || colType === 'multiple_lookups' || !!column.lookup_config;
+    const isLookup = colType === 'lookup' || colType === 'relation' || colType === 'multiple_lookups' || !!column.lookup_foundation_id;
     const isChoice = colType === 'choice' || colType === 'single_select' || colType === 'multi_select';
     const isBoolean = colType === 'boolean';
     return hasChoices || isLookup || isChoice || isBoolean;
@@ -4150,8 +4150,8 @@ export default function TeeemTableView({
               name: col.label,
               column_type: col.column_type || 'single_line_text',
               position: index,
-              lookup_foundation_id: col.lookup_config?.target_table_id,
-              lookup_display_column: col.lookup_config?.display_column,
+              lookup_foundation_id: col.lookup_foundation_id,
+              lookup_display_column: col.lookup_display_column,
               available_choices: col.choices,
             }))}
           onViewsChange={onRefresh}
