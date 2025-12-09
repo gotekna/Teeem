@@ -314,77 +314,81 @@ class XeroApiClient
   # Check connection status
   # Will attempt to refresh expired tokens automatically
   def connection_status
-    credential = XeroCredential.current
+    all_credentials = XeroCredential.all
 
-    if credential.nil?
+    if all_credentials.empty?
       return {
         connected: false,
+        status: 'disconnected',
         message: "Not connected to Xero"
       }
     end
 
-    # Try to access encrypted fields to check if decryption works
-    begin
-      # This will raise ActiveRecord::Encryption::Errors::Decryption if keys are wrong
-      _test_access = credential.access_token
-      _test_refresh = credential.refresh_token
-    rescue ActiveRecord::Encryption::Errors::Decryption => e
-      Rails.logger.error("Xero credential decryption failed in connection_status - deleting corrupted credentials: #{e.message}")
-      # Delete the corrupted credential
-      credential.destroy
-      return {
-        connected: false,
-        message: "Xero credentials are corrupted. Please reconnect to Xero."
-      }
-    end
+    # Count credentials by status to show aggregate health
+    total = all_credentials.count
+    connected_count = all_credentials.where(status: 'connected').count
+    degraded_count = all_credentials.where(status: 'degraded').count
+    disconnected_count = all_credentials.where(status: 'disconnected').count
 
-    # Check if credential is disconnected or degraded (refresh tokens have failed)
-    if credential.status == 'disconnected'
-      return {
-        connected: false,
-        status: 'disconnected',
-        message: "Xero connection requires re-authentication. Please reconnect to Xero.",
-        tenant_name: credential.tenant_name,
-        tenant_id: credential.tenant_id
-      }
-    end
-
-    if credential.status == 'degraded'
-      return {
-        connected: false,
-        status: 'degraded',
-        message: "Xero connection is degraded. Please reconnect to Xero.",
-        tenant_name: credential.tenant_name,
-        tenant_id: credential.tenant_id
-      }
-    end
-
-    # If token is expired but we have a refresh token, try to refresh
-    if credential.expired? && credential.refresh_token.present?
+    # Check for any corrupted credentials
+    all_credentials.each do |credential|
       begin
-        Rails.logger.info "[Xero Status] Token expired, attempting refresh..."
-        refresh_access_token_for(credential)
-        credential.reload
-        Rails.logger.info "[Xero Status] Token refreshed successfully"
-      rescue StandardError => e
-        Rails.logger.error "[Xero Status] Token refresh failed: #{e.message}"
-        return {
-          connected: false,
-          status: credential.status || 'error',
-          message: "Session expired. Please reconnect to Xero.",
-          error: "Token refresh failed"
-        }
+        _test_access = credential.access_token
+        _test_refresh = credential.refresh_token
+      rescue ActiveRecord::Encryption::Errors::Decryption => e
+        Rails.logger.error("Xero credential decryption failed - deleting corrupted credentials: #{e.message}")
+        credential.destroy
+        disconnected_count += 1
+        total -= 1
       end
     end
 
-    {
-      connected: true,
-      status: 'connected',
-      tenant_name: credential.tenant_name,
-      tenant_id: credential.tenant_id,
-      expires_at: credential.expires_at,
-      expired: credential.expired?
-    }
+    # Determine aggregate status:
+    # - ALL disconnected/degraded → red (needs immediate attention)
+    # - ANY degraded/disconnected but some work → orange (warning)
+    # - ALL connected → green
+
+    needs_attention = degraded_count + disconnected_count
+    has_working = connected_count > 0
+
+    if !has_working || total == 0
+      # No working connections - red
+      return {
+        connected: false,
+        status: 'disconnected',
+        message: "All Xero connections require re-authentication.",
+        total: total,
+        connected_count: connected_count,
+        needs_attention: needs_attention
+      }
+    elsif needs_attention > 0
+      # Some need attention but some work - orange
+      primary = XeroCredential.current
+      return {
+        connected: true,
+        status: 'degraded',
+        message: "#{needs_attention} of #{total} Xero connections need re-authentication.",
+        tenant_name: primary&.tenant_name,
+        tenant_id: primary&.tenant_id,
+        total: total,
+        connected_count: connected_count,
+        needs_attention: needs_attention
+      }
+    else
+      # All good - green
+      primary = XeroCredential.current
+      return {
+        connected: true,
+        status: 'connected',
+        tenant_name: primary&.tenant_name,
+        tenant_id: primary&.tenant_id,
+        expires_at: primary&.expires_at,
+        expired: primary&.expired?,
+        total: total,
+        connected_count: connected_count,
+        needs_attention: 0
+      }
+    end
   end
 
   # Disconnect from Xero (revoke tokens)
