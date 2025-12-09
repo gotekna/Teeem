@@ -785,18 +785,18 @@ module Api
                                                .maximum(:last_synced_at)
 
           # Count PDFs per contact (documents linked to their invoices)
-          pdf_counts_by_contact = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
-                                                  .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                                  .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+          pdf_counts_by_contact = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                                  .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                                  .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                                   .group("external_invoices.contact_id")
                                                   .count
 
           # Get latest PDF sync time per contact
-          pdf_sync_times = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
-                                           .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                           .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+          pdf_sync_times = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                           .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                           .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                            .group("external_invoices.contact_id")
-                                           .maximum("company_documents.created_at")
+                                           .maximum("corporate_company_documents.created_at")
 
           contacts_data = contacts.map do |contact|
             # Get invoice/bill counts for this contact
@@ -1478,37 +1478,37 @@ module Api
           # Breakdown by invoice type (for PDF stage)
           # ============================================
           bills_total = invoices_with_contacts.bills.count
-          bills_with_pdfs = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
-                                           .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                           .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+          bills_with_pdfs = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                           .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                           .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                            .where(external_invoices: { invoice_type: "bill" })
                                            .distinct
-                                           .count("company_documents.documentable_id")
+                                           .count("corporate_company_documents.documentable_id")
 
           sales_total = invoices_with_contacts.sales_invoices.count
-          sales_with_pdfs = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
-                                           .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                           .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+          sales_with_pdfs = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                           .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                           .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                            .where(external_invoices: { invoice_type: "sales_invoice" })
                                            .distinct
-                                           .count("company_documents.documentable_id")
+                                           .count("corporate_company_documents.documentable_id")
 
           quotes_total = invoices_with_contacts.quotes.count
-          quotes_with_pdfs = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
-                                            .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                            .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+          quotes_with_pdfs = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                            .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                            .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                             .where(external_invoices: { invoice_type: "quote" })
                                             .distinct
-                                            .count("company_documents.documentable_id")
+                                            .count("corporate_company_documents.documentable_id")
 
           # Credit notes breakdown (SSoT fix - was missing from PDF breakdown)
           credit_notes_total = invoices_with_contacts.where(invoice_type: "credit_note").count
-          credit_notes_with_pdfs = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
-                                                  .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                                  .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+          credit_notes_with_pdfs = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                                  .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                                  .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                                   .where(external_invoices: { invoice_type: "credit_note" })
                                                   .distinct
-                                                  .count("company_documents.documentable_id")
+                                                  .count("corporate_company_documents.documentable_id")
 
           # Estimate time remaining for PDF sync (based on 10s per invoice)
           estimated_remaining_seconds = pdfs_pending * 10
