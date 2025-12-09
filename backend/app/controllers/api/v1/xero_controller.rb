@@ -1501,6 +1501,15 @@ module Api
                                             .distinct
                                             .count("company_documents.documentable_id")
 
+          # Credit notes breakdown (SSoT fix - was missing from PDF breakdown)
+          credit_notes_total = invoices_with_contacts.where(invoice_type: "credit_note").count
+          credit_notes_with_pdfs = CompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = company_documents.documentable_id")
+                                                  .where(company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
+                                                  .where("company_documents.external_id LIKE ?", "xero:%:pdf")
+                                                  .where(external_invoices: { invoice_type: "credit_note" })
+                                                  .distinct
+                                                  .count("company_documents.documentable_id")
+
           # Estimate time remaining for PDF sync (based on 10s per invoice)
           estimated_remaining_seconds = pdfs_pending * 10
           estimated_remaining_minutes = (estimated_remaining_seconds / 60.0).round(0)
@@ -1585,6 +1594,7 @@ module Api
                 breakdown: {
                   bills: { total: bills_total, synced: bills_with_pdfs },
                   sales_invoices: { total: sales_total, synced: sales_with_pdfs },
+                  credit_notes: { total: credit_notes_total, synced: credit_notes_with_pdfs },
                   quotes: { total: quotes_total, synced: quotes_with_pdfs }
                 },
                 blocker: stage2_blocker
@@ -1613,6 +1623,7 @@ module Api
               breakdown: {
                 bills: { total: bills_total, synced: bills_with_pdfs },
                 sales_invoices: { total: sales_total, synced: sales_with_pdfs },
+                credit_notes: { total: credit_notes_total, synced: credit_notes_with_pdfs },
                 quotes: { total: quotes_total, synced: quotes_with_pdfs }
               },
               estimated_remaining_minutes: estimated_remaining_minutes,

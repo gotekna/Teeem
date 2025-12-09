@@ -27,7 +27,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Building2,
   Users,
-  Heart,
   AlertTriangle,
   Package,
   Clock,
@@ -48,6 +47,9 @@ import {
   Pencil,
   FolderOpen,
   Trash2,
+  Maximize2,
+  Minimize2,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -285,6 +287,196 @@ function QuickAction({ label, icon: Icon, href, variant = "outline", color }: Qu
   );
 }
 
+// ===== SHAREHOLDERS TABLE COMPONENT =====
+
+interface Shareholding {
+  id: number;
+  shareholder_name: string;
+  shareholder_id: number;
+  company_name: string;
+  company_id: number;
+  number_of_shares: number;
+  percentage?: number;
+  share_class?: string;
+}
+
+function ShareholdersTable() {
+  const router = useRouter();
+  const [shareholdings, setShareholdings] = React.useState<Shareholding[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const loadShareholdings = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get<{ shareholdings: Shareholding[] }>("/api/v1/shareholdings");
+        setShareholdings(response.shareholdings || []);
+      } catch (error) {
+        console.error("Failed to load shareholdings:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadShareholdings();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-32">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (shareholdings.length === 0) {
+    return (
+      <div className="text-center text-muted-foreground py-8">
+        No shareholdings found
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b">
+            <th className="text-left py-2 px-3 font-medium">Shareholder</th>
+            <th className="text-left py-2 px-3 font-medium">Company</th>
+            <th className="text-right py-2 px-3 font-medium">Shares</th>
+            <th className="text-right py-2 px-3 font-medium">%</th>
+            <th className="text-left py-2 px-3 font-medium">Class</th>
+          </tr>
+        </thead>
+        <tbody>
+          {shareholdings.map((sh) => (
+            <tr key={sh.id} className="border-b hover:bg-muted/50">
+              <td className="py-2 px-3">
+                <button
+                  onClick={() => router.push(`/contacts/${sh.shareholder_id}`)}
+                  className="text-amber-600 hover:text-amber-800 hover:underline"
+                >
+                  {sh.shareholder_name}
+                </button>
+              </td>
+              <td className="py-2 px-3">
+                <button
+                  onClick={() => router.push(`/corporate/companies/${sh.company_id}`)}
+                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  {sh.company_name}
+                </button>
+              </td>
+              <td className="py-2 px-3 text-right font-mono">
+                {sh.number_of_shares?.toLocaleString() || "—"}
+              </td>
+              <td className="py-2 px-3 text-right">
+                {sh.percentage ? `${sh.percentage}%` : "—"}
+              </td>
+              <td className="py-2 px-3">
+                {sh.share_class || "Ordinary"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ===== BENEFICIARIES TABLE COMPONENT =====
+
+interface Beneficiary {
+  id: number;
+  beneficiary_name: string;
+  beneficiary_id: number;
+  trust_name: string;
+  trust_id: number;
+  beneficiary_type?: string;
+  percentage?: number;
+}
+
+function BeneficiariesTable() {
+  const router = useRouter();
+  const [beneficiaries, setBeneficiaries] = React.useState<Beneficiary[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const loadBeneficiaries = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get<{ beneficiaries: Beneficiary[] }>("/api/v1/beneficiaries");
+        setBeneficiaries(response.beneficiaries || []);
+      } catch (error) {
+        console.error("Failed to load beneficiaries:", error);
+        setBeneficiaries([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadBeneficiaries();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-32">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (beneficiaries.length === 0) {
+    return (
+      <div className="text-center text-muted-foreground py-8">
+        No beneficiaries found
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b">
+            <th className="text-left py-2 px-3 font-medium">Beneficiary</th>
+            <th className="text-left py-2 px-3 font-medium">Trust</th>
+            <th className="text-left py-2 px-3 font-medium">Type</th>
+            <th className="text-right py-2 px-3 font-medium">%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {beneficiaries.map((b) => (
+            <tr key={b.id} className="border-b hover:bg-muted/50">
+              <td className="py-2 px-3">
+                <button
+                  onClick={() => router.push(`/contacts/${b.beneficiary_id}`)}
+                  className="text-rose-600 hover:text-rose-800 hover:underline"
+                >
+                  {b.beneficiary_name}
+                </button>
+              </td>
+              <td className="py-2 px-3">
+                <button
+                  onClick={() => router.push(`/corporate/companies/${b.trust_id}`)}
+                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  {b.trust_name}
+                </button>
+              </td>
+              <td className="py-2 px-3">
+                {b.beneficiary_type || "—"}
+              </td>
+              <td className="py-2 px-3 text-right">
+                {b.percentage ? `${b.percentage}%` : "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ===== MAIN COMPONENT =====
 
 export default function CorporateDashboardPage() {
@@ -305,7 +497,7 @@ export default function CorporateDashboardPage() {
   const [companies, setCompanies] = React.useState<TableRow[]>([]);
   const [columns, setColumns] = React.useState<TableColumn[]>([]);
 
-  // SSoT state
+  // Company groups state
   const [groups, setGroups] = React.useState<CompanyGroup[]>([]);
   const [groupsMap, setGroupsMap] = React.useState<Record<number, string>>({});
   const [selectedGroupId, setSelectedGroupId] = React.useState<number | null>(null);
@@ -315,7 +507,7 @@ export default function CorporateDashboardPage() {
   const [expandedContacts, setExpandedContacts] = React.useState<Set<number>>(new Set());
 
   // Tab state
-  const [activeTab, setActiveTab] = React.useState(searchParams.get("tab") || "dashboard");
+  const [activeTab, setActiveTab] = React.useState(searchParams.get("tab") || "groups");
 
   // Structure tab state
   const [structureData, setStructureData] = React.useState<StructureData | null>(null);
@@ -328,6 +520,7 @@ export default function CorporateDashboardPage() {
     corporateOfficer: true,
   });
   const [structureViewMode, setStructureViewMode] = React.useState<"chart" | "table">("chart");
+  const [isStructureFullscreen, setIsStructureFullscreen] = React.useState(false);
   const [selectedPerson, setSelectedPerson] = React.useState<StructurePerson | null>(null);
 
   // People tab state
@@ -357,12 +550,14 @@ export default function CorporateDashboardPage() {
   }
   const [fullScreenPersonOwnershipChain, setFullScreenPersonOwnershipChain] = React.useState<OwnershipNodeState[]>([]);
   const [loadingPersonRoles, setLoadingPersonRoles] = React.useState(false);
-  const [showPersonFullDetail, setShowPersonFullDetail] = React.useState(true);
 
   // Groups tab state
   const [showCreateGroupDialog, setShowCreateGroupDialog] = React.useState(false);
   const [editingGroup, setEditingGroup] = React.useState<CompanyGroup | null>(null);
   const [savingGroup, setSavingGroup] = React.useState(false);
+  const [expandedGroups, setExpandedGroups] = React.useState<Set<number>>(new Set());
+  const [groupStructures, setGroupStructures] = React.useState<Record<number, StructureData>>({});
+  const [loadingGroupStructure, setLoadingGroupStructure] = React.useState<number | null>(null);
   const [newGroupForm, setNewGroupForm] = React.useState({
     name: "",
     description: "",
@@ -383,9 +578,11 @@ export default function CorporateDashboardPage() {
     try {
       setLoading(true);
 
-      // Load companies
+      // Load companies - only those belonging to a Company Group (corporate entities)
       const companiesResponse = await api.get<{ companies: TableRow[] }>("/api/v1/companies");
-      const companiesList = companiesResponse.companies || [];
+      const allCompanies = companiesResponse.companies || [];
+      // Filter to only show companies in a company group
+      const companiesList = allCompanies.filter((c) => c.company_group_id != null);
       setCompanies(companiesList);
 
       // Load compliance items due soon
@@ -462,33 +659,22 @@ export default function CorporateDashboardPage() {
     }
   };
 
-  // Load memberships when group changes
+  // Load memberships - only from Charity group
   React.useEffect(() => {
     const loadMemberships = async () => {
       if (activeTab !== "memberships") return;
 
       try {
         setLoadingMemberships(true);
-        if (selectedGroupId === null) {
-          // Load all memberships from all groups
-          const allMemberships: Membership[] = [];
-          for (const group of groups) {
-            const response = await api.get<{ success: boolean; data: Membership[] }>(
-              `/api/v1/company_groups/${group.id}/contacts`
-            );
-            const groupMemberships = (response.data || []).map(m => ({
-              ...m,
-              company_group_name: group.name
-            }));
-            allMemberships.push(...groupMemberships);
-          }
-          setMemberships(allMemberships);
-        } else {
+        // Find the Charity group
+        const charityGroup = groups.find(g => g.name === "Charity");
+        if (charityGroup) {
           const response = await api.get<{ success: boolean; data: Membership[] }>(
-            `/api/v1/company_groups/${selectedGroupId}/contacts`
+            `/api/v1/company_groups/${charityGroup.id}/contacts`
           );
-          const groupName = groupsMap[selectedGroupId] || "";
-          setMemberships((response.data || []).map(m => ({ ...m, company_group_name: groupName })));
+          setMemberships((response.data || []).map(m => ({ ...m, company_group_name: "Charity" })));
+        } else {
+          setMemberships([]);
         }
       } catch (error) {
         console.error("Failed to load memberships:", error);
@@ -501,7 +687,35 @@ export default function CorporateDashboardPage() {
     if (groups.length > 0 && activeTab === "memberships") {
       loadMemberships();
     }
-  }, [selectedGroupId, groups, groupsMap, activeTab]);
+  }, [groups, activeTab]);
+
+  // Auto-load all group structures when Groups tab is active
+  const loadedGroupsRef = React.useRef<Set<number>>(new Set());
+
+  React.useEffect(() => {
+    const loadAllGroupStructures = async () => {
+      if (activeTab !== "groups" || groups.length === 0) return;
+
+      // Load structures for groups we haven't loaded yet
+      for (const group of groups) {
+        if (!loadedGroupsRef.current.has(group.id)) {
+          loadedGroupsRef.current.add(group.id);
+          try {
+            const response = await api.get<{ success: boolean; data: StructureData }>(
+              `/api/v1/company_groups/${group.id}/structure`
+            );
+            if (response.success && response.data) {
+              setGroupStructures(prev => ({ ...prev, [group.id]: response.data }));
+            }
+          } catch (error) {
+            console.error(`Failed to load structure for group ${group.id}:`, error);
+          }
+        }
+      }
+    };
+
+    loadAllGroupStructures();
+  }, [activeTab, groups]);
 
   // Load structure when group is selected and structure tab is active
   React.useEffect(() => {
@@ -704,6 +918,36 @@ export default function CorporateDashboardPage() {
   };
 
   // ===== GROUP HANDLERS =====
+
+  const toggleGroupExpansion = async (groupId: number) => {
+    const newExpanded = new Set(expandedGroups);
+
+    if (newExpanded.has(groupId)) {
+      // Collapse
+      newExpanded.delete(groupId);
+      setExpandedGroups(newExpanded);
+    } else {
+      // Expand and load data if not already loaded
+      newExpanded.add(groupId);
+      setExpandedGroups(newExpanded);
+
+      if (!groupStructures[groupId]) {
+        try {
+          setLoadingGroupStructure(groupId);
+          const response = await api.get<{ success: boolean; data: StructureData }>(
+            `/api/v1/company_groups/${groupId}/structure`
+          );
+          if (response.success && response.data) {
+            setGroupStructures(prev => ({ ...prev, [groupId]: response.data }));
+          }
+        } catch (error) {
+          console.error(`Failed to load structure for group ${groupId}:`, error);
+        } finally {
+          setLoadingGroupStructure(null);
+        }
+      }
+    }
+  };
 
   const resetGroupForm = () => {
     setNewGroupForm({
@@ -975,8 +1219,7 @@ export default function CorporateDashboardPage() {
     return grouped;
   }, [groupedByContact]);
 
-  // SSoT: Use helper function for entity type labels
-  // Custom plural labels for display, but using SSoT for base labels
+  // Display labels for entity types
   const entityTypeLabels: Record<string, string> = {
     person: "People",
     company: "Companies",
@@ -1031,10 +1274,11 @@ export default function CorporateDashboardPage() {
               )}
               <div>
                 <div className="font-medium">{contact.contact_name}</div>
-                <div className="text-xs text-muted-foreground">
-                  Contact ID: {contact.contact_id}
-                  {contact.contact_email && ` · ${contact.contact_email}`}
-                </div>
+                {contact.contact_email && (
+                  <div className="text-xs text-muted-foreground">
+                    {contact.contact_email}
+                  </div>
+                )}
               </div>
             </div>
           </td>
@@ -1099,7 +1343,7 @@ export default function CorporateDashboardPage() {
                   router.push(`/contacts/${contact.contact_id}?edit=true`);
                 }}
                 className="text-amber-600 hover:text-amber-800 flex items-center gap-1"
-                title="Edit Contact (SSoT)"
+                title="Edit Contact"
               >
                 <Pencil className="h-4 w-4" />
                 Edit
@@ -1145,15 +1389,6 @@ export default function CorporateDashboardPage() {
   const statCards: StatCardProps[] = [
     { name: "Total Companies", value: stats.totalCompanies, icon: Building2, href: "/corporate?tab=companies" },
     { name: "Active Companies", value: stats.activeCompanies, icon: CheckCircle2, href: "/corporate?tab=companies" },
-    {
-      name: "Health Score",
-      value: stats.healthScore > 0 ? `${stats.healthScore.toFixed(1)}%` : "N/A",
-      icon: Heart,
-      href: "/corporate/health",
-      alert: stats.criticalCompanies > 0,
-      alertColor: stats.healthScore >= 80 ? "green" : stats.healthScore >= 60 ? "yellow" : "red",
-    },
-    { name: "Critical Companies", value: stats.criticalCompanies, icon: AlertTriangle, href: "/corporate/health", alert: stats.criticalCompanies > 0 },
     { name: "Total Assets", value: stats.totalAssets, icon: Package, href: "/corporate/assets" },
     { name: "Compliance Due", value: stats.complianceDueSoon, icon: Clock, href: "/corporate/compliance-calendar", alert: stats.complianceDueSoon > 0 },
   ];
@@ -1176,15 +1411,8 @@ export default function CorporateDashboardPage() {
       <div className="border-b pb-4">
         <h1 className="text-2xl font-bold tracking-tight font-serif">Corporate Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Contact-based SSoT for companies, trusts, and group structure
+          Manage your companies, trusts, directors, and corporate structure
         </p>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {statCards.map((stat) => (
-          <StatCard key={stat.name} {...stat} />
-        ))}
       </div>
 
       {/* Quick Actions */}
@@ -1192,7 +1420,6 @@ export default function CorporateDashboardPage() {
         <CardContent className="p-6">
           <h3 className="text-base font-medium mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <QuickAction label="Health Report" icon={Heart} href="/corporate/health" color="green" />
             <QuickAction label="Company Groups" icon={Building2} href="/company-groups" color="indigo" />
             <QuickAction label="Add Company" icon={Plus} href="/corporate/companies/new" color="blue" />
             <QuickAction label="Add Asset" icon={Package} href="/corporate/assets/new" />
@@ -1201,56 +1428,15 @@ export default function CorporateDashboardPage() {
             <QuickAction label="Minute Templates" icon={FileText} href="/corporate/minute-templates" />
             <QuickAction label="Xero Integration" icon={ExternalLink} href="/xero" />
             <QuickAction label="ASIC Logins" icon={Key} href="/corporate/asic-logins" />
-            <QuickAction label="Document Types" icon={FileText} href="/admin/system?tab=document-types" />
+            <QuickAction label="Document Types" icon={FileText} href="/corporate/document-types" />
             <QuickAction label="Consolidation" icon={ArrowLeftRight} href="/corporate/consolidation" />
           </div>
         </CardContent>
       </Card>
 
-      {/* Data Health Indicator */}
-      {stats.healthScore > 0 && (
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => router.push("/corporate/health")}
-        >
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={cn(
-                "p-2 rounded-full",
-                stats.healthScore >= 80 ? "bg-green-100 text-green-600" :
-                stats.healthScore >= 60 ? "bg-yellow-100 text-yellow-600" :
-                "bg-red-100 text-red-600"
-              )}>
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="font-medium">Data Health</p>
-                <p className="text-sm text-muted-foreground">
-                  {stats.criticalCompanies > 0
-                    ? `${stats.criticalCompanies} issues found • Click to fix`
-                    : "All companies healthy"}
-                </p>
-              </div>
-            </div>
-            <span className={cn(
-              "text-2xl font-bold",
-              stats.healthScore >= 80 ? "text-green-600" :
-              stats.healthScore >= 60 ? "text-yellow-600" :
-              "text-red-600"
-            )}>
-              {stats.healthScore.toFixed(0)}%
-            </span>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6 max-w-4xl">
-          <TabsTrigger value="dashboard" className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            Dashboard
-          </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-7 max-w-5xl">
           <TabsTrigger value="groups" className="flex items-center gap-2">
             <FolderOpen className="h-4 w-4" />
             Groups
@@ -1265,64 +1451,21 @@ export default function CorporateDashboardPage() {
           </TabsTrigger>
           <TabsTrigger value="memberships" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            Memberships
+            Charity Members
+          </TabsTrigger>
+          <TabsTrigger value="shareholders" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Shareholders
+          </TabsTrigger>
+          <TabsTrigger value="beneficiaries" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Trust Beneficiaries
           </TabsTrigger>
           <TabsTrigger value="structure" className="flex items-center gap-2">
             <Network className="h-4 w-4" />
             Structure
           </TabsTrigger>
         </TabsList>
-
-        {/* Dashboard Tab - Upcoming Compliance */}
-        <TabsContent value="dashboard" className="mt-4">
-          {upcomingCompliance.length > 0 && (
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="text-base font-medium mb-4">Upcoming Compliance (Next 30 Days)</h3>
-                <div className="space-y-3">
-                  {upcomingCompliance.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => router.push(`/corporate/companies/${item.company.slug || item.company.id}?tab=compliance`)}
-                      className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-950/30 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{item.title}</p>
-                        <p className="text-sm text-muted-foreground">{item.company.name}</p>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant={item.days_until_due <= 7 ? "destructive" : "default"}>
-                          {item.days_until_due} days
-                        </Badge>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {new Date(item.due_date).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <Button
-                  variant="link"
-                  className="mt-4 p-0 h-auto"
-                  onClick={() => router.push("/corporate/compliance-calendar")}
-                >
-                  View all compliance items →
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-          {upcomingCompliance.length === 0 && (
-            <Card>
-              <CardContent className="py-12">
-                <div className="text-center text-muted-foreground">
-                  <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-green-500" />
-                  <p className="text-lg font-medium">No upcoming compliance items</p>
-                  <p className="text-sm mt-1">All compliance items are up to date</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
 
         {/* Groups Tab */}
         <TabsContent value="groups" className="mt-4">
@@ -1442,75 +1585,168 @@ export default function CorporateDashboardPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {groups.map((group) => (
-                    <Card
-                      key={group.id}
-                      className="hover:shadow-md transition-shadow cursor-pointer"
-                      onClick={() => {
-                        setSelectedGroupId(group.id);
-                        setActiveTab("structure");
-                      }}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
+                  {groups.map((group) => {
+                    const structure = groupStructures[group.id];
+
+                    return (
+                      <Card
+                        key={group.id}
+                        className="hover:shadow-md transition-shadow"
+                      >
+                        <CardContent className="p-4">
+                          {/* Header */}
+                          <div className="flex items-start justify-between">
+                            <div
+                              className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors"
+                              onClick={() => {
+                                setSelectedGroupId(group.id);
+                                setActiveTab("structure");
+                                setIsStructureFullscreen(true);
+                              }}
+                            >
                               <FolderOpen className="h-5 w-5 text-indigo-600" />
                               <h3 className="font-medium">{group.name}</h3>
-                            </div>
-                            {group.description && (
-                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                                {group.description}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-4 mt-3">
-                              <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                <Building2 className="h-4 w-4" />
-                                <span>{group.companies_count || 0} companies</span>
-                              </div>
                               {group.active === false && (
-                                <Badge variant="secondary">Inactive</Badge>
+                                <Badge variant="secondary" className="text-xs">Inactive</Badge>
                               )}
+                              <Maximize2 className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditGroupDialog(group);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteGroup(group);
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditGroupDialog(group);
-                              }}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteGroup(group);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                        {(group.default_accountant || group.default_registered_office) && (
-                          <div className="mt-3 pt-3 border-t text-xs text-muted-foreground space-y-1">
-                            {group.default_accountant && (
-                              <div>Accountant: {group.default_accountant}</div>
+
+                          {/* Companies list */}
+                          <div className="mt-3 space-y-1">
+                            {!structure ? (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <span>Loading...</span>
+                              </div>
+                            ) : structure.companies && structure.companies.length > 0 ? (
+                              (() => {
+                                // Flatten all companies including children
+                                const flattenCompanies = (companies: typeof structure.companies, level = 0): Array<typeof structure.companies[0] & { _level: number }> => {
+                                  const result: Array<typeof structure.companies[0] & { _level: number }> = [];
+                                  for (const company of companies) {
+                                    result.push({ ...company, _level: level });
+                                    if (company.children && company.children.length > 0) {
+                                      result.push(...flattenCompanies(company.children as typeof structure.companies, level + 1));
+                                    }
+                                  }
+                                  return result;
+                                };
+                                const allCompanies = flattenCompanies(structure.companies);
+                                const isExpanded = expandedGroups.has(group.id);
+                                const displayCompanies = isExpanded ? allCompanies : allCompanies.slice(0, 5);
+                                const hasMore = allCompanies.length > 5;
+
+                                return (
+                                  <>
+                                    {displayCompanies.map((company) => (
+                                      <div
+                                        key={company.id}
+                                        className="flex items-center justify-between py-1 px-2 rounded hover:bg-muted/50 cursor-pointer -mx-2"
+                                        style={{ paddingLeft: `${8 + company._level * 16}px` }}
+                                        onClick={() => router.push(`/corporate/companies/${company.id}`)}
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          {company._level > 0 && (
+                                            <span className="text-muted-foreground text-xs">└</span>
+                                          )}
+                                          <Building2 className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
+                                          <span className="text-sm truncate">{company.name}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                                          {company.hierarchy_level === 0 && (
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-50 text-purple-700 border-purple-200">
+                                              Parent
+                                            </Badge>
+                                          )}
+                                          {(company.entity_type === "Trust" || company.entity_type === "Superfund") && (
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-50 text-emerald-700 border-emerald-200">
+                                              Trust
+                                            </Badge>
+                                          )}
+                                          {company.is_trustee && (
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200">
+                                              Trustee
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {hasMore && (
+                                      <button
+                                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 py-1 px-2 -mx-2"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setExpandedGroups(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(group.id)) {
+                                              next.delete(group.id);
+                                            } else {
+                                              next.add(group.id);
+                                            }
+                                            return next;
+                                          });
+                                        }}
+                                      >
+                                        {isExpanded ? (
+                                          <>
+                                            <ChevronDown className="h-3 w-3" />
+                                            Show less
+                                          </>
+                                        ) : (
+                                          <>
+                                            <ChevronRight className="h-3 w-3" />
+                                            +{allCompanies.length - 5} more
+                                          </>
+                                        )}
+                                      </button>
+                                    )}
+                                  </>
+                                );
+                              })()
+                            ) : (
+                              <div className="text-sm text-muted-foreground py-2">
+                                No companies
+                              </div>
                             )}
-                            {group.default_registered_office && (
-                              <div className="truncate">Office: {group.default_registered_office}</div>
-                            )}
                           </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
+
+                          {/* People count */}
+                          {structure?.people && structure.people.length > 0 && (
+                            <div className="mt-2 pt-2 border-t flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Users className="h-3.5 w-3.5" />
+                              <span>{structure.people.length} people</span>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -1611,7 +1847,7 @@ export default function CorporateDashboardPage() {
                               <td className="py-2 px-3">
                                 <div className="flex items-center gap-2">
                                   <button
-                                    onClick={() => router.push(`/corporate/structure/${person.id}`)}
+                                    onClick={() => setFullScreenPerson(person)}
                                     className="text-teal-600 hover:text-teal-800 flex items-center gap-1"
                                     title="View Structure"
                                   >
@@ -1638,206 +1874,71 @@ export default function CorporateDashboardPage() {
             </Card>
           )}
 
-          {/* Full Screen Person Structure Dialog */}
-          <Dialog open={!!fullScreenPerson} onOpenChange={(open) => !open && setFullScreenPerson(null)}>
-            <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-xl">
-                  <GitBranch className="h-6 w-6 text-teal-600" />
-                  {String(fullScreenPerson?.display_name || fullScreenPerson?.name || "")} - Corporate Structure
-                </DialogTitle>
-                <DialogDescription>
-                  All company relationships for this person
-                </DialogDescription>
-              </DialogHeader>
-              {fullScreenPerson && (
-                <div className="flex-1 overflow-y-auto p-4">
-                  {loadingPersonRoles ? (
-                    <div className="flex items-center justify-center h-64">
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : (
-                  <div className="space-y-6">
-                    {/* Visual Ownership Chart */}
-                    <PersonStructureChart
-                      personName={String(fullScreenPerson?.display_name || fullScreenPerson?.name || "")}
-                      personEmail={fullScreenPerson?.email as string | null}
-                      ownershipChain={fullScreenPersonOwnershipChain}
-                      directorRoles={fullScreenPersonRoles
-                        .filter(r => r.type === "director")
-                        .map(r => ({
-                          company_id: r.company_id,
-                          company_name: r.company_name,
-                          position: r.position,
-                          is_current: r.is_current,
-                        }))}
-                      onCompanyClick={(companyId) => {
-                        setFullScreenPerson(null);
-                        router.push(`/corporate/companies/${companyId}`);
-                      }}
-                      showFullDetail={showPersonFullDetail}
-                      onToggleFullDetail={() => setShowPersonFullDetail(!showPersonFullDetail)}
-                    />
+          {/* Full Screen Person Structure Overlay */}
+          {fullScreenPerson && (
+            <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col">
+              {/* Floating action buttons in top-right corner */}
+              <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFullScreenPerson(null);
+                    router.push(`/contacts/${fullScreenPerson?.id}`);
+                  }}
+                  className="bg-white/90 hover:bg-white shadow-sm"
+                >
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  View Contact
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setFullScreenPerson(null)}
+                  className="bg-white/90 hover:bg-white shadow-sm"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
 
-                    {/* Cards Grid - shown when Full Detail is enabled */}
-                    {showPersonFullDetail && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {/* Group each company's roles together */}
-                    {(() => {
-                      // Use the fetched roles from state
-                      const roles = fullScreenPersonRoles;
-
-                      // Group roles by company
-                      const companiesMap = new Map<number, {
-                        id: number;
-                        name: string;
-                        roles: typeof roles;
-                      }>();
-
-                      roles.forEach(role => {
-                        if (!companiesMap.has(role.company_id)) {
-                          companiesMap.set(role.company_id, {
-                            id: role.company_id,
-                            name: role.company_name,
-                            roles: []
-                          });
-                        }
-                        companiesMap.get(role.company_id)!.roles.push(role);
-                      });
-
-                      // Convert to array and sort by company name
-                      const companies = Array.from(companiesMap.values()).sort((a, b) =>
-                        a.name.localeCompare(b.name)
-                      );
-
-                      if (companies.length === 0) {
-                        return (
-                          <div className="col-span-full text-center text-muted-foreground py-12">
-                            <GitBranch className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                            <p>No company relationships found</p>
-                          </div>
-                        );
-                      }
-
-                      return companies.map(company => (
-                        <Card key={company.id} className="hover:shadow-lg transition-shadow">
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-base flex items-center gap-2">
-                              <Building2 className="h-5 w-5 text-blue-600" />
-                              <button
-                                onClick={() => {
-                                  setFullScreenPerson(null);
-                                  router.push(`/corporate/companies/${company.id}`);
-                                }}
-                                className="hover:underline text-left"
-                              >
-                                {company.name}
-                              </button>
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            {/* Director Role */}
-                            {company.roles.filter(r => r.type === "director").map((role, i) => (
-                              <div key={`dir-${i}`} className="flex items-center gap-2 bg-purple-50 dark:bg-purple-950/30 rounded-lg p-2">
-                                <Users className="h-4 w-4 text-purple-600" />
-                                <div>
-                                  <span className="font-medium text-purple-700 dark:text-purple-300">Director</span>
-                                  {role.is_current === false && (
-                                    <Badge variant="secondary" className="ml-2 text-xs">Former</Badge>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-
-                            {/* Shareholder Role */}
-                            {company.roles.filter(r => r.type === "shareholder").map((role, i) => (
-                              <div key={`sh-${i}`} className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2">
-                                <Package className="h-4 w-4 text-amber-600" />
-                                <div>
-                                  <span className="font-medium text-amber-700 dark:text-amber-300">Shareholder</span>
-                                  <span className="text-sm text-muted-foreground ml-2">
-                                    {role.shares?.toLocaleString() || 0} shares ({role.percentage || 0}%)
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-
-                            {/* Secretary Role */}
-                            {company.roles.filter(r => r.type === "secretary").map((role, i) => (
-                              <div key={`sec-${i}`} className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950/30 rounded-lg p-2">
-                                <FileText className="h-4 w-4 text-blue-600" />
-                                <span className="font-medium text-blue-700 dark:text-blue-300">Secretary</span>
-                              </div>
-                            ))}
-
-                            {/* Public/Corporate Officer Role */}
-                            {company.roles.filter(r => ["public_officer", "corporate_officer", "officer"].includes(r.type || "")).map((role, i) => (
-                              <div key={`off-${i}`} className="flex items-center gap-2 bg-green-50 dark:bg-green-950/30 rounded-lg p-2">
-                                <Key className="h-4 w-4 text-green-600" />
-                                <div>
-                                  <span className="font-medium text-green-700 dark:text-green-300">Public Officer</span>
-                                </div>
-                              </div>
-                            ))}
-                          </CardContent>
-                        </Card>
-                      ));
-                    })()}
-                    </div>
-                    )}
+              {/* Full screen chart */}
+              <div className="flex-1 overflow-hidden">
+                {loadingPersonRoles ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
-                  )}
-                </div>
-              )}
-              <DialogFooter className="border-t pt-4">
-                <Button variant="outline" onClick={() => setFullScreenPerson(null)}>
-                  Close
-                </Button>
-                <Button onClick={() => {
-                  setFullScreenPerson(null);
-                  router.push(`/contacts/${fullScreenPerson?.id}`);
-                }}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  View Full Contact
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                ) : (
+                  <PersonStructureChart
+                    personName={String(fullScreenPerson?.display_name || fullScreenPerson?.name || "")}
+                    personEmail={fullScreenPerson?.email as string | null}
+                    ownershipChain={fullScreenPersonOwnershipChain}
+                    directorRoles={fullScreenPersonRoles
+                      .filter(r => ["director", "secretary", "public_officer", "corporate_officer", "officer"].includes(r.type || ""))
+                      .map(r => ({
+                        company_id: r.company_id,
+                        company_name: r.company_name,
+                        position: r.type, // Use type for role classification (director/secretary/officer)
+                        is_current: r.is_current,
+                      }))}
+                    onCompanyClick={(companyId) => {
+                      setFullScreenPerson(null);
+                      router.push(`/corporate/companies/${companyId}`);
+                    }}
+                    fullscreen
+                  />
+                )}
+              </div>
+            </div>
+          )}
         </TabsContent>
 
-        {/* Memberships Tab (SSoT) */}
+        {/* Memberships Tab */}
         <TabsContent value="memberships" className="mt-4">
-          {/* Group Selector */}
-          <div className="flex gap-2 flex-wrap mb-4">
-            <button
-              onClick={() => setSelectedGroupId(null)}
-              className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-                selectedGroupId === null
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted hover:bg-muted/80"
-              }`}
-            >
-              All
-            </button>
-            {groups.map((group) => (
-              <button
-                key={group.id}
-                onClick={() => setSelectedGroupId(group.id)}
-                className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-                  selectedGroupId === group.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted hover:bg-muted/80"
-                }`}
-              >
-                {group.name}
-              </button>
-            ))}
-          </div>
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">
-                Contacts ({uniqueContactCount}) · {memberships.length} memberships
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-5 w-5 text-pink-600" />
+                Charity Members ({memberships.length})
               </CardTitle>
               <div className="flex items-center gap-4">
                 <div className="flex gap-2">
@@ -1879,7 +1980,7 @@ export default function CorporateDashboardPage() {
                 </div>
               ) : groupByEntityType ? (
                 <div className="space-y-6">
-                  {/* SSoT: Include all entity types from Contact::ENTITY_TYPES plus unknown */}
+                  {/* Group contacts by entity type */}
                   {["person", "company", "sole_trader", "trust", "price_only", "unknown"].map((entityType) => {
                     const contacts = groupedByEntityType[entityType];
                     if (contacts.length === 0) return null;
@@ -1936,6 +2037,36 @@ export default function CorporateDashboardPage() {
           </Card>
         </TabsContent>
 
+        {/* Shareholders Tab */}
+        <TabsContent value="shareholders" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-5 w-5 text-amber-600" />
+                Shareholders
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ShareholdersTable />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Trust Beneficiaries Tab */}
+        <TabsContent value="beneficiaries" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-5 w-5 text-rose-600" />
+                Trust Beneficiaries
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BeneficiariesTable />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Structure Tab */}
         <TabsContent value="structure" className="mt-4 space-y-6">
           {/* Group Selector for Structure */}
@@ -1953,7 +2084,10 @@ export default function CorporateDashboardPage() {
             {groups.map((group) => (
               <button
                 key={group.id}
-                onClick={() => setSelectedGroupId(group.id)}
+                onClick={() => {
+                  setSelectedGroupId(group.id);
+                  setIsStructureFullscreen(true);
+                }}
                 className={`px-4 py-2 rounded-lg text-sm transition-colors ${
                   selectedGroupId === group.id
                     ? "bg-primary text-primary-foreground"
@@ -2073,6 +2207,18 @@ export default function CorporateDashboardPage() {
                         Table
                       </button>
                     </div>
+                    {/* Fullscreen Toggle */}
+                    {structureViewMode === "chart" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsStructureFullscreen(true)}
+                        className="gap-2"
+                      >
+                        <Maximize2 className="h-4 w-4" />
+                        Fullscreen
+                      </Button>
+                    )}
                     {/* Filters */}
                     <span className="text-sm text-muted-foreground">Show:</span>
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -2426,6 +2572,75 @@ export default function CorporateDashboardPage() {
           </Sheet>
         </TabsContent>
       </Tabs>
+
+      {/* Fullscreen Structure Chart Modal */}
+      {isStructureFullscreen && structureData && (
+        <div className="fixed inset-0 z-50 bg-background">
+          {/* Header */}
+          <div className="absolute top-0 left-0 right-0 h-16 bg-background border-b flex items-center justify-between px-6 z-10">
+            <div className="flex items-center gap-4">
+              <Building2 className="h-6 w-6 text-blue-600" />
+              <h2 className="text-xl font-semibold">{structureData.group.name} - Structure Chart</h2>
+            </div>
+            <div className="flex items-center gap-4">
+              {/* Filters in fullscreen */}
+              <div className="flex items-center gap-3 text-sm">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={structureFilters.shareholders}
+                    onChange={(e) => setStructureFilters(prev => ({ ...prev, shareholders: e.target.checked }))}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span className="text-amber-700">Shareholders</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={structureFilters.directors}
+                    onChange={(e) => setStructureFilters(prev => ({ ...prev, directors: e.target.checked, secretary: e.target.checked, corporateOfficer: e.target.checked }))}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span className="text-purple-700">Directors/Officers</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={structureFilters.ownershipLinks}
+                    onChange={(e) => setStructureFilters(prev => ({ ...prev, ownershipLinks: e.target.checked }))}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span className="text-emerald-700">Ownership Lines</span>
+                </label>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsStructureFullscreen(false)}
+                className="gap-2"
+              >
+                <Minimize2 className="h-4 w-4" />
+                Exit Fullscreen
+              </Button>
+            </div>
+          </div>
+          {/* Chart takes full remaining space */}
+          <div className="absolute top-16 left-0 right-0 bottom-0">
+            <CorporateStructureChart
+              data={structureData}
+              filters={structureFilters}
+              fullscreen={true}
+              onEntityClick={(id, type) => {
+                if (type === "company") {
+                  router.push(`/corporate/companies/${id}`);
+                } else {
+                  router.push(`/contacts/${id}`);
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

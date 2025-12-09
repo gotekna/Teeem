@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Search,
   Send,
@@ -22,6 +23,8 @@ import {
   CheckCheck,
   Briefcase,
   Plus,
+  Monitor,
+  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -85,6 +88,7 @@ interface Message {
 }
 
 export default function ChatPage() {
+  const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -96,6 +100,8 @@ export default function ChatPage() {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [showNewChatDialog, setShowNewChatDialog] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [pastedImage, setPastedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load online users
@@ -135,6 +141,8 @@ export default function ChatPage() {
   }, []);
 
   const loadMessages = useCallback(async (conversationId: number | string) => {
+    if (!user) return;
+
     setLoadingMessages(true);
     try {
       // Extract user ID from conversation ID for direct messages
@@ -170,7 +178,7 @@ export default function ChatPage() {
           file_name: null,
           created_at: msg.created_at,
           read_by: [msg.user_id],
-          is_own: msg.user_id === 1, // TODO: Replace with actual current user ID
+          is_own: msg.user_id === user.id,
         }));
         setMessages(messages);
       } else {
@@ -181,7 +189,7 @@ export default function ChatPage() {
       setMessages(getMockMessages(Number(conversationId) || 1));
     }
     setLoadingMessages(false);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (!selectedConversation) return;
@@ -210,13 +218,143 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!newMessage.trim() || !selectedConversation) return;
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
 
+    // Check for image in clipboard
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (blob) {
+          setPastedImage(blob);
+          // Create preview
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            setImagePreview(e.target?.result as string);
+          };
+          reader.readAsDataURL(blob);
+        }
+        return;
+      }
+    }
+    // If no image, allow default text paste behavior
+  };
+
+  const clearImagePreview = () => {
+    setPastedImage(null);
+    setImagePreview(null);
+  };
+
+  const handleScreenCapture = async () => {
+    try {
+      // Request screen capture from browser
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          mediaSource: "screen",
+        } as MediaTrackConstraints,
+      });
+
+      // Create video element to capture frame
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      video.play();
+
+      // Wait for video to load
+      await new Promise((resolve) => {
+        video.onloadedmetadata = resolve;
+      });
+
+      // Create canvas and capture frame
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx?.drawImage(video, 0, 0);
+
+      // Stop the stream
+      stream.getTracks().forEach((track) => track.stop());
+
+      // Convert canvas to blob
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new (File as any)([blob], `screenshot-${Date.now()}.png`, {
+            type: "image/png",
+          });
+          setPastedImage(file);
+
+          // Create preview
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            setImagePreview(e.target?.result as string);
+          };
+          reader.readAsDataURL(file);
+        }
+      }, "image/png");
+    } catch (error) {
+      console.error("Screen capture failed:", error);
+      // User likely cancelled the screen share prompt
+    }
+  };
+
+  const handleSend = async () => {
+    if ((!newMessage.trim() && !pastedImage) || !selectedConversation || !user) return;
+
+    // Get recipient user ID from the conversation ID or participants
+    let recipientId: number | undefined;
+
+    if (typeof selectedConversation.id === "string" && selectedConversation.id.startsWith("dm-")) {
+      const parts = selectedConversation.id.split("-");
+      recipientId = parseInt(parts[parts.length - 1], 10);
+    } else {
+      recipientId = selectedConversation.participants.find(p => p.id !== user?.id)?.id;
+    }
+
+    // Handle image upload if present
+    if (pastedImage) {
+      const tempMessage: Message = {
+        id: Date.now(),
+        conversation_id: selectedConversation.id,
+        sender_id: user.id,
+        sender_name: "You",
+        sender_avatar: null,
+        content: newMessage || "[Image]",
+        message_type: "image",
+        file_url: imagePreview,
+        file_name: pastedImage.name,
+        created_at: new Date().toISOString(),
+        read_by: [user.id],
+        is_own: true,
+      };
+
+      setMessages((prev) => [...prev, tempMessage]);
+      setNewMessage("");
+      clearImagePreview();
+
+      try {
+        const formData = new FormData();
+        formData.append("chat_message[content]", newMessage || "[Image]");
+        formData.append("chat_message[message_type]", "image");
+        formData.append("chat_message[file]", pastedImage);
+        if (recipientId) {
+          formData.append("chat_message[recipient_user_id]", recipientId.toString());
+        }
+
+        // Note: You'll need to update the backend to handle file uploads
+        await api.postFormData("/api/v1/chat_messages", formData);
+      } catch (error) {
+        console.error("Failed to send image:", error);
+      }
+      return;
+    }
+
+    // Handle text message
     const tempMessage: Message = {
       id: Date.now(),
       conversation_id: selectedConversation.id,
-      sender_id: 1,
+      sender_id: user.id,
       sender_name: "You",
       sender_avatar: null,
       content: newMessage,
@@ -224,7 +362,7 @@ export default function ChatPage() {
       file_url: null,
       file_name: null,
       created_at: new Date().toISOString(),
-      read_by: [1],
+      read_by: [user.id],
       is_own: true,
     };
 
@@ -232,16 +370,6 @@ export default function ChatPage() {
     setNewMessage("");
 
     try {
-      // Get recipient user ID from the conversation ID or participants
-      let recipientId: number | undefined;
-
-      if (typeof selectedConversation.id === "string" && selectedConversation.id.startsWith("dm-")) {
-        const parts = selectedConversation.id.split("-");
-        recipientId = parseInt(parts[parts.length - 1], 10);
-      } else {
-        recipientId = selectedConversation.participants.find(p => p.id !== 1)?.id;
-      }
-
       await api.post("/api/v1/chat_messages", {
         chat_message: {
           content: newMessage,
@@ -254,15 +382,17 @@ export default function ChatPage() {
   };
 
   // Start a new conversation with a user
-  const startConversation = (user: OnlineUser) => {
+  const startConversation = (selectedUser: OnlineUser) => {
+    if (!user) return;
+
     // Create a temporary conversation for this user
     const newConversation: Conversation = {
-      id: `dm-new-${user.id}`,
+      id: `dm-new-${selectedUser.id}`,
       type: "direct",
-      name: user.name,
+      name: selectedUser.name,
       participants: [
-        { id: 1, name: "You", avatar_url: null, is_online: true },
-        { id: user.id, name: user.name, avatar_url: null, is_online: user.is_online },
+        { id: user.id, name: "You", avatar_url: null, is_online: true },
+        { id: selectedUser.id, name: selectedUser.name, avatar_url: null, is_online: selectedUser.is_online },
       ],
       last_message: null,
       unread_count: 0,
@@ -274,7 +404,7 @@ export default function ChatPage() {
 
     // Check if conversation already exists
     const existingConv = conversations.find(c =>
-      c.type === "direct" && c.participants.some(p => p.id === user.id)
+      c.type === "direct" && c.participants.some(p => p.id === selectedUser.id)
     );
 
     if (existingConv) {
@@ -584,21 +714,68 @@ export default function ChatPage() {
 
               {/* Message Input */}
               <div className="p-4 border-t">
+                {/* Image Preview */}
+                {imagePreview && (
+                  <div className="mb-3 relative inline-block">
+                    <img
+                      src={imagePreview}
+                      alt="Pasted screenshot"
+                      className="max-h-40 rounded-lg border"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                      onClick={clearImagePreview}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon">
-                    <Paperclip className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon">
-                    <ImageIcon className="h-4 w-4" />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" title="Attach file">
+                        <Paperclip className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem onClick={handleScreenCapture}>
+                        <Monitor className="h-4 w-4 mr-2" />
+                        Capture Screen/Window
+                      </DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <ImageIcon className="h-4 w-4 mr-2" />
+                        Upload Image
+                      </DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <File className="h-4 w-4 mr-2" />
+                        Upload File
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleScreenCapture}
+                    title="Capture screen or window"
+                  >
+                    <Monitor className="h-4 w-4" />
                   </Button>
                   <Input
-                    placeholder="Type a message..."
+                    placeholder="Type a message or paste a screenshot..."
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                    onPaste={handlePaste}
                     className="flex-1"
                   />
-                  <Button onClick={handleSend} disabled={!newMessage.trim()}>
+                  <Button onClick={handleSend} disabled={!newMessage.trim() && !pastedImage}>
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
@@ -693,13 +870,27 @@ function MessageBubble({ message }: { message: Message }) {
           )}
           <div
             className={cn(
-              "rounded-lg px-3 py-2",
+              "rounded-lg overflow-hidden",
+              message.message_type === "image" ? "p-0" : "px-3 py-2",
               message.is_own
                 ? "bg-primary text-primary-foreground"
                 : "bg-secondary"
             )}
           >
-            {message.message_type === "file" ? (
+            {message.message_type === "image" ? (
+              <div>
+                {message.file_url && (
+                  <img
+                    src={message.file_url}
+                    alt={message.file_name || "Shared image"}
+                    className="max-w-full max-h-96 object-contain"
+                  />
+                )}
+                {message.content && message.content !== "[Image]" && (
+                  <p className="text-sm px-3 py-2">{message.content}</p>
+                )}
+              </div>
+            ) : message.message_type === "file" ? (
               <div className="flex items-center gap-2">
                 <File className="h-4 w-4" />
                 <span className="text-sm">{message.file_name}</span>

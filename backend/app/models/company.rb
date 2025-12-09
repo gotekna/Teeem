@@ -46,6 +46,10 @@ class Company < ApplicationRecord
   has_many :intercompany_balances, dependent: :destroy
   has_many :intercompany_balances_as_related, class_name: "IntercompanyBalance", foreign_key: "related_company_id", dependent: :destroy
 
+  # Financial reports
+  has_many :profit_loss_reports, dependent: :destroy
+  has_many :balance_sheet_reports, dependent: :destroy
+
   # Encrypted attributes
   encrypts :tfn, deterministic: true
   encrypts :encrypted_asic_password

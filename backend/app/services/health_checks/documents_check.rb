@@ -208,9 +208,9 @@ module HealthChecks
                             .where("LOWER(document_type) LIKE ? OR LOWER(title) LIKE ?", pattern, pattern)
 
       if financial_year
-        query = query.where("? = ANY(financial_years) OR year = ?", financial_year, financial_year)
+        query = query.where("? = ANY(financial_years)", financial_year)
       elsif calendar_year
-        query = query.where("EXTRACT(year FROM document_date) = ? OR year = ?", calendar_year, calendar_year)
+        query = query.where("EXTRACT(year FROM document_date) = ?", calendar_year)
       elsif months_ago
         query = query.where("document_date >= ?", months_ago.months.ago)
       elsif period == :quarterly

@@ -1,4 +1,20 @@
 class BankAccount < ApplicationRecord
+  # Bank code mapping for standardized naming
+  BANK_CODES = {
+    "nab" => "NAB",
+    "national australia" => "NAB",
+    "westpac" => "WBC",
+    "wbc" => "WBC",
+    "boq" => "BOQ",
+    "bank of queensland" => "BOQ",
+    "commonwealth" => "CBA",
+    "commbank" => "CBA",
+    "cba" => "CBA",
+    "anz" => "ANZ",
+    "stripe" => "STRIPE",
+    "simple saver" => "SS"
+  }.freeze
+
   # Associations
   belongs_to :company
   has_many :bank_transactions, dependent: :nullify
@@ -10,10 +26,15 @@ class BankAccount < ApplicationRecord
   validates :status, inclusion: { in: %w[active closed] }
   validate :date_closed_after_opened
 
+  # Callbacks - auto-detect bank_code from institution_name
+  before_save :detect_bank_code, if: -> { bank_code.blank? && institution_name.present? }
+
   # Scopes
   scope :active, -> { where(status: "active") }
   scope :closed, -> { where(status: "closed") }
   scope :by_institution, ->(institution) { where(institution_name: institution) }
+  scope :by_bank_code, ->(code) { where(bank_code: code.upcase) }
+  scope :linked_to_xero, -> { where.not(xero_account_id: nil) }
 
   # Callbacks
   after_create :create_activity
@@ -81,5 +102,16 @@ class BankAccount < ApplicationRecord
         user: user || User.first
       )
     end
+  end
+
+  def detect_bank_code
+    name = institution_name.to_s.downcase
+    BANK_CODES.each do |pattern, code|
+      if name.include?(pattern)
+        self.bank_code = code
+        return
+      end
+    end
+    self.bank_code = "OTHER"
   end
 end

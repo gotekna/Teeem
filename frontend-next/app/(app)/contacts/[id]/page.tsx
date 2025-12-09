@@ -47,6 +47,7 @@ import {
   Plus,
   Link2,
   Scale,
+  Landmark,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -355,6 +356,21 @@ interface LinkedCompanyShareholder {
   date_acquired: string | null;
 }
 
+// SSoT: Bank account data from bank_accounts table
+interface LinkedCompanyBankAccount {
+  id: number;
+  institution_name: string;
+  bsb: string | null;
+  account_number: string;
+  account_name: string | null;
+  bank_code: string | null;
+  xero_account_id: string | null;
+  status: "active" | "closed";
+  display_name: string;
+  formatted_bsb: string | null;
+  linked_to_xero: boolean;
+}
+
 interface LinkedCompany {
   id: number;
   name: string;
@@ -374,6 +390,9 @@ interface LinkedCompany {
   directors_count: number;
   shareholdings_count: number;
   documents_count: number;
+  // SSoT: Bank accounts from bank_accounts table
+  bank_accounts?: LinkedCompanyBankAccount[];
+  bank_accounts_count?: number;
 }
 
 interface CompanyGroupMembership {
@@ -4050,6 +4069,59 @@ export default function ContactDetailPage() {
                       )}
                     </CardContent>
                   </Card>
+
+                  {/* Company Bank Accounts - SSoT: Read-only view of linked company's bank accounts */}
+                  {contact.linked_company && contact.linked_company.bank_accounts && contact.linked_company.bank_accounts.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Landmark className="h-5 w-5 text-emerald-600" />
+                          Company Bank Accounts ({contact.linked_company.bank_accounts.length})
+                          <Link
+                            href={`/corporate/companies/${contact.linked_company.id}?subtab=bank-accounts`}
+                            className="ml-auto text-xs text-primary hover:underline flex items-center gap-1"
+                          >
+                            Edit in Corporate <ExternalLink className="h-3 w-3" />
+                          </Link>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="border rounded-lg overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-muted/50">
+                              <tr>
+                                <th className="text-left px-4 py-2 text-muted-foreground font-medium">Bank</th>
+                                <th className="text-left px-4 py-2 text-muted-foreground font-medium">BSB</th>
+                                <th className="text-left px-4 py-2 text-muted-foreground font-medium">Account</th>
+                                <th className="text-left px-4 py-2 text-muted-foreground font-medium">Name</th>
+                                <th className="text-left px-4 py-2 text-muted-foreground font-medium">Xero</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {contact.linked_company.bank_accounts.filter(ba => ba.status === "active").map((account) => (
+                                <tr key={account.id} className="hover:bg-muted/30">
+                                  <td className="px-4 py-2 font-medium">{account.institution_name}</td>
+                                  <td className="px-4 py-2 font-mono">{account.formatted_bsb || account.bsb || "-"}</td>
+                                  <td className="px-4 py-2 font-mono">****{account.account_number.slice(-4)}</td>
+                                  <td className="px-4 py-2">{account.account_name || "-"}</td>
+                                  <td className="px-4 py-2">
+                                    {account.linked_to_xero ? (
+                                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                        Linked
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground">-</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {/* Trust Roles Table */}
                   {trustRoles && trustRoles.total_count > 0 && (

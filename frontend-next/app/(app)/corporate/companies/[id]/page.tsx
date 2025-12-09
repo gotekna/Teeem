@@ -2,9 +2,20 @@
 
 import * as React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,16 +60,26 @@ import {
   Pencil,
   GitMerge,
   Info,
+  Mail,
+  Phone,
+  ChevronRight,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
+
+// Safe date formatter that handles null/invalid dates
+const safeFormatDate = (dateValue: string | Date | null | undefined, formatStr: string, fallback = "—"): string => {
+  if (!dateValue) return fallback;
+  const date = typeof dateValue === "string" ? new Date(dateValue) : dateValue;
+  return isValid(date) ? format(date, formatStr) : fallback;
+};
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
 import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
 import { XeroStatementView } from "@/components/corporate/XeroStatementView";
-import { BankStatementReportsView } from "@/components/corporate/BankStatementReportsView";
 
 // Document category tabs
 const DOCUMENT_TABS = [
@@ -67,6 +88,7 @@ const DOCUMENT_TABS = [
   { id: "assets-docs", name: "ASSETS", icon: Briefcase },
   { id: "ato", name: "ATO", icon: FileText },
   { id: "bank", name: "BANK", icon: Landmark },
+  { id: "xero", name: "XERO", icon: RefreshCw },
   { id: "company", name: "COMPANY", icon: Building2 },
   { id: "dividends-docs", name: "DIVIDENDS", icon: DollarSign },
   { id: "financials", name: "FINANCIALS", icon: FileText },
@@ -81,14 +103,13 @@ const DOCUMENT_TABS = [
   { id: "activity", name: "Activity", icon: Clock },
 ];
 
-// Overview sub-tabs
+// Overview sub-tabs for Companies (Health accessed via header badge)
 const OVERVIEW_SUB_TABS = [
   { id: "info", name: "Information" },
   { id: "corporate", name: "Corporate" },
-  { id: "health", name: "Health" },
+  { id: "bank-accounts", name: "Bank Accounts" },
   { id: "directors", name: "Directors" },
   { id: "shareholdings", name: "Shareholdings" },
-  { id: "trusts", name: "Trusts" },
   { id: "consolidation", name: "Consolidation" },
 ];
 
@@ -109,6 +130,18 @@ const TRUSTEE_COMPANY_SUB_TABS = [
   { id: "directors", name: "Directors" },
   { id: "shareholdings", name: "Shareholdings" },
   { id: "trusts", name: "Trusts Managed" },
+];
+
+// Xero sub-tabs
+const XERO_SUB_TABS = [
+  { id: "connection", name: "Connection" },
+  { id: "accounts", name: "Accounts" },
+  { id: "profit-loss", name: "Profit & Loss" },
+  { id: "balance-sheet", name: "Balance Sheet" },
+  { id: "profit-loss-pdf", name: "P&L PDF Reports" },
+  { id: "balance-sheet-pdf", name: "Balance Sheet PDF" },
+  { id: "bank-accounts", name: "Bank Accounts" },
+  { id: "bank-statement", name: "Bank Statement" },
 ];
 
 interface Director {
@@ -138,6 +171,8 @@ interface ComplianceItem {
 interface Company {
   id: number;
   name: string;
+  previous_names?: string;
+  business_names?: string;
   slug?: string;
   code?: string;
   acn?: string;
@@ -204,6 +239,27 @@ interface Shareholding {
   beneficially_held?: boolean;
   beneficial_owner?: string;
   acquisition_date?: string;
+  disposal_date?: string;
+  certificate_number?: string;
+  consideration_paid?: number;
+}
+
+// SSoT: Bank account data from bank_accounts table
+interface BankAccount {
+  id: number;
+  institution_name: string;
+  bsb?: string;
+  account_number: string;
+  account_name?: string;
+  bank_code?: string;
+  xero_account_id?: string;
+  status: "active" | "closed";
+  date_opened?: string;
+  date_closed?: string;
+  display_name: string;
+  formatted_bsb?: string;
+  masked_account_number?: string;
+  linked_to_xero?: boolean;
 }
 
 // Unused - keeping for future implementation
@@ -225,6 +281,8 @@ interface TrustRolesMember {
   contact_email?: string;
   contact_entity_type?: string;
   membership_type: string;
+  beneficiary_type?: "named" | "class" | "default";
+  class_description?: string;
   can_view_confidential: boolean;
   is_active: boolean;
 }
@@ -310,6 +368,12 @@ function InformationTab({ company }: { company: Company }) {
         <div>
           <p className="text-sm text-muted-foreground">Legal Name</p>
           <p className="text-sm font-medium">{company.name}</p>
+          {company.previous_names && (
+            <p className="text-xs text-muted-foreground mt-1">Previously: {company.previous_names}</p>
+          )}
+          {company.business_names && (
+            <p className="text-xs text-muted-foreground mt-1">Trading as: {company.business_names}</p>
+          )}
         </div>
         {company.date_incorporated && (
           <div>
@@ -339,14 +403,40 @@ function InformationTab({ company }: { company: Company }) {
 
       {company.current_directors && company.current_directors.length > 0 && (
         <div className="pt-4">
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">Current Directors</h4>
-          <ul className="space-y-1">
+          <h4 className="text-sm font-medium text-muted-foreground mb-3">Current Directors</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {company.current_directors.map((director) => (
-              <li key={director.id} className="text-sm">
-                {director.contact?.display_name || "Unknown"}
-              </li>
+              <div key={director.id} className="border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-medium text-sm">
+                    {(director.contact?.display_name || "?")[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{director.contact?.display_name || "Unknown"}</p>
+                    {director.formatted_position && (
+                      <p className="text-xs text-muted-foreground">{director.formatted_position}</p>
+                    )}
+                  </div>
+                </div>
+                {(director.contact?.email || director.contact?.mobile_phone) && (
+                  <div className="space-y-1 text-xs">
+                    {director.contact?.email && (
+                      <a href={`mailto:${director.contact.email}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                        <Mail className="h-3 w-3" />
+                        <span className="truncate">{director.contact.email}</span>
+                      </a>
+                    )}
+                    {director.contact?.mobile_phone && (
+                      <a href={`tel:${director.contact.mobile_phone}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                        <Phone className="h-3 w-3" />
+                        <span>{director.contact.mobile_phone}</span>
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
     </div>
@@ -359,26 +449,30 @@ function CorporateTab({ company, onUpdate }: { company: Company; onUpdate: () =>
   const [saving, setSaving] = React.useState(false);
   const [formData, setFormData] = React.useState({
     tfn: company.tfn || "",
+    business_names: company.business_names || "",
+    previous_names: company.previous_names || "",
     registered_office_address: company.registered_office_address || "",
     corporate_key: company.corporate_key || "",
     asic_username: company.asic_username || "",
     asic_password: "",
     recovery_question: company.recovery_question || "",
     recovery_answer: "",
-    bank_name: company.bank_name || "",
-    bank_bsb: company.bank_bsb || "",
-    bank_account_number: company.bank_account_number || "",
-    bank_account_name: company.bank_account_name || "",
-    bank_start_date: company.bank_start_date || "",
-    bank_end_date: company.bank_end_date || "",
   });
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const dataToSend = { ...formData };
-      if (!dataToSend.asic_password) delete (dataToSend as Record<string, unknown>).asic_password;
-      if (!dataToSend.recovery_answer) delete (dataToSend as Record<string, unknown>).recovery_answer;
+      const dataToSend: Record<string, unknown> = { ...formData };
+      if (!dataToSend.asic_password) delete dataToSend.asic_password;
+      if (!dataToSend.recovery_answer) delete dataToSend.recovery_answer;
+      // Convert previous_names string to array (comma-separated)
+      if (typeof dataToSend.previous_names === "string") {
+        const names = (dataToSend.previous_names as string)
+          .split(",")
+          .map((n) => n.trim())
+          .filter((n) => n.length > 0);
+        dataToSend.previous_names = names;
+      }
       await api.put(`/api/v1/companies/${company.id}`, { company: dataToSend });
       setIsEditing(false);
       onUpdate();
@@ -442,6 +536,33 @@ function CorporateTab({ company, onUpdate }: { company: Company; onUpdate: () =>
             ) : (
               <p className="text-sm font-mono mt-1">{formatTFN(company.tfn)}</p>
             )}
+          </div>
+          <div>
+            <Label className="text-muted-foreground">Business Names (Trading As)</Label>
+            {isEditing ? (
+              <Input
+                value={formData.business_names}
+                onChange={(e) => setFormData({ ...formData, business_names: e.target.value })}
+                placeholder="Trading names"
+                className="mt-1"
+              />
+            ) : (
+              <p className="text-sm mt-1">{company.business_names || "-"}</p>
+            )}
+          </div>
+          <div>
+            <Label className="text-muted-foreground">Previous Names</Label>
+            {isEditing ? (
+              <Input
+                value={formData.previous_names}
+                onChange={(e) => setFormData({ ...formData, previous_names: e.target.value })}
+                placeholder="Comma-separated previous names"
+                className="mt-1"
+              />
+            ) : (
+              <p className="text-sm mt-1">{company.previous_names || "-"}</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">Separate multiple names with commas</p>
           </div>
           <div className="md:col-span-2">
             <Label className="text-muted-foreground">Registered Office</Label>
@@ -528,130 +649,146 @@ function CorporateTab({ company, onUpdate }: { company: Company; onUpdate: () =>
         </div>
       </div>
 
-      {/* Bank Account */}
-      <div className="border-t pt-6">
-        <h4 className="text-sm font-semibold mb-4">Bank Account</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <Label className="text-muted-foreground">Bank Name</Label>
-            {isEditing ? (
-              <Input
-                value={formData.bank_name}
-                onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
-                placeholder="e.g. Commonwealth Bank"
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm mt-1">{company.bank_name || "-"}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">BSB</Label>
-            {isEditing ? (
-              <Input
-                value={formData.bank_bsb}
-                onChange={(e) => setFormData({ ...formData, bank_bsb: e.target.value })}
-                placeholder="000-000"
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm font-mono mt-1">{company.bank_bsb || "-"}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">Account Number</Label>
-            {isEditing ? (
-              <Input
-                value={formData.bank_account_number}
-                onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })}
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm font-mono mt-1">{company.bank_account_number || "-"}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">Account Name</Label>
-            {isEditing ? (
-              <Input
-                value={formData.bank_account_name}
-                onChange={(e) => setFormData({ ...formData, bank_account_name: e.target.value })}
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm mt-1">{company.bank_account_name || "-"}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">Start Date</Label>
-            {isEditing ? (
-              <Input
-                type="date"
-                value={formData.bank_start_date}
-                onChange={(e) => setFormData({ ...formData, bank_start_date: e.target.value })}
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm mt-1">
-                {company.bank_start_date ? format(new Date(company.bank_start_date), "dd/MM/yyyy") : "-"}
-              </p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">End Date</Label>
-            {isEditing ? (
-              <Input
-                type="date"
-                value={formData.bank_end_date}
-                onChange={(e) => setFormData({ ...formData, bank_end_date: e.target.value })}
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm mt-1">
-                {company.bank_end_date ? format(new Date(company.bank_end_date), "dd/MM/yyyy") : "-"}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
 
 // Directors Sub-Tab
-function DirectorsTab({ company }: { company: Company }) {
+interface OfficerRecord {
+  id: number;
+  position: string;
+  formatted_position: string;
+  appointment_date: string;
+  resignation_date?: string;
+  is_current: boolean;
+  notes?: string;
+  contact: {
+    id: number;
+    display_name: string;
+    email?: string;
+    mobile_phone?: string;
+  };
+}
+
+function DirectorsTab({ companyId }: { companyId: string }) {
+  const [officers, setOfficers] = React.useState<OfficerRecord[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const loadOfficers = async () => {
+      try {
+        const response = await api.get<{ success: boolean; directors: OfficerRecord[] }>(
+          `/api/v1/companies/${companyId}/directors`
+        );
+        setOfficers(response.directors || []);
+      } catch (error) {
+        console.error("Failed to load officers:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadOfficers();
+  }, [companyId]);
+
+  // Group officers by role type
+  const directors = officers.filter(o => o.position?.includes("director") || o.position === "chairman");
+  const secretaries = officers.filter(o => o.position?.includes("secretary"));
+  const publicOfficers = officers.filter(o => o.position?.includes("public_officer"));
+
+  const renderOfficerList = (title: string, officerList: OfficerRecord[]) => {
+    const current = officerList.filter(o => o.is_current);
+    const former = officerList.filter(o => !o.is_current);
+
+    return (
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{title}</h4>
+        {officerList.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2">No {title.toLowerCase()} recorded</p>
+        ) : (
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Name</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Position</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Appointed</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Resigned</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {/* Current officers first */}
+                {current.map((officer) => (
+                  <tr key={officer.id} className="hover:bg-muted/30">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-700 dark:text-green-300 text-xs font-medium">
+                          {officer.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{officer.contact?.display_name || "Unknown"}</p>
+                          {officer.contact?.email && (
+                            <a href={`mailto:${officer.contact.email}`} className="text-xs text-muted-foreground hover:text-primary">
+                              {officer.contact.email}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm">{officer.formatted_position}</td>
+                    <td className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), "dd/MM/yyyy") : "-"}</td>
+                    <td className="px-4 py-3 text-sm">-</td>
+                    <td className="px-4 py-3">
+                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Current</Badge>
+                    </td>
+                  </tr>
+                ))}
+                {/* Former officers */}
+                {former.map((officer) => (
+                  <tr key={officer.id} className="hover:bg-muted/30 opacity-60">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 text-xs font-medium">
+                          {officer.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{officer.contact?.display_name || "Unknown"}</p>
+                          {officer.contact?.email && (
+                            <span className="text-xs text-muted-foreground">{officer.contact.email}</span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm">{officer.formatted_position}</td>
+                    <td className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), "dd/MM/yyyy") : "-"}</td>
+                    <td className="px-4 py-3 text-sm">{officer.resignation_date ? format(new Date(officer.resignation_date), "dd/MM/yyyy") : "-"}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant="secondary">Former</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-medium">Directors</h3>
-      {company.current_directors && company.current_directors.length > 0 ? (
-        <div className="space-y-4">
-          {company.current_directors.map((director) => (
-            <div key={director.id} className="flex items-center justify-between py-3 border-b last:border-0">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-                  {director.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?"}
-                </div>
-                <div>
-                  <p className="font-medium">{director.contact?.display_name || "Unknown"}</p>
-                  <p className="text-sm text-muted-foreground">{director.formatted_position}</p>
-                </div>
-              </div>
-              <div className="text-right text-sm">
-                <p className="text-muted-foreground">
-                  Appointed {format(new Date(director.appointment_date), "d MMM yyyy")}
-                </p>
-                {director.contact?.email && (
-                  <a href={`mailto:${director.contact.email}`} className="text-primary hover:underline">
-                    {director.contact.email}
-                  </a>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-muted-foreground text-center py-8">No directors recorded</p>
-      )}
+    <div className="space-y-6">
+      <h3 className="text-lg font-medium">Corporate Officers History</h3>
+      {renderOfficerList("Directors", directors)}
+      {renderOfficerList("Secretaries", secretaries)}
+      {renderOfficerList("Public Officers", publicOfficers)}
     </div>
   );
 }
@@ -677,6 +814,205 @@ function ShareholdingsTab({ company, companyId }: { company: Company; companyId:
     loadShareholders();
   }, [companyId]);
 
+  // Separate current and former shareholders
+  const currentShareholders = shareholders.filter(sh => !sh.disposal_date);
+  const formerShareholders = shareholders.filter(sh => sh.disposal_date);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-medium">Shareholding History</h3>
+        {company.shares_on_issue && (
+          <span className="text-sm text-muted-foreground">
+            {company.shares_on_issue.toLocaleString()} shares on issue
+          </span>
+        )}
+      </div>
+
+      {shareholders.length > 0 ? (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Shareholder</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Class</th>
+                <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Shares</th>
+                <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">%</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Acquired</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Disposed</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {/* Current shareholders first */}
+              {currentShareholders.map((sh) => (
+                <tr key={sh.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-700 dark:text-green-300 text-xs font-medium">
+                        {sh.shareholder_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{sh.shareholder_name}</p>
+                        {sh.beneficially_held && (
+                          <p className="text-xs text-muted-foreground">Beneficial: {sh.beneficial_owner}</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm capitalize">{sh.share_class || "Ordinary"}</td>
+                  <td className="px-4 py-3 text-sm text-right font-mono">{sh.number_of_shares.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-sm text-right">{sh.percentage}%</td>
+                  <td className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), "dd/MM/yyyy") : "-"}</td>
+                  <td className="px-4 py-3 text-sm">-</td>
+                  <td className="px-4 py-3">
+                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Current</Badge>
+                  </td>
+                </tr>
+              ))}
+              {/* Former shareholders */}
+              {formerShareholders.map((sh) => (
+                <tr key={sh.id} className="hover:bg-muted/30 opacity-60">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 text-xs font-medium">
+                        {sh.shareholder_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{sh.shareholder_name}</p>
+                        {sh.beneficially_held && (
+                          <p className="text-xs text-muted-foreground">Beneficial: {sh.beneficial_owner}</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm capitalize">{sh.share_class || "Ordinary"}</td>
+                  <td className="px-4 py-3 text-sm text-right font-mono">{sh.number_of_shares.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-sm text-right">{sh.percentage}%</td>
+                  <td className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), "dd/MM/yyyy") : "-"}</td>
+                  <td className="px-4 py-3 text-sm">{sh.disposal_date ? format(new Date(sh.disposal_date), "dd/MM/yyyy") : "-"}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant="secondary">Former</Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-center py-8">No shareholders recorded</p>
+      )}
+    </div>
+  );
+}
+
+// Bank Accounts Tab - SSoT: Uses bank_accounts table
+function BankAccountsTab({ company, companyId }: { company: Company; companyId: string }) {
+  const [bankAccounts, setBankAccounts] = React.useState<BankAccount[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [showAddForm, setShowAddForm] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<number | null>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [formData, setFormData] = React.useState({
+    institution_name: "",
+    bsb: "",
+    account_number: "",
+    account_name: "",
+    date_opened: "",
+    date_closed: "",
+    status: "active" as "active" | "closed",
+  });
+
+  const loadBankAccounts = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ success: boolean; bank_accounts: BankAccount[] }>(
+        `/api/v1/companies/${companyId}/bank_accounts`
+      );
+      if (response.success) {
+        setBankAccounts(response.bank_accounts || []);
+      }
+    } catch (error) {
+      console.error("Failed to load bank accounts:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  React.useEffect(() => {
+    loadBankAccounts();
+  }, [loadBankAccounts]);
+
+  const resetForm = () => {
+    setFormData({
+      institution_name: "",
+      bsb: "",
+      account_number: "",
+      account_name: "",
+      date_opened: "",
+      date_closed: "",
+      status: "active",
+    });
+    setShowAddForm(false);
+    setEditingId(null);
+  };
+
+  const handleEdit = (account: BankAccount) => {
+    setFormData({
+      institution_name: account.institution_name,
+      bsb: account.bsb || "",
+      account_number: account.account_number,
+      account_name: account.account_name || "",
+      date_opened: account.date_opened || "",
+      date_closed: account.date_closed || "",
+      status: account.status,
+    });
+    setEditingId(account.id);
+    setShowAddForm(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.institution_name || !formData.account_number) {
+      return;
+    }
+    setSaving(true);
+    try {
+      if (editingId) {
+        await api.put(`/api/v1/bank_accounts/${editingId}`, { bank_account: formData });
+      } else {
+        await api.post("/api/v1/bank_accounts", {
+          bank_account: { ...formData, company_id: companyId },
+        });
+      }
+      resetForm();
+      await loadBankAccounts();
+    } catch (error) {
+      console.error("Failed to save bank account:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this bank account?")) {
+      return;
+    }
+    try {
+      await api.delete(`/api/v1/bank_accounts/${id}`);
+      await loadBankAccounts();
+    } catch (error) {
+      console.error("Failed to delete bank account:", error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -688,33 +1024,168 @@ function ShareholdingsTab({ company, companyId }: { company: Company; companyId:
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">Shareholdings</h3>
-        {company.shares_on_issue && (
-          <span className="text-sm text-muted-foreground">
-            {company.shares_on_issue.toLocaleString()} shares on issue
-          </span>
+        <h3 className="text-lg font-medium">Bank Accounts</h3>
+        {!showAddForm && (
+          <Button variant="outline" size="sm" onClick={() => setShowAddForm(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Account
+          </Button>
         )}
       </div>
-      {shareholders.length > 0 ? (
-        <div className="space-y-3">
-          {shareholders.map((sh) => (
-            <div key={sh.id} className="flex items-center justify-between py-3 border-b last:border-0">
+
+      {/* Add/Edit Form */}
+      {showAddForm && (
+        <Card className="border-primary/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">
+              {editingId ? "Edit Bank Account" : "Add Bank Account"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
-                <p className="font-medium">{sh.shareholder_name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {sh.share_class || "Ordinary"} shares
-                  {sh.beneficially_held && ` (Beneficial owner: ${sh.beneficial_owner})`}
-                </p>
+                <Label>Bank Name *</Label>
+                <Input
+                  value={formData.institution_name}
+                  onChange={(e) => setFormData({ ...formData, institution_name: e.target.value })}
+                  placeholder="e.g. NAB, Commonwealth Bank"
+                  className="mt-1"
+                />
               </div>
-              <div className="text-right">
-                <p className="font-medium">{sh.number_of_shares.toLocaleString()} shares</p>
-                <p className="text-sm text-muted-foreground">{sh.percentage}%</p>
+              <div>
+                <Label>BSB</Label>
+                <Input
+                  value={formData.bsb}
+                  onChange={(e) => setFormData({ ...formData, bsb: e.target.value.replace(/\D/g, "").slice(0, 6) })}
+                  placeholder="000000"
+                  className="mt-1 font-mono"
+                />
+              </div>
+              <div>
+                <Label>Account Number *</Label>
+                <Input
+                  value={formData.account_number}
+                  onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
+                  placeholder="Account number"
+                  className="mt-1 font-mono"
+                />
+              </div>
+              <div>
+                <Label>Account Name</Label>
+                <Input
+                  value={formData.account_name}
+                  onChange={(e) => setFormData({ ...formData, account_name: e.target.value })}
+                  placeholder="Account holder name"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Date Opened</Label>
+                <Input
+                  type="date"
+                  value={formData.date_opened}
+                  onChange={(e) => setFormData({ ...formData, date_opened: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Date Closed</Label>
+                <Input
+                  type="date"
+                  value={formData.date_closed}
+                  onChange={(e) => setFormData({ ...formData, date_closed: e.target.value, status: e.target.value ? "closed" : formData.status })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value: "active" | "closed") => setFormData({ ...formData, status: value, date_closed: value === "closed" && !formData.date_closed ? new Date().toISOString().split("T")[0] : formData.date_closed })}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          ))}
+            <div className="flex gap-2 pt-2">
+              <Button onClick={handleSave} disabled={saving || !formData.institution_name || !formData.account_number}>
+                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <Save className="h-4 w-4 mr-2" />
+                {editingId ? "Update" : "Add"}
+              </Button>
+              <Button variant="outline" onClick={resetForm}>
+                <X className="h-4 w-4 mr-2" />
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Bank Accounts List */}
+      {bankAccounts.length > 0 ? (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Bank</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">BSB</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Account</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Name</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Opened</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Closed</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Xero</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Status</th>
+                <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {bankAccounts.map((account) => (
+                <tr key={account.id} className={cn("hover:bg-muted/30", account.status === "closed" && "opacity-50")}>
+                  <td className="px-4 py-3 text-sm font-medium">{account.institution_name}</td>
+                  <td className="px-4 py-3 text-sm font-mono">{account.formatted_bsb || account.bsb || "-"}</td>
+                  <td className="px-4 py-3 text-sm font-mono">{account.masked_account_number || account.account_number}</td>
+                  <td className="px-4 py-3 text-sm">{account.account_name || "-"}</td>
+                  <td className="px-4 py-3 text-sm">{account.date_opened ? format(new Date(account.date_opened), "dd/MM/yyyy") : "-"}</td>
+                  <td className="px-4 py-3 text-sm">{account.date_closed ? format(new Date(account.date_closed), "dd/MM/yyyy") : "-"}</td>
+                  <td className="px-4 py-3">
+                    {account.linked_to_xero || account.xero_account_id ? (
+                      <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Linked
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge variant={account.status === "active" ? "default" : "secondary"}>
+                      {account.status}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(account)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(account.id)} className="text-red-600 hover:text-red-700">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : (
-        <p className="text-muted-foreground text-center py-8">No shareholders recorded</p>
+        <p className="text-muted-foreground text-center py-8">No bank accounts recorded</p>
       )}
     </div>
   );
@@ -1341,8 +1812,51 @@ function BeneficiariesTab({ company }: { company: Company }) {
 
   const beneficiaries = trustRoles?.beneficiaries || [];
 
+  // Group beneficiaries by type
+  const namedBeneficiaries = beneficiaries.filter(b => b.beneficiary_type === "named" || !b.beneficiary_type);
+  const classBeneficiaries = beneficiaries.filter(b => b.beneficiary_type === "class");
+  const defaultBeneficiary = beneficiaries.filter(b => b.beneficiary_type === "default");
+
+  const renderBeneficiaryCard = (b: TrustRolesMember, colorClass: string) => (
+    <Card key={b.membership_id}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-medium">{b.contact_name}</div>
+            {b.class_description && (
+              <div className="text-sm text-muted-foreground italic">{b.class_description}</div>
+            )}
+            {b.contact_email && (
+              <div className="text-sm text-muted-foreground">{b.contact_email}</div>
+            )}
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant="outline" className={colorClass}>
+                {b.beneficiary_type === "class" ? "Class" :
+                 b.beneficiary_type === "default" ? "Taker in Default" : "Named"}
+              </Badge>
+              {b.contact_entity_type && (
+                <Badge variant="outline">{b.contact_entity_type}</Badge>
+              )}
+              {!b.is_active && (
+                <Badge variant="destructive">Inactive</Badge>
+              )}
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push(`/contacts/${b.contact_id}`)}
+          >
+            <ExternalLink className="h-4 w-4 mr-1" />
+            View
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Beneficiaries ({beneficiaries.length})</h3>
         <Button variant="outline" size="sm">
@@ -1350,46 +1864,51 @@ function BeneficiariesTab({ company }: { company: Company }) {
           Add Beneficiary
         </Button>
       </div>
+
       {beneficiaries.length > 0 ? (
-        <div className="space-y-2">
-          {beneficiaries.map((b) => (
-            <Card key={b.membership_id}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{b.contact_name}</div>
-                    {b.contact_email && (
-                      <div className="text-sm text-muted-foreground">{b.contact_email}</div>
-                    )}
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="bg-amber-100 text-amber-700">
-                        Beneficiary
-                      </Badge>
-                      {b.contact_entity_type && (
-                        <Badge variant="outline">{b.contact_entity_type}</Badge>
-                      )}
-                      {!b.is_active && (
-                        <Badge variant="destructive">Inactive</Badge>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => router.push(`/contacts/${b.contact_id}`)}
-                  >
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    View
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <>
+          {/* Named Beneficiaries */}
+          {namedBeneficiaries.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Named Beneficiaries ({namedBeneficiaries.length})
+              </h4>
+              <div className="space-y-2">
+                {namedBeneficiaries.map((b) => renderBeneficiaryCard(b, "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"))}
+              </div>
+            </div>
+          )}
+
+          {/* Class/Group Beneficiaries */}
+          {classBeneficiaries.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Class Beneficiaries ({classBeneficiaries.length})
+              </h4>
+              <p className="text-xs text-muted-foreground">Groups or classes of beneficiaries (e.g., &quot;children of X&quot;, &quot;relatives&quot;)</p>
+              <div className="space-y-2">
+                {classBeneficiaries.map((b) => renderBeneficiaryCard(b, "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"))}
+              </div>
+            </div>
+          )}
+
+          {/* Taker in Default */}
+          {defaultBeneficiary.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Taker in Default
+              </h4>
+              <p className="text-xs text-muted-foreground">Receives trust property if trustee fails to exercise discretion or trust winds up</p>
+              <div className="space-y-2">
+                {defaultBeneficiary.map((b) => renderBeneficiaryCard(b, "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"))}
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="text-center text-muted-foreground py-8 border rounded-lg">
           No beneficiaries recorded for this trust.
-          <div className="text-sm mt-2">Add beneficiaries to track trust distributions.</div>
+          <div className="text-sm mt-2">Add named beneficiaries, class beneficiaries, or a taker in default.</div>
         </div>
       )}
     </div>
@@ -1530,6 +2049,109 @@ interface ConsolidatedCompany {
   status?: string;
 }
 
+// Org chart node interface for structure display
+interface OrgChartNodeData {
+  id: number;
+  name: string;
+  code?: string;
+  entity_type?: string;
+  is_trustee?: boolean;
+  trust_name?: string;
+  is_trust_of_trustee?: boolean;
+  children: OrgChartNodeData[];
+}
+
+// Recursive component to render org chart nodes
+function OrgChartNode({
+  node,
+  currentCompanyId,
+  onNavigate,
+  level,
+}: {
+  node: OrgChartNodeData;
+  currentCompanyId: number;
+  onNavigate: (id: number) => void;
+  level: number;
+}) {
+  const isCurrentCompany = node.id === currentCompanyId;
+  const isTrust = node.entity_type === "Trust" || node.entity_type === "Superfund";
+  const hasChildren = node.children && node.children.length > 0;
+
+  // Get icon based on entity type
+  const getEntityIcon = () => {
+    if (node.is_trust_of_trustee) return "🔐"; // Trust managed by trustee
+    if (isTrust) return "📜"; // Trust/Superfund
+    if (node.is_trustee) return "🏛️"; // Corporate trustee
+    return "🏢"; // Regular company
+  };
+
+  return (
+    <div className="relative">
+      {/* Node box */}
+      <div className="flex items-start gap-2 mb-2">
+        {/* Indent based on level with connecting line */}
+        {level > 0 && (
+          <div className="flex items-center" style={{ width: `${level * 24}px` }}>
+            <div className="flex items-center justify-end w-full">
+              <div className="w-4 h-px bg-border" />
+              <ChevronRight className="h-3 w-3 text-muted-foreground -ml-1" />
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={() => onNavigate(node.id)}
+          className={cn(
+            "flex items-center gap-2 px-3 py-2 rounded-lg border text-left transition-all hover:shadow-md",
+            isCurrentCompany
+              ? "bg-primary/10 border-primary ring-2 ring-primary/20"
+              : isTrust
+              ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+              : "bg-background border-border hover:bg-muted"
+          )}
+        >
+          <span className="text-lg">{getEntityIcon()}</span>
+          <div>
+            <div className={cn(
+              "text-sm font-medium",
+              isCurrentCompany && "text-primary"
+            )}>
+              {node.name}
+              {node.code && <span className="ml-1 text-xs text-muted-foreground">({node.code})</span>}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {node.is_trust_of_trustee ? "Trust" : node.entity_type || "Company"}
+              {node.is_trustee && node.trust_name && (
+                <span className="ml-1">(Trustee for {node.trust_name})</span>
+              )}
+            </div>
+          </div>
+          {isCurrentCompany && (
+            <Badge variant="outline" className="ml-2 text-xs bg-primary/10 text-primary border-primary/30">
+              Current
+            </Badge>
+          )}
+        </button>
+      </div>
+
+      {/* Render children recursively */}
+      {hasChildren && (
+        <div className="ml-0">
+          {node.children.map((child) => (
+            <OrgChartNode
+              key={child.id}
+              node={child}
+              currentCompanyId={currentCompanyId}
+              onNavigate={onNavigate}
+              level={level + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: () => void }) {
   const router = useRouter();
   const [consolidatedCompanies, setConsolidatedCompanies] = React.useState<ConsolidatedCompany[]>([]);
@@ -1549,12 +2171,18 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
   const [availableTrusts, setAvailableTrusts] = React.useState<{ id: number; name: string; entity_type?: string }[]>([]);
   const [selectedTrustName, setSelectedTrustName] = React.useState(company.trust_name || "");
   const [savingTrustee, setSavingTrustee] = React.useState(false);
+  // Group structure for org chart
+  const [groupStructure, setGroupStructure] = React.useState<{
+    group: { id: number; name: string };
+    companies: OrgChartNodeData[];
+  } | null>(null);
 
   React.useEffect(() => {
     loadConsolidatedCompanies();
     loadCompanyGroups();
     loadParentCompanyOptions();
     loadAvailableTrusts();
+    loadGroupStructure();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect
   }, [company.id]);
 
@@ -1643,6 +2271,23 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
     }
   };
 
+  const loadGroupStructure = async () => {
+    if (!company.company_group_id) {
+      setGroupStructure(null);
+      return;
+    }
+    try {
+      const response = await api.get<{ success: boolean; data: { group: { id: number; name: string }; companies: OrgChartNodeData[] } }>(
+        `/api/v1/company_groups/${company.company_group_id}/structure`
+      );
+      if (response.success) {
+        setGroupStructure(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to load group structure:", error);
+    }
+  };
+
   const handleTrusteeChange = async (trustName: string) => {
     if (trustName === selectedTrustName) return;
     try {
@@ -1671,6 +2316,12 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
       });
       setSelectedGroupId(newGroupId);
       onUpdate();
+      // Reload structure after group change
+      if (newGroupId) {
+        setTimeout(() => loadGroupStructure(), 500);
+      } else {
+        setGroupStructure(null);
+      }
     } catch (error) {
       console.error("Failed to update company group:", error);
     } finally {
@@ -1697,6 +2348,7 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
       setShowAddForm(false);
       setSelectedCompanyId("");
       loadConsolidatedCompanies();
+      loadGroupStructure(); // Refresh org chart
       onUpdate();
     } catch (error) {
       console.error("Failed to add to consolidation:", error);
@@ -1713,6 +2365,7 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
         company: { consolidation_parent_id: null },
       });
       loadConsolidatedCompanies();
+      loadGroupStructure(); // Refresh org chart
       onUpdate();
     } catch (error) {
       console.error("Failed to remove from consolidation:", error);
@@ -1810,6 +2463,33 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
                 <p className="text-xs text-blue-700 dark:text-blue-300">
                   Financial results are reported through the consolidation parent
                 </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Group Structure Chart */}
+      {groupStructure && groupStructure.companies.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-muted-foreground" />
+                <h4 className="font-medium">{groupStructure.group.name} Structure</h4>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="min-w-fit">
+                {groupStructure.companies.map((node) => (
+                  <OrgChartNode
+                    key={node.id}
+                    node={node}
+                    currentCompanyId={company.id}
+                    onNavigate={(id) => router.push(`/corporate/companies/${id}`)}
+                    level={0}
+                  />
+                ))}
               </div>
             </div>
           </CardContent>
@@ -2518,7 +3198,7 @@ function ActivityTab() {
 }
 
 // Data Warehouse Tab - Redirects to /admin/system?tab=data-warehouse&company_id={id}
-// The Data tab content has been moved to the admin system page for centralized management
+// The Data tab redirects to the admin data warehouse with company filter
 
 
 // Xero Connection Card for BANK tab
@@ -2543,12 +3223,12 @@ function ATOSetupCard({ company }: { company: Company }) {
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
             <AlertTriangle className="h-5 w-5" />
-            SSoT Not Connected
+            Contact Not Linked
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-3">
-            This company is not linked to a Contact record. Link to a Contact for single source of truth management.
+            This company is not linked to a Contact record. Link to a Contact for centralised data management.
           </p>
           <Button variant="outline" size="sm" onClick={() => router.push("/contacts")}>
             Link to Contact
@@ -2564,7 +3244,7 @@ function ATOSetupCard({ company }: { company: Company }) {
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="h-5 w-5 text-blue-600" />
-            ATO Registration (SSoT)
+            ATO Registration
           </CardTitle>
           <Button
             variant="outline"
@@ -2577,7 +3257,7 @@ function ATOSetupCard({ company }: { company: Company }) {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Data sourced from Contact record (single source of truth)
+          Data sourced from linked Contact record
         </p>
       </CardHeader>
       <CardContent>
@@ -2619,12 +3299,14 @@ function ATOSetupCard({ company }: { company: Company }) {
   );
 }
 
-function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: { companyId: string; onSyncComplete?: () => void; onConnectionChange?: (connected: boolean) => void }) {
+function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnectionChange }: { companyId: string; companyName?: string; onSyncComplete?: () => void; onConnectionChange?: (connected: boolean) => void }) {
   const [status, setStatus] = React.useState<XeroConnectionStatus | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [connecting, setConnecting] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
   const [syncing, setSyncing] = React.useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
+  const [pendingConnection, setPendingConnection] = React.useState<XeroConnectionStatus | null>(null);
 
   React.useEffect(() => {
     loadStatus();
@@ -2671,7 +3353,9 @@ function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: {
           );
           if (statusCheck.connected) {
             clearInterval(pollInterval);
-            setStatus(statusCheck);
+            // Show confirmation dialog instead of auto-accepting
+            setPendingConnection(statusCheck);
+            setShowConfirmDialog(true);
             setConnecting(false);
           }
         }, 3000);
@@ -2712,6 +3396,30 @@ function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: {
       console.error("Failed to sync with Xero:", error);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // User confirms the Xero connection is correct
+  const handleConfirmConnection = () => {
+    if (pendingConnection) {
+      setStatus(pendingConnection);
+      setPendingConnection(null);
+    }
+    setShowConfirmDialog(false);
+  };
+
+  // User says wrong connection - disconnect
+  const handleRejectConnection = async () => {
+    setShowConfirmDialog(false);
+    setPendingConnection(null);
+    try {
+      setDisconnecting(true);
+      await api.post(`/api/v1/companies/${companyId}/xero/disconnect`);
+      setStatus({ connected: false });
+    } catch (error) {
+      console.error("Failed to disconnect from Xero:", error);
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -2832,6 +3540,50 @@ function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: {
           </div>
         </div>
       </CardContent>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Confirm Xero Connection
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>Please verify this connection is correct:</p>
+                <div className="rounded-lg border p-4 space-y-2 bg-muted/50">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">TEEEM Company:</span>
+                    <span className="font-medium text-foreground">{companyName || "Unknown"}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Connected to Xero:</span>
+                    <span className="font-medium text-blue-600">{pendingConnection?.xero_tenant_name || "Unknown"}</span>
+                  </div>
+                </div>
+                <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                  Make sure the Xero organisation matches this company. Connecting to the wrong Xero file will sync incorrect data.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={handleRejectConnection}
+              className="bg-red-50 text-red-700 hover:bg-red-100 border-red-200"
+            >
+              Wrong Company - Disconnect
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmConnection}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Yes, This is Correct
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
@@ -3010,7 +3762,7 @@ function BankTransactionsCard({ companyId, isConnected }: { companyId: string; i
                 {transactions.slice(0, 20).map((tx) => (
                   <tr key={tx.id} className="border-b hover:bg-muted/50">
                     <td className="py-2 px-2 whitespace-nowrap">
-                      {format(new Date(tx.transaction_date), "d MMM yyyy")}
+                      {safeFormatDate(tx.transaction_date, "d MMM yyyy")}
                     </td>
                     <td className="py-2 px-2 max-w-[200px] truncate" title={tx.description}>
                       {tx.description || tx.reference || "-"}
@@ -3054,6 +3806,1204 @@ function BankTransactionsCard({ companyId, isConnected }: { companyId: string; i
   );
 }
 
+// Xero Accounts Card - Shows Chart of Accounts from Xero with comparison
+interface XeroAccount {
+  account_id: string;
+  code: string;
+  name: string;
+  type: string;
+  class: string;
+  status: string;
+  tax_type: string;
+  description: string;
+}
+
+interface CompanyComparison {
+  company_id: number;
+  company_name: string;
+  name: string;
+  status: string;
+}
+
+interface AccountComparison {
+  code: string;
+  name: string;
+  type: string;
+  company_count: number;
+  all_companies: boolean;
+  names_match: boolean;
+  companies: CompanyComparison[];
+}
+
+function XeroAccountsCard({ companyId, companyName }: { companyId: string; companyName?: string }) {
+  const [accounts, setAccounts] = React.useState<XeroAccount[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [showComparison, setShowComparison] = React.useState(false);
+  const [comparison, setComparison] = React.useState<AccountComparison[]>([]);
+  const [comparisonLoading, setComparisonLoading] = React.useState(false);
+  const [comparisonSummary, setComparisonSummary] = React.useState<{
+    total_unique_accounts: number;
+    accounts_in_all: number;
+    accounts_with_differences: number;
+    missing_in_some: number;
+  } | null>(null);
+  const [filterType, setFilterType] = React.useState<string>("all");
+  const [searchTerm, setSearchTerm] = React.useState("");
+
+  const loadAccounts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get<{
+        success: boolean;
+        accounts: XeroAccount[];
+        summary: { total: number; by_type: Record<string, number> };
+        error?: string;
+      }>(`/api/v1/companies/${companyId}/xero/accounts`);
+
+      if (response?.success) {
+        setAccounts(response.accounts);
+      } else {
+        setError(response?.error || "Failed to load accounts");
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadComparison = async () => {
+    try {
+      setComparisonLoading(true);
+      const response = await api.get<{
+        success: boolean;
+        comparison: AccountComparison[];
+        summary: {
+          total_unique_accounts: number;
+          accounts_in_all: number;
+          accounts_with_differences: number;
+          missing_in_some: number;
+        };
+        error?: string;
+      }>(`/api/v1/companies/${companyId}/xero/accounts/compare`);
+
+      if (response?.success) {
+        setComparison(response.comparison);
+        setComparisonSummary(response.summary);
+        setShowComparison(true);
+      } else {
+        setError(response?.error || "Failed to load comparison");
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setComparisonLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadAccounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
+
+  // Get unique types for filter
+  const accountTypes = React.useMemo(() => {
+    const types = new Set(accounts.map(a => a.type));
+    return Array.from(types).sort();
+  }, [accounts]);
+
+  // Filter accounts
+  const filteredAccounts = React.useMemo(() => {
+    return accounts.filter(acc => {
+      const matchesType = filterType === "all" || acc.type === filterType;
+      const matchesSearch = !searchTerm ||
+        acc.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        acc.name.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesType && matchesSearch;
+    });
+  }, [accounts, filterType, searchTerm]);
+
+  // Filter comparison
+  const filteredComparison = React.useMemo(() => {
+    return comparison.filter(acc => {
+      const matchesType = filterType === "all" || acc.type === filterType;
+      const matchesSearch = !searchTerm ||
+        acc.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        acc.name.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesType && matchesSearch;
+    });
+  }, [comparison, filterType, searchTerm]);
+
+  if (loading && accounts.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Loading Xero accounts...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error && accounts.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-muted-foreground">
+            <XCircle className="h-8 w-8 mx-auto mb-2 text-red-500" />
+            <p>{error}</p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={loadAccounts}>
+              Try Again
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg font-medium">Xero Chart of Accounts</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              {accounts.length} accounts from {companyName || "this company"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadAccounts}
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <span className="ml-2">Refresh</span>
+            </Button>
+            <Button
+              variant={showComparison ? "secondary" : "default"}
+              size="sm"
+              onClick={() => showComparison ? setShowComparison(false) : loadComparison()}
+              disabled={comparisonLoading}
+            >
+              {comparisonLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <GitMerge className="h-4 w-4" />
+              )}
+              <span className="ml-2">{showComparison ? "Hide Comparison" : "Compare Group"}</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex gap-2 mt-4">
+          <Input
+            placeholder="Search by code or name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-xs"
+          />
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {accountTypes.map(type => (
+                <SelectItem key={type} value={type}>{type}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        {/* Comparison Summary */}
+        {showComparison && comparisonSummary && (
+          <div className="mb-4 p-4 rounded-lg bg-muted/50 border">
+            <h4 className="font-medium mb-2">Comparison Summary</h4>
+            <div className="grid grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Unique Accounts:</span>
+                <span className="ml-2 font-medium">{comparisonSummary.total_unique_accounts}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">In All Companies:</span>
+                <span className="ml-2 font-medium text-green-600">{comparisonSummary.accounts_in_all}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Missing in Some:</span>
+                <span className="ml-2 font-medium text-yellow-600">{comparisonSummary.missing_in_some}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Name Differences:</span>
+                <span className="ml-2 font-medium text-red-600">{comparisonSummary.accounts_with_differences}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Comparison View */}
+        {showComparison ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-3 font-medium">Code</th>
+                  <th className="text-left py-2 px-3 font-medium">Name</th>
+                  <th className="text-left py-2 px-3 font-medium">Type</th>
+                  <th className="text-center py-2 px-3 font-medium">Status</th>
+                  <th className="text-left py-2 px-3 font-medium">Companies</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredComparison.map((acc) => (
+                  <tr
+                    key={acc.code}
+                    className={cn(
+                      "border-b hover:bg-muted/50",
+                      !acc.all_companies && "bg-yellow-50 dark:bg-yellow-900/10",
+                      !acc.names_match && "bg-red-50 dark:bg-red-900/10"
+                    )}
+                  >
+                    <td className="py-2 px-3 font-mono">{acc.code}</td>
+                    <td className="py-2 px-3">
+                      {acc.names_match ? (
+                        acc.name
+                      ) : (
+                        <div className="space-y-1">
+                          {acc.companies.map((c, i) => (
+                            <div key={i} className="text-xs">
+                              <span className="text-muted-foreground">{c.company_name}:</span>{" "}
+                              <span className="font-medium">{c.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2 px-3">{acc.type}</td>
+                    <td className="py-2 px-3 text-center">
+                      {acc.all_companies ? (
+                        <Badge variant="outline" className="bg-green-50 text-green-700">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          All
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
+                          {acc.company_count} of {comparison.length > 0 ? Math.max(...comparison.map(c => c.companies.length)) : 0}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="py-2 px-3">
+                      <div className="flex flex-wrap gap-1">
+                        {acc.companies.map((c, i) => (
+                          <Badge key={i} variant="secondary" className="text-xs">
+                            {c.company_name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* Standard Account List */
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-3 font-medium">Code</th>
+                  <th className="text-left py-2 px-3 font-medium">Name</th>
+                  <th className="text-left py-2 px-3 font-medium">Type</th>
+                  <th className="text-left py-2 px-3 font-medium">Tax Type</th>
+                  <th className="text-center py-2 px-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAccounts.map((acc) => (
+                  <tr key={acc.account_id} className="border-b hover:bg-muted/50">
+                    <td className="py-2 px-3 font-mono">{acc.code}</td>
+                    <td className="py-2 px-3">{acc.name}</td>
+                    <td className="py-2 px-3">
+                      <Badge variant="outline">{acc.type}</Badge>
+                    </td>
+                    <td className="py-2 px-3 text-muted-foreground">{acc.tax_type || "—"}</td>
+                    <td className="py-2 px-3 text-center">
+                      {acc.status === "ACTIVE" ? (
+                        <Badge variant="outline" className="bg-green-50 text-green-700">Active</Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-gray-50 text-gray-500">Archived</Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredAccounts.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                No accounts found matching your filters
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Xero Profit & Loss Report Card
+function XeroProfitLossCard({ companyId }: { companyId: string }) {
+  const [report, setReport] = React.useState<{
+    rows: Array<{
+      row_type: string;
+      title?: string;
+      cells?: Array<{ value: string }>;
+    }>;
+  } | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [dateRange, setDateRange] = React.useState({
+    from: new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0], // Jan 1 of current year
+    to: new Date().toISOString().split("T")[0], // Today
+  });
+
+  const loadReport = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get<{
+        success: boolean;
+        report: typeof report;
+        error?: string;
+      }>(`/api/v1/companies/${companyId}/xero/profit_loss`, {
+        params: { from_date: dateRange.from, to_date: dateRange.to }
+      });
+
+      if (response?.success && response.report) {
+        setReport(response.report);
+      } else {
+        setError(response?.error || "Failed to load report");
+      }
+    } catch (err: unknown) {
+      // Extract error message from API response
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      const errorMessage = axiosError?.response?.data?.error || "Failed to load Profit & Loss report from Xero";
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Profit & Loss Report</CardTitle>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={dateRange.from}
+              onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
+              className="w-36"
+            />
+            <span className="text-muted-foreground">to</span>
+            <Input
+              type="date"
+              value={dateRange.to}
+              onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
+              className="w-36"
+            />
+            <Button onClick={loadReport} disabled={loading} size="sm">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <span className="ml-2">Load</span>
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg text-sm mb-4">
+            {error}
+          </div>
+        )}
+
+        {!report && !loading && !error && (
+          <div className="text-center py-12 text-muted-foreground">
+            <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Select a date range and click Load to view the Profit & Loss report</p>
+          </div>
+        )}
+
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {report && report.rows && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                {report.rows.map((row, idx) => {
+                  if (row.row_type === "Header") {
+                    return (
+                      <tr key={idx} className="bg-muted/50 font-semibold">
+                        {row.cells?.map((cell, cellIdx) => (
+                          <td key={cellIdx} className="py-2 px-3">{cell.value}</td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                  if (row.row_type === "Section" && row.title) {
+                    return (
+                      <tr key={idx} className="bg-muted/30 font-medium">
+                        <td colSpan={10} className="py-2 px-3">{row.title}</td>
+                      </tr>
+                    );
+                  }
+                  if (row.row_type === "Row" && row.cells) {
+                    return (
+                      <tr key={idx} className="border-b hover:bg-muted/20">
+                        {row.cells.map((cell, cellIdx) => (
+                          <td key={cellIdx} className={cn("py-1.5 px-3", cellIdx > 0 && "text-right font-mono")}>
+                            {cell.value}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                  if (row.row_type === "SummaryRow" && row.cells) {
+                    return (
+                      <tr key={idx} className="border-t-2 font-semibold bg-muted/20">
+                        {row.cells.map((cell, cellIdx) => (
+                          <td key={cellIdx} className={cn("py-2 px-3", cellIdx > 0 && "text-right font-mono")}>
+                            {cell.value}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                  return null;
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Xero Balance Sheet Report Card
+function XeroBalanceSheetCard({ companyId }: { companyId: string }) {
+  const [report, setReport] = React.useState<{
+    rows: Array<{
+      row_type: string;
+      title?: string;
+      cells?: Array<{ value: string }>;
+    }>;
+  } | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [asOfDate, setAsOfDate] = React.useState(new Date().toISOString().split("T")[0]);
+
+  const loadReport = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get<{
+        success: boolean;
+        report: typeof report;
+        error?: string;
+      }>(`/api/v1/companies/${companyId}/xero/balance_sheet`, {
+        params: { date: asOfDate }
+      });
+
+      if (response?.success && response.report) {
+        setReport(response.report);
+      } else {
+        setError(response?.error || "Failed to load report");
+      }
+    } catch (err: unknown) {
+      // Extract error message from API response
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      const errorMessage = axiosError?.response?.data?.error || "Failed to load Balance Sheet from Xero";
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Balance Sheet</CardTitle>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">As of:</span>
+            <Input
+              type="date"
+              value={asOfDate}
+              onChange={(e) => setAsOfDate(e.target.value)}
+              className="w-36"
+            />
+            <Button onClick={loadReport} disabled={loading} size="sm">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <span className="ml-2">Load</span>
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg text-sm mb-4">
+            {error}
+          </div>
+        )}
+
+        {!report && !loading && !error && (
+          <div className="text-center py-12 text-muted-foreground">
+            <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Select a date and click Load to view the Balance Sheet</p>
+          </div>
+        )}
+
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {report && report.rows && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                {report.rows.map((row, idx) => {
+                  if (row.row_type === "Header") {
+                    return (
+                      <tr key={idx} className="bg-muted/50 font-semibold">
+                        {row.cells?.map((cell, cellIdx) => (
+                          <td key={cellIdx} className="py-2 px-3">{cell.value}</td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                  if (row.row_type === "Section" && row.title) {
+                    return (
+                      <tr key={idx} className="bg-muted/30 font-medium">
+                        <td colSpan={10} className="py-2 px-3">{row.title}</td>
+                      </tr>
+                    );
+                  }
+                  if (row.row_type === "Row" && row.cells) {
+                    return (
+                      <tr key={idx} className="border-b hover:bg-muted/20">
+                        {row.cells.map((cell, cellIdx) => (
+                          <td key={cellIdx} className={cn("py-1.5 px-3", cellIdx > 0 && "text-right font-mono")}>
+                            {cell.value}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                  if (row.row_type === "SummaryRow" && row.cells) {
+                    return (
+                      <tr key={idx} className="border-t-2 font-semibold bg-muted/20">
+                        {row.cells.map((cell, cellIdx) => (
+                          <td key={cellIdx} className={cn("py-2 px-3", cellIdx > 0 && "text-right font-mono")}>
+                            {cell.value}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                  return null;
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Xero Bank Accounts Card - Shows bank accounts as tabs with transactions
+interface XeroBankAccount {
+  account_id: string;
+  name: string;
+  code: string;
+  type: string;
+  bank_account_number?: string;
+  currency_code?: string;
+}
+
+interface XeroBankTransaction {
+  transaction_id: string;
+  date: string;
+  description: string;
+  reference?: string;
+  amount: number;
+  balance?: number;
+  type: string;
+  contact_name?: string;
+  line_items?: Array<{
+    description: string;
+    amount: number;
+    account_code: string;
+  }>;
+}
+
+function XeroBankAccountsCard({ companyId }: { companyId: string }) {
+  const [bankAccounts, setBankAccounts] = React.useState<XeroBankAccount[]>([]);
+  const [selectedAccount, setSelectedAccount] = React.useState<string | null>(null);
+  const [transactions, setTransactions] = React.useState<XeroBankTransaction[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [transactionsLoading, setTransactionsLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [dateRange, setDateRange] = React.useState({
+    from: new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().split("T")[0],
+    to: new Date().toISOString().split("T")[0],
+  });
+
+  // Load bank accounts on mount
+  React.useEffect(() => {
+    loadBankAccounts();
+  }, [companyId]);
+
+  // Load transactions when account is selected
+  React.useEffect(() => {
+    if (selectedAccount) {
+      loadTransactions(selectedAccount);
+    }
+  }, [selectedAccount, dateRange]);
+
+  const loadBankAccounts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get<{
+        success: boolean;
+        xero_accounts?: Array<{
+          xero_account_id: string;
+          xero_account_name: string;
+          xero_account_number?: string;
+          xero_bank_account_type?: string;
+          local_bank_account_id?: number;
+          local_bank_account_name?: string;
+          matched: boolean;
+          linked: boolean;
+        }>;
+        error?: string;
+      }>(`/api/v1/companies/${companyId}/xero/bank_accounts`);
+
+      if (response?.success && response.xero_accounts) {
+        // Map backend response to our interface
+        const mapped = response.xero_accounts.map(acc => ({
+          account_id: acc.xero_account_id,
+          name: acc.xero_account_name,
+          code: acc.xero_bank_account_type || "",
+          type: acc.xero_bank_account_type || "BANK",
+          bank_account_number: acc.xero_account_number,
+          currency_code: "AUD",
+        }));
+        setBankAccounts(mapped);
+        // Auto-select first account
+        if (mapped.length > 0 && !selectedAccount) {
+          setSelectedAccount(mapped[0].account_id);
+        }
+      } else {
+        setError(response?.error || "Failed to load bank accounts");
+      }
+    } catch (err: unknown) {
+      // Extract error message from API response
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      const errorMessage = axiosError?.response?.data?.error || "Failed to load bank accounts from Xero";
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTransactions = async (accountId: string) => {
+    try {
+      setTransactionsLoading(true);
+      const response = await api.get<{
+        success: boolean;
+        transactions?: XeroBankTransaction[];
+        error?: string;
+      }>(`/api/v1/companies/${companyId}/xero/bank_transactions`, {
+        params: {
+          bank_account_id: accountId,
+          from_date: dateRange.from,
+          to_date: dateRange.to,
+        }
+      });
+
+      if (response?.success && response.transactions) {
+        setTransactions(response.transactions);
+      } else {
+        setTransactions([]);
+      }
+    } catch (err) {
+      setTransactions([]);
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency: "AUD",
+    }).format(amount);
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="py-12">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    const isNotConnected = error.toLowerCase().includes("not connected");
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="text-center text-muted-foreground">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="font-medium">{error}</p>
+            {isNotConnected && (
+              <p className="text-sm mt-2">Go to the Connection tab to connect this company to Xero.</p>
+            )}
+            <Button variant="outline" size="sm" className="mt-4" onClick={loadBankAccounts}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (bankAccounts.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12">
+          <div className="text-center text-muted-foreground">
+            <Landmark className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="font-medium">No Bank Accounts Found in Xero</p>
+            <p className="text-sm mt-2">Connect a bank account in Xero to see transactions here.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const selectedAccountDetails = bankAccounts.find(a => a.account_id === selectedAccount);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Bank Account Transactions</CardTitle>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={dateRange.from}
+              onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
+              className="w-36"
+            />
+            <span className="text-muted-foreground">to</span>
+            <Input
+              type="date"
+              value={dateRange.to}
+              onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
+              className="w-36"
+            />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* Bank Account Tabs */}
+        <div className="flex gap-1 mb-4 border-b overflow-x-auto">
+          {bankAccounts.map((account) => (
+            <button
+              key={account.account_id}
+              onClick={() => setSelectedAccount(account.account_id)}
+              className={cn(
+                "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+                selectedAccount === account.account_id
+                  ? "border-primary text-primary bg-primary/5"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              )}
+            >
+              {account.name}
+              {account.bank_account_number && (
+                <span className="ml-2 text-xs text-muted-foreground">
+                  (...{account.bank_account_number.slice(-4)})
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Selected Account Info */}
+        {selectedAccountDetails && (
+          <div className="flex items-center gap-4 mb-4 p-3 bg-muted/30 rounded-lg">
+            <div>
+              <p className="font-medium">{selectedAccountDetails.name}</p>
+              <p className="text-sm text-muted-foreground">
+                {selectedAccountDetails.bank_account_number || "No account number"}
+                {selectedAccountDetails.code && ` • Code: ${selectedAccountDetails.code}`}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Transactions Table */}
+        {transactionsLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : transactions.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <p>No transactions found for this date range</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="py-2 px-3 text-left font-medium">Date</th>
+                  <th className="py-2 px-3 text-left font-medium">Description</th>
+                  <th className="py-2 px-3 text-left font-medium">Reference</th>
+                  <th className="py-2 px-3 text-left font-medium">Contact</th>
+                  <th className="py-2 px-3 text-right font-medium">Spent</th>
+                  <th className="py-2 px-3 text-right font-medium">Received</th>
+                  <th className="py-2 px-3 text-right font-medium">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((tx) => {
+                  const isSpend = tx.amount < 0;
+                  return (
+                    <tr key={tx.transaction_id} className="border-b hover:bg-muted/30">
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        {safeFormatDate(tx.date, "dd MMM yyyy")}
+                      </td>
+                      <td className="py-2 px-3">
+                        <div className="max-w-xs truncate" title={tx.description}>
+                          {tx.description}
+                        </div>
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">
+                        {tx.reference || "—"}
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">
+                        {tx.contact_name || "—"}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono text-red-600">
+                        {isSpend ? formatCurrency(Math.abs(tx.amount)) : ""}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono text-green-600">
+                        {!isSpend ? formatCurrency(tx.amount) : ""}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono">
+                        {tx.balance !== undefined ? formatCurrency(tx.balance) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// PDF Reports Card for P&L and Balance Sheet
+interface PdfReport {
+  id: number;
+  company_name: string;
+  company_code: string;
+  financial_year: string;
+  status: string;
+  cloudinary_url?: string;
+  file_name?: string;
+  generated_at?: string;
+  total_revenue?: number;
+  total_expenses?: number;
+  net_profit?: number;
+  total_assets?: number;
+  total_liabilities?: number;
+  net_assets?: number;
+}
+
+function XeroPdfReportsCard({
+  companyId,
+  reportType,
+  title,
+  foundationId
+}: {
+  companyId: string;
+  reportType: "profit_loss" | "balance_sheet";
+  title: string;
+  foundationId: number;
+}) {
+  const [reports, setReports] = React.useState<PdfReport[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [generating, setGenerating] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = React.useState("FY2025");
+
+  // Financial years list
+  const financialYears = ["FY2025", "FY2024", "FY2023", "FY2022"];
+
+  // Format currency for display
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency: "AUD",
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  React.useEffect(() => {
+    loadReports();
+  }, [companyId, reportType]);
+
+  const loadReports = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const endpoint = reportType === "profit_loss"
+        ? `/api/v1/companies/${companyId}/profit_loss_reports`
+        : `/api/v1/companies/${companyId}/balance_sheet_reports`;
+
+      const response = await api.get<{
+        success: boolean;
+        data?: PdfReport[];
+        error?: string;
+      }>(endpoint);
+
+      if (response?.success && response.data) {
+        setReports(response.data);
+      } else {
+        setReports([]);
+      }
+    } catch (err) {
+      setError("Failed to load reports");
+      setReports([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateReport = async () => {
+    try {
+      setGenerating(true);
+      setError(null);
+      const endpoint = reportType === "profit_loss"
+        ? `/api/v1/companies/${companyId}/profit_loss_reports/generate`
+        : `/api/v1/companies/${companyId}/balance_sheet_reports/generate`;
+
+      const response = await api.post<{
+        success: boolean;
+        data?: PdfReport;
+        error?: string;
+      }>(endpoint, { financial_year: selectedYear });
+
+      if (response?.success) {
+        loadReports(); // Refresh the list
+      } else {
+        setError(response?.error || "Failed to generate report");
+      }
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      setError(axiosError?.response?.data?.error || "Failed to generate report");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
+      case "generating":
+        return <Badge className="bg-yellow-100 text-yellow-800">Generating...</Badge>;
+      case "failed":
+        return <Badge className="bg-red-100 text-red-800">Failed</Badge>;
+      default:
+        return <Badge className="bg-gray-100 text-gray-800">Pending</Badge>;
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            {title}
+          </CardTitle>
+          <CardDescription>
+            PDF reports stored in SharePoint - Foundation ID: {foundationId}
+          </CardDescription>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value)}
+            className="px-3 py-2 border rounded-md text-sm"
+          >
+            {financialYears.map(fy => (
+              <option key={fy} value={fy}>{fy}</option>
+            ))}
+          </select>
+          <Button
+            onClick={generateReport}
+            disabled={generating}
+            size="sm"
+          >
+            {generating ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4 mr-2" />
+                Generate Report
+              </>
+            )}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : reports.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>No reports generated yet</p>
+            <p className="text-sm mt-2">Click "Generate Report" to create a PDF from Xero</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left py-2 px-3 font-medium">Financial Year</th>
+                  <th className="text-left py-2 px-3 font-medium">Status</th>
+                  {reportType === "profit_loss" && (
+                    <>
+                      <th className="text-right py-2 px-3 font-medium">Revenue</th>
+                      <th className="text-right py-2 px-3 font-medium">Expenses</th>
+                      <th className="text-right py-2 px-3 font-medium">Net Profit</th>
+                    </>
+                  )}
+                  {reportType === "balance_sheet" && (
+                    <>
+                      <th className="text-right py-2 px-3 font-medium">Assets</th>
+                      <th className="text-right py-2 px-3 font-medium">Liabilities</th>
+                      <th className="text-right py-2 px-3 font-medium">Net Assets</th>
+                    </>
+                  )}
+                  <th className="text-left py-2 px-3 font-medium">Generated</th>
+                  <th className="text-center py-2 px-3 font-medium">PDF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.map((report) => (
+                  <tr key={report.id} className="border-b hover:bg-muted/30">
+                    <td className="py-2 px-3 font-medium">{report.financial_year}</td>
+                    <td className="py-2 px-3">{getStatusBadge(report.status)}</td>
+                    {reportType === "profit_loss" && (
+                      <>
+                        <td className="py-2 px-3 text-right font-mono text-green-600">
+                          {report.total_revenue ? formatCurrency(report.total_revenue) : "—"}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono text-red-600">
+                          {report.total_expenses ? formatCurrency(report.total_expenses) : "—"}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-semibold">
+                          {report.net_profit !== undefined ? (
+                            <span className={report.net_profit >= 0 ? "text-green-600" : "text-red-600"}>
+                              {formatCurrency(report.net_profit)}
+                            </span>
+                          ) : "—"}
+                        </td>
+                      </>
+                    )}
+                    {reportType === "balance_sheet" && (
+                      <>
+                        <td className="py-2 px-3 text-right font-mono text-green-600">
+                          {report.total_assets ? formatCurrency(report.total_assets) : "—"}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono text-red-600">
+                          {report.total_liabilities ? formatCurrency(report.total_liabilities) : "—"}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-semibold text-blue-600">
+                          {report.net_assets !== undefined ? formatCurrency(report.net_assets) : "—"}
+                        </td>
+                      </>
+                    )}
+                    <td className="py-2 px-3 text-muted-foreground">
+                      {report.generated_at ? safeFormatDate(report.generated_at, "dd MMM yyyy HH:mm") : "—"}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      {report.cloudinary_url ? (
+                        <a
+                          href={report.cloudinary_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-primary hover:underline"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span className="text-xs">{report.file_name || "Download"}</span>
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CompanyDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -3065,8 +5015,10 @@ export default function CompanyDetailPage() {
   const [activeTab, setActiveTab] = React.useState("overview");
   const [overviewSubTab, setOverviewSubTab] = React.useState("info");
   const [bankSubTab, setBankSubTab] = React.useState("transactions");
+  const [xeroSubTab, setXeroSubTab] = React.useState("connection");
   const [xeroConnected, setXeroConnected] = React.useState(false);
   const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
+  const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
 
   // Load company details
   const loadCompany = React.useCallback(async () => {
@@ -3096,10 +5048,26 @@ export default function CompanyDetailPage() {
     }
   }, [companyId]);
 
+  // Load health score for header badge
+  const loadHealthScore = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; companies: Array<{ id: number; health_score: number; health_status: string }> }>(
+        `/api/v1/companies/health_report`
+      );
+      const companyHealth = response.companies?.find((c) => c.id === parseInt(companyId));
+      if (companyHealth) {
+        setHealthScore({ score: companyHealth.health_score, status: companyHealth.health_status });
+      }
+    } catch (error) {
+      console.error("Failed to load health score:", error);
+    }
+  }, [companyId]);
+
   React.useEffect(() => {
     loadCompany();
     loadDocumentCounts();
-  }, [loadCompany, loadDocumentCounts]);
+    loadHealthScore();
+  }, [loadCompany, loadDocumentCounts, loadHealthScore]);
 
   // Handle tab from URL
   React.useEffect(() => {
@@ -3108,9 +5076,9 @@ export default function CompanyDetailPage() {
   }, [searchParams]);
 
   const handleTabChange = (tabId: string) => {
-    // Redirect Data tab to admin data warehouse with company filter
+    // Redirect Data tab to data warehouse page with company filter
     if (tabId === "data") {
-      router.push(`/admin/system?tab=data-warehouse&company_id=${companyId}`);
+      router.push(`/data-warehouse?company_id=${companyId}`);
       return;
     }
     setActiveTab(tabId);
@@ -3193,7 +5161,42 @@ export default function CompanyDetailPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* Health Score Badge */}
+              {healthScore && (
+                <button
+                  onClick={() => {
+                    setActiveTab("overview");
+                    setOverviewSubTab("health");
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all hover:scale-105",
+                    healthScore.status === "excellent" && "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800",
+                    healthScore.status === "good" && "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
+                    healthScore.status === "needs_attention" && "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800",
+                    healthScore.status === "critical" && "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                  )}
+                >
+                  <span className={cn(
+                    "text-2xl font-bold",
+                    healthScore.status === "excellent" && "text-green-700 dark:text-green-300",
+                    healthScore.status === "good" && "text-blue-700 dark:text-blue-300",
+                    healthScore.status === "needs_attention" && "text-yellow-700 dark:text-yellow-300",
+                    healthScore.status === "critical" && "text-red-700 dark:text-red-300"
+                  )}>
+                    {healthScore.score}%
+                  </span>
+                  <span className={cn(
+                    "text-xs uppercase font-medium",
+                    healthScore.status === "excellent" && "text-green-600 dark:text-green-400",
+                    healthScore.status === "good" && "text-blue-600 dark:text-blue-400",
+                    healthScore.status === "needs_attention" && "text-yellow-600 dark:text-yellow-400",
+                    healthScore.status === "critical" && "text-red-600 dark:text-red-400"
+                  )}>
+                    Health
+                  </span>
+                </button>
+              )}
               <Button variant="outline" asChild>
                 <a href={getSharePointUrl()} target="_blank" rel="noopener noreferrer">
                   <FolderOpen className="h-4 w-4 mr-2" />
@@ -3318,7 +5321,8 @@ export default function CompanyDetailPage() {
                   {/* Corporate Trustee Sub-tab Content */}
                   {overviewSubTab === "info" && <InformationTab company={company} />}
                   {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
-                  {overviewSubTab === "directors" && <DirectorsTab company={company} />}
+                  {overviewSubTab === "bank-accounts" && <BankAccountsTab company={company} companyId={companyId} />}
+                  {overviewSubTab === "directors" && <DirectorsTab companyId={companyId} />}
                   {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
                   {overviewSubTab === "trusts" && <TrustsTab company={company} onUpdate={loadCompany} />}
                 </>
@@ -3347,8 +5351,9 @@ export default function CompanyDetailPage() {
                   {/* Company Sub-tab Content */}
                   {overviewSubTab === "info" && <InformationTab company={company} />}
                   {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
+                  {overviewSubTab === "bank-accounts" && <BankAccountsTab company={company} companyId={companyId} />}
                   {overviewSubTab === "health" && <HealthTab company={company} onUpdate={loadCompany} />}
-                  {overviewSubTab === "directors" && <DirectorsTab company={company} />}
+                  {overviewSubTab === "directors" && <DirectorsTab companyId={companyId} />}
                   {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
                   {overviewSubTab === "trusts" && <TrustsTab company={company} onUpdate={loadCompany} />}
                   {overviewSubTab === "consolidation" && <ConsolidationTab company={company} onUpdate={loadCompany} />}
@@ -3357,59 +5362,84 @@ export default function CompanyDetailPage() {
             </div>
           )}
 
+          {/* XERO Tab with sub-tabs */}
+          {activeTab === "xero" && (
+            <>
+              {/* Xero Sub-tabs */}
+              <div className="flex gap-2 mb-4 border-b">
+                {XERO_SUB_TABS.map((subTab) => (
+                  <button
+                    key={subTab.id}
+                    onClick={() => setXeroSubTab(subTab.id)}
+                    className={cn(
+                      "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                      xeroSubTab === subTab.id
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {subTab.name}
+                  </button>
+                ))}
+              </div>
+
+              {xeroSubTab === "connection" && (
+                <XeroConnectionCard
+                  companyId={companyId}
+                  companyName={company?.name}
+                  onConnectionChange={setXeroConnected}
+                />
+              )}
+
+              {xeroSubTab === "accounts" && (
+                <XeroAccountsCard companyId={companyId} companyName={company?.name} />
+              )}
+
+              {xeroSubTab === "profit-loss" && (
+                <XeroProfitLossCard companyId={companyId} />
+              )}
+
+              {xeroSubTab === "balance-sheet" && (
+                <XeroBalanceSheetCard companyId={companyId} />
+              )}
+
+              {xeroSubTab === "profit-loss-pdf" && (
+                <XeroPdfReportsCard
+                  companyId={companyId}
+                  reportType="profit_loss"
+                  title="Profit & Loss PDF Reports"
+                  foundationId={488}
+                />
+              )}
+
+              {xeroSubTab === "balance-sheet-pdf" && (
+                <XeroPdfReportsCard
+                  companyId={companyId}
+                  reportType="balance_sheet"
+                  title="Balance Sheet PDF Reports"
+                  foundationId={489}
+                />
+              )}
+
+              {xeroSubTab === "bank-accounts" && (
+                <XeroBankAccountsCard companyId={companyId} />
+              )}
+
+              {xeroSubTab === "bank-statement" && (
+                <div className="p-4 text-center text-gray-500">
+                  <p>Bank Statement reports are available in the Gold Standard Tables.</p>
+                  <p className="text-sm mt-2">Foundation ID: 487</p>
+                </div>
+              )}
+            </>
+          )}
+
           {/* Document Category Tabs */}
-          {DOCUMENT_TABS.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && activeTab !== "data" && (
+          {DOCUMENT_TABS.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && activeTab !== "data" && activeTab !== "xero" && (
             <>
               {/* SSoT: Show ATO Setup Card on ATO tab */}
               {activeTab === "ato" && (
                 <ATOSetupCard company={company} />
-              )}
-              {/* Show Xero connection and transactions on BANK tab */}
-              {activeTab === "bank" && (
-                <>
-                  {/* Bank Sub-tabs */}
-                  <div className="flex gap-2 mb-4 border-b">
-                    {[
-                      { id: "transactions", label: "Transactions" },
-                      { id: "xero-statement", label: "Xero Statement" },
-                      { id: "stored-reports", label: "Stored Reports" },
-                    ].map((subTab) => (
-                      <button
-                        key={subTab.id}
-                        onClick={() => setBankSubTab(subTab.id)}
-                        className={cn(
-                          "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                          bankSubTab === subTab.id
-                            ? "border-primary text-primary"
-                            : "border-transparent text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {subTab.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {bankSubTab === "transactions" && (
-                    <>
-                      <XeroConnectionCard
-                        companyId={companyId}
-                        onConnectionChange={setXeroConnected}
-                      />
-                      <BankTransactionsCard
-                        companyId={companyId}
-                        isConnected={xeroConnected}
-                      />
-                    </>
-                  )}
-
-                  {bankSubTab === "xero-statement" && (
-                    <XeroStatementView companyId={companyId} />
-                  )}
-
-                  {bankSubTab === "stored-reports" && (
-                    <BankStatementReportsView companyId={companyId} />
-                  )}
-                </>
               )}
               <CompanyDocumentsTab
                 companyId={companyId}

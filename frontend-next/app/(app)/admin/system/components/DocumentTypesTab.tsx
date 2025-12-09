@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,7 @@ interface DocumentType extends TableRow {
 }
 
 export function DocumentTypesTab() {
+  const router = useRouter();
   const [loading, setLoading] = React.useState(true);
   const [documentTypes, setDocumentTypes] = React.useState<DocumentType[]>([]);
   const [columns, setColumns] = React.useState<TableColumn[]>([]);
@@ -178,6 +180,16 @@ export function DocumentTypesTab() {
       setSaving(false);
     }
   };
+
+  // Handle row click - navigate to detail page
+  const handleRowClick = React.useCallback((row: DocumentType) => {
+    router.push(`/admin/system/document-types/${row.id}`);
+  }, [router]);
+
+  // Handle row double-click
+  const handleRowDoubleClick = React.useCallback((row: DocumentType) => {
+    router.push(`/admin/system/document-types/${row.id}`);
+  }, [router]);
 
   // Custom cell renderer for tabs display and badges
   const customCellRenderer = (entry: DocumentType, columnKey: string) => {
@@ -360,6 +372,8 @@ export function DocumentTypesTab() {
         columns={columns}
         onEdit={handleEdit}
         onRowUpdate={handleRowUpdate}
+        onRowClick={handleRowClick}
+        onRowDoubleClick={handleRowDoubleClick}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
         enableExport={true}

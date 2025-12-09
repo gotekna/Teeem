@@ -107,7 +107,15 @@ class Api::V1::ChatMessagesController < ApplicationController
       @messages = ChatMessage.general.includes(:user).recent(100)
     end
 
-    render json: @messages.as_json(include: { user: { only: [ :id, :name, :email ] } }, methods: :formatted_timestamp)
+    messages_with_files = @messages.map do |msg|
+      json = msg.as_json(include: { user: { only: [ :id, :name, :email ] } }, methods: :formatted_timestamp)
+      if msg.file.attached?
+        json[:file_url] = url_for(msg.file)
+        json[:file_name] = msg.file_name
+      end
+      json
+    end
+    render json: messages_with_files
   end
 
   # POST /api/v1/chat_messages
@@ -115,8 +123,21 @@ class Api::V1::ChatMessagesController < ApplicationController
     @message = ChatMessage.new(message_params)
     @message.user = current_user
 
+    # Handle file attachment if present
+    if params[:chat_message][:file].present?
+      @message.file.attach(params[:chat_message][:file])
+      @message.file_name = params[:chat_message][:file].original_filename
+      @message.message_type ||= 'file'
+    end
+
     if @message.save
-      render json: @message.as_json(include: { user: { only: [ :id, :name, :email ] } }, methods: :formatted_timestamp), status: :created
+      # Include file URL in response if file is attached
+      response_data = @message.as_json(include: { user: { only: [ :id, :name, :email ] } }, methods: :formatted_timestamp)
+      if @message.file.attached?
+        response_data[:file_url] = url_for(@message.file)
+        response_data[:file_name] = @message.file_name
+      end
+      render json: response_data, status: :created
     else
       render json: { errors: @message.errors.full_messages }, status: :unprocessable_entity
     end
@@ -192,6 +213,6 @@ class Api::V1::ChatMessagesController < ApplicationController
   private
 
   def message_params
-    params.require(:chat_message).permit(:content, :channel, :project_id, :recipient_user_id, :job_id, :contact_id, :case_id)
+    params.require(:chat_message).permit(:content, :channel, :project_id, :recipient_user_id, :job_id, :contact_id, :case_id, :message_type, :file)
   end
 end

@@ -60,6 +60,7 @@ interface Stage2PdfDownload {
   breakdown: {
     bills: { total: number; synced: number };
     sales_invoices: { total: number; synced: number };
+    credit_notes: { total: number; synced: number };
     quotes: { total: number; synced: number };
   };
   blocker: Blocker | null;
@@ -89,6 +90,7 @@ interface PdfSyncStatus {
   breakdown: {
     bills: { total: number; synced: number };
     sales_invoices: { total: number; synced: number };
+    credit_notes: { total: number; synced: number };
     quotes: { total: number; synced: number };
   };
   estimated_remaining_minutes: number;
@@ -454,7 +456,7 @@ export function XeroPdfSyncStatus() {
         {/* Breakdown by Type */}
         <div className="space-y-2">
           <div className="text-sm font-medium text-muted-foreground">PDF Progress by Type</div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             <div className="p-2 border rounded-lg">
               <div className="text-xs text-muted-foreground">Bills</div>
               <div className="flex items-baseline gap-1">
@@ -474,6 +476,17 @@ export function XeroPdfSyncStatus() {
               </div>
               <Progress
                 value={data.breakdown.sales_invoices.total > 0 ? (data.breakdown.sales_invoices.synced / data.breakdown.sales_invoices.total) * 100 : 0}
+                className="h-1 mt-1"
+              />
+            </div>
+            <div className="p-2 border rounded-lg">
+              <div className="text-xs text-muted-foreground">Credit Notes</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-sm font-semibold">{data.breakdown.credit_notes?.synced || 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown.credit_notes?.total || 0}</span>
+              </div>
+              <Progress
+                value={(data.breakdown.credit_notes?.total || 0) > 0 ? ((data.breakdown.credit_notes?.synced || 0) / (data.breakdown.credit_notes?.total || 1)) * 100 : 0}
                 className="h-1 mt-1"
               />
             </div>

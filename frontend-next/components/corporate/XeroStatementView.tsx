@@ -91,6 +91,7 @@ export function XeroStatementView({ companyId }: Props) {
   // State
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [companyXeroAccountIds, setCompanyXeroAccountIds] = useState<string[]>([]);
   const [financialYears, setFinancialYears] = useState<string[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [monthlySummary, setMonthlySummary] = useState<MonthlySummaryItem[]>([]);
@@ -124,7 +125,23 @@ export function XeroStatementView({ companyId }: Props) {
 
   const loadInitialData = async () => {
     try {
-      // Load bank accounts, financial years, and sync status in parallel
+      // First, get this company's bank accounts to find their xero_account_ids
+      let xeroAccountIds: string[] = [];
+      if (companyId) {
+        const companyBankAccountsRes = await api.get<{
+          success: boolean;
+          bank_accounts: Array<{ id: number; xero_account_id?: string }>
+        }>(`/api/v1/companies/${companyId}/bank_accounts`);
+
+        if (companyBankAccountsRes?.success && companyBankAccountsRes.bank_accounts) {
+          xeroAccountIds = companyBankAccountsRes.bank_accounts
+            .filter(acc => acc.xero_account_id)
+            .map(acc => acc.xero_account_id as string);
+          setCompanyXeroAccountIds(xeroAccountIds);
+        }
+      }
+
+      // Load warehouse bank accounts, financial years, and sync status in parallel
       const [accountsRes, yearsRes, statusRes] = await Promise.all([
         api.get<{ success: boolean; data: BankAccount[] }>("/api/v1/warehouse_bank_transactions/bank_accounts"),
         api.get<{ success: boolean; data: string[] }>("/api/v1/warehouse_bank_transactions/financial_years"),
@@ -132,7 +149,16 @@ export function XeroStatementView({ companyId }: Props) {
       ]);
 
       if (accountsRes?.success) {
-        setBankAccounts(accountsRes.data);
+        // Filter bank accounts to only those belonging to this company
+        const filteredAccounts = companyId && xeroAccountIds.length > 0
+          ? accountsRes.data.filter(acc => xeroAccountIds.includes(acc.id))
+          : accountsRes.data;
+        setBankAccounts(filteredAccounts);
+
+        // Auto-select the first account if there's only one
+        if (filteredAccounts.length === 1) {
+          setSelectedAccount(filteredAccounts[0].id);
+        }
       }
       if (yearsRes?.success) {
         setFinancialYears(yearsRes.data);
@@ -150,6 +176,13 @@ export function XeroStatementView({ companyId }: Props) {
   };
 
   const loadTransactions = useCallback(async () => {
+    // If company is specified but has no linked Xero bank accounts, don't load
+    if (companyId && companyXeroAccountIds.length === 0 && bankAccounts.length === 0) {
+      setLoading(false);
+      setTransactions([]);
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -160,6 +193,9 @@ export function XeroStatementView({ companyId }: Props) {
 
       if (selectedAccount !== "all") {
         params.set("bank_account_id", selectedAccount);
+      } else if (companyId && companyXeroAccountIds.length > 0) {
+        // Filter to only this company's bank accounts
+        params.set("bank_account_ids", companyXeroAccountIds.join(","));
       }
       if (selectedFY !== "all") {
         params.set("financial_year", selectedFY);
@@ -197,7 +233,7 @@ export function XeroStatementView({ companyId }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [selectedAccount, selectedFY, selectedMonth, searchQuery, page]);
+  }, [selectedAccount, selectedFY, selectedMonth, searchQuery, page, companyId, companyXeroAccountIds, bankAccounts]);
 
   const loadMonthlySummary = async () => {
     try {
@@ -330,6 +366,22 @@ export function XeroStatementView({ companyId }: Props) {
     },
     { receives: 0, spends: 0, receivesCount: 0, spendsCount: 0 }
   );
+
+  // Show message if company has no Xero-linked bank accounts
+  if (companyId && companyXeroAccountIds.length === 0 && !loading) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <div className="text-muted-foreground">
+            <p className="font-medium mb-2">No Bank Accounts Linked to Xero</p>
+            <p className="text-sm">
+              To view Xero transactions, link a bank account to Xero in the Bank Accounts tab.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

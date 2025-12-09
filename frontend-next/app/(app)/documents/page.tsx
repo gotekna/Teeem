@@ -36,12 +36,12 @@ export default function DocumentsPage() {
   const [oneDriveConnected] = useState(false);
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug("supplier_ratings");
+  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug("company_documents");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/supplier_ratings/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/company_documents/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -200,7 +200,7 @@ export default function DocumentsPage() {
           <TeeemTableView
             entries={records}
             columns={columns}
-            foundationId="supplier_ratings"
+            foundationId="company_documents"
             foundationIdNumeric={foundation?.id}
             tableName={foundation?.name || "Documents"}
             enableExport={true}

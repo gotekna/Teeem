@@ -158,24 +158,27 @@ class DocumentType < ApplicationRecord
   # Generate a preview title showing what the document will look like when named
   # Replaces placeholders with example values, date in AU format (DD-MM-YYYY)
   def title_preview
-    return nil if naming_format.blank?
+    return nil if file_name.blank?
 
     # Australian date format (DD-MM-YYYY)
     au_date = Date.current.strftime("%d-%m-%Y")
 
-    format = naming_format.dup
+    format = file_name.dup
 
     # Replace all placeholders with example values
     # Corporate placeholders
-    format.gsub!("{CompanyCode}", abbreviation.presence || "DOC")
+    format.gsub!("{CompanyCode}", abbreviation.presence || "ABC")
+    format.gsub!("{CompanyName}", "ABC Property Trust")
     format.gsub!("{LoanID}", "L001")
     format.gsub!("{LenderCode}", "NAB")
     format.gsub!("{AssetCode}", "PROP1")
-    format.gsub!("{FY}", "2025")
+    format.gsub!("{FY}", "FY25")
     format.gsub!("{YY}", "25")
-    format.gsub!("{Period}", "Q1")
+    format.gsub!("{Period}", "Q1 Jul-Sep")
     format.gsub!("{PrintDate}", au_date)
     format.gsub!("{Signed}", "")
+    format.gsub!("{BankCode}", "NAB")
+    format.gsub!("{AccountNum}", "12345")
 
     # Job placeholders
     format.gsub!("{JobCode}", "J069")
@@ -184,8 +187,8 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Consultant}", "ABC Eng")
     format.gsub!("{Number}", "01")
 
-    # Common placeholders - use document type name for description
-    format.gsub!("{Description}", "{Description}")
+    # Common placeholders
+    format.gsub!("{Description}", "Example")
     format.gsub!("{Date}", au_date)
 
     format.strip
@@ -194,12 +197,12 @@ class DocumentType < ApplicationRecord
   # Generate proposed filename for a specific job
   # Uses actual job data instead of placeholder values
   def generate_proposed_name(job:, file_extension: nil, description: nil, number: nil)
-    return nil if naming_format.blank?
+    return nil if file_name.blank?
 
     # Australian date format (DD-MM-YYYY)
     au_date = Date.current.strftime("%d-%m-%Y")
 
-    format = naming_format.dup
+    format = file_name.dup
 
     # Job placeholders with actual data
     job_code = "J#{job.id.to_s.rjust(3, '0')}"
@@ -212,15 +215,19 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Number}", number.to_s.rjust(2, "0"))
 
     # Corporate placeholders (use abbreviation or defaults)
-    format.gsub!("{CompanyCode}", abbreviation.presence || "DOC")
+    format.gsub!("{CompanyCode}", abbreviation.presence || "ABC")
+    format.gsub!("{CompanyName}", "ABC Property Trust")
     format.gsub!("{LoanID}", "L001")
     format.gsub!("{LenderCode}", "NAB")
     format.gsub!("{AssetCode}", "PROP1")
-    format.gsub!("{FY}", Date.current.month >= 7 ? (Date.current.year + 1).to_s : Date.current.year.to_s)
-    format.gsub!("{YY}", Date.current.month >= 7 ? (Date.current.year + 1).to_s[-2..] : Date.current.year.to_s[-2..])
-    format.gsub!("{Period}", "Q1")
+    fy_year = Date.current.month >= 7 ? (Date.current.year + 1).to_s[-2..] : Date.current.year.to_s[-2..]
+    format.gsub!("{FY}", "FY#{fy_year}")
+    format.gsub!("{YY}", fy_year)
+    format.gsub!("{Period}", "Q1 Jul-Sep")
     format.gsub!("{PrintDate}", au_date)
     format.gsub!("{Signed}", "")
+    format.gsub!("{BankCode}", "NAB")
+    format.gsub!("{AccountNum}", "12345")
 
     # Common placeholders
     format.gsub!("{Description}", description.presence || name.to_s.split(" - ").last.to_s)

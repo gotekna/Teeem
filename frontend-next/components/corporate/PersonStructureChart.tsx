@@ -49,21 +49,33 @@ interface PersonStructureChartProps {
   onCompanyClick?: (companyId: number) => void;
   showFullDetail?: boolean;
   onToggleFullDetail?: () => void;
+  fullscreen?: boolean;
 }
 
-// Person node component
-function PersonNode({ data }: { data: { label: string; email?: string | null } }) {
-  return (
-    <div className="min-w-[200px] rounded-lg border-2 shadow-lg bg-amber-50 border-amber-400 dark:bg-amber-950/30 dark:border-amber-600">
-      <Handle type="source" position={Position.Right} className="!bg-amber-500" />
+// Person node component - matches styling from CorporateStructureChart
+function PersonNode({ data }: { data: { label: string; email?: string | null; isFullscreen?: boolean } }) {
+  const { label, email, isFullscreen } = data;
 
-      <div className="px-4 py-3 rounded-md flex items-center gap-3 bg-amber-100 dark:bg-amber-900/50">
-        <User className="h-5 w-5 text-amber-600" />
-        <div>
-          <div className="font-bold text-base">{data.label}</div>
-          {data.email && <div className="text-xs text-muted-foreground">{data.email}</div>}
-        </div>
+  return (
+    <div className={`rounded-lg border-2 shadow-lg bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700 ${
+      isFullscreen ? "min-w-[280px] max-w-[350px]" : "min-w-[200px] max-w-[280px]"
+    }`}>
+      <Handle type="source" position={Position.Right} className="!bg-gray-400" />
+
+      {/* Header */}
+      <div className={`rounded-t-md flex items-center gap-3 bg-amber-100 dark:bg-amber-900/50 ${
+        isFullscreen ? "px-6 py-5" : "px-5 py-4"
+      }`}>
+        <User className={`${isFullscreen ? "h-7 w-7" : "h-5 w-5"} text-amber-600`} />
+        <span className={`font-bold ${isFullscreen ? "text-xl" : "text-lg"}`}>{label}</span>
       </div>
+
+      {/* Body */}
+      {email && (
+        <div className={`${isFullscreen ? "px-6 py-4 text-base" : "px-5 py-3 text-sm"} text-muted-foreground`}>
+          {email}
+        </div>
+      )}
     </div>
   );
 }
@@ -90,57 +102,104 @@ function TrustNode({ data }: { data: { label: string; entityType: string; onClic
   );
 }
 
-// Company node component - shows trustee + trust combined when applicable
+// Company node component - matches EntityNode style from CorporateStructureChart
 function CompanyNode({ data }: { data: CompanyNodeData }) {
-  const { label, isTrustee, trustName, trustEntityType, onClick } = data;
+  const { label, isTrustee, trustName, trustEntityType, onClick, isFullscreen, positions, shareholding } = data;
 
-  // Regular company (non-trustee)
-  if (!isTrustee || !trustName) {
-    return (
-      <div
-        className="min-w-[200px] max-w-[280px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow bg-blue-50 border-blue-300 dark:bg-blue-950/30 dark:border-blue-700"
-        onClick={onClick}
-      >
-        <Handle type="target" position={Position.Left} className="!bg-blue-500" />
-        <Handle type="source" position={Position.Right} className="!bg-blue-500" />
-
-        <div className="px-4 py-3 rounded-md bg-blue-100 dark:bg-blue-900/50">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-blue-600" />
-            <div className="font-semibold text-sm">{label}</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Trustee company with trust - combined view
   const isSuperFund = trustEntityType?.toLowerCase() === "superfund";
+  const isTrust = trustEntityType?.toLowerCase() === "trust" || isSuperFund;
+
+  // Get background color based on entity type
+  const getBackgroundColor = () => {
+    if (isTrust && !isTrustee) {
+      return "bg-rose-50 border-rose-300 dark:bg-rose-950/30 dark:border-rose-700";
+    }
+    if (isTrustee) {
+      return "bg-indigo-50 border-indigo-300 dark:bg-indigo-950/30 dark:border-indigo-700";
+    }
+    return "bg-blue-50 border-blue-300 dark:bg-blue-950/30 dark:border-blue-700";
+  };
+
+  const getHeaderColor = () => {
+    if (isTrust && !isTrustee) {
+      return "bg-rose-100 dark:bg-rose-900/50";
+    }
+    if (isTrustee) {
+      return "bg-indigo-100 dark:bg-indigo-900/50";
+    }
+    return "bg-blue-100 dark:bg-blue-900/50";
+  };
+
+  const getIcon = () => {
+    const iconSize = isFullscreen ? "h-6 w-6" : "h-4 w-4";
+    if (isTrust && !isTrustee) {
+      return <Network className={`${iconSize} text-rose-600`} />;
+    }
+    if (isTrustee) {
+      return <Briefcase className={`${iconSize} text-indigo-600`} />;
+    }
+    return <Building2 className={`${iconSize} text-blue-600`} />;
+  };
 
   return (
     <div
-      className="min-w-[220px] max-w-[300px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow border-indigo-300 dark:border-indigo-700 overflow-hidden"
+      className={`rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow ${
+        isFullscreen ? "min-w-[280px] max-w-[350px]" : "min-w-[200px] max-w-[280px]"
+      } ${getBackgroundColor()}`}
       onClick={onClick}
     >
-      <Handle type="target" position={Position.Left} className="!bg-indigo-500" />
-      <Handle type="source" position={Position.Right} className="!bg-indigo-500" />
+      <Handle type="target" position={Position.Left} className="!bg-gray-400" />
+      <Handle type="source" position={Position.Right} className="!bg-gray-400" />
 
-      {/* Trustee company section */}
-      <div className="px-4 py-2 bg-indigo-100 dark:bg-indigo-900/50">
-        <div className="flex items-center gap-2">
-          <Briefcase className="h-4 w-4 text-indigo-600" />
-          <div className="font-semibold text-sm text-indigo-800 dark:text-indigo-200">{label}</div>
-        </div>
-        <div className="text-xs text-indigo-600 dark:text-indigo-400">Trustee</div>
+      {/* Header */}
+      <div className={`rounded-t-md flex items-center gap-2 ${
+        isFullscreen ? "px-5 py-4" : "px-3 py-2"
+      } ${getHeaderColor()}`}>
+        {getIcon()}
+        <span className={`font-semibold truncate ${isFullscreen ? "text-lg" : "text-sm"}`}>{label}</span>
       </div>
 
-      {/* Trust section - different color */}
-      <div className="px-4 py-2 bg-rose-100 dark:bg-rose-900/50 border-t border-indigo-200 dark:border-indigo-700">
-        <div className="flex items-center gap-2">
-          <Network className="h-4 w-4 text-rose-600" />
-          <div className="font-semibold text-sm text-rose-800 dark:text-rose-200">{trustName}</div>
+      {/* Body */}
+      <div className={`space-y-1 ${isFullscreen ? "px-5 py-4 text-base" : "px-3 py-2 text-xs"}`}>
+        {/* Type badge */}
+        <div className="text-muted-foreground">
+          {isTrustee ? "Trustee" : isTrust ? (isSuperFund ? "Superfund" : "Trust") : "Company"}
         </div>
-        <div className="text-xs text-rose-600 dark:text-rose-400">{isSuperFund ? "Superfund" : "Trust"}</div>
+
+        {/* Trust Name (for trustees) */}
+        {isTrustee && trustName && (
+          <div className={`text-rose-600 truncate ${isFullscreen ? "text-sm" : "text-xs"}`}>
+            → {trustName}
+          </div>
+        )}
+
+        {/* Shareholding */}
+        {shareholding !== undefined && (
+          <div className="text-amber-600 dark:text-amber-400">
+            <span className="font-medium">Shareholding:</span> {shareholding}%
+          </div>
+        )}
+
+        {/* Positions (Director, Secretary, Officer) */}
+        {positions && positions.length > 0 && (
+          <div className="space-y-0.5">
+            {positions.includes("Director") && (
+              <div className="text-purple-600 dark:text-purple-400">
+                <span className="font-medium">Director</span>
+              </div>
+            )}
+            {positions.includes("Secretary") && (
+              <div className="text-blue-600 dark:text-blue-400">
+                <span className="font-medium">Secretary</span>
+              </div>
+            )}
+            {positions.includes("Officer") && (
+              <div className="text-green-600 dark:text-green-400">
+                <span className="font-medium">Officer</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -152,7 +211,10 @@ interface CompanyNodeData {
   trustName?: string;
   trustEntityType?: string;
   percentage?: number;
+  shareholding?: number;
+  positions?: string[];
   onClick?: () => void;
+  isFullscreen?: boolean;
 }
 
 // Define nodeTypes outside component to prevent recreation warning
@@ -170,7 +232,12 @@ export default function PersonStructureChart({
   onCompanyClick,
   showFullDetail,
   onToggleFullDetail,
+  fullscreen = false,
 }: PersonStructureChartProps) {
+  // Use ref for callback to avoid infinite re-renders
+  const onCompanyClickRef = React.useRef(onCompanyClick);
+  onCompanyClickRef.current = onCompanyClick;
+
   // Filter state
   const [showDirectors, setShowDirectors] = React.useState(true);
   const [showShareholding, setShowShareholding] = React.useState(true);
@@ -185,8 +252,9 @@ export default function PersonStructureChart({
     const nodes: Node[] = [];
     const edges: Edge[] = [];
 
-    const xSpacing = 320; // Horizontal spacing between levels
-    const ySpacing = 120; // Vertical spacing between siblings
+    // Larger spacing in fullscreen mode
+    const xSpacing = fullscreen ? 350 : 250; // Horizontal spacing between levels
+    const ySpacing = fullscreen ? 140 : 100; // Vertical spacing between siblings
 
     // Track positions for layout
     let maxX = 0;
@@ -229,7 +297,9 @@ export default function PersonStructureChart({
           trustName: node.trust_name,
           trustEntityType: node.trust_entity_type,
           percentage: node.percentage,
-          onClick: () => onCompanyClick?.(node.company_id),
+          shareholding: node.percentage,
+          isFullscreen: fullscreen,
+          onClick: () => onCompanyClickRef.current?.(node.company_id),
         },
       });
 
@@ -314,67 +384,85 @@ export default function PersonStructureChart({
     };
     filteredOwnershipChain.forEach(collectOwnershipIds);
 
-    // Add director-only companies (where person is director but not shareholder)
-    const directorOnlyCompanies = filteredDirectorRoles.filter(
+    // Add position-only companies (where person has a position but is not a shareholder)
+    // Group by company to avoid duplicates
+    const positionOnlyRoles = filteredDirectorRoles.filter(
       role => !ownershipCompanyIds.has(role.company_id)
     );
 
-    if (directorOnlyCompanies.length > 0) {
-      // Position director-only companies below the ownership chain
-      const directorStartY = currentYOffset + ySpacing;
+    // Group roles by company_id
+    const companyPositionsMap = new Map<number, { company_name: string; positions: string[] }>();
+    positionOnlyRoles.forEach(role => {
+      if (!companyPositionsMap.has(role.company_id)) {
+        companyPositionsMap.set(role.company_id, { company_name: role.company_name, positions: [] });
+      }
+      const posLabel = role.position?.toLowerCase() || "";
+      let displayLabel = "Director";
+      if (posLabel.includes("secretary")) displayLabel = "Secretary";
+      else if (posLabel.includes("officer")) displayLabel = "Officer";
 
-      directorOnlyCompanies.forEach((role, index) => {
-        const companyNodeId = `director-company-${role.company_id}`;
+      const existing = companyPositionsMap.get(role.company_id)!;
+      if (!existing.positions.includes(displayLabel)) {
+        existing.positions.push(displayLabel);
+      }
+    });
+
+    if (companyPositionsMap.size > 0) {
+      // Position-only companies below the ownership chain
+      const positionStartY = currentYOffset + ySpacing;
+
+      let index = 0;
+      companyPositionsMap.forEach((companyData, companyId) => {
+        const companyNodeId = `position-company-${companyId}`;
         const x = xSpacing;
-        const y = directorStartY + (index * ySpacing);
+        const y = positionStartY + (index * ySpacing);
+
+        // Use purple if Director is present, otherwise blue for Secretary, green for Officer
+        let edgeColor = "#9333ea"; // Default purple
+        if (!companyData.positions.includes("Director")) {
+          if (companyData.positions.includes("Secretary")) edgeColor = "#2563eb";
+          else if (companyData.positions.includes("Officer")) edgeColor = "#16a34a";
+        }
 
         nodes.push({
           id: companyNodeId,
           type: "company",
           position: { x, y },
           data: {
-            label: role.company_name,
+            label: companyData.company_name,
             isTrustee: false,
-            onClick: () => onCompanyClick?.(role.company_id),
+            positions: companyData.positions,
+            isFullscreen: fullscreen,
+            onClick: () => onCompanyClickRef.current?.(companyId),
           },
         });
 
         if (x > maxX) maxX = x;
         if (y > maxY) maxY = y;
 
-        // Add dashed gray edge for director relationship
+        // Add dashed edge for position relationship (no label - positions shown inside box)
         edges.push({
-          id: `edge-director-${personNodeId}-${companyNodeId}`,
+          id: `edge-position-${personNodeId}-${companyNodeId}`,
           source: personNodeId,
           target: companyNodeId,
           type: "smoothstep",
           style: {
-            stroke: "#9333ea", // Purple for director
+            stroke: edgeColor,
             strokeWidth: 2,
             strokeDasharray: "5,5",
           },
-          label: "Director",
-          labelStyle: {
-            fill: "#9333ea",
-            fontWeight: 600,
-            fontSize: 10,
-          },
-          labelBgStyle: {
-            fill: "#ffffff",
-            fillOpacity: 0.9,
-          },
-          labelBgPadding: [4, 2] as [number, number],
-          labelBgBorderRadius: 4,
         });
+
+        index++;
       });
     }
 
     return {
       initialNodes: nodes,
       initialEdges: edges,
-      dimensions: { width: maxX + 350, height: Math.max(maxY + 150, 400) }
+      dimensions: { width: maxX + xSpacing, height: Math.max(maxY + ySpacing, fullscreen ? 500 : 350) }
     };
-  }, [personName, personEmail, filteredOwnershipChain, filteredDirectorRoles, onCompanyClick]);
+  }, [personName, personEmail, filteredOwnershipChain, filteredDirectorRoles, fullscreen]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -384,18 +472,18 @@ export default function PersonStructureChart({
     setEdges(initialEdges);
   }, [initialNodes, initialEdges, setNodes, setEdges]);
 
-  const chartHeight = Math.max(500, dimensions.height);
+  const chartHeight = fullscreen ? "100%" : Math.max(400, dimensions.height);
 
   if (ownershipChain.length === 0 && directorRoles.length === 0) {
     return (
-      <div className="w-full h-[200px] border rounded-lg bg-gray-50 dark:bg-gray-900 flex items-center justify-center text-muted-foreground">
+      <div className={`w-full ${fullscreen ? "h-full" : "h-[200px]"} border rounded-lg bg-gray-50 dark:bg-gray-900 flex items-center justify-center text-muted-foreground`}>
         No ownership or director data available
       </div>
     );
   }
 
   return (
-    <div className="w-full border rounded-lg bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div className={`w-full ${fullscreen ? "h-full" : ""} ${fullscreen ? "" : "border rounded-lg"} bg-gray-50 dark:bg-gray-900 overflow-hidden`}>
       <ReactFlowProvider>
         <ChartWithControls
           nodes={nodes}
@@ -411,6 +499,7 @@ export default function PersonStructureChart({
           onToggleFullDetail={onToggleFullDetail}
           hasDirectorRoles={directorRoles.length > 0}
           hasShareholding={ownershipChain.length > 0}
+          fullscreen={fullscreen}
         />
       </ReactFlowProvider>
     </div>
@@ -432,12 +521,13 @@ function ChartWithControls({
   onToggleFullDetail,
   hasDirectorRoles,
   hasShareholding,
+  fullscreen = false,
 }: {
   nodes: Node[];
   edges: Edge[];
   onNodesChange: ReturnType<typeof useNodesState>[2];
   onEdgesChange: ReturnType<typeof useEdgesState>[2];
-  chartHeight: number;
+  chartHeight: number | string;
   showDirectors: boolean;
   setShowDirectors: (value: boolean) => void;
   showShareholding: boolean;
@@ -446,6 +536,7 @@ function ChartWithControls({
   onToggleFullDetail?: () => void;
   hasDirectorRoles: boolean;
   hasShareholding: boolean;
+  fullscreen?: boolean;
 }) {
   const { fitView } = useReactFlow();
 
@@ -472,7 +563,7 @@ function ChartWithControls({
   const showFilters = hasDirectorRoles || hasShareholding;
 
   return (
-    <div style={{ height: `${chartHeight}px` }} className="relative">
+    <div style={{ height: fullscreen ? "100%" : `${chartHeight}px` }} className="relative">
       {/* Controls bar */}
       <div className="absolute top-2 left-2 right-2 z-10 flex items-center justify-between">
         {/* Left side - Filter checkboxes */}
@@ -481,12 +572,12 @@ function ChartWithControls({
             {hasDirectorRoles && (
               <div className="flex items-center gap-2">
                 <Checkbox
-                  id="show-directors"
+                  id="show-positions"
                   checked={showDirectors}
                   onCheckedChange={(checked) => setShowDirectors(checked === true)}
                 />
-                <Label htmlFor="show-directors" className="text-sm font-medium cursor-pointer">
-                  Director
+                <Label htmlFor="show-positions" className="text-sm font-medium cursor-pointer">
+                  Positions
                 </Label>
               </div>
             )}
@@ -539,7 +630,7 @@ function ChartWithControls({
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.15 }}
+        fitViewOptions={{ padding: 0.2, minZoom: 0.5, maxZoom: 1.2 }}
         minZoom={0.1}
         maxZoom={1.5}
         panOnScroll

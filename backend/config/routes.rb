@@ -313,6 +313,12 @@ Rails.application.routes.draw do
       # Contact roles management
       resources :contact_roles, only: [ :index, :create, :update, :destroy ]
 
+      # Global shareholdings view (all shareholdings across all companies)
+      resources :shareholdings, only: [ :index ]
+
+      # Global beneficiaries view (all trust beneficiaries)
+      resources :beneficiaries, only: [ :index ]
+
       # Contacts management
       resources :contacts do
         collection do
@@ -339,6 +345,7 @@ Rails.application.routes.draw do
           get :connected_mailboxes
           get :preview_employee_extraction
           post :extract_employees
+          get :health  # Quick health score for header display
         end
         member do
           post :reorder_employees
@@ -1284,6 +1291,7 @@ Rails.application.routes.draw do
         get "xero/status", to: "company_xero#status"
         get "xero/authorize", to: "company_xero#authorize"
         get "xero/callback", to: "company_xero#callback"
+        post "xero/link", to: "company_xero#link"
         post "xero/disconnect", to: "company_xero#disconnect"
         post "xero/sync", to: "company_xero#sync"
         get "xero/tenants", to: "company_xero#tenants"
@@ -1292,6 +1300,34 @@ Rails.application.routes.draw do
         post "xero/link_bank_account", to: "company_xero#link_bank_account"
         post "xero/sync_transactions", to: "company_xero#sync_transactions"
         get "xero/transactions", to: "company_xero#transactions"
+        # Chart of Accounts from Xero
+        get "xero/accounts", to: "company_xero#accounts"
+        get "xero/accounts/compare", to: "company_xero#compare_accounts"
+        # Financial Reports from Xero
+        get "xero/profit_loss", to: "company_xero#profit_loss"
+        get "xero/balance_sheet", to: "company_xero#balance_sheet"
+        # Bank transactions by account
+        get "xero/bank_transactions", to: "company_xero#bank_transactions"
+
+        # PDF Financial Reports (Gold Standard tables)
+        resources :profit_loss_reports, only: [:index, :show] do
+          collection do
+            post :generate
+          end
+          member do
+            post :regenerate
+            get :download
+          end
+        end
+        resources :balance_sheet_reports, only: [:index, :show] do
+          collection do
+            post :generate
+          end
+          member do
+            post :regenerate
+            get :download
+          end
+        end
       end
 
       # Company Groups
