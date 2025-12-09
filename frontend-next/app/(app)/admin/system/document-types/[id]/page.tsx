@@ -709,7 +709,7 @@ export default function DocumentTypeDetailPage() {
         <CardContent className="space-y-4 pt-2">
           <div className="relative flex gap-6">
             {/* Left side - File Name and Display Name */}
-            <div className="flex-1 space-y-4 pr-[25rem]">
+            <div className="flex-1 space-y-4 pr-[26rem]">
               {/* Preview Company Dropdown */}
               <div className="space-y-1 mb-6">
                 <Label htmlFor="preview-company" className="text-sm text-muted-foreground">
@@ -1011,9 +1011,11 @@ export default function DocumentTypeDetailPage() {
                         onDragEnd={handleDragEnd}
                         className={cn(
                           "cursor-grab active:cursor-grabbing p-1 rounded border transition-all hover:scale-[1.01]",
-                          getPlaceholderColor(placeholder.code) === "purple"
-                            ? "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950 dark:hover:bg-purple-900 border-purple-200 dark:border-purple-800"
-                            : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900 border-orange-200 dark:border-orange-800",
+                          isPlaceholderUsed(placeholder.code)
+                            ? getPlaceholderColor(placeholder.code) === "purple"
+                              ? "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950 dark:hover:bg-purple-900 border-purple-200 dark:border-purple-800"
+                              : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900 border-orange-200 dark:border-orange-800"
+                            : "bg-green-50 hover:bg-green-100 dark:bg-green-950 dark:hover:bg-green-900 border-green-300 dark:border-green-700",
                           draggedPlaceholder === placeholder.code && draggedFromField === "source" && "opacity-50 scale-95"
                         )}
                       >
@@ -1022,10 +1024,10 @@ export default function DocumentTypeDetailPage() {
                           <code className={cn(
                             "font-mono text-[10px] px-1 py-0.5 rounded",
                             isPlaceholderUsed(placeholder.code)
-                              ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                              : placeholder.color === "purple"
+                              ? getPlaceholderColor(placeholder.code) === "purple"
                                 ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300"
                                 : "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
+                              : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
                           )}>
                             {placeholder.label || placeholder.code}
                           </code>
@@ -1045,10 +1047,10 @@ export default function DocumentTypeDetailPage() {
                           className={cn(
                             "cursor-grab active:cursor-grabbing p-1 rounded border transition-all hover:scale-[1.01]",
                             isPlaceholderUsed(placeholder.longCode)
-                              ? "bg-green-50 hover:bg-green-100 dark:bg-green-950 dark:hover:bg-green-900 border-green-300 dark:border-green-700"
-                              : placeholder.color === "purple"
+                              ? getPlaceholderColor(placeholder.longCode) === "purple"
                                 ? "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950 dark:hover:bg-purple-900 border-purple-200 dark:border-purple-800"
-                                : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900 border-orange-200 dark:border-orange-800",
+                                : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900 border-orange-200 dark:border-orange-800"
+                              : "bg-green-50 hover:bg-green-100 dark:bg-green-950 dark:hover:bg-green-900 border-green-300 dark:border-green-700",
                             draggedPlaceholder === placeholder.longCode && draggedFromField === "source" && "opacity-50 scale-95"
                           )}
                         >
@@ -1057,10 +1059,10 @@ export default function DocumentTypeDetailPage() {
                             <code className={cn(
                               "font-mono text-[10px] px-1 py-0.5 rounded",
                               isPlaceholderUsed(placeholder.longCode)
-                                ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                                : placeholder.color === "purple"
+                                ? getPlaceholderColor(placeholder.longCode) === "purple"
                                   ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300"
                                   : "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
+                                : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
                             )}>
                               {placeholder.longCode}
                             </code>
