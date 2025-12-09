@@ -1,10 +1,10 @@
-class CorporateCorporateCompanyDocument < ApplicationRecord
+class CorporateCompanyDocument < ApplicationRecord
   # Associations
   belongs_to :company, optional: true
   belongs_to :contact, optional: true  # For documents linked to people (family members, directors)
   belongs_to :user, optional: true
   belongs_to :asset, optional: true
-  belongs_to :loan, class_name: "CorporateCorporateCompanyLoan", optional: true
+  belongs_to :loan, class_name: "CorporateCompanyLoan", optional: true
   belongs_to :document_type_record, class_name: "DocumentType", foreign_key: "document_type_id", optional: true
   belongs_to :user_validated_by, class_name: "User", optional: true
 

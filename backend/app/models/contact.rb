@@ -74,9 +74,9 @@ class Contact < ApplicationRecord
   has_many :pay_now_requests, dependent: :destroy
 
   # Corporate director/shareholder associations
-  has_many :corporate_company_directorships, class_name: "CorporateCorporateCompanyDirector", dependent: :destroy
+  has_many :corporate_company_directorships, class_name: "CorporateCompanyDirector", dependent: :destroy
   has_many :directed_companies, through: :corporate_company_directorships, source: :company
-  has_many :current_directorships, -> { where(is_current: true) }, class_name: "CorporateCorporateCompanyDirector"
+  has_many :current_directorships, -> { where(is_current: true) }, class_name: "CorporateCompanyDirector"
   has_many :corporate_company_shareholdings, foreign_key: :shareholder_id, dependent: :destroy
   has_many :shareholding_companies, through: :company_shareholdings, source: :company
   has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy

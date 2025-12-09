@@ -707,7 +707,7 @@ export default function DocumentTypeDetailPage() {
           <CardTitle className="text-base">Naming & Organization</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 pt-2">
-          <div className="relative flex gap-6 mb-6 min-h-[800px]">
+          <div className="relative flex gap-6 mb-6 min-h-[1000px]">
             {/* Left side - File Name and Display Name */}
             <div className="flex-1 space-y-4 pr-[20rem]">
               {/* Preview Company Dropdown */}

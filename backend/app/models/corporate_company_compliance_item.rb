@@ -1,4 +1,4 @@
-class CorporateCorporateCompanyComplianceItem < ApplicationRecord
+class CorporateCompanyComplianceItem < ApplicationRecord
   # Associations
   belongs_to :company
 
