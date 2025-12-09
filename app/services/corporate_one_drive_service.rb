@@ -351,7 +351,7 @@ class CorporateOneDriveService
     parsed = parse_document_name(file["name"])
     document_type = DocumentType.find_by(name: parsed[:type])
 
-    company_document = company.company_documents.find_or_initialize_by(
+    company_document = company.corporate_company_documents.find_or_initialize_by(
       onedrive_file_id: file_id
     )
 

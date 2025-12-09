@@ -46,7 +46,7 @@ class XeroAuthService
       tenant = tenant_info.first
 
       # Create or update Xero connection for this company
-      connection = company.company_xero_connection || company.build_company_xero_connection
+      connection = company.corporate_company_xero_connection || company.build_corporate_company_xero_connection
 
       connection.assign_attributes(
         xero_tenant_id: tenant["tenantId"],
