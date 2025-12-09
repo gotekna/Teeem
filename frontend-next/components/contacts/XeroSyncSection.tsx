@@ -574,7 +574,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
                       <p className="text-xs text-muted-foreground font-medium">
                         TEEEM ({mapping.teeemField})
                       </p>
-                      <p className="text-sm">{mapping.teeemValue || <span className="text-muted-foreground italic">empty</span>}</p>
+                      <p className="text-sm">{mapping.teeemValue ? String(mapping.teeemValue) : <span className="text-muted-foreground italic">empty</span>}</p>
                     </div>
                     <div className="flex items-center">
                       {mapping.direction === "bidirectional" && <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />}
@@ -586,7 +586,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
                       <p className="text-xs text-muted-foreground font-medium">
                         Xero ({mapping.xeroField})
                       </p>
-                      <p className="text-sm">{mapping.xeroValue || <span className="text-muted-foreground italic">empty</span>}</p>
+                      <p className="text-sm">{mapping.xeroValue ? String(mapping.xeroValue) : <span className="text-muted-foreground italic">empty</span>}</p>
                     </div>
                   </div>
                 ))}

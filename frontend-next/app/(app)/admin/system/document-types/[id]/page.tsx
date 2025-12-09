@@ -44,7 +44,9 @@ const FILE_EXTENSION_OPTIONS = [
 ];
 
 // Placeholder definitions with scope (DocType placeholders added dynamically)
-const BASE_PLACEHOLDERS = {
+type PlaceholderItem = { code: string; example: string; color: string; longCode?: string; longExample?: string; label?: string };
+
+const BASE_PLACEHOLDERS: { company: PlaceholderItem[]; job: PlaceholderItem[] } = {
   company: [
     { code: "{CompanyCode}", example: "TH", longCode: "{CompanyName}", longExample: "Tekna Homes", color: "purple" },
     { code: "{LoanID}", example: "L001", longCode: "{LoanName}", longExample: "Loan to ABC Trust", color: "purple" },
@@ -443,7 +445,7 @@ export default function DocumentTypeDetailPage() {
       return "blue";
     }
     const allPlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
-    const found = allPlaceholders.find((p: { code: string; longCode?: string; color: string }) => p.code === placeholder || p.longCode === placeholder);
+    const found = allPlaceholders.find(p => p.code === placeholder || p.longCode === placeholder);
     return found?.color || "purple";
   };
 
@@ -847,18 +849,7 @@ export default function DocumentTypeDetailPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="file_name">File Name</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => addBlankText("file_name")}
-                    className="text-xs h-7"
-                  >
-                    + Add Text
-                  </Button>
-                </div>
+                <Label htmlFor="file_name">File Name</Label>
             <div
               className={cn(
                 "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",

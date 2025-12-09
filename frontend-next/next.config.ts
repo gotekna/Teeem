@@ -21,10 +21,7 @@ try {
 const buildTime = new Date().toISOString();
 
 const nextConfig: NextConfig = {
-  devIndicators: {
-    buildActivity: false,
-    appIsrStatus: false,
-  },
+  devIndicators: false,
   // Empty turbopack config to silence warning (PDF viewer uses dynamic import with ssr: false)
   turbopack: {},
   env: {

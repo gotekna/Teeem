@@ -181,11 +181,11 @@ export function getTableSlug(tableId: number): string {
  * Initialize table IDs (call early in app lifecycle)
  * Returns a promise that resolves when IDs are loaded
  */
-export function initTableIds(): Promise<void> {
+export async function initTableIds(): Promise<void> {
   if (!fetchPromise) {
     fetchPromise = fetchTableIds();
   }
-  return fetchPromise;
+  await fetchPromise;
 }
 
 export default useTableIds;
