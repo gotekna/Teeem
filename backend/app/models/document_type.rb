@@ -187,6 +187,10 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Consultant}", "ABC Eng")
     format.gsub!("{Number}", "01")
 
+    # People placeholders
+    format.gsub!("{PersonName}", "Andrew Clememt")
+    format.gsub!("{IDType}", "Passport")
+
     # Common placeholders
     format.gsub!("{Description}", "Example")
     format.gsub!("{Date}", au_date)
