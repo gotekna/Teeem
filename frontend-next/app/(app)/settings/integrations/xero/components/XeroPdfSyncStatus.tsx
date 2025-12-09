@@ -37,6 +37,11 @@ interface TenantRateLimit {
   daily: RateLimitUsage | null;
   total_7d: number;
   can_make_request: boolean;
+  // SSoT: Credential status from backend
+  status?: 'connected' | 'degraded' | 'disconnected';
+  needs_reauth?: boolean;
+  expired?: boolean;
+  degraded?: boolean;
 }
 
 interface RateLimitsData {
@@ -663,17 +668,36 @@ export function XeroPdfSyncStatus() {
                 <div key={tenant.tenant_id} className="p-3 bg-white/80 border border-blue-100 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-sm">{tenant.tenant_name}</span>
-                    {tenant.can_make_request ? (
-                      <Badge className="bg-green-100 text-green-700 text-xs">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Ready
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-red-100 text-red-700 text-xs">
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        Throttled
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {/* SSoT: Show credential status FIRST (priority over rate limits) */}
+                      {tenant.needs_reauth || tenant.status === 'degraded' || tenant.status === 'disconnected' ? (
+                        <>
+                          <Badge className="bg-orange-100 text-orange-700 text-xs">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Needs Re-auth
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-xs text-orange-600 border-orange-300 hover:bg-orange-50"
+                            onClick={() => window.open('/settings/integrations/xero', '_self')}
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Fix
+                          </Button>
+                        </>
+                      ) : !tenant.can_make_request ? (
+                        <Badge className="bg-red-100 text-red-700 text-xs">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          Throttled
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-green-100 text-green-700 text-xs">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Ready
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     {/* Per-minute */}
