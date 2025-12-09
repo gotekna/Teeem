@@ -90,6 +90,11 @@ class Api::V1::ChatMessagesController < ApplicationController
   # GET /api/v1/chat_messages?contact_id=101
   # GET /api/v1/chat_messages?case_id=102
   def index
+    # Disable HTTP caching for real-time chat
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
     if params[:job_id].present?
       @messages = ChatMessage.for_job(params[:job_id]).includes(:user).recent(100)
     elsif params[:contact_id].present?
