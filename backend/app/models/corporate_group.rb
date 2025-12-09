@@ -1,6 +1,6 @@
 class CorporateGroup < ApplicationRecord
   # Associations
-  has_many :corporate_companies, dependent: :nullify
+  has_many :corporate_companies, foreign_key: :company_group_id, dependent: :nullify
   has_many :xero_chart_of_accounts, dependent: :destroy
   has_many :reconciliation_reports, dependent: :destroy
 
@@ -19,7 +19,7 @@ class CorporateGroup < ApplicationRecord
   end
 
   def companies_count
-    companies.count
+    corporate_companies.count
   end
 
   # SSoT Entity Queries - get entities by type from this group
