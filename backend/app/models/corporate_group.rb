@@ -5,7 +5,7 @@ class CorporateGroup < ApplicationRecord
   has_many :reconciliation_reports, dependent: :destroy
 
   # Contact memberships (SSoT - all contacts linked to this group)
-  has_many :contact_memberships, class_name: "ContactCorporateGroupMembership", dependent: :destroy
+  has_many :contact_memberships, class_name: "ContactCorporateGroupMembership", foreign_key: :company_group_id, dependent: :destroy
   has_many :contacts, through: :contact_memberships
 
   # Validations
@@ -18,7 +18,7 @@ class CorporateGroup < ApplicationRecord
     name
   end
 
-  def companies_count
+  def corporate_companies_count
     corporate_companies.count
   end
 
