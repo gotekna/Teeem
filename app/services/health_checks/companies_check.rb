@@ -21,6 +21,7 @@ module HealthChecks
   #   - Companies without TFN
   #   - Companies without bank accounts
   #   - Companies without shareholders
+  #   - Shareholding total mismatch (sum of shares ≠ shares on issue)
   #   - Companies without secretary
   #   - Companies without public officer
   #   - Companies overdue for review
@@ -172,6 +173,44 @@ module HealthChecks
         icon: "users",
         action_path: "/corporate/:id",
         check_name: "companies_without_shareholders"
+      )
+    end
+
+    # Companies where shareholding totals don't match shares on issue
+    def check_shareholding_mismatch
+      # Find companies with shareholdings where total doesn't match shares_on_issue
+      mismatched = []
+
+      CorporateCompany.where(active: [true, nil])
+                      .where.not(shares_on_issue: [nil, 0])
+                      .includes(:corporate_company_shareholdings)
+                      .find_each do |company|
+        total_shares = company.corporate_company_shareholdings.sum(:number_of_shares)
+        shares_on_issue = company.shares_on_issue.to_i
+
+        next if total_shares == 0 # Skip if no shareholdings recorded
+        next if total_shares == shares_on_issue # Skip if they match
+
+        mismatched << {
+          id: company.id,
+          display: "#{company.id} - #{company.name}",
+          code: company.code,
+          name: company.name,
+          entity_type: company.entity_type,
+          shares_on_issue: shares_on_issue,
+          shareholding_total: total_shares,
+          difference: total_shares - shares_on_issue
+        }
+      end
+
+      build_result(
+        name: "Shareholding Total Mismatch",
+        description: "Companies where the sum of shareholdings doesn't match shares on issue. This may indicate missing or duplicate shareholding records.",
+        severity: :warning,
+        items: mismatched,
+        icon: "calculator",
+        action_path: "/corporate/:id",
+        check_name: "shareholding_mismatch"
       )
     end
 
