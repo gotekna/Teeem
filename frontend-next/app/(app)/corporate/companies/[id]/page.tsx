@@ -5058,8 +5058,7 @@ export default function CompanyDetailPage() {
         entityType = "trustee_company";
       }
 
-      const response = await fetch(`/api/v1/document_folders?entity_type=${entityType}&active=true`);
-      const data = await response.json();
+      const data = await api.get<{ success: boolean; data: any[] }>(`/api/v1/document_folders?entity_type=${entityType}&active=true`);
 
       if (data.success) {
         // Map folder data to tab format with appropriate icons

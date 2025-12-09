@@ -146,6 +146,8 @@ interface Folder {
   description: string;
   sharepoint_path?: string;
   active: boolean;
+  parent_id?: number | null;
+  children?: Folder[];
 }
 
 export function FoldersTabsConfigTab() {
@@ -165,10 +167,18 @@ export function FoldersTabsConfigTab() {
   const fetchFolders = async () => {
     try {
       setIsLoading(true);
-      const data = await api.get<{ success: boolean; data: Folder[] }>("/api/v1/document_folders");
+      const data = await api.get<{ success: boolean; data: Folder[] }>("/api/v1/document_folders?hierarchy=true");
 
       if (data.success) {
-        setFolders(data.data);
+        // Flatten the hierarchy for display (include both parent and children)
+        const flattenedFolders: Folder[] = [];
+        data.data.forEach(folder => {
+          flattenedFolders.push(folder);
+          if (folder.children) {
+            flattenedFolders.push(...folder.children);
+          }
+        });
+        setFolders(flattenedFolders);
       }
     } catch (error) {
       console.error("Failed to fetch folders:", error);

@@ -96,7 +96,7 @@ class AssetReminderService
     send_email(recipients, subject, body)
 
     # Log activity
-    insurance.asset.company.company_activities.create!(
+    insurance.asset.company.corporate_company_activities.create!(
       activity_type: "insurance_reminder_sent",
       description: "Insurance renewal reminder sent for #{insurance.asset.name}",
       metadata: {
@@ -127,7 +127,7 @@ class AssetReminderService
     send_email(recipients, subject, body)
 
     # Log activity
-    insurance.asset.company.company_activities.create!(
+    insurance.asset.company.corporate_company_activities.create!(
       activity_type: "insurance_overdue_reminder_sent",
       description: "Insurance overdue reminder sent for #{insurance.asset.name}",
       metadata: {
@@ -155,7 +155,7 @@ class AssetReminderService
     send_email(recipients, subject, body)
 
     # Log activity
-    asset.company.company_activities.create!(
+    asset.company.corporate_company_activities.create!(
       activity_type: "service_reminder_sent",
       description: "Service reminder sent for #{asset.name}",
       metadata: {
@@ -184,7 +184,7 @@ class AssetReminderService
     send_email(recipients, subject, body)
 
     # Log activity
-    asset.company.company_activities.create!(
+    asset.company.corporate_company_activities.create!(
       activity_type: "service_overdue_reminder_sent",
       description: "Service overdue reminder sent for #{asset.name}",
       metadata: {

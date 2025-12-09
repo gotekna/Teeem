@@ -56,7 +56,7 @@ class ComplianceReminderService
     send_email(recipients, subject, body)
 
     # Log activity
-    item.company.company_activities.create!(
+    item.company.corporate_company_activities.create!(
       activity_type: "compliance_reminder_sent",
       description: "Reminder sent for: #{item.title} (#{days_before} days before due)",
       metadata: { compliance_item_id: item.id, days_before: days_before },
@@ -83,7 +83,7 @@ class ComplianceReminderService
     send_email(recipients, subject, body)
 
     # Log activity
-    item.company.company_activities.create!(
+    item.company.corporate_company_activities.create!(
       activity_type: "compliance_overdue_reminder_sent",
       description: "Overdue reminder sent for: #{item.title} (#{days_overdue} days overdue)",
       metadata: { compliance_item_id: item.id, days_overdue: days_overdue },

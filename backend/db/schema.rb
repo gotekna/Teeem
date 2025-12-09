@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_09_064738) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_09_073043) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1430,9 +1430,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_064738) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "sharepoint_path"
+    t.integer "parent_id"
     t.index ["entity_types"], name: "index_document_folders_on_entity_types", using: :gin
     t.index ["name"], name: "index_document_folders_on_name", unique: true
     t.index ["order_position"], name: "index_document_folders_on_order_position"
+    t.index ["parent_id"], name: "index_document_folders_on_parent_id"
   end
 
   create_table "document_tasks", force: :cascade do |t|
@@ -4816,6 +4818,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_09_064738) do
   add_foreign_key "document_duplicate_reviews", "corporate_company_documents", column: "existing_document_id"
   add_foreign_key "document_duplicate_reviews", "corporate_company_documents", column: "new_document_id"
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
+  add_foreign_key "document_folders", "document_folders", column: "parent_id"
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "document_verification_feedbacks", "corporate_company_documents", column: "company_document_id"
   add_foreign_key "document_verification_feedbacks", "users"

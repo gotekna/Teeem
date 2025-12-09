@@ -103,7 +103,7 @@ class Asset < ApplicationRecord
     return if Rails.env.development? && caller.any? { |line| line.include?("import") }
 
     user = (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
-    corporate_company.company_activities.create!(
+    corporate_company.corporate_company_activities.create!(
       activity_type: "asset_added",
       description: "Asset added: #{display_name}",
       change_details: { asset_id: id, asset_type: asset_type, purchase_price: purchase_price },
@@ -121,14 +121,14 @@ class Asset < ApplicationRecord
     user = (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
 
     if saved_change_to_status? && status == "disposed"
-      corporate_company.company_activities.create!(
+      corporate_company.corporate_company_activities.create!(
         activity_type: "asset_disposed",
         description: "Asset disposed: #{display_name}",
         change_details: { asset_id: id },
         user: user
       )
     else
-      corporate_company.company_activities.create!(
+      corporate_company.corporate_company_activities.create!(
         activity_type: "asset_updated",
         description: "Asset updated: #{display_name}",
         change_details: { asset_id: id, changes: saved_changes.except("updated_at") },

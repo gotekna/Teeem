@@ -268,7 +268,7 @@ class CaseWarehouseService
 
     {
       company: company,
-      directors: company.company_directors.includes(:contact),
+      directors: company.corporate_company_directors.includes(:contact),
       shareholders: company.corporate_company_shareholdings.includes(:contact),
       job_summary: query_mv("mv_job_summary", "job_id IN (?)", [ job_ids ]),
       financial_summary: query_mv("mv_financial_summary", "company_id = ?", [ company_id ]),

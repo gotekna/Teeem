@@ -123,8 +123,7 @@ export default function DocumentTypeDetailPage() {
   React.useEffect(() => {
     const fetchFolders = async () => {
       try {
-        const response = await fetch("/api/v1/document_folders?active=true");
-        const data = await response.json();
+        const data = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_folders?active=true");
         if (data.success) {
           // Extract folder names and sort alphabetically
           const names = data.data.map((f: any) => f.name).sort();
