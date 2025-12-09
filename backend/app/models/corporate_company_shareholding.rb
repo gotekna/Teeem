@@ -19,8 +19,8 @@ class CorporateCompanyShareholding < ApplicationRecord
 
   # Calculate percentage of total shares
   def percentage_of_total
-    return 0 unless company.shares_on_issue.to_i > 0
-    (number_of_shares.to_f / company.shares_on_issue * 100).round(2)
+    return 0 unless corporate_company.shares_on_issue.to_i > 0
+    (number_of_shares.to_f / corporate_company.shares_on_issue * 100).round(2)
   end
 
   def shareholder_name
@@ -38,12 +38,12 @@ class CorporateCompanyShareholding < ApplicationRecord
 
   # SSoT: Automatically create ContactCorporateGroupMembership for shareholders
   def ensure_ssot_shareholder_membership
-    return unless company&.company_group_id.present?
+    return unless corporate_company&.company_group_id.present?
     return unless shareholder_type == "Contact" && shareholder_id.present?
 
     ContactCorporateGroupMembership.find_or_create_by!(
       contact_id: shareholder_id,
-      company_group_id: company.company_group_id,
+      company_group_id: corporate_company.company_group_id,
       membership_type: "shareholder"
     ) do |m|
       m.is_active = true
@@ -51,7 +51,7 @@ class CorporateCompanyShareholding < ApplicationRecord
 
     # Also set company_group_id and link_to_cg on the Contact (for person contacts)
     shareholder_contact = Contact.find_by(id: shareholder_id)
-    shareholder_contact&.update_columns(company_group_id: company.company_group_id, link_to_cg: true) if shareholder_contact&.company_group_id.nil?
+    shareholder_contact&.update_columns(company_group_id: corporate_company.company_group_id, link_to_cg: true) if shareholder_contact&.company_group_id.nil?
   rescue StandardError => e
     Rails.logger.error("CorporateCompanyShareholding##{id}: SSoT shareholder membership creation failed - #{e.message}")
   end
@@ -66,12 +66,12 @@ class CorporateCompanyShareholding < ApplicationRecord
     return unless shareholder_type == "Contact"
 
     # Company must be linked to a Contact for this to work
-    return unless company&.contact_id.present?
+    return unless corporate_company&.contact_id.present?
     return unless shareholder_id.present?
 
     # Skip self-referential relationships (e.g., company owns its own shares / treasury)
     # ContactRelationship doesn't allow source == related
-    return if shareholder_id == company.contact_id
+    return if shareholder_id == corporate_company.contact_id
 
     Thread.current[:syncing_shareholder_relationship] = true
 
@@ -82,7 +82,7 @@ class CorporateCompanyShareholding < ApplicationRecord
       # Create or update the relationship
       rel = ContactRelationship.find_or_initialize_by(
         source_contact_id: shareholder_id,
-        related_contact_id: company.contact_id,
+        related_contact_id: corporate_company.contact_id,
         relationship_type: "shareholder_of"
       )
       rel.is_active = true
@@ -93,7 +93,7 @@ class CorporateCompanyShareholding < ApplicationRecord
       # Deactivate the relationship
       rel = ContactRelationship.find_by(
         source_contact_id: shareholder_id,
-        related_contact_id: company.contact_id,
+        related_contact_id: corporate_company.contact_id,
         relationship_type: "shareholder_of"
       )
       if rel
