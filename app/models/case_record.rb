@@ -10,7 +10,7 @@ class CaseRecord < ApplicationRecord
 
   # Primary entity being investigated (optional)
   belongs_to :contact, optional: true
-  belongs_to :company, optional: true
+  belongs_to :corporate_company, foreign_key: 'company_id', optional: true
   belongs_to :corporate_group, optional: true, foreign_key: 'company_group_id'
 
   # Case management
@@ -126,7 +126,7 @@ class CaseRecord < ApplicationRecord
   def related_company_ids
     company_ids = companies.pluck(:id)
     company_ids << company_id if company_id
-    company_ids += company_group.companies.pluck(:id) if company_group
+    company_ids += company_group.corporate_companies.pluck(:id) if company_group
     company_ids.uniq
   end
 
@@ -186,7 +186,7 @@ class CaseRecord < ApplicationRecord
   end
 
   def primary_entity
-    contact || company || company_group
+    contact || corporate_company || company_group
   end
 
   def primary_entity_name
