@@ -100,13 +100,14 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         }>("/api/v1/xero/status");
         const xeroData = xeroResponse?.data || xeroResponse as { connected?: boolean; expired?: boolean; tenant_name?: string; message?: string; status?: string };
 
-        if (xeroData?.connected === true && xeroData?.expired !== true) {
+        // Check degraded FIRST - this takes priority over connected=true
+        if (xeroData?.status === 'degraded') {
+          // Some tenants need re-auth but some work - show orange warning
+          setXeroStatus('degraded');
+          setXeroTooltip(xeroData.message || `Xero: Needs Re-authentication`);
+        } else if (xeroData?.connected === true && xeroData?.expired !== true) {
           setXeroStatus('connected');
           setXeroTooltip(`Xero: Connected${xeroData.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
-        } else if (xeroData?.status === 'degraded') {
-          // Degraded state - refresh failed but not fully disconnected
-          setXeroStatus('degraded');
-          setXeroTooltip(`Xero: Needs Re-authentication${xeroData.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
         } else if (xeroData?.expired === true || xeroData?.status === 'disconnected' || xeroData?.message?.toLowerCase().includes('expired') || xeroData?.message?.toLowerCase().includes('reconnect')) {
           setXeroStatus('error');
           setXeroTooltip(`Xero: Token Expired - Reconnect Required`);
