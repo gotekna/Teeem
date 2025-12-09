@@ -111,6 +111,7 @@ interface Stage3Sharepoint {
   progress_percentage: number;
   blocker: Blocker | null;
   sharepoint_url: string | null;
+  last_synced_at?: string | null;  // SSoT: When last SharePoint upload occurred
 }
 
 interface PdfSyncStatus {
@@ -474,7 +475,7 @@ export function XeroPdfSyncStatus() {
               completed={data.stage3_sharepoint?.uploaded || data.sharepoint_uploads}
               total={data.stage3_sharepoint?.total_to_upload || data.pdfs_synced}
               percentage={data.stage3_sharepoint?.progress_percentage || 0}
-              lastSync={null}
+              lastSync={data.stage3_sharepoint?.last_synced_at || null}
               schedule="Uploads with PDF sync"
               color="bg-green-100 text-green-600"
               blocker={data.stage3_sharepoint?.blocker}
