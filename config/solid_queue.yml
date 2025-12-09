@@ -145,13 +145,15 @@ production:
       queue: low
       schedule: at 2am every day
 
-    # Sync Xero invoice attachments (PDFs) - runs after invoice sync
+    # Sync Xero invoice attachments (PDFs) - runs frequently to catch up
+    # With rate limit tracking, we can safely do 200 PDFs per batch
+    # 200 PDFs × ~3 API calls = 600 calls per run, well under 5000/day limit
     warehouse_xero_attachments:
       class: XeroAttachmentSyncJob
       queue: xero_bulk
       args: [null]
-      kwargs: { limit: 50 }
-      schedule: every 2 hours at minute 45
+      kwargs: { limit: 200 }
+      schedule: every 30 minutes
 
     # Batch document verification (AI classification)
     warehouse_document_verification:
