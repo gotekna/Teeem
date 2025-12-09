@@ -78,8 +78,9 @@ class OrgEmailSyncJob < ApplicationJob
     when "full"
               sync_years.years.ago
     else
-              # Incremental - use credential's last_sync_at or default to 24 hours
-              @credential.last_sync_at || 24.hours.ago
+              # Incremental - but use sync_years for first sync (when last_sync_at is nil)
+              # This ensures first-time syncs respect the sync_years configuration
+              @credential.last_sync_at || sync_years.years.ago
     end
 
     # Get all mail folders
