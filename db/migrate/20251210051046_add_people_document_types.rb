@@ -2,7 +2,7 @@ class AddPeopleDocumentTypes < ActiveRecord::Migration[8.0]
   def up
     # Personal ID Document
     DocumentType.create!(
-      name: "Personal ID Document",
+      name: "PID - Personal ID Document",
       abbreviation: "PID",
       display_name: "Personal ID Document",
       description: "Personal identification documents including passports, driver's licenses, birth certificates, police certificates, and other personal ID",
@@ -11,14 +11,14 @@ class AddPeopleDocumentTypes < ActiveRecord::Migration[8.0]
       primary_tab: "PEOPLE",
       category: "general",
       file_extensions: %w[pdf jpg jpeg png],
-      name_format: "{person_name} - {id_type} - {date}",
-      target_folder: "People/{person_name}/ID Documents",
+      name_format: "{PersonName} - {IDType} - {Date}",
+      target_folder: "People/{PersonName}/ID Documents",
       active: true
     )
 
     # Personal Tax Return
     DocumentType.create!(
-      name: "Personal Tax Return",
+      name: "PTR - Personal Tax Return",
       abbreviation: "PTR",
       display_name: "Personal Tax Return",
       description: "Individual tax returns and related personal tax documents",
@@ -27,8 +27,8 @@ class AddPeopleDocumentTypes < ActiveRecord::Migration[8.0]
       primary_tab: "PEOPLE",
       category: "tax",
       file_extensions: %w[pdf],
-      name_format: "{person_name} - Tax Return FY{year}",
-      target_folder: "People/{person_name}/Tax Returns",
+      name_format: "{PersonName} - Tax Return {FY}",
+      target_folder: "People/{PersonName}/Tax Returns",
       requires_filing: true,
       retention_years: 7,
       active: true
