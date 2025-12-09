@@ -1574,6 +1574,51 @@ module Api
             nil
           end
 
+          # ============================================
+          # SSoT VIOLATION TRACKING
+          # ============================================
+          # Check for documents with wrong external_id format
+          # SSoT (Bible #16.002): external_id for attachments should be "xero:attachment:ID" NOT "xero:invoice-uuid:attachment:ID"
+          # This catches both old formats:
+          #   - xero:invoice:123:attachment:456 (old integer format)
+          #   - xero:uuid:attachment:uuid (current wrong format with invoice UUID)
+          wrong_format_count = CorporateCompanyDocument.where(source: "xero")
+                                                       .where("external_id LIKE ? OR external_id LIKE ?",
+                                                              "%:invoice:%:attachment:%",
+                                                              "xero:%:attachment:%")
+                                                       .where.not("external_id LIKE ?", "xero:attachment:%")
+                                                       .count
+
+          # Check for PDF documents missing expected_onedrive_path (should all have it after upload)
+          pdfs_missing_onedrive_path = CorporateCompanyDocument.where(source: "xero")
+                                                               .where("external_id LIKE ?", "xero:%:pdf")
+                                                               .where(documentable_type: "ExternalInvoice")
+                                                               .where(expected_onedrive_path: nil)
+                                                               .count
+
+          # Build violations array for Stage 3 display
+          stage3_violations = []
+          if wrong_format_count > 0
+            stage3_violations << {
+              type: "external_id_format",
+              count: wrong_format_count,
+              severity: "warning",
+              description: "Attachments with old external_id format (should be 'xero:attachment:ID')",
+              action_required: "Run: rails xero:fix_external_id_format"
+            }
+          end
+
+          if pdfs_missing_onedrive_path > 0 && sharepoint_pdfs_uploaded > 0
+            # Only flag as violation if we have uploads (meaning system is working)
+            stage3_violations << {
+              type: "missing_onedrive_path",
+              count: pdfs_missing_onedrive_path,
+              severity: "info",
+              description: "PDFs without OneDrive path (may be in progress)",
+              action_required: nil
+            }
+          end
+
           # Get SharePoint URL for Contacts folder
           sharepoint_contacts_url = nil
           begin
@@ -1633,7 +1678,8 @@ module Api
                 last_synced_at: last_sharepoint_sync,
                 schedule: "Uploads with PDF sync",
                 blocker: stage3_blocker,
-                sharepoint_url: sharepoint_contacts_url
+                sharepoint_url: sharepoint_contacts_url,
+                violations: stage3_violations  # SSoT: Show data quality issues
               },
 
               # Overall metrics (for backwards compatibility)
