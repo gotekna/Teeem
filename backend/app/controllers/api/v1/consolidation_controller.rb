@@ -15,7 +15,7 @@ module Api
             {
               id: group.id,
               name: group.name,
-              companies_count: group.companies.count,
+              companies_count: group.corporate_companies.count,
               latest_reconciliation: latest_report ? {
                 id: latest_report.id,
                 as_of_date: latest_report.as_of_date,
@@ -44,7 +44,7 @@ module Api
           group: {
             id: @company_group.id,
             name: @company_group.name,
-            companies: @company_group.companies.map { |c| { id: c.id, name: c.name } }
+            companies: @company_group.corporate_companies.map { |c| { id: c.id, name: c.name } }
           },
           summary: {
             as_of_date: as_of_date,
@@ -112,7 +112,7 @@ module Api
         all_mismatches = []
 
         CorporateGroup.active.includes(:companies).each do |group|
-          next if group.companies.count < 2
+          next if group.corporate_companies.count < 2
 
           service = ConsolidationReconciliationService.new(group, as_of_date: as_of_date)
           relationships = service.intercompany_relationships
