@@ -575,26 +575,25 @@ export default function XeroIntegrationPage() {
       </Tabs>
 
       {/* Xero Connections Popup */}
-      {showConnectionsPopup && (
-        <XeroConnectionsPopup
-          onClose={async () => {
-            setShowConnectionsPopup(false);
-            // Refresh company connections list
-            try {
-              const connectionsResponse = await api.get<{ success: boolean; companies: CompanyXeroConnection[] }>(
-                "/api/v1/xero/corporate_company_xero_connections"
-              );
-              setCompanyConnections(connectionsResponse.companies || []);
-            } catch (error) {
-              console.error("Failed to refresh connections:", error);
-            }
-            // Remove the connections parameter from URL
-            const params = new URLSearchParams(searchParams.toString());
-            params.delete("connections");
-            router.push(`/settings/integrations/xero?${params.toString()}`);
-          }}
-        />
-      )}
+      <XeroConnectionsPopup
+        isOpen={showConnectionsPopup}
+        onClose={async () => {
+          setShowConnectionsPopup(false);
+          // Refresh company connections list
+          try {
+            const connectionsResponse = await api.get<{ success: boolean; companies: CompanyXeroConnection[] }>(
+              "/api/v1/xero/corporate_company_xero_connections"
+            );
+            setCompanyConnections(connectionsResponse.companies || []);
+          } catch (error) {
+            console.error("Failed to refresh connections:", error);
+          }
+          // Remove the connections parameter from URL
+          const params = new URLSearchParams(searchParams.toString());
+          params.delete("connections");
+          router.push(`/settings/integrations/xero?${params.toString()}`);
+        }}
+      />
     </div>
   );
 }
