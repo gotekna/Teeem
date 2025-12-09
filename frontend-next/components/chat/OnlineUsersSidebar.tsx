@@ -64,53 +64,59 @@ export function OnlineUsersSidebar({
 
   if (compact) {
     return (
-      <div className={cn("space-y-1", className)}>
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
-          <Users className="h-4 w-4" />
-          <span>Team ({onlineCount} online)</span>
-        </div>
-        {loading ? (
-          <div className="flex items-center justify-center py-4">
-            <Loader />
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {sortedOnlineUsers.map((user) => (
-              <div
-                key={user.id}
-                className={cn(
-                  "flex items-center gap-2 p-2 rounded-lg transition-colors",
-                  onSelectUser && "cursor-pointer hover:bg-secondary",
-                  selectedUserId === user.id && "bg-secondary"
-                )}
-                onClick={() => onSelectUser?.(user)}
-                title={`${user.name} - ${user.presence_status}`}
-              >
-                <div className="relative">
-                  <Avatar className="h-6 w-6">
-                    <AvatarFallback className="text-[10px]">
-                      {user.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .substring(0, 2)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span
-                    className={cn(
-                      "absolute bottom-0 right-0 h-2 w-2 rounded-full border border-background",
-                      user.presence_status === "online" && "bg-green-500",
-                      user.presence_status === "away" && "bg-yellow-500",
-                      user.presence_status === "offline" && "bg-gray-400"
-                    )}
-                  />
+      <Card className={cn("flex flex-col h-full", className)}>
+        <CardHeader className="py-1 px-2 shrink-0">
+          <CardTitle className="text-[10px] font-medium flex items-center gap-1 text-muted-foreground">
+            <Users className="h-3 w-3" />
+            <span>Team ({onlineCount})</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0 flex-1 min-h-0">
+          <ScrollArea className="h-full">
+            <div className="px-1 pb-1 space-y-0.5">
+              {loading ? (
+                <div className="flex items-center justify-center py-2">
+                  <Loader />
                 </div>
-                <span className="text-xs truncate flex-1">{user.name}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ) : (
+                sortedOnlineUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    className={cn(
+                      "flex items-center gap-1 p-1 rounded transition-colors",
+                      onSelectUser && "cursor-pointer hover:bg-secondary",
+                      selectedUserId === user.id && "bg-secondary"
+                    )}
+                    onClick={() => onSelectUser?.(user)}
+                    title={`${user.name} - ${user.presence_status}`}
+                  >
+                    <div className="relative">
+                      <Avatar className="h-5 w-5">
+                        <AvatarFallback className="text-[8px]">
+                          {user.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .substring(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span
+                        className={cn(
+                          "absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full border border-background",
+                          user.presence_status === "online" && "bg-green-500",
+                          user.presence_status === "away" && "bg-yellow-500",
+                          user.presence_status === "offline" && "bg-gray-400"
+                        )}
+                      />
+                    </div>
+                    <span className="text-[10px] truncate flex-1">{user.name.split(' ')[0]}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
     );
   }
 

@@ -34,6 +34,7 @@ interface EntityChatProps {
   showOnlineUsers?: boolean;
   className?: string;
   maxHeight?: string;
+  fullHeight?: boolean;
 }
 
 export function EntityChat({
@@ -43,6 +44,7 @@ export function EntityChat({
   showOnlineUsers = true,
   className,
   maxHeight = "400px",
+  fullHeight = false,
 }: EntityChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,45 +138,54 @@ export function EntityChat({
   };
 
   return (
-    <div className={cn("flex gap-4", className)}>
+    <div className={cn("flex gap-2", fullHeight && "h-full", className)}>
+      {/* Online Users Sidebar - Left side like main chat */}
+      {showOnlineUsers && (
+        <div className="hidden md:block w-32 h-full">
+          <OnlineUsersSidebar onSelectUser={handleUserSelect} compact />
+        </div>
+      )}
+
       {/* Main Chat Area */}
-      <Card className="flex-1 flex flex-col">
-        <CardHeader className="pb-3 flex-row items-center justify-between">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" />
-            {entityName ? `Chat - ${entityName}` : "Internal Chat"}
+      <Card className={cn("flex-1 flex flex-col min-h-0", fullHeight && "h-full")}>
+        <CardHeader className="py-2 px-3 flex-row items-center justify-between shrink-0">
+          <CardTitle className="text-xs font-medium flex items-center gap-1">
+            <MessageSquare className="h-3 w-3" />
+            Chat
           </CardTitle>
           {showOnlineUsers && (
             <Button
               variant="ghost"
               size="sm"
+              className="h-6 w-6 p-0 md:hidden"
               onClick={() => setShowUsers(!showUsers)}
-              className="md:hidden"
             >
-              <Users className="h-4 w-4" />
+              <Users className="h-3 w-3" />
             </Button>
           )}
         </CardHeader>
-        <CardContent className="flex-1 p-0 flex flex-col" style={{ maxHeight }}>
+        <CardContent
+          className="flex-1 p-0 flex flex-col min-h-0"
+          style={fullHeight ? undefined : { maxHeight }}
+        >
           {loading ? (
-            <div className="flex items-center justify-center flex-1 py-8">
+            <div className="flex items-center justify-center flex-1 py-4">
               <Loader />
             </div>
           ) : messages.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground py-8">
+            <div className="flex-1 flex items-center justify-center text-muted-foreground py-4">
               <div className="text-center">
-                <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                <p className="text-sm">No messages yet</p>
-                <p className="text-xs">Start the conversation</p>
+                <MessageSquare className="h-6 w-6 mx-auto mb-1 opacity-20" />
+                <p className="text-xs">No messages yet</p>
               </div>
             </div>
           ) : (
-            <ScrollArea className="flex-1 px-4">
-              <div className="space-y-3 py-4">
+            <ScrollArea className="flex-1 px-3">
+              <div className="space-y-2 py-2">
                 {messages.map((message) => (
                   <div key={message.id} className="flex gap-2">
-                    <Avatar className="h-8 w-8 shrink-0">
-                      <AvatarFallback className="text-xs">
+                    <Avatar className="h-6 w-6 shrink-0">
+                      <AvatarFallback className="text-[10px]">
                         {message.user?.name
                           ?.split(" ")
                           .map((n) => n[0])
@@ -183,15 +194,15 @@ export function EntityChat({
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs font-medium">
                           {message.user?.name || "Unknown"}
                         </span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-[10px] text-muted-foreground">
                           {message.formatted_timestamp || formatTime(message.created_at)}
                         </span>
                       </div>
-                      <p className="text-sm text-foreground mt-0.5 break-words">
+                      <p className="text-xs text-foreground break-words">
                         {message.content}
                       </p>
                     </div>
@@ -203,37 +214,30 @@ export function EntityChat({
           )}
 
           {/* Message Input */}
-          <form onSubmit={handleSend} className="p-4 border-t">
-            <div className="flex items-center gap-2">
+          <form onSubmit={handleSend} className="p-2 border-t shrink-0">
+            <div className="flex items-center gap-1">
               <Input
                 placeholder="Type a message..."
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 disabled={sending}
-                className="flex-1"
+                className="flex-1 h-7 text-xs"
               />
-              <Button type="submit" size="icon" disabled={!newMessage.trim() || sending}>
-                <Send className="h-4 w-4" />
+              <Button type="submit" size="sm" className="h-7 w-7 p-0" disabled={!newMessage.trim() || sending}>
+                <Send className="h-3 w-3" />
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
 
-      {/* Online Users Sidebar - Desktop */}
-      {showOnlineUsers && (
-        <div className="hidden md:block w-48">
-          <OnlineUsersSidebar onSelectUser={handleUserSelect} compact />
-        </div>
-      )}
-
       {/* Online Users Sidebar - Mobile Overlay */}
       {showOnlineUsers && showUsers && (
         <div className="md:hidden fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
-          <div className="absolute right-0 top-0 h-full w-64 bg-background border-l p-4">
-            <div className="flex items-center justify-between mb-4">
-              <span className="font-medium">Team Members</span>
-              <Button variant="ghost" size="sm" onClick={() => setShowUsers(false)}>
+          <div className="absolute left-0 top-0 h-full w-56 bg-background border-r p-3">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium">Team</span>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setShowUsers(false)}>
                 Close
               </Button>
             </div>
@@ -242,6 +246,7 @@ export function EntityChat({
                 handleUserSelect(user);
                 setShowUsers(false);
               }}
+              compact
             />
           </div>
         </div>
