@@ -3,7 +3,7 @@
 module Api
   module V1
     class XeroAlertsController < ApplicationController
-      before_action :authenticate_user!
+      # Authentication handled by ApplicationController's authorize_request
       before_action :set_alert, only: [:dismiss]
 
       # GET /api/v1/xero/alerts
