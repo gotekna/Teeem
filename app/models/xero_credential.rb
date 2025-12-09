@@ -55,6 +55,17 @@ class XeroCredential < ApplicationRecord
     expires_at <= 5.minutes.from_now
   end
 
+  # Check if effectively connected (both token valid AND status not disconnected)
+  # This is the method to use for UI display - returns true only when actually usable
+  def effectively_connected?
+    !expired? && status != 'disconnected' && status != 'degraded'
+  end
+
+  # Check if in a degraded state (token refresh failed but not fully disconnected)
+  def degraded?
+    status == 'degraded'
+  end
+
   # Check if token needs refresh (within 15 minutes of expiry)
   def needs_refresh?
     return true if expires_at.nil?
