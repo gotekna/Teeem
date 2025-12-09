@@ -32,6 +32,7 @@ interface Company {
   id: number;
   name: string;
   company_group_id?: number;
+  entity_type?: string;
 }
 
 interface XeroConnectionsPopupProps {
@@ -143,11 +144,14 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
     organizations.flatMap(org => org.companies.map(c => c.company_id))
   );
 
-  // Show ALL companies without Xero connections
-  // No filtering by company group or consolidation
+  // Show ONLY corporate entities (entity_type = "Company" or "company") without Xero connections
   const availableCompanies = companies.filter(c => {
-    // Only exclude companies that already have a Xero connection
-    return !linkedCompanyIds.has(c.id);
+    // Only include companies that:
+    // 1. Are corporate entities (not Trust, Superfund, Person, etc.)
+    // 2. Don't already have a Xero connection
+    const isCorporateEntity = c.entity_type === "Company" || c.entity_type === "company";
+    const hasNoConnection = !linkedCompanyIds.has(c.id);
+    return isCorporateEntity && hasNoConnection;
   });
 
   return (

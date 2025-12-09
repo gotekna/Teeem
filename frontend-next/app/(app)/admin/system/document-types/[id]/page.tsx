@@ -709,7 +709,7 @@ export default function DocumentTypeDetailPage() {
         <CardContent className="space-y-4 pt-2">
           <div className="relative flex gap-6">
             {/* Left side - File Name and Display Name */}
-            <div className="flex-1 space-y-4 pr-[26rem]">
+            <div className="flex-1 space-y-4 pr-[25rem]">
               {/* Preview Company Dropdown */}
               <div className="space-y-1 mb-6">
                 <Label htmlFor="preview-company" className="text-sm text-muted-foreground">
@@ -969,8 +969,8 @@ export default function DocumentTypeDetailPage() {
             {/* End left side */}
 
             {/* Right side - Available Placeholders */}
-            <div className="absolute right-0 top-0 w-96">
-              <div className="space-y-3 p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 sticky top-0 max-h-[calc(100vh-8rem)] overflow-y-auto">
+            <div className="absolute right-0 top-0 w-[23rem]">
+              <div className="space-y-3 p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 sticky top-0 max-h-[calc(100vh-12rem)] overflow-y-auto">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <GripVertical className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -1083,7 +1083,15 @@ export default function DocumentTypeDetailPage() {
             </div>
           </div>
           {/* End flex container */}
+        </CardContent>
+      </Card>
 
+      {/* Filing & Organization */}
+      <Card>
+        <CardHeader className="pb-2 pt-4">
+          <CardTitle className="text-base">Filing & Organization</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-2">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="folder">Folder</Label>
