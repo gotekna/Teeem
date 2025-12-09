@@ -137,7 +137,7 @@ class CorporateCompany < ApplicationRecord
   end
 
   def has_xero_connection?
-    company_xero_connection.present? && company_xero_connection.connection_status == "connected"
+    corporate_company_xero_connection.present? && corporate_company_xero_connection.connection_status == "connected"
   end
 
   # SharePoint folder URL for this company's root folder in 00 TEEEM PRIVATE
