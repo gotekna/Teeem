@@ -7,7 +7,7 @@ class DocumentSplitService
 
   def initialize(document)
     @document = document
-    @company = document.company
+    @company = document.corporate_company
   end
 
   # Split a document into multiple new documents
