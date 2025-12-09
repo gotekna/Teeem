@@ -284,7 +284,7 @@ export default function XeroIntegrationPage() {
 
         {/* Connection Tab */}
         <TabsContent value="connection" className="space-y-6">
-          {/* Status Card */}
+          {/* Simplified Status Card with Action Buttons */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -317,89 +317,30 @@ export default function XeroIntegrationPage() {
                 )}
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent>
               {status?.connected ? (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground">Organization</p>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">
-                          {tenants.find(t => t.is_primary)?.tenant_name || status.tenant_name || status.organization_name || "Unknown"}
-                        </p>
-                        {tenants.find(t => t.is_primary) && (
-                          <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100 text-xs">
-                            Primary
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground">Connected</p>
-                      <p className="font-medium">
-                        {tenants.find(t => t.is_primary)?.connected_at
-                          ? new Date(tenants.find(t => t.is_primary)!.connected_at).toLocaleDateString("en-AU", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "Unknown"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground">Token Expires</p>
-                      <p className="font-medium">
-                        {(() => {
-                          const primaryTenant = tenants.find(t => t.is_primary);
-                          const expiresAt = primaryTenant?.expires_at || status.expires_at;
-                          if (!expiresAt) return "Unknown";
-                          return new Date(expiresAt).toLocaleDateString("en-AU", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          });
-                        })()}
-                      </p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground">Status</p>
-                      <p className="font-medium">
-                        {(tenants.find(t => t.is_primary)?.expired || status.expired) ? (
-                          <span className="text-red-600">Expired - Reconnect Required</span>
-                        ) : (
-                          <span className="text-green-600">Active</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button onClick={() => setShowConnectionsPopup(true)}>
-                      <Link2 className="h-4 w-4 mr-2" />
-                      Manage Company Connections
-                    </Button>
-                    <Button variant="outline" onClick={handleConnect} disabled={connecting}>
-                      <RefreshCw className={`h-4 w-4 mr-2 ${connecting ? "animate-spin" : ""}`} />
-                      Reconnect
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={handleDisconnect}
-                      disabled={disconnecting}
-                    >
-                      {disconnecting ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <XCircle className="h-4 w-4 mr-2" />
-                      )}
-                      Disconnect
-                    </Button>
-                  </div>
-                </>
+                <div className="flex items-center gap-2">
+                  <Button onClick={() => setShowConnectionsPopup(true)}>
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Manage Company Connections
+                  </Button>
+                  <Button variant="outline" onClick={handleConnect} disabled={connecting}>
+                    <RefreshCw className={`h-4 w-4 mr-2 ${connecting ? "animate-spin" : ""}`} />
+                    Reconnect
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDisconnect}
+                    disabled={disconnecting}
+                  >
+                    {disconnecting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <XCircle className="h-4 w-4 mr-2" />
+                    )}
+                    Disconnect
+                  </Button>
+                </div>
               ) : (
                 <>
                   <Alert>
@@ -409,8 +350,7 @@ export default function XeroIntegrationPage() {
                       Connect your Xero account to sync invoices, expenses, and financial data.
                     </AlertDescription>
                   </Alert>
-
-                  <Button onClick={handleConnect} disabled={connecting}>
+                  <Button onClick={handleConnect} disabled={connecting} className="mt-4">
                     {connecting ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     ) : (
