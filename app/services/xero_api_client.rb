@@ -78,6 +78,10 @@ class XeroApiClient
           tenant_type: tenant["tenantType"]
         )
         credential.save!
+
+        # SSoT: Reset status to connected after successful OAuth (fixes degraded state)
+        credential.reconnect!
+
         credentials_created << credential
 
         Rails.logger.info("Xero OAuth successful: #{tenant['tenantName']} (#{tenant['tenantId']})")
