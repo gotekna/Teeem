@@ -64,7 +64,7 @@ const BASE_PLACEHOLDERS: { company: PlaceholderItem[]; job: PlaceholderItem[] } 
     { code: "{Description}", example: "Example", color: "purple" },
     { code: "{Folder}", example: "ATO", color: "purple" },
     { code: "{BankCode}", example: "NAB", color: "purple" },
-    { code: "{BankBSB}", example: "082-123", color: "purple" },
+    { code: "{BSB}", example: "082-123", color: "purple" },
     { code: "{BankNumber}", example: "12345678", color: "purple" },
   ],
   job: [
@@ -543,7 +543,7 @@ export default function DocumentTypeDetailPage() {
     preview = preview.replace(/\{Description\}/g, "Example");
     preview = preview.replace(/\{BankCode\}/g, "NAB");
     preview = preview.replace(/\{BankName\}/g, "National Australia Bank");
-    preview = preview.replace(/\{BankBSB\}/g, "082-123");
+    preview = preview.replace(/\{BSB\}/g, "082-123");
     preview = preview.replace(/\{BankNumber\}/g, "12345678");
     preview = preview.replace(/\{AccountNum\}/g, "12345678");
 
