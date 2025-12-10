@@ -96,7 +96,9 @@ class Contact < ApplicationRecord
   has_one :company_record, class_name: "CorporateCompany", foreign_key: "contact_id", dependent: :nullify
 
   # Encrypted TFN for directors
-  encrypts :tfn, deterministic: true
+  # NOTE: tfn column was removed in migration 20251210093313
+  # TFN is now stored in CorporateCompany.tfn instead
+  # encrypts :tfn, deterministic: true
 
   # Constants
   ROLES = %w[Employee sales land_agent Director Company_Secretary Public_Officer CEO GM Owner].freeze
