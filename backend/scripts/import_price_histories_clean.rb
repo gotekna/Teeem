@@ -103,7 +103,7 @@ class PriceHistoriesImporter
     # Lookup supplier (allow nil)
     supplier_id = nil
     if supplier_name.present?
-      supplier = Contact.find_by(name: supplier_name)
+      supplier = Contact.find_by(display_name: supplier_name)
       if supplier
         supplier_id = supplier.id
       else
