@@ -21,6 +21,9 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     Rails.logger.info "[SyncToSharePoint] Starting sync for #{@credential.name}"
 
+    # Capture timestamp BEFORE email sync to identify truly new/updated emails
+    @sync_started_at = Time.current
+
     # Step 1: Sync emails to EmailWarehouse (use 'full' to respect sync_days config)
     Rails.logger.info "[SyncToSharePoint] Step 1: Syncing emails to warehouse..."
     email_result = OrgEmailSyncJob.perform_now("full", org_name: @credential.name)
@@ -70,16 +73,16 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     # Find emails with attachments from this org's mailboxes (both sent and received)
     # Use mailbox_owner_email to find emails that belong to this org
-    # Only process recently synced emails (last_synced_at within 1 hour) to avoid stale Outlook IDs
+    # Only process emails synced DURING this job run (after @sync_started_at) to ensure fresh Outlook IDs
     emails_with_attachments = EmailWarehouse
       .where(microsoft_credential_id: @credential.id)
       .where(has_attachments: true)
       .where.not(mailbox_owner_email: nil)  # Only emails with mailbox owner tracked
-      .where("last_synced_at >= ?", 1.hour.ago) # Only recently synced emails (fresh Outlook IDs)
+      .where("last_synced_at >= ?", @sync_started_at) # Only emails synced during THIS job run
       .order(received_at: :desc)
       .limit(100) # Limit for performance
 
-    Rails.logger.info "[SyncToSharePoint] Found #{emails_with_attachments.count} emails with attachments"
+    Rails.logger.info "[SyncToSharePoint] Found #{emails_with_attachments.count} emails with attachments (synced after #{@sync_started_at})"
 
     client = MicrosoftAppGraphClient.new(@credential)
 
@@ -237,16 +240,16 @@ class SyncEmailsToSharePointJob < ApplicationJob
     end
 
     # Get emails from this org that haven't been uploaded yet
-    # Only process recently synced emails (last_synced_at within 1 hour) to avoid stale Outlook IDs
+    # Only process emails synced DURING this job run (after @sync_started_at) to ensure fresh Outlook IDs
     emails_to_upload = EmailWarehouse
       .where(microsoft_credential_id: @credential.id)
       .where(sharepoint_email_file_id: nil)  # Not yet uploaded
       .where.not(mailbox_owner_email: nil)   # Only emails with mailbox owner tracked
-      .where("last_synced_at >= ?", 1.hour.ago) # Only recently synced emails (fresh Outlook IDs)
+      .where("last_synced_at >= ?", @sync_started_at) # Only emails synced during THIS job run
       .order(received_at: :desc)
       .limit(100)  # Limit for performance
 
-    Rails.logger.info "[SyncEmailsToSharePoint] Found #{emails_to_upload.count} emails to upload"
+    Rails.logger.info "[SyncEmailsToSharePoint] Found #{emails_to_upload.count} emails to upload (synced after #{@sync_started_at})"
 
     return { uploaded: 0, skipped: 0 } if emails_to_upload.empty?
 
