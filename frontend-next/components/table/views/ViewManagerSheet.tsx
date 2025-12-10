@@ -130,6 +130,7 @@ export function ViewManagerSheet({
   onApplyView,
   onAutoFitChange,
   onShowTotalsChange,
+  onRefresh,
   rows,
 }: ViewManagerSheetProps) {
   const { toast } = useToast();
@@ -429,6 +430,9 @@ export function ViewManagerSheet({
         // Apply the view state immediately using captured state
         // This ensures display type changes take effect immediately
         onApplyView?.(savedView);
+
+        // Trigger data refresh to apply new filters/sorting/etc
+        onRefresh?.();
 
         onViewsChange?.();
       } else {
