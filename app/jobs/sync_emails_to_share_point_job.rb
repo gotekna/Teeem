@@ -26,9 +26,9 @@ class SyncEmailsToSharePointJob < ApplicationJob
     email_result = OrgEmailSyncJob.perform_now("full", org_name: @credential.name)
     Rails.logger.info "[SyncToSharePoint] Synced #{email_result[:total_synced]} emails"
 
-    # Wait for Microsoft API rate limits to reset after heavy Step 1 usage
-    Rails.logger.info "[SyncToSharePoint] Waiting 5 seconds for API rate limits..."
-    sleep(5)
+    # Reload credential from database to ensure fresh state after Step 1
+    # Step 1 creates its own credential instance which may update the DB
+    @credential.reload
 
     # Step 2: Upload attachments to SharePoint
     Rails.logger.info "[SyncToSharePoint] Step 2: Uploading attachments to SharePoint..."
