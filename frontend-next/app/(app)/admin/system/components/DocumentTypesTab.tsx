@@ -313,7 +313,6 @@ export function DocumentTypesTab() {
             <SelectItem value="company">Company</SelectItem>
             <SelectItem value="job">Job</SelectItem>
             <SelectItem value="people">People</SelectItem>
-            <SelectItem value="xero">Xero</SelectItem>
             <SelectItem value="both">Both</SelectItem>
           </SelectContent>
         </Select>
