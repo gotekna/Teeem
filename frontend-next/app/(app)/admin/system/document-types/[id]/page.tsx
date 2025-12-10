@@ -718,7 +718,7 @@ export default function DocumentTypeDetailPage() {
       {/* Header - Fixed at top */}
       <div className="flex items-start justify-between p-2 shrink-0">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/admin/system?tab=document-types")}>
+          <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           {/* Previous/Next navigation - filtered by scope */}
