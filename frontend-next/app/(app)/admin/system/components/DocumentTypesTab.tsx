@@ -264,16 +264,36 @@ export function DocumentTypesTab() {
   const customCellRenderer = (entry: DocumentType, columnKey: string) => {
     if (columnKey === "scope") {
       const value = entry.scope || "company";
-      const scopeConfig = {
-        company: { label: "Company", className: "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
-        job: { label: "Job", className: "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
-        both: { label: "Both", className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" }
-      };
-      const config = scopeConfig[value as keyof typeof scopeConfig] || scopeConfig.company;
       return (
-        <Badge variant="outline" className={cn("text-xs", config.className)}>
-          {config.label}
-        </Badge>
+        <Select
+          value={value}
+          onValueChange={async (newScope) => {
+            try {
+              await handleRowUpdate(entry.id!, "scope", newScope);
+              toast({
+                title: "Scope updated",
+                description: `Moved to ${newScope} tab`,
+              });
+            } catch (error) {
+              toast({
+                title: "Error",
+                description: "Failed to update scope",
+                variant: "destructive",
+              });
+            }
+          }}
+        >
+          <SelectTrigger className="h-7 w-28 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="company">Company</SelectItem>
+            <SelectItem value="job">Job</SelectItem>
+            <SelectItem value="people">People</SelectItem>
+            <SelectItem value="xero">Xero</SelectItem>
+            <SelectItem value="both">Both</SelectItem>
+          </SelectContent>
+        </Select>
       );
     }
     if (columnKey === "file_extensions_display") {

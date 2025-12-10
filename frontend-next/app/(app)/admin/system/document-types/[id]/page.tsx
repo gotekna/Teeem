@@ -34,6 +34,8 @@ const FOLDER_OPTIONS = [
 const SCOPE_OPTIONS = [
   { value: "company", label: "Company", description: "Corporate documents" },
   { value: "job", label: "Job", description: "Construction/job documents" },
+  { value: "people", label: "People", description: "Personal/contact documents" },
+  { value: "xero", label: "Xero", description: "Xero financial reports" },
   { value: "both", label: "Both", description: "Used for both" }
 ];
 

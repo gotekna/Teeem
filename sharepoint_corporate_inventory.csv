@@ -1,0 +1,9 @@
+`enable_tracing` is now deprecated in favor of `traces_sample_rate = 1.0`.
+
+Please add the 'stackprof' gem to your Gemfile to use the StackProf profiler with Sentry.
+
+================================================================================
+SHAREPOINT CORPORATE FOLDER INVENTORY
+================================================================================
+
+📁 Scanning SharePoint Corporate folder...
