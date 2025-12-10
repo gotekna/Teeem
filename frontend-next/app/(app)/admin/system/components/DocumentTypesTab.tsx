@@ -55,7 +55,7 @@ interface DocumentType extends TableRow {
 export function DocumentTypesTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const scopeFilter = (searchParams.get("scope") as "company" | "job" | "people" | "xero" | "all") || "all";
+  const scopeFilter = (searchParams.get("scope") as "company" | "job" | "people" | "all") || "all";
 
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
@@ -67,8 +67,7 @@ export function DocumentTypesTab() {
   const [baseFolders, setBaseFolders] = React.useState({
     company: "/Corporate/{{CompanyCode}}/{{Folder}}",
     job: "/Jobs/{{JobCode}}/{{Category}}",
-    people: "/Contacts/{{ContactName}}",
-    xero: "/Corporate/XERO Auto"
+    people: "/Contacts/{{ContactName}}"
   });
   const [newDocType, setNewDocType] = React.useState({
     name: "",
@@ -82,15 +81,6 @@ export function DocumentTypesTab() {
   // Filter document types by scope
   const filteredDocTypes = React.useMemo(() => {
     if (scopeFilter === "all") return documentTypes;
-    if (scopeFilter === "xero") {
-      // Filter for Xero auto-generated document types (Xero + Bank statements)
-      return documentTypes.filter(dt => {
-        const searchText = `${dt.name} ${dt.display_name} ${dt.abbreviation}`.toLowerCase();
-        return searchText.includes("xero") ||
-               searchText.includes("bank") ||
-               searchText.includes("statement");
-      });
-    }
     return documentTypes.filter(dt => dt.scope === scopeFilter || dt.scope === "both");
   }, [documentTypes, scopeFilter]);
 
@@ -144,7 +134,7 @@ export function DocumentTypesTab() {
   const loadSharePointPathTemplates = async () => {
     try {
       console.log("Loading SharePoint path templates from backend...");
-      const response = await api.get<{ templates: { company: string; job: string; people: string; xero: string } }>(
+      const response = await api.get<{ templates: { company: string; job: string; people: string } }>(
         "/api/v1/system_settings/sharepoint_path_templates"
       );
       console.log("Received templates from backend:", response.templates);
@@ -395,14 +385,6 @@ export function DocumentTypesTab() {
             <Users className="h-4 w-4" />
             People ({documentTypes.filter(dt => dt.scope === "people").length})
           </TabsTrigger>
-          <TabsTrigger value="xero" className="gap-2">
-            💼 XERO Auto ({documentTypes.filter(dt => {
-              const searchText = `${dt.name} ${dt.display_name} ${dt.abbreviation}`.toLowerCase();
-              return searchText.includes("xero") ||
-                     searchText.includes("bank") ||
-                     searchText.includes("statement");
-            }).length})
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value={scopeFilter} className="mt-6 space-y-6">
@@ -497,26 +479,6 @@ export function DocumentTypesTab() {
                       Browse
                     </Button>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                      💼 XERO Auto
-                    </Badge>
-                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
-                      {baseFolders.xero}
-                    </code>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => {
-                        setShowFolderConfig(true);
-                        handleScopeChange("xero");
-                      }}
-                    >
-                      <FolderOpen className="h-3 w-3 mr-1" />
-                      Browse
-                    </Button>
-                  </div>
                 </>
               ) : scopeFilter === "company" ? (
                 <div className="flex items-center gap-2 text-sm">
@@ -545,24 +507,6 @@ export function DocumentTypesTab() {
                   </Badge>
                   <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
                     {baseFolders.job}
-                  </code>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setShowFolderConfig(true)}
-                  >
-                    <FolderOpen className="h-3 w-3 mr-1" />
-                    Browse
-                  </Button>
-                </div>
-              ) : scopeFilter === "xero" ? (
-                <div className="flex items-center gap-2 text-sm">
-                  <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                    💼 XERO Auto
-                  </Badge>
-                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
-                    {baseFolders.xero}
                   </code>
                   <Button
                     variant="outline"
@@ -743,90 +687,6 @@ export function DocumentTypesTab() {
                     onChange={(e) => setBaseFolders(prev => ({ ...prev, job: e.target.value }))}
                     className="text-xs font-mono"
                     placeholder="/Jobs/{{JobCode}}/{{Category}}"
-                  />
-                  <div className="flex gap-2 justify-end pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowFolderConfig(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={saveSharePointPathTemplates}
-                      disabled={saving}
-                    >
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Done
-                    </Button>
-                  </div>
-                </div>
-              ) : scopeFilter === "xero" ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                      💼 XERO Auto Base Folder
-                    </Badge>
-                  </div>
-                  <SharePointFolderBrowser
-                    onSelect={(folder, path) => {
-                      setBaseFolders(prev => ({ ...prev, xero: path || "/Corporate/XERO Auto" }));
-                    }}
-                    rootFolder=""
-                  />
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">Available Placeholders (click to insert)</label>
-                    <div className="flex flex-wrap gap-1">
-                      <Badge
-                        variant="outline"
-                        className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                        onClick={() => {
-                          const input = document.querySelector('input[value="' + baseFolders.xero + '"]') as HTMLInputElement;
-                          if (input) {
-                            const cursorPos = input.selectionStart || baseFolders.xero.length;
-                            const newValue = baseFolders.xero.slice(0, cursorPos) + '{{CompanyGroup}}' + baseFolders.xero.slice(cursorPos);
-                            setBaseFolders(prev => ({ ...prev, xero: newValue }));
-                          }
-                        }}
-                      >
-                        {'{{CompanyGroup}}'} <span className="ml-1 text-xs opacity-60">e.g., "Tekna Group"</span>
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                        onClick={() => {
-                          const input = document.querySelector('input[value="' + baseFolders.xero + '"]') as HTMLInputElement;
-                          if (input) {
-                            const cursorPos = input.selectionStart || baseFolders.xero.length;
-                            const newValue = baseFolders.xero.slice(0, cursorPos) + '{{CompanyCode}}' + baseFolders.xero.slice(cursorPos);
-                            setBaseFolders(prev => ({ ...prev, xero: newValue }));
-                          }
-                        }}
-                      >
-                        {'{{CompanyCode}}'} <span className="ml-1 text-xs opacity-60">e.g., "ABC123"</span>
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                        onClick={() => {
-                          const input = document.querySelector('input[value="' + baseFolders.xero + '"]') as HTMLInputElement;
-                          if (input) {
-                            const cursorPos = input.selectionStart || baseFolders.xero.length;
-                            const newValue = baseFolders.xero.slice(0, cursorPos) + '{{Folder}}' + baseFolders.xero.slice(cursorPos);
-                            setBaseFolders(prev => ({ ...prev, xero: newValue }));
-                          }
-                        }}
-                      >
-                        {'{{Folder}}'} <span className="ml-1 text-xs opacity-60">e.g., "Invoices"</span>
-                      </Badge>
-                    </div>
-                  </div>
-                  <Input
-                    value={baseFolders.xero}
-                    onChange={(e) => setBaseFolders(prev => ({ ...prev, xero: e.target.value }))}
-                    className="text-xs font-mono"
-                    placeholder="/Corporate/XERO Auto"
                   />
                   <div className="flex gap-2 justify-end pt-2">
                     <Button
