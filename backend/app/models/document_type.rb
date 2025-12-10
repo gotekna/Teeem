@@ -2,6 +2,37 @@ class DocumentType < ApplicationRecord
   # Associations
   has_many :corporate_company_documents, dependent: :nullify
   has_many :job_documents, dependent: :nullify
+  has_many :document_type_folders, dependent: :destroy
+  has_many :folders, through: :document_type_folders, source: :document_folder
+
+  # Get folder names for display (backwards compatible with old tabs array)
+  def folder_names
+    folders.pluck(:name)
+  end
+
+  # Get the primary folder
+  def primary_folder
+    document_type_folders.find_by(is_primary: true)&.document_folder
+  end
+
+  # Set folders by IDs (replaces existing assignments)
+  def folder_ids=(ids)
+    ids = Array(ids).map(&:to_i).reject(&:zero?)
+    existing_ids = document_type_folders.pluck(:document_folder_id)
+
+    # Remove old assignments
+    document_type_folders.where.not(document_folder_id: ids).destroy_all
+
+    # Add new assignments
+    (ids - existing_ids).each do |folder_id|
+      document_type_folders.create(document_folder_id: folder_id)
+    end
+  end
+
+  # Get folder IDs
+  def folder_ids
+    document_type_folders.pluck(:document_folder_id)
+  end
 
   # Callbacks - clear CorporateCompanyDocument abbreviation cache when document types change
   after_save :clear_abbreviation_cache

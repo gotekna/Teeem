@@ -33,12 +33,31 @@ import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-brows
 // Foundation ID for document_types table
 const DOCUMENT_TYPES_FOUNDATION_ID = 454;
 
-// Available folders/tabs
+// Fallback folder options (used if API fails)
 const FOLDER_OPTIONS = [
   "ADVICE", "ASIC", "ASSETS", "ATO", "BANK", "COMPANY",
   "DIVIDENDS", "FINANCIALS", "GENERAL", "INSURANCE",
   "LOANS", "MINUTES", "REGISTRY", "TRUST"
 ];
+
+interface FolderOption {
+  id: number;
+  name: string;
+  label: string;
+  description?: string;
+  parent_id?: number | null;
+  parent_name?: string;
+  entity_types?: string[];
+  children?: FolderOption[];
+}
+
+interface DocumentTypeFolder {
+  id: number;
+  name: string;
+  is_primary: boolean;
+  parent_id?: number | null;
+  parent_name?: string;
+}
 
 interface DocumentType extends TableRow {
   abbreviation?: string;
@@ -50,6 +69,11 @@ interface DocumentType extends TableRow {
   folder?: string;
   tabs?: string[];
   tabs_display?: string;
+  // New folder lookup fields
+  folder_ids?: number[];
+  folders?: DocumentTypeFolder[];
+  primary_folder_id?: number;
+  primary_folder_name?: string;
   active?: boolean;
   documents_count?: number;
   scope?: string;
@@ -61,26 +85,41 @@ interface DocumentType extends TableRow {
 // Separate component for tabs display with popover - MUST be outside DocumentTypesTab to avoid hook violations
 function TabsDisplayCell({
   entry,
+  availableFolders,
   onUpdate,
   onToast
 }: {
   entry: DocumentType;
+  availableFolders: FolderOption[];
   onUpdate: (id: string, field: string, value: any) => Promise<void>;
   onToast: (toast: { title: string; description: string; variant?: "destructive" }) => void;
 }) {
-  const tabs = entry.tabs || [];
+  const folderIds = entry.folder_ids || [];
+  const folders = entry.folders || [];
   const [open, setOpen] = React.useState(false);
 
-  const toggleFolder = async (folder: string) => {
-    const newTabs = tabs.includes(folder)
-      ? tabs.filter(t => t !== folder)
-      : [...tabs, folder];
+  // Flatten folders for easier lookup
+  const flatFolders = React.useMemo(() => {
+    const result: FolderOption[] = [];
+    availableFolders.forEach(f => {
+      result.push(f);
+      if (f.children) {
+        f.children.forEach(c => result.push({ ...c, parent_name: f.name }));
+      }
+    });
+    return result;
+  }, [availableFolders]);
+
+  const toggleFolder = async (folderId: number, folderName: string) => {
+    const newFolderIds = folderIds.includes(folderId)
+      ? folderIds.filter(id => id !== folderId)
+      : [...folderIds, folderId];
 
     try {
-      await onUpdate(String(entry.id!), "tabs", newTabs);
+      await onUpdate(String(entry.id!), "folder_ids", newFolderIds);
       onToast({
         title: "Folders updated",
-        description: `${folder} ${tabs.includes(folder) ? 'removed' : 'added'}`,
+        description: `${folderName} ${folderIds.includes(folderId) ? 'removed' : 'added'}`,
       });
     } catch (error) {
       onToast({
@@ -99,58 +138,91 @@ function TabsDisplayCell({
           size="sm"
           className="h-7 px-2 text-xs justify-start"
         >
-          {tabs.length === 0 ? (
+          {folders.length === 0 ? (
             <span className="text-muted-foreground">Select folders...</span>
           ) : (
             <div className="flex flex-wrap gap-1">
-              {tabs.slice(0, 2).map(tab => (
+              {folders.slice(0, 2).map(f => (
                 <Badge
-                  key={tab}
-                  variant="secondary"
-                  className="text-xs"
+                  key={f.id}
+                  variant={f.is_primary ? "default" : "secondary"}
+                  className={cn("text-xs", f.is_primary && "ring-1 ring-blue-500")}
                 >
-                  {tab}
+                  {f.parent_name ? `${f.parent_name} > ${f.name}` : f.name}
                 </Badge>
               ))}
-              {tabs.length > 2 && (
+              {folders.length > 2 && (
                 <Badge variant="secondary" className="text-xs">
-                  +{tabs.length - 2}
+                  +{folders.length - 2}
                 </Badge>
               )}
             </div>
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-3" align="start">
-        <div className="space-y-2">
+      <PopoverContent className="w-96 p-3 max-h-80 overflow-y-auto" align="start">
+        <div className="space-y-3">
           <p className="text-sm font-medium">Select Folders</p>
-          <div className="grid grid-cols-2 gap-2">
-            {FOLDER_OPTIONS.map(folder => {
-              const isSelected = tabs.includes(folder);
-              const isPrimary = entry.primary_tab === folder;
-              return (
+          {availableFolders.map(parentFolder => {
+            const isSelected = folderIds.includes(parentFolder.id);
+            const isPrimary = entry.primary_folder_id === parentFolder.id;
+            const children = parentFolder.children || [];
+
+            return (
+              <div key={parentFolder.id} className="space-y-1">
+                {/* Parent folder */}
                 <div
-                  key={folder}
                   className={cn(
                     "flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors text-xs",
                     isSelected && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700",
                     isPrimary && "ring-1 ring-blue-500",
                     !isSelected && "hover:bg-muted"
                   )}
-                  onClick={() => toggleFolder(folder)}
+                  onClick={() => toggleFolder(parentFolder.id, parentFolder.name)}
                 >
                   <Checkbox
                     checked={isSelected}
-                    onCheckedChange={() => toggleFolder(folder)}
+                    onCheckedChange={() => toggleFolder(parentFolder.id, parentFolder.name)}
                   />
                   <span className="font-medium">
-                    {folder}
+                    {parentFolder.name}
                     {isPrimary && <span className="ml-1 text-blue-600">★</span>}
                   </span>
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Child folders (sub-tabs) */}
+                {children.length > 0 && (
+                  <div className="ml-4 space-y-1">
+                    {children.map(child => {
+                      const childSelected = folderIds.includes(child.id);
+                      const childPrimary = entry.primary_folder_id === child.id;
+                      return (
+                        <div
+                          key={child.id}
+                          className={cn(
+                            "flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors text-xs",
+                            childSelected && "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700",
+                            childPrimary && "ring-1 ring-green-500",
+                            !childSelected && "hover:bg-muted"
+                          )}
+                          onClick={() => toggleFolder(child.id, `${parentFolder.name} > ${child.name}`)}
+                        >
+                          <Checkbox
+                            checked={childSelected}
+                            onCheckedChange={() => toggleFolder(child.id, `${parentFolder.name} > ${child.name}`)}
+                          />
+                          <span className="font-medium text-muted-foreground">
+                            └ {child.name}
+                            {childPrimary && <span className="ml-1 text-green-600">★</span>}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </PopoverContent>
     </Popover>
@@ -182,6 +254,7 @@ export function DocumentTypesTab() {
     primary_tab: "GENERAL",
     active: true
   });
+  const [availableFolders, setAvailableFolders] = React.useState<FolderOption[]>([]);
 
   // Filter document types by scope
   const filteredDocTypes = React.useMemo(() => {
@@ -200,7 +273,21 @@ export function DocumentTypesTab() {
     fetchColumns();
     loadData();
     loadSharePointPathTemplates();
+    loadAvailableFolders();
   }, []);
+
+  const loadAvailableFolders = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: FolderOption[] }>(
+        "/api/v1/document_folders?hierarchy=true&active=true"
+      );
+      if (response.success && response.data) {
+        setAvailableFolders(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to load available folders:", error);
+    }
+  };
 
   const fetchColumns = async () => {
     try {
@@ -243,7 +330,10 @@ export function DocumentTypesTab() {
       // Transform for table display
       const transformed = types.map(dt => ({
         ...dt,
-        tabs_display: dt.tabs?.join(", ") || "",
+        // Use folders from join table if available, fallback to legacy tabs
+        tabs_display: dt.folders?.length
+          ? dt.folders.map(f => f.parent_name ? `${f.parent_name} > ${f.name}` : f.name).join(", ")
+          : dt.tabs?.join(", ") || "",
         file_extensions_display: dt.file_extensions?.join(", ") || ""
       }));
       setDocumentTypes(transformed);
@@ -439,7 +529,7 @@ export function DocumentTypesTab() {
       );
     }
     if (columnKey === "tabs_display") {
-      return <TabsDisplayCell entry={entry} onUpdate={handleRowUpdate} onToast={toast} />;
+      return <TabsDisplayCell entry={entry} availableFolders={availableFolders} onUpdate={handleRowUpdate} onToast={toast} />;
     }
     if (columnKey === "primary_tab" || columnKey === "folder") {
       const value = entry[columnKey as keyof DocumentType] as string | undefined;
