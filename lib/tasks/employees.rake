@@ -90,7 +90,61 @@ namespace :employees do
     end
 
     puts ""
-    puts "STEP 2: Match by primary_company_id field (legacy data recovery)..."
+    puts "STEP 2: Match by company name extracted from email domain..."
+    puts ""
+
+    # Extract company name from email domain and fuzzy match to company names
+    company_name_created = 0
+    company_name_skipped = 0
+
+    persons_with_emails.find_each do |person|
+      email = person.email.to_s.downcase.strip
+      next if email.blank?
+
+      # Extract domain and company name from email
+      domain = email.split('@').last
+      next unless domain
+
+      # Extract company name from domain (e.g., "bunnings.com.au" → "bunnings")
+      company_name_from_domain = domain.split('.').first
+      next if company_name_from_domain.blank? || company_name_from_domain.length < 3
+
+      # Find companies with similar names (case-insensitive partial match)
+      matching_companies = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
+        .where('display_name ILIKE ?', "%#{company_name_from_domain}%")
+
+      matching_companies.each do |company|
+        # Skip if this domain is already in the company's email_domains (already handled in STEP 1)
+        next if company.email_domains.include?(domain)
+
+        # Check if relationship already exists
+        existing = ContactRelationship.find_by(
+          source_contact_id: person.id,
+          related_contact_id: company.id,
+          relationship_type: 'employee_of'
+        )
+
+        if existing
+          company_name_skipped += 1
+          next
+        end
+
+        # Create employee_of relationship
+        ContactRelationship.create!(
+          source_contact_id: person.id,
+          related_contact_id: company.id,
+          relationship_type: 'employee_of',
+          is_active: true,
+          notes: "Auto-created from email company name match (#{company_name_from_domain} in #{domain})"
+        )
+
+        company_name_created += 1
+        puts "✅ NAME: #{person.display_name} (#{email}) → #{company.display_name}"
+      end
+    end
+
+    puts ""
+    puts "STEP 3: Match by primary_company_id field (legacy data recovery)..."
     puts ""
 
     # Find all persons with primary_company_id set
@@ -133,15 +187,19 @@ namespace :employees do
     puts "=" * 80
     puts "RESULTS"
     puts "=" * 80
-    puts "Email domain matches:"
+    puts "Email domain matches (exact):"
     puts "  Created:    #{email_created}"
     puts "  Skipped:    #{email_skipped} (already existed)"
     puts ""
-    puts "Primary company matches:"
+    puts "Company name matches (from email):"
+    puts "  Created:    #{company_name_created}"
+    puts "  Skipped:    #{company_name_skipped} (already existed)"
+    puts ""
+    puts "Primary company matches (legacy field):"
     puts "  Created:    #{primary_company_created}"
     puts "  Skipped:    #{primary_company_skipped} (already existed)"
     puts ""
-    puts "TOTAL CREATED: #{email_created + primary_company_created}"
+    puts "TOTAL CREATED: #{email_created + company_name_created + primary_company_created}"
     puts ""
     puts "✅ Done! Employee relationships have been created."
     puts "   The primary_company_id field will auto-sync from these relationships."
