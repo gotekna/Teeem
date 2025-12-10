@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { apiClient } from '@/lib/api-client'
+import { api } from '@/lib/api'
 
 interface PriceHistory {
   id: number
@@ -37,7 +37,7 @@ export default function PriceHistoriesPage() {
   const fetchPriceHistories = async () => {
     try {
       setLoading(true)
-      const response = await apiClient.get('/pricebook/all_price_histories')
+      const response = await api.get('/pricebook/all_price_histories')
       if (response.data.success) {
         setHistories(response.data.data)
         setTotalCount(response.data.total_count || response.data.data.length)
