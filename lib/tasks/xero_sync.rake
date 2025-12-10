@@ -435,4 +435,72 @@ namespace :xero do
     puts ""
     puts "Total synced (including previous runs): #{already_synced + pdf_count}"
   end
+
+  desc "Backfill upload: Upload downloaded PDFs that are missing from SharePoint"
+  task backfill_sharepoint_uploads: :environment do
+    dry_run = ENV["DRY_RUN"] == "true"
+    limit = ENV["LIMIT"]&.to_i
+
+    puts "=" * 70
+    puts "BACKFILL SHAREPOINT UPLOADS"
+    puts "=" * 70
+    puts ""
+    puts "This uploads Xero documents that were downloaded before SharePoint"
+    puts "integration was working."
+    puts ""
+    puts "Mode: #{dry_run ? 'DRY RUN (no actual uploads)' : 'LIVE'}"
+    puts "Limit: #{limit || 'None (all documents)'}"
+    puts ""
+
+    # Show current status first
+    total_xero_docs = CorporateCompanyDocument.where(source: "xero").count
+    with_sharepoint = CorporateCompanyDocument.where(source: "xero").where.not(onedrive_file_id: nil).count
+    without_sharepoint = CorporateCompanyDocument.where(source: "xero").where(onedrive_file_id: nil).count
+
+    # Count how many have attached files (need to check in Ruby)
+    docs_needing_upload = CorporateCompanyDocument
+      .where(source: "xero")
+      .where(onedrive_file_id: nil)
+      .select { |d| d.file.attached? }
+      .count
+
+    puts "Current Status:"
+    puts "  Total Xero documents:     #{total_xero_docs}"
+    puts "  Already on SharePoint:    #{with_sharepoint}"
+    puts "  Missing from SharePoint:  #{without_sharepoint}"
+    puts "  With attached files:      #{docs_needing_upload} (uploadable)"
+    puts ""
+
+    if docs_needing_upload == 0
+      puts "✓ All documents already uploaded to SharePoint!"
+      exit 0
+    end
+
+    puts "Starting backfill job..."
+    puts ""
+
+    stats = XeroSharepointUploadBackfillJob.perform_now(limit: limit, dry_run: dry_run)
+
+    puts ""
+    puts "=" * 70
+    puts "BACKFILL COMPLETE"
+    puts "=" * 70
+    puts "  Total processed:     #{stats[:total_processed]}"
+    puts "  Uploaded:            #{stats[:uploaded]}"
+    puts "  Skipped (no file):   #{stats[:skipped_no_file]}"
+    puts "  Skipped (no contact):#{stats[:skipped_no_contact]}"
+    puts "  Errors:              #{stats[:errors]}"
+    puts ""
+
+    if stats[:error_details]&.any?
+      puts "First 10 errors:"
+      stats[:error_details].first(10).each { |e| puts "  - #{e}" }
+    end
+
+    # Show updated status
+    updated_with_sharepoint = CorporateCompanyDocument.where(source: "xero").where.not(onedrive_file_id: nil).count
+    puts ""
+    puts "Updated Status:"
+    puts "  Now on SharePoint: #{updated_with_sharepoint} (+#{updated_with_sharepoint - with_sharepoint})"
+  end
 end
