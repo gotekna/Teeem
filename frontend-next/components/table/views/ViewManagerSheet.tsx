@@ -153,6 +153,7 @@ export function ViewManagerSheet({
   // Edit state
   const [editName, setEditName] = React.useState("");
   const [editIsGlobal, setEditIsGlobal] = React.useState(false);
+  const [editViewType, setEditViewType] = React.useState<"table" | "relational">("table");
   const [editFilters, setEditFilters] = React.useState<CascadeFilter[]>([]);
   const [editFilterGroups, setEditFilterGroups] = React.useState<FilterGroup[]>([{ id: "default", logic: "AND" }]);
   const [editInterGroupLogic, setEditInterGroupLogic] = React.useState<"AND" | "OR">("OR");
@@ -260,6 +261,7 @@ export function ViewManagerSheet({
     setEditingView(view);
     setEditName(view.name);
     setEditIsGlobal(view.is_global || false);
+    setEditViewType(view.view_type || "table");
     setEditFilters(view.filters || []);
     setEditFilterGroups(view.filterGroups || [{ id: "default", logic: "AND" }]);
     setEditInterGroupLogic(view.interGroupLogic || "OR");
@@ -337,6 +339,7 @@ export function ViewManagerSheet({
       const currentEditState = {
         name: editName,
         isGlobal: editIsGlobal,
+        viewType: editViewType,
         visibleColumns: editVisibleColumns,
         columnOrder: editColumnOrder,
         columnWidths: editColumnWidths,
@@ -354,6 +357,7 @@ export function ViewManagerSheet({
         foundation_id: foundationId,
         name: currentEditState.name,
         view_type: "custom",
+        view_display_type: currentEditState.viewType,
         is_global: currentEditState.isGlobal,
         filters: {
           cascadeFilters: currentEditState.filters,
@@ -395,6 +399,7 @@ export function ViewManagerSheet({
         const savedView: SavedView = {
           id: isNewView && response.view?.id ? response.view.id : editingView.id,
           name: currentEditState.name,
+          view_type: currentEditState.viewType,
           is_global: currentEditState.isGlobal,
           visibleColumns: currentEditState.visibleColumns,
           columnOrder: currentEditState.columnOrder,
@@ -1097,6 +1102,24 @@ export function ViewManagerSheet({
                             {editIsGlobal ? <Globe className="h-3 w-3 text-blue-500" /> : <User className="h-3 w-3" />}
                             {editIsGlobal ? "Global" : "Personal"}
                           </Label>
+                        </div>
+                        <div className="flex items-center gap-2 border-l pl-3">
+                          <Label htmlFor="view-type-select" className="text-sm text-muted-foreground whitespace-nowrap">
+                            Display as:
+                          </Label>
+                          <Select
+                            value={editViewType}
+                            onValueChange={(value: "table" | "relational") => setEditViewType(value)}
+                            disabled={!isEditing}
+                          >
+                            <SelectTrigger id="view-type-select" className="w-[130px] h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="table">Table View</SelectItem>
+                              <SelectItem value="relational">Relational View</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="ml-auto flex items-center gap-2">
                           {!isEditing ? (

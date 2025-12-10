@@ -576,6 +576,7 @@ export default function TeeemTableView({
   onColumnUpdate,
   onEditRelationships,
   onRefresh,
+  onViewChange,
   enableImport = false,
   enableExport = false,
   onImport,
@@ -2792,7 +2793,62 @@ export default function TeeemTableView({
         );
       }
 
+      // Email: clickable mailto link
+      if (column.column_type === "email" && value) {
+        return (
+          <a
+            href={`mailto:${value}`}
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+            title={`Send email to ${value}`}
+          >
+            {String(value)}
+          </a>
+        );
+      }
+
+      // Phone/Mobile: clickable tel link
+      if ((column.column_type === "phone" || column.column_type === "mobile") && value) {
+        // Remove non-numeric characters for tel: link
+        const phoneNumber = String(value).replace(/[^\d+]/g, '');
+        return (
+          <a
+            href={`tel:${phoneNumber}`}
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+            title={`Call ${value}`}
+          >
+            {String(value)}
+          </a>
+        );
+      }
+
+      // URL/Website: clickable external link
+      if ((column.column_type === "url" || column.column_type === "website") && value) {
+        const url = String(value);
+        // Add https:// if no protocol specified
+        const href = url.match(/^https?:\/\//) ? url : `https://${url}`;
+        return (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+            title={`Open ${url}`}
+          >
+            {url}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        );
+      }
+
       // Default: render as string with priority-based truncation
+      // Handle null/undefined values - show empty string instead of "null"/"undefined"
+      if (value == null || value === "") {
+        return <span className="text-muted-foreground">—</span>;
+      }
+
       const strValue = String(value);
 
       // Get priority for smart truncation
@@ -3399,6 +3455,13 @@ export default function TeeemTableView({
 
   // Get active view name
   const activeView = savedViews.find((v) => v.id === activeViewId);
+
+  // Notify parent when active view changes
+  React.useEffect(() => {
+    if (onViewChange) {
+      onViewChange(activeView || null);
+    }
+  }, [activeView, onViewChange]);
 
   // ============================================================================
   // MAIN RENDER

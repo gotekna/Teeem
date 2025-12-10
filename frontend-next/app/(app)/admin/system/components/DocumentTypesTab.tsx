@@ -387,7 +387,7 @@ export function DocumentTypesTab() {
           </div>
 
           {!showFolderConfig ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {scopeFilter === "all" ? (
                 <>
                   <div className="flex items-center gap-2 text-sm">
@@ -395,35 +395,83 @@ export function DocumentTypesTab() {
                       <Building2 className="h-3 w-3 mr-1" />
                       Company
                     </Badge>
-                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
                       {baseFolders.company}/{'{'}{'{'}CompanyCode{'}'}{'}'}  /{'{'}{'{'}Folder{'}'}{'}'}
                     </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        setShowFolderConfig(true);
+                        handleScopeChange("company");
+                      }}
+                    >
+                      <FolderOpen className="h-3 w-3 mr-1" />
+                      Browse
+                    </Button>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Badge variant="outline" className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
                       <Briefcase className="h-3 w-3 mr-1" />
                       Job
                     </Badge>
-                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
                       {baseFolders.job}/{'{'}{'{'}JobCode{'}'}{'}'}  /{'{'}{'{'}Category{'}'}{'}'}
                     </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        setShowFolderConfig(true);
+                        handleScopeChange("job");
+                      }}
+                    >
+                      <FolderOpen className="h-3 w-3 mr-1" />
+                      Browse
+                    </Button>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
                       <Users className="h-3 w-3 mr-1" />
                       People
                     </Badge>
-                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
                       {baseFolders.people}/{'{'}{'{'}ContactName{'}'}{'}'}
                     </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        setShowFolderConfig(true);
+                        handleScopeChange("people");
+                      }}
+                    >
+                      <FolderOpen className="h-3 w-3 mr-1" />
+                      Browse
+                    </Button>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                       💼 XERO Auto
                     </Badge>
-                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
                       {baseFolders.xero}
                     </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        setShowFolderConfig(true);
+                        handleScopeChange("xero");
+                      }}
+                    >
+                      <FolderOpen className="h-3 w-3 mr-1" />
+                      Browse
+                    </Button>
                   </div>
                 </>
               ) : scopeFilter === "company" ? (
@@ -432,9 +480,18 @@ export function DocumentTypesTab() {
                     <Building2 className="h-3 w-3 mr-1" />
                     Company
                   </Badge>
-                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
                     {baseFolders.company}/{'{'}{'{'}CompanyCode{'}'}{'}'}  /{'{'}{'{'}Folder{'}'}{'}'}
                   </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowFolderConfig(true)}
+                  >
+                    <FolderOpen className="h-3 w-3 mr-1" />
+                    Browse
+                  </Button>
                 </div>
               ) : scopeFilter === "job" ? (
                 <div className="flex items-center gap-2 text-sm">
@@ -442,18 +499,36 @@ export function DocumentTypesTab() {
                     <Briefcase className="h-3 w-3 mr-1" />
                     Job
                   </Badge>
-                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
                     {baseFolders.job}/{'{'}{'{'}JobCode{'}'}{'}'}  /{'{'}{'{'}Category{'}'}{'}'}
                   </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowFolderConfig(true)}
+                  >
+                    <FolderOpen className="h-3 w-3 mr-1" />
+                    Browse
+                  </Button>
                 </div>
               ) : scopeFilter === "xero" ? (
                 <div className="flex items-center gap-2 text-sm">
                   <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                     💼 XERO Auto
                   </Badge>
-                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
                     {baseFolders.xero}
                   </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowFolderConfig(true)}
+                  >
+                    <FolderOpen className="h-3 w-3 mr-1" />
+                    Browse
+                  </Button>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 text-sm">
@@ -461,9 +536,18 @@ export function DocumentTypesTab() {
                     <Users className="h-3 w-3 mr-1" />
                     People
                   </Badge>
-                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
                     {baseFolders.people}/{'{'}{'{'}ContactName{'}'}{'}'}
                   </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowFolderConfig(true)}
+                  >
+                    <FolderOpen className="h-3 w-3 mr-1" />
+                    Browse
+                  </Button>
                 </div>
               )}
             </div>

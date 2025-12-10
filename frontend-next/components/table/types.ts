@@ -63,6 +63,7 @@ export interface FilterGroup {
 export interface SavedView {
   id: number | string;
   name: string;
+  view_type?: "table" | "relational"; // Display mode: table grid or relational network graph
   filters?: CascadeFilter[];
   filterGroups?: FilterGroup[];
   interGroupLogic?: "AND" | "OR";
@@ -110,6 +111,7 @@ export interface TeeemTableViewProps {
   onColumnUpdate?: () => void;
   onEditRelationships?: (row: TableRow) => void;
   onRefresh?: () => void;
+  onViewChange?: (view: SavedView | null) => void; // Called when active view changes
 
   // Import/Export
   enableImport?: boolean;

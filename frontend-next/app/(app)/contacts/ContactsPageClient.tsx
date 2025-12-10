@@ -12,6 +12,7 @@ import ContactsRelationalView from "./ContactsRelationalView";
 import { Plus, AlertTriangle, Table2, Network } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { useViewMode } from "@/contexts/ViewModeContext";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
 
 interface Contact {
@@ -82,7 +83,14 @@ export default function ContactsPageClient({
 
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"table" | "relational">("table");
+
+  // Track current view to determine display mode
+  const [currentView, setCurrentView] = useState<any>(null);
+
+  // Handler for when the active view changes in View Manager
+  const handleViewChange = useCallback((view: any) => {
+    setCurrentView(view);
+  }, []);
 
   // Refresh function to reload data
   const refresh = useCallback(async () => {
@@ -348,28 +356,12 @@ export default function ContactsPageClient({
             {records.length.toLocaleString()} contacts
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant={viewMode === "table" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("table")}
-          >
-            <Table2 className="h-4 w-4 mr-2" />
-            Table View
-          </Button>
-          <Button
-            variant={viewMode === "relational" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("relational")}
-          >
-            <Network className="h-4 w-4 mr-2" />
-            Relational View
-          </Button>
-        </div>
       </div>
 
-      {/* Contacts View - Table or Relational */}
-      {viewMode === "table" ? (
+      {/* Contacts View - Table or Relational based on saved view setting */}
+      {currentView?.view_type === "relational" ? (
+        <ContactsRelationalView contacts={records as unknown as Contact[]} />
+      ) : (
         <TeeemTableView
           entries={records}
           columns={columns}
@@ -378,7 +370,6 @@ export default function ContactsPageClient({
           tableName={foundation?.name || "Contacts"}
           enableExport={true}
           enableImport={true}
-          showDataHealth={true}
           onDataHealthIssueClick={handleDataHealthIssueClick}
           onRefresh={refresh}
           onRowClick={handleRowClick}
@@ -387,9 +378,8 @@ export default function ContactsPageClient({
           onDelete={handleDelete}
           onBulkDelete={handleBulkDelete}
           leftActions={leftActions}
+          onViewChange={handleViewChange}
         />
-      ) : (
-        <ContactsRelationalView contacts={records as unknown as Contact[]} />
       )}
 
       {/* Merge Modal */}
