@@ -29,6 +29,7 @@ class OrgEmailSyncJob < ApplicationJob
     sync_all = sync_config["sync_all"] || false
     user_emails = sync_config["user_emails"] || []
     sync_years = sync_config["sync_years"] || 3
+    sync_days = sync_config["sync_days"] # Optional: sync by days instead of years
 
     # Determine which users to sync
     if sync_all
@@ -50,7 +51,7 @@ class OrgEmailSyncJob < ApplicationJob
 
     user_emails.each do |user_email|
       begin
-        synced = sync_user_emails(user_email, sync_type, sync_years)
+        synced = sync_user_emails(user_email, sync_type, sync_years, sync_days)
         total_synced += synced
         Rails.logger.info "[OrgEmailSync] Synced #{synced} emails for #{user_email}"
       rescue StandardError => e
@@ -69,18 +70,27 @@ class OrgEmailSyncJob < ApplicationJob
 
   private
 
-  def sync_user_emails(user_email, sync_type, sync_years)
+  def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil)
     client = MicrosoftAppGraphClient.new(@credential)
     total_synced = 0
 
-    # Determine since date
+    # Determine since date - prefer sync_days over sync_years if both are set
+    lookback_time = if sync_days.present?
+                      if sync_days == 0
+                        Date.today.beginning_of_day  # Just today (from midnight)
+                      else
+                        sync_days.days.ago  # Last N days (24-hour periods)
+                      end
+                    else
+                      sync_years.years.ago
+                    end
+
     since = case sync_type
     when "full"
-              sync_years.years.ago
+              lookback_time
     else
-              # Incremental - but use sync_years for first sync (when last_sync_at is nil)
-              # This ensures first-time syncs respect the sync_years configuration
-              @credential.last_sync_at || sync_years.years.ago
+              # Incremental - use last_sync_at or fallback to configured lookback
+              @credential.last_sync_at || lookback_time
     end
 
     # Get all mail folders
