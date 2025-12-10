@@ -5,8 +5,8 @@ puts "SHAREPOINT CORPORATE FOLDER INVENTORY"
 puts "=" * 80
 puts ""
 
-# Initialize service
-service = CorporateOnedriveService.new
+# Initialize service with auto folder detection
+service = CorporateOnedriveService.new(folder_path: "auto")
 
 # Use the preview method (public API)
 puts "📁 Scanning SharePoint Corporate folder..."
