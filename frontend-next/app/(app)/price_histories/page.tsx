@@ -136,16 +136,13 @@ export default function PriceHistoriesPage() {
           <TeeemTableView
             foundationId={String(foundation.id)}
             foundationIdNumeric={foundation.id}
-            tableName={foundation.database_table_name}
+            tableName={foundation.name || "Price Histories"}
             entries={records}
             columns={columns}
-            totalCount={totalCount}
             onRowUpdate={handleRowUpdate}
             onRefresh={refresh}
             onServerSearch={serverSearch}
-            isSearching={isSearching}
-            enableRowSelection={false}
-            enableInlineEditing={true}
+            serverSearchLoading={isSearching}
           />
         </CardContent>
       </Card>
