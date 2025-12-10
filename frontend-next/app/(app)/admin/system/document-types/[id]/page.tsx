@@ -22,6 +22,7 @@ import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDow
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 
 // Available folders/tabs
 const FOLDER_OPTIONS = [
@@ -356,14 +357,6 @@ export default function DocumentTypeDetailPage() {
     setDocumentType({ ...documentType, [field]: value });
   };
 
-  const toggleTab = (tab: string) => {
-    if (!documentType) return;
-    const currentTabs = documentType.tabs || [];
-    const newTabs = currentTabs.includes(tab)
-      ? currentTabs.filter(t => t !== tab)
-      : [...currentTabs, tab];
-    updateField("tabs", newTabs);
-  };
 
   const addFileExtension = (ext: string) => {
     if (!documentType) return;
@@ -1470,33 +1463,20 @@ export default function DocumentTypeDetailPage() {
               <p className="text-xs text-muted-foreground mb-2">
                 Select all tabs where this document type should appear
               </p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
-                {folderOptions.map(tab => {
-                  const isSelected = (documentType.tabs || []).includes(tab);
-                  const isPrimary = documentType.primary_tab === tab;
-                  return (
-                    <div
-                      key={tab}
-                      className={cn(
-                        "flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors",
-                        isSelected && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700",
-                        isPrimary && "ring-2 ring-blue-500",
-                        !isSelected && "hover:bg-muted"
-                      )}
-                      onClick={() => toggleTab(tab)}
-                    >
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => toggleTab(tab)}
-                      />
-                      <Label className="cursor-pointer text-xs font-normal">
-                        {tab}
-                        {isPrimary && <span className="ml-1 text-blue-600">★</span>}
-                      </Label>
-                    </div>
-                  );
-                })}
-              </div>
+              <MultiSelectCombobox
+                placeholder="Select folders/tabs..."
+                searchPlaceholder="Search folders..."
+                items={folderOptions.map(folder => ({
+                  id: folder,
+                  label: folder + (documentType.primary_tab === folder ? " ★" : ""),
+                }))}
+                selectedIds={documentType.tabs || []}
+                onSelect={(selectedIds) => updateField("tabs", selectedIds)}
+                maxDisplay={4}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                ★ indicates primary tab
+              </p>
             </div>
           </CardContent>
         )}

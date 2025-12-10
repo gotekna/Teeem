@@ -127,7 +127,25 @@ export function DocumentTypesTab() {
       );
       const dbColumns = response?.foundation?.columns || [];
       const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, DOCUMENT_TYPES_FOUNDATION_ID);
-      setColumns(teeemColumns);
+
+      // Add computed display columns that don't exist in the database
+      // tabs_display is computed from the tabs array field for display purposes
+      const enhancedColumns = [
+        ...teeemColumns,
+        {
+          key: "tabs_display",
+          label: "All Tabs",
+          column_type: "single_line_text",
+          resizable: true,
+          sortable: false,
+          filterable: false,
+          width: 200,
+          editable: false,
+          tooltip: "All folder tabs this document type appears in (computed field)"
+        } as TableColumn
+      ];
+
+      setColumns(enhancedColumns);
     } catch (err) {
       console.error("Failed to fetch columns:", err);
     }
