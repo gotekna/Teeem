@@ -3,6 +3,31 @@ class JobDocument < ApplicationRecord
   belongs_to :document_type, optional: true
   belongs_to :ai_suggested_type, class_name: "DocumentType", optional: true
   belongs_to :rename_approved_by, class_name: "User", optional: true
+  belongs_to :contact, optional: true  # For client/customer contact
+  belongs_to :company, class_name: "CorporateCompany", foreign_key: "company_id", optional: true
+  belongs_to :user_validated_by, class_name: "User", optional: true
+
+  # Active Storage for file upload (for migrated documents)
+  has_one_attached :file
+
+  # Activity log
+  has_many :document_activities, as: :document, dependent: :destroy
+
+  # Case links
+  has_many :case_documents, as: :document, dependent: :destroy
+  has_many :cases, through: :case_documents, source: :case_record
+
+  # Duplicate tracking
+  has_many :duplicate_reviews_as_existing,
+           class_name: "DocumentDuplicateReview",
+           foreign_key: :existing_document_id,
+           as: :existing_document,
+           dependent: :destroy
+  has_many :duplicate_reviews_as_new,
+           class_name: "DocumentDuplicateReview",
+           foreign_key: :new_document_id,
+           as: :new_document,
+           dependent: :nullify
 
   # File type enum based on extension
   FILE_TYPE_MAP = {
@@ -25,9 +50,13 @@ class JobDocument < ApplicationRecord
   # Sync status enum
   SYNC_STATUSES = %w[pending synced missing error].freeze
 
+  # AI verification statuses
+  AI_VERIFICATION_STATUSES = %w[pending verified mismatch needs_review].freeze
+
   validates :onedrive_item_id, presence: true, uniqueness: true
   validates :file_name, presence: true
   validates :sync_status, inclusion: { in: SYNC_STATUSES }
+  validates :ai_verification_status, inclusion: { in: AI_VERIFICATION_STATUSES }, allow_blank: true
 
   # Scopes
   scope :cad_files, -> { where(file_type: %w[revit_project revit_family autocad autocad_export design_web]) }
@@ -37,6 +66,14 @@ class JobDocument < ApplicationRecord
   scope :in_folder, ->(folder) { where("folder_path LIKE ?", "%#{folder}%") }
   scope :synced, -> { where(sync_status: "synced") }
   scope :needs_sync, -> { where(sync_status: %w[pending error]) }
+  scope :for_job, ->(job_id) { where(job_id: job_id) }
+  scope :for_contact, ->(contact_id) { where(contact_id: contact_id) }
+  scope :for_company, ->(company_id) { where(company_id: company_id) }
+  scope :by_financial_year, ->(year) { where("financial_years @> ARRAY[?]::integer[]", year.to_i) }
+  scope :by_content_hash, ->(hash) { where(content_hash: hash) if hash.present? }
+  scope :migrated_from_corporate, -> { where.not(legacy_corporate_document_id: nil) }
+  scope :onedrive_sourced, -> { where(source: "onedrive").or(where(source: nil)) }
+  scope :manually_uploaded, -> { where(source: "manual") }
 
   # Callbacks
   before_save :set_file_extension
@@ -77,6 +114,38 @@ class JobDocument < ApplicationRecord
     else
       "#{file_size} B"
     end
+  end
+
+  # Find an existing document by content hash
+  def self.find_by_content_hash(hash)
+    return nil if hash.blank?
+    by_content_hash(hash).first
+  end
+
+  # Check if a duplicate exists
+  def self.duplicate_exists?(hash)
+    return false if hash.blank?
+    by_content_hash(hash).exists?
+  end
+
+  # Find all documents with matching content (duplicates)
+  def find_duplicates
+    return JobDocument.none if content_hash.blank?
+    JobDocument.by_content_hash(content_hash).where.not(id: id)
+  end
+
+  def has_duplicates?
+    find_duplicates.exists?
+  end
+
+  # Check if this is a migrated document (vs OneDrive synced)
+  def migrated?
+    legacy_corporate_document_id.present?
+  end
+
+  # Check if this is OneDrive sourced
+  def onedrive_sourced?
+    !migrated? && onedrive_item_id.present?
   end
 
   private
