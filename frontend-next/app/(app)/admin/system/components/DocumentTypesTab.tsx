@@ -77,7 +77,7 @@ function TabsDisplayCell({
       : [...tabs, folder];
 
     try {
-      await onUpdate(entry.id!, "tabs", newTabs);
+      await onUpdate(String(entry.id!), "tabs", newTabs);
       onToast({
         title: "Folders updated",
         description: `${folder} ${tabs.includes(folder) ? 'removed' : 'added'}`,

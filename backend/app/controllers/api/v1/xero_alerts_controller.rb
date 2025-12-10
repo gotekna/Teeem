@@ -83,7 +83,9 @@ module Api
                 can_make_request: tenant[:usage]&.dig(:can_make_request),
                 # SSoT: Include credential status so UI shows actual token health
                 status: credential&.status || 'disconnected',
-                needs_reauth: credential ? !credential.effectively_connected? : true,
+                # Only show "Needs Re-auth" when truly disconnected/degraded, not just close to expiry
+                # Token refresh is handled automatically by XeroTokenManager
+                needs_reauth: credential ? %w[disconnected degraded].include?(credential.status) : true,
                 expired: credential&.expired?,
                 degraded: credential&.degraded?
               }
