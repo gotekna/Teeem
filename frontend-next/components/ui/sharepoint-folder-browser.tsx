@@ -228,15 +228,20 @@ export function SharePointFolderBrowser({
 
       // Prefer SharePoint over personal OneDrive
       if (sitesResponse.sites && sitesResponse.sites.length > 0) {
-        // Auto-select first SharePoint site
-        const firstSite = sitesResponse.sites[0];
-        setCurrentDrive(firstSite.id);
-        setCurrentDriveName(firstSite.name);
+        // Prioritize TEEEM site if it exists, otherwise use first site
+        const teeemSite = sitesResponse.sites.find((site) =>
+          site.name.toLowerCase().includes("teeem") ||
+          site.display_name?.toLowerCase().includes("teeem")
+        );
+        const targetSite = teeemSite || sitesResponse.sites[0];
+
+        setCurrentDrive(targetSite.id);
+        setCurrentDriveName(targetSite.name);
 
         // Switch to SharePoint if not already there
-        if (statusResponse.drive_type !== "sharepoint" || statusResponse.site_name !== firstSite.name) {
+        if (statusResponse.drive_type !== "sharepoint" || statusResponse.site_name !== targetSite.name) {
           try {
-            await api.post("/api/v1/organization_onedrive/use_sharepoint_site", { site_name: firstSite.name });
+            await api.post("/api/v1/organization_onedrive/use_sharepoint_site", { site_name: targetSite.name });
           } catch (err) {
             console.error("Failed to auto-switch to SharePoint:", err);
           }

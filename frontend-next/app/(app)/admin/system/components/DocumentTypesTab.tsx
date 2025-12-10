@@ -63,10 +63,10 @@ export function DocumentTypesTab() {
   const [saving, setSaving] = React.useState(false);
   const [showFolderConfig, setShowFolderConfig] = React.useState(false);
   const [baseFolders, setBaseFolders] = React.useState({
-    company: "/Teeem/Companies/{{CompanyCode}}/{{Folder}}",
-    job: "/Teeem/Jobs/{{JobCode}}/{{Category}}",
-    people: "/Teeem/Director IDs/{{ContactName}}",
-    xero: "/Teeem/XERO Auto"
+    company: "/Corporate/{{CompanyCode}}/{{Folder}}",
+    job: "/Jobs/{{JobCode}}/{{Category}}",
+    people: "/Contacts/{{ContactName}}",
+    xero: "/Corporate/XERO Auto"
   });
   const [newDocType, setNewDocType] = React.useState({
     name: "",
@@ -603,19 +603,50 @@ export function DocumentTypesTab() {
                   <SharePointFolderBrowser
                     onSelect={(folder, path) => {
                       // Only update the base path portion, preserve the placeholders
-                      const template = path ? `${path}/{{CompanyCode}}/{{Folder}}` : "/Teeem/Companies/{{CompanyCode}}/{{Folder}}";
+                      const template = path ? `${path}/{{CompanyCode}}/{{Folder}}` : "/Corporate/{{CompanyCode}}/{{Folder}}";
                       setBaseFolders(prev => ({ ...prev, company: template }));
                     }}
+                    rootFolder=""
                   />
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">Available Placeholders (click to insert)</label>
+                    <div className="flex flex-wrap gap-1">
+                      <Badge
+                        variant="outline"
+                        className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                        onClick={() => {
+                          const input = document.querySelector('input[value="' + baseFolders.company + '"]') as HTMLInputElement;
+                          if (input) {
+                            const cursorPos = input.selectionStart || baseFolders.company.length;
+                            const newValue = baseFolders.company.slice(0, cursorPos) + '{{CompanyCode}}' + baseFolders.company.slice(cursorPos);
+                            setBaseFolders(prev => ({ ...prev, company: newValue }));
+                          }
+                        }}
+                      >
+                        {'{{CompanyCode}}'} <span className="ml-1 text-xs opacity-60">e.g., "ABC123"</span>
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                        onClick={() => {
+                          const input = document.querySelector('input[value="' + baseFolders.company + '"]') as HTMLInputElement;
+                          if (input) {
+                            const cursorPos = input.selectionStart || baseFolders.company.length;
+                            const newValue = baseFolders.company.slice(0, cursorPos) + '{{Folder}}' + baseFolders.company.slice(cursorPos);
+                            setBaseFolders(prev => ({ ...prev, company: newValue }));
+                          }
+                        }}
+                      >
+                        {'{{Folder}}'} <span className="ml-1 text-xs opacity-60">e.g., "Invoices"</span>
+                      </Badge>
+                    </div>
+                  </div>
                   <Input
                     value={baseFolders.company}
                     onChange={(e) => setBaseFolders(prev => ({ ...prev, company: e.target.value }))}
                     className="text-xs font-mono"
-                    placeholder="/Teeem/Companies/{{CompanyCode}}/{{Folder}}"
+                    placeholder="/Corporate/{{CompanyCode}}/{{Folder}}"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Available placeholders: <code className="bg-muted px-1">{'{{CompanyCode}}'}</code>, <code className="bg-muted px-1">{'{{Folder}}'}</code>
-                  </p>
                   <div className="flex gap-2 justify-end pt-2">
                     <Button
                       variant="outline"
@@ -645,19 +676,50 @@ export function DocumentTypesTab() {
                   <SharePointFolderBrowser
                     onSelect={(folder, path) => {
                       // Only update the base path portion, preserve the placeholders
-                      const template = path ? `${path}/{{JobCode}}/{{Category}}` : "/Teeem/Jobs/{{JobCode}}/{{Category}}";
+                      const template = path ? `${path}/{{JobCode}}/{{Category}}` : "/Jobs/{{JobCode}}/{{Category}}";
                       setBaseFolders(prev => ({ ...prev, job: template }));
                     }}
+                    rootFolder=""
                   />
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">Available Placeholders (click to insert)</label>
+                    <div className="flex flex-wrap gap-1">
+                      <Badge
+                        variant="outline"
+                        className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                        onClick={() => {
+                          const input = document.querySelector('input[value="' + baseFolders.job + '"]') as HTMLInputElement;
+                          if (input) {
+                            const cursorPos = input.selectionStart || baseFolders.job.length;
+                            const newValue = baseFolders.job.slice(0, cursorPos) + '{{JobCode}}' + baseFolders.job.slice(cursorPos);
+                            setBaseFolders(prev => ({ ...prev, job: newValue }));
+                          }
+                        }}
+                      >
+                        {'{{JobCode}}'} <span className="ml-1 text-xs opacity-60">e.g., "JOB-001"</span>
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className="cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 text-orange-700 dark:text-orange-300"
+                        onClick={() => {
+                          const input = document.querySelector('input[value="' + baseFolders.job + '"]') as HTMLInputElement;
+                          if (input) {
+                            const cursorPos = input.selectionStart || baseFolders.job.length;
+                            const newValue = baseFolders.job.slice(0, cursorPos) + '{{Category}}' + baseFolders.job.slice(cursorPos);
+                            setBaseFolders(prev => ({ ...prev, job: newValue }));
+                          }
+                        }}
+                      >
+                        {'{{Category}}'} <span className="ml-1 text-xs opacity-60">e.g., "Plans"</span>
+                      </Badge>
+                    </div>
+                  </div>
                   <Input
                     value={baseFolders.job}
                     onChange={(e) => setBaseFolders(prev => ({ ...prev, job: e.target.value }))}
                     className="text-xs font-mono"
-                    placeholder="/Teeem/Jobs/{{JobCode}}/{{Category}}"
+                    placeholder="/Jobs/{{JobCode}}/{{Category}}"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Available placeholders: <code className="bg-muted px-1">{'{{JobCode}}'}</code>, <code className="bg-muted px-1">{'{{Category}}'}</code>
-                  </p>
                   <div className="flex gap-2 justify-end pt-2">
                     <Button
                       variant="outline"
@@ -722,19 +784,36 @@ export function DocumentTypesTab() {
                   </div>
                   <SharePointFolderBrowser
                     onSelect={(folder, path) => {
-                      const template = path ? `${path}/{{ContactName}}` : "/Teeem/Director IDs/{{ContactName}}";
+                      const template = path ? `${path}/{{ContactName}}` : "/Contacts/{{ContactName}}";
                       setBaseFolders(prev => ({ ...prev, people: template }));
                     }}
+                    rootFolder=""
                   />
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">Available Placeholders (click to insert)</label>
+                    <div className="flex flex-wrap gap-1">
+                      <Badge
+                        variant="outline"
+                        className="cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 text-green-700 dark:text-green-300"
+                        onClick={() => {
+                          const input = document.querySelector('input[value="' + baseFolders.people + '"]') as HTMLInputElement;
+                          if (input) {
+                            const cursorPos = input.selectionStart || baseFolders.people.length;
+                            const newValue = baseFolders.people.slice(0, cursorPos) + '{{ContactName}}' + baseFolders.people.slice(cursorPos);
+                            setBaseFolders(prev => ({ ...prev, people: newValue }));
+                          }
+                        }}
+                      >
+                        {'{{ContactName}}'} <span className="ml-1 text-xs opacity-60">e.g., "John Smith"</span>
+                      </Badge>
+                    </div>
+                  </div>
                   <Input
                     value={baseFolders.people}
                     onChange={(e) => setBaseFolders(prev => ({ ...prev, people: e.target.value }))}
                     className="text-xs font-mono"
-                    placeholder="/Teeem/Director IDs/{{ContactName}}"
+                    placeholder="/Contacts/{{ContactName}}"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Available placeholders: <code className="bg-muted px-1">{'{{ContactName}}'}</code>
-                  </p>
                   <div className="flex gap-2 justify-end pt-2">
                     <Button
                       variant="outline"

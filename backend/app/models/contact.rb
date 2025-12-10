@@ -2,7 +2,9 @@ class Contact < ApplicationRecord
   include SelfHealing  # Auto-fix formatting issues and earn System kudos
 
   # Exclude soft-deleted contacts by default
-  default_scope { where(deleted: [ false, nil ]) }
+  # Note: deleted column was removed in migration 20251210093313
+  # All contacts are now considered active unless is_active=false
+  # default_scope { where(deleted: [ false, nil ]) }
 
   # Associations
   has_many :contact_activities, dependent: :destroy
@@ -155,7 +157,8 @@ class Contact < ApplicationRecord
   before_save :generate_display_name
   before_save :sync_company_name_or_trust
   before_save :clear_roles_if_not_person
-  after_save :cleanup_relationships_on_soft_delete, if: :soft_deleted?
+  # Note: deleted column removed, soft_deleted? callback disabled
+  # after_save :cleanup_relationships_on_soft_delete, if: :soft_deleted?
 
   # SSoT: Sync primary_company_id → employee_of relationship
   # This ensures the relationship exists when primary_company is set directly
@@ -906,20 +909,17 @@ class Contact < ApplicationRecord
     end.join(" ")
   end
 
-  # Check if this contact was just soft-deleted
-  def soft_deleted?
-    saved_change_to_deleted? && deleted == true
-  end
+  # Note: deleted column removed in migration 20251210093313
+  # Soft-delete functionality disabled
+  # def soft_deleted?
+  #   saved_change_to_deleted? && deleted == true
+  # end
 
-  # Clean up relationships when a contact is soft-deleted
-  # This prevents orphaned relationships that cause 500 errors
-  def cleanup_relationships_on_soft_delete
-    # Destroy all relationships where this contact is either the source or related contact
-    outgoing_relationships.destroy_all
-    incoming_relationships.destroy_all
-
-    Rails.logger.info("Cleaned up relationships for soft-deleted contact #{id}")
-  end
+  # def cleanup_relationships_on_soft_delete
+  #   outgoing_relationships.destroy_all
+  #   incoming_relationships.destroy_all
+  #   Rails.logger.info("Cleaned up relationships for soft-deleted contact #{id}")
+  # end
 
   # SSoT: Check if this contact should sync to CorporateCompany
   def should_sync_to_corporate?
