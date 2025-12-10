@@ -34,7 +34,8 @@ const FOLDER_OPTIONS = [
 interface DocumentType extends TableRow {
   abbreviation?: string;
   name?: string;
-  naming_format?: string;
+  display_name?: string;
+  file_name?: string;
   title_preview?: string;
   primary_tab?: string;
   folder?: string;
@@ -58,7 +59,7 @@ export function DocumentTypesTab() {
   const [newDocType, setNewDocType] = React.useState({
     name: "",
     abbreviation: "",
-    naming_format: "{CompanyCode} {Description} {Date}",
+    file_name: "{CompanyCode} {Description} {Date}",
     folder: "GENERAL",
     primary_tab: "GENERAL",
     active: true
@@ -168,7 +169,7 @@ export function DocumentTypesTab() {
       setNewDocType({
         name: "",
         abbreviation: "",
-        naming_format: "{CompanyCode} {Description} {Date}",
+        file_name: "{CompanyCode} {Description} {Date}",
         folder: "GENERAL",
         primary_tab: "GENERAL",
         active: true
@@ -263,8 +264,8 @@ export function DocumentTypesTab() {
         <span className="font-mono font-bold text-primary">{value}</span>
       );
     }
-    if (columnKey === "naming_format") {
-      const value = entry.naming_format;
+    if (columnKey === "file_name") {
+      const value = entry.file_name;
       if (!value) return <span className="text-muted-foreground italic">Not set</span>;
       return (
         <span className="font-mono text-xs text-muted-foreground">{value}</span>
@@ -324,11 +325,11 @@ export function DocumentTypesTab() {
                 />
               </div>
               <div className="flex-1 min-w-[200px] space-y-1">
-                <Label htmlFor="naming_format">Naming Format</Label>
+                <Label htmlFor="file_name">File Name</Label>
                 <Input
-                  id="naming_format"
-                  value={newDocType.naming_format}
-                  onChange={(e) => setNewDocType({ ...newDocType, naming_format: e.target.value })}
+                  id="file_name"
+                  value={newDocType.file_name}
+                  onChange={(e) => setNewDocType({ ...newDocType, file_name: e.target.value })}
                   placeholder="{CompanyCode} CTR FY{YY}"
                   className="font-mono text-sm"
                 />
