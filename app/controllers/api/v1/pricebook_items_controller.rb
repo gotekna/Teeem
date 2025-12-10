@@ -588,13 +588,23 @@ module Api
 
       # GET /api/v1/pricebook/all_price_histories
       def all_price_histories
+        # Support pagination with optional limit and offset
+        limit = params[:limit]&.to_i || 50000 # Default to large number (all records)
+        offset = params[:offset]&.to_i || 0
+
+        total_count = PriceHistory.count
         histories = PriceHistory
           .includes(:pricebook_item, :supplier)
           .order(created_at: :desc)
-          .limit(1000) # Limit to most recent 1000
+          .limit(limit)
+          .offset(offset)
 
         render json: {
           success: true,
+          total_count: total_count,
+          returned_count: histories.length,
+          limit: limit,
+          offset: offset,
           data: histories.map do |h|
             {
               id: h.id,
