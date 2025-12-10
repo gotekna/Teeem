@@ -126,11 +126,16 @@ module Api
           :scope,
           :target_folder,
           tabs: [],
-          file_extensions: []
+          file_extensions: [],
+          folder_ids: []
         )
       end
 
       def serialize_document_type(document_type)
+        # Get folder data from join table
+        folder_assignments = document_type.document_type_folders.includes(:document_folder)
+        primary_assignment = folder_assignments.find(&:is_primary)
+
         {
           id: document_type.id,
           name: document_type.name,
@@ -144,8 +149,22 @@ module Api
           requires_filing: document_type.requires_filing,
           retention_years: document_type.retention_years,
           active: document_type.active,
+          # Legacy tabs array (for backwards compatibility)
           tabs: document_type.tabs || [],
           primary_tab: document_type.primary_tab,
+          # New folder lookup data
+          folder_ids: folder_assignments.map { |fa| fa.document_folder_id },
+          folders: folder_assignments.map { |fa|
+            {
+              id: fa.document_folder.id,
+              name: fa.document_folder.name,
+              is_primary: fa.is_primary,
+              parent_id: fa.document_folder.parent_id,
+              parent_name: fa.document_folder.parent_name
+            }
+          },
+          primary_folder_id: primary_assignment&.document_folder_id,
+          primary_folder_name: primary_assignment&.document_folder&.name,
           scope: document_type.scope,
           file_extensions: document_type.file_extensions || [],
           target_folder: document_type.target_folder,
@@ -165,15 +184,28 @@ module Api
       end
 
       def all_available_tabs
-        # Get all unique primary_tab values from document types
-        tabs = DocumentType.where.not(primary_tab: nil).distinct.pluck(:primary_tab).compact.sort
-
-        # Return structured tab information
-        tabs.map do |tab|
+        # Get all folders from DocumentFolder table with hierarchy
+        DocumentFolder.active.root_folders.ordered.map do |folder|
           {
-            name: tab,
-            label: tab.titleize,
-            count: DocumentType.where(primary_tab: tab).count
+            id: folder.id,
+            name: folder.name,
+            label: folder.name.titleize,
+            description: folder.description,
+            parent_id: folder.parent_id,
+            entity_types: folder.entity_types,
+            document_type_count: folder.document_types.count,
+            children: folder.children.active.ordered.map do |child|
+              {
+                id: child.id,
+                name: child.name,
+                label: child.name.titleize,
+                description: child.description,
+                parent_id: child.parent_id,
+                parent_name: folder.name,
+                entity_types: child.entity_types,
+                document_type_count: child.document_types.count
+              }
+            end
           }
         end
       end
