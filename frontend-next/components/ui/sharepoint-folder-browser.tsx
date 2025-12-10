@@ -225,7 +225,7 @@ export function SharePointFolderBrowser({
       const response = await api.get<BrowseFoldersResponse>("/api/v1/organization_onedrive/browse_folders");
       const nodes: TreeNode[] = (response.folders || []).map((f) => ({
         ...f,
-        path: f.name,
+        path: `/${f.name}`,
         isExpanded: false,
         children: undefined,
       }));
