@@ -50,6 +50,9 @@ interface RateLimitsData {
     daily: number;
     concurrent: number;
   };
+  // SSoT: Rate limit reset time
+  resets_at?: string;
+  resets_at_display?: string;
   tenants: TenantRateLimit[];
   aggregate: {
     minute_requests: number;
@@ -820,9 +823,15 @@ export function XeroPdfSyncStatus() {
                       />
                     </div>
                   </div>
-                  {tenant.total_7d > 0 && (
-                    <div className="text-xs text-muted-foreground mt-2 text-right">
-                      {tenant.total_7d.toLocaleString()} total requests (7 days)
+                  {/* Bottom row: 7-day total on left, reset time on right */}
+                  {(tenant.total_7d > 0 || (tenant.daily?.used || 0) > 0) && (
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
+                      <span>
+                        {tenant.total_7d > 0 ? `${tenant.total_7d.toLocaleString()} total requests (7 days)` : ''}
+                      </span>
+                      {(tenant.daily?.used || 0) > 0 && rateLimits.resets_at_display && (
+                        <span>Resets at {rateLimits.resets_at_display}</span>
+                      )}
                     </div>
                   )}
                 </div>
