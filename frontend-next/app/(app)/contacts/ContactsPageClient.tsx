@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { Plus, AlertTriangle } from "lucide-react";
+import ContactsRelationalView from "./ContactsRelationalView";
+import { Plus, AlertTriangle, Table2, Network } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
@@ -81,6 +82,7 @@ export default function ContactsPageClient({
 
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"table" | "relational">("table");
 
   // Refresh function to reload data
   const refresh = useCallback(async () => {
@@ -346,27 +348,49 @@ export default function ContactsPageClient({
             {records.length.toLocaleString()} contacts
           </p>
         </div>
+        <div className="flex gap-2">
+          <Button
+            variant={viewMode === "table" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("table")}
+          >
+            <Table2 className="h-4 w-4 mr-2" />
+            Table View
+          </Button>
+          <Button
+            variant={viewMode === "relational" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("relational")}
+          >
+            <Network className="h-4 w-4 mr-2" />
+            Relational View
+          </Button>
+        </div>
       </div>
 
-      {/* Contacts Table */}
-      <TeeemTableView
-        entries={records}
-        columns={columns}
-        foundationId="contacts"
-        foundationIdNumeric={foundation?.id}
-        tableName={foundation?.name || "Contacts"}
-        enableExport={true}
-        enableImport={true}
-        showDataHealth={true}
-        onDataHealthIssueClick={handleDataHealthIssueClick}
-        onRefresh={refresh}
-        onRowClick={handleRowClick}
-        onRowDoubleClick={handleRowDoubleClick}
-        onRowUpdate={handleRowUpdate}
-        onDelete={handleDelete}
-        onBulkDelete={handleBulkDelete}
-        leftActions={leftActions}
-      />
+      {/* Contacts View - Table or Relational */}
+      {viewMode === "table" ? (
+        <TeeemTableView
+          entries={records}
+          columns={columns}
+          foundationId="contacts"
+          foundationIdNumeric={foundation?.id}
+          tableName={foundation?.name || "Contacts"}
+          enableExport={true}
+          enableImport={true}
+          showDataHealth={true}
+          onDataHealthIssueClick={handleDataHealthIssueClick}
+          onRefresh={refresh}
+          onRowClick={handleRowClick}
+          onRowDoubleClick={handleRowDoubleClick}
+          onRowUpdate={handleRowUpdate}
+          onDelete={handleDelete}
+          onBulkDelete={handleBulkDelete}
+          leftActions={leftActions}
+        />
+      ) : (
+        <ContactsRelationalView contacts={records as unknown as Contact[]} />
+      )}
 
       {/* Merge Modal */}
       <MergeContactsModal

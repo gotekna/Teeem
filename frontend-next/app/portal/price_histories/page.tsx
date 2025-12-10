@@ -24,6 +24,12 @@ interface PriceHistory {
   updated_at: string
 }
 
+interface ApiResponse {
+  success: boolean
+  data: PriceHistory[]
+  total_count?: number
+}
+
 export default function PriceHistoriesPage() {
   const [histories, setHistories] = useState<PriceHistory[]>([])
   const [loading, setLoading] = useState(true)
@@ -37,10 +43,10 @@ export default function PriceHistoriesPage() {
   const fetchPriceHistories = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/pricebook/all_price_histories')
-      if (response.data.success) {
-        setHistories(response.data.data)
-        setTotalCount(response.data.total_count || response.data.data.length)
+      const response = await api.get<ApiResponse>('/pricebook/all_price_histories')
+      if (response.success) {
+        setHistories(response.data)
+        setTotalCount(response.total_count || response.data.length)
       } else {
         setError('Failed to load price histories')
       }
