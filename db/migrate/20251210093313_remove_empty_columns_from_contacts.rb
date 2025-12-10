@@ -93,11 +93,20 @@ class RemoveEmptyColumnsFromContacts < ActiveRecord::Migration[7.1]
     puts "  ❌ REMOVE: File system fields (not used)"
     puts ""
 
+    # Get list of columns that actually exist
+    existing_columns = ActiveRecord::Base.connection.columns(:contacts).map(&:name).map(&:to_sym)
+
+    removed_count = 0
     columns_to_remove.each do |column|
-      remove_column :contacts, column
+      if existing_columns.include?(column)
+        remove_column :contacts, column
+        removed_count += 1
+      else
+        puts "  ⏭️  Skipping #{column} (already removed)"
+      end
     end
 
-    puts "✅ Removed #{columns_to_remove.count} empty columns"
+    puts "✅ Removed #{removed_count} empty columns (#{columns_to_remove.count - removed_count} already removed)"
     puts "=" * 80
   end
 
