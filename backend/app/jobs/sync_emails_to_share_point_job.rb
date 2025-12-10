@@ -21,9 +21,9 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     Rails.logger.info "[SyncToSharePoint] Starting sync for #{@credential.name}"
 
-    # Step 1: Sync emails to EmailWarehouse
+    # Step 1: Sync emails to EmailWarehouse (use 'full' to respect sync_days config)
     Rails.logger.info "[SyncToSharePoint] Step 1: Syncing emails to warehouse..."
-    email_result = OrgEmailSyncJob.perform_now("incremental", org_name: @credential.name)
+    email_result = OrgEmailSyncJob.perform_now("full", org_name: @credential.name)
     Rails.logger.info "[SyncToSharePoint] Synced #{email_result[:total_synced]} emails"
 
     # Step 2: Upload attachments to SharePoint
@@ -68,17 +68,18 @@ class SyncEmailsToSharePointJob < ApplicationJob
       return { uploaded: 0, skipped: 0, created: 0 }
     end
 
-    # Find emails with attachments from this org's mailboxes (both sent and received)
-    # Use mailbox_owner_email to find emails that belong to this org
+    # Find emails with attachments that haven't been processed yet
+    # Simple approach: process emails where has_attachments=true but no EmailAttachment records exist
     emails_with_attachments = EmailWarehouse
       .where(microsoft_credential_id: @credential.id)
       .where(has_attachments: true)
       .where.not(mailbox_owner_email: nil)  # Only emails with mailbox owner tracked
-      # .where("received_at >= ?", 30.days.ago) # Time filter commented out for historical data
+      .left_joins(:email_attachments)
+      .where(email_attachments: { id: nil })  # No attachments processed yet
       .order(received_at: :desc)
       .limit(100) # Limit for performance
 
-    Rails.logger.info "[SyncToSharePoint] Found #{emails_with_attachments.count} emails with attachments"
+    Rails.logger.info "[SyncToSharePoint] Found #{emails_with_attachments.count} emails with unprocessed attachments"
 
     client = MicrosoftAppGraphClient.new(@credential)
 
@@ -236,6 +237,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
     end
 
     # Get emails from this org that haven't been uploaded yet
+    # Simple approach: process emails without sharepoint_email_file_id
     emails_to_upload = EmailWarehouse
       .where(microsoft_credential_id: @credential.id)
       .where(sharepoint_email_file_id: nil)  # Not yet uploaded
