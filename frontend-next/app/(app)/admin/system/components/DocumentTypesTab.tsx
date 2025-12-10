@@ -55,7 +55,7 @@ interface DocumentType extends TableRow {
 export function DocumentTypesTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const scopeFilter = (searchParams.get("scope") as "company" | "job" | "people" | "all") || "all";
+  const scopeFilter = (searchParams.get("scope") as "company" | "job" | "people" | "xero" | "all") || "all";
 
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
@@ -384,6 +384,10 @@ export function DocumentTypesTab() {
           <TabsTrigger value="people" className="gap-2">
             <Users className="h-4 w-4" />
             People ({documentTypes.filter(dt => dt.scope === "people").length})
+          </TabsTrigger>
+          <TabsTrigger value="xero" className="gap-2">
+            💼 XERO
+ ({documentTypes.filter(dt => dt.scope === "xero").length})
           </TabsTrigger>
         </TabsList>
 
@@ -852,6 +856,7 @@ export function DocumentTypesTab() {
         enableSchemaEditor={true}
         customCellRenderer={customCellRenderer}
         onColumnUpdate={fetchColumns}
+        initialGroupByColumn="folder"
         leftActions={
           <Button onClick={() => setShowAddForm(true)}>
             <Plus className="h-4 w-4 mr-2" />
