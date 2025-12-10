@@ -20,6 +20,7 @@ CONTRIBUTING.md
 
 # Ignore large CSV/Excel data files
 *.csv
+!price_histories_import.csv
 *.xlsx
 *.xls
 
