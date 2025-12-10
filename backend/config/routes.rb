@@ -566,6 +566,12 @@ Rails.application.routes.draw do
         post :test_twilio, on: :collection
       end
 
+      # Corporate Company Settings (document paths)
+      resource :corporate_company_settings, only: [] do
+        get :document_paths, on: :collection
+        patch :document_paths, on: :collection, action: :update_document_paths
+      end
+
       # Folder Templates for OneDrive sync
       resources :folder_templates do
         member do

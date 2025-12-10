@@ -549,7 +549,7 @@ class JobDocumentMigrationService
 
   # Get or create the root folder for job documents
   def get_or_create_jobs_root_folder
-    root_folder_name = "TEEEM Jobs"
+    root_folder_name = CorporateCompanySetting.job_documents_base_path
 
     result = @client.get("/drives/#{@credential.drive_id}/root/children")
     folder = result["value"]&.find { |item| item["name"] == root_folder_name && item["folder"].present? }

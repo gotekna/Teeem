@@ -31,6 +31,7 @@ import {
   ChevronRight,
   Wrench,
   Scale,
+  History,
 } from "lucide-react";
 import {
   Persona,
@@ -72,6 +73,7 @@ const navigationItems: NavigationItem[] = [
   { name: "Quote Requests", href: "/quote-requests", icon: FileQuestion },
   { name: "Contacts", href: urls.contacts(), icon: Users },
   { name: "Price Book", href: urls.pricebook(), icon: Package },
+  { name: "Price Histories", href: "/price_histories", icon: History },
   { name: "Documents", href: "/documents", icon: FolderOpen },
   { name: "Corporate", href: "/corporate", icon: Building2 },
   { name: "Cases", href: "/cases", icon: Scale, badgeKey: "pendingCaseProposals" },

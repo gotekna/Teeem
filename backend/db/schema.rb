@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_10_051049) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_10_051050) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1211,6 +1211,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051049) do
     t.jsonb "job_folder_name_format"
     t.string "contact_documents_path"
     t.string "contact_folder_format", default: "id_name"
+    t.string "company_documents_base_path", default: "00 TEEEM PRIVATE"
+    t.string "people_documents_base_path", default: "teeem/Corporate/People"
+    t.string "job_documents_base_path", default: "TEEEM Jobs"
   end
 
   create_table "corporate_company_shareholdings", force: :cascade do |t|

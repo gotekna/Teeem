@@ -56,6 +56,34 @@ class CorporateCompanySetting < ApplicationRecord
     working_day?(date) && !public_holiday?(date)
   end
 
+  # Get base path for document storage by scope
+  def self.base_path_for_scope(scope)
+    setting = instance
+    case scope.to_s
+    when "company", "both"
+      setting.company_documents_base_path.presence || "00 TEEEM PRIVATE"
+    when "people"
+      setting.people_documents_base_path.presence || "teeem/Corporate/People"
+    when "job"
+      setting.job_documents_base_path.presence || "TEEEM Jobs"
+    else
+      raise ArgumentError, "Unknown scope: #{scope}"
+    end
+  end
+
+  # Convenience methods for accessing document base paths
+  def self.company_documents_base_path
+    base_path_for_scope("company")
+  end
+
+  def self.people_documents_base_path
+    base_path_for_scope("people")
+  end
+
+  def self.job_documents_base_path
+    base_path_for_scope("job")
+  end
+
   private
 
   def self.default_working_days
