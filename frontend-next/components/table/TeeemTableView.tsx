@@ -2715,7 +2715,7 @@ export default function TeeemTableView({
           // Show the value with a subtle indicator it's not editable
           const displayValue = value == null || value === "" ? "-" : String(value);
           return (
-            <span className="text-muted-foreground italic" title={isComputed ? "Computed column" : "System column - not editable"}>
+            <span className="text-muted-foreground italic text-[11px]" title={isComputed ? "Computed column" : "System column - not editable"}>
               {displayValue}
             </span>
           );
@@ -2728,7 +2728,7 @@ export default function TeeemTableView({
         const displayValue = value == null || value === "" ? "-" : String(value);
         return (
           <div
-            className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
+            className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px] text-[11px]"
             onClick={(e) => {
               e.stopPropagation();
               // Start editing this row when cell is clicked
@@ -2776,7 +2776,7 @@ export default function TeeemTableView({
         const formatted = digits.length === 11
           ? `${digits.slice(0,2)} ${digits.slice(2,5)} ${digits.slice(5,8)} ${digits.slice(8,11)}`
           : String(value);
-        return <span className="font-mono">{formatted}</span>;
+        return <span className="font-mono text-[11px]">{formatted}</span>;
       }
 
       // ACN: XXX XXX XXX (9 digits)
@@ -2785,7 +2785,7 @@ export default function TeeemTableView({
         const formatted = digits.length === 9
           ? `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,9)}`
           : String(value);
-        return <span className="font-mono">{formatted}</span>;
+        return <span className="font-mono text-[11px]">{formatted}</span>;
       }
 
       // BSB: XXX-XXX (6 digits)
@@ -2794,17 +2794,17 @@ export default function TeeemTableView({
         const formatted = digits.length === 6
           ? `${digits.slice(0,3)}-${digits.slice(3,6)}`
           : String(value);
-        return <span className="font-mono">{formatted}</span>;
+        return <span className="font-mono text-[11px]">{formatted}</span>;
       }
 
       // Bank Account: up to 9 digits
       if (column.column_type === "bank_account" && value) {
-        return <span className="font-mono">{String(value)}</span>;
+        return <span className="font-mono text-[11px]">{String(value)}</span>;
       }
 
       // Postcode: 4 digits
       if (column.column_type === "postcode" && value) {
-        return <span className="font-mono">{String(value).padStart(4, '0').slice(0,4)}</span>;
+        return <span className="font-mono text-[11px]">{String(value).padStart(4, '0').slice(0,4)}</span>;
       }
 
       // TFN: XXX XXX XXX (9 digits) - show masked for security
@@ -2818,10 +2818,10 @@ export default function TeeemTableView({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="font-mono text-muted-foreground cursor-help">{masked}</span>
+                <span className="font-mono text-muted-foreground cursor-help text-[11px]">{masked}</span>
               </TooltipTrigger>
               <TooltipContent>
-                <span>TFN hidden for security</span>
+                <span className="text-[11px]">TFN hidden for security</span>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -2833,7 +2833,7 @@ export default function TeeemTableView({
         return (
           <a
             href={`mailto:${value}`}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]"
             onClick={(e) => e.stopPropagation()}
             title={`Send email to ${value}`}
           >
@@ -2849,7 +2849,7 @@ export default function TeeemTableView({
         return (
           <a
             href={`tel:${phoneNumber}`}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]"
             onClick={(e) => e.stopPropagation()}
             title={`Call ${value}`}
           >
@@ -2868,7 +2868,7 @@ export default function TeeemTableView({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1"
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1 text-[11px]"
             onClick={(e) => e.stopPropagation()}
             title={`Open ${url}`}
           >
@@ -2881,7 +2881,7 @@ export default function TeeemTableView({
       // Default: render as string with priority-based truncation
       // Handle null/undefined values - show empty string instead of "null"/"undefined"
       if (value == null || value === "") {
-        return <span className="text-muted-foreground">—</span>;
+        return <span className="text-muted-foreground text-[11px]">—</span>;
       }
 
       const strValue = String(value);
@@ -2896,12 +2896,12 @@ export default function TeeemTableView({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="truncate block">
+                <span className="truncate block text-[11px]">
                   {strValue.slice(0, config.truncateAt)}...
                 </span>
               </TooltipTrigger>
               <TooltipContent className="max-w-md">
-                <p className="whitespace-pre-wrap">{strValue}</p>
+                <p className="whitespace-pre-wrap text-[11px]">{strValue}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -2909,7 +2909,7 @@ export default function TeeemTableView({
       }
 
       // For essential/supporting: show full text with CSS truncation if needed
-      return <span className="truncate block">{strValue}</span>;
+      return <span className="truncate block text-[11px]">{strValue}</span>;
     };
 
   // ============================================================================
@@ -3034,7 +3034,7 @@ export default function TeeemTableView({
             ) : (
               <ChevronDown className="h-4 w-4" />
             )}
-            <span className="font-medium text-sm">
+            <span className="font-medium text-[11px]">
               {groupKey}
             </span>
             <Badge variant="secondary" className="text-xs">{rowCount} rows</Badge>
@@ -3222,7 +3222,7 @@ export default function TeeemTableView({
               ) : (
                 <ChevronDown className="h-4 w-4" />
               )}
-              <span className="font-medium text-sm">
+              <span className="font-medium text-[11px]">
                 {groupKey}
               </span>
               <Badge variant="secondary" className="text-xs">{rowCount} rows</Badge>
@@ -3554,7 +3554,7 @@ export default function TeeemTableView({
           {/* View mode toggle - only show when grouped */}
           {groupByColumn && (
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-sm font-medium text-muted-foreground">View:</span>
+              <span className="text-[11px] font-medium text-muted-foreground">View:</span>
               <div className="flex rounded-md border overflow-hidden">
                 <Button
                   variant={groupViewMode === "inline" ? "default" : "ghost"}
@@ -3721,7 +3721,7 @@ export default function TeeemTableView({
 
               {foundationIdNumeric && (
                 <div className="px-2 py-1.5 flex items-center justify-between">
-                  <span className="text-sm">
+                  <span className="text-[11px]">
                     Table ID: <span className="font-mono font-medium">{foundationIdNumeric}</span>
                   </span>
                   <Button
@@ -3776,7 +3776,7 @@ export default function TeeemTableView({
               return (
                 <>
                   <span className={cn(
-                    "text-sm font-medium",
+                    "text-[11px] font-medium",
                     errorCount > 0 ? "text-red-700 dark:text-red-300" : "text-blue-700 dark:text-blue-300"
                   )}>
                     Editing {editingRowIds.size} row{editingRowIds.size !== 1 ? "s" : ""}
@@ -3878,7 +3878,7 @@ export default function TeeemTableView({
               )}
 
               {/* Selection count and clear */}
-              <span className="text-sm font-medium ml-auto">{selectedRows.size} selected</span>
+              <span className="text-[11px] font-medium ml-auto">{selectedRows.size} selected</span>
               <Button
                 variant="outline"
                 size="sm"
@@ -3924,7 +3924,7 @@ export default function TeeemTableView({
       {/* Active filters indicator - only show when NO saved view is active (view buttons already indicate active view) */}
       {safeFilters.length > 0 && !activeViewId && (
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-muted-foreground">Active filters:</span>
+          <span className="text-[11px] text-muted-foreground">Active filters:</span>
           {safeFilters.map((filter) => {
             const col = COLUMNS.find((c) => c.key === filter.column);
             return (
@@ -3958,7 +3958,7 @@ export default function TeeemTableView({
           {/* Only show selection count/clear when NOT in grouped view (grouped view has it inline) */}
           {!groupByColumn && (
             <>
-              <span className="text-sm font-medium">
+              <span className="text-[11px] font-medium">
                 {selectedRows.size} row{selectedRows.size !== 1 ? "s" : ""} selected
               </span>
               <Button
@@ -4037,7 +4037,7 @@ export default function TeeemTableView({
 
       {/* Sort controls - indicators hidden but functionality preserved */}
       {false && sortColumns.length > 0 && (
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-4 text-[11px]">
           {sortColumns.length > 0 && (
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">Sorted by:</span>
@@ -4065,7 +4065,7 @@ export default function TeeemTableView({
       {loadingMore && (
         <div className="flex items-center justify-center p-2">
           <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          <span className="text-sm text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground">
             Loading more records...
           </span>
         </div>
