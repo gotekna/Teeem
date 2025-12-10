@@ -26,13 +26,12 @@ module Api
       # PUT /api/v1/system_settings/sharepoint_path_templates
       # Update SharePoint path templates
       def update_sharepoint_path_templates
-        templates = params.require(:templates).permit(:company, :job, :people, :xero)
+        templates = params.require(:templates).permit(:company, :job, :people)
 
         SystemSetting.update_sharepoint_path_templates(
           company: templates[:company],
           job: templates[:job],
-          people: templates[:people],
-          xero: templates[:xero]
+          people: templates[:people]
         )
 
         render json: {

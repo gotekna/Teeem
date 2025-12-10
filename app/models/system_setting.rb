@@ -45,8 +45,7 @@ class SystemSetting < ApplicationRecord
     {
       company: get("sharepoint_path_template_company") || "/Corporate/{{CompanyCode}}/{{Folder}}",
       job: get("sharepoint_path_template_job") || "/Jobs/{{JobCode}}/{{Category}}",
-      people: get("sharepoint_path_template_people") || "/Contacts/{{ContactName}}",
-      xero: get("sharepoint_path_template_xero") || "/Corporate/XERO Auto"
+      people: get("sharepoint_path_template_people") || "/Contacts/{{ContactName}}"
     }
   end
 
@@ -55,6 +54,5 @@ class SystemSetting < ApplicationRecord
     set("sharepoint_path_template_company", templates[:company]) if templates[:company]
     set("sharepoint_path_template_job", templates[:job]) if templates[:job]
     set("sharepoint_path_template_people", templates[:people]) if templates[:people]
-    set("sharepoint_path_template_xero", templates[:xero]) if templates[:xero]
   end
 end
