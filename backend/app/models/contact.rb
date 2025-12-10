@@ -161,6 +161,11 @@ class Contact < ApplicationRecord
   # This ensures the relationship exists when primary_company is set directly
   after_commit :sync_primary_company_to_relationship, if: :should_sync_primary_company_to_relationship?
 
+  # SSoT: Sync Contact → CorporateCompany for standard contact fields
+  # One-way sync: Contact is SSoT for name, email, phone, bank details
+  # Two-way sync for ABN: Contact.tax_number ↔ CorporateCompany.abn
+  after_commit :sync_to_corporate_company, if: :should_sync_to_corporate?
+
   # Scopes
   scope :with_email, -> { where.not(email: [ nil, "" ]) }
   scope :with_phone, -> { where.not(mobile_phone: [ nil, "" ]).or(where.not(office_phone: [ nil, "" ])) }
@@ -914,5 +919,34 @@ class Contact < ApplicationRecord
     incoming_relationships.destroy_all
 
     Rails.logger.info("Cleaned up relationships for soft-deleted contact #{id}")
+  end
+
+  # SSoT: Check if this contact should sync to CorporateCompany
+  def should_sync_to_corporate?
+    # Only sync if this is a company/trust with a linked CorporateCompany record
+    # Don't sync if we're already syncing from CorporateCompany to Contact (prevent loop)
+    entity_type.in?(['company', 'trust']) &&
+      company_record.present? &&
+      !Thread.current[:syncing_company_to_contact]
+  end
+
+  # SSoT: Sync Contact → CorporateCompany for standard contact fields
+  def sync_to_corporate_company
+    # Prevent infinite loops
+    return if Thread.current[:syncing_contact_to_company]
+
+    Thread.current[:syncing_contact_to_company] = true
+
+    company_record.update!(
+      name: display_name,
+      abn: tax_number,  # SelfHealing will format with spaces
+      bank_account_name: bank_account_name,
+      bank_account_number: bank_account_number,
+      bank_bsb: bank_bsb
+    )
+  rescue StandardError => e
+    Rails.logger.error("Contact##{id}: Sync to CorporateCompany failed - #{e.message}")
+  ensure
+    Thread.current[:syncing_contact_to_company] = false
   end
 end

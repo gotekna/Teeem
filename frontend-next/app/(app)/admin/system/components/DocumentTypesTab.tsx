@@ -102,6 +102,7 @@ export function DocumentTypesTab() {
   React.useEffect(() => {
     fetchColumns();
     loadData();
+    loadSharePointPathTemplates();
   }, []);
 
   const fetchColumns = async () => {
@@ -135,6 +136,39 @@ export function DocumentTypesTab() {
       console.error("Failed to load document types:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSharePointPathTemplates = async () => {
+    try {
+      console.log("Loading SharePoint path templates from backend...");
+      const response = await api.get<{ templates: { company: string; job: string; people: string; xero: string } }>(
+        "/api/v1/system_settings/sharepoint_path_templates"
+      );
+      console.log("Received templates from backend:", response.templates);
+      if (response.templates) {
+        setBaseFolders(response.templates);
+      } else {
+        console.warn("No templates received from backend, using defaults");
+      }
+    } catch (error) {
+      console.error("Failed to load SharePoint path templates:", error);
+      console.error("Error details:", error);
+    }
+  };
+
+  const saveSharePointPathTemplates = async () => {
+    try {
+      setSaving(true);
+      await api.put("/api/v1/system_settings/update_sharepoint_path_templates", {
+        templates: baseFolders
+      });
+      setShowFolderConfig(false);
+    } catch (error) {
+      console.error("Failed to save SharePoint path templates:", error);
+      alert("Failed to save path templates. Please try again.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -592,12 +626,10 @@ export function DocumentTypesTab() {
                     </Button>
                     <Button
                       size="sm"
-                      onClick={() => {
-                        setShowFolderConfig(false);
-                        // In a real implementation, you'd save to backend here
-                        // For now, the state is already updated via onSelect
-                      }}
+                      onClick={saveSharePointPathTemplates}
+                      disabled={saving}
                     >
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                       Done
                     </Button>
                   </div>
@@ -636,8 +668,10 @@ export function DocumentTypesTab() {
                     </Button>
                     <Button
                       size="sm"
-                      onClick={() => setShowFolderConfig(false)}
+                      onClick={saveSharePointPathTemplates}
+                      disabled={saving}
                     >
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                       Done
                     </Button>
                   </div>
@@ -670,8 +704,10 @@ export function DocumentTypesTab() {
                     </Button>
                     <Button
                       size="sm"
-                      onClick={() => setShowFolderConfig(false)}
+                      onClick={saveSharePointPathTemplates}
+                      disabled={saving}
                     >
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                       Done
                     </Button>
                   </div>
@@ -709,8 +745,10 @@ export function DocumentTypesTab() {
                     </Button>
                     <Button
                       size="sm"
-                      onClick={() => setShowFolderConfig(false)}
+                      onClick={saveSharePointPathTemplates}
+                      disabled={saving}
                     >
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                       Done
                     </Button>
                   </div>

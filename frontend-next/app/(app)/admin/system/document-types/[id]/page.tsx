@@ -61,6 +61,7 @@ const BASE_PLACEHOLDERS: { company: PlaceholderItem[]; job: PlaceholderItem[] } 
     { code: "{LenderCode}", example: "ABC", longCode: "{LenderName}", longExample: "ABC Property Trust", color: "purple" },
     { code: "{Date}", example: "9-12-25", color: "purple" },
     { code: "{Description}", example: "Example", color: "purple" },
+    { code: "{Folder}", example: "ATO", color: "purple" },
     { code: "{BankCode}", example: "NAB", color: "purple" },
     { code: "{BankBSB}", example: "082-123", color: "purple" },
     { code: "{BankNumber}", example: "12345678", color: "purple" },
@@ -73,6 +74,7 @@ const BASE_PLACEHOLDERS: { company: PlaceholderItem[]; job: PlaceholderItem[] } 
     { code: "{Number}", example: "01", color: "orange" },
     { code: "{Date}", example: "9-12-25", color: "orange" },
     { code: "{Description}", example: "Example", color: "orange" },
+    { code: "{Category}", example: "Plans", color: "orange" },
   ]
 };
 

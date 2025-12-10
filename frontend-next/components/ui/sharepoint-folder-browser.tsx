@@ -67,6 +67,7 @@ interface SharePointFolderBrowserProps {
   onSelect: (folder: SharePointFolder | null, path: string) => void;
   selectedFolderId?: string | null;
   className?: string;
+  rootFolder?: string; // Restrict to this folder (e.g., "Teeem")
 }
 
 // Tree node with children state
@@ -133,8 +134,11 @@ function TreeFolder({
           <Folder className="h-4 w-4 text-amber-500 shrink-0" />
         )}
 
-        {/* Name */}
-        <span className="flex-1 truncate text-sm">{node.name}</span>
+        {/* Name and Path */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <span className="truncate text-sm">{node.name}</span>
+          <span className="truncate text-[10px] text-muted-foreground/60 font-mono">{node.path}</span>
+        </div>
 
         {/* Child count */}
         {hasChildren && !node.isExpanded && (
@@ -173,11 +177,13 @@ export function SharePointFolderBrowser({
   onSelect,
   selectedFolderId,
   className,
+  rootFolder = "Teeem", // Default to Teeem folder
 }: SharePointFolderBrowserProps) {
   const [treeNodes, setTreeNodes] = React.useState<TreeNode[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [selectedNode, setSelectedNode] = React.useState<TreeNode | null>(null);
+  const [rootFolderId, setRootFolderId] = React.useState<string | null>(null);
 
   // Drive/Site selection state
   const [sites, setSites] = React.useState<SharePointSite[]>([]);
@@ -197,16 +203,27 @@ export function SharePointFolderBrowser({
 
       setSites(sitesResponse.sites || []);
 
-      if (statusResponse.drive_type === "sharepoint" && statusResponse.site_name) {
-        const site = sitesResponse.sites?.find((s) => s.name === statusResponse.site_name);
-        if (site) {
-          setCurrentDrive(site.id);
-          setCurrentDriveName(site.name);
-        } else {
-          setCurrentDrive("sharepoint");
-          setCurrentDriveName(statusResponse.site_name || "SharePoint");
+      // Prefer SharePoint over personal OneDrive
+      if (sitesResponse.sites && sitesResponse.sites.length > 0) {
+        // Auto-select first SharePoint site
+        const firstSite = sitesResponse.sites[0];
+        setCurrentDrive(firstSite.id);
+        setCurrentDriveName(firstSite.name);
+
+        // Switch to SharePoint if not already there
+        if (statusResponse.drive_type !== "sharepoint" || statusResponse.site_name !== firstSite.name) {
+          try {
+            await api.post("/api/v1/organization_onedrive/use_sharepoint_site", { site_name: firstSite.name });
+          } catch (err) {
+            console.error("Failed to auto-switch to SharePoint:", err);
+          }
         }
+      } else if (statusResponse.drive_type === "sharepoint" && statusResponse.site_name) {
+        // Already on SharePoint but no sites list - use current
+        setCurrentDrive("sharepoint");
+        setCurrentDriveName(statusResponse.site_name || "SharePoint");
       } else {
+        // Fallback to personal OneDrive only if no SharePoint available
         setCurrentDrive("personal");
         setCurrentDriveName(statusResponse.drive_name || "My OneDrive");
       }
@@ -217,26 +234,52 @@ export function SharePointFolderBrowser({
     }
   }, []);
 
-  // Load root folders
+  // Load root folders (or restricted folder)
   const loadRootFolders = React.useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<BrowseFoldersResponse>("/api/v1/organization_onedrive/browse_folders");
-      const nodes: TreeNode[] = (response.folders || []).map((f) => ({
-        ...f,
-        path: `/${f.name}`,
-        isExpanded: false,
-        children: undefined,
-      }));
-      setTreeNodes(nodes);
+      if (rootFolder) {
+        // Load all folders first to find the root folder
+        const response = await api.get<BrowseFoldersResponse>("/api/v1/organization_onedrive/browse_folders");
+        const rootFolderNode = response.folders?.find((f) => f.name === rootFolder);
+
+        if (rootFolderNode) {
+          // Found the root folder - load its children
+          setRootFolderId(rootFolderNode.id);
+          const childrenResponse = await api.get<BrowseFoldersResponse>(
+            `/api/v1/organization_onedrive/browse_folders?folder_id=${rootFolderNode.id}`
+          );
+          const nodes: TreeNode[] = (childrenResponse.folders || []).map((f) => ({
+            ...f,
+            path: `/${rootFolder}/${f.name}`,
+            isExpanded: false,
+            children: undefined,
+          }));
+          setTreeNodes(nodes);
+        } else {
+          // Root folder not found - show error or create it
+          setError(`Folder "${rootFolder}" not found. Please create it in SharePoint first.`);
+          setTreeNodes([]);
+        }
+      } else {
+        // No restriction - load all root folders
+        const response = await api.get<BrowseFoldersResponse>("/api/v1/organization_onedrive/browse_folders");
+        const nodes: TreeNode[] = (response.folders || []).map((f) => ({
+          ...f,
+          path: `/${f.name}`,
+          isExpanded: false,
+          children: undefined,
+        }));
+        setTreeNodes(nodes);
+      }
     } catch (err) {
       console.error("Failed to load folders:", err);
       setError(err instanceof Error ? err.message : "Failed to load folders");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [rootFolder]);
 
   // Load children for a specific folder
   const loadChildren = React.useCallback(async (parentNode: TreeNode): Promise<TreeNode[]> => {
@@ -426,11 +469,13 @@ export function SharePointFolderBrowser({
               )}
               onClick={() => {
                 setSelectedNode(null);
-                onSelect(null, "");
+                onSelect(null, rootFolder ? `/${rootFolder}` : "");
               }}
             >
               <Home className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Root</span>
+              <span className="text-sm text-muted-foreground">
+                {rootFolder ? `/${rootFolder}` : "Root"}
+              </span>
             </div>
             {/* Tree folders */}
             {treeNodes.map((node) => (
@@ -447,10 +492,19 @@ export function SharePointFolderBrowser({
         )}
       </div>
 
-      {/* Help Text */}
-      <p className="text-xs text-muted-foreground mt-2 px-1">
-        Click to select a folder. Click the arrow to expand/collapse.
-      </p>
+      {/* Help Text and Selected Path */}
+      <div className="mt-2 px-1 space-y-1">
+        {selectedNode && (
+          <div className="p-2 bg-muted/50 rounded text-xs">
+            <span className="font-medium">Selected: </span>
+            <code className="font-mono text-primary">{selectedNode.path}</code>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">
+          {rootFolder && `Browsing folders in /${rootFolder}. `}
+          Click to select a folder. Click the arrow to expand/collapse.
+        </p>
+      </div>
     </div>
   );
 }
