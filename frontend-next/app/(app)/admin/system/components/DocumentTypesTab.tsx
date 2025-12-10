@@ -577,6 +577,25 @@ export function DocumentTypesTab() {
                     className="text-xs font-mono"
                     placeholder="/Companies"
                   />
+                  <div className="flex gap-2 justify-end pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowFolderConfig(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setShowFolderConfig(false);
+                        // In a real implementation, you'd save to backend here
+                        // For now, the state is already updated via onSelect
+                      }}
+                    >
+                      Done
+                    </Button>
+                  </div>
                 </div>
               ) : scopeFilter === "job" ? (
                 <div className="space-y-2">
@@ -597,6 +616,21 @@ export function DocumentTypesTab() {
                     className="text-xs font-mono"
                     placeholder="/Jobs"
                   />
+                  <div className="flex gap-2 justify-end pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowFolderConfig(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => setShowFolderConfig(false)}
+                    >
+                      Done
+                    </Button>
+                  </div>
                 </div>
               ) : scopeFilter === "xero" ? (
                 <div className="space-y-2">
@@ -616,6 +650,21 @@ export function DocumentTypesTab() {
                     className="text-xs font-mono"
                     placeholder="/XERO Auto"
                   />
+                  <div className="flex gap-2 justify-end pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowFolderConfig(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => setShowFolderConfig(false)}
+                    >
+                      Done
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -636,6 +685,21 @@ export function DocumentTypesTab() {
                     className="text-xs font-mono"
                     placeholder="/Director IDs"
                   />
+                  <div className="flex gap-2 justify-end pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowFolderConfig(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => setShowFolderConfig(false)}
+                    >
+                      Done
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
