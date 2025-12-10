@@ -618,6 +618,20 @@ export function DocumentTypesTab() {
                           const input = document.querySelector('input[value="' + baseFolders.company + '"]') as HTMLInputElement;
                           if (input) {
                             const cursorPos = input.selectionStart || baseFolders.company.length;
+                            const newValue = baseFolders.company.slice(0, cursorPos) + '{{CompanyGroup}}' + baseFolders.company.slice(cursorPos);
+                            setBaseFolders(prev => ({ ...prev, company: newValue }));
+                          }
+                        }}
+                      >
+                        {'{{CompanyGroup}}'} <span className="ml-1 text-xs opacity-60">e.g., "Tekna Group"</span>
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                        onClick={() => {
+                          const input = document.querySelector('input[value="' + baseFolders.company + '"]') as HTMLInputElement;
+                          if (input) {
+                            const cursorPos = input.selectionStart || baseFolders.company.length;
                             const newValue = baseFolders.company.slice(0, cursorPos) + '{{CompanyCode}}' + baseFolders.company.slice(cursorPos);
                             setBaseFolders(prev => ({ ...prev, company: newValue }));
                           }
@@ -747,14 +761,15 @@ export function DocumentTypesTab() {
                   </div>
                   <SharePointFolderBrowser
                     onSelect={(folder, path) => {
-                      setBaseFolders(prev => ({ ...prev, xero: path || "/Teeem/XERO Auto" }));
+                      setBaseFolders(prev => ({ ...prev, xero: path || "/Corporate/XERO Auto" }));
                     }}
+                    rootFolder=""
                   />
                   <Input
                     value={baseFolders.xero}
                     onChange={(e) => setBaseFolders(prev => ({ ...prev, xero: e.target.value }))}
                     className="text-xs font-mono"
-                    placeholder="/Teeem/XERO Auto"
+                    placeholder="/Corporate/XERO Auto"
                   />
                   <div className="flex gap-2 justify-end pt-2">
                     <Button
