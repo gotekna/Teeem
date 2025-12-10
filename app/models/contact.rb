@@ -717,12 +717,10 @@ class Contact < ApplicationRecord
   end
 
   def roles_only_for_persons
-    # roles is stored as a string (e.g. "[]" or "{}"), so check for blank or empty
-    return if roles.blank? || roles == "[]" || roles == "{}"
-
-    if entity_type != "person"
-      errors.add(:roles, "can only be assigned to people, not #{entity_type}")
-    end
+    # REMOVED: Companies can also be customers/suppliers in Xero
+    # Roles (customer, supplier) can be assigned to any entity type (person, company, trust, etc.)
+    # This validation was blocking Xero sync for companies that are suppliers/customers
+    return
   end
 
   def validate_name_fields_for_entity_type

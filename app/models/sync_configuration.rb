@@ -59,6 +59,9 @@ class SyncConfiguration < ApplicationRecord
     # Note: contact_persons removed - complex array not stored in Contact table (use separate ContactPerson model if needed)
     # Note: contact_groups removed - complex array not stored in Contact table (use separate ContactGroup model if needed)
 
+    # Contact Types (Customer/Supplier status from Xero)
+    "xero_contact_types" => { "direction" => "import", "xero_field" => "IsCustomer/IsSupplier", "group" => "xero_ids", "label" => "Contact Types (Customer/Supplier)", "description" => "Array of contact types from Xero - can be 'Customer', 'Supplier', or both" },
+
     # Note: is_customer/is_supplier removed - use xero_contact_types column (stores array) and Contact#is_supplier? virtual method
 
     # Note: branding_theme removed - no column in Contact table
