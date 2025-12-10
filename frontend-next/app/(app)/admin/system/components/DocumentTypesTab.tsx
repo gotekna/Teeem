@@ -796,6 +796,20 @@ export function DocumentTypesTab() {
                       >
                         {'{{CompanyCode}}'} <span className="ml-1 text-xs opacity-60">e.g., "ABC123"</span>
                       </Badge>
+                      <Badge
+                        variant="outline"
+                        className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                        onClick={() => {
+                          const input = document.querySelector('input[value="' + baseFolders.xero + '"]') as HTMLInputElement;
+                          if (input) {
+                            const cursorPos = input.selectionStart || baseFolders.xero.length;
+                            const newValue = baseFolders.xero.slice(0, cursorPos) + '{{Folder}}' + baseFolders.xero.slice(cursorPos);
+                            setBaseFolders(prev => ({ ...prev, xero: newValue }));
+                          }
+                        }}
+                      >
+                        {'{{Folder}}'} <span className="ml-1 text-xs opacity-60">e.g., "Invoices"</span>
+                      </Badge>
                     </div>
                   </div>
                   <Input
