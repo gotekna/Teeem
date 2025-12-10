@@ -87,8 +87,10 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     # Debug: Log which credential we're using for attachment fetch
     Rails.logger.info "[SyncToSharePoint] Creating client with credential ID #{@credential.id}, tenant: #{@credential.tenant_id}"
+    # Force fresh token fetch before creating client
+    @credential.fetch_access_token!
     client = MicrosoftAppGraphClient.new(@credential)
-    Rails.logger.info "[SyncToSharePoint] Client created, credential still has tenant: #{@credential.tenant_id}"
+    Rails.logger.info "[SyncToSharePoint] Client created with fresh token, credential tenant: #{@credential.tenant_id}"
 
     emails_with_attachments.each do |email|
       begin
