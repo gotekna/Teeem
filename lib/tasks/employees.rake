@@ -5,6 +5,12 @@ namespace :employees do
     puts "LINKING EMPLOYEES TO COMPANIES BY EMAIL DOMAIN"
     puts "=" * 80
     puts ""
+    puts "⚠️  IMPORTANT: This task is ADDITIVE ONLY"
+    puts "   - Only CREATES relationships that don't exist"
+    puts "   - NEVER deletes existing relationships"
+    puts "   - Safe to run multiple times"
+    puts "   - If someone's email changes, their existing relationships stay intact"
+    puts ""
 
     # Get all companies with email_domains configured
     companies_with_domains = Contact.where(entity_type: ['company', 'trust'])
