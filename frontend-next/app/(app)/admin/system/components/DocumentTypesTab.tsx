@@ -342,7 +342,7 @@ export function DocumentTypesTab() {
           <div className="space-y-2">
             <p className="text-sm font-medium">Select Folders</p>
             <div className="grid grid-cols-2 gap-2">
-              {folderOptions.map(folder => {
+              {FOLDER_OPTIONS.map(folder => {
                 const isSelected = tabs.includes(folder);
                 const isPrimary = entry.primary_tab === folder;
                 return (
