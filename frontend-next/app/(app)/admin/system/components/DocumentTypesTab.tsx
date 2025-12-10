@@ -283,6 +283,97 @@ export function DocumentTypesTab() {
     router.push(`/admin/system/document-types/${row.id}`);
   }, [router]);
 
+  // Separate component for tabs display with popover (needs hooks)
+  const TabsDisplayCell = ({ entry }: { entry: DocumentType }) => {
+    const tabs = entry.tabs || [];
+    const [open, setOpen] = React.useState(false);
+
+    const toggleFolder = async (folder: string) => {
+      const newTabs = tabs.includes(folder)
+        ? tabs.filter(t => t !== folder)
+        : [...tabs, folder];
+
+      try {
+        await handleRowUpdate(entry.id!, "tabs", newTabs);
+        toast({
+          title: "Folders updated",
+          description: `${folder} ${tabs.includes(folder) ? 'removed' : 'added'}`,
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to update folders",
+          variant: "destructive",
+        });
+      }
+    };
+
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 text-xs justify-start"
+          >
+            {tabs.length === 0 ? (
+              <span className="text-muted-foreground">Select folders...</span>
+            ) : (
+              <div className="flex flex-wrap gap-1">
+                {tabs.slice(0, 2).map(tab => (
+                  <Badge
+                    key={tab}
+                    variant="secondary"
+                    className="text-xs"
+                  >
+                    {tab}
+                  </Badge>
+                ))}
+                {tabs.length > 2 && (
+                  <Badge variant="secondary" className="text-xs">
+                    +{tabs.length - 2}
+                  </Badge>
+                )}
+              </div>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-3" align="start">
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Select Folders</p>
+            <div className="grid grid-cols-2 gap-2">
+              {folderOptions.map(folder => {
+                const isSelected = tabs.includes(folder);
+                const isPrimary = entry.primary_tab === folder;
+                return (
+                  <div
+                    key={folder}
+                    className={cn(
+                      "flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors text-xs",
+                      isSelected && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700",
+                      isPrimary && "ring-1 ring-blue-500",
+                      !isSelected && "hover:bg-muted"
+                    )}
+                    onClick={() => toggleFolder(folder)}
+                  >
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => toggleFolder(folder)}
+                    />
+                    <span className="font-medium">
+                      {folder}
+                      {isPrimary && <span className="ml-1 text-blue-600">★</span>}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
   // Custom cell renderer for tabs display and badges
   const customCellRenderer = (entry: DocumentType, columnKey: string) => {
     if (columnKey === "scope") {
@@ -339,79 +430,7 @@ export function DocumentTypesTab() {
       );
     }
     if (columnKey === "tabs_display") {
-      const tabs = entry.tabs || [];
-      const [open, setOpen] = React.useState(false);
-
-      const toggleFolder = async (folder: string) => {
-        const newTabs = tabs.includes(folder)
-          ? tabs.filter(t => t !== folder)
-          : [...tabs, folder];
-
-        try {
-          await handleRowUpdate(entry.id!, "tabs", newTabs);
-          toast({
-            title: "Folders updated",
-            description: `${folder} ${tabs.includes(folder) ? 'removed' : 'added'}`,
-          });
-        } catch (error) {
-          toast({
-            title: "Error",
-            description: "Failed to update folders",
-            variant: "destructive",
-          });
-        }
-      };
-
-      return (
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-2 text-xs justify-start"
-            >
-              {tabs.length === 0 ? (
-                <span className="text-muted-foreground">Select folders...</span>
-              ) : (
-                <div className="flex flex-wrap gap-1">
-                  {tabs.slice(0, 2).map(tab => (
-                    <Badge
-                      key={tab}
-                      variant="secondary"
-                      className="text-xs"
-                    >
-                      {tab}
-                    </Badge>
-                  ))}
-                  {tabs.length > 2 && (
-                    <Badge variant="secondary" className="text-xs">
-                      +{tabs.length - 2}
-                    </Badge>
-                  )}
-                </div>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-2">
-            <div className="space-y-1">
-              {FOLDER_OPTIONS.map(folder => (
-                <label
-                  key={folder}
-                  className="flex items-center space-x-2 p-2 rounded hover:bg-muted cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={tabs.includes(folder)}
-                    onChange={() => toggleFolder(folder)}
-                    className="rounded"
-                  />
-                  <span className="text-sm">{folder}</span>
-                </label>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-      );
+      return <TabsDisplayCell entry={entry} />;
     }
     if (columnKey === "primary_tab" || columnKey === "folder") {
       const value = entry[columnKey as keyof DocumentType] as string | undefined;
