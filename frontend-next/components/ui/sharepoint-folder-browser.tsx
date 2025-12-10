@@ -193,7 +193,7 @@ export function SharePointFolderBrowser({
   const [switchingDrive, setSwitchingDrive] = React.useState(false);
   const [creatingFolder, setCreatingFolder] = React.useState(false);
 
-  // Create root folder (e.g., "Teeem")
+  // Create root folder (e.g., "Teeem") - Note: loadRootFolders defined below
   const createRootFolder = React.useCallback(async () => {
     if (!rootFolder) return;
 
@@ -203,16 +203,17 @@ export function SharePointFolderBrowser({
         folder_name: rootFolder,
       });
 
-      // Reload folders after creation
+      // Reload folders after creation - loadRootFolders is defined later in the file
       setError(null);
-      await loadRootFolders();
+      // Note: We manually reload here rather than call loadRootFolders to avoid circular dependency
+      window.location.reload();
     } catch (err: any) {
       console.error("Failed to create root folder:", err);
       setError(err.response?.data?.error || "Failed to create folder");
     } finally {
       setCreatingFolder(false);
     }
-  }, [rootFolder, loadRootFolders]);
+  }, [rootFolder]);
 
   // Load available SharePoint sites
   const loadSites = React.useCallback(async () => {
