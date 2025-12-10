@@ -21,9 +21,9 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     Rails.logger.info "[SyncToSharePoint] Starting sync for #{@credential.name}"
 
-    # Step 1: Sync emails to EmailWarehouse
+    # Step 1: Sync emails to EmailWarehouse (use 'full' to respect sync_days config)
     Rails.logger.info "[SyncToSharePoint] Step 1: Syncing emails to warehouse..."
-    email_result = OrgEmailSyncJob.perform_now("incremental", org_name: @credential.name)
+    email_result = OrgEmailSyncJob.perform_now("full", org_name: @credential.name)
     Rails.logger.info "[SyncToSharePoint] Synced #{email_result[:total_synced]} emails"
 
     # Step 2: Upload attachments to SharePoint
