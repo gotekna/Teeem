@@ -55,6 +55,26 @@ class EmailClassificationService
     noreply
   ].freeze
 
+  # Social media domains - notifications and marketing
+  SOCIAL_MEDIA_DOMAINS = %w[
+    facebookmail.com
+    facebook.com
+    instagram.com
+    twitter.com
+    x.com
+    linkedin.com
+    tiktok.com
+    pinterest.com
+    snapchat.com
+    reddit.com
+    youtube.com
+    whatsapp.com
+    telegram.org
+    discord.com
+    twitch.tv
+    threads.net
+  ].freeze
+
   # Trusted internal/business domains - NEVER classify as spam
   TRUSTED_DOMAINS = %w[
     tekna.com.au
@@ -96,6 +116,36 @@ class EmailClassificationService
       from_pattern: /auspost|startrack|dhl|fedex|ups|tracking/i,
       subject_patterns: [ /tracking|shipped|delivered|in transit/i ],
       retention_days: 30
+    },
+    social_media_notifications: {
+      from_pattern: /facebookmail\.com|@facebook\.com|@instagram\.com|@twitter\.com|@x\.com|@linkedin\.com|@tiktok\.com|@pinterest\.com|@snapchat\.com|@reddit\.com|@youtube\.com|@discord\.com|@twitch\.tv|@threads\.net/i,
+      subject_patterns: [
+        # Facebook/Instagram
+        /commented on|tagged you|mentioned you|replied to|reacted to/i,
+        /sent you a message|new friend request|people you may know/i,
+        /posted in|new post in|activity on your|new memory/i,
+        /started following you|new follower/i,
+        /birthday|suggested for you/i,
+        # LinkedIn
+        /new connection|endorsed you|viewed your profile|new job/i,
+        /is hiring|who's viewed|invitation to connect/i,
+        /commented on your post|liked your/i,
+        # Twitter/X
+        /new tweet|retweeted|liked your tweet|new direct message/i,
+        /is now following you|trending/i,
+        # YouTube
+        /uploaded a video|new video from|subscribed to/i,
+        /commented on your video|new subscriber/i,
+        # TikTok
+        /new video|liked your video|new duet/i,
+        # Discord
+        /missed a call|new message in|server invite/i,
+        # Reddit
+        /upvoted|new comment on|trending on/i,
+        # Generic social patterns
+        /notification from|weekly digest|daily digest/i
+      ],
+      retention_days: 7
     }
   }.freeze
 
@@ -292,8 +342,12 @@ class EmailClassificationService
     # Check if from a known marketing platform
     is_marketing_domain = MARKETING_DOMAINS.any? { |md| domain.include?(md) }
 
+    # Check if from a social media platform (treat as marketing)
+    is_social_media_domain = SOCIAL_MEDIA_DOMAINS.any? { |sd| domain.include?(sd) }
+
     {
-      marketing: is_marketing_domain ? 0.9 : 0.0
+      marketing: (is_marketing_domain || is_social_media_domain) ? 0.9 : 0.0,
+      social_media: is_social_media_domain
     }
   end
 
@@ -330,6 +384,7 @@ class EmailClassificationService
     signals << "marketing_subject" if subject_score[:marketing] > 0.5
     signals << "marketing_body" if body_score[:marketing] > 0.5
     signals << "marketing_domain" if domain_score[:marketing] > 0.7
+    signals << "social_media_domain" if domain_score[:social_media]
     signals << "spam_subject" if subject_score[:spam] > 0.5
     signals << "spam_body" if body_score[:spam] > 0.5
     signals << "transactional_subject" if subject_score[:transactional] > 0.5
