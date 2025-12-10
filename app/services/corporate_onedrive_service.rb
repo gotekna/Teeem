@@ -222,7 +222,7 @@ class CorporateOnedriveService
       next unless folder["folder"]
 
       company = find_matching_company(folder["name"])
-      documents = scan_folder_for_documents(client, folder["id"])
+      documents = scan_folder_for_documents(client, folder["id"], recursive: true)
 
       preview_results << {
         folder_name: folder["name"],
