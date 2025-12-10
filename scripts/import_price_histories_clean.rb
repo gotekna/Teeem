@@ -9,8 +9,9 @@ require 'csv'
 class PriceHistoriesImporter
   attr_reader :stats
 
-  def initialize(csv_path)
-    @csv_path = csv_path
+  def initialize(csv_path = nil)
+    # Default to backend root if no path provided (for Heroku deployment)
+    @csv_path = csv_path || Rails.root.join('price_histories_import.csv')
     @stats = {
       total_rows: 0,
       created: 0,
@@ -213,13 +214,8 @@ class PriceHistoriesImporter
 end
 
 # Main execution
-if ARGV.empty?
-  puts "❌ ERROR: CSV file path required"
-  puts "Usage: rails runner scripts/import_price_histories_clean.rb /path/to/file.csv"
-  exit 1
-end
-
-csv_path = ARGV[0]
+# Accept optional CSV path, or use default (backend root)
+csv_path = ARGV[0] # nil is OK, will use default in initializer
 importer = PriceHistoriesImporter.new(csv_path)
 success = importer.run
 
