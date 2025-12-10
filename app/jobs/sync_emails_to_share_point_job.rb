@@ -22,13 +22,14 @@ class SyncEmailsToSharePointJob < ApplicationJob
     Rails.logger.info "[SyncToSharePoint] Starting sync for #{@credential.name}"
 
     # Step 1: Sync emails to EmailWarehouse (use 'full' to respect sync_days config)
-    Rails.logger.info "[SyncToSharePoint] Step 1: Syncing emails to warehouse..."
-    email_result = OrgEmailSyncJob.perform_now("full", org_name: @credential.name)
-    Rails.logger.info "[SyncToSharePoint] Synced #{email_result[:total_synced]} emails"
-
-    # Reload credential from database to ensure fresh state after Step 1
-    # Step 1 creates its own credential instance which may update the DB
-    @credential.reload
+    # TEMPORARILY SKIPPED - there's a bug where running email sync before attachment processing
+    # causes 404 errors even though manual tests work. Processing existing emails instead.
+    # Rails.logger.info "[SyncToSharePoint] Step 1: Syncing emails to warehouse..."
+    # email_result = OrgEmailSyncJob.perform_now("full", org_name: @credential.name)
+    # Rails.logger.info "[SyncToSharePoint] Synced #{email_result[:total_synced]} emails"
+    # @credential.reload
+    email_result = { total_synced: 0 }
+    Rails.logger.info "[SyncToSharePoint] Step 1: SKIPPED (processing existing emails)"
 
     # Step 2: Upload attachments to SharePoint
     Rails.logger.info "[SyncToSharePoint] Step 2: Uploading attachments to SharePoint..."
