@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_10_090051) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_10_093313) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -908,12 +908,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_090051) do
   end
 
   create_table "contacts", force: :cascade do |t|
-    t.integer "sys_type_id"
-    t.boolean "deleted"
-    t.integer "parent_id"
-    t.string "parent"
-    t.string "drive_id"
-    t.string "folder_id"
     t.string "tax_number"
     t.string "xero_id"
     t.string "email"
@@ -924,20 +918,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_090051) do
     t.string "last_name"
     t.string "display_name"
     t.boolean "sync_with_xero"
-    t.integer "contact_region_id"
-    t.string "contact_region"
-    t.boolean "branch"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.datetime "last_synced_at"
-    t.text "xero_sync_error"
     t.text "roles", default: "{}"
-    t.integer "rating", default: 0
-    t.decimal "response_rate", precision: 5, scale: 2, default: "0.0"
-    t.integer "avg_response_time"
-    t.text "notes"
     t.boolean "is_active", default: true
-    t.string "supplier_code"
     t.text "address"
     t.text "lgas", default: [], array: true
     t.string "bank_bsb"
@@ -949,41 +933,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_090051) do
     t.string "xero_contact_number"
     t.string "xero_contact_status"
     t.string "xero_account_number"
-    t.string "company_number"
-    t.string "fax_phone"
     t.string "default_sales_account"
     t.decimal "default_discount", precision: 5, scale: 2
     t.integer "sales_due_day"
     t.string "sales_due_type"
-    t.decimal "accounts_receivable_outstanding", precision: 15, scale: 2
-    t.decimal "accounts_receivable_overdue", precision: 15, scale: 2
-    t.decimal "accounts_payable_outstanding", precision: 15, scale: 2
-    t.decimal "accounts_payable_overdue", precision: 15, scale: 2
     t.boolean "portal_enabled", default: false
-    t.decimal "teeem_rating", precision: 3, scale: 2
-    t.integer "total_ratings_count", default: 0
-    t.string "director_id"
-    t.date "date_of_birth"
     t.string "company_name_or_trust"
     t.bigint "primary_company_id"
-    t.string "primary_role"
-    t.string "employment_status"
-    t.date "employment_start_date"
     t.string "entity_type"
-    t.boolean "abn_valid"
-    t.string "abn_entity_name"
-    t.string "abn_entity_type"
-    t.boolean "abn_gst_registered"
-    t.datetime "abn_verified_at"
     t.boolean "xero_synced", default: false, null: false
     t.string "place_of_birth"
     t.string "birth_state"
     t.string "birth_country"
-    t.string "drivers_licence"
     t.text "residential_address"
-    t.string "tfn"
-    t.string "passport_number"
-    t.string "photo_url"
     t.boolean "is_family_member", default: false
     t.boolean "is_potential_director", default: false
     t.bigint "company_group_id"
@@ -997,25 +959,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_090051) do
     t.text "xero_contact_types", default: [], array: true
     t.string "middle_name"
     t.boolean "is_team_contact", default: false, null: false
-    t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
-    t.index ["contact_region_id"], name: "index_contacts_on_contact_region_id"
-    t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
     t.index ["is_team_contact"], name: "index_contacts_on_is_team_contact"
     t.index ["linked_company_id"], name: "index_contacts_on_linked_company_id"
-    t.index ["parent_id"], name: "index_contacts_on_parent_id"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
-    t.index ["rating"], name: "index_contacts_on_rating"
-    t.index ["supplier_code"], name: "index_contacts_on_supplier_code", unique: true, where: "(supplier_code IS NOT NULL)"
-    t.index ["sys_type_id"], name: "index_contacts_on_sys_type_id"
-    t.index ["teeem_rating"], name: "index_contacts_on_teeem_rating"
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
     t.index ["xero_contact_status"], name: "index_contacts_on_xero_contact_status"
     t.index ["xero_contact_types"], name: "index_contacts_on_xero_contact_types", using: :gin
-    t.index ["xero_id", "last_synced_at"], name: "index_contacts_on_xero_id_and_last_synced_at"
   end
 
   create_table "corporate_companies", force: :cascade do |t|
