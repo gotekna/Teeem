@@ -43,10 +43,10 @@ class SystemSetting < ApplicationRecord
   # Get all SharePoint path templates
   def self.sharepoint_path_templates
     {
-      company: get("sharepoint_path_template_company") || "/Teeem/Companies/{{CompanyCode}}/{{Folder}}",
-      job: get("sharepoint_path_template_job") || "/Teeem/Jobs/{{JobCode}}/{{Category}}",
-      people: get("sharepoint_path_template_people") || "/Teeem/Director IDs/{{ContactName}}",
-      xero: get("sharepoint_path_template_xero") || "/Teeem/XERO Auto"
+      company: get("sharepoint_path_template_company") || "/Corporate/{{CompanyCode}}/{{Folder}}",
+      job: get("sharepoint_path_template_job") || "/Jobs/{{JobCode}}/{{Category}}",
+      people: get("sharepoint_path_template_people") || "/Contacts/{{ContactName}}",
+      xero: get("sharepoint_path_template_xero") || "/Corporate/XERO Auto"
     }
   end
 

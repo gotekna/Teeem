@@ -16,10 +16,10 @@ class CreateSystemSettings < ActiveRecord::Migration[8.0]
         execute <<-SQL
           INSERT INTO system_settings (setting_key, setting_value, setting_type, description, created_at, updated_at)
           VALUES
-            ('sharepoint_path_template_company', '/Teeem/Companies/{{CompanyCode}}/{{Folder}}', 'string', 'SharePoint folder path template for company documents', NOW(), NOW()),
-            ('sharepoint_path_template_job', '/Teeem/Jobs/{{JobCode}}/{{Category}}', 'string', 'SharePoint folder path template for job documents', NOW(), NOW()),
-            ('sharepoint_path_template_people', '/Teeem/Director IDs/{{ContactName}}', 'string', 'SharePoint folder path template for people documents', NOW(), NOW()),
-            ('sharepoint_path_template_xero', '/Teeem/XERO Auto', 'string', 'SharePoint folder path template for XERO auto documents', NOW(), NOW());
+            ('sharepoint_path_template_company', '/Corporate/{{CompanyCode}}/{{Folder}}', 'string', 'SharePoint folder path template for company documents', NOW(), NOW()),
+            ('sharepoint_path_template_job', '/Jobs/{{JobCode}}/{{Category}}', 'string', 'SharePoint folder path template for job documents', NOW(), NOW()),
+            ('sharepoint_path_template_people', '/Contacts/{{ContactName}}', 'string', 'SharePoint folder path template for people documents', NOW(), NOW()),
+            ('sharepoint_path_template_xero', '/Corporate/XERO Auto', 'string', 'SharePoint folder path template for XERO auto documents', NOW(), NOW());
         SQL
       end
     end

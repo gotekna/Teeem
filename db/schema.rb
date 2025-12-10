@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_10_093758) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_10_101003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -961,6 +961,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_093758) do
     t.boolean "is_team_contact", default: false, null: false
     t.string "company_number"
     t.string "fax_phone"
+    t.decimal "accounts_receivable_outstanding", precision: 15, scale: 2, default: "0.0"
+    t.decimal "accounts_receivable_overdue", precision: 15, scale: 2, default: "0.0"
+    t.decimal "accounts_payable_outstanding", precision: 15, scale: 2, default: "0.0"
+    t.decimal "accounts_payable_overdue", precision: 15, scale: 2, default: "0.0"
+    t.jsonb "email_domains", default: [], null: false, comment: "Email domains for auto-linking employees (e.g., ['tekna.com.au', 'bunnings.com.au']). Used by rake task to create employee_of relationships."
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
