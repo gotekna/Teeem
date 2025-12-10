@@ -2406,6 +2406,23 @@ export default function TeeemTableView({
       }
     });
 
+    // Calculate total width of all columns
+    const totalColumnsWidth = Object.values(newWidths).reduce((sum, width) => sum + width, 0);
+
+    // Get available table width (subtract scrollbar width ~17px)
+    const tableWidth = tableContainerRef.current?.clientWidth || 0;
+    const availableWidth = tableWidth - 17; // Account for scrollbar
+
+    // If columns don't fill the page, expand them proportionally
+    if (totalColumnsWidth > 0 && availableWidth > totalColumnsWidth) {
+      const expansionRatio = availableWidth / totalColumnsWidth;
+
+      // Expand all columns proportionally to fill the page
+      Object.keys(newWidths).forEach(key => {
+        newWidths[key] = Math.floor(newWidths[key] * expansionRatio);
+      });
+    }
+
     return newWidths;
   }, [visibleColumnsInOrder, filteredAndSortedEntries]);
 
@@ -2420,8 +2437,26 @@ export default function TeeemTableView({
       const autoWidths = calculateAutoFitWidths();
       setColumnWidths(autoWidths);
     }
-     
+
   }, [smartFit, autoFitColumns, calculateSmartFitWidths, calculateAutoFitWidths, visibleColumnsInOrder]);
+
+  // Watch for container resize and recalculate widths when TEEEM Smart is enabled
+  useEffect(() => {
+    if (!smartFit || !tableContainerRef.current) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (filteredAndSortedEntries.length > 0) {
+        const smartWidths = calculateSmartFitWidths();
+        setColumnWidths(smartWidths);
+      }
+    });
+
+    resizeObserver.observe(tableContainerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [smartFit, calculateSmartFitWidths, filteredAndSortedEntries]);
 
   // Get visible data columns (excluding select and actions)
   const visibleDataColumns = useMemo(() => {

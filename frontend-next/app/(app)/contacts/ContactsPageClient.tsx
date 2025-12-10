@@ -9,7 +9,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import ContactsRelationalView from "./ContactsRelationalView";
-import { Plus, AlertTriangle, Table2, Network } from "lucide-react";
+import ContactRelationshipsExplorer from "./ContactRelationshipsExplorer";
+import { Plus, AlertTriangle, Table2, Network, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { useViewMode } from "@/contexts/ViewModeContext";
@@ -86,6 +87,7 @@ export default function ContactsPageClient({
 
   // Track current view to determine display mode
   const [currentView, setCurrentView] = useState<any>(null);
+  const [showExplorer, setShowExplorer] = useState(false);
 
   // Handler for when the active view changes in View Manager
   const handleViewChange = useCallback((view: any) => {
@@ -356,11 +358,25 @@ export default function ContactsPageClient({
             {records.length.toLocaleString()} contacts
           </p>
         </div>
+        {currentView?.view_type === "relational" && (
+          <Button
+            variant={showExplorer ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowExplorer(!showExplorer)}
+          >
+            <Search className="h-4 w-4 mr-2" />
+            {showExplorer ? "Show Network" : "Search Relationships"}
+          </Button>
+        )}
       </div>
 
       {/* Contacts View - Table or Relational based on saved view setting */}
       {currentView?.view_type === "relational" ? (
-        <ContactsRelationalView contacts={records as unknown as Contact[]} />
+        showExplorer ? (
+          <ContactRelationshipsExplorer />
+        ) : (
+          <ContactsRelationalView contacts={records as unknown as Contact[]} />
+        )
       ) : (
         <TeeemTableView
           entries={records}

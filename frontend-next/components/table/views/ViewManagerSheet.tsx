@@ -203,9 +203,10 @@ export function ViewManagerSheet({
       );
 
       if (response?.success && response.views) {
-         
+
         const mappedViews = (response.views as any[]).map((v) => ({
           ...v,
+          view_type: v.view_display_type || "table", // Map backend field to frontend field
           filters: v.filters?.cascadeFilters || [],
           filterGroups: v.filters?.filterGroups || [{ id: "default", logic: "AND" }],
           interGroupLogic: v.filters?.interGroupLogic || "OR",
