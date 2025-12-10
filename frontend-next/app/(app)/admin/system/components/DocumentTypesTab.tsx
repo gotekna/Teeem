@@ -60,7 +60,7 @@ interface DocumentType extends TableRow {
 export function DocumentTypesTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const scopeFilter = (searchParams.get("scope") as "company" | "job" | "people" | "xero" | "all") || "all";
+  const scopeFilter = (searchParams.get("scope") as "company" | "job" | "people" | "all") || "all";
 
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
@@ -83,29 +83,11 @@ export function DocumentTypesTab() {
     active: true
   });
 
-  // XERO sub-tab state
-  const [xeroSubTab, setXeroSubTab] = React.useState<"bank" | "pl" | "bs">("bank");
-
   // Filter document types by scope
   const filteredDocTypes = React.useMemo(() => {
     if (scopeFilter === "all") return documentTypes;
     return documentTypes.filter(dt => dt.scope === scopeFilter || dt.scope === "both");
   }, [documentTypes, scopeFilter]);
-
-  // Filter XERO documents by sub-tab (Bank, P&L, Balance Sheet)
-  const xeroFilteredDocTypes = React.useMemo(() => {
-    if (scopeFilter !== "xero") return filteredDocTypes;
-
-    if (xeroSubTab === "bank") {
-      return filteredDocTypes.filter(dt => dt.abbreviation === "XB");
-    } else if (xeroSubTab === "pl") {
-      return filteredDocTypes.filter(dt => dt.abbreviation === "P&L");
-    } else if (xeroSubTab === "bs") {
-      return filteredDocTypes.filter(dt => dt.abbreviation === "B/S");
-    }
-
-    return filteredDocTypes;
-  }, [filteredDocTypes, scopeFilter, xeroSubTab]);
 
   // Handle scope tab change
   const handleScopeChange = React.useCallback((value: string) => {
@@ -485,7 +467,7 @@ export function DocumentTypesTab() {
 
       {/* Scope Filter Tabs */}
       <Tabs value={scopeFilter} onValueChange={handleScopeChange}>
-        <TabsList className="grid w-full grid-cols-5 max-w-3xl">
+        <TabsList className="grid w-full grid-cols-4 max-w-3xl">
           <TabsTrigger value="all" className="gap-2">
             All ({documentTypes.length})
           </TabsTrigger>
@@ -500,10 +482,6 @@ export function DocumentTypesTab() {
           <TabsTrigger value="people" className="gap-2">
             <Users className="h-4 w-4" />
             People ({documentTypes.filter(dt => dt.scope === "people").length})
-          </TabsTrigger>
-          <TabsTrigger value="xero" className="gap-2">
-            💼 XERO
- ({documentTypes.filter(dt => dt.scope === "xero").length})
           </TabsTrigger>
         </TabsList>
 
@@ -956,51 +934,7 @@ export function DocumentTypesTab() {
       )}
 
       {/* Table - Foundation 454 */}
-      {scopeFilter === "xero" ? (
-        /* XERO Tab with nested sub-tabs */
-        <Tabs value={xeroSubTab} onValueChange={(v) => setXeroSubTab(v as "bank" | "pl" | "bs")} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="bank">
-              Bank ({filteredDocTypes.filter(dt => dt.abbreviation === "XB").length})
-            </TabsTrigger>
-            <TabsTrigger value="pl">
-              P&L ({filteredDocTypes.filter(dt => dt.abbreviation === "P&L").length})
-            </TabsTrigger>
-            <TabsTrigger value="bs">
-              Balance Sheet ({filteredDocTypes.filter(dt => dt.abbreviation === "B/S").length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value={xeroSubTab}>
-            <TeeemTableView
-              foundationId="document-types"
-              foundationIdNumeric={DOCUMENT_TYPES_FOUNDATION_ID}
-              tableName={`XERO - ${xeroSubTab === "bank" ? "Bank" : xeroSubTab === "pl" ? "Profit & Loss" : "Balance Sheet"} (${xeroFilteredDocTypes.length})`}
-              entries={xeroFilteredDocTypes}
-              columns={columns}
-              onEdit={handleEdit}
-              onRowUpdate={handleRowUpdate}
-              onRowClick={handleRowClick}
-              onRowDoubleClick={handleRowDoubleClick}
-              onDelete={handleDelete}
-              onBulkDelete={handleBulkDelete}
-              enableExport={true}
-              enableSchemaEditor={true}
-              customCellRenderer={customCellRenderer}
-              onColumnUpdate={fetchColumns}
-              initialGroupByColumn="folder"
-              leftActions={
-                <Button onClick={() => setShowAddForm(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Document Type
-                </Button>
-              }
-            />
-          </TabsContent>
-        </Tabs>
-      ) : (
-        /* Regular table for all other tabs */
-        <TeeemTableView
+      <TeeemTableView
           foundationId="document-types"
           foundationIdNumeric={DOCUMENT_TYPES_FOUNDATION_ID}
           tableName={`Document Types (${filteredDocTypes.length}${scopeFilter !== "all" ? ` - ${scopeFilter}` : ""})`}
@@ -1024,7 +958,6 @@ export function DocumentTypesTab() {
             </Button>
           }
         />
-      )}
 
         </TabsContent>
       </Tabs>
