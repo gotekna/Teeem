@@ -53,6 +53,9 @@ interface XeroTenant {
   is_primary: boolean;
   expires_at?: string;
   expired?: boolean;
+  // SSoT: Credential health status fields
+  status?: 'connected' | 'degraded' | 'disconnected';
+  needs_reauth?: boolean;
 }
 
 interface CompanyXeroConnection {
@@ -92,9 +95,15 @@ export default function XeroIntegrationPage() {
   const [settingPrimary, setSettingPrimary] = React.useState<string | null>(null);
   const [organizationsExpanded, setOrganizationsExpanded] = React.useState<boolean | null>(null);
 
-  // Compute if any tenant has expired (for default expanded state)
+  // Compute if any tenant needs attention (for default expanded state)
+  // SSoT: Auto-expand when any tenant needs re-auth, is degraded, disconnected, or expired
   const hasExpiredTenants = React.useMemo(() => {
-    return tenants.some(t => t.expired);
+    return tenants.some(t =>
+      t.expired ||
+      t.needs_reauth ||
+      t.status === 'degraded' ||
+      t.status === 'disconnected'
+    );
   }, [tenants]);
 
   // Set default expanded state based on health - only once when tenants load
