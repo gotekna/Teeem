@@ -191,6 +191,28 @@ export function SharePointFolderBrowser({
   const [currentDriveName, setCurrentDriveName] = React.useState<string>("My OneDrive");
   const [loadingSites, setLoadingSites] = React.useState(true);
   const [switchingDrive, setSwitchingDrive] = React.useState(false);
+  const [creatingFolder, setCreatingFolder] = React.useState(false);
+
+  // Create root folder (e.g., "Teeem")
+  const createRootFolder = React.useCallback(async () => {
+    if (!rootFolder) return;
+
+    setCreatingFolder(true);
+    try {
+      await api.post("/api/v1/organization_onedrive/create_root_folder", {
+        folder_name: rootFolder,
+      });
+
+      // Reload folders after creation
+      setError(null);
+      await loadRootFolders();
+    } catch (err: any) {
+      console.error("Failed to create root folder:", err);
+      setError(err.response?.data?.error || "Failed to create folder");
+    } finally {
+      setCreatingFolder(false);
+    }
+  }, [rootFolder, loadRootFolders]);
 
   // Load available SharePoint sites
   const loadSites = React.useCallback(async () => {
@@ -369,6 +391,7 @@ export function SharePointFolderBrowser({
 
   if (error && !switchingDrive) {
     const isNotConnected = error.toLowerCase().includes("not connected") || error.toLowerCase().includes("unauthorized");
+    const isFolderNotFound = error.toLowerCase().includes("not found");
     return (
       <div className={cn("flex flex-col items-center justify-center p-8 text-center", className)}>
         <AlertCircle className={cn("h-8 w-8 mb-2", isNotConnected ? "text-amber-500" : "text-destructive")} />
@@ -388,6 +411,36 @@ export function SharePointFolderBrowser({
                 </a>
               </Button>
               <Button variant="ghost" size="sm" onClick={loadRootFolders}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          </>
+        ) : isFolderNotFound ? (
+          <>
+            <p className="text-xs text-muted-foreground mb-4">
+              The &quot;{rootFolder}&quot; folder doesn&apos;t exist yet in your SharePoint site
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={createRootFolder}
+                disabled={creatingFolder}
+              >
+                {creatingFolder ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Folder className="h-4 w-4 mr-2" />
+                    Create &quot;{rootFolder}&quot; Folder
+                  </>
+                )}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={loadRootFolders} disabled={creatingFolder}>
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Retry
               </Button>
