@@ -86,16 +86,19 @@ class PriceHistoriesImporter
 
   def process_row(row, row_num)
     # Extract data from CSV
-    pricebook_id = row['pricebook_id']&.to_i
+    item_code = row['pricebook']&.strip  # CSV 'pricebook' column has the item_code (DPP, SPP, etc.)
     price = parse_price(row['price'])
     effective_date = parse_date(row['effective_date'])
     supplier_name = row['supplier_trade']&.strip
 
-    # Validate pricebook_id exists
-    unless pricebook_id && PricebookItem.exists?(pricebook_id)
+    # Lookup pricebook item by code
+    pricebook_item = PricebookItem.find_by(item_code: item_code) if item_code.present?
+    unless pricebook_item
       @stats[:skipped_invalid_item] += 1
       return
     end
+
+    pricebook_id = pricebook_item.id
 
     # Lookup supplier (allow nil)
     supplier_id = nil
