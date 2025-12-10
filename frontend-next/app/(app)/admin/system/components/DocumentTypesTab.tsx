@@ -54,7 +54,7 @@ interface DocumentType extends TableRow {
 export function DocumentTypesTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const scopeFilter = (searchParams.get("scope") as "company" | "job" | "people" | "all") || "all";
+  const scopeFilter = (searchParams.get("scope") as "company" | "job" | "people" | "xero" | "all") || "all";
 
   const [loading, setLoading] = React.useState(true);
   const [documentTypes, setDocumentTypes] = React.useState<DocumentType[]>([]);
@@ -65,7 +65,8 @@ export function DocumentTypesTab() {
   const [baseFolders, setBaseFolders] = React.useState({
     company: "/Companies",
     job: "/Jobs",
-    people: "/Director IDs"
+    people: "/Director IDs",
+    xero: "/XERO Auto"
   });
   const [newDocType, setNewDocType] = React.useState({
     name: "",
@@ -79,6 +80,15 @@ export function DocumentTypesTab() {
   // Filter document types by scope
   const filteredDocTypes = React.useMemo(() => {
     if (scopeFilter === "all") return documentTypes;
+    if (scopeFilter === "xero") {
+      // Filter for Xero auto-generated document types (Xero + Bank statements)
+      return documentTypes.filter(dt => {
+        const searchText = `${dt.name} ${dt.display_name} ${dt.abbreviation}`.toLowerCase();
+        return searchText.includes("xero") ||
+               searchText.includes("bank") ||
+               searchText.includes("statement");
+      });
+    }
     return documentTypes.filter(dt => dt.scope === scopeFilter || dt.scope === "both");
   }, [documentTypes, scopeFilter]);
 
@@ -325,7 +335,7 @@ export function DocumentTypesTab() {
 
       {/* Scope Filter Tabs */}
       <Tabs value={scopeFilter} onValueChange={handleScopeChange}>
-        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+        <TabsList className="grid w-full grid-cols-5 max-w-3xl">
           <TabsTrigger value="all" className="gap-2">
             All ({documentTypes.length})
           </TabsTrigger>
@@ -340,6 +350,14 @@ export function DocumentTypesTab() {
           <TabsTrigger value="people" className="gap-2">
             <Users className="h-4 w-4" />
             People ({documentTypes.filter(dt => dt.scope === "people").length})
+          </TabsTrigger>
+          <TabsTrigger value="xero" className="gap-2">
+            💼 XERO Auto ({documentTypes.filter(dt => {
+              const searchText = `${dt.name} ${dt.display_name} ${dt.abbreviation}`.toLowerCase();
+              return searchText.includes("xero") ||
+                     searchText.includes("bank") ||
+                     searchText.includes("statement");
+            }).length})
           </TabsTrigger>
         </TabsList>
 
@@ -399,6 +417,14 @@ export function DocumentTypesTab() {
                       {baseFolders.people}/{'{'}{'{'}ContactName{'}'}{'}'}
                     </code>
                   </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                      💼 XERO Auto
+                    </Badge>
+                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                      {baseFolders.xero}
+                    </code>
+                  </div>
                 </>
               ) : scopeFilter === "company" ? (
                 <div className="flex items-center gap-2 text-sm">
@@ -418,6 +444,15 @@ export function DocumentTypesTab() {
                   </Badge>
                   <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
                     {baseFolders.job}/{'{'}{'{'}JobCode{'}'}{'}'}  /{'{'}{'{'}Category{'}'}{'}'}
+                  </code>
+                </div>
+              ) : scopeFilter === "xero" ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    💼 XERO Auto
+                  </Badge>
+                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                    {baseFolders.xero}
                   </code>
                 </div>
               ) : (
@@ -477,6 +512,25 @@ export function DocumentTypesTab() {
                     onChange={(e) => setBaseFolders(prev => ({ ...prev, job: e.target.value }))}
                     className="text-xs font-mono"
                     placeholder="/Jobs"
+                  />
+                </div>
+              ) : scopeFilter === "xero" ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                      💼 XERO Auto Base Folder
+                    </Badge>
+                  </div>
+                  <SharePointFolderBrowser
+                    onSelect={(folder, path) => {
+                      setBaseFolders(prev => ({ ...prev, xero: path || "/XERO Auto" }));
+                    }}
+                  />
+                  <Input
+                    value={baseFolders.xero}
+                    onChange={(e) => setBaseFolders(prev => ({ ...prev, xero: e.target.value }))}
+                    className="text-xs font-mono"
+                    placeholder="/XERO Auto"
                   />
                 </div>
               ) : (

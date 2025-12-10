@@ -367,7 +367,7 @@ const SYSTEM_COLUMN_BG = '#fee2e2'; // red-100
 const DEFAULT_COLUMNS: TableColumn[] = [
   { key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 },
   { key: "id", label: "ID", resizable: true, sortable: true, filterable: true, width: 50 },
-  { key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 100 },
+  { key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 180 },
 ];
 
 // Filter operators for display
@@ -509,7 +509,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                                       })
                                     }}
                                     className={cn(
-                                      column.key === "select" && "!border-r-0 !p-0 !h-full",
+                                      column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
                                       column.key === "actions" && "!border-l-0"
                                     )}
                                     onClick={(e) => {
@@ -636,7 +636,7 @@ export default function TeeemTableView({
       result.unshift({ key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 });
     }
     if (!hasActions) {
-      result.push({ key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 100 });
+      result.push({ key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 180 });
     }
     return result;
   }, [columns]);
@@ -3065,7 +3065,7 @@ export default function TeeemTableView({
                 }),
               }}
               className={cn(
-                column.key === "select" && "!border-r-0 !p-0 !h-full",
+                column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
                 column.key === "actions" && "!border-l-0"
               )}
               onClick={(e) => {
@@ -3187,7 +3187,7 @@ export default function TeeemTableView({
                       })
                     }}
                     className={cn(
-                      column.key === "select" && "!border-r-0 !p-0 !h-full",
+                      column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
                       column.key === "actions" && "!border-l-0"
                     )}
                     onClick={(e) => {
@@ -3337,7 +3337,7 @@ export default function TeeemTableView({
                         })
                       }}
                       className={cn(
-                        column.key === "select" && "!border-r-0 !p-0 !h-full",
+                        column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
                         column.key === "actions" && "!border-l-0"
                       )}
                       onClick={(e) => {
