@@ -31,6 +31,9 @@ class CorporateCompanyDocument < ApplicationRecord
   # AI verification statuses
   AI_VERIFICATION_STATUSES = %w[pending verified mismatch needs_review].freeze
 
+  # Focus types - three main categories for organizing documents
+  FOCUS_TYPES = %w[company people job].freeze
+
   # Legacy hardcoded document types for backward compatibility
   LEGACY_DOCUMENT_TYPES = %w[constitution minutes loan_agreement security_deed setup share_certificate
                              tax_return financial_statement insurance_policy asic share_registry trust_deed
@@ -88,6 +91,7 @@ class CorporateCompanyDocument < ApplicationRecord
     in: ->(doc) { doc.class.allowed_document_types }
   }, allow_blank: true
   validates :storage_type, inclusion: { in: STORAGE_TYPES }, allow_blank: true
+  validates :focus, inclusion: { in: FOCUS_TYPES }, presence: true
 
   # Validations for ownership
   validate :must_have_owner
@@ -115,9 +119,15 @@ class CorporateCompanyDocument < ApplicationRecord
   # Filter by financial year using PostgreSQL array contains
   scope :by_financial_year, ->(year) { where("financial_years @> ARRAY[?]::integer[]", year.to_i) }
   scope :by_content_hash, ->(hash) { where(content_hash: hash) if hash.present? }
+  # Filter by focus (company, people, job)
+  scope :by_focus, ->(focus) { where(focus: focus) if focus.present? }
+  scope :company_focus, -> { where(focus: 'company') }
+  scope :people_focus, -> { where(focus: 'people') }
+  scope :job_focus, -> { where(focus: 'job') }
 
   # Callbacks
   after_create :create_activity
+  before_validation :set_focus
   before_save :extract_financial_years_from_title
   before_save :generate_display_title
 
@@ -158,6 +168,18 @@ class CorporateCompanyDocument < ApplicationRecord
   end
 
   private
+
+  # Automatically set focus based on associations
+  # Priority: people > job > company
+  def set_focus
+    self.focus = if contact_id.present?
+                   'people'
+                 elsif job_id.present? || documentable_type&.include?('Job')
+                   'job'
+                 else
+                   'company'
+                 end
+  end
 
   def create_activity
     # Only create activity if there's a company (contacts don't have company_activities)

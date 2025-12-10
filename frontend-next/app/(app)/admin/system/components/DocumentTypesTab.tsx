@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -14,12 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Building2, Briefcase, Users, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
+import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 
 // Foundation ID for document_types table
 const DOCUMENT_TYPES_FOUNDATION_ID = 454;
@@ -51,11 +53,20 @@ interface DocumentType extends TableRow {
 
 export function DocumentTypesTab() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const scopeFilter = (searchParams.get("scope") as "company" | "job" | "people" | "all") || "all";
+
   const [loading, setLoading] = React.useState(true);
   const [documentTypes, setDocumentTypes] = React.useState<DocumentType[]>([]);
   const [columns, setColumns] = React.useState<TableColumn[]>([]);
   const [showAddForm, setShowAddForm] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [showFolderConfig, setShowFolderConfig] = React.useState(false);
+  const [baseFolders, setBaseFolders] = React.useState({
+    company: "/Companies",
+    job: "/Jobs",
+    people: "/Director IDs"
+  });
   const [newDocType, setNewDocType] = React.useState({
     name: "",
     abbreviation: "",
@@ -64,6 +75,19 @@ export function DocumentTypesTab() {
     primary_tab: "GENERAL",
     active: true
   });
+
+  // Filter document types by scope
+  const filteredDocTypes = React.useMemo(() => {
+    if (scopeFilter === "all") return documentTypes;
+    return documentTypes.filter(dt => dt.scope === scopeFilter || dt.scope === "both");
+  }, [documentTypes, scopeFilter]);
+
+  // Handle scope tab change
+  const handleScopeChange = React.useCallback((value: string) => {
+    const currentParams = new URLSearchParams(searchParams.toString());
+    currentParams.set("scope", value);
+    router.push(`?${currentParams.toString()}`);
+  }, [router, searchParams]);
 
   React.useEffect(() => {
     fetchColumns();
@@ -299,6 +323,188 @@ export function DocumentTypesTab() {
         </p>
       </div>
 
+      {/* Scope Filter Tabs */}
+      <Tabs value={scopeFilter} onValueChange={handleScopeChange}>
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+          <TabsTrigger value="all" className="gap-2">
+            All ({documentTypes.length})
+          </TabsTrigger>
+          <TabsTrigger value="company" className="gap-2">
+            <Building2 className="h-4 w-4" />
+            Company ({documentTypes.filter(dt => dt.scope === "company" || dt.scope === "both").length})
+          </TabsTrigger>
+          <TabsTrigger value="job" className="gap-2">
+            <Briefcase className="h-4 w-4" />
+            Job ({documentTypes.filter(dt => dt.scope === "job" || dt.scope === "both").length})
+          </TabsTrigger>
+          <TabsTrigger value="people" className="gap-2">
+            <Users className="h-4 w-4" />
+            People ({documentTypes.filter(dt => dt.scope === "people").length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={scopeFilter} className="mt-6 space-y-6">
+
+      {/* SharePoint Folder Structure Configuration */}
+      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-blue-200 dark:border-blue-900">
+        <CardContent className="p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <h3 className="text-base font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                📁 SharePoint Folder Structure
+              </h3>
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                Document types determine the folder structure in SharePoint/OneDrive for automated document organization.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-4"
+              onClick={() => setShowFolderConfig(!showFolderConfig)}
+            >
+              <FolderOpen className="h-4 w-4 mr-2" />
+              {showFolderConfig ? "Hide" : "Configure"} Paths
+            </Button>
+          </div>
+
+          {!showFolderConfig ? (
+            <div className="space-y-2">
+              {scopeFilter === "all" ? (
+                <>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Badge variant="outline" className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                      <Building2 className="h-3 w-3 mr-1" />
+                      Company
+                    </Badge>
+                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                      {baseFolders.company}/{'{'}{'{'}CompanyCode{'}'}{'}'}  /{'{'}{'{'}Folder{'}'}{'}'}
+                    </code>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Badge variant="outline" className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                      <Briefcase className="h-3 w-3 mr-1" />
+                      Job
+                    </Badge>
+                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                      {baseFolders.job}/{'{'}{'{'}JobCode{'}'}{'}'}  /{'{'}{'{'}Category{'}'}{'}'}
+                    </code>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                      <Users className="h-3 w-3 mr-1" />
+                      People
+                    </Badge>
+                    <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                      {baseFolders.people}/{'{'}{'{'}ContactName{'}'}{'}'}
+                    </code>
+                  </div>
+                </>
+              ) : scopeFilter === "company" ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <Badge variant="outline" className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                    <Building2 className="h-3 w-3 mr-1" />
+                    Company
+                  </Badge>
+                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                    {baseFolders.company}/{'{'}{'{'}CompanyCode{'}'}{'}'}  /{'{'}{'{'}Folder{'}'}{'}'}
+                  </code>
+                </div>
+              ) : scopeFilter === "job" ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <Badge variant="outline" className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                    <Briefcase className="h-3 w-3 mr-1" />
+                    Job
+                  </Badge>
+                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                    {baseFolders.job}/{'{'}{'{'}JobCode{'}'}{'}'}  /{'{'}{'{'}Category{'}'}{'}'}
+                  </code>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm">
+                  <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                    <Users className="h-3 w-3 mr-1" />
+                    People
+                  </Badge>
+                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono">
+                    {baseFolders.people}/{'{'}{'{'}ContactName{'}'}{'}'}
+                  </code>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Folder Picker based on active scope */}
+              {scopeFilter === "all" ? (
+                <p className="text-sm text-muted-foreground">
+                  Select a specific scope tab (Company, Job, or People) to configure its folder path.
+                </p>
+              ) : scopeFilter === "company" ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="outline" className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                      <Building2 className="h-3 w-3 mr-1" />
+                      Company Base Folder
+                    </Badge>
+                  </div>
+                  <SharePointFolderBrowser
+                    onSelect={(folder, path) => {
+                      setBaseFolders(prev => ({ ...prev, company: path || "/Companies" }));
+                    }}
+                  />
+                  <Input
+                    value={baseFolders.company}
+                    onChange={(e) => setBaseFolders(prev => ({ ...prev, company: e.target.value }))}
+                    className="text-xs font-mono"
+                    placeholder="/Companies"
+                  />
+                </div>
+              ) : scopeFilter === "job" ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="outline" className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                      <Briefcase className="h-3 w-3 mr-1" />
+                      Job Base Folder
+                    </Badge>
+                  </div>
+                  <SharePointFolderBrowser
+                    onSelect={(folder, path) => {
+                      setBaseFolders(prev => ({ ...prev, job: path || "/Jobs" }));
+                    }}
+                  />
+                  <Input
+                    value={baseFolders.job}
+                    onChange={(e) => setBaseFolders(prev => ({ ...prev, job: e.target.value }))}
+                    className="text-xs font-mono"
+                    placeholder="/Jobs"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                      <Users className="h-3 w-3 mr-1" />
+                      People Base Folder
+                    </Badge>
+                  </div>
+                  <SharePointFolderBrowser
+                    onSelect={(folder, path) => {
+                      setBaseFolders(prev => ({ ...prev, people: path || "/Director IDs" }));
+                    }}
+                  />
+                  <Input
+                    value={baseFolders.people}
+                    onChange={(e) => setBaseFolders(prev => ({ ...prev, people: e.target.value }))}
+                    className="text-xs font-mono"
+                    placeholder="/Director IDs"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Add Form */}
       {showAddForm && (
         <Card>
@@ -368,8 +574,8 @@ export function DocumentTypesTab() {
       <TeeemTableView
         foundationId="document-types"
         foundationIdNumeric={DOCUMENT_TYPES_FOUNDATION_ID}
-        tableName={`Document Types (${documentTypes.length})`}
-        entries={documentTypes}
+        tableName={`Document Types (${filteredDocTypes.length}${scopeFilter !== "all" ? ` - ${scopeFilter}` : ""})`}
+        entries={filteredDocTypes}
         columns={columns}
         onEdit={handleEdit}
         onRowUpdate={handleRowUpdate}
@@ -389,31 +595,8 @@ export function DocumentTypesTab() {
         }
       />
 
-      {/* Legend */}
-      <Card className="bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
-        <CardContent className="p-4">
-          <h4 className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-2">Naming Format Variables</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-blue-700 dark:text-blue-300 mb-4">
-            <div className="col-span-4 text-xs font-semibold text-purple-700 dark:text-purple-300 border-b border-purple-200 dark:border-purple-800 pb-1 mb-1">Corporate Documents</div>
-            <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{CompanyCode}"}</code> Company abbreviation</div>
-            <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{LoanID}"}</code> Loan identifier</div>
-            <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{AssetCode}"}</code> Asset abbreviation</div>
-            <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{FY}"}</code> or <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{YY}"}</code> Financial year</div>
-            <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{Date}"}</code> Document date</div>
-            <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{Period}"}</code> BAS period</div>
-            <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{Description}"}</code> Custom text</div>
-            <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{LenderCode}"}</code> Lender company</div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-orange-700 dark:text-orange-300">
-            <div className="col-span-4 text-xs font-semibold border-b border-orange-200 dark:border-orange-800 pb-1 mb-1">Job Documents</div>
-            <div><code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{JobCode}"}</code> Job number</div>
-            <div><code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{JobTitle}"}</code> Job address/title</div>
-            <div><code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{CertType}"}</code> Certificate type</div>
-            <div><code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{Consultant}"}</code> Consultant name</div>
-            <div><code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{Number}"}</code> Sequential number</div>
-          </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

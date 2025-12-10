@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_10_051050) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_10_051052) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -405,10 +405,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051050) do
     t.string "source_type"
     t.string "original_location"
     t.string "action_taken"
+    t.string "document_type"
+    t.bigint "document_id"
     t.index ["added_by_id"], name: "index_case_documents_on_added_by_id"
     t.index ["case_id", "company_document_id"], name: "index_case_documents_on_case_id_and_company_document_id", unique: true
     t.index ["case_id"], name: "index_case_documents_on_case_id"
     t.index ["company_document_id"], name: "index_case_documents_on_company_document_id"
+    t.index ["document_type", "document_id"], name: "index_case_documents_on_document_type_and_document_id"
     t.index ["relevance"], name: "index_case_documents_on_relevance"
     t.index ["relevance_score"], name: "index_case_documents_on_relevance_score"
     t.index ["short_code"], name: "index_case_documents_on_short_code"
@@ -642,6 +645,80 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051050) do
     t.index ["foundation_id"], name: "index_columns_on_foundation_id"
     t.index ["has_cross_table_refs"], name: "index_columns_on_has_cross_table_refs"
     t.index ["lookup_foundation_id"], name: "index_columns_on_lookup_foundation_id"
+  end
+
+  create_table "company_documents", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.string "title", null: false
+    t.text "description"
+    t.string "document_type", null: false
+    t.date "document_date"
+    t.string "file_url"
+    t.string "file_name"
+    t.integer "file_size"
+    t.string "mime_type"
+    t.datetime "uploaded_at"
+    t.string "folder"
+    t.string "storage_type"
+    t.string "filed_by"
+    t.date "filed_date"
+    t.string "company_code"
+    t.string "source", default: "manual"
+    t.bigint "document_type_id"
+    t.string "onedrive_file_id"
+    t.string "onedrive_download_url"
+    t.datetime "last_modified_at"
+    t.string "expected_onedrive_path"
+    t.string "register_folder"
+    t.integer "financial_years", default: [], array: true
+    t.string "display_title"
+    t.datetime "ai_verified_at"
+    t.string "ai_verification_status"
+    t.string "ai_suggested_name"
+    t.string "ai_suggested_folder"
+    t.string "ai_suggested_type"
+    t.integer "ai_suggested_fy", default: [], array: true
+    t.decimal "ai_confidence_score"
+    t.string "ai_extracted_description"
+    t.date "ai_extracted_date"
+    t.integer "ai_source_page"
+    t.text "ai_source_quote"
+    t.text "ai_analysis_notes"
+    t.boolean "ai_contains_multiple_documents", default: false
+    t.jsonb "ai_split_recommendation"
+    t.datetime "user_validated_at"
+    t.bigint "user_validated_by_id"
+    t.boolean "validation_required", default: false
+    t.date "ref_date"
+    t.bigint "asset_id"
+    t.bigint "loan_id"
+    t.string "documentable_type"
+    t.bigint "documentable_id"
+    t.string "content_hash"
+    t.string "external_id"
+    t.datetime "synced_to_xero_at"
+    t.string "xero_attachment_id"
+    t.boolean "sync_to_xero", default: false, null: false
+    t.bigint "legacy_corporate_document_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asset_id"], name: "index_company_documents_on_asset_id"
+    t.index ["company_code"], name: "index_company_documents_on_company_code"
+    t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_new_ai_status"
+    t.index ["company_id", "document_type"], name: "idx_company_docs_new_company_type"
+    t.index ["company_id"], name: "index_company_documents_on_company_id"
+    t.index ["content_hash"], name: "index_company_documents_on_content_hash"
+    t.index ["document_date"], name: "index_company_documents_on_document_date"
+    t.index ["document_type"], name: "index_company_documents_on_document_type"
+    t.index ["document_type_id"], name: "index_company_documents_on_document_type_id"
+    t.index ["documentable_type", "documentable_id"], name: "idx_company_docs_new_documentable"
+    t.index ["external_id"], name: "index_company_documents_on_external_id"
+    t.index ["financial_years"], name: "index_company_documents_on_financial_years", using: :gin
+    t.index ["folder"], name: "index_company_documents_on_folder"
+    t.index ["legacy_corporate_document_id"], name: "index_company_documents_on_legacy_corporate_document_id"
+    t.index ["loan_id"], name: "index_company_documents_on_loan_id"
+    t.index ["source"], name: "index_company_documents_on_source"
+    t.index ["storage_type"], name: "index_company_documents_on_storage_type"
   end
 
   create_table "contact_activities", force: :cascade do |t|
@@ -1127,6 +1204,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051050) do
     t.datetime "synced_to_xero_at"
     t.string "xero_attachment_id"
     t.boolean "sync_to_xero", default: false, null: false
+    t.string "focus", default: "company", null: false
     t.index ["asset_id"], name: "index_corporate_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_corporate_company_documents_on_company_code"
     t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"
@@ -1141,6 +1219,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051050) do
     t.index ["documentable_type", "documentable_id"], name: "idx_company_docs_documentable"
     t.index ["external_id"], name: "index_corporate_company_documents_on_external_id"
     t.index ["financial_years"], name: "index_corporate_company_documents_on_financial_years", using: :gin
+    t.index ["focus"], name: "index_corporate_company_documents_on_focus"
     t.index ["folder"], name: "index_corporate_company_documents_on_folder"
     t.index ["job_id"], name: "index_corporate_company_documents_on_job_id"
     t.index ["loan_id"], name: "index_corporate_company_documents_on_loan_id"
@@ -1415,9 +1494,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051050) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "document_type"
+    t.bigint "document_id"
     t.index ["action"], name: "index_document_activities_on_action"
     t.index ["company_document_id"], name: "index_document_activities_on_company_document_id"
     t.index ["created_at"], name: "index_document_activities_on_created_at"
+    t.index ["document_type", "document_id"], name: "index_document_activities_on_document_type_and_document_id"
     t.index ["user_id"], name: "index_document_activities_on_user_id"
   end
 
@@ -1436,10 +1518,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051050) do
     t.datetime "resolved_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "existing_document_type"
+    t.string "new_document_type"
     t.index ["case_id", "status"], name: "index_document_duplicate_reviews_on_case_id_and_status"
     t.index ["case_id"], name: "index_document_duplicate_reviews_on_case_id"
     t.index ["existing_document_id"], name: "index_document_duplicate_reviews_on_existing_document_id"
+    t.index ["existing_document_type", "existing_document_id"], name: "idx_dup_reviews_existing"
     t.index ["new_document_id"], name: "index_document_duplicate_reviews_on_new_document_id"
+    t.index ["new_document_type", "new_document_id"], name: "idx_dup_reviews_new"
     t.index ["resolved_by_id"], name: "index_document_duplicate_reviews_on_resolved_by_id"
   end
 
@@ -2335,13 +2421,37 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051050) do
     t.datetime "rename_approved_at"
     t.bigint "rename_approved_by_id"
     t.string "original_file_name"
+    t.string "title"
+    t.text "description"
+    t.date "document_date"
+    t.string "display_title"
+    t.string "mime_type"
+    t.integer "financial_years", default: [], array: true
+    t.string "ai_verification_status"
+    t.datetime "ai_verified_at"
+    t.datetime "user_validated_at"
+    t.bigint "user_validated_by_id"
+    t.boolean "validation_required", default: false
+    t.string "content_hash"
+    t.string "external_id"
+    t.string "source", default: "manual"
+    t.string "storage_type"
+    t.bigint "contact_id"
+    t.bigint "company_id"
+    t.bigint "legacy_corporate_document_id"
     t.index ["ai_analyzed_at"], name: "index_job_documents_on_ai_analyzed_at"
     t.index ["ai_suggested_type_id"], name: "index_job_documents_on_ai_suggested_type_id"
+    t.index ["company_id"], name: "index_job_documents_on_company_id"
+    t.index ["contact_id"], name: "index_job_documents_on_contact_id"
+    t.index ["content_hash"], name: "index_job_documents_on_content_hash"
     t.index ["document_type_id"], name: "index_job_documents_on_document_type_id"
+    t.index ["external_id"], name: "index_job_documents_on_external_id"
     t.index ["file_type"], name: "index_job_documents_on_file_type"
+    t.index ["financial_years"], name: "index_job_documents_on_financial_years", using: :gin
     t.index ["job_id", "file_type"], name: "index_job_documents_on_job_id_and_file_type"
     t.index ["job_id", "folder_path"], name: "index_job_documents_on_job_id_and_folder_path"
     t.index ["job_id"], name: "index_job_documents_on_job_id"
+    t.index ["legacy_corporate_document_id"], name: "index_job_documents_on_legacy_corporate_document_id"
     t.index ["onedrive_drive_id"], name: "index_job_documents_on_onedrive_drive_id"
     t.index ["onedrive_item_id"], name: "index_job_documents_on_onedrive_item_id", unique: true
     t.index ["rename_approved_by_id"], name: "index_job_documents_on_rename_approved_by_id"
@@ -2862,6 +2972,38 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051050) do
     t.index ["purchase_order_id", "payment_date"], name: "index_payments_on_purchase_order_id_and_payment_date"
     t.index ["purchase_order_id"], name: "index_payments_on_purchase_order_id"
     t.index ["xero_payment_id"], name: "index_payments_on_xero_payment_id"
+  end
+
+  create_table "people_documents", force: :cascade do |t|
+    t.bigint "contact_id", null: false
+    t.string "title", null: false
+    t.text "description"
+    t.string "document_type", null: false
+    t.date "document_date"
+    t.date "expiry_date"
+    t.string "document_number"
+    t.string "issuing_authority"
+    t.string "issuing_country"
+    t.string "file_name"
+    t.integer "file_size"
+    t.string "mime_type"
+    t.datetime "uploaded_at"
+    t.string "folder"
+    t.string "source", default: "manual"
+    t.bigint "document_type_id"
+    t.string "content_hash"
+    t.string "external_id"
+    t.bigint "legacy_corporate_document_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_people_documents_on_contact_id"
+    t.index ["content_hash"], name: "index_people_documents_on_content_hash"
+    t.index ["document_date"], name: "index_people_documents_on_document_date"
+    t.index ["document_type"], name: "index_people_documents_on_document_type"
+    t.index ["document_type_id"], name: "index_people_documents_on_document_type_id"
+    t.index ["expiry_date"], name: "index_people_documents_on_expiry_date"
+    t.index ["external_id"], name: "index_people_documents_on_external_id"
+    t.index ["legacy_corporate_document_id"], name: "index_people_documents_on_legacy_corporate_document_id"
   end
 
   create_table "permissions", force: :cascade do |t|
