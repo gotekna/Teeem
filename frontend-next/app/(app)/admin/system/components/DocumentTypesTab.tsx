@@ -18,6 +18,7 @@ import {
 import { Plus, Loader2, Building2, Briefcase, Users, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
@@ -56,6 +57,7 @@ export function DocumentTypesTab() {
   const searchParams = useSearchParams();
   const scopeFilter = (searchParams.get("scope") as "company" | "job" | "people" | "xero" | "all") || "all";
 
+  const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
   const [documentTypes, setDocumentTypes] = React.useState<DocumentType[]>([]);
   const [columns, setColumns] = React.useState<TableColumn[]>([]);
@@ -163,10 +165,18 @@ export function DocumentTypesTab() {
       await api.put("/api/v1/system_settings/update_sharepoint_path_templates", {
         templates: baseFolders
       });
+      toast({
+        title: "Success!",
+        description: "SharePoint folder paths saved successfully.",
+      });
       setShowFolderConfig(false);
     } catch (error) {
       console.error("Failed to save SharePoint path templates:", error);
-      alert("Failed to save path templates. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to save path templates. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
