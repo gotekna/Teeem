@@ -179,6 +179,7 @@ class DocumentType < ApplicationRecord
     format.gsub!("{PrintDate}", au_date)
     format.gsub!("{Signed}", "")
     format.gsub!("{BankCode}", "NAB")
+    format.gsub!("{BSB}", "082-123")
     format.gsub!("{AccountNum}", "12345")
 
     # Job placeholders
@@ -236,6 +237,7 @@ class DocumentType < ApplicationRecord
     format.gsub!("{PrintDate}", au_date)
     format.gsub!("{Signed}", "")
     format.gsub!("{BankCode}", "NAB")
+    format.gsub!("{BSB}", "082-123")
     format.gsub!("{AccountNum}", "12345")
 
     # Common placeholders
