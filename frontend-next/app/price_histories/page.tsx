@@ -28,6 +28,7 @@ export default function PriceHistoriesPage() {
   const [histories, setHistories] = useState<PriceHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [totalCount, setTotalCount] = useState(0)
 
   useEffect(() => {
     fetchPriceHistories()
@@ -39,6 +40,7 @@ export default function PriceHistoriesPage() {
       const response = await apiClient.get('/pricebook/all_price_histories')
       if (response.data.success) {
         setHistories(response.data.data)
+        setTotalCount(response.data.total_count || response.data.data.length)
       } else {
         setError('Failed to load price histories')
       }
@@ -92,7 +94,7 @@ export default function PriceHistoriesPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Price Histories</h1>
         <p className="text-gray-600">
-          Showing {histories.length} most recent price changes
+          Showing {histories.length.toLocaleString()} of {totalCount.toLocaleString()} total price changes
         </p>
       </div>
 
