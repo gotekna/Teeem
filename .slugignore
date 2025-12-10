@@ -19,7 +19,8 @@ CONTRIBUTING.md
 *.md
 
 # Ignore large CSV/Excel data files
-*.csv
+# *.csv - TEMPORARILY DISABLED TO ALLOW price_histories_import.csv
+# !price_histories_import.csv
 *.xlsx
 *.xls
 
