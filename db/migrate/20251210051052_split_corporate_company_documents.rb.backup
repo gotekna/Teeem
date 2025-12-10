@@ -204,16 +204,201 @@ class SplitCorporateCompanyDocuments < ActiveRecord::Migration[8.0]
 
     puts "✅ job_documents table extended"
 
-    # Final summary
+    # ========================================================================
+    # PHASE 4: MIGRATE DATA
+    # ========================================================================
+    puts "\nPhase 4: Migrating data..."
+
+    total_docs = execute("SELECT COUNT(*) FROM corporate_company_documents").first['count'].to_i
+    puts "Total documents to migrate: #{total_docs}"
+
+    # Migrate job documents (priority: has job_id)
+    job_docs_count = 0
+    execute("SELECT COUNT(*) FROM corporate_company_documents WHERE job_id IS NOT NULL").first['count'].to_i.tap do |count|
+      puts "Migrating #{count} documents to job_documents..."
+    end
+
+    # Copy job documents in batches
+    execute(<<~SQL)
+      INSERT INTO job_documents (
+        job_id, document_type_id, file_name, file_size, mime_type,
+        title, description, document_date, display_title, financial_years,
+        ai_verification_status, ai_verified_at, user_validated_at, user_validated_by_id,
+        validation_required, content_hash, external_id, source, storage_type,
+        contact_id, company_id, legacy_corporate_document_id,
+        created_at, updated_at,
+        -- OneDrive fields that overlap
+        onedrive_item_id, last_modified_at
+      )
+      SELECT
+        job_id, document_type_id, file_name, file_size, mime_type,
+        title, description, document_date, display_title, financial_years,
+        ai_verification_status, ai_verified_at, user_validated_at, user_validated_by_id,
+        validation_required, content_hash, external_id, source, storage_type,
+        contact_id, company_id, id,
+        created_at, updated_at,
+        -- Use onedrive_file_id as onedrive_item_id if not null
+        COALESCE(onedrive_file_id, 'migrated-' || id::text), last_modified_at
+      FROM corporate_company_documents
+      WHERE job_id IS NOT NULL
+    SQL
+
+    job_docs_count = execute("SELECT COUNT(*) FROM job_documents WHERE legacy_corporate_document_id IS NOT NULL").first['count'].to_i
+    puts "✅ Migrated #{job_docs_count} documents to job_documents"
+
+    # Migrate company documents (everything else WITH company_id)
+    company_docs_count = 0
+    execute("SELECT COUNT(*) FROM corporate_company_documents WHERE job_id IS NULL AND company_id IS NOT NULL").first['count'].to_i.tap do |count|
+      puts "Migrating #{count} documents to company_documents..."
+    end
+
+    execute(<<~SQL)
+      INSERT INTO company_documents (
+        company_id, title, description, document_type, document_date,
+        file_url, file_name, file_size, mime_type, uploaded_at,
+        folder, storage_type, filed_by, filed_date, company_code, source,
+        document_type_id,
+        onedrive_file_id, onedrive_download_url, last_modified_at,
+        expected_onedrive_path, register_folder,
+        financial_years, display_title,
+        ai_verified_at, ai_verification_status, ai_suggested_name, ai_suggested_folder,
+        ai_suggested_type, ai_suggested_fy, ai_confidence_score,
+        ai_extracted_description, ai_extracted_date, ai_source_page, ai_source_quote,
+        ai_analysis_notes, ai_contains_multiple_documents, ai_split_recommendation,
+        user_validated_at, user_validated_by_id, validation_required,
+        ref_date, asset_id, loan_id,
+        documentable_type, documentable_id,
+        content_hash, external_id,
+        synced_to_xero_at, xero_attachment_id, sync_to_xero,
+        legacy_corporate_document_id,
+        created_at, updated_at
+      )
+      SELECT
+        company_id, title, description, document_type, document_date,
+        file_url, file_name, file_size, mime_type, uploaded_at,
+        folder, storage_type, filed_by, filed_date, company_code, source,
+        document_type_id,
+        onedrive_file_id, onedrive_download_url, last_modified_at,
+        expected_onedrive_path, register_folder,
+        financial_years, display_title,
+        ai_verified_at, ai_verification_status, ai_suggested_name, ai_suggested_folder,
+        ai_suggested_type, ai_suggested_fy, ai_confidence_score,
+        ai_extracted_description, ai_extracted_date, ai_source_page, ai_source_quote,
+        ai_analysis_notes, ai_contains_multiple_documents, ai_split_recommendation,
+        user_validated_at, user_validated_by_id, validation_required,
+        ref_date, asset_id, loan_id,
+        documentable_type, documentable_id,
+        content_hash, external_id,
+        synced_to_xero_at, xero_attachment_id, sync_to_xero,
+        id,
+        created_at, updated_at
+      FROM corporate_company_documents
+      WHERE job_id IS NULL AND company_id IS NOT NULL
+    SQL
+
+    company_docs_count = execute("SELECT COUNT(*) FROM company_documents WHERE legacy_corporate_document_id IS NOT NULL").first['count'].to_i
+    puts "✅ Migrated #{company_docs_count} documents to company_documents"
+
+    # ========================================================================
+    # PHASE 5: MIGRATE ACTIVE STORAGE ATTACHMENTS
+    # ========================================================================
+    puts "\nPhase 5: Migrating Active Storage attachments..."
+
+    # Update attachments for job documents
+    job_attachments = execute(<<~SQL)
+      UPDATE active_storage_attachments
+      SET record_type = 'JobDocument',
+          record_id = jd.id
+      FROM job_documents jd
+      WHERE active_storage_attachments.record_type = 'CorporateCompanyDocument'
+        AND active_storage_attachments.record_id = jd.legacy_corporate_document_id
+      RETURNING active_storage_attachments.id
+    SQL
+    puts "✅ Updated #{job_attachments.count} attachments for job_documents"
+
+    # Update attachments for company documents
+    company_attachments = execute(<<~SQL)
+      UPDATE active_storage_attachments
+      SET record_type = 'CompanyDocument',
+          record_id = cd.id
+      FROM company_documents cd
+      WHERE active_storage_attachments.record_type = 'CorporateCompanyDocument'
+        AND active_storage_attachments.record_id = cd.legacy_corporate_document_id
+      RETURNING active_storage_attachments.id
+    SQL
+    puts "✅ Updated #{company_attachments.count} attachments for company_documents"
+
+    # ========================================================================
+    # PHASE 6: UPDATE DEPENDENT TABLES TO POLYMORPHIC
+    # ========================================================================
+    puts "\nPhase 6: Updating dependent tables to use polymorphic associations..."
+
+    # Add polymorphic columns to document_activities (if not exists)
+    unless column_exists?(:document_activities, :document_type)
+      add_column :document_activities, :document_type, :string
+      add_column :document_activities, :document_id, :bigint
+      add_index :document_activities, [:document_type, :document_id]
+
+      # Backfill existing records
+      execute(<<~SQL)
+        UPDATE document_activities
+        SET document_type = 'CorporateCompanyDocument',
+            document_id = company_document_id
+        WHERE company_document_id IS NOT NULL
+      SQL
+      puts "✅ Updated document_activities to polymorphic"
+    end
+
+    # Add polymorphic columns to case_documents (if not exists)
+    unless column_exists?(:case_documents, :document_type)
+      add_column :case_documents, :document_type, :string
+      add_column :case_documents, :document_id, :bigint
+      add_index :case_documents, [:document_type, :document_id]
+
+      # Backfill existing records
+      execute(<<~SQL)
+        UPDATE case_documents
+        SET document_type = 'CorporateCompanyDocument',
+            document_id = company_document_id
+        WHERE company_document_id IS NOT NULL
+      SQL
+      puts "✅ Updated case_documents to polymorphic"
+    end
+
+    # Add polymorphic columns to document_duplicate_reviews (if table exists)
+    if table_exists?(:document_duplicate_reviews)
+      unless column_exists?(:document_duplicate_reviews, :existing_document_type)
+        add_column :document_duplicate_reviews, :existing_document_type, :string
+        add_column :document_duplicate_reviews, :new_document_type, :string
+        add_index :document_duplicate_reviews, [:existing_document_type, :existing_document_id], name: 'idx_dup_reviews_existing'
+        add_index :document_duplicate_reviews, [:new_document_type, :new_document_id], name: 'idx_dup_reviews_new'
+
+        # Backfill existing records
+        execute(<<~SQL)
+          UPDATE document_duplicate_reviews
+          SET existing_document_type = 'CorporateCompanyDocument',
+              new_document_type = 'CorporateCompanyDocument'
+          WHERE existing_document_id IS NOT NULL
+        SQL
+        puts "✅ Updated document_duplicate_reviews to polymorphic"
+      end
+    end
+
+    # ========================================================================
+    # SUMMARY
+    # ========================================================================
     puts "\n" + "=" * 80
-    puts "TABLE STRUCTURE CREATED!"
+    puts "MIGRATION COMPLETE!"
     puts "=" * 80
     puts "📊 Summary:"
-    puts "  ✅ company_documents table created"
-    puts "  ✅ people_documents table created"
-    puts "  ✅ job_documents table extended with new fields"
+    puts "  Company documents:  #{company_docs_count} migrated to company_documents table"
+    puts "  Job documents:      #{job_docs_count} migrated to job_documents table"
+    puts "  People documents:   0 (table created, ready for future records)"
+    puts "  Total:              #{company_docs_count + job_docs_count} documents migrated"
     puts ""
-    puts "📝 NOTE: Data migration will be handled separately"
+    puts "✅ corporate_company_documents table preserved (legacy_corporate_document_id links back)"
+    puts "✅ Active Storage attachments updated"
+    puts "✅ Dependent tables made polymorphic"
     puts "=" * 80
     puts ""
   end
@@ -244,8 +429,16 @@ class SplitCorporateCompanyDocuments < ActiveRecord::Migration[8.0]
     remove_column :job_documents, :company_id if column_exists?(:job_documents, :company_id)
     remove_column :job_documents, :legacy_corporate_document_id if column_exists?(:job_documents, :legacy_corporate_document_id)
 
-    # Note: Active Storage and polymorphic columns not modified in this migration
-    # No data was migrated, so no cleanup needed
+    # Revert Active Storage attachments
+    execute(<<~SQL)
+      UPDATE active_storage_attachments
+      SET record_type = 'CorporateCompanyDocument'
+      WHERE record_type IN ('JobDocument', 'CompanyDocument', 'PeopleDocument')
+    SQL
+
+    # Remove polymorphic columns (optional - keeping them won't hurt)
+    # remove_column :document_activities, :document_type if column_exists?(:document_activities, :document_type)
+    # remove_column :document_activities, :document_id if column_exists?(:document_activities, :document_id)
 
     puts "✅ Rollback complete"
   end
