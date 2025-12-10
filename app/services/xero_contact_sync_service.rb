@@ -438,13 +438,10 @@ class XeroContactSyncService
     # Only import fields where direction is 'import' or 'bidirectional'
     importable_fields = field_mappings.select { |_, dir| [ "import", "bidirectional" ].include?(dir) }.keys
 
-    # Extract roles from Xero IsCustomer/IsSupplier flags
-    roles = []
-    roles << "customer" if xero_contact["IsCustomer"] == true
-    roles << "supplier" if xero_contact["IsSupplier"] == true
-    updates[:roles] = roles if roles.any?
-
     # Extract Xero contact types (Customer/Supplier) - can be both!
+    # NOTE: Do NOT set roles field - "customer"/"supplier" are NOT valid TEEEM roles
+    # TEEEM roles are for internal contacts only (Employee, Director, etc.)
+    # Use xero_contact_types field instead for Xero customer/supplier tracking
     xero_contact_types = []
     xero_contact_types << "Customer" if xero_contact["IsCustomer"] == true
     xero_contact_types << "Supplier" if xero_contact["IsSupplier"] == true
