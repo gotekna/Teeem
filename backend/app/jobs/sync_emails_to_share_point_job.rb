@@ -85,7 +85,10 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     Rails.logger.info "[SyncToSharePoint] Found #{emails_with_attachments.count} emails with unprocessed attachments"
 
+    # Debug: Log which credential we're using for attachment fetch
+    Rails.logger.info "[SyncToSharePoint] Creating client with credential ID #{@credential.id}, tenant: #{@credential.tenant_id}"
     client = MicrosoftAppGraphClient.new(@credential)
+    Rails.logger.info "[SyncToSharePoint] Client created, credential still has tenant: #{@credential.tenant_id}"
 
     emails_with_attachments.each do |email|
       begin
