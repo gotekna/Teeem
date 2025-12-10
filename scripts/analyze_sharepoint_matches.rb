@@ -26,6 +26,9 @@ end
 
 # Match file against document types
 def match_document_type(filename, folder_name)
+  # Return nil if filename is blank
+  return { doc_type: nil, method: 'unmatched', confidence: 'none' } if filename.blank?
+
   # Strategy 1: Try abbreviation match (BAS, CTR, TTR, etc.)
   DocumentType.active.find_each do |dt|
     if dt.abbreviation.present? && filename.upcase.include?(dt.abbreviation.upcase)
