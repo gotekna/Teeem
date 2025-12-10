@@ -15,6 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Plus, Loader2, Building2, Briefcase, Users, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -318,22 +323,77 @@ export function DocumentTypesTab() {
     }
     if (columnKey === "tabs_display") {
       const tabs = entry.tabs || [];
-      if (tabs.length === 0) return <span className="text-muted-foreground">-</span>;
+      const [open, setOpen] = React.useState(false);
+
+      const toggleFolder = async (folder: string) => {
+        const newTabs = tabs.includes(folder)
+          ? tabs.filter(t => t !== folder)
+          : [...tabs, folder];
+
+        try {
+          await handleRowUpdate(entry.id!, "tabs", newTabs);
+          toast({
+            title: "Folders updated",
+            description: `${folder} ${tabs.includes(folder) ? 'removed' : 'added'}`,
+          });
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Failed to update folders",
+            variant: "destructive",
+          });
+        }
+      };
+
       return (
-        <div className="flex flex-wrap gap-1">
-          {tabs.map(tab => (
-            <Badge
-              key={tab}
-              variant={tab === entry.primary_tab ? "default" : "secondary"}
-              className={cn(
-                "text-xs",
-                tab === entry.primary_tab && "ring-1 ring-primary"
-              )}
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs justify-start"
             >
-              {tab}
-            </Badge>
-          ))}
-        </div>
+              {tabs.length === 0 ? (
+                <span className="text-muted-foreground">Select folders...</span>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {tabs.slice(0, 2).map(tab => (
+                    <Badge
+                      key={tab}
+                      variant="secondary"
+                      className="text-xs"
+                    >
+                      {tab}
+                    </Badge>
+                  ))}
+                  {tabs.length > 2 && (
+                    <Badge variant="secondary" className="text-xs">
+                      +{tabs.length - 2}
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-2">
+            <div className="space-y-1">
+              {FOLDER_OPTIONS.map(folder => (
+                <label
+                  key={folder}
+                  className="flex items-center space-x-2 p-2 rounded hover:bg-muted cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={tabs.includes(folder)}
+                    onChange={() => toggleFolder(folder)}
+                    className="rounded"
+                  />
+                  <span className="text-sm">{folder}</span>
+                </label>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
       );
     }
     if (columnKey === "primary_tab" || columnKey === "folder") {
