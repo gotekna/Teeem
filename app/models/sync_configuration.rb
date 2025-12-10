@@ -5,7 +5,7 @@ class SyncConfiguration < ApplicationRecord
   # Based on Xero API Contact object: https://developer.xero.com/documentation/api/accounting/contacts
   DEFAULT_FIELD_MAPPINGS = {
     # Basic Information (Name and core details)
-    "name" => { "direction" => "bidirectional", "xero_field" => "Name", "group" => "basic", "label" => "Name", "description" => "Full name of contact/organisation (max 255 chars)" },
+    "display_name" => { "direction" => "bidirectional", "xero_field" => "Name", "group" => "basic", "label" => "Display Name (SSoT)", "description" => "Full name of contact/organisation - SSoT for contact names (max 255 chars)" },
     "first_name" => { "direction" => "bidirectional", "xero_field" => "FirstName", "group" => "basic", "label" => "First Name", "description" => "First name of contact person (max 255 chars)" },
     "last_name" => { "direction" => "bidirectional", "xero_field" => "LastName", "group" => "basic", "label" => "Last Name", "description" => "Last name of contact person (max 255 chars)" },
     "email" => { "direction" => "bidirectional", "xero_field" => "EmailAddress", "group" => "basic", "label" => "Email", "description" => "Email address of contact person (max 255 chars)" },
@@ -21,11 +21,11 @@ class SyncConfiguration < ApplicationRecord
     "mobile_phone" => { "direction" => "bidirectional", "xero_field" => "Phones.MOBILE", "group" => "phones", "label" => "Mobile Phone", "description" => "Mobile phone number" },
     "office_phone" => { "direction" => "bidirectional", "xero_field" => "Phones.DEFAULT", "group" => "phones", "label" => "Office Phone", "description" => "Default/office phone number" },
     "fax_phone" => { "direction" => "bidirectional", "xero_field" => "Phones.FAX", "group" => "phones", "label" => "Fax", "description" => "Fax number" },
-    "direct_dial" => { "direction" => "bidirectional", "xero_field" => "Phones.DDI", "group" => "phones", "label" => "Direct Dial", "description" => "Direct dial number" },
+    # Note: direct_dial removed - no matching column in Contact table (DDI not commonly used)
 
-    # Address (Street address)
-    "address_street" => { "direction" => "bidirectional", "xero_field" => "Addresses.STREET", "group" => "address", "label" => "Street Address", "description" => "Physical/street address" },
-    "address_pobox" => { "direction" => "bidirectional", "xero_field" => "Addresses.POBOX", "group" => "address", "label" => "Postal Address", "description" => "PO Box/postal address" },
+    # Address (using SSoT column names)
+    "address" => { "direction" => "bidirectional", "xero_field" => "Addresses.STREET", "group" => "address", "label" => "Street Address (SSoT)", "description" => "Physical/street address - SSoT for primary address" },
+    "residential_address" => { "direction" => "bidirectional", "xero_field" => "Addresses.POBOX", "group" => "address", "label" => "Postal/Residential Address (SSoT)", "description" => "PO Box/postal/residential address - SSoT column" },
 
     # Banking & Payment
     "bank_bsb" => { "direction" => "export", "xero_field" => "BankAccountDetails.BSB", "group" => "banking", "label" => "Bank BSB", "description" => "Bank BSB number (export only - security)" },
@@ -44,13 +44,11 @@ class SyncConfiguration < ApplicationRecord
     "default_purchase_account" => { "direction" => "bidirectional", "xero_field" => "PurchasesDefaultAccountCode", "group" => "accounts", "label" => "Purchases Account", "description" => "Default account code for purchases" },
     "default_sales_account" => { "direction" => "bidirectional", "xero_field" => "SalesDefaultAccountCode", "group" => "accounts", "label" => "Sales Account", "description" => "Default account code for sales" },
 
-    # Tracking Categories
-    "sales_tracking" => { "direction" => "import", "xero_field" => "SalesTrackingCategories", "group" => "tracking", "label" => "Sales Tracking", "description" => "Default tracking categories for sales" },
-    "purchases_tracking" => { "direction" => "import", "xero_field" => "PurchasesTrackingCategories", "group" => "tracking", "label" => "Purchases Tracking", "description" => "Default tracking categories for purchases" },
+    # Note: Tracking Categories removed - complex objects not stored in Contact table (would need JSON column)
 
-    # Currency & Discount
-    "default_currency" => { "direction" => "import", "xero_field" => "DefaultCurrency", "group" => "finance", "label" => "Currency", "description" => "Default currency for invoices" },
+    # Financial Settings
     "default_discount" => { "direction" => "bidirectional", "xero_field" => "Discount", "group" => "finance", "label" => "Discount %", "description" => "Default discount percentage for the contact" },
+    # Note: default_currency removed - no column in Contact table (all amounts in AUD)
 
     # Balances (Read-only from Xero)
     "accounts_receivable_outstanding" => { "direction" => "import", "xero_field" => "Balances.AccountsReceivable.Outstanding", "group" => "balances", "label" => "AR Outstanding", "description" => "Outstanding receivables balance" },
@@ -58,34 +56,22 @@ class SyncConfiguration < ApplicationRecord
     "accounts_payable_outstanding" => { "direction" => "import", "xero_field" => "Balances.AccountsPayable.Outstanding", "group" => "balances", "label" => "AP Outstanding", "description" => "Outstanding payables balance" },
     "accounts_payable_overdue" => { "direction" => "import", "xero_field" => "Balances.AccountsPayable.Overdue", "group" => "balances", "label" => "AP Overdue", "description" => "Overdue payables balance" },
 
-    # Contact Persons
-    "contact_persons" => { "direction" => "import", "xero_field" => "ContactPersons", "group" => "people", "label" => "Contact Persons", "description" => "Additional contact people (max 5)" },
+    # Note: contact_persons removed - complex array not stored in Contact table (use separate ContactPerson model if needed)
+    # Note: contact_groups removed - complex array not stored in Contact table (use separate ContactGroup model if needed)
 
-    # Contact Groups
-    "contact_groups" => { "direction" => "import", "xero_field" => "ContactGroups", "group" => "groups", "label" => "Contact Groups", "description" => "Groups this contact belongs to" },
+    # Note: is_customer/is_supplier removed - use xero_contact_types column (stores array) and Contact#is_supplier? virtual method
 
-    # Customer/Supplier Flags
-    "is_customer" => { "direction" => "import", "xero_field" => "IsCustomer", "group" => "type", "label" => "Is Customer", "description" => "Boolean - contact is a customer" },
-    "is_supplier" => { "direction" => "import", "xero_field" => "IsSupplier", "group" => "type", "label" => "Is Supplier", "description" => "Boolean - contact is a supplier" },
-
-    # Branding
-    "branding_theme" => { "direction" => "import", "xero_field" => "BrandingTheme", "group" => "branding", "label" => "Branding Theme", "description" => "Default branding theme for documents" },
-
-    # Batches (Payment services)
-    "batch_payments" => { "direction" => "import", "xero_field" => "BatchPayments", "group" => "payments", "label" => "Batch Payments", "description" => "Bank details for batch payments" },
+    # Note: branding_theme removed - no column in Contact table
+    # Note: batch_payments removed - complex object not stored in Contact table
 
     # Other
-    "website" => { "direction" => "import", "xero_field" => "Website", "group" => "basic", "label" => "Website", "description" => "Website URL (read-only via API)" },
-    "skype" => { "direction" => "import", "xero_field" => "SkypeUserName", "group" => "basic", "label" => "Skype", "description" => "Skype username" },
-
-    # Attachments (Read-only)
-    "has_attachments" => { "direction" => "import", "xero_field" => "HasAttachments", "group" => "meta", "label" => "Has Attachments", "description" => "Boolean - contact has file attachments" },
-
-    # Validation Status
-    "has_validation_errors" => { "direction" => "import", "xero_field" => "HasValidationErrors", "group" => "meta", "label" => "Validation Errors", "description" => "Boolean - contact has validation errors in Xero" }
+    "website" => { "direction" => "import", "xero_field" => "Website", "group" => "basic", "label" => "Website", "description" => "Website URL (read-only via API)" }
+    # Note: skype removed - no column in Contact table (not commonly used)
+    # Note: has_attachments removed - metadata not stored in Contact table
+    # Note: has_validation_errors removed - metadata not stored in Contact table
   }.freeze
 
-  # Field groups for UI organization
+  # Field groups for UI organization (removed empty groups: tracking, people, groups, type, branding, payments, meta)
   FIELD_GROUPS = {
     "basic" => { "label" => "Basic Information", "description" => "Name and core details", "order" => 1 },
     "xero_ids" => { "label" => "Xero Identifiers", "description" => "Xero-specific identification fields", "order" => 2 },
@@ -94,15 +80,8 @@ class SyncConfiguration < ApplicationRecord
     "banking" => { "label" => "Banking Details", "description" => "Bank account information", "order" => 5 },
     "payment_terms" => { "label" => "Payment Terms", "description" => "Default payment terms for bills and invoices", "order" => 6 },
     "accounts" => { "label" => "Default Accounts", "description" => "Default ledger accounts", "order" => 7 },
-    "tracking" => { "label" => "Tracking Categories", "description" => "Default tracking for reporting", "order" => 8 },
-    "finance" => { "label" => "Financial Settings", "description" => "Currency and discount settings", "order" => 9 },
-    "balances" => { "label" => "Account Balances", "description" => "Outstanding and overdue amounts (read-only)", "order" => 10 },
-    "people" => { "label" => "Contact Persons", "description" => "Additional people linked to contact", "order" => 11 },
-    "groups" => { "label" => "Contact Groups", "description" => "Xero contact groups membership", "order" => 12 },
-    "type" => { "label" => "Contact Type", "description" => "Customer/Supplier classification", "order" => 13 },
-    "branding" => { "label" => "Branding", "description" => "Default branding themes", "order" => 14 },
-    "payments" => { "label" => "Payment Services", "description" => "Batch payment settings", "order" => 15 },
-    "meta" => { "label" => "Metadata", "description" => "System status fields", "order" => 16 }
+    "finance" => { "label" => "Financial Settings", "description" => "Discount settings", "order" => 8 },
+    "balances" => { "label" => "Account Balances", "description" => "Outstanding and overdue amounts (read-only)", "order" => 9 }
   }.freeze
 
   DEFAULT_CLEANUP_OPTIONS = {
