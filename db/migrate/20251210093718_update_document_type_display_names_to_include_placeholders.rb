@@ -1,23 +1,23 @@
 class UpdateDocumentTypeDisplayNamesToIncludePlaceholders < ActiveRecord::Migration[8.0]
+  # Mapping of short placeholders to long versions for display
+  LONG_PLACEHOLDER_MAP = {
+    '{Period}' => '{PeriodLong}',
+    '{Year}' => '{YearLong}',
+    '{MonthYear}' => '{MonthYearLong}',
+    '{Day}' => '{DayLong}',
+    '{YYYYMMDD}' => '{DateISO}',
+    '{DDMMYYYY}' => '{DateAU}',
+    '{CompanyCode}' => '{CompanyName}',
+    '{LoanID}' => '{LoanName}',
+    '{AssetCode}' => '{AssetName}',
+    '{LenderCode}' => '{LenderName}'
+  }.freeze
+
   def up
     puts "\n" + "=" * 80
     puts "UPDATING DISPLAY_NAME TO MATCH FILE_NAME (WITHOUT {CompanyCode})"
     puts "=" * 80
     puts ""
-
-    # Mapping of short placeholders to long versions for display
-    LONG_PLACEHOLDER_MAP = {
-      '{Period}' => '{PeriodLong}',
-      '{Year}' => '{YearLong}',
-      '{MonthYear}' => '{MonthYearLong}',
-      '{Day}' => '{DayLong}',
-      '{YYYYMMDD}' => '{DateISO}',
-      '{DDMMYYYY}' => '{DateAU}',
-      '{CompanyCode}' => '{CompanyName}',
-      '{LoanID}' => '{LoanName}',
-      '{AssetCode}' => '{AssetName}',
-      '{LenderCode}' => '{LenderName}'
-    }.freeze
 
     count = 0
     DocumentType.find_each do |doc_type|
