@@ -231,7 +231,7 @@ class CorporateOnedriveService
         company_name: company&.name,
         matched: company.present?,
         document_count: documents.count,
-        documents: documents.map { |d| { name: d["name"], type: categorize_document(d["name"]) } }
+        documents: documents.map { |d| { name: d["name"], type: File.extname(d["name"]) } }
       }
     end
 
