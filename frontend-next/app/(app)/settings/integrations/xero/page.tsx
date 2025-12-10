@@ -372,9 +372,9 @@ export default function XeroIntegrationPage() {
               >
                 <div className="flex items-center gap-3">
                   {organizationsExpanded ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
                   ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   )}
                   <span className="font-medium">Connected Xero Organizations</span>
                   <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100 text-xs">
