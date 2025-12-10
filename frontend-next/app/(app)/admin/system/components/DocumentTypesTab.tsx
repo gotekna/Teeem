@@ -63,10 +63,10 @@ export function DocumentTypesTab() {
   const [saving, setSaving] = React.useState(false);
   const [showFolderConfig, setShowFolderConfig] = React.useState(false);
   const [baseFolders, setBaseFolders] = React.useState({
-    company: "/Companies",
-    job: "/Jobs",
-    people: "/Director IDs",
-    xero: "/XERO Auto"
+    company: "/Teeem/Companies/{{CompanyCode}}/{{Folder}}",
+    job: "/Teeem/Jobs/{{JobCode}}/{{Category}}",
+    people: "/Teeem/Director IDs/{{ContactName}}",
+    xero: "/Teeem/XERO Auto"
   });
   const [newDocType, setNewDocType] = React.useState({
     name: "",
@@ -372,7 +372,7 @@ export function DocumentTypesTab() {
                 📁 SharePoint Folder Structure
               </h3>
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                Document types determine the folder structure in SharePoint/OneDrive for automated document organization.
+                Configure folder path templates for automated document organization in SharePoint/OneDrive. Use placeholders like {'{'}{'{'}}CompanyCode{'}'}{'}'}  to create dynamic paths.
               </p>
             </div>
             <Button
@@ -396,7 +396,7 @@ export function DocumentTypesTab() {
                       Company
                     </Badge>
                     <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
-                      {baseFolders.company}/{'{'}{'{'}CompanyCode{'}'}{'}'}  /{'{'}{'{'}Folder{'}'}{'}'}
+                      {baseFolders.company}
                     </code>
                     <Button
                       variant="outline"
@@ -417,7 +417,7 @@ export function DocumentTypesTab() {
                       Job
                     </Badge>
                     <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
-                      {baseFolders.job}/{'{'}{'{'}JobCode{'}'}{'}'}  /{'{'}{'{'}Category{'}'}{'}'}
+                      {baseFolders.job}
                     </code>
                     <Button
                       variant="outline"
@@ -438,7 +438,7 @@ export function DocumentTypesTab() {
                       People
                     </Badge>
                     <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
-                      {baseFolders.people}/{'{'}{'{'}ContactName{'}'}{'}'}
+                      {baseFolders.people}
                     </code>
                     <Button
                       variant="outline"
@@ -481,7 +481,7 @@ export function DocumentTypesTab() {
                     Company
                   </Badge>
                   <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
-                    {baseFolders.company}/{'{'}{'{'}CompanyCode{'}'}{'}'}  /{'{'}{'{'}Folder{'}'}{'}'}
+                    {baseFolders.company}
                   </code>
                   <Button
                     variant="outline"
@@ -500,7 +500,7 @@ export function DocumentTypesTab() {
                     Job
                   </Badge>
                   <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
-                    {baseFolders.job}/{'{'}{'{'}JobCode{'}'}{'}'}  /{'{'}{'{'}Category{'}'}{'}'}
+                    {baseFolders.job}
                   </code>
                   <Button
                     variant="outline"
@@ -537,7 +537,7 @@ export function DocumentTypesTab() {
                     People
                   </Badge>
                   <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
-                    {baseFolders.people}/{'{'}{'{'}ContactName{'}'}{'}'}
+                    {baseFolders.people}
                   </code>
                   <Button
                     variant="outline"
@@ -568,15 +568,20 @@ export function DocumentTypesTab() {
                   </div>
                   <SharePointFolderBrowser
                     onSelect={(folder, path) => {
-                      setBaseFolders(prev => ({ ...prev, company: path || "/Companies" }));
+                      // Only update the base path portion, preserve the placeholders
+                      const template = path ? `${path}/{{CompanyCode}}/{{Folder}}` : "/Teeem/Companies/{{CompanyCode}}/{{Folder}}";
+                      setBaseFolders(prev => ({ ...prev, company: template }));
                     }}
                   />
                   <Input
                     value={baseFolders.company}
                     onChange={(e) => setBaseFolders(prev => ({ ...prev, company: e.target.value }))}
                     className="text-xs font-mono"
-                    placeholder="/Companies"
+                    placeholder="/Teeem/Companies/{{CompanyCode}}/{{Folder}}"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Available placeholders: <code className="bg-muted px-1">{'{{CompanyCode}}'}</code>, <code className="bg-muted px-1">{'{{Folder}}'}</code>
+                  </p>
                   <div className="flex gap-2 justify-end pt-2">
                     <Button
                       variant="outline"
@@ -607,15 +612,20 @@ export function DocumentTypesTab() {
                   </div>
                   <SharePointFolderBrowser
                     onSelect={(folder, path) => {
-                      setBaseFolders(prev => ({ ...prev, job: path || "/Jobs" }));
+                      // Only update the base path portion, preserve the placeholders
+                      const template = path ? `${path}/{{JobCode}}/{{Category}}` : "/Teeem/Jobs/{{JobCode}}/{{Category}}";
+                      setBaseFolders(prev => ({ ...prev, job: template }));
                     }}
                   />
                   <Input
                     value={baseFolders.job}
                     onChange={(e) => setBaseFolders(prev => ({ ...prev, job: e.target.value }))}
                     className="text-xs font-mono"
-                    placeholder="/Jobs"
+                    placeholder="/Teeem/Jobs/{{JobCode}}/{{Category}}"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Available placeholders: <code className="bg-muted px-1">{'{{JobCode}}'}</code>, <code className="bg-muted px-1">{'{{Category}}'}</code>
+                  </p>
                   <div className="flex gap-2 justify-end pt-2">
                     <Button
                       variant="outline"
@@ -641,14 +651,14 @@ export function DocumentTypesTab() {
                   </div>
                   <SharePointFolderBrowser
                     onSelect={(folder, path) => {
-                      setBaseFolders(prev => ({ ...prev, xero: path || "/XERO Auto" }));
+                      setBaseFolders(prev => ({ ...prev, xero: path || "/Teeem/XERO Auto" }));
                     }}
                   />
                   <Input
                     value={baseFolders.xero}
                     onChange={(e) => setBaseFolders(prev => ({ ...prev, xero: e.target.value }))}
                     className="text-xs font-mono"
-                    placeholder="/XERO Auto"
+                    placeholder="/Teeem/XERO Auto"
                   />
                   <div className="flex gap-2 justify-end pt-2">
                     <Button
@@ -676,15 +686,19 @@ export function DocumentTypesTab() {
                   </div>
                   <SharePointFolderBrowser
                     onSelect={(folder, path) => {
-                      setBaseFolders(prev => ({ ...prev, people: path || "/Director IDs" }));
+                      const template = path ? `${path}/{{ContactName}}` : "/Teeem/Director IDs/{{ContactName}}";
+                      setBaseFolders(prev => ({ ...prev, people: template }));
                     }}
                   />
                   <Input
                     value={baseFolders.people}
                     onChange={(e) => setBaseFolders(prev => ({ ...prev, people: e.target.value }))}
                     className="text-xs font-mono"
-                    placeholder="/Director IDs"
+                    placeholder="/Teeem/Director IDs/{{ContactName}}"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Available placeholders: <code className="bg-muted px-1">{'{{ContactName}}'}</code>
+                  </p>
                   <div className="flex gap-2 justify-end pt-2">
                     <Button
                       variant="outline"

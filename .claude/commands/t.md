@@ -39,6 +39,32 @@ cd frontend-next && npm run lint 2>/dev/null || echo "ESLint not available"
 
 ### Step 2: SSoT Validation
 
+**Foundation Schema Sync Check:**
+
+Check that database schema columns match Foundation metadata (prevents SSoT violations):
+
+```bash
+# Check all Foundation tables for sync issues
+cd backend && bin/rails foundation:check
+```
+
+**Expected Output (GOOD):**
+```
+✅ All Foundation columns are in sync!
+```
+
+**Problem Output:**
+```
+⚠️ X foundation(s) with column sync issues
+  - Y orphaned columns (in DB, not in Foundation metadata)
+  - Z missing columns (in Foundation metadata, not in DB)
+```
+
+**If issues found:**
+- Log as SSoT violation in report
+- Recommend: `rails foundation:sync` to auto-fix
+- Check if caused by recent migration
+
 **Column Type SSoT Check (31 types):**
 
 1. Read `TEEEM_DOCS/GOLD_STANDARD_TABLE.md` - extract all 31 column types
@@ -221,6 +247,7 @@ PRIORITY FIXES
 ## Related Agents
 
 This command leverages checks from:
+- `foundation-schema-sync.md` - Database ↔ Foundation metadata sync validation
 - `gold-standard-sst.md` - Column type SSoT (31 types)
 - `code-guardian.md` - Pattern detection (5 patterns)
 - `performance-auditor.md` - Frontend performance (PERF-001 to 005)
