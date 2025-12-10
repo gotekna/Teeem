@@ -27,7 +27,7 @@ import { useToast } from "@/components/ui/use-toast";
 const FOLDER_OPTIONS = [
   "ADVICE", "ASIC", "ASSETS", "ATO", "BANK", "COMPANY",
   "DIVIDENDS", "FINANCIALS", "GENERAL", "INSURANCE",
-  "LOANS", "MINUTES", "REGISTRY", "TRUST", "XERO"
+  "LOANS", "MINUTES", "REGISTRY", "TRUST"
 ];
 
 // Scope options
