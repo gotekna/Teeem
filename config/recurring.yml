@@ -26,21 +26,22 @@ refresh_integration_tokens:
 # ============================================
 # EMAIL SYNC (every 10-15 minutes)
 # ============================================
-email_warehouse_sync:
-  class: EmailWarehouseSyncAllJob
-  queue: default
-  schedule: every 10 minutes
+# DISABLED - All email sync jobs disabled per Sam's request
+# email_warehouse_sync:
+#   class: EmailWarehouseSyncAllJob
+#   queue: default
+#   schedule: every 10 minutes
 
-process_new_job_emails:
-  class: ProcessNewJobEmailsJob
-  queue: default
-  schedule: every 10 minutes
+# process_new_job_emails:
+#   class: ProcessNewJobEmailsJob
+#   queue: default
+#   schedule: every 10 minutes
 
 # Organization-wide Microsoft email sync
-org_email_sync:
-  class: OrgEmailSyncJob
-  queue: low
-  schedule: every 15 minutes
+# org_email_sync:
+#   class: OrgEmailSyncJob
+#   queue: low
+#   schedule: every 15 minutes
 
 # ============================================
 # XERO INTEGRATION
