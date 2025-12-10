@@ -70,11 +70,12 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     # Find emails with attachments from this org's mailboxes (both sent and received)
     # Use mailbox_owner_email to find emails that belong to this org
+    # Only process recently synced emails (last_synced_at within 1 hour) to avoid stale Outlook IDs
     emails_with_attachments = EmailWarehouse
       .where(microsoft_credential_id: @credential.id)
       .where(has_attachments: true)
       .where.not(mailbox_owner_email: nil)  # Only emails with mailbox owner tracked
-      # .where("received_at >= ?", 30.days.ago) # Time filter commented out for historical data
+      .where("last_synced_at >= ?", 1.hour.ago) # Only recently synced emails (fresh Outlook IDs)
       .order(received_at: :desc)
       .limit(100) # Limit for performance
 
@@ -236,10 +237,12 @@ class SyncEmailsToSharePointJob < ApplicationJob
     end
 
     # Get emails from this org that haven't been uploaded yet
+    # Only process recently synced emails (last_synced_at within 1 hour) to avoid stale Outlook IDs
     emails_to_upload = EmailWarehouse
       .where(microsoft_credential_id: @credential.id)
       .where(sharepoint_email_file_id: nil)  # Not yet uploaded
       .where.not(mailbox_owner_email: nil)   # Only emails with mailbox owner tracked
+      .where("last_synced_at >= ?", 1.hour.ago) # Only recently synced emails (fresh Outlook IDs)
       .order(received_at: :desc)
       .limit(100)  # Limit for performance
 
