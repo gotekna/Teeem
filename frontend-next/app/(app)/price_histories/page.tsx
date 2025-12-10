@@ -134,9 +134,11 @@ export default function PriceHistoriesPage() {
       <Card>
         <CardContent className="p-0">
           <TeeemTableView
-            foundation={foundation}
+            foundationId={foundation.id}
+            foundationIdNumeric={foundation.id_numeric}
+            tableName={foundation.table_name}
+            entries={records}
             columns={columns}
-            records={records}
             totalCount={totalCount}
             onRowUpdate={handleRowUpdate}
             onRefresh={refresh}
