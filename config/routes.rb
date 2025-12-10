@@ -296,6 +296,7 @@ Rails.application.routes.draw do
           get :image_stats
           get :export_price_history
           post :import_price_history
+          get :all_price_histories
         end
       end
 
