@@ -1463,6 +1463,32 @@ export default function DocumentTypeDetailPage() {
               </div>
             </div>
 
+            {/* Sub-Tab dropdown - shown when primary tab is XERO */}
+            {documentType.primary_tab === "XERO" && (
+              <div className="space-y-2">
+                <Label htmlFor="category">Sub-Tab (XERO Folder)</Label>
+                <Select
+                  value={documentType.category || ""}
+                  onValueChange={(value) => updateField("category", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select XERO subfolder..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Bank Statements">Bank Statements</SelectItem>
+                    <SelectItem value="Bills">Bills</SelectItem>
+                    <SelectItem value="Credit Notes">Credit Notes</SelectItem>
+                    <SelectItem value="Invoices">Invoices</SelectItem>
+                    <SelectItem value="Purchase Orders">Purchase Orders</SelectItem>
+                    <SelectItem value="Quotes">Quotes</SelectItem>
+                    <SelectItem value="Receipts">Receipts</SelectItem>
+                    <SelectItem value="Reports">Reports</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Subfolder within XERO for organization</p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Additional Tabs</Label>
               <p className="text-xs text-muted-foreground mb-2">
@@ -1495,20 +1521,6 @@ export default function DocumentTypeDetailPage() {
                   );
                 })}
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="target_folder">Target Folder Path (OneDrive/SharePoint)</Label>
-              <Input
-                id="target_folder"
-                value={documentType.target_folder || ""}
-                onChange={(e) => updateField("target_folder", e.target.value)}
-                placeholder="/Corporate/Company Name/ATO"
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                Cloud storage path for auto-filing
-              </p>
             </div>
           </CardContent>
         )}
