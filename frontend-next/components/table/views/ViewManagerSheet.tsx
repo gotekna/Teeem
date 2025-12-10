@@ -107,6 +107,7 @@ interface ViewManagerSheetProps {
   onApplyView?: (view: SavedView) => void;
   onAutoFitChange?: (enabled: boolean) => void;
   onShowTotalsChange?: (enabled: boolean) => void;
+  onRefresh?: () => void; // Called after saving to refresh data with new filters/settings
   rows?: Record<string, unknown>[];
 }
 
@@ -135,6 +136,10 @@ export function ViewManagerSheet({
 
   // Global views atom - update this to sync view order with main table
   const setGlobalViews = useSetAtom(foundationViewsAtom);
+
+  // Import invalidate cache action
+  const { invalidateViewsCacheAtom } = require('@/lib/view-state-atoms');
+  const invalidateCache = useSetAtom(invalidateViewsCacheAtom);
 
   // State
   const [views, setViews] = React.useState<SavedView[]>([]);
@@ -415,11 +420,15 @@ export function ViewManagerSheet({
           groupByColumns: currentEditState.groupByColumns,
         };
 
-        // Apply the view state immediately using captured state
-        onApplyView?.(savedView);
+        // Invalidate cache to force fresh load with updated view_display_type
+        invalidateCache(foundationId);
 
         // Then refresh the views list (this may reset edit state, but that's OK now)
         await loadViews(isNewView ? currentEditState.name : undefined);
+
+        // Apply the view state immediately using captured state
+        // This ensures display type changes take effect immediately
+        onApplyView?.(savedView);
 
         onViewsChange?.();
       } else {

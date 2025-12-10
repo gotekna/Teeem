@@ -3035,7 +3035,7 @@ export default function TeeemTableView({
               <ChevronDown className="h-4 w-4" />
             )}
             <span className="font-medium text-sm">
-              {currentColLabel}: {groupKey}
+              {groupKey}
             </span>
             <Badge variant="secondary" className="text-xs">{rowCount} rows</Badge>
           </div>
@@ -3223,7 +3223,7 @@ export default function TeeemTableView({
                 <ChevronDown className="h-4 w-4" />
               )}
               <span className="font-medium text-sm">
-                {currentColLabel}: {groupKey}
+                {groupKey}
               </span>
               <Badge variant="secondary" className="text-xs">{rowCount} rows</Badge>
             </div>
