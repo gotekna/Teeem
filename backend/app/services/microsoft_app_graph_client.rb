@@ -444,17 +444,24 @@ class MicrosoftAppGraphClient
         "Content-Range" => "bytes #{offset}-#{chunk_end}/#{total_size}"
       }
 
-      response = HTTP.auth("Bearer #{valid_access_token}")
-                     .headers(headers)
-                     .put(upload_url, body: chunk)
+      # Use retry logic for each chunk upload
+      with_retry do
+        response = HTTP.auth("Bearer #{access_token}")
+                       .headers(headers)
+                       .put(upload_url, body: chunk)
 
-      raise ApiError, "Upload chunk failed: #{response.code}" unless response.status.success?
+        unless response.status.success?
+          error_body = JSON.parse(response.body.to_s) rescue { "error" => { "message" => response.body.to_s } }
+          error_msg = error_body.dig("error", "message") || "HTTP #{response.status.code}"
+          raise ApiError, "#{response.status.code} - Upload chunk failed: #{error_msg}"
+        end
+      end
 
       offset = chunk_end + 1
     end
 
-    # Return final response
-    JSON.parse(response.body)
+    Rails.logger.info "[MicrosoftAppGraph] Large file upload completed: #{total_size} bytes"
+    { success: true, size: total_size }
   end
 
   # Ensure folder path exists, create if needed
@@ -511,29 +518,100 @@ class MicrosoftAppGraphClient
       url += "?search="
     end
 
-    response = HTTP.auth("Bearer #{access_token}")
-                   .headers("Content-Type" => "application/json")
-                   .get(url)
+    with_retry do
+      response = HTTP.auth("Bearer #{access_token}")
+                     .headers("Content-Type" => "application/json")
+                     .get(url)
 
-    handle_response(response)
+      handle_response(response)
+    end
   end
 
   def get_url(full_url)
-    response = HTTP.auth("Bearer #{access_token}")
-                   .headers("Content-Type" => "application/json")
-                   .get(full_url)
+    with_retry do
+      response = HTTP.auth("Bearer #{access_token}")
+                     .headers("Content-Type" => "application/json")
+                     .get(full_url)
 
-    handle_response(response)
+      handle_response(response)
+    end
   end
 
   def post(endpoint, body)
     url = "#{GRAPH_API_BASE}#{endpoint}"
 
-    response = HTTP.auth("Bearer #{access_token}")
-                   .headers("Content-Type" => "application/json")
-                   .post(url, json: body)
+    with_retry do
+      response = HTTP.auth("Bearer #{access_token}")
+                     .headers("Content-Type" => "application/json")
+                     .post(url, json: body)
 
-    handle_response(response)
+      handle_response(response)
+    end
+  end
+
+  def put(endpoint, content, headers = {})
+    url = "#{GRAPH_API_BASE}#{endpoint}"
+
+    with_retry do
+      response = HTTP.auth("Bearer #{access_token}")
+                     .headers(headers)
+                     .put(url, body: content)
+
+      handle_response(response)
+    end
+  end
+
+  # Retry wrapper for handling token expiration and rate limiting
+  def with_retry(max_retries: 3, &block)
+    attempt = 0
+
+    begin
+      attempt += 1
+      yield
+    rescue ApiError => e
+      # Extract HTTP status code from error message
+      if e.message.include?("401") || e.message.include?("Unauthorized")
+        # Token expired - refresh and retry
+        if attempt <= max_retries
+          Rails.logger.info "[MicrosoftAppGraph] Token expired (attempt #{attempt}/#{max_retries}), refreshing..."
+          if @credential.fetch_access_token!
+            Rails.logger.info "[MicrosoftAppGraph] Token refreshed, retrying request..."
+            retry
+          else
+            Rails.logger.error "[MicrosoftAppGraph] Failed to refresh token"
+            raise
+          end
+        else
+          Rails.logger.error "[MicrosoftAppGraph] Max retries exceeded for token refresh"
+          raise
+        end
+      elsif e.message.include?("429") || e.message.include?("Too Many Requests")
+        # Rate limited - use exponential backoff
+        if attempt <= max_retries
+          wait_time = 2 ** attempt  # 2s, 4s, 8s
+          Rails.logger.warn "[MicrosoftAppGraph] Rate limited (attempt #{attempt}/#{max_retries}), waiting #{wait_time}s..."
+          sleep(wait_time)
+          retry
+        else
+          Rails.logger.error "[MicrosoftAppGraph] Max retries exceeded for rate limiting"
+          raise
+        end
+      elsif e.message.include?("503") || e.message.include?("Service Unavailable")
+        # Service unavailable - retry with backoff
+        if attempt <= max_retries
+          wait_time = 2 ** attempt
+          Rails.logger.warn "[MicrosoftAppGraph] Service unavailable (attempt #{attempt}/#{max_retries}), waiting #{wait_time}s..."
+          sleep(wait_time)
+          retry
+        else
+          Rails.logger.error "[MicrosoftAppGraph] Max retries exceeded for service unavailability"
+          raise
+        end
+      else
+        # Other error - don't retry
+        raise
+      end
+    end
   end
 
   def handle_response(response)
@@ -542,15 +620,9 @@ class MicrosoftAppGraphClient
     else
       error_body = JSON.parse(response.body.to_s) rescue { "error" => { "message" => response.body.to_s } }
       error_msg = error_body.dig("error", "message") || "HTTP #{response.status}"
+      error_code = response.status.code
 
-      # Check if token expired and try to refresh
-      if response.status.code == 401
-        Rails.logger.info "[MicrosoftAppGraph] Token expired, refreshing..."
-        @credential.fetch_access_token!
-        # Retry would need to be implemented by caller
-      end
-
-      raise ApiError, "Microsoft Graph API error: #{error_msg}"
+      raise ApiError, "#{error_code} - #{error_msg}"
     end
   end
 
