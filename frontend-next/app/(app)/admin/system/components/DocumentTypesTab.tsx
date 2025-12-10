@@ -372,7 +372,7 @@ export function DocumentTypesTab() {
                 📁 SharePoint Folder Structure
               </h3>
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                Configure folder path templates for automated document organization in SharePoint/OneDrive. Use placeholders like {'{'}{'{'}}CompanyCode{'}'}{'}'}  to create dynamic paths.
+                Configure folder path templates for automated document organization in SharePoint/OneDrive. Use placeholders like {'{{CompanyCode}}'} to create dynamic paths.
               </p>
             </div>
             <Button
