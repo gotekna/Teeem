@@ -246,6 +246,7 @@ module Api
           :foundation_id,
           :name,
           :view_type,
+          :view_display_type,
           :is_default,
           :display_order,
           :group_by_column,
