@@ -189,6 +189,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
     t.index ["company_id"], name: "index_assets_on_company_id"
   end
 
+  create_table "attachments", force: :cascade do |t|
+    t.string "sharepoint_file_id", null: false
+    t.string "sharepoint_path", null: false
+    t.string "filename", null: false
+    t.string "content_type"
+    t.bigint "file_size"
+    t.string "content_hash", null: false
+    t.bigint "organization_microsoft_app_credential_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["content_hash"], name: "index_attachments_on_content_hash", unique: true
+    t.index ["organization_microsoft_app_credential_id"], name: "index_attachments_on_org_cred_id"
+    t.index ["sharepoint_file_id"], name: "index_attachments_on_sharepoint_file_id"
+  end
+
   create_table "balance_sheet_reports", force: :cascade do |t|
     t.bigint "company_id", null: false
     t.string "company_name", null: false
@@ -215,11 +230,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
     t.index ["status"], name: "index_balance_sheet_reports_on_status"
   end
 
-  create_table "bank_account_configs", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
   create_table "bank_accounts", force: :cascade do |t|
     t.bigint "company_id", null: false
     t.string "institution_name"
@@ -240,7 +250,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
     t.index ["xero_account_id"], name: "index_bank_accounts_on_xero_account_id"
   end
 
-  create_table "bank_statement_reports", id: :serial, force: :cascade do |t|
+  create_table "bank_statement_reports", force: :cascade do |t|
     t.string "bank_account_id", null: false
     t.string "bank_account_name", null: false
     t.string "financial_year", null: false
@@ -257,17 +267,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
     t.string "cloudinary_url"
     t.string "file_name"
     t.integer "file_size"
-    t.datetime "generated_at", precision: nil
+    t.datetime "generated_at"
     t.string "status", default: "pending"
     t.text "error_message"
-    t.datetime "created_at", precision: nil, default: -> { "now()" }, null: false
-    t.datetime "updated_at", precision: nil, default: -> { "now()" }, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.string "bank_code"
     t.string "account_number"
     t.string "company_code"
     t.index ["bank_account_id", "financial_year", "month"], name: "idx_bank_reports_unique", unique: true
     t.index ["bank_code"], name: "index_bank_statement_reports_on_bank_code"
     t.index ["company_code"], name: "index_bank_statement_reports_on_company_code"
+    t.index ["financial_year"], name: "index_bank_statement_reports_on_financial_year"
+    t.index ["status"], name: "index_bank_statement_reports_on_status"
   end
 
   create_table "bank_transactions", force: :cascade do |t|
@@ -798,7 +810,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.text "contact_types", default: "{}"
+    t.string "contact_types", default: [], array: true
+    t.index ["contact_types"], name: "index_contact_roles_on_contact_types", using: :gin
     t.index ["name"], name: "index_contact_roles_on_name", unique: true
   end
 
@@ -839,7 +852,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
     t.datetime "updated_at", null: false
     t.datetime "last_synced_at"
     t.text "xero_sync_error"
-    t.text "roles", default: "{}"
+    t.string "roles", default: [], array: true
     t.integer "rating", default: 0
     t.decimal "response_rate", precision: 5, scale: 2, default: "0.0"
     t.integer "avg_response_time"
@@ -917,6 +930,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
     t.index ["rating"], name: "index_contacts_on_rating"
+    t.index ["roles"], name: "index_contacts_on_roles", using: :gin
     t.index ["supplier_code"], name: "index_contacts_on_supplier_code", unique: true, where: "(supplier_code IS NOT NULL)"
     t.index ["sys_type_id"], name: "index_contacts_on_sys_type_id"
     t.index ["teeem_rating"], name: "index_contacts_on_teeem_rating"
@@ -1530,22 +1544,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
 
   create_table "email_attachments", force: :cascade do |t|
     t.bigint "email_warehouse_id", null: false
-    t.bigint "company_document_id"
-    t.string "sharepoint_file_id"
-    t.string "sharepoint_path"
     t.string "outlook_attachment_id"
-    t.string "filename", null: false
-    t.string "content_type"
-    t.bigint "file_size"
-    t.string "content_hash"
-    t.boolean "is_existing_doc", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["company_document_id"], name: "index_email_attachments_on_company_document_id"
-    t.index ["content_hash"], name: "index_email_attachments_on_content_hash"
+    t.bigint "attachment_id"
+    t.index ["attachment_id"], name: "index_email_attachments_on_attachment_id"
+    t.index ["email_warehouse_id", "attachment_id"], name: "index_email_attachments_unique", unique: true
     t.index ["email_warehouse_id"], name: "index_email_attachments_on_email_warehouse_id"
     t.index ["outlook_attachment_id"], name: "index_email_attachments_on_outlook_attachment_id"
-    t.index ["sharepoint_file_id"], name: "index_email_attachments_on_sharepoint_file_id"
   end
 
   create_table "email_case_proposals", force: :cascade do |t|
@@ -1678,6 +1684,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
     t.jsonb "extracted_contacts", default: {}
     t.jsonb "extracted_entities", default: {}
     t.jsonb "action_items", default: []
+    t.bigint "microsoft_credential_id"
+    t.string "mailbox_owner_email"
+    t.string "sharepoint_email_file_id"
+    t.string "sharepoint_email_path"
     t.index ["cc_emails"], name: "index_email_warehouse_on_cc_emails", using: :gin
     t.index ["conversation_id"], name: "index_email_warehouse_on_conversation_id"
     t.index ["direction"], name: "index_email_warehouse_on_direction"
@@ -1690,8 +1700,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
     t.index ["job_id", "is_latest_in_thread"], name: "index_email_warehouse_on_job_id_and_is_latest_in_thread"
     t.index ["job_id", "received_at"], name: "index_email_warehouse_on_job_id_and_received_at"
     t.index ["job_id"], name: "index_email_warehouse_on_job_id"
+    t.index ["mailbox_owner_email"], name: "index_email_warehouse_on_mailbox_owner_email"
+    t.index ["microsoft_credential_id"], name: "index_email_warehouse_on_microsoft_credential_id"
     t.index ["received_at"], name: "index_email_warehouse_on_received_at"
     t.index ["searchable"], name: "index_email_warehouse_on_searchable", using: :gin
+    t.index ["sharepoint_email_file_id"], name: "index_email_warehouse_on_sharepoint_email_file_id"
     t.index ["sharepoint_file_id"], name: "index_email_warehouse_on_sharepoint_file_id"
     t.index ["ssot_owner_id"], name: "index_email_warehouse_on_ssot_owner_id"
     t.index ["synced_by_user_id"], name: "index_email_warehouse_on_synced_by_user_id"
@@ -2452,25 +2465,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
     t.index ["xero_tracking_option_id"], name: "index_jobs_on_xero_tracking_option_id"
   end
 
-  create_table "known_parties", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "email"
-    t.string "phone"
-    t.string "organisation"
-    t.string "relationship_type"
-    t.string "default_alignment", default: "neutral"
-    t.text "notes"
-    t.bigint "contact_id"
-    t.integer "seen_count", default: 1
-    t.datetime "last_seen_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["contact_id"], name: "index_known_parties_on_contact_id"
-    t.index ["email"], name: "index_known_parties_on_email", unique: true, where: "(email IS NOT NULL)"
-    t.index ["name", "organisation"], name: "index_known_parties_on_name_and_organisation", unique: true
-    t.index ["relationship_type"], name: "index_known_parties_on_relationship_type"
-  end
-
   create_table "kudos_events", force: :cascade do |t|
     t.bigint "subcontractor_account_id", null: false
     t.bigint "quote_response_id"
@@ -2708,26 +2702,33 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
   end
 
   create_table "organization_microsoft_app_credentials", force: :cascade do |t|
-    t.string "client_id", null: false
+    t.string "client_id"
     t.text "client_secret"
-    t.string "tenant_id", null: false
+    t.string "tenant_id"
     t.text "access_token"
-    t.datetime "token_expires_at", precision: nil
+    t.datetime "token_expires_at"
     t.boolean "is_active", default: true
     t.string "status", default: "pending"
     t.text "last_error"
-    t.datetime "admin_consent_granted_at", precision: nil
+    t.datetime "admin_consent_granted_at"
     t.string "admin_consent_granted_by"
     t.jsonb "sync_config", default: {}
-    t.datetime "last_sync_at", precision: nil
+    t.datetime "last_sync_at"
     t.bigint "setup_by_id"
-    t.datetime "created_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
-    t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.string "name"
+    t.string "sharepoint_site_id"
+    t.string "sharepoint_drive_id"
+    t.string "sharepoint_drive_name"
     t.index ["is_active"], name: "index_org_ms_app_creds_on_is_active"
+    t.index ["is_active"], name: "index_organization_microsoft_app_credentials_on_is_active", unique: true, where: "(is_active = true)"
+    t.index ["name", "is_active"], name: "index_org_microsoft_app_creds_on_name_and_active", unique: true, where: "(is_active = true)"
     t.index ["name"], name: "index_org_ms_app_creds_on_name"
     t.index ["setup_by_id"], name: "index_organization_microsoft_app_credentials_on_setup_by_id"
-    t.index ["tenant_id"], name: "index_org_microsoft_app_credentials_on_tenant_id"
+    t.index ["sharepoint_drive_id"], name: "idx_on_sharepoint_drive_id_0a6d5a1255"
+    t.index ["sharepoint_site_id"], name: "idx_on_sharepoint_site_id_47efe5ba09"
+    t.index ["tenant_id"], name: "index_organization_microsoft_app_credentials_on_tenant_id"
   end
 
   create_table "organization_one_drive_credentials", force: :cascade do |t|
@@ -3997,20 +3998,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
   end
 
-  create_table "tables", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "singular_name"
-    t.string "plural_name"
-    t.string "database_table_name", null: false
-    t.string "icon"
-    t.string "title_column"
-    t.boolean "searchable", default: true
-    t.text "description"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["database_table_name"], name: "index_tables_on_database_table_name", unique: true
-  end
-
   create_table "task_dependencies", force: :cascade do |t|
     t.bigint "successor_task_id", null: false
     t.bigint "predecessor_task_id", null: false
@@ -4823,6 +4810,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
   add_foreign_key "asset_service_histories", "assets"
   add_foreign_key "asset_service_histories", "users"
   add_foreign_key "assets", "corporate_companies", column: "company_id"
+  add_foreign_key "attachments", "organization_microsoft_app_credentials"
   add_foreign_key "balance_sheet_reports", "corporate_companies", column: "company_id"
   add_foreign_key "bank_accounts", "corporate_companies", column: "company_id"
   add_foreign_key "bank_transactions", "bank_accounts"
@@ -4915,7 +4903,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "document_verification_feedbacks", "corporate_company_documents", column: "company_document_id"
   add_foreign_key "document_verification_feedbacks", "users"
-  add_foreign_key "email_attachments", "corporate_company_documents", column: "company_document_id"
+  add_foreign_key "email_attachments", "attachments"
   add_foreign_key "email_attachments", "email_warehouse"
   add_foreign_key "email_case_proposals", "cases", column: "case_record_id"
   add_foreign_key "email_case_proposals", "email_warehouse"
@@ -4930,6 +4918,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
   add_foreign_key "email_recipients", "users"
   add_foreign_key "email_sync_statuses", "users"
   add_foreign_key "email_warehouse", "jobs"
+  add_foreign_key "email_warehouse", "organization_microsoft_app_credentials", column: "microsoft_credential_id"
   add_foreign_key "email_warehouse", "users", column: "ssot_owner_id"
   add_foreign_key "email_warehouse", "users", column: "synced_by_user_id"
   add_foreign_key "email_warehouse", "users", column: "user_classification_by_id"
@@ -4978,7 +4967,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
   add_foreign_key "jobs", "job_status", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
   add_foreign_key "jobs", "users", column: "archived_by_id", on_delete: :nullify
-  add_foreign_key "known_parties", "contacts"
   add_foreign_key "kudos_events", "purchase_orders"
   add_foreign_key "kudos_events", "quote_responses"
   add_foreign_key "kudos_events", "subcontractor_accounts"
@@ -4998,7 +4986,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_051046) do
   add_foreign_key "meetings", "users", column: "created_by_id"
   add_foreign_key "notifications", "users"
   add_foreign_key "one_drive_credentials", "jobs"
-  add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id", name: "organization_microsoft_app_credentials_setup_by_id_fkey"
+  add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id"
   add_foreign_key "organization_one_drive_credentials", "users", column: "connected_by_id"
   add_foreign_key "pay_now_requests", "contacts"
   add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
