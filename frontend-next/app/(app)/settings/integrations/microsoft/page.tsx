@@ -1108,14 +1108,35 @@ function OrganizationCard({
   onRefresh: () => void;
   envConfigured: boolean;
 }) {
-  const [open, setOpen] = React.useState(org.status === "connected");
+  const [open, setOpen] = React.useState(org.status === "connected" || org.status === "pending");
   const [testing, setTesting] = React.useState(false);
   const [testingSharePoint, setTestingSharePoint] = React.useState(false);
+  const [syncing, setSyncing] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
+  const [retrying, setRetrying] = React.useState(false);
   const [tenantUsers, setTenantUsers] = React.useState<TenantUser[]>([]);
   const [loadingUsers, setLoadingUsers] = React.useState(false);
   const [sharePointResult, setSharePointResult] = React.useState<{ success: boolean; message: string; sites?: { name: string; url: string }[] } | null>(null);
+  const [syncResult, setSyncResult] = React.useState<{ success: boolean; message: string } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+
+  const handleRetryConsent = async () => {
+    setRetrying(true);
+    setError(null);
+    try {
+      const response = await api.post<{ success: boolean; admin_consent_url: string; message: string }>(
+        "/api/v1/microsoft_app/setup_from_env",
+        { name: org.name }
+      );
+      if (response?.admin_consent_url) {
+        window.location.href = response.admin_consent_url;
+      }
+    } catch (err: unknown) {
+      const error = err as { data?: { error?: string }; message?: string };
+      setError(error.data?.error || error.message || "Failed to retry consent");
+      setRetrying(false);
+    }
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -1158,6 +1179,29 @@ function OrganizationCard({
       });
     } finally {
       setTestingSharePoint(false);
+    }
+  };
+
+  const handleSyncToSharePoint = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const response = await api.post<{ success: boolean; message: string; error?: string }>(
+        "/api/v1/microsoft_app/sync_to_sharepoint",
+        { organization_id: org.id }
+      );
+      setSyncResult({
+        success: response?.success || false,
+        message: response?.success ? response.message : (response?.error || "Sync failed")
+      });
+    } catch (err: unknown) {
+      const error = err as { data?: { error?: string }; message?: string };
+      setSyncResult({
+        success: false,
+        message: error.data?.error || error.message || "Sync failed"
+      });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -1323,6 +1367,14 @@ function OrganizationCard({
                   </Alert>
                 )}
 
+                {syncResult && (
+                  <Alert variant={syncResult.success ? "default" : "destructive"} className={syncResult.success ? "bg-green-50 border-green-200" : ""}>
+                    {syncResult.success ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <AlertTriangle className="h-4 w-4" />}
+                    <AlertTitle>{syncResult.success ? "Sync Started" : "Sync Error"}</AlertTitle>
+                    <AlertDescription>{syncResult.message}</AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="flex items-center gap-2 flex-wrap">
                   <Button variant="outline" size="sm" onClick={handleTest} disabled={testing}>
                     {testing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}
@@ -1331,6 +1383,10 @@ function OrganizationCard({
                   <Button variant="outline" size="sm" onClick={handleTestSharePoint} disabled={testingSharePoint}>
                     {testingSharePoint ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FolderOpen className="h-4 w-4 mr-1" />}
                     Test SharePoint
+                  </Button>
+                  <Button variant="default" size="sm" onClick={handleSyncToSharePoint} disabled={syncing} className="bg-blue-600 hover:bg-blue-700">
+                    {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Database className="h-4 w-4 mr-1" />}
+                    Sync to SharePoint
                   </Button>
                   <Button variant="destructive" size="sm" onClick={handleDisconnect} disabled={disconnecting}>
                     {disconnecting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />}
@@ -1341,13 +1397,25 @@ function OrganizationCard({
             )}
 
             {org.status === "pending" && (
-              <Alert>
-                <Key className="h-4 w-4" />
-                <AlertTitle>Admin Consent Required</AlertTitle>
-                <AlertDescription>
-                  An Azure AD admin needs to grant organization-wide consent for {org.name}.
-                </AlertDescription>
-              </Alert>
+              <>
+                <Alert>
+                  <Key className="h-4 w-4" />
+                  <AlertTitle>Admin Consent Required</AlertTitle>
+                  <AlertDescription>
+                    An Azure AD admin needs to grant organization-wide consent for {org.name}.
+                  </AlertDescription>
+                </Alert>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleRetryConsent} disabled={retrying}>
+                    {retrying ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                    Retry Consent
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={handleDisconnect} disabled={disconnecting}>
+                    {disconnecting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />}
+                    Cancel
+                  </Button>
+                </div>
+              </>
             )}
 
             {org.status === "error" && (

@@ -8,10 +8,12 @@ class EmailWarehouse < ApplicationRecord
   belongs_to :job, optional: true
   belongs_to :synced_by_user, class_name: "User", optional: true
   belongs_to :ssot_owner, class_name: "User", optional: true  # User who owns the SSoT copy
+  belongs_to :microsoft_credential, class_name: "OrganizationMicrosoftAppCredential", optional: true
 
   # SSoT associations
   has_many :email_recipients, dependent: :destroy
   has_many :email_attachments, dependent: :destroy
+  has_many :attachments, through: :email_attachments
 
   # Direction constants (for SSoT tracking)
   DIRECTIONS = %w[sent received cc bcc].freeze
@@ -33,12 +35,16 @@ class EmailWarehouse < ApplicationRecord
   scope :sent, -> { where(direction: "sent") }
   scope :received, -> { where(direction: "received") }
   scope :owned_by, ->(user) { where(ssot_owner: user) }
-  scope :synced_to_sharepoint, -> { where.not(sharepoint_file_id: nil) }
-  scope :pending_sharepoint_sync, -> { where(sharepoint_file_id: nil) }
   scope :with_ai_summary, -> { where.not(ai_summary: nil) }
   scope :needs_ai_summary, -> { where(ai_summary: nil) }
   scope :spam, -> { where("email_classification->>'email_type' = ?", "spam") }
   scope :not_spam, -> { where("email_classification->>'email_type' != ? OR email_classification IS NULL", "spam") }
+
+  # Microsoft organization scopes
+  scope :for_microsoft_credential, ->(credential_id) { where(microsoft_credential_id: credential_id) }
+  scope :for_microsoft_org, ->(org_name) {
+    joins(:microsoft_credential).where(organization_microsoft_app_credentials: { name: org_name })
+  }
 
   # Full-text search scope
   scope :search_text, ->(query) {

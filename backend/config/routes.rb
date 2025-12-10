@@ -482,6 +482,7 @@ Rails.application.routes.draw do
           post :test
           get :users
           post :configure_sync
+          post :sync_to_sharepoint
           delete :disconnect
           # SharePoint/OneDrive endpoints
           get :sharepoint_sites
@@ -490,6 +491,11 @@ Rails.application.routes.draw do
           get :user_onedrive
           get :search_files
           post :test_sharepoint
+          # SharePoint Configuration for Attachments (TEEEM's Single SharePoint)
+          get :sharepoint_config
+          post :configure_sharepoint
+          put :update_sharepoint_config
+          post :backfill_attachments
         end
       end
 
@@ -1141,6 +1147,7 @@ Rails.application.routes.draw do
 
       # Organization-wide data stats
       get "organization/data_stats", to: "organization#data_stats"
+      get "organization/microsoft_org_stats", to: "organization#microsoft_org_stats"
 
       # Organization settings (job folder name format, etc.)
       get "organization_settings", to: "organization#settings"
