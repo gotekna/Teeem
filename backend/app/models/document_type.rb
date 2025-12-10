@@ -169,6 +169,7 @@ class DocumentType < ApplicationRecord
     # Corporate placeholders
     format.gsub!("{CompanyCode}", abbreviation.presence || "ABC")
     format.gsub!("{CompanyName}", "ABC Property Trust")
+    format.gsub!("{CompanyGroup}", "Tekna Group")
     format.gsub!("{LoanID}", "L001")
     format.gsub!("{LenderCode}", "NAB")
     format.gsub!("{AssetCode}", "PROP1")
@@ -224,6 +225,7 @@ class DocumentType < ApplicationRecord
     # Corporate placeholders (use abbreviation or defaults)
     format.gsub!("{CompanyCode}", abbreviation.presence || "ABC")
     format.gsub!("{CompanyName}", "ABC Property Trust")
+    format.gsub!("{CompanyGroup}", "Tekna Group")
     format.gsub!("{LoanID}", "L001")
     format.gsub!("{LenderCode}", "NAB")
     format.gsub!("{AssetCode}", "PROP1")

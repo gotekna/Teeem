@@ -49,6 +49,7 @@ type PlaceholderItem = { code: string; example: string; color: string; longCode?
 const BASE_PLACEHOLDERS: { company: PlaceholderItem[]; job: PlaceholderItem[] } = {
   company: [
     { code: "{CompanyCode}", example: "TH", longCode: "{CompanyName}", longExample: "Tekna Homes", color: "purple" },
+    { code: "{CompanyGroup}", example: "Tekna Group", color: "purple" },
     { code: "{LoanID}", example: "L001", longCode: "{LoanName}", longExample: "Loan to ABC Trust", color: "purple" },
     { code: "{AssetCode}", example: "PROP1", longCode: "{AssetName}", longExample: "123 Main Street", color: "purple" },
     { code: "{FY}", label: "FY{FY}", example: "FY25", color: "purple" },

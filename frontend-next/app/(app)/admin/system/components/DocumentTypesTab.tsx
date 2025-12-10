@@ -765,6 +765,39 @@ export function DocumentTypesTab() {
                     }}
                     rootFolder=""
                   />
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">Available Placeholders (click to insert)</label>
+                    <div className="flex flex-wrap gap-1">
+                      <Badge
+                        variant="outline"
+                        className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                        onClick={() => {
+                          const input = document.querySelector('input[value="' + baseFolders.xero + '"]') as HTMLInputElement;
+                          if (input) {
+                            const cursorPos = input.selectionStart || baseFolders.xero.length;
+                            const newValue = baseFolders.xero.slice(0, cursorPos) + '{{CompanyGroup}}' + baseFolders.xero.slice(cursorPos);
+                            setBaseFolders(prev => ({ ...prev, xero: newValue }));
+                          }
+                        }}
+                      >
+                        {'{{CompanyGroup}}'} <span className="ml-1 text-xs opacity-60">e.g., "Tekna Group"</span>
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                        onClick={() => {
+                          const input = document.querySelector('input[value="' + baseFolders.xero + '"]') as HTMLInputElement;
+                          if (input) {
+                            const cursorPos = input.selectionStart || baseFolders.xero.length;
+                            const newValue = baseFolders.xero.slice(0, cursorPos) + '{{CompanyCode}}' + baseFolders.xero.slice(cursorPos);
+                            setBaseFolders(prev => ({ ...prev, xero: newValue }));
+                          }
+                        }}
+                      >
+                        {'{{CompanyCode}}'} <span className="ml-1 text-xs opacity-60">e.g., "ABC123"</span>
+                      </Badge>
+                    </div>
+                  </div>
                   <Input
                     value={baseFolders.xero}
                     onChange={(e) => setBaseFolders(prev => ({ ...prev, xero: e.target.value }))}
