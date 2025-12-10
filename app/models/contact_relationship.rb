@@ -27,24 +27,8 @@ class ContactRelationship < ApplicationRecord
     },
 
     # Company/Trust roles - Person has role in Company/Trust
-    "director_of" => {
-      label: "Director",
-      category: "company_role",
-      source_types: %w[person company], # Companies can be corporate directors
-      target_types: %w[company],
-      description: "Director of the company",
-      syncs_to_corporate: true,
-      bidirectional: false  # Directional: person → company only
-    },
-    "shareholder_of" => {
-      label: "Shareholder",
-      category: "company_role",
-      source_types: %w[person company trust], # Companies/Trusts can own shares
-      target_types: %w[company],
-      description: "Holds shares in the company",
-      syncs_to_corporate: true,
-      bidirectional: false  # Directional: shareholder → company only
-    },
+    # NOTE: director_of and shareholder_of removed - now managed via Corporate tables only
+    # See: corporate_company_directors and corporate_company_shareholdings tables
     "authorized_signatory_of" => {
       label: "Authorized Signatory",
       category: "company_role",
@@ -240,9 +224,9 @@ class ContactRelationship < ApplicationRecord
   scope :inactive, -> { where(is_active: false) }
   scope :by_type, ->(type) { where(relationship_type: type) }
   scope :employment, -> { where(relationship_type: [ "employee_of", "contractor_for" ]) }
-  scope :company_roles, -> { where(relationship_type: [ "director_of", "shareholder_of", "authorized_signatory_of", "beneficial_owner_of" ]) }
+  scope :company_roles, -> { where(relationship_type: [ "authorized_signatory_of", "beneficial_owner_of" ]) }
   scope :trust_roles, -> { where(relationship_type: [ "trustee_of", "beneficiary_of", "appointor_of" ]) }
-  scope :ownership, -> { where(relationship_type: [ "owner_of", "co_owner_with", "shareholder_of" ]) }
+  scope :ownership, -> { where(relationship_type: [ "owner_of", "co_owner_with" ]) }
 
   # Callbacks for bidirectional sync
   after_create :create_reverse_relationship
@@ -251,9 +235,6 @@ class ContactRelationship < ApplicationRecord
 
   # Callback to sync primary_company_id when employee_of relationships change
   after_commit :sync_primary_company_id, if: :should_sync_primary_company?
-
-  # SSoT: Sync director_of/shareholder_of to Corporate tables
-  after_commit :sync_to_corporate_tables, if: :should_sync_to_corporate?
 
   # Find the reverse relationship (must match relationship_type too)
   def reverse_relationship
@@ -385,81 +366,7 @@ class ContactRelationship < ApplicationRecord
   end
 
   # Guard method to determine if we should sync to corporate tables
-  def should_sync_to_corporate?
-    %w[director_of shareholder_of].include?(relationship_type)
-  end
-
-  # SSoT: Sync director_of/shareholder_of relationships to Corporate tables
-  # This ensures CorporateCompanyDirector/CorporateCompanyShareholding stay in sync with Overview tab changes
-  def sync_to_corporate_tables
-    # Prevent infinite loops
-    return if Thread.current[:syncing_director_relationship]
-    return if Thread.current[:syncing_shareholder_relationship]
-
-    # Find the Company record linked to the related Contact (company contact)
-    company = CorporateCompany.find_by(contact_id: related_contact_id)
-    return unless company # Skip if no linked Company record
-
-    case relationship_type
-    when "director_of"
-      sync_director_to_corporate(company)
-    when "shareholder_of"
-      sync_shareholder_to_corporate(company)
-    end
-  end
-
-  def sync_director_to_corporate(company)
-    Thread.current[:syncing_director_relationship] = true
-
-    if is_active
-      # Create or activate director record
-      director = CorporateCompanyDirector.find_or_initialize_by(
-        contact_id: source_contact_id,
-        company_id: company.id
-      )
-      director.position ||= "director"
-      director.appointment_date ||= start_date || Date.today
-      director.is_current = true
-      director.resignation_date = nil
-      director.save!
-    else
-      # Deactivate the director record
-      director = CorporateCompanyDirector.find_by(contact_id: source_contact_id, company_id: company.id)
-      director&.update!(is_current: false, resignation_date: end_date || Date.today)
-    end
-  rescue StandardError => e
-    Rails.logger.error("ContactRelationship##{id}: SSoT director sync failed - #{e.message}")
-  ensure
-    Thread.current[:syncing_director_relationship] = false
-  end
-
-  def sync_shareholder_to_corporate(company)
-    Thread.current[:syncing_shareholder_relationship] = true
-
-    if is_active
-      # Create or update shareholding record
-      shareholding = CorporateCompanyShareholding.find_or_initialize_by(
-        shareholder_id: source_contact_id,
-        shareholder_type: "Contact",
-        company_id: company.id,
-        share_class: "ordinary"
-      )
-      shareholding.number_of_shares ||= 1 # Default to 1 share if not specified
-      shareholding.acquisition_date ||= start_date || Date.today
-      shareholding.disposal_date = nil
-      shareholding.save!
-    else
-      # Set disposal date on shareholding
-      shareholding = CorporateCompanyShareholding.find_by(
-        shareholder_id: source_contact_id,
-        shareholder_type: "Contact",
-        company_id: company.id
-      )
-      shareholding&.update!(disposal_date: end_date || Date.today)
-    end
-  rescue StandardError => e
-    Rails.logger.error("ContactRelationship##{id}: SSoT shareholder sync failed - #{e.message}")
-  ensure
-    Thread.current[:syncing_shareholder_relationship] = false
-  end
+  # NOTE: sync_to_corporate_tables methods removed
+  # Directors and shareholders are now managed ONLY via Corporate tables
+  # See: corporate_company_directors and corporate_company_shareholdings
 end

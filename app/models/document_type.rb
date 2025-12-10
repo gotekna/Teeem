@@ -186,6 +186,7 @@ class DocumentType < ApplicationRecord
     format.gsub!("{CertType}", "Occupancy")
     format.gsub!("{Consultant}", "ABC Eng")
     format.gsub!("{Number}", "01")
+    format.gsub!("{Category}", category.presence || "General")
 
     # People placeholders
     format.gsub!("{PersonName}", "Andrew Clememt")
@@ -194,6 +195,7 @@ class DocumentType < ApplicationRecord
     # Common placeholders
     format.gsub!("{Description}", "Example")
     format.gsub!("{Date}", au_date)
+    format.gsub!("{Folder}", folder.presence || "GENERAL")
 
     format.strip
   end
@@ -217,6 +219,7 @@ class DocumentType < ApplicationRecord
     format.gsub!("{CertType}", description.presence || "Cert")
     format.gsub!("{Consultant}", description.presence || "Consultant")
     format.gsub!("{Number}", number.to_s.rjust(2, "0"))
+    format.gsub!("{Category}", category.presence || "General")
 
     # Corporate placeholders (use abbreviation or defaults)
     format.gsub!("{CompanyCode}", abbreviation.presence || "ABC")
@@ -236,6 +239,7 @@ class DocumentType < ApplicationRecord
     # Common placeholders
     format.gsub!("{Description}", description.presence || name.to_s.split(" - ").last.to_s)
     format.gsub!("{Date}", au_date)
+    format.gsub!("{Folder}", folder.presence || "GENERAL")
 
     result = format.strip
 

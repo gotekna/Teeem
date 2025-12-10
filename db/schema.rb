@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_10_074533) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_10_090051) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4132,6 +4132,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_074533) do
     t.string "default_sync_direction", default: "import_only"
     t.index ["accounting_system"], name: "index_sync_configurations_on_accounting_system"
     t.index ["xero_tenant_id"], name: "index_sync_configurations_on_xero_tenant_id", unique: true
+  end
+
+  create_table "system_settings", force: :cascade do |t|
+    t.string "setting_key", null: false
+    t.text "setting_value"
+    t.string "setting_type", default: "string"
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["setting_key"], name: "index_system_settings_on_setting_key", unique: true
   end
 
   create_table "table_health_checks", force: :cascade do |t|

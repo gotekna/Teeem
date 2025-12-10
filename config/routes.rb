@@ -1511,6 +1511,14 @@ Rails.application.routes.draw do
         end
       end
 
+      # System Settings
+      resources :system_settings, only: [ :index, :update ] do
+        collection do
+          get :sharepoint_path_templates
+          put :update_sharepoint_path_templates
+        end
+      end
+
       # Bank Accounts
       resources :bank_accounts
 
