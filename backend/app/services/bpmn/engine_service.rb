@@ -86,7 +86,26 @@ module Bpmn
       end
 
       def create_user_task(token)
+        # Check if task already exists and is completed
+        existing_task = BpmnTaskInstance.find_by(bpmn_token: token, bpmn_node: token.current_node)
+
+        if existing_task&.completed?
+          # Task is done, advance to next node
+          Rails.logger.info("BPMN: User task already completed, advancing token ##{token.id}")
+          advance_from_simple_node(token)
+          return
+        end
+
+        if existing_task
+          # Task exists but not completed, just wait
+          token.wait!
+          Rails.logger.info("BPMN: User task exists but pending, token ##{token.id} waiting")
+          return
+        end
+
+        # Create new task
         config = token.current_node.config || {}
+        role_value = config["assignee_type"] == "role" ? config["assignee_value"] : nil
 
         BpmnTaskInstance.create!(
           bpmn_token: token,
@@ -94,6 +113,7 @@ module Bpmn
           task_type: "user_task",
           status: "pending",
           assigned_to: resolve_assignee(config, token.bpmn_process_instance),
+          assigned_to_role: role_value,
           due_date: calculate_due_date(config)
         )
 

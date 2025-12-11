@@ -33,6 +33,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { XeroFieldMapping, XeroContactSync } from "./components/XeroTabs";
 import { XeroPdfSyncStatus } from "./components/XeroPdfSyncStatus";
+import { XeroSyncStats } from "./components/XeroSyncStats";
 import { XeroConnectionsPopup } from "@/components/xero/XeroConnectionsPopup";
 
 interface XeroStatus {
@@ -272,13 +273,17 @@ export default function XeroIntegrationPage() {
         }}
         className="space-y-6"
       >
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="connection">
             <Link2 className="h-4 w-4 mr-2" />
             Connection
           </TabsTrigger>
-          <TabsTrigger value="health">
+          <TabsTrigger value="stats">
             <Activity className="h-4 w-4 mr-2" />
+            Stats
+          </TabsTrigger>
+          <TabsTrigger value="health">
+            <Database className="h-4 w-4 mr-2" />
             Health
           </TabsTrigger>
           <TabsTrigger value="mapping">
@@ -540,6 +545,20 @@ export default function XeroIntegrationPage() {
             <XeroPdfSyncStatus />
           )}
 
+        </TabsContent>
+
+        {/* Stats Tab - Comprehensive sync statistics */}
+        <TabsContent value="stats" className="space-y-4">
+          {status?.connected ? (
+            <XeroSyncStats />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center h-48 gap-4">
+                <AlertTriangle className="h-8 w-8 text-amber-500" />
+                <p className="text-muted-foreground">Connect to Xero to view sync statistics</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Health Tab - All health indicators in one place */}

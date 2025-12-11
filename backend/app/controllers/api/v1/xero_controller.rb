@@ -1776,6 +1776,181 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/sync_stats
+      # Returns comprehensive sync statistics for the Xero dashboard
+      # Includes per-tenant stats, global stats, and cross-tenant matching info
+      def sync_stats
+        begin
+          # Get all Xero credentials (tenants)
+          credentials = XeroCredential.all
+
+          # Per-tenant statistics
+          tenant_stats = credentials.map do |cred|
+            tenant_id = cred.tenant_id
+
+            # Count external links for this tenant
+            tenant_links = ContactExternalLink.xero.for_tenant(tenant_id)
+            links_count = tenant_links.count
+            enabled_count = tenant_links.enabled.count
+            pending_review_count = tenant_links.pending_review.count
+            with_errors_count = tenant_links.with_errors.count
+
+            # Count invoices/bills for this tenant
+            tenant_invoices = ExternalInvoice.xero.where(tenant_id: tenant_id)
+            invoices_count = tenant_invoices.sales_invoices.count
+            bills_count = tenant_invoices.bills.count
+            quotes_count = tenant_invoices.quotes.count
+            credit_notes_count = tenant_invoices.credit_notes.count
+
+            # Last sync timestamps
+            last_contact_sync = tenant_links.maximum(:last_synced_at)
+            last_invoice_sync = tenant_invoices.maximum(:last_synced_at)
+
+            # Cross-tenant matches (contacts linked to multiple tenants)
+            cross_tenant_contact_ids = ContactExternalLink.xero
+                                                          .for_tenant(tenant_id)
+                                                          .joins("INNER JOIN contact_external_links cel2 ON cel2.contact_id = contact_external_links.contact_id AND cel2.tenant_id != contact_external_links.tenant_id AND cel2.source = 'xero'")
+                                                          .distinct
+                                                          .pluck(:contact_id)
+            cross_tenant_count = cross_tenant_contact_ids.count
+
+            # Match type breakdown for this tenant
+            match_breakdown = tenant_links.group(:match_type).count
+
+            # Rate limit status for this tenant
+            rate_usage = XeroRateLimitTracker.usage_for(tenant_id) rescue nil
+
+            {
+              tenant_id: tenant_id,
+              tenant_name: cred.tenant_name,
+              status: cred.status,
+              is_primary: cred.is_primary,
+              contacts: {
+                total_links: links_count,
+                sync_enabled: enabled_count,
+                pending_review: pending_review_count,
+                with_errors: with_errors_count,
+                cross_tenant_matches: cross_tenant_count,
+                last_synced_at: last_contact_sync
+              },
+              documents: {
+                invoices: invoices_count,
+                bills: bills_count,
+                quotes: quotes_count,
+                credit_notes: credit_notes_count,
+                total: invoices_count + bills_count + quotes_count + credit_notes_count,
+                last_synced_at: last_invoice_sync
+              },
+              match_breakdown: {
+                exact_abn: match_breakdown["exact_abn"] || 0,
+                exact_email: match_breakdown["exact_email"] || 0,
+                fuzzy_name: match_breakdown["fuzzy_name"] || 0,
+                manual: match_breakdown["manual"] || 0
+              },
+              rate_limits: rate_usage ? {
+                daily_percentage: rate_usage.dig(:daily, :percentage)&.round(1) || 0,
+                minute_percentage: rate_usage.dig(:minute, :percentage)&.round(1) || 0,
+                is_limited: (rate_usage.dig(:daily, :percentage) || 0) >= 80
+              } : nil
+            }
+          end
+
+          # Global statistics (across all tenants)
+          all_xero_links = ContactExternalLink.xero
+          all_invoices = ExternalInvoice.xero
+
+          # Total pending reviews
+          total_pending_reviews = all_xero_links.pending_review.count
+
+          # Contacts linked to multiple Xero tenants
+          multi_tenant_contact_ids = all_xero_links.group(:contact_id)
+                                                    .having("COUNT(DISTINCT tenant_id) > 1")
+                                                    .pluck(:contact_id)
+          multi_tenant_contacts_count = multi_tenant_contact_ids.count
+
+          # Global match type breakdown
+          global_match_breakdown = all_xero_links.group(:match_type).count
+
+          # Total unique contacts with any Xero link
+          total_contacts_with_links = all_xero_links.distinct.count(:contact_id)
+
+          # Total invoices/bills across all tenants
+          total_invoices = all_invoices.sales_invoices.count
+          total_bills = all_invoices.bills.count
+          total_quotes = all_invoices.quotes.count
+          total_credit_notes = all_invoices.credit_notes.count
+
+          # Recent sync activity (last 24 hours)
+          recent_contact_syncs = all_xero_links.where("last_synced_at > ?", 24.hours.ago).count
+          recent_invoice_syncs = all_invoices.where("last_synced_at > ?", 24.hours.ago).count
+
+          # Get pending review items with details for display
+          pending_review_items = all_xero_links.pending_review
+                                                .includes(:contact)
+                                                .limit(10)
+                                                .map do |link|
+            tenant = credentials.find { |c| c.tenant_id == link.tenant_id }
+            {
+              id: link.id,
+              contact_id: link.contact_id,
+              contact_name: link.contact&.display_name,
+              tenant_id: link.tenant_id,
+              tenant_name: tenant&.tenant_name,
+              external_contact_id: link.external_contact_id,
+              external_contact_name: link.external_contact_name,
+              match_type: link.match_type,
+              match_confidence: link.match_confidence,
+              created_at: link.created_at
+            }
+          end
+
+          render json: {
+            success: true,
+            data: {
+              tenant_count: credentials.count,
+              tenants: tenant_stats,
+              global: {
+                pending_reviews: {
+                  count: total_pending_reviews,
+                  items: pending_review_items
+                },
+                cross_tenant: {
+                  contacts_linked_to_multiple_tenants: multi_tenant_contacts_count,
+                  multi_tenant_contact_ids: multi_tenant_contact_ids.first(100)  # Limit for response size
+                },
+                match_breakdown: {
+                  exact_abn: global_match_breakdown["exact_abn"] || 0,
+                  exact_email: global_match_breakdown["exact_email"] || 0,
+                  fuzzy_name: global_match_breakdown["fuzzy_name"] || 0,
+                  manual: global_match_breakdown["manual"] || 0,
+                  total: all_xero_links.count
+                },
+                totals: {
+                  contacts_with_links: total_contacts_with_links,
+                  total_links: all_xero_links.count,
+                  invoices: total_invoices,
+                  bills: total_bills,
+                  quotes: total_quotes,
+                  credit_notes: total_credit_notes,
+                  all_documents: total_invoices + total_bills + total_quotes + total_credit_notes
+                },
+                recent_activity: {
+                  contact_syncs_24h: recent_contact_syncs,
+                  invoice_syncs_24h: recent_invoice_syncs
+                }
+              }
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero sync_stats error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to get sync stats: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/xero/validate_contacts
       # Validate all contacts that should be synced to Xero
       def validate_contacts

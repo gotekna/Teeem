@@ -652,13 +652,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_124667) do
     t.string "source_type"
     t.string "original_location"
     t.string "action_taken"
-    t.string "document_type"
-    t.bigint "document_id"
     t.index ["added_by_id"], name: "index_case_documents_on_added_by_id"
     t.index ["case_id", "company_document_id"], name: "index_case_documents_on_case_id_and_company_document_id", unique: true
     t.index ["case_id"], name: "index_case_documents_on_case_id"
     t.index ["company_document_id"], name: "index_case_documents_on_company_document_id"
-    t.index ["document_type", "document_id"], name: "index_case_documents_on_document_type_and_document_id"
     t.index ["relevance"], name: "index_case_documents_on_relevance"
     t.index ["relevance_score"], name: "index_case_documents_on_relevance_score"
     t.index ["short_code"], name: "index_case_documents_on_short_code"
@@ -1239,12 +1236,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_124667) do
     t.text "xero_contact_types", default: [], array: true
     t.string "middle_name"
     t.boolean "is_team_contact", default: false, null: false
-    t.string "company_number"
-    t.string "fax_phone"
     t.decimal "accounts_receivable_outstanding", precision: 15, scale: 2, default: "0.0"
     t.decimal "accounts_receivable_overdue", precision: 15, scale: 2, default: "0.0"
     t.decimal "accounts_payable_outstanding", precision: 15, scale: 2, default: "0.0"
     t.decimal "accounts_payable_overdue", precision: 15, scale: 2, default: "0.0"
+    t.string "company_number"
+    t.string "fax_phone"
     t.jsonb "email_domains", default: [], null: false, comment: "Email domains for auto-linking employees (e.g., ['tekna.com.au', 'bunnings.com.au']). Used by rake task to create employee_of relationships."
     t.text "notes"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
@@ -1735,12 +1732,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_124667) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "document_type"
-    t.bigint "document_id"
     t.index ["action"], name: "index_document_activities_on_action"
     t.index ["company_document_id"], name: "index_document_activities_on_company_document_id"
     t.index ["created_at"], name: "index_document_activities_on_created_at"
-    t.index ["document_type", "document_id"], name: "index_document_activities_on_document_type_and_document_id"
     t.index ["user_id"], name: "index_document_activities_on_user_id"
   end
 
@@ -1759,14 +1753,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_124667) do
     t.datetime "resolved_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "existing_document_type"
-    t.string "new_document_type"
     t.index ["case_id", "status"], name: "index_document_duplicate_reviews_on_case_id_and_status"
     t.index ["case_id"], name: "index_document_duplicate_reviews_on_case_id"
     t.index ["existing_document_id"], name: "index_document_duplicate_reviews_on_existing_document_id"
-    t.index ["existing_document_type", "existing_document_id"], name: "idx_dup_reviews_existing"
     t.index ["new_document_id"], name: "index_document_duplicate_reviews_on_new_document_id"
-    t.index ["new_document_type", "new_document_id"], name: "idx_dup_reviews_new"
     t.index ["resolved_by_id"], name: "index_document_duplicate_reviews_on_resolved_by_id"
   end
 
@@ -1805,21 +1795,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_124667) do
   end
 
   create_table "document_templates", force: :cascade do |t|
-    t.string "name", null: false
+    t.string "name"
     t.text "description"
     t.string "category"
     t.string "sharepoint_site_id"
     t.string "sharepoint_drive_id"
     t.string "sharepoint_item_id"
     t.string "sharepoint_path"
-    t.string "output_format", default: "pdf"
+    t.string "output_format"
     t.string "output_naming_pattern"
-    t.jsonb "data_schema", default: {}
-    t.boolean "is_active", default: true
+    t.jsonb "data_schema"
+    t.boolean "is_active"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["category"], name: "index_document_templates_on_category"
-    t.index ["is_active"], name: "index_document_templates_on_is_active"
   end
 
   create_table "document_type_folders", force: :cascade do |t|

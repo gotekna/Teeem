@@ -115,8 +115,8 @@ interface ViewManagerSheetProps {
 const KNOWN_LOOKUP_MAPPINGS: Record<string, { foundationId: number; displayColumn: string; apiEndpoint?: string; responseKey?: string }> = {
   job_type_id: { foundationId: 344, displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
   job_type: { foundationId: 344, displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
-  job_status_id: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_statuses', responseKey: 'job_statuses' },
-  job_status: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_statuses', responseKey: 'job_statuses' },
+  job_status_id: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_status', responseKey: 'job_statuses' },
+  job_status: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_status', responseKey: 'job_statuses' },
   design_id: { foundationId: 368, displayColumn: 'name' },
   contact_id: { foundationId: 214, displayColumn: 'display_name' },
 };
