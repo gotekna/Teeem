@@ -64,7 +64,7 @@ class InvoiceParsingService
   end
 
   def call_ai(pdf_text)
-    client = Anthropic::Client.new
+    client = Anthropic::Client.new(access_token: ENV["ANTHROPIC_API_KEY"])
 
     messages = build_messages(pdf_text)
 
