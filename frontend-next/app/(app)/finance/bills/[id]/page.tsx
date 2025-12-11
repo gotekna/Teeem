@@ -649,29 +649,75 @@ export default function BillDetailPage() {
           <CardContent className="space-y-2 px-3 py-0 text-xs">
             {/* Row 1: Invoice # and Date */}
             <div className="grid grid-cols-2 gap-2">
-              <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
-                <p className="text-[10px] text-muted-foreground uppercase">Invoice #</p>
-                <p className="font-mono font-medium">{bill.invoice_number || "-"}</p>
+              <div
+                className={`p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] ${
+                  bill.ai_extraction_result?.invoice_number
+                    ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400 shadow-sm'
+                    : 'bg-gray-50 dark:bg-gray-800 border border-gray-200'
+                } ${highlightedField === 'invoice_number' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'invoice_number' ? null : 'invoice_number')}
+                title="Click to highlight on PDF"
+              >
+                <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                  Invoice #
+                  {bill.ai_extraction_result?.invoice_number && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                </p>
+                <p className="font-mono font-bold">{bill.invoice_number || "-"}</p>
               </div>
-              <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
-                <p className="text-[10px] text-muted-foreground uppercase">Invoice Date</p>
-                <p className="font-medium">{bill.invoice_date ? new Date(bill.invoice_date).toLocaleDateString("en-AU") : "-"}</p>
+              <div
+                className={`p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] ${
+                  bill.ai_extraction_result?.invoice_date
+                    ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400 shadow-sm'
+                    : 'bg-gray-50 dark:bg-gray-800 border border-gray-200'
+                } ${highlightedField === 'invoice_date' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'invoice_date' ? null : 'invoice_date')}
+                title="Click to highlight on PDF"
+              >
+                <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                  Invoice Date
+                  {bill.ai_extraction_result?.invoice_date && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                </p>
+                <p className="font-bold">{bill.invoice_date ? new Date(bill.invoice_date).toLocaleDateString("en-AU") : "-"}</p>
               </div>
             </div>
 
             {/* Row 2: Due Date and Supplier ABN */}
             <div className="grid grid-cols-2 gap-2">
-              <div className={`p-1.5 rounded ${isOverdue ? 'bg-red-50 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-gray-800'}`}>
-                <p className="text-[10px] text-muted-foreground uppercase">Due Date</p>
-                <p className={`font-medium ${isOverdue ? "text-red-600" : ""}`}>
+              <div
+                className={`p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] ${
+                  isOverdue
+                    ? 'bg-red-100 dark:bg-red-900/40 border-2 border-red-400 shadow-sm'
+                    : bill.ai_extraction_result?.due_date
+                    ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400 shadow-sm'
+                    : 'bg-gray-50 dark:bg-gray-800 border border-gray-200'
+                } ${highlightedField === 'due_date' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'due_date' ? null : 'due_date')}
+                title="Click to highlight on PDF"
+              >
+                <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                  Due Date
+                  {bill.ai_extraction_result?.due_date && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                </p>
+                <p className={`font-bold ${isOverdue ? "text-red-600" : ""}`}>
                   {bill.due_date ? new Date(bill.due_date).toLocaleDateString("en-AU") : "-"}
-                  {isOverdue && <span className="ml-1 text-[10px]">(Overdue)</span>}
+                  {isOverdue && <span className="ml-1 text-[10px] font-normal">(Overdue)</span>}
                 </p>
               </div>
-              <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
-                <p className="text-[10px] text-muted-foreground uppercase">Supplier ABN</p>
+              <div
+                className={`p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] ${
+                  bill.ai_extraction_result?.supplier_abn
+                    ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400 shadow-sm'
+                    : 'bg-gray-50 dark:bg-gray-800 border border-gray-200'
+                } ${highlightedField === 'supplier_abn' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'supplier_abn' ? null : 'supplier_abn')}
+                title="Click to highlight on PDF"
+              >
+                <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                  Supplier ABN
+                  {bill.ai_extraction_result?.supplier_abn && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                </p>
                 <div className="flex items-center gap-1">
-                  <p className="font-mono font-medium">
+                  <p className="font-mono font-bold">
                     {(() => {
                       const abn = bill.ai_extraction_result?.supplier_abn || bill.supplier?.tax_number || "";
                       if (!abn) return "-";
@@ -681,7 +727,7 @@ export default function BillDetailPage() {
                   </p>
                   {(() => {
                     const match = abnMatches(bill.ai_extraction_result?.supplier_abn, bill.supplier?.tax_number);
-                    if (match === true) return <CheckCircle2 className="h-3 w-3 text-green-500" />;
+                    if (match === true) return <CheckCircle2 className="h-3 w-3 text-green-600" />;
                     if (match === false) return <XCircle2 className="h-3 w-3 text-red-500" />;
                     return null;
                   })()}
@@ -712,17 +758,41 @@ export default function BillDetailPage() {
 
             {/* Amounts */}
             <div className="space-y-1">
-              <div className="flex justify-between p-1">
-                <span className="text-muted-foreground">Subtotal</span>
+              <div
+                className={`flex justify-between p-1 rounded cursor-pointer transition-all hover:ring-2 hover:ring-blue-400 ${
+                  bill.ai_extraction_result?.subtotal ? 'bg-green-50 dark:bg-green-900/20' : ''
+                } ${highlightedField === 'subtotal' ? 'ring-2 ring-yellow-400' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'subtotal' ? null : 'subtotal')}
+              >
+                <span className="text-muted-foreground flex items-center gap-1">
+                  Subtotal
+                  {bill.ai_extraction_result?.subtotal && <CheckCircle2 className="h-2.5 w-2.5 text-green-500" />}
+                </span>
                 <span className="font-mono">${(bill.subtotal || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
               </div>
-              <div className="flex justify-between p-1">
-                <span className="text-muted-foreground">GST</span>
+              <div
+                className={`flex justify-between p-1 rounded cursor-pointer transition-all hover:ring-2 hover:ring-blue-400 ${
+                  bill.ai_extraction_result?.tax_amount ? 'bg-green-50 dark:bg-green-900/20' : ''
+                } ${highlightedField === 'gst' ? 'ring-2 ring-yellow-400' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'gst' ? null : 'gst')}
+              >
+                <span className="text-muted-foreground flex items-center gap-1">
+                  GST
+                  {bill.ai_extraction_result?.tax_amount && <CheckCircle2 className="h-2.5 w-2.5 text-green-500" />}
+                </span>
                 <span className="font-mono">${(bill.tax_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
               </div>
               <Separator className="my-1" />
-              <div className="flex justify-between p-1 font-bold text-sm bg-gray-100 dark:bg-gray-800 rounded">
-                <span>Total</span>
+              <div
+                className={`flex justify-between p-1 font-bold text-sm rounded cursor-pointer transition-all hover:ring-2 hover:ring-blue-400 ${
+                  bill.ai_extraction_result?.total_amount ? 'bg-green-100 dark:bg-green-900/30 border border-green-300' : 'bg-gray-100 dark:bg-gray-800'
+                } ${highlightedField === 'total' ? 'ring-2 ring-yellow-400' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'total' ? null : 'total')}
+              >
+                <span className="flex items-center gap-1">
+                  Total
+                  {bill.ai_extraction_result?.total_amount && <CheckCircle2 className="h-3 w-3 text-green-500" />}
+                </span>
                 <span className="font-mono">${(bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
               </div>
               {totalPaid > 0 && (
