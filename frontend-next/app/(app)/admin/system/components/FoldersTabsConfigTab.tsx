@@ -157,7 +157,8 @@ interface Folder {
   order_position: number;
   entity_types: string[];
   description: string;
-  sharepoint_path?: string;
+  sharepoint_path?: string;  // Deprecated - kept for backwards compatibility
+  computed_path?: string;    // SSoT: computed from template + folder hierarchy
   active: boolean;
   parent_id?: number | null;
   children?: Folder[];
@@ -341,12 +342,8 @@ export function FoldersTabsConfigTab() {
     setHasChanges(true);
   };
 
-  const updateSharepointPath = (folderId: number, sharepoint_path: string) => {
-    setFolders(folders.map(f =>
-      f.id === folderId ? { ...f, sharepoint_path } : f
-    ));
-    setHasChanges(true);
-  };
+  // Note: sharepoint_path is now computed from template + folder hierarchy (SSoT)
+  // No longer editable per-folder
 
   const updateFolderName = (folderId: number, name: string) => {
     setFolders(folders.map(f =>
@@ -378,13 +375,13 @@ export function FoldersTabsConfigTab() {
       setIsSaving(true);
 
       // Update each folder individually
+      // Note: sharepoint_path is computed from template (SSoT), not saved per-folder
       for (const folder of folders) {
         await api.patch(`/api/v1/document_folders/${folder.id}`, {
           folder: {
             name: folder.name,
             description: folder.description,
             order_position: folder.order_position,
-            sharepoint_path: folder.sharepoint_path,
             entity_types: folder.entity_types,
             active: folder.active
           }
@@ -541,17 +538,14 @@ export function FoldersTabsConfigTab() {
               />
             </div>
 
-            {/* SharePoint path */}
+            {/* SharePoint path - computed from template (SSoT) */}
             <div className="flex items-center gap-2">
               <Label className="text-xs text-muted-foreground w-24 shrink-0">
                 SharePoint:
               </Label>
-              <Input
-                value={folder.sharepoint_path || ""}
-                onChange={(e) => updateSharepointPath(folder.id, e.target.value)}
-                placeholder="/Corporate/{company_code}/FolderName"
-                className="h-7 text-xs font-mono"
-              />
+              <code className="flex-1 h-7 px-2 py-1 text-xs font-mono bg-muted/50 rounded border text-muted-foreground truncate">
+                {folder.computed_path || folder.sharepoint_path || "Not configured"}
+              </code>
             </div>
 
             {/* Entity type checkboxes */}
