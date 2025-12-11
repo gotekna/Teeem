@@ -104,12 +104,12 @@ class CompozaBpmnImporter
   def extract_nodes
     # Start events
     @doc.xpath("//startEvent").each do |node|
-      @nodes << build_node(node, "startEvent")
+      @nodes << build_node(node, "start_event")
     end
 
     # End events
     @doc.xpath("//endEvent").each do |node|
-      @nodes << build_node(node, "endEvent")
+      @nodes << build_node(node, "end_event")
     end
 
     # Service tasks (document generation)
@@ -119,17 +119,22 @@ class CompozaBpmnImporter
 
     # User tasks
     @doc.xpath("//userTask").each do |node|
-      @nodes << build_node(node, "userTask")
+      @nodes << build_node(node, "user_task")
     end
 
     # Parallel gateways
     @doc.xpath("//parallelGateway").each do |node|
-      @nodes << build_node(node, "parallelGateway")
+      @nodes << build_node(node, "parallel_gateway")
     end
 
     # Exclusive gateways
     @doc.xpath("//exclusiveGateway").each do |node|
-      @nodes << build_node(node, "exclusiveGateway")
+      @nodes << build_node(node, "exclusive_gateway")
+    end
+
+    # Timer events
+    @doc.xpath("//intermediateCatchEvent[timerEventDefinition]").each do |node|
+      @nodes << build_node(node, "timer_event")
     end
   end
 
@@ -172,7 +177,7 @@ class CompozaBpmnImporter
 
     {
       node_key: id,
-      node_type: "serviceTask",
+      node_type: "service_task",
       name: xml_node["name"] || "Service Task",
       description: xml_node.at("documentation")&.text,
       position: { x: pos[:x], y: pos[:y] },
@@ -213,35 +218,43 @@ class CompozaBpmnImporter
       process = BpmnProcess.create!(
         name: process_name,
         description: process_description,
-        created_by: @user,
         canvas_data: {
           imported_from: "compoza",
           imported_at: Time.current.iso8601,
+          imported_by_user_id: @user&.id,
           data_stores: @data_stores.values
         }
       )
 
-      # Create nodes
+      # Create nodes and build a map of node_key -> node_id
+      node_key_to_id = {}
       @nodes.each do |node_data|
-        process.nodes.create!(
+        node = process.bpmn_nodes.create!(
           node_key: node_data[:node_key],
           node_type: node_data[:node_type],
           name: node_data[:name],
           description: node_data[:description],
-          position: node_data[:position],
+          position_x: node_data[:position][:x] || 0,
+          position_y: node_data[:position][:y] || 0,
           config: node_data[:config]
         )
+        node_key_to_id[node_data[:node_key]] = node.id
       end
 
-      # Create edges
+      # Create edges using node IDs
       @edges.each do |edge_data|
-        process.edges.create!(
+        source_id = node_key_to_id[edge_data[:source_key]]
+        target_id = node_key_to_id[edge_data[:target_key]]
+
+        next unless source_id && target_id # Skip if nodes not found
+
+        process.bpmn_edges.create!(
           edge_key: edge_data[:edge_key],
-          source_key: edge_data[:source_key],
-          target_key: edge_data[:target_key],
+          source_node_id: source_id,
+          target_node_id: target_id,
           name: edge_data[:name],
           condition_expression: edge_data[:condition_expression],
-          is_default: edge_data[:is_default]
+          is_default: edge_data[:is_default] || false
         )
       end
 
