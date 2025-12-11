@@ -446,97 +446,109 @@ export default function BillDetailPage() {
   };
 
   return (
-    <div className="flex gap-6 border-4 border-blue-500 bg-blue-50 dark:bg-blue-900/10 p-2 relative">
+    <div className="flex gap-4 border-4 border-blue-500 bg-blue-50 dark:bg-blue-900/10 p-2 relative w-full overflow-hidden -mt-4">
       <div className="absolute top-0 left-0 bg-blue-600 text-white px-2 py-1 text-xs font-bold z-50">
-        [1] PAGE CONTAINER (BLUE) - flex gap-6 (side-by-side)
+        [1] PAGE CONTAINER (BLUE) - flex gap-4
       </div>
 
-      {/* LEFT HALF - Header + Details */}
-      <div className="w-1/2 space-y-6 border-4 border-green-500 bg-green-50 dark:bg-green-900/10 p-2 relative mt-6">
+      {/* LEFT HALF - Header + Details (flexible width) */}
+      <div className="flex-1 min-w-0 flex flex-col gap-4 border-4 border-green-500 bg-green-50 dark:bg-green-900/10 p-2 relative overflow-y-auto h-[calc(100vh-60px)]">
         <div className="absolute -top-3 left-0 bg-green-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-          [2] LEFT HALF (GREEN) - w-1/2 space-y-6
+          [2] LEFT HALF (GREEN) - flex col
         </div>
 
       {/* Header */}
       <div className="flex items-center justify-between border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/10 p-2 relative">
         <div className="absolute -top-3 left-0 bg-purple-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-          [3] HEADER (PURPLE) - flex justify-between
+          [3] HEADER (PURPLE)
         </div>
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/finance/bills">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Link>
-          </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight font-serif">
-                {bill.invoice_number || "No Invoice #"}
-              </h1>
-              <Badge className={statusColors[bill.status] || statusColors.pending}>
-                {bill.status.replace("_", " ")}
-              </Badge>
-              <Badge className={matchStatusColors[bill.match_status] || matchStatusColors.pending}>
-                {bill.match_status?.replace("_", " ") || "pending"}
-              </Badge>
-              {bill.xero_tenant_name && (
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800">
-                  Xero: {bill.xero_tenant_name}
-                </Badge>
-              )}
+        {/* Left - Pay From / Pay To */}
+        <div className="flex items-center gap-2">
+          {/* Company Box - Pay From */}
+          <div className="px-4 py-2 bg-blue-600 text-white rounded-lg border-2 border-yellow-400 min-w-[280px]">
+            <div className="text-xs uppercase tracking-wide opacity-80">Pay From</div>
+            <div className="font-bold text-lg truncate" title={bill.corporate_company?.name || bill.xero_tenant_name || "Not Assigned"}>
+              {bill.corporate_company?.name || bill.xero_tenant_name || "Not Assigned"}
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
+          </div>
+          {/* Arrow */}
+          <ArrowLeft className="h-6 w-6 text-gray-500 rotate-180" />
+          {/* Supplier Box - Pay To */}
+          <div className="px-4 py-2 bg-green-600 text-white rounded-lg border-2 border-yellow-400 min-w-[280px]">
+            <div className="text-xs uppercase tracking-wide opacity-80">Pay To</div>
+            <div className="font-bold text-lg truncate" title={bill.supplier?.display_name || bill.supplier_name_raw || "Unknown Supplier"}>
               {bill.supplier?.display_name || bill.supplier_name_raw || "Unknown Supplier"}
-            </p>
+            </div>
           </div>
         </div>
+        {/* Right - Invoice/PO/Match */}
         <div className="flex items-center gap-2">
-          {bill.status === "pending" && (
-            <Button onClick={handleExtract} disabled={actionLoading}>
-              <Wand2 className="h-4 w-4 mr-2" />
-              Extract Data
-            </Button>
-          )}
-          {bill.status === "extracted" && (
-            <Button onClick={handleMatch} disabled={actionLoading}>
-              <Link2 className="h-4 w-4 mr-2" />
-              Match to PO
-            </Button>
-          )}
-          {bill.status === "approval_pending" && (
-            <>
-              <Button
-                variant="outline"
-                className="text-red-600 hover:text-red-700"
-                onClick={() => setRejectDialogOpen(true)}
-                disabled={actionLoading}
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Reject
-              </Button>
-              <Button
-                className="bg-green-600 hover:bg-green-700"
-                onClick={handleApprove}
-                disabled={actionLoading}
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Approve
-              </Button>
-            </>
-          )}
+          {/* Invoice Number Box */}
+          <div className="px-3 py-2 bg-gray-700 text-white rounded-lg min-w-[100px]">
+            <div className="text-xs uppercase tracking-wide opacity-80">Invoice #</div>
+            <div className="font-bold font-mono">{bill.invoice_number || "-"}</div>
+          </div>
+          {/* PO Number Box */}
+          <div className="px-3 py-2 bg-purple-600 text-white rounded-lg min-w-[100px]">
+            <div className="text-xs uppercase tracking-wide opacity-80">PO #</div>
+            <div className="font-bold font-mono">{bill.matched_purchase_order?.purchase_order_number || bill.ai_extraction_result?.purchase_order_number || "-"}</div>
+          </div>
+          {/* Match % Box */}
+          <div className={`px-3 py-2 rounded-lg min-w-[100px] ${
+            bill.ai_confidence && bill.ai_confidence >= 0.9 ? 'bg-green-600' :
+            bill.ai_confidence && bill.ai_confidence >= 0.7 ? 'bg-yellow-500' :
+            'bg-orange-500'
+          } text-white`}>
+            <div className="text-xs uppercase tracking-wide opacity-80">Match %</div>
+            <div className="font-bold font-mono">
+              {bill.ai_confidence ? `${Math.round((bill.ai_confidence <= 1 ? bill.ai_confidence * 100 : bill.ai_confidence))}%` : "-"}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Details Grid - in left half */}
-      <div className="grid gap-6 md:grid-cols-2 border-4 border-red-500 bg-red-50 dark:bg-red-900/10 p-2 relative">
-        <div className="absolute -top-3 left-0 bg-red-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-          [4] DETAILS GRID (RED) - grid md:grid-cols-2 gap-6
+      {/* Payment Confirmation - Above Grid */}
+      <Card className="border border-emerald-500 relative">
+        <div className="absolute -top-3 left-0 bg-emerald-600 text-white px-2 py-0.5 text-xs font-bold z-50">
+          [8] Payment (EMERALD)
         </div>
-        {/* Invoice Details */}
-        <Card className="border-2 border-cyan-500 relative">
+        <CardContent className="py-2 px-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="font-mono font-bold text-emerald-700">${(bill.remaining_balance || bill.total_amount || 0).toLocaleString()}</span>
+              <span className="text-muted-foreground">|</span>
+              <span className="text-muted-foreground">{bill.due_date ? new Date(bill.due_date).toLocaleDateString("en-AU") : "-"}</span>
+              <span className="text-muted-foreground">|</span>
+              <span className="text-xs text-blue-600">{bill.ai_extraction_result?.payment_terms || "No terms"}</span>
+              <span className="text-muted-foreground">|</span>
+              <span className="font-mono text-xs text-muted-foreground">{bill.supplier?.bank_bsb ? `${bill.supplier.bank_bsb}/${bill.supplier.bank_account_number}` : "No bank"}</span>
+              <Badge className={`${statusColors[bill.status] || statusColors.pending} text-xs`}>{bill.status.replace("_", " ")}</Badge>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" className="h-7 text-xs" disabled={actionLoading}>Amend</Button>
+              {bill.status === "approval_pending" && (
+                <>
+                  <Button variant="outline" size="sm" className="h-7 text-xs text-red-600" onClick={() => setRejectDialogOpen(true)} disabled={actionLoading}>Reject</Button>
+                  <Button size="sm" className="h-7 text-xs bg-green-600" onClick={handleApprove} disabled={actionLoading}>Approve & Send to Bank</Button>
+                </>
+              )}
+              {bill.status === "approved" && <Button size="sm" className="h-7 text-xs bg-blue-600" disabled={actionLoading}>Send to Bank</Button>}
+              {bill.status === "pending" && <Button size="sm" className="h-7 text-xs" onClick={handleExtract} disabled={actionLoading}>Extract</Button>}
+              {bill.status === "extracted" && <Button size="sm" className="h-7 text-xs" onClick={handleMatch} disabled={actionLoading}>Match</Button>}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Details Grid - in left half - flex-1 to fill space */}
+      <div className="grid grid-cols-2 gap-4 border-4 border-red-500 bg-red-50 dark:bg-red-900/10 p-2 relative flex-1">
+        <div className="absolute -top-3 left-0 bg-red-600 text-white px-2 py-0.5 text-xs font-bold z-50">
+          [4] DETAILS GRID (RED) - 2 col flex-1
+        </div>
+        {/* Invoice Details - Portrait A4 aspect ratio (1:1.414) */}
+        <Card className="border-2 border-cyan-500 relative aspect-[1/1.414] overflow-auto">
           <div className="absolute -top-3 left-0 bg-cyan-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-            [6] Invoice Details (CYAN)
+            [6] Invoice (CYAN) - A4
           </div>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -546,20 +558,41 @@ export default function BillDetailPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Invoice Number</p>
+              {/* Invoice Number - clickable to highlight on PDF */}
+              <div
+                className={`p-2 rounded cursor-pointer transition-colors ${highlightedField === 'invoice_number' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('invoice_number') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
+                onClick={() => hasLocation('invoice_number') && toggleHighlight('invoice_number')}
+              >
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  Invoice Number
+                  {hasLocation('invoice_number') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                </p>
                 <p className="font-medium font-mono">{bill.invoice_number || "-"}</p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Invoice Date</p>
+              {/* Invoice Date */}
+              <div
+                className={`p-2 rounded cursor-pointer transition-colors ${highlightedField === 'invoice_date' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('invoice_date') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
+                onClick={() => hasLocation('invoice_date') && toggleHighlight('invoice_date')}
+              >
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  Invoice Date
+                  {hasLocation('invoice_date') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                </p>
                 <p className="font-medium">
                   {bill.invoice_date
                     ? new Date(bill.invoice_date).toLocaleDateString("en-AU")
                     : "-"}
                 </p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Due Date</p>
+              {/* Due Date */}
+              <div
+                className={`p-2 rounded cursor-pointer transition-colors ${highlightedField === 'due_date' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('due_date') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
+                onClick={() => hasLocation('due_date') && toggleHighlight('due_date')}
+              >
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  Due Date
+                  {hasLocation('due_date') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                </p>
                 <p className={`font-medium ${isOverdue ? "text-red-600" : ""}`}>
                   {bill.due_date
                     ? new Date(bill.due_date).toLocaleDateString("en-AU")
@@ -569,186 +602,188 @@ export default function BillDetailPage() {
                   )}
                 </p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Source</p>
-                <p className="font-medium capitalize">{bill.source || "email"}</p>
+              {/* Supplier ABN */}
+              <div
+                className={`p-2 rounded cursor-pointer transition-colors ${highlightedField === 'supplier_abn' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('supplier_abn') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
+                onClick={() => hasLocation('supplier_abn') && toggleHighlight('supplier_abn')}
+              >
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  Supplier ABN
+                  {hasLocation('supplier_abn') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                </p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium font-mono">{bill.ai_extraction_result?.supplier_abn || bill.supplier?.tax_number || "-"}</p>
+                  {(() => {
+                    const match = abnMatches(bill.ai_extraction_result?.supplier_abn, bill.supplier?.tax_number);
+                    if (match === true) {
+                      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+                    } else if (match === false) {
+                      return <XCircle2 className="h-4 w-4 text-red-500" />;
+                    }
+                    return null;
+                  })()}
+                </div>
               </div>
             </div>
 
             <Separator />
 
             <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
+              {/* Subtotal */}
+              <div
+                className={`flex justify-between p-2 rounded cursor-pointer transition-colors ${highlightedField === 'subtotal' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('subtotal') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
+                onClick={() => hasLocation('subtotal') && toggleHighlight('subtotal')}
+              >
+                <span className="text-muted-foreground flex items-center gap-1">
+                  Subtotal
+                  {hasLocation('subtotal') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                </span>
                 <span className="font-mono">${(bill.subtotal || 0).toLocaleString()}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Tax (GST)</span>
+              {/* Tax */}
+              <div
+                className={`flex justify-between p-2 rounded cursor-pointer transition-colors ${highlightedField === 'tax_amount' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('tax_amount') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
+                onClick={() => hasLocation('tax_amount') && toggleHighlight('tax_amount')}
+              >
+                <span className="text-muted-foreground flex items-center gap-1">
+                  Tax (GST)
+                  {hasLocation('tax_amount') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                </span>
                 <span className="font-mono">${(bill.tax_amount || 0).toLocaleString()}</span>
               </div>
               <Separator />
-              <div className="flex justify-between text-lg font-bold">
-                <span>Total</span>
+              {/* Total */}
+              <div
+                className={`flex justify-between text-lg font-bold p-2 rounded cursor-pointer transition-colors ${highlightedField === 'total_amount' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('total_amount') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
+                onClick={() => hasLocation('total_amount') && toggleHighlight('total_amount')}
+              >
+                <span className="flex items-center gap-1">
+                  Total
+                  {hasLocation('total_amount') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                </span>
                 <span className="font-mono">${(bill.total_amount || 0).toLocaleString()}</span>
               </div>
               {totalPaid > 0 && (
                 <>
-                  <div className="flex justify-between text-green-600">
+                  <div className="flex justify-between text-green-600 p-2">
                     <span>Paid</span>
                     <span className="font-mono">-${totalPaid.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between font-medium">
+                  <div className="flex justify-between font-medium p-2">
                     <span>Remaining</span>
                     <span className="font-mono">${(bill.remaining_balance || 0).toLocaleString()}</span>
                   </div>
                 </>
               )}
             </div>
+          </CardContent>
+        </Card>
 
-            {bill.ai_confidence != null && (
-              <div className="pt-2">
-                <p className="text-sm text-muted-foreground">AI Confidence</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="flex-1 h-2 bg-gray-200 rounded-full">
-                    <div
-                      className="h-2 bg-blue-500 rounded-full"
-                      style={{ width: `${bill.ai_confidence <= 1 ? bill.ai_confidence * 100 : bill.ai_confidence}%` }}
-                    />
-                  </div>
-                  <span className="text-sm font-medium">
-                    {bill.ai_confidence <= 1 ? Math.round(bill.ai_confidence * 100) : bill.ai_confidence}%
+        {/* Purchase Order */}
+        {(() => {
+          // Determine match status color
+          const hasMatch = !!bill.matched_purchase_order;
+          const variancePercent = bill.variance_percent ? Math.abs(bill.variance_percent) : 0;
+          const isExactMatch = hasMatch && (bill.variance_amount === null || bill.variance_amount === 0);
+          const needsClarification = hasMatch && variancePercent > 0 && variancePercent <= 5;
+          const isMismatch = hasMatch && variancePercent > 5;
+
+          const borderColor = isExactMatch ? 'border-green-500' :
+                             needsClarification ? 'border-amber-500' :
+                             isMismatch ? 'border-red-500' :
+                             'border-gray-300';
+          const bgColor = isExactMatch ? 'bg-green-50 dark:bg-green-900/20' :
+                         needsClarification ? 'bg-amber-50 dark:bg-amber-900/20' :
+                         isMismatch ? 'bg-red-50 dark:bg-red-900/20' :
+                         '';
+          const headerBg = isExactMatch ? 'bg-green-600' :
+                          needsClarification ? 'bg-amber-500' :
+                          isMismatch ? 'bg-red-600' :
+                          'bg-gray-500';
+          const statusText = isExactMatch ? 'MATCHED' :
+                            needsClarification ? 'REVIEW NEEDED' :
+                            isMismatch ? 'MISMATCH' :
+                            'NO PO';
+          const StatusIcon = isExactMatch ? CheckCircle :
+                            needsClarification ? AlertTriangle :
+                            isMismatch ? XCircle :
+                            FileText;
+
+          return (
+            <Card className={`border-4 ${borderColor} ${bgColor} relative aspect-[1/1.414] overflow-auto`}>
+              <div className={`absolute -top-3 left-0 ${headerBg} text-white px-2 py-0.5 text-xs font-bold z-50 flex items-center gap-1`}>
+                <StatusIcon className="h-3 w-3" />
+                [7] PO - {statusText}
+              </div>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Purchase Order
                   </span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Supplier & Company */}
-        <Card className="border-2 border-pink-500 relative">
-          <div className="absolute -top-3 left-0 bg-pink-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-            [7] Supplier & Company (PINK)
-          </div>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Supplier & Company
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Supplier</p>
-              {bill.supplier ? (
-                <div className="mt-1">
-                  <Link
-                    href={`/contacts/${bill.supplier.id}`}
-                    className="font-medium text-blue-600 hover:underline"
-                  >
-                    {bill.supplier.display_name}
-                  </Link>
-                  {bill.supplier.tax_number && (
-                    <p className="text-sm text-muted-foreground">
-                      ABN: {bill.supplier.tax_number}
-                    </p>
+                  {hasMatch && (
+                    <Badge className={`${isExactMatch ? 'bg-green-600' : needsClarification ? 'bg-amber-500' : 'bg-red-600'} text-white`}>
+                      <StatusIcon className="h-3 w-3 mr-1" />
+                      {statusText}
+                    </Badge>
                   )}
-                  {bill.supplier.bank_bsb && (
-                    <p className="text-sm text-muted-foreground">
-                      BSB: {bill.supplier.bank_bsb} / Acc: {bill.supplier.bank_account_number}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="font-medium">{bill.supplier_name_raw || "Unknown"}</p>
-              )}
-            </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {bill.matched_purchase_order ? (
+                  <>
+                    <div>
+                      <p className="text-sm text-muted-foreground">PO Number</p>
+                      <Link
+                        href={`/purchase_orders/${bill.matched_purchase_order.id}`}
+                        className="font-bold text-xl text-blue-600 hover:underline inline-flex items-center gap-1"
+                      >
+                        {bill.matched_purchase_order.purchase_order_number}
+                        <ExternalLink className="h-4 w-4" />
+                      </Link>
+                    </div>
 
-            <Separator />
+                    <Separator />
 
-            <div>
-              <p className="text-sm text-muted-foreground">Billing Company (on invoice)</p>
-              {bill.detected_company ? (
-                <div className="mt-1">
-                  <p className="font-medium">{bill.detected_company.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Code: {bill.detected_company.code}
-                  </p>
-                  {bill.detected_company.abn && (
-                    <p className="text-sm text-muted-foreground">
-                      ABN: {bill.detected_company.abn}
-                    </p>
-                  )}
-                </div>
-              ) : bill.ai_extraction_result?.billing_company_name ? (
-                <div className="mt-1">
-                  <p className="font-medium">{bill.ai_extraction_result.billing_company_name}</p>
-                  {bill.ai_extraction_result.billing_company_abn && (
-                    <p className="text-sm text-muted-foreground">
-                      ABN: {bill.ai_extraction_result.billing_company_abn}
-                    </p>
-                  )}
-                  <p className="text-xs text-yellow-600 mt-1">Not matched to company</p>
-                </div>
-              ) : (
-                <p className="text-muted-foreground">Not detected</p>
-              )}
-            </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">PO Total</p>
+                        <p className="font-mono font-bold text-lg">${bill.matched_purchase_order.total?.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Invoice Total</p>
+                        <p className="font-mono font-bold text-lg">${(bill.total_amount || 0).toLocaleString()}</p>
+                      </div>
+                    </div>
 
-            <Separator />
-
-            <div>
-              <div className="flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Pay From</p>
-              </div>
-              {bill.corporate_company ? (
-                <div className="mt-1 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
-                  <p className="font-medium text-green-700 dark:text-green-400">{bill.corporate_company.name}</p>
-                  <p className="text-sm text-green-600 dark:text-green-500">
-                    Code: {bill.corporate_company.code}
-                  </p>
-                  {bill.corporate_company.abn && (
-                    <p className="text-sm text-green-600 dark:text-green-500">
-                      ABN: {bill.corporate_company.abn}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="mt-1 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
-                  <p className="text-yellow-700 dark:text-yellow-400">Not assigned</p>
-                  <p className="text-xs text-yellow-600 dark:text-yellow-500">Assign a company to process payment</p>
-                </div>
-              )}
-            </div>
-
-            {bill.matched_purchase_order && (
-              <>
-                <Separator />
-                <div>
-                  <p className="text-sm text-muted-foreground">Matched Purchase Order</p>
-                  <div className="mt-1">
-                    <Link
-                      href={`/purchase_orders/${bill.matched_purchase_order.id}`}
-                      className="font-medium text-blue-600 hover:underline inline-flex items-center gap-1"
-                    >
-                      {bill.matched_purchase_order.purchase_order_number}
-                      <ExternalLink className="h-3 w-3" />
-                    </Link>
-                    <p className="text-sm text-muted-foreground">
-                      Total: ${bill.matched_purchase_order.total?.toLocaleString()}
-                    </p>
                     {bill.variance_amount !== null && bill.variance_amount !== 0 && (
-                      <p className={`text-sm ${bill.variance_amount > 0 ? "text-yellow-600" : "text-green-600"}`}>
-                        Variance: {bill.variance_amount > 0 ? "+" : ""}
-                        ${bill.variance_amount.toLocaleString()}
-                        {bill.variance_percent && ` (${bill.variance_percent.toFixed(1)}%)`}
-                      </p>
+                      <>
+                        <Separator />
+                        <div className={`p-3 rounded-lg ${isMismatch ? "bg-red-100 dark:bg-red-900/30" : "bg-amber-100 dark:bg-amber-900/30"}`}>
+                          <p className="text-sm text-muted-foreground">Variance</p>
+                          <p className={`font-mono font-bold text-lg ${isMismatch ? "text-red-600" : "text-amber-600"}`}>
+                            {bill.variance_amount > 0 ? "+" : ""}${bill.variance_amount.toLocaleString()}
+                            {bill.variance_percent && ` (${bill.variance_percent.toFixed(1)}%)`}
+                          </p>
+                        </div>
+                      </>
                     )}
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground">No Purchase Order matched</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {bill.ai_extraction_result?.purchase_order_number
+                        ? `Extracted PO #: ${bill.ai_extraction_result.purchase_order_number}`
+                        : "No PO reference found on invoice"}
+                    </p>
                   </div>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Email Info */}
         {bill.source === "email" && bill.email_subject && (
@@ -819,183 +854,9 @@ export default function BillDetailPage() {
           </Card>
         )}
 
-        {/* Extracted Data */}
-        {bill.ai_extraction_result && (
-          <Card className="md:col-span-2 border-2 border-yellow-500 relative">
-            <div className="absolute -top-3 left-0 bg-yellow-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-              [8] AI Extracted Data (YELLOW) - md:col-span-2
-            </div>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ScanText className="h-5 w-5" />
-                AI Extracted Data
-              </CardTitle>
-              {bill.extracted_at && (
-                <CardDescription>
-                  Extracted {new Date(bill.extracted_at).toLocaleString("en-AU")}
-                </CardDescription>
-              )}
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {bill.ai_extraction_result.invoice_number && (
-                  <div
-                    className={`cursor-pointer rounded p-1.5 -m-1.5 transition-colors ${highlightedField === 'invoice_number' ? 'bg-yellow-100 dark:bg-yellow-900/30' : hasLocation('invoice_number') ? 'hover:bg-muted' : ''}`}
-                    onClick={() => hasLocation('invoice_number') && toggleHighlight('invoice_number')}
-                  >
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                      Invoice #
-                      {hasLocation('invoice_number') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                    </p>
-                    <p className="font-mono text-sm">{bill.ai_extraction_result.invoice_number}</p>
-                  </div>
-                )}
-                {bill.ai_extraction_result.invoice_date && (
-                  <div
-                    className={`cursor-pointer rounded p-1.5 -m-1.5 transition-colors ${highlightedField === 'invoice_date' ? 'bg-yellow-100 dark:bg-yellow-900/30' : hasLocation('invoice_date') ? 'hover:bg-muted' : ''}`}
-                    onClick={() => hasLocation('invoice_date') && toggleHighlight('invoice_date')}
-                  >
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                      Invoice Date
-                      {hasLocation('invoice_date') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                    </p>
-                    <p className="text-sm">{bill.ai_extraction_result.invoice_date}</p>
-                  </div>
-                )}
-                {bill.ai_extraction_result.due_date && (
-                  <div
-                    className={`cursor-pointer rounded p-1.5 -m-1.5 transition-colors ${highlightedField === 'due_date' ? 'bg-yellow-100 dark:bg-yellow-900/30' : hasLocation('due_date') ? 'hover:bg-muted' : ''}`}
-                    onClick={() => hasLocation('due_date') && toggleHighlight('due_date')}
-                  >
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                      Due Date
-                      {hasLocation('due_date') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                    </p>
-                    <p className="text-sm">{bill.ai_extraction_result.due_date}</p>
-                  </div>
-                )}
-                {bill.ai_extraction_result.supplier_name && (
-                  <div
-                    className={`cursor-pointer rounded p-1.5 -m-1.5 transition-colors ${highlightedField === 'supplier_name' ? 'bg-yellow-100 dark:bg-yellow-900/30' : hasLocation('supplier_name') ? 'hover:bg-muted' : ''}`}
-                    onClick={() => hasLocation('supplier_name') && toggleHighlight('supplier_name')}
-                  >
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                      Supplier Name
-                      {hasLocation('supplier_name') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                    </p>
-                    <p className="text-sm">{bill.ai_extraction_result.supplier_name}</p>
-                  </div>
-                )}
-                {bill.ai_extraction_result.supplier_abn && (
-                  <div
-                    className={`cursor-pointer rounded p-1.5 -m-1.5 transition-colors ${highlightedField === 'supplier_abn' ? 'bg-yellow-100 dark:bg-yellow-900/30' : hasLocation('supplier_abn') ? 'hover:bg-muted' : ''}`}
-                    onClick={() => hasLocation('supplier_abn') && toggleHighlight('supplier_abn')}
-                  >
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                      Supplier ABN
-                      {hasLocation('supplier_abn') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <p className="font-mono text-sm">{bill.ai_extraction_result.supplier_abn}</p>
-                      {(() => {
-                        const match = abnMatches(bill.ai_extraction_result.supplier_abn, bill.supplier?.tax_number);
-                        if (match === true) {
-                          return (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
-                              <CheckCircle2 className="h-3 w-3" />
-                              100% Match
-                            </span>
-                          );
-                        } else if (match === false) {
-                          return (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full">
-                              <XCircle2 className="h-3 w-3" />
-                              Mismatch
-                            </span>
-                          );
-                        }
-                        return null;
-                      })()}
-                    </div>
-                    {bill.supplier?.tax_number && abnMatches(bill.ai_extraction_result.supplier_abn, bill.supplier.tax_number) === false && (
-                      <p className="text-xs text-red-500 mt-1">
-                        Stored: {bill.supplier.tax_number}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {bill.ai_extraction_result.billing_company_name && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Billing Company</p>
-                    <p className="text-sm">{bill.ai_extraction_result.billing_company_name}</p>
-                  </div>
-                )}
-                {bill.ai_extraction_result.billing_company_abn && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Billing ABN</p>
-                    <p className="font-mono text-sm">{bill.ai_extraction_result.billing_company_abn}</p>
-                  </div>
-                )}
-                {bill.ai_extraction_result.purchase_order_number && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">PO Reference</p>
-                    <p className="font-mono text-sm">{bill.ai_extraction_result.purchase_order_number}</p>
-                  </div>
-                )}
-                {bill.ai_extraction_result.subtotal != null && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Subtotal</p>
-                    <p className="font-mono text-sm">${Number(bill.ai_extraction_result.subtotal).toLocaleString()}</p>
-                  </div>
-                )}
-                {bill.ai_extraction_result.tax_amount != null && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Tax/GST</p>
-                    <p className="font-mono text-sm">${Number(bill.ai_extraction_result.tax_amount).toLocaleString()}</p>
-                  </div>
-                )}
-                {bill.ai_extraction_result.total_amount != null && (
-                  <div
-                    className={`cursor-pointer rounded p-1.5 -m-1.5 transition-colors ${highlightedField === 'total_amount' ? 'bg-yellow-100 dark:bg-yellow-900/30' : hasLocation('total_amount') ? 'hover:bg-muted' : ''}`}
-                    onClick={() => hasLocation('total_amount') && toggleHighlight('total_amount')}
-                  >
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                      Total
-                      {hasLocation('total_amount') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                    </p>
-                    <p className="font-mono text-sm font-medium">${Number(bill.ai_extraction_result.total_amount).toLocaleString()}</p>
-                  </div>
-                )}
-                {bill.ai_extraction_result.payment_terms && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Terms</p>
-                    <p className="text-sm">{bill.ai_extraction_result.payment_terms}</p>
-                  </div>
-                )}
-              </div>
-              {bill.ai_extraction_result.line_items && bill.ai_extraction_result.line_items.length > 0 && (
-                <div className="mt-4 pt-4 border-t">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Line Items ({bill.ai_extraction_result.line_items.length})</p>
-                  <div className="space-y-2">
-                    {bill.ai_extraction_result.line_items.slice(0, 5).map((item, idx) => (
-                      <div key={idx} className="flex justify-between text-sm p-2 bg-muted/30 rounded">
-                        <span className="truncate flex-1 mr-4">{item.description || "Item " + (idx + 1)}</span>
-                        <span className="font-mono">${Number(item.amount || 0).toLocaleString()}</span>
-                      </div>
-                    ))}
-                    {bill.ai_extraction_result.line_items.length > 5 && (
-                      <p className="text-xs text-muted-foreground">+ {bill.ai_extraction_result.line_items.length - 5} more items</p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
         {/* Payments */}
         {bill.bill_payments && bill.bill_payments.length > 0 && (
-          <Card className="md:col-span-2">
+          <Card className="col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
@@ -1037,7 +898,7 @@ export default function BillDetailPage() {
 
         {/* Notes */}
         {bill.notes && (
-          <Card className="md:col-span-2">
+          <Card className="col-span-2">
             <CardHeader>
               <CardTitle>Notes</CardTitle>
             </CardHeader>
@@ -1049,51 +910,20 @@ export default function BillDetailPage() {
         </div>{/* End Details Grid */}
       </div>{/* End Left Half */}
 
-      {/* RIGHT HALF - PDF Preview */}
-      <div className="w-1/2 border-4 border-orange-500 bg-orange-50 dark:bg-orange-900/10 p-2 relative mt-6 sticky top-4 self-start">
+      {/* RIGHT HALF - PDF Preview (A4 portrait aspect ratio) */}
+      <div className="shrink-0 border-4 border-orange-500 bg-orange-50 dark:bg-orange-900/10 p-2 relative sticky top-0 h-[calc(100vh-60px)] aspect-[1/1.414]">
         <div className="absolute -top-3 left-0 bg-orange-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-          [5] RIGHT HALF - PDF (ORANGE) - w-1/2 sticky top-4
+          [5] PDF (ORANGE) - A4 Portrait
         </div>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                {bill.invoice_file_content_type?.startsWith("image/") ? (
-                  <ImageIcon className="h-5 w-5" />
-                ) : (
-                  <FileText className="h-5 w-5" />
-                )}
-                Invoice Document
-              </span>
-              {pdfBlobUrl && (
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setPdfExpandedOpen(true)} title="View fullscreen">
-                    <Maximize2 className="h-4 w-4 mr-1" />
-                    Expand
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleOpenInApp} title="Open in Preview/PDF app">
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    Open
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleDownload}>
-                    <Download className="h-4 w-4 mr-1" />
-                    Download
-                  </Button>
-                </div>
-              )}
-            </CardTitle>
-            {bill.invoice_file_filename && (
-              <CardDescription>{bill.invoice_file_filename}</CardDescription>
-            )}
-          </CardHeader>
-          <CardContent>
+        <Card className="h-full w-full">
+          <CardContent className="p-2 h-full">
             {pdfLoading ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "calc(100vh - 250px)", minHeight: "600px" }}>
+              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30 h-full">
                 <Loader />
                 <p className="text-sm text-muted-foreground mt-4">Loading invoice...</p>
               </div>
             ) : pdfBlobUrl && !pdfError ? (
-              <div className="relative w-full border rounded-lg overflow-hidden" style={{ height: "calc(100vh - 250px)", minHeight: "600px" }}>
+              <div className="relative w-full h-full border rounded-lg overflow-hidden">
                 {bill.invoice_file_content_type === "application/pdf" ? (
                   <PDFViewer
                     url={`${getApiBaseUrl()}/api/v1/bill_inbox/${billId}/download`}
@@ -1119,7 +949,7 @@ export default function BillDetailPage() {
                 )}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "calc(100vh - 250px)", minHeight: "400px" }}>
+              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30 h-full">
                 <FileWarning className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium">
                   {pdfError ? "Error Loading Invoice" : "No Invoice File"}

@@ -163,15 +163,14 @@ class XeroContactSyncService
     result = update_xero_contact(contact, link)
 
     if result[:success]
-      contact.update!(last_synced_at: Time.current, xero_sync_error: nil)
+      link.mark_synced!
       { success: true, contact: contact.reload }
     else
       { success: false, error: result[:error] }
     end
   rescue StandardError => e
     error_msg = "Failed to sync to Xero: #{e.message}"
-    link.update!(sync_error: error_msg)
-    contact.update!(xero_sync_error: error_msg)
+    link.record_error!(error_msg)
     { success: false, error: error_msg }
   end
 
@@ -572,10 +571,7 @@ class XeroContactSyncService
   end
 
   def update_teeem_from_xero(teeem_contact, xero_contact, link = nil)
-    updates = {
-      last_synced_at: @sync_timestamp,
-      xero_sync_error: nil
-    }
+    updates = {}
 
     # Also update legacy xero_id field for backwards compatibility
     updates[:xero_id] = xero_contact["ContactID"] if teeem_contact.xero_id.blank?
@@ -717,7 +713,7 @@ class XeroContactSyncService
     end
 
     # Track changes for activity logging
-    changed_fields = updates.keys - [ :xero_id, :last_synced_at, :xero_sync_error ]
+    changed_fields = updates.keys - [ :xero_id ]
     changes_made = changed_fields.each_with_object({}) do |field, hash|
       old_value = teeem_contact.send(field) rescue nil
       new_value = updates[field]
@@ -742,8 +738,7 @@ class XeroContactSyncService
     end
   rescue StandardError => e
     error_msg = "Failed to update TEEEM contact: #{e.message}"
-    teeem_contact.update(xero_sync_error: error_msg)
-    link&.update(sync_error: error_msg)
+    link&.record_error!(error_msg)
     raise
   end
 
@@ -774,7 +769,6 @@ class XeroContactSyncService
       roles: roles.any? ? roles : nil,
       xero_contact_types: xero_contact_types,
       sync_with_xero: true,
-      last_synced_at: @sync_timestamp,
       xero_contact_status: xero_contact["ContactStatus"],
       xero_contact_number: xero_contact["ContactNumber"],
       xero_account_number: xero_contact["AccountNumber"],
@@ -891,7 +885,6 @@ class XeroContactSyncService
     unless validator.valid?
       error_msg = "Contact validation failed: #{validator.error_messages}"
       Rails.logger.warn("#{error_msg} for contact #{teeem_contact.display_name} (ID: #{teeem_contact.id})")
-      teeem_contact.update(xero_sync_error: error_msg)
       @stats[:validation_errors] ||= []
       @stats[:validation_errors] << {
         contact_id: teeem_contact.id,
@@ -927,13 +920,9 @@ class XeroContactSyncService
           last_synced_at: @sync_timestamp
         )
 
-        # Update legacy field for first link
+        # Update legacy xero_id field for first link
         if teeem_contact.xero_id.blank?
-          teeem_contact.update!(
-            xero_id: created_contact["ContactID"],
-            last_synced_at: @sync_timestamp,
-            xero_sync_error: nil
-          )
+          teeem_contact.update!(xero_id: created_contact["ContactID"])
         end
 
         @stats[:created_in_xero] += 1
@@ -947,7 +936,7 @@ class XeroContactSyncService
     end
   rescue StandardError => e
     error_msg = "Failed to create Xero contact: #{e.message}"
-    teeem_contact.update(xero_sync_error: error_msg)
+    Rails.logger.error(error_msg)
     { success: false, error: error_msg }
   end
 
@@ -1198,8 +1187,7 @@ class XeroContactSyncService
         display_name: display_name,
         email: email.presence,
         primary_company_id: company_contact.id,
-        entity_type: "person",
-        last_synced_at: @sync_timestamp
+        entity_type: "person"
       )
       Rails.logger.info("Updated person contact: #{display_name} (linked to #{company_contact.display_name})")
     else
@@ -1210,8 +1198,7 @@ class XeroContactSyncService
         email: email.presence,
         primary_company_id: company_contact.id,
         entity_type: "person",
-        sync_with_xero: false,
-        last_synced_at: @sync_timestamp
+        sync_with_xero: false
       )
       Rails.logger.info("Created person contact: #{display_name} (linked to #{company_contact.display_name})")
       @stats[:created_in_teeem] += 1
