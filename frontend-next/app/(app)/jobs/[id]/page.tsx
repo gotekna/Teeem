@@ -55,6 +55,7 @@ import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
 import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 import { JobProfitTab } from "@/components/jobs/JobProfitTab";
 import { StartWorkflowButton } from "@/components/jobs/StartWorkflowButton";
+import { JobWorkflowsCard } from "@/components/jobs/JobWorkflowsCard";
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -949,6 +950,9 @@ export default function JobDetailPage() {
                 }
               }}
             />
+
+            {/* Workflows */}
+            <JobWorkflowsCard jobId={job.id} />
 
             {/* Contacts */}
             <Card>

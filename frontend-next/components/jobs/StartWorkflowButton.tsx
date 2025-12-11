@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { Workflow, Loader2, Play, CheckCircle } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 
 interface BpmnProcess {
   id: number;
@@ -116,7 +116,7 @@ export function StartWorkflowButton({ jobId, jobName }: StartWorkflowButtonProps
         }
       );
 
-      if (response.success) {
+      if (response?.success) {
         setSuccess(true);
         toast({
           title: 'Workflow started',

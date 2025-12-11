@@ -88,6 +88,15 @@ module Api
       end
 
       def serialize_instance(instance)
+        # Count pending tasks for this instance
+        pending_tasks = BpmnTaskInstance.joins(:bpmn_token)
+          .where(bpmn_tokens: { bpmn_process_instance_id: instance.id })
+          .actionable
+          .count
+
+        # Get current node names
+        current_nodes = instance.current_nodes.map(&:display_name)
+
         {
           id: instance.id,
           process_id: instance.bpmn_process_id,
@@ -101,6 +110,9 @@ module Api
           completed_at: instance.completed_at,
           active_tokens: instance.active_tokens.count,
           waiting_tokens: instance.waiting_tokens.count,
+          pending_tasks: pending_tasks,
+          current_node: current_nodes.first,
+          current_nodes: current_nodes,
           error_message: instance.error_message,
           created_at: instance.created_at
         }
