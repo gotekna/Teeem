@@ -15,6 +15,11 @@ class PurchaseOrder < ApplicationRecord
   has_many :subcontractor_invoices, dependent: :destroy
   has_many :pay_now_requests, dependent: :destroy
 
+  # Finance / Accounts Payable
+  has_many :bill_inboxes, foreign_key: :matched_purchase_order_id, dependent: :nullify
+  has_many :bill_payments, dependent: :nullify
+  belongs_to :last_bill_inbox, class_name: "BillInbox", optional: true
+
   # Documents attached to this PO (via polymorphic documentable)
   has_many :corporate_company_documents, as: :documentable, dependent: :nullify
 
