@@ -89,6 +89,13 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     emails_with_attachments.each do |email|
       begin
+        # Debug: Log exactly what we're requesting
+        Rails.logger.info "[SyncToSharePoint] Fetching attachments for email #{email.id}"
+        Rails.logger.info "[SyncToSharePoint]   mailbox_owner_email: #{email.mailbox_owner_email}"
+        Rails.logger.info "[SyncToSharePoint]   outlook_id: #{email.outlook_id}"
+        Rails.logger.info "[SyncToSharePoint]   received_at: #{email.received_at}"
+        Rails.logger.info "[SyncToSharePoint]   microsoft_credential_id: #{email.microsoft_credential_id}"
+
         # Fetch attachments from Microsoft Graph API using the mailbox owner
         # (the mailbox where this email is stored, not the sender)
         attachments = client.get_email_attachments(email.mailbox_owner_email, email.outlook_id)
