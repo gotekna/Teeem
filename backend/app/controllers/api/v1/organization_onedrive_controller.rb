@@ -553,6 +553,57 @@ module Api
         end
       end
 
+      # POST /api/v1/organization_onedrive/create_root_folder
+      # Create a root folder in the current drive (e.g., "Teeem" folder)
+      # Used to auto-create the Teeem folder if it doesn't exist
+      def create_root_folder
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+        end
+
+        folder_name = params[:folder_name]
+
+        if folder_name.blank?
+          return render json: { error: "Folder name is required" }, status: :bad_request
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Create folder in root of current drive
+          folder = client.create_folder(folder_name, drive_id: credential.drive_id)
+
+          render json: {
+            success: true,
+            folder: {
+              id: folder["id"],
+              name: folder["name"],
+              webUrl: folder["webUrl"]
+            },
+            message: "Folder '#{folder_name}' created successfully"
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          # If folder already exists, that's fine - return success
+          if e.message.include?("nameAlreadyExists")
+            render json: {
+              success: true,
+              message: "Folder '#{folder_name}' already exists"
+            }
+          else
+            render json: { error: "Failed to create folder: #{e.message}" }, status: :bad_gateway
+          end
+        rescue StandardError => e
+          Rails.logger.error "Failed to create root folder: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: { error: "Failed to create folder: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/organization_onedrive/validate_folder
       # Validate the root folder exists and hasn't been renamed or moved
       # Returns folder validation status and auto-updates metadata if folder was renamed

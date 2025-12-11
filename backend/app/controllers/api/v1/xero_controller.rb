@@ -113,7 +113,10 @@ module Api
             connected_at: cred.created_at,
             is_primary: cred.is_primary,
             expires_at: cred.expires_at,
-            expired: cred.expired?
+            expired: cred.expired?,
+            # SSoT: Include credential health status for auto-expand UI logic
+            status: cred.status,
+            needs_reauth: %w[disconnected degraded].include?(cred.status)
           }
         end
 
@@ -1534,11 +1537,19 @@ module Api
           # Invoice sync runs every 5 minutes
           next_invoice_sync = calculate_next_run(now_brisbane, 5, 0)
 
-          # PDF sync uses smart rate limiting - calculates next run based on pending count
-          # When catching up (>100 pending): batches every 5 min
-          # Almost caught up (<100 pending): batches every 10 min
-          # Caught up (0 pending): checks every 30 min
-          next_pdf_sync = if pdfs_pending > 100
+          # SSoT: Check actual rate limit status to determine if sync is paused
+          credential = XeroCredential.where(status: %w[connected degraded]).first
+          rate_usage = credential ? XeroRateLimitTracker.usage_for(credential.tenant_id) : nil
+          daily_percentage = rate_usage&.dig(:daily, :percentage) || 0
+          is_rate_limited = daily_percentage >= 80
+
+          # PDF sync uses smart rate limiting - calculates next run based on pending count AND rate limit status
+          # SSoT: If rate limited, show when we'll resume (next recurring run or rate limit reset)
+          next_pdf_sync = if is_rate_limited
+            # Rate limited - next run is either recurring job (2 hours) or midnight reset
+            # Use the stored next_sync_at from XeroSyncStatus if available
+            pdf_sync_status&.next_sync_at || 2.hours.from_now
+          elsif pdfs_pending > 100
             5.minutes.from_now
           elsif pdfs_pending > 0
             10.minutes.from_now
@@ -1547,7 +1558,22 @@ module Api
           end
 
           # Stage 2 info - smart rate-limited sync status
-          stage2_blocker = if pdfs_pending > 100
+          # SSoT: Show actual status including rate limit pauses
+          # Rate limit resets at midnight UTC (server time), which is 10:00 AM Brisbane
+          utc_reset = Time.current.utc.end_of_day
+          brisbane_reset = utc_reset.in_time_zone("Australia/Brisbane")
+
+          stage2_blocker = if is_rate_limited && pdfs_pending > 0
+            {
+              reason: "Rate limited - paused until headroom available",
+              detail: "Daily API usage at #{daily_percentage.round(0)}%. #{pdfs_pending} PDFs waiting. Will resume when usage drops below 80%.",
+              pending_count: pdfs_pending,
+              sync_mode: "rate_limited",
+              daily_percentage: daily_percentage.round(1),
+              resets_at: brisbane_reset.iso8601,
+              resets_at_display: brisbane_reset.strftime("%-I:%M %p")
+            }
+          elsif pdfs_pending > 100
             {
               reason: "Catching up - syncing at max safe speed",
               detail: "Processing ~20 PDFs per batch, auto-queuing next batch. #{pdfs_pending} remaining.",

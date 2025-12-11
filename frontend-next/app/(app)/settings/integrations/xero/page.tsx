@@ -53,6 +53,9 @@ interface XeroTenant {
   is_primary: boolean;
   expires_at?: string;
   expired?: boolean;
+  // SSoT: Credential health status fields
+  status?: 'connected' | 'degraded' | 'disconnected';
+  needs_reauth?: boolean;
 }
 
 interface CompanyXeroConnection {
@@ -92,9 +95,15 @@ export default function XeroIntegrationPage() {
   const [settingPrimary, setSettingPrimary] = React.useState<string | null>(null);
   const [organizationsExpanded, setOrganizationsExpanded] = React.useState<boolean | null>(null);
 
-  // Compute if any tenant has expired (for default expanded state)
+  // Compute if any tenant needs attention (for default expanded state)
+  // SSoT: Auto-expand when any tenant needs re-auth, is degraded, disconnected, or expired
   const hasExpiredTenants = React.useMemo(() => {
-    return tenants.some(t => t.expired);
+    return tenants.some(t =>
+      t.expired ||
+      t.needs_reauth ||
+      t.status === 'degraded' ||
+      t.status === 'disconnected'
+    );
   }, [tenants]);
 
   // Set default expanded state based on health - only once when tenants load
@@ -372,9 +381,9 @@ export default function XeroIntegrationPage() {
               >
                 <div className="flex items-center gap-3">
                   {organizationsExpanded ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
                   ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   )}
                   <span className="font-medium">Connected Xero Organizations</span>
                   <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100 text-xs">

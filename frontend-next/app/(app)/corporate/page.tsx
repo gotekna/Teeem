@@ -605,22 +605,16 @@ export default function CorporateDashboardPage() {
         // Assets endpoint may not exist
       }
 
-      // Load health report
-      let healthSummary: { average_score?: number; critical?: number } = {};
-      try {
-        const healthResponse = await api.get<{ summary: { average_score?: number; critical?: number } }>("/api/v1/companies/health_report");
-        healthSummary = healthResponse.summary || {};
-      } catch {
-        // Health endpoint may not exist
-      }
+      // Health report removed from initial load - too slow (4.5s with 1600+ queries)
+      // Health is now loaded per-company when clicking on a specific company
 
       setStats({
         totalCompanies: companiesList.length,
         activeCompanies: companiesList.filter((c) => c.status === "active" || c.status === "Active").length,
         totalAssets: assets.length,
         complianceDueSoon: compliance.length,
-        healthScore: healthSummary.average_score || 0,
-        criticalCompanies: healthSummary.critical || 0,
+        healthScore: 0,
+        criticalCompanies: 0,
       });
 
       setUpcomingCompliance(compliance.slice(0, 5));

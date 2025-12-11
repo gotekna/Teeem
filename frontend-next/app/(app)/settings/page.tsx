@@ -38,6 +38,7 @@ import {
   BookOpen,
   Award,
   Video,
+  FolderOpen,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
@@ -608,6 +609,28 @@ function SettingsPageContent() {
                     )}
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card
+              className="cursor-pointer hover:bg-accent/50 transition-colors"
+              onClick={() => router.push("/settings/documents")}
+            >
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-orange-100 rounded-lg dark:bg-orange-900/30">
+                      <FolderOpen className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">Documents</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Configure OneDrive storage paths
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
                 </div>
               </CardContent>
             </Card>

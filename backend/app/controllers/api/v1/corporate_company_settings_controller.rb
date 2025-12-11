@@ -36,6 +36,40 @@ module Api
         end
       end
 
+      # GET /api/v1/corporate_company_settings/document_paths
+      def document_paths
+        settings = CorporateCompanySetting.instance
+        render json: {
+          success: true,
+          data: {
+            company_documents_base_path: settings.company_documents_base_path,
+            people_documents_base_path: settings.people_documents_base_path,
+            job_documents_base_path: settings.job_documents_base_path
+          }
+        }
+      end
+
+      # PATCH /api/v1/corporate_company_settings/document_paths
+      def update_document_paths
+        settings = CorporateCompanySetting.instance
+
+        if settings.update(document_paths_params)
+          render json: {
+            success: true,
+            data: {
+              company_documents_base_path: settings.company_documents_base_path,
+              people_documents_base_path: settings.people_documents_base_path,
+              job_documents_base_path: settings.job_documents_base_path
+            }
+          }
+        else
+          render json: {
+            success: false,
+            errors: settings.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       def company_setting_params
@@ -64,6 +98,14 @@ module Api
             :sunday
           ],
           job_cascade_sort: [ :key, :label, :enabled ]
+        )
+      end
+
+      def document_paths_params
+        params.require(:settings).permit(
+          :company_documents_base_path,
+          :people_documents_base_path,
+          :job_documents_base_path
         )
       end
     end

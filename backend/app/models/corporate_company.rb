@@ -117,6 +117,9 @@ class CorporateCompany < ApplicationRecord
   after_update :create_update_activity
   after_update :update_ssot_membership, if: :saved_change_to_company_group_id?
 
+  # SSoT: Sync ABN back to Contact (two-way sync for ABN only)
+  after_commit :sync_abn_to_contact, if: :should_sync_abn_to_contact?
+
   # Instance methods
   def display_name
     name
@@ -476,5 +479,28 @@ class CorporateCompany < ApplicationRecord
       m.company_id = id
       m.is_active = status == "active"
     end
+  end
+
+  # SSoT: Check if ABN should sync back to Contact
+  def should_sync_abn_to_contact?
+    # Only sync ABN if we have a linked Contact and we're not already syncing from Contact
+    contact_id.present? &&
+      abn.present? &&
+      !Thread.current[:syncing_contact_to_company]
+  end
+
+  # SSoT: Sync ABN back to Contact (two-way sync for ABN only)
+  def sync_abn_to_contact
+    # Prevent infinite loops
+    return if Thread.current[:syncing_company_to_contact]
+
+    Thread.current[:syncing_company_to_contact] = true
+
+    # Strip spaces from ABN before syncing to Contact (Contact stores without formatting)
+    contact.update!(tax_number: abn&.gsub(/\s/, ''))
+  rescue StandardError => e
+    Rails.logger.error("CorporateCompany##{id}: Sync ABN to Contact failed - #{e.message}")
+  ensure
+    Thread.current[:syncing_company_to_contact] = false
   end
 end

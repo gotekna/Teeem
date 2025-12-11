@@ -2,7 +2,9 @@ class Contact < ApplicationRecord
   include SelfHealing  # Auto-fix formatting issues and earn System kudos
 
   # Exclude soft-deleted contacts by default
-  default_scope { where(deleted: [ false, nil ]) }
+  # Note: deleted column was removed in migration 20251210093313
+  # All contacts are now considered active unless is_active=false
+  # default_scope { where(deleted: [ false, nil ]) }
 
   # Associations
   has_many :contact_activities, dependent: :destroy
@@ -94,7 +96,9 @@ class Contact < ApplicationRecord
   has_one :company_record, class_name: "CorporateCompany", foreign_key: "contact_id", dependent: :nullify
 
   # Encrypted TFN for directors
-  encrypts :tfn, deterministic: true
+  # NOTE: tfn column was removed in migration 20251210093313
+  # TFN is now stored in CorporateCompany.tfn instead
+  # encrypts :tfn, deterministic: true
 
   # Constants
   ROLES = %w[Employee sales land_agent Director Company_Secretary Public_Officer CEO GM Owner].freeze
@@ -155,11 +159,17 @@ class Contact < ApplicationRecord
   before_save :generate_display_name
   before_save :sync_company_name_or_trust
   before_save :clear_roles_if_not_person
-  after_save :cleanup_relationships_on_soft_delete, if: :soft_deleted?
+  # Note: deleted column removed, soft_deleted? callback disabled
+  # after_save :cleanup_relationships_on_soft_delete, if: :soft_deleted?
 
   # SSoT: Sync primary_company_id → employee_of relationship
   # This ensures the relationship exists when primary_company is set directly
   after_commit :sync_primary_company_to_relationship, if: :should_sync_primary_company_to_relationship?
+
+  # SSoT: Sync Contact → CorporateCompany for standard contact fields
+  # One-way sync: Contact is SSoT for name, email, phone, bank details
+  # Two-way sync for ABN: Contact.tax_number ↔ CorporateCompany.abn
+  after_commit :sync_to_corporate_company, if: :should_sync_to_corporate?
 
   # Scopes
   scope :with_email, -> { where.not(email: [ nil, "" ]) }
@@ -717,12 +727,10 @@ class Contact < ApplicationRecord
   end
 
   def roles_only_for_persons
-    # roles is stored as a string (e.g. "[]" or "{}"), so check for blank or empty
-    return if roles.blank? || roles == "[]" || roles == "{}"
-
-    if entity_type != "person"
-      errors.add(:roles, "can only be assigned to people, not #{entity_type}")
-    end
+    # REMOVED: Companies can also be customers/suppliers in Xero
+    # Roles (customer, supplier) can be assigned to any entity type (person, company, trust, etc.)
+    # This validation was blocking Xero sync for companies that are suppliers/customers
+    return
   end
 
   def validate_name_fields_for_entity_type
@@ -903,18 +911,41 @@ class Contact < ApplicationRecord
     end.join(" ")
   end
 
-  # Check if this contact was just soft-deleted
-  def soft_deleted?
-    saved_change_to_deleted? && deleted == true
+  # Note: deleted column removed in migration 20251210093313
+  # Soft-delete functionality disabled
+  # def soft_deleted?
+  #   saved_change_to_deleted? && deleted == true
+  # end
+
+  # def cleanup_relationships_on_soft_delete
+  #   outgoing_relationships.destroy_all
+  #   incoming_relationships.destroy_all
+  #   Rails.logger.info("Cleaned up relationships for soft-deleted contact #{id}")
+  # end
+
+  # SSoT: Check if this contact should sync to CorporateCompany
+  def should_sync_to_corporate?
+    # Only sync if this is a company/trust with a linked CorporateCompany record
+    # Don't sync if we're already syncing from CorporateCompany to Contact (prevent loop)
+    entity_type.in?(['company', 'trust']) &&
+      company_record.present? &&
+      !Thread.current[:syncing_company_to_contact]
   end
 
-  # Clean up relationships when a contact is soft-deleted
-  # This prevents orphaned relationships that cause 500 errors
-  def cleanup_relationships_on_soft_delete
-    # Destroy all relationships where this contact is either the source or related contact
-    outgoing_relationships.destroy_all
-    incoming_relationships.destroy_all
+  # SSoT: Sync Contact → CorporateCompany for standard contact fields
+  def sync_to_corporate_company
+    # Prevent infinite loops
+    return if Thread.current[:syncing_contact_to_company]
 
-    Rails.logger.info("Cleaned up relationships for soft-deleted contact #{id}")
+    Thread.current[:syncing_contact_to_company] = true
+
+    company_record.update!(
+      name: display_name,
+      abn: tax_number  # SelfHealing will format with spaces
+    )
+  rescue StandardError => e
+    Rails.logger.error("Contact##{id}: Sync to CorporateCompany failed - #{e.message}")
+  ensure
+    Thread.current[:syncing_contact_to_company] = false
   end
 end

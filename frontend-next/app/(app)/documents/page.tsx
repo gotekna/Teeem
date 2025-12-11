@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader } from "@/components/ui/loader";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
@@ -14,10 +15,20 @@ import {
   Cloud,
   CheckCircle,
   Clock,
+  Building2,
+  Briefcase,
+  Users,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
-// Foundation ID for Documents table
+// Foundation slugs for the three document types
+const DOCUMENT_TYPES = {
+  company: "company_documents",
+  job: "job_documents",
+  people: "people_documents"
+} as const;
+
+type DocumentType = keyof typeof DOCUMENT_TYPES;
 
 interface Folder {
   id: string;
@@ -28,6 +39,9 @@ interface Folder {
 
 export default function DocumentsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = (searchParams.get("tab") as DocumentType) || "company";
+
   const [folders] = useState<Folder[]>([
     { id: "1", name: "Contracts", path: "/contracts", documents_count: 12 },
     { id: "2", name: "Financial", path: "/financial", documents_count: 8 },
@@ -35,13 +49,13 @@ export default function DocumentsPage() {
   ]);
   const [oneDriveConnected] = useState(false);
 
-  // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug("company_documents");
+  // Use foundation hook for active tab's document type
+  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug(DOCUMENT_TYPES[activeTab]);
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/company_documents/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/${DOCUMENT_TYPES[activeTab]}/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -49,7 +63,12 @@ export default function DocumentsPage() {
       console.error("Failed to update document:", error);
       throw error;
     }
-  }, [refresh]);
+  }, [refresh, activeTab]);
+
+  // Handle tab change
+  const handleTabChange = useCallback((value: string) => {
+    router.push(`/documents?tab=${value}`);
+  }, [router]);
 
   // Stats from records
   const stats = useMemo(() => ({
@@ -81,8 +100,7 @@ export default function DocumentsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Documents</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage project documents and files
-            
+            Manage company, job, and personal documents
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -102,32 +120,50 @@ export default function DocumentsPage() {
         </div>
       </div>
 
-      {/* OneDrive Status */}
-      {oneDriveConnected && (
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-3">
-              <Cloud className="h-5 w-5 text-blue-600" />
-              <div className="flex-1">
-                <p className="font-medium text-blue-900">OneDrive Connected</p>
-                <p className="text-sm text-blue-700">
-                  Documents are synced with your Microsoft OneDrive
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push("/settings/integrations/microsoft")}
-              >
-                Manage
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Document Type Tabs */}
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList className="grid w-full grid-cols-3 max-w-md">
+          <TabsTrigger value="company" className="gap-2">
+            <Building2 className="h-4 w-4" />
+            Company
+          </TabsTrigger>
+          <TabsTrigger value="job" className="gap-2">
+            <Briefcase className="h-4 w-4" />
+            Job
+          </TabsTrigger>
+          <TabsTrigger value="people" className="gap-2">
+            <Users className="h-4 w-4" />
+            People
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <TabsContent value={activeTab} className="mt-6 space-y-6">
+          {/* OneDrive Status */}
+          {oneDriveConnected && (
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-3">
+                  <Cloud className="h-5 w-5 text-blue-600" />
+                  <div className="flex-1">
+                    <p className="font-medium text-blue-900">OneDrive Connected</p>
+                    <p className="text-sm text-blue-700">
+                      Documents are synced with your Microsoft OneDrive
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push("/settings/integrations/microsoft")}
+                  >
+                    Manage
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2">
@@ -200,9 +236,9 @@ export default function DocumentsPage() {
           <TeeemTableView
             entries={records}
             columns={columns}
-            foundationId="company_documents"
+            foundationId={DOCUMENT_TYPES[activeTab]}
             foundationIdNumeric={foundation?.id}
-            tableName={foundation?.name || "Documents"}
+            tableName={foundation?.name || `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Documents`}
             enableExport={true}
             onRefresh={refresh}
             onRowUpdate={handleRowUpdate}
@@ -210,6 +246,8 @@ export default function DocumentsPage() {
           />
         </div>
       </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

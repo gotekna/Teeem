@@ -50,6 +50,9 @@ interface RateLimitsData {
     daily: number;
     concurrent: number;
   };
+  // SSoT: Rate limit reset time
+  resets_at?: string;
+  resets_at_display?: string;
   tenants: TenantRateLimit[];
   aggregate: {
     minute_requests: number;
@@ -66,6 +69,11 @@ interface Blocker {
   estimated_hours?: number;
   estimated_days?: number | null;
   sample_unlinked?: { xero_id: string; contact_name: string }[];
+  // SSoT: Sync mode for accurate status display
+  sync_mode?: 'catching_up' | 'almost_done' | 'rate_limited';
+  daily_percentage?: number;
+  resets_at?: string;
+  resets_at_display?: string;
 }
 
 interface Stage1DataSync {
@@ -662,7 +670,16 @@ export function XeroPdfSyncStatus() {
             <div className="mb-3 p-3 bg-white/80 border border-blue-100 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {data.pending > 100 ? (
+                  {/* SSoT: Use sync_mode from backend blocker if available */}
+                  {data.stage2_pdf_download?.blocker?.sync_mode === 'rate_limited' ? (
+                    <>
+                      <Clock className="h-4 w-4 text-amber-600" />
+                      <span className="font-medium text-amber-900">Rate Limited</span>
+                      <Badge className="bg-amber-100 text-amber-700 text-xs">
+                        {data.stage2_pdf_download?.blocker?.daily_percentage?.toFixed(0)}% daily used
+                      </Badge>
+                    </>
+                  ) : data.pending > 100 ? (
                     <>
                       <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />
                       <span className="font-medium text-blue-900">Catching Up Mode</span>
@@ -691,7 +708,13 @@ export function XeroPdfSyncStatus() {
                 <div className="text-right text-sm">
                   <div className="font-semibold text-blue-900">{data.pending.toLocaleString()} pending</div>
                   <div className="text-xs text-muted-foreground">
-                    {data.pending > 100 ? "Batch every 1 min" : data.pending > 0 ? "Batch every 10 min" : "Checking every 30 min"}
+                    {data.stage2_pdf_download?.blocker?.sync_mode === 'rate_limited'
+                      ? `Resets at ${data.stage2_pdf_download?.blocker?.resets_at_display || 'midnight'}`
+                      : data.pending > 100
+                        ? "Batch every 1 min"
+                        : data.pending > 0
+                          ? "Batch every 10 min"
+                          : "Checking every 30 min"}
                   </div>
                 </div>
               </div>
@@ -800,9 +823,15 @@ export function XeroPdfSyncStatus() {
                       />
                     </div>
                   </div>
-                  {tenant.total_7d > 0 && (
-                    <div className="text-xs text-muted-foreground mt-2 text-right">
-                      {tenant.total_7d.toLocaleString()} total requests (7 days)
+                  {/* Bottom row: 7-day total on left, reset time on right */}
+                  {(tenant.total_7d > 0 || (tenant.daily?.used || 0) > 0) && (
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
+                      <span>
+                        {tenant.total_7d > 0 ? `${tenant.total_7d.toLocaleString()} total requests (7 days)` : ''}
+                      </span>
+                      {(tenant.daily?.used || 0) > 0 && rateLimits.resets_at_display && (
+                        <span>Resets at {rateLimits.resets_at_display}</span>
+                      )}
                     </div>
                   )}
                 </div>

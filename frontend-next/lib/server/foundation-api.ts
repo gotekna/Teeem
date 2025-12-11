@@ -42,10 +42,8 @@ interface TableColumn {
   filterable?: boolean;
   width?: number;
   choices?: string[];
-  lookup_config?: {
-    target_table_id: number;
-    display_column?: string;
-  };
+  lookup_foundation_id?: number;
+  lookup_display_column?: string;
 }
 
 interface TableRow {
@@ -178,10 +176,8 @@ function transformColumns(foundation: Foundation): TableColumn[] {
       filterable: true,
       width: getDefaultWidth(col.column_name, col.column_type),
       choices: col.available_choices,
-      lookup_config: col.lookup_foundation_id ? {
-        target_table_id: col.lookup_foundation_id,
-        display_column: col.lookup_display_column,
-      } : undefined,
+      lookup_foundation_id: col.lookup_foundation_id,
+      lookup_display_column: col.lookup_display_column,
     });
   });
 

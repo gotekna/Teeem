@@ -367,7 +367,7 @@ const SYSTEM_COLUMN_BG = '#fee2e2'; // red-100
 const DEFAULT_COLUMNS: TableColumn[] = [
   { key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 },
   { key: "id", label: "ID", resizable: true, sortable: true, filterable: true, width: 50 },
-  { key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 100 },
+  { key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 180 },
 ];
 
 // Filter operators for display
@@ -509,7 +509,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                                       })
                                     }}
                                     className={cn(
-                                      column.key === "select" && "!border-r-0 !p-0 !h-full",
+                                      column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
                                       column.key === "actions" && "!border-l-0"
                                     )}
                                     onClick={(e) => {
@@ -576,6 +576,7 @@ export default function TeeemTableView({
   onColumnUpdate,
   onEditRelationships,
   onRefresh,
+  onViewChange,
   enableImport = false,
   enableExport = false,
   onImport,
@@ -636,7 +637,7 @@ export default function TeeemTableView({
       result.unshift({ key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 });
     }
     if (!hasActions) {
-      result.push({ key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 100 });
+      result.push({ key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 180 });
     }
     return result;
   }, [columns]);
@@ -1191,7 +1192,7 @@ export default function TeeemTableView({
 
   // Fetch lookup options for a column (uses module-level cache)
   const fetchLookupOptions = useCallback(async (column: TableColumn) => {
-    const targetTableId = column.lookup_config?.target_table_id;
+    const targetTableId = column.lookup_foundation_id;
     const cacheKey = `${column.key}_${targetTableId}`;
 
     if (!targetTableId) return;
@@ -1236,7 +1237,7 @@ export default function TeeemTableView({
         }
       }
 
-      const displayColumn = column.lookup_config?.display_column || 'name';
+      const displayColumn = column.lookup_display_column || 'name';
       return records.map((record) => ({
         id: record.id as number,
         display: String(record[displayColumn] || record.name || record.title || record.id),
@@ -1264,7 +1265,7 @@ export default function TeeemTableView({
     // Pre-fetch lookup options for lookup columns (including multiple_lookups)
     COLUMNS.forEach(col => {
       if ((col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') &&
-          col.lookup_config?.target_table_id) {
+          col.lookup_foundation_id) {
         fetchLookupOptions(col);
       }
     });
@@ -1285,7 +1286,7 @@ export default function TeeemTableView({
     // Pre-fetch lookup options for lookup columns (including multiple_lookups)
     COLUMNS.forEach(col => {
       if (col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') {
-        if (col.lookup_config?.target_table_id) {
+        if (col.lookup_foundation_id) {
           fetchLookupOptions(col);
         }
       }
@@ -1545,7 +1546,7 @@ export default function TeeemTableView({
     const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
     if (!selectedCol) return;
 
-    const isLookup = selectedCol.column_type === 'lookup' || selectedCol.column_type === 'multiple_lookups' || selectedCol.lookup_config;
+    const isLookup = selectedCol.column_type === 'lookup' || selectedCol.column_type === 'multiple_lookups' || !!selectedCol.lookup_foundation_id;
     if (isLookup && !lookupOptions[bulkUpdateColumn] && !lookupLoading[bulkUpdateColumn]) {
       fetchLookupOptions(selectedCol);
     }
@@ -1559,7 +1560,7 @@ export default function TeeemTableView({
   const isDropdownColumn = useCallback((column: TableColumn): boolean => {
     const colType = column.column_type || '';
     const hasChoices = column.choices && column.choices.length > 0;
-    const isLookup = colType === 'lookup' || colType === 'relation' || colType === 'multiple_lookups' || !!column.lookup_config;
+    const isLookup = colType === 'lookup' || colType === 'relation' || colType === 'multiple_lookups' || !!column.lookup_foundation_id;
     const isChoice = colType === 'choice' || colType === 'single_select' || colType === 'multi_select';
     const isBoolean = colType === 'boolean';
     return hasChoices || isLookup || isChoice || isBoolean;
@@ -2405,6 +2406,23 @@ export default function TeeemTableView({
       }
     });
 
+    // Calculate total width of all columns
+    const totalColumnsWidth = Object.values(newWidths).reduce((sum, width) => sum + width, 0);
+
+    // Get available table width (subtract scrollbar width ~17px)
+    const tableWidth = tableContainerRef.current?.clientWidth || 0;
+    const availableWidth = tableWidth - 17; // Account for scrollbar
+
+    // If columns don't fill the page, expand them proportionally
+    if (totalColumnsWidth > 0 && availableWidth > totalColumnsWidth) {
+      const expansionRatio = availableWidth / totalColumnsWidth;
+
+      // Expand all columns proportionally to fill the page
+      Object.keys(newWidths).forEach(key => {
+        newWidths[key] = Math.floor(newWidths[key] * expansionRatio);
+      });
+    }
+
     return newWidths;
   }, [visibleColumnsInOrder, filteredAndSortedEntries]);
 
@@ -2419,8 +2437,26 @@ export default function TeeemTableView({
       const autoWidths = calculateAutoFitWidths();
       setColumnWidths(autoWidths);
     }
-     
+
   }, [smartFit, autoFitColumns, calculateSmartFitWidths, calculateAutoFitWidths, visibleColumnsInOrder]);
+
+  // Watch for container resize and recalculate widths when TEEEM Smart is enabled
+  useEffect(() => {
+    if (!smartFit || !tableContainerRef.current) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (filteredAndSortedEntries.length > 0) {
+        const smartWidths = calculateSmartFitWidths();
+        setColumnWidths(smartWidths);
+      }
+    });
+
+    resizeObserver.observe(tableContainerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [smartFit, calculateSmartFitWidths, filteredAndSortedEntries]);
 
   // Get visible data columns (excluding select and actions)
   const visibleDataColumns = useMemo(() => {
@@ -2679,7 +2715,7 @@ export default function TeeemTableView({
           // Show the value with a subtle indicator it's not editable
           const displayValue = value == null || value === "" ? "-" : String(value);
           return (
-            <span className="text-muted-foreground italic" title={isComputed ? "Computed column" : "System column - not editable"}>
+            <span className="text-muted-foreground italic text-[11px]" title={isComputed ? "Computed column" : "System column - not editable"}>
               {displayValue}
             </span>
           );
@@ -2692,7 +2728,7 @@ export default function TeeemTableView({
         const displayValue = value == null || value === "" ? "-" : String(value);
         return (
           <div
-            className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
+            className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px] text-[11px]"
             onClick={(e) => {
               e.stopPropagation();
               // Start editing this row when cell is clicked
@@ -2740,7 +2776,7 @@ export default function TeeemTableView({
         const formatted = digits.length === 11
           ? `${digits.slice(0,2)} ${digits.slice(2,5)} ${digits.slice(5,8)} ${digits.slice(8,11)}`
           : String(value);
-        return <span className="font-mono">{formatted}</span>;
+        return <span className="font-mono text-[11px]">{formatted}</span>;
       }
 
       // ACN: XXX XXX XXX (9 digits)
@@ -2749,7 +2785,7 @@ export default function TeeemTableView({
         const formatted = digits.length === 9
           ? `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,9)}`
           : String(value);
-        return <span className="font-mono">{formatted}</span>;
+        return <span className="font-mono text-[11px]">{formatted}</span>;
       }
 
       // BSB: XXX-XXX (6 digits)
@@ -2758,17 +2794,17 @@ export default function TeeemTableView({
         const formatted = digits.length === 6
           ? `${digits.slice(0,3)}-${digits.slice(3,6)}`
           : String(value);
-        return <span className="font-mono">{formatted}</span>;
+        return <span className="font-mono text-[11px]">{formatted}</span>;
       }
 
       // Bank Account: up to 9 digits
       if (column.column_type === "bank_account" && value) {
-        return <span className="font-mono">{String(value)}</span>;
+        return <span className="font-mono text-[11px]">{String(value)}</span>;
       }
 
       // Postcode: 4 digits
       if (column.column_type === "postcode" && value) {
-        return <span className="font-mono">{String(value).padStart(4, '0').slice(0,4)}</span>;
+        return <span className="font-mono text-[11px]">{String(value).padStart(4, '0').slice(0,4)}</span>;
       }
 
       // TFN: XXX XXX XXX (9 digits) - show masked for security
@@ -2782,17 +2818,72 @@ export default function TeeemTableView({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="font-mono text-muted-foreground cursor-help">{masked}</span>
+                <span className="font-mono text-muted-foreground cursor-help text-[11px]">{masked}</span>
               </TooltipTrigger>
               <TooltipContent>
-                <span>TFN hidden for security</span>
+                <span className="text-[11px]">TFN hidden for security</span>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         );
       }
 
+      // Email: clickable mailto link
+      if (column.column_type === "email" && value) {
+        return (
+          <a
+            href={`mailto:${value}`}
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]"
+            onClick={(e) => e.stopPropagation()}
+            title={`Send email to ${value}`}
+          >
+            {String(value)}
+          </a>
+        );
+      }
+
+      // Phone/Mobile: clickable tel link
+      if ((column.column_type === "phone" || column.column_type === "mobile") && value) {
+        // Remove non-numeric characters for tel: link
+        const phoneNumber = String(value).replace(/[^\d+]/g, '');
+        return (
+          <a
+            href={`tel:${phoneNumber}`}
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]"
+            onClick={(e) => e.stopPropagation()}
+            title={`Call ${value}`}
+          >
+            {String(value)}
+          </a>
+        );
+      }
+
+      // URL/Website: clickable external link
+      if ((column.column_type === "url" || column.column_type === "website") && value) {
+        const url = String(value);
+        // Add https:// if no protocol specified
+        const href = url.match(/^https?:\/\//) ? url : `https://${url}`;
+        return (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1 text-[11px]"
+            onClick={(e) => e.stopPropagation()}
+            title={`Open ${url}`}
+          >
+            {url}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        );
+      }
+
       // Default: render as string with priority-based truncation
+      // Handle null/undefined values - show empty string instead of "null"/"undefined"
+      if (value == null || value === "") {
+        return <span className="text-muted-foreground text-[11px]">—</span>;
+      }
+
       const strValue = String(value);
 
       // Get priority for smart truncation
@@ -2805,12 +2896,12 @@ export default function TeeemTableView({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="truncate block">
+                <span className="truncate block text-[11px]">
                   {strValue.slice(0, config.truncateAt)}...
                 </span>
               </TooltipTrigger>
               <TooltipContent className="max-w-md">
-                <p className="whitespace-pre-wrap">{strValue}</p>
+                <p className="whitespace-pre-wrap text-[11px]">{strValue}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -2818,7 +2909,7 @@ export default function TeeemTableView({
       }
 
       // For essential/supporting: show full text with CSS truncation if needed
-      return <span className="truncate block">{strValue}</span>;
+      return <span className="truncate block text-[11px]">{strValue}</span>;
     };
 
   // ============================================================================
@@ -2943,8 +3034,8 @@ export default function TeeemTableView({
             ) : (
               <ChevronDown className="h-4 w-4" />
             )}
-            <span className="font-medium text-sm">
-              {currentColLabel}: {groupKey}
+            <span className="font-medium text-[11px]">
+              {groupKey}
             </span>
             <Badge variant="secondary" className="text-xs">{rowCount} rows</Badge>
           </div>
@@ -3065,7 +3156,7 @@ export default function TeeemTableView({
                 }),
               }}
               className={cn(
-                column.key === "select" && "!border-r-0 !p-0 !h-full",
+                column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
                 column.key === "actions" && "!border-l-0"
               )}
               onClick={(e) => {
@@ -3131,8 +3222,8 @@ export default function TeeemTableView({
               ) : (
                 <ChevronDown className="h-4 w-4" />
               )}
-              <span className="font-medium text-sm">
-                {currentColLabel}: {groupKey}
+              <span className="font-medium text-[11px]">
+                {groupKey}
               </span>
               <Badge variant="secondary" className="text-xs">{rowCount} rows</Badge>
             </div>
@@ -3187,7 +3278,7 @@ export default function TeeemTableView({
                       })
                     }}
                     className={cn(
-                      column.key === "select" && "!border-r-0 !p-0 !h-full",
+                      column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
                       column.key === "actions" && "!border-l-0"
                     )}
                     onClick={(e) => {
@@ -3337,7 +3428,7 @@ export default function TeeemTableView({
                         })
                       }}
                       className={cn(
-                        column.key === "select" && "!border-r-0 !p-0 !h-full",
+                        column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
                         column.key === "actions" && "!border-l-0"
                       )}
                       onClick={(e) => {
@@ -3400,6 +3491,13 @@ export default function TeeemTableView({
   // Get active view name
   const activeView = savedViews.find((v) => v.id === activeViewId);
 
+  // Notify parent when active view changes
+  React.useEffect(() => {
+    if (onViewChange) {
+      onViewChange(activeView || null);
+    }
+  }, [activeView, onViewChange]);
+
   // ============================================================================
   // MAIN RENDER
   // ============================================================================
@@ -3456,7 +3554,7 @@ export default function TeeemTableView({
           {/* View mode toggle - only show when grouped */}
           {groupByColumn && (
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-sm font-medium text-muted-foreground">View:</span>
+              <span className="text-[11px] font-medium text-muted-foreground">View:</span>
               <div className="flex rounded-md border overflow-hidden">
                 <Button
                   variant={groupViewMode === "inline" ? "default" : "ghost"}
@@ -3623,7 +3721,7 @@ export default function TeeemTableView({
 
               {foundationIdNumeric && (
                 <div className="px-2 py-1.5 flex items-center justify-between">
-                  <span className="text-sm">
+                  <span className="text-[11px]">
                     Table ID: <span className="font-mono font-medium">{foundationIdNumeric}</span>
                   </span>
                   <Button
@@ -3678,7 +3776,7 @@ export default function TeeemTableView({
               return (
                 <>
                   <span className={cn(
-                    "text-sm font-medium",
+                    "text-[11px] font-medium",
                     errorCount > 0 ? "text-red-700 dark:text-red-300" : "text-blue-700 dark:text-blue-300"
                   )}>
                     Editing {editingRowIds.size} row{editingRowIds.size !== 1 ? "s" : ""}
@@ -3780,7 +3878,7 @@ export default function TeeemTableView({
               )}
 
               {/* Selection count and clear */}
-              <span className="text-sm font-medium ml-auto">{selectedRows.size} selected</span>
+              <span className="text-[11px] font-medium ml-auto">{selectedRows.size} selected</span>
               <Button
                 variant="outline"
                 size="sm"
@@ -3826,7 +3924,7 @@ export default function TeeemTableView({
       {/* Active filters indicator - only show when NO saved view is active (view buttons already indicate active view) */}
       {safeFilters.length > 0 && !activeViewId && (
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-muted-foreground">Active filters:</span>
+          <span className="text-[11px] text-muted-foreground">Active filters:</span>
           {safeFilters.map((filter) => {
             const col = COLUMNS.find((c) => c.key === filter.column);
             return (
@@ -3860,7 +3958,7 @@ export default function TeeemTableView({
           {/* Only show selection count/clear when NOT in grouped view (grouped view has it inline) */}
           {!groupByColumn && (
             <>
-              <span className="text-sm font-medium">
+              <span className="text-[11px] font-medium">
                 {selectedRows.size} row{selectedRows.size !== 1 ? "s" : ""} selected
               </span>
               <Button
@@ -3939,7 +4037,7 @@ export default function TeeemTableView({
 
       {/* Sort controls - indicators hidden but functionality preserved */}
       {false && sortColumns.length > 0 && (
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-4 text-[11px]">
           {sortColumns.length > 0 && (
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">Sorted by:</span>
@@ -3967,7 +4065,7 @@ export default function TeeemTableView({
       {loadingMore && (
         <div className="flex items-center justify-center p-2">
           <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          <span className="text-sm text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground">
             Loading more records...
           </span>
         </div>
@@ -4150,14 +4248,15 @@ export default function TeeemTableView({
               name: col.label,
               column_type: col.column_type || 'single_line_text',
               position: index,
-              lookup_foundation_id: col.lookup_config?.target_table_id,
-              lookup_display_column: col.lookup_config?.display_column,
+              lookup_foundation_id: col.lookup_foundation_id,
+              lookup_display_column: col.lookup_display_column,
               available_choices: col.choices,
             }))}
           onViewsChange={onRefresh}
           onApplyView={loadViewState as (view: unknown) => void}
           onAutoFitChange={setAutoFitColumns}
           onShowTotalsChange={setShowTotals}
+          onRefresh={onRefresh}
           rows={entries as Record<string, unknown>[]}
         />
       )}

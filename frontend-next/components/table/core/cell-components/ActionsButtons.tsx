@@ -69,44 +69,44 @@ export const ActionsButtons = memo(function ActionsButtons<T extends { id: strin
   };
 
   return (
-    <div className="flex items-center justify-center gap-0">
+    <div className="flex items-center justify-center gap-1">
       {/* View button - always shown if handler provided */}
       {onView && (
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
-          className="h-7 w-7"
+          className="h-8 w-8 bg-white hover:bg-gray-100 border-2 border-gray-400 rounded-lg shadow-md hover:shadow-lg"
           onClick={() => onView(entry)}
         >
-          <Eye className="h-3.5 w-3.5" />
+          <Eye className="h-4 w-4" />
         </Button>
       )}
 
       {/* Edit button - hidden when viewOnly=true */}
       {!viewOnly && (onRowUpdate || onEdit) && (
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
-          className="h-7 w-7"
+          className="h-8 w-8 bg-white hover:bg-gray-100 border-2 border-gray-400 rounded-lg shadow-md hover:shadow-lg"
           onClick={handleEditClick}
           onDoubleClick={(e) => e.stopPropagation()}
         >
-          <Pencil className="h-3.5 w-3.5" />
+          <Pencil className="h-4 w-4" />
         </Button>
       )}
 
       {/* Delete button - hidden when viewOnly=true */}
       {!viewOnly && onDelete && (
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
-          className="h-7 w-7"
+          className="h-8 w-8 bg-white hover:bg-gray-100 border-2 border-gray-400 rounded-lg shadow-md hover:shadow-lg"
           onClick={(e) => {
             e.stopPropagation();
             onDelete(entry);
           }}
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="h-4 w-4" />
         </Button>
       )}
     </div>

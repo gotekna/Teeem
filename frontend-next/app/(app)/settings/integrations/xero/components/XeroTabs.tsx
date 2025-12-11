@@ -1002,9 +1002,9 @@ function ContactsGroupedTable({
                   className="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b cursor-pointer hover:bg-muted/70 transition-colors"
                 >
                   {normalOpen ? (
-                    <ChevronDown className="h-4 w-4" />
+                    <ChevronDown className="h-5 w-5" />
                   ) : (
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-5 w-5" />
                   )}
                   <span className="font-medium">Active Contacts</span>
                   <Badge variant="secondary" className="ml-2">
@@ -1036,9 +1036,9 @@ function ContactsGroupedTable({
                   className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                 >
                   {flaggedOpen ? (
-                    <ChevronDown className="h-4 w-4 text-red-600" />
+                    <ChevronDown className="h-5 w-5 text-red-600" />
                   ) : (
-                    <ChevronRight className="h-4 w-4 text-red-600" />
+                    <ChevronRight className="h-5 w-5 text-red-600" />
                   )}
                   <span className="font-medium text-red-700 dark:text-red-400">
                     Flagged Contacts (Price Only / Person with Company)

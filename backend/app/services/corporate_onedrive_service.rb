@@ -190,11 +190,28 @@ class CorporateOnedriveService
     client = get_onedrive_client
     return { success: false, error: "OneDrive not connected" } unless client
 
-    corporate_folder = find_folder_by_path(client, @folder_path)
+    # Try to find corporate folder - try multiple paths if auto-detect enabled
+    corporate_folder = nil
+    found_path = nil
+
+    if @folder_path == "auto"
+      # Auto-detect: try each possible path
+      DEFAULT_FOLDER_PATHS.each do |path|
+        corporate_folder = find_folder_by_path(client, path)
+        if corporate_folder
+          found_path = path
+          break
+        end
+      end
+    else
+      corporate_folder = find_folder_by_path(client, @folder_path)
+      found_path = @folder_path
+    end
+
     unless corporate_folder
       return {
         success: false,
-        error: "Corporate folder not found at '#{@folder_path}'"
+        error: "Corporate folder not found. Tried: #{@folder_path == 'auto' ? DEFAULT_FOLDER_PATHS.join(', ') : @folder_path}"
       }
     end
 
@@ -205,7 +222,7 @@ class CorporateOnedriveService
       next unless folder["folder"]
 
       company = find_matching_company(folder["name"])
-      documents = scan_folder_for_documents(client, folder["id"])
+      documents = scan_folder_for_documents(client, folder["id"], recursive: true)
 
       preview_results << {
         folder_name: folder["name"],
@@ -214,13 +231,13 @@ class CorporateOnedriveService
         company_name: company&.name,
         matched: company.present?,
         document_count: documents.count,
-        documents: documents.map { |d| { name: d["name"], type: categorize_document(d["name"]) } }
+        documents: documents.map { |d| { name: d["name"], type: File.extname(d["name"]) } }
       }
     end
 
     {
       success: true,
-      corporate_folder: @folder_path,
+      corporate_folder: found_path,
       companies: preview_results,
       total_folders: preview_results.count,
       matched_folders: preview_results.count { |r| r[:matched] },

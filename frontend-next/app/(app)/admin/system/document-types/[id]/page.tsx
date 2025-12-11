@@ -22,18 +22,20 @@ import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDow
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 
 // Available folders/tabs
 const FOLDER_OPTIONS = [
   "ADVICE", "ASIC", "ASSETS", "ATO", "BANK", "COMPANY",
   "DIVIDENDS", "FINANCIALS", "GENERAL", "INSURANCE",
-  "LOANS", "MINUTES", "REGISTRY", "TRUST", "XERO"
+  "LOANS", "MINUTES", "REGISTRY", "TRUST"
 ];
 
 // Scope options
 const SCOPE_OPTIONS = [
   { value: "company", label: "Company", description: "Corporate documents" },
   { value: "job", label: "Job", description: "Construction/job documents" },
+  { value: "people", label: "People", description: "Personal/contact documents" },
   { value: "both", label: "Both", description: "Used for both" }
 ];
 
@@ -49,15 +51,22 @@ type PlaceholderItem = { code: string; example: string; color: string; longCode?
 const BASE_PLACEHOLDERS: { company: PlaceholderItem[]; job: PlaceholderItem[] } = {
   company: [
     { code: "{CompanyCode}", example: "TH", longCode: "{CompanyName}", longExample: "Tekna Homes", color: "purple" },
+    { code: "{CompanyGroup}", example: "Tekna Group", color: "purple" },
     { code: "{LoanID}", example: "L001", longCode: "{LoanName}", longExample: "Loan to ABC Trust", color: "purple" },
     { code: "{AssetCode}", example: "PROP1", longCode: "{AssetName}", longExample: "123 Main Street", color: "purple" },
     { code: "{FY}", label: "FY{FY}", example: "FY25", color: "purple" },
     { code: "{Period}", example: "Q1", longCode: "{PeriodLong}", longExample: "Q1 Jul-Sep", color: "purple" },
+    { code: "{Year}", example: "25", longCode: "{YearLong}", longExample: "2025", color: "purple" },
+    { code: "{Day}", example: "09", longCode: "{DayLong}", longExample: "9th", color: "purple" },
+    { code: "{MonthYear}", example: "Oct-25", longCode: "{MonthYearLong}", longExample: "October 2025", color: "purple" },
+    { code: "{YYYYMMDD}", example: "2025-10-09", longCode: "{DateISO}", longExample: "2025-10-09", color: "purple" },
+    { code: "{DDMMYYYY}", example: "09-10-2025", longCode: "{DateAU}", longExample: "9 October 2025", color: "purple" },
     { code: "{LenderCode}", example: "ABC", longCode: "{LenderName}", longExample: "ABC Property Trust", color: "purple" },
     { code: "{Date}", example: "9-12-25", color: "purple" },
     { code: "{Description}", example: "Example", color: "purple" },
+    { code: "{Folder}", example: "ATO", color: "purple" },
     { code: "{BankCode}", example: "NAB", color: "purple" },
-    { code: "{BankBSB}", example: "082-123", color: "purple" },
+    { code: "{BSB}", example: "082-123", color: "purple" },
     { code: "{BankNumber}", example: "12345678", color: "purple" },
   ],
   job: [
@@ -68,6 +77,7 @@ const BASE_PLACEHOLDERS: { company: PlaceholderItem[]; job: PlaceholderItem[] } 
     { code: "{Number}", example: "01", color: "orange" },
     { code: "{Date}", example: "9-12-25", color: "orange" },
     { code: "{Description}", example: "Example", color: "orange" },
+    { code: "{Category}", example: "Plans", color: "orange" },
   ]
 };
 
@@ -346,14 +356,6 @@ export default function DocumentTypeDetailPage() {
     setDocumentType({ ...documentType, [field]: value });
   };
 
-  const toggleTab = (tab: string) => {
-    if (!documentType) return;
-    const currentTabs = documentType.tabs || [];
-    const newTabs = currentTabs.includes(tab)
-      ? currentTabs.filter(t => t !== tab)
-      : [...currentTabs, tab];
-    updateField("tabs", newTabs);
-  };
 
   const addFileExtension = (ext: string) => {
     if (!documentType) return;
@@ -535,7 +537,7 @@ export default function DocumentTypeDetailPage() {
     preview = preview.replace(/\{Description\}/g, "Example");
     preview = preview.replace(/\{BankCode\}/g, "NAB");
     preview = preview.replace(/\{BankName\}/g, "National Australia Bank");
-    preview = preview.replace(/\{BankBSB\}/g, "082-123");
+    preview = preview.replace(/\{BSB\}/g, "082-123");
     preview = preview.replace(/\{BankNumber\}/g, "12345678");
     preview = preview.replace(/\{AccountNum\}/g, "12345678");
 
@@ -718,7 +720,7 @@ export default function DocumentTypeDetailPage() {
       {/* Header - Fixed at top */}
       <div className="flex items-start justify-between p-2 shrink-0">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/admin/system?tab=document-types")}>
+          <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           {/* Previous/Next navigation - filtered by scope */}
@@ -1098,7 +1100,7 @@ export default function DocumentTypeDetailPage() {
                       htmlFor="hide-company"
                       className="text-sm font-normal cursor-pointer text-muted-foreground"
                     >
-                      Hide Company
+                      {documentType.scope === "people" ? "Hide Person" : documentType.scope === "job" ? "Hide Job" : "Hide Company"}
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1460,46 +1462,19 @@ export default function DocumentTypeDetailPage() {
               <p className="text-xs text-muted-foreground mb-2">
                 Select all tabs where this document type should appear
               </p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
-                {folderOptions.map(tab => {
-                  const isSelected = (documentType.tabs || []).includes(tab);
-                  const isPrimary = documentType.primary_tab === tab;
-                  return (
-                    <div
-                      key={tab}
-                      className={cn(
-                        "flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors",
-                        isSelected && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700",
-                        isPrimary && "ring-2 ring-blue-500",
-                        !isSelected && "hover:bg-muted"
-                      )}
-                      onClick={() => toggleTab(tab)}
-                    >
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => toggleTab(tab)}
-                      />
-                      <Label className="cursor-pointer text-xs font-normal">
-                        {tab}
-                        {isPrimary && <span className="ml-1 text-blue-600">★</span>}
-                      </Label>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="target_folder">Target Folder Path (OneDrive/SharePoint)</Label>
-              <Input
-                id="target_folder"
-                value={documentType.target_folder || ""}
-                onChange={(e) => updateField("target_folder", e.target.value)}
-                placeholder="/Corporate/Company Name/ATO"
-                className="font-mono text-sm"
+              <MultiSelectCombobox
+                placeholder="Select folders/tabs..."
+                searchPlaceholder="Search folders..."
+                items={folderOptions.map(folder => ({
+                  id: folder,
+                  label: folder + (documentType.primary_tab === folder ? " ★" : ""),
+                }))}
+                selectedIds={documentType.tabs || []}
+                onSelect={(selectedIds) => updateField("tabs", selectedIds)}
+                maxDisplay={4}
               />
-              <p className="text-xs text-muted-foreground">
-                Cloud storage path for auto-filing
+              <p className="text-xs text-muted-foreground mt-1">
+                ★ indicates primary tab
               </p>
             </div>
           </CardContent>

@@ -8,7 +8,7 @@ module Api
 
       # GET /api/v1/companies
       def index
-        @companies = CorporateCompany.all
+        @companies = CorporateCompany.includes(:corporate_company_directors, :corporate_company_xero_connection).all
 
         # Filtering
         @companies = @companies.by_group(params[:group]) if params[:group].present?

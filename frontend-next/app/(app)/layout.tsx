@@ -7,6 +7,7 @@ import { HeaderBar } from "@/components/layout/HeaderBar";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
+import { ViewModeProvider } from "@/contexts/ViewModeContext";
 import { Loader } from "@/components/ui/loader";
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
@@ -75,7 +76,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
-      <AppLayoutContent>{children}</AppLayoutContent>
+      <ViewModeProvider>
+        <AppLayoutContent>{children}</AppLayoutContent>
+      </ViewModeProvider>
     </SidebarProvider>
   );
 }

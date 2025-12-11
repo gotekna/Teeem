@@ -64,6 +64,10 @@ module Api
         # Build credential lookup by tenant_id for status info
         credentials_by_tenant = XeroCredential.all.index_by(&:tenant_id)
 
+        # Calculate reset time (midnight UTC = 10:00 AM Brisbane)
+        utc_reset = Time.current.utc.end_of_day
+        brisbane_reset = utc_reset.in_time_zone("Australia/Brisbane")
+
         render json: {
           success: true,
           rate_limits: {
@@ -72,6 +76,9 @@ module Api
               daily: XeroRateLimitTracker::DAILY_LIMIT,
               concurrent: XeroRateLimitTracker::CONCURRENT_LIMIT
             },
+            # SSoT: Daily rate limit reset time
+            resets_at: brisbane_reset.iso8601,
+            resets_at_display: brisbane_reset.strftime("%-I:%M %p"),
             tenants: usage[:per_tenant].map do |tenant|
               credential = credentials_by_tenant[tenant[:tenant_id]]
               {
@@ -83,7 +90,9 @@ module Api
                 can_make_request: tenant[:usage]&.dig(:can_make_request),
                 # SSoT: Include credential status so UI shows actual token health
                 status: credential&.status || 'disconnected',
-                needs_reauth: credential ? !credential.effectively_connected? : true,
+                # Only show "Needs Re-auth" when truly disconnected/degraded, not just close to expiry
+                # Token refresh is handled automatically by XeroTokenManager
+                needs_reauth: credential ? %w[disconnected degraded].include?(credential.status) : true,
                 expired: credential&.expired?,
                 degraded: credential&.degraded?
               }
