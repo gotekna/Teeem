@@ -35,7 +35,18 @@ git stash list
 git stash pop
 ```
 
-### Step 4 - Auto-Generate Commit Message and Commit
+### Step 4 - Detect What Changed
+
+Check which parts of the codebase have changes:
+```bash
+# Check for backend changes (staged + unstaged)
+git diff --name-only HEAD | grep -q "^backend/" && echo "BACKEND_CHANGED=true" || echo "BACKEND_CHANGED=false"
+
+# Check for frontend changes
+git diff --name-only HEAD | grep -q "^frontend-next/" && echo "FRONTEND_CHANGED=true" || echo "FRONTEND_CHANGED=false"
+```
+
+### Step 5 - Auto-Generate Commit Message and Commit
 
 **Analyze ALL changes and auto-generate message:**
 
@@ -58,41 +69,51 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 5 - Push to GitHub (Live branch)
+### Step 6 - Push to GitHub (Live branch)
 ```bash
 git push origin Live
 ```
 
-### Step 6 - Deploy Backend to Production via Git Subtree (FAST)
+### Step 7 - Deploy Backend (ONLY if backend changed)
 
-**IMPORTANT: Uses --rejoin for faster subsequent deploys**
+**Skip this step if no backend files changed.**
 
+If backend changed, deploy to Heroku:
 ```bash
 cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend --rejoin -b backend-heroku && git push heroku-teeemlive backend-heroku:main --force
 ```
 
 Note: First deploy is slow (~60s), subsequent deploys are fast (~10-15s)
 
-### Step 7 - Verify Deploy
+### Step 8 - Verify Deploy
 ```bash
 sleep 10
 curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version
 heroku releases --app teeemlive -n 1
 ```
 
-### Step 8 - Report Status
+### Step 9 - Report Status
 
 **Show Brisbane time:**
 ```
 ========================================
 DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
-Backend: v[XXX]
-Frontend: Pushed to Vercel (auto-deploy)
+Backend: v[XXX] or "No changes"
+Frontend: Auto-deploy via Vercel (skips if no changes)
 Heroku: v[XXX]
 Files: [count] files changed
 ========================================
 ```
+
+## Smart Deploy Logic
+
+| Backend Changed | Frontend Changed | Action |
+|-----------------|------------------|--------|
+| Yes | Yes | Deploy backend to Heroku, Vercel auto-deploys frontend |
+| Yes | No | Deploy backend to Heroku, Vercel auto-skips |
+| No | Yes | Skip Heroku, Vercel auto-deploys frontend |
+| No | No | Nothing to deploy |
 
 ## Error Handling
 

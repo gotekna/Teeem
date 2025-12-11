@@ -20,18 +20,29 @@ git branch --show-current
 git status --short
 ```
 
-### Step 2 - Commit This Chat's Changes
+### Step 2 - Detect What Changed
+
+Check which parts of the codebase have changes:
+```bash
+# Check for backend changes
+git diff --name-only HEAD | grep -q "^backend/" && echo "BACKEND_CHANGED=true" || echo "BACKEND_CHANGED=false"
+
+# Check for frontend changes
+git diff --name-only HEAD | grep -q "^frontend-next/" && echo "FRONTEND_CHANGED=true" || echo "FRONTEND_CHANGED=false"
+```
+
+### Step 3 - Commit This Chat's Changes
 
 **Auto-generate commit message based on changes:**
 
 Rules (in priority order):
-1. Only `package.json` version -> `chore: Bump version to X.X.X`
-2. `.claude/commands/*` -> `chore: Update slash commands`
-3. `db/migrate/*` -> `feat: Add migration`
-4. Backend `.rb` -> `feat: Update backend`
-5. Frontend `.tsx/.jsx` -> `feat: Update frontend`
-6. Multiple types -> Combine appropriately
-7. Default -> `chore: Update project files`
+1. Only `package.json` version → `chore: Bump version to X.X.X`
+2. `.claude/commands/*` → `chore: Update slash commands`
+3. `db/migrate/*` → `feat: Add migration`
+4. Backend `.rb` → `feat: Update backend`
+5. Frontend `.tsx/.jsx` → `feat: Update frontend`
+6. Multiple types → Combine appropriately
+7. Default → `chore: Update project files`
 
 ```bash
 git add -A
@@ -42,41 +53,51 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 3 - Push to GitHub (Live branch)
+### Step 4 - Push to GitHub (Live branch)
 ```bash
 git push origin Live
 ```
 
-### Step 4 - Deploy Backend to Production via Git Subtree (FAST)
+### Step 5 - Deploy Backend (ONLY if backend changed)
 
-**IMPORTANT: Uses --rejoin for faster subsequent deploys**
+**Skip this step if no backend files changed.**
 
+If backend changed, deploy to Heroku:
 ```bash
 cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend --rejoin -b backend-heroku && git push heroku-teeemlive backend-heroku:main --force
 ```
 
 Note: First deploy is slow (~60s), subsequent deploys are fast (~10-15s)
 
-### Step 5 - Verify Deploy
+### Step 6 - Verify Deploy
 ```bash
 sleep 10
 curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version
 heroku releases --app teeemlive -n 1
 ```
 
-### Step 6 - Report Status
+### Step 7 - Report Status
 
 **Show Brisbane time:**
 ```
 ========================================
 DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
-Backend: v[XXX]
-Frontend: Pushed to Vercel (auto-deploy)
+Backend: v[XXX] or "No changes"
+Frontend: Auto-deploy via Vercel (skips if no changes)
 Heroku: v[XXX]
 Files: [count] files changed
 ========================================
 ```
+
+## Smart Deploy Logic
+
+| Backend Changed | Frontend Changed | Action |
+|-----------------|------------------|--------|
+| Yes | Yes | Deploy backend to Heroku, Vercel auto-deploys frontend |
+| Yes | No | Deploy backend to Heroku, Vercel auto-skips |
+| No | Yes | Skip Heroku, Vercel auto-deploys frontend |
+| No | No | Nothing to deploy |
 
 ## Error Handling
 
