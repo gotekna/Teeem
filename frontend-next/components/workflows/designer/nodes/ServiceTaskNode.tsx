@@ -1,7 +1,7 @@
 "use client";
 
 import React, { memo } from "react";
-import { Handle, Position, NodeProps } from "@xyflow/react";
+import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import { Cog, Mail, FileText, Database, Globe, Variable } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BpmnNodeData } from "../types";
@@ -15,7 +15,7 @@ const SERVICE_ICONS: Record<string, React.ElementType> = {
   default: Cog,
 };
 
-export const ServiceTaskNode = memo(({ data, selected }: NodeProps<BpmnNodeData>) => {
+export const ServiceTaskNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeData>>) => {
   const taskType = data.config?.task_type || "default";
   const Icon = SERVICE_ICONS[taskType] || SERVICE_ICONS.default;
 

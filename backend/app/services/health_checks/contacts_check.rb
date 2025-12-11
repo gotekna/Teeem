@@ -424,6 +424,125 @@ module HealthChecks
       )
     end
 
+    # ============================================
+    # DATA INTEGRITY CHECKS
+    # ============================================
+
+    # Self-referencing contacts (primary_company_id = id)
+    def check_self_referencing_contacts
+      contacts = Contact.all
+                       .where("primary_company_id = id")
+                       .select(:id, :display_name, :entity_type, :primary_company_id)
+
+      build_result(
+        name: "Self-Referencing Contacts",
+        description: "Contacts where primary_company_id points to themselves. This is invalid data that should be cleared.",
+        severity: :critical,
+        items: contacts,
+        icon: "refresh-ccw",
+        action_path: "/contacts/:id",
+        check_name: "self_referencing_contacts"
+      )
+    end
+
+    # Primary company pointing to non-company entity type
+    def check_invalid_primary_company_type
+      contacts = Contact.all
+                       .joins("JOIN contacts pc ON contacts.primary_company_id = pc.id")
+                       .where("pc.entity_type NOT IN ('company', 'trust', 'sole_trader')")
+                       .select("contacts.id, contacts.display_name, contacts.entity_type, contacts.primary_company_id")
+
+      build_result(
+        name: "Invalid Primary Company Type",
+        description: "Contacts with primary_company pointing to a person instead of company/trust. Primary company should be a business entity.",
+        severity: :critical,
+        items: contacts,
+        icon: "building-x",
+        action_path: "/contacts/:id",
+        check_name: "invalid_primary_company_type"
+      )
+    end
+
+    # Duplicate Xero IDs
+    def check_duplicate_xero_ids
+      # Find xero_ids that appear more than once
+      duplicate_xero_ids = Contact.all
+                                 .where.not(xero_id: [nil, ""])
+                                 .group(:xero_id)
+                                 .having("COUNT(*) > 1")
+                                 .pluck(:xero_id)
+
+      items = duplicate_xero_ids.map do |xero_id|
+        contacts = Contact.where(xero_id: xero_id).select(:id, :display_name, :xero_id)
+        {
+          id: contacts.first.id,
+          display: "Xero ID #{xero_id[0..7]}... shared by: #{contacts.map(&:display_name).join(', ')}",
+          xero_id: xero_id,
+          contact_ids: contacts.map(&:id),
+          contact_names: contacts.map(&:display_name)
+        }
+      end
+
+      build_result(
+        name: "Duplicate Xero IDs",
+        description: "Multiple contacts sharing the same Xero ID. These should be merged to prevent sync issues.",
+        severity: :critical,
+        items: items,
+        icon: "copy",
+        action_path: "/contacts/:id",
+        check_name: "duplicate_xero_ids"
+      )
+    end
+
+    # Team contacts without primary company (validation violation)
+    def check_team_contacts_without_company
+      contacts = Contact.all
+                       .where(is_team_contact: true)
+                       .where(primary_company_id: nil)
+                       .select(:id, :display_name, :entity_type, :email, :is_team_contact)
+
+      build_result(
+        name: "Team Contacts Without Company",
+        description: "Contacts marked as team contacts (is_team_contact=true) but missing primary_company. Team contacts must be linked to a company.",
+        severity: :warning,
+        items: contacts,
+        icon: "users-x",
+        action_path: "/contacts/:id",
+        check_name: "team_contacts_without_company"
+      )
+    end
+
+    # Relationship type violations (wrong entity types)
+    def check_relationship_type_violations
+      # Check employee_of relationships where target is not company/trust/sole_trader
+      bad_relationships = ContactRelationship
+                           .joins("JOIN contacts c ON contact_relationships.related_contact_id = c.id")
+                           .where(relationship_type: "employee_of")
+                           .where("c.entity_type NOT IN ('company', 'trust', 'sole_trader')")
+                           .includes(:source_contact, :related_contact)
+                           .limit(50)
+
+      items = bad_relationships.map do |rel|
+        {
+          id: rel.id,
+          display: "#{rel.source_contact&.display_name} → employee_of → #{rel.related_contact&.display_name} (#{rel.related_contact&.entity_type})",
+          relationship_id: rel.id,
+          source_contact_id: rel.source_contact_id,
+          related_contact_id: rel.related_contact_id
+        }
+      end
+
+      build_result(
+        name: "Invalid Relationship Types",
+        description: "Relationships where the entity types don't match the relationship rules. employee_of must point to company/trust/sole_trader.",
+        severity: :critical,
+        items: items,
+        icon: "link-off",
+        action_path: nil,
+        check_name: "relationship_type_violations"
+      )
+    end
+
     protected
 
     def format_items(items)

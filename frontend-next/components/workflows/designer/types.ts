@@ -7,7 +7,8 @@ export type BpmnNodeType =
   | "service_task"
   | "exclusive_gateway"
   | "parallel_gateway"
-  | "timer_event";
+  | "timer_event"
+  | "data_store_reference";
 
 export interface BpmnNodeConfig {
   // User task config
@@ -33,7 +34,7 @@ export interface BpmnNodeConfig {
   default_edge_key?: string;
 }
 
-export interface BpmnNodeData {
+export interface BpmnNodeData extends Record<string, unknown> {
   nodeKey: string;
   nodeType: BpmnNodeType;
   name: string;
@@ -41,7 +42,7 @@ export interface BpmnNodeData {
   config: BpmnNodeConfig;
 }
 
-export interface BpmnEdgeData {
+export interface BpmnEdgeData extends Record<string, unknown> {
   edgeKey: string;
   name?: string;
   conditionExpression?: string;
@@ -129,5 +130,11 @@ export const NODE_TYPE_META: Record<
     icon: "clock",
     color: "cyan",
     description: "Wait for time duration",
+  },
+  data_store_reference: {
+    label: "Data Store",
+    icon: "database",
+    color: "slate",
+    description: "Reference to a data store",
   },
 };

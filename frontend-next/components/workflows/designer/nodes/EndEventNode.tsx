@@ -1,12 +1,12 @@
 "use client";
 
 import React, { memo } from "react";
-import { Handle, Position, NodeProps } from "@xyflow/react";
+import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import { Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BpmnNodeData } from "../types";
 
-export const EndEventNode = memo(({ data, selected }: NodeProps<BpmnNodeData>) => {
+export const EndEventNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeData>>) => {
   return (
     <div className="relative">
       {/* Only incoming connection */}
