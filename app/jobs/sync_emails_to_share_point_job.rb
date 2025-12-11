@@ -22,9 +22,14 @@ class SyncEmailsToSharePointJob < ApplicationJob
     Rails.logger.info "[SyncToSharePoint] Starting sync for #{@credential.name}"
 
     # Step 1: Sync emails to EmailWarehouse (use 'full' to respect sync_days config)
-    Rails.logger.info "[SyncToSharePoint] Step 1: Syncing emails to warehouse..."
-    email_result = OrgEmailSyncJob.perform_now("full", org_name: @credential.name)
-    Rails.logger.info "[SyncToSharePoint] Synced #{email_result[:total_synced]} emails"
+    # TEMPORARILY SKIPPED - there's a bug where running email sync before attachment processing
+    # causes 404 errors even though manual tests work. Processing existing emails instead.
+    # Rails.logger.info "[SyncToSharePoint] Step 1: Syncing emails to warehouse..."
+    # email_result = OrgEmailSyncJob.perform_now("full", org_name: @credential.name)
+    # Rails.logger.info "[SyncToSharePoint] Synced #{email_result[:total_synced]} emails"
+    # @credential.reload
+    email_result = { total_synced: 0 }
+    Rails.logger.info "[SyncToSharePoint] Step 1: SKIPPED (processing existing emails)"
 
     # Step 2: Upload attachments to SharePoint
     Rails.logger.info "[SyncToSharePoint] Step 2: Uploading attachments to SharePoint..."
@@ -59,14 +64,8 @@ class SyncEmailsToSharePointJob < ApplicationJob
     skipped = 0
     created = 0
 
-    # Get recent emails with attachments from this org that haven't been uploaded yet
-    sync_config = @credential.sync_config || {}
-    user_emails = get_user_emails_for_org(sync_config)
-
-    if user_emails.empty?
-      Rails.logger.info "[SyncToSharePoint] No user emails configured"
-      return { uploaded: 0, skipped: 0, created: 0 }
-    end
+    # TEMPORARILY SKIP user email fetching - directly process all emails with attachments for this org
+    # This is to isolate the 404 bug
 
     # Find emails with attachments that haven't been processed yet
     # Simple approach: process emails where has_attachments=true but no EmailAttachment records exist
@@ -81,10 +80,22 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     Rails.logger.info "[SyncToSharePoint] Found #{emails_with_attachments.count} emails with unprocessed attachments"
 
+    # Debug: Log which credential we're using for attachment fetch
+    Rails.logger.info "[SyncToSharePoint] Creating client with credential ID #{@credential.id}, tenant: #{@credential.tenant_id}"
+    # Force fresh token fetch before creating client
+    @credential.fetch_access_token!
     client = MicrosoftAppGraphClient.new(@credential)
+    Rails.logger.info "[SyncToSharePoint] Client created with fresh token, credential tenant: #{@credential.tenant_id}"
 
     emails_with_attachments.each do |email|
       begin
+        # Debug: Log exactly what we're requesting
+        Rails.logger.info "[SyncToSharePoint] Fetching attachments for email #{email.id}"
+        Rails.logger.info "[SyncToSharePoint]   mailbox_owner_email: #{email.mailbox_owner_email}"
+        Rails.logger.info "[SyncToSharePoint]   outlook_id: #{email.outlook_id}"
+        Rails.logger.info "[SyncToSharePoint]   received_at: #{email.received_at}"
+        Rails.logger.info "[SyncToSharePoint]   microsoft_credential_id: #{email.microsoft_credential_id}"
+
         # Fetch attachments from Microsoft Graph API using the mailbox owner
         # (the mailbox where this email is stored, not the sender)
         attachments = client.get_email_attachments(email.mailbox_owner_email, email.outlook_id)
@@ -113,6 +124,9 @@ class SyncEmailsToSharePointJob < ApplicationJob
               attachment: existing_attachment
             ) do |l|
               l.outlook_attachment_id = outlook_attachment_id
+              l.filename = filename
+              l.sharepoint_path = existing_attachment.sharepoint_path
+              l.content_hash = content_hash
             end
 
             Rails.logger.info "[SyncToSharePoint] Linked existing attachment: #{filename} (#{content_hash[0..7]})"
@@ -139,11 +153,14 @@ class SyncEmailsToSharePointJob < ApplicationJob
               organization_microsoft_app_credential: @credential
             )
 
-            # Create link
+            # Create link with denormalized fields for easy viewing
             EmailAttachment.create!(
               email_warehouse: email,
               attachment: attachment,
-              outlook_attachment_id: outlook_attachment_id
+              outlook_attachment_id: outlook_attachment_id,
+              filename: filename,
+              sharepoint_path: result[:path],
+              content_hash: content_hash
             )
 
             Rails.logger.info "[SyncToSharePoint] Uploaded new attachment: #{filename} (#{content_hash[0..7]})"
@@ -152,6 +169,9 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
           uploaded += 1
         end
+
+        # Update attachment_count after processing all attachments for this email
+        email.update!(attachment_count: email.email_attachments.count)
       rescue StandardError => e
         Rails.logger.error "[SyncToSharePoint] Error processing email #{email.id}: #{e.message}"
         skipped += 1
