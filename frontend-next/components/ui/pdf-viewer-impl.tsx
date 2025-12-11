@@ -223,32 +223,53 @@ export function PDFViewerImpl({
                   height: pageSize.height * scale
                 }}
               >
-                {currentPageHighlights.map((highlight, idx) => (
-                  <div
-                    key={idx}
-                    className="absolute border-2 border-yellow-500 bg-yellow-300/30 rounded transition-all duration-300 animate-pulse"
-                    style={{
-                      left: `${highlight.x * 100}%`,
-                      top: `${highlight.y * 100}%`,
-                      width: `${highlight.width * 100}%`,
-                      height: `${highlight.height * 100}%`,
-                      borderColor: highlight.color || '#eab308',
-                      backgroundColor: highlight.color ? `${highlight.color}33` : 'rgba(234, 179, 8, 0.3)',
-                    }}
-                  >
-                    {highlight.label && (
-                      <span
-                        className="absolute -top-6 left-0 text-xs font-medium px-1.5 py-0.5 rounded whitespace-nowrap"
-                        style={{
-                          backgroundColor: highlight.color || '#eab308',
-                          color: 'white'
-                        }}
-                      >
-                        {highlight.label}
-                      </span>
-                    )}
-                  </div>
-                ))}
+                {currentPageHighlights.map((highlight, idx) => {
+                  // Determine styling based on focused state
+                  const isFocused = highlight.focused === true;
+                  const isDimmed = highlight.focused === false;
+                  const isDefault = highlight.focused === undefined;
+
+                  // Focused: thick border, full opacity, pulse
+                  // Dimmed: thin border, low opacity, no animation
+                  // Default: medium styling (backwards compatible)
+                  const borderWidth = isFocused ? 3 : (isDimmed ? 1 : 2);
+                  const bgOpacity = isFocused ? 0.4 : (isDimmed ? 0.15 : 0.3);
+                  const shouldPulse = isFocused || isDefault;
+
+                  return (
+                    <div
+                      key={highlight.id || idx}
+                      className={cn(
+                        "absolute rounded transition-all duration-300",
+                        shouldPulse && "animate-pulse"
+                      )}
+                      style={{
+                        left: `${highlight.x * 100}%`,
+                        top: `${highlight.y * 100}%`,
+                        width: `${highlight.width * 100}%`,
+                        height: `${highlight.height * 100}%`,
+                        borderColor: highlight.color || '#eab308',
+                        borderWidth: `${borderWidth}px`,
+                        borderStyle: 'solid',
+                        backgroundColor: highlight.color
+                          ? `${highlight.color}${Math.round(bgOpacity * 255).toString(16).padStart(2, '0')}`
+                          : `rgba(234, 179, 8, ${bgOpacity})`,
+                      }}
+                    >
+                      {highlight.label && (isFocused || isDefault) && (
+                        <span
+                          className="absolute -top-6 left-0 text-xs font-medium px-1.5 py-0.5 rounded whitespace-nowrap"
+                          style={{
+                            backgroundColor: highlight.color || '#eab308',
+                            color: 'white'
+                          }}
+                        >
+                          {highlight.label}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

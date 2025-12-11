@@ -14,6 +14,8 @@ export interface FieldHighlight {
   page: number;
   label?: string;
   color?: string;
+  focused?: boolean;  // true = emphasized, false = dimmed
+  id?: string;        // field identifier for tracking
 }
 
 export interface PDFViewerProps {

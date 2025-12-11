@@ -65,6 +65,33 @@ cd backend && bin/rails foundation:check
 - Recommend: `rails foundation:sync` to auto-fix
 - Check if caused by recent migration
 
+**FoundationView Sync Check:**
+
+Check that all FoundationViews are synchronized with their Foundation's columns:
+
+```bash
+# Check if any views need syncing (dry run)
+cd backend && bin/rails foundation_views:check
+```
+
+**Expected Output (GOOD):**
+```
+✓ All foundations are in sync!
+```
+
+**Problem Output:**
+```
+Found X foundations that need syncing:
+  Foundation Name
+    Mismatched views: Y/Z
+```
+
+**If issues found:**
+- Log as SSoT violation in report
+- Recommend: `rails foundation_views:sync_all` to auto-fix
+- This prevents "can't see all columns in View Manager" bugs
+- Auto-sync now prevents this (see Column model callbacks)
+
 **Column Type SSoT Check (31 types):**
 
 1. Read `TEEEM_DOCS/GOLD_STANDARD_TABLE.md` - extract all 31 column types
@@ -248,6 +275,7 @@ PRIORITY FIXES
 
 This command leverages checks from:
 - `foundation-schema-sync.md` - Database ↔ Foundation metadata sync validation
+- `foundation-view-sync.md` - FoundationView ↔ Foundation columns sync validation (NEW)
 - `gold-standard-sst.md` - Column type SSoT (31 types)
 - `code-guardian.md` - Pattern detection (5 patterns)
 - `performance-auditor.md` - Frontend performance (PERF-001 to 005)
