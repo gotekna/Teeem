@@ -4,7 +4,7 @@ class CheckPoTimingJob < ApplicationJob
   # Check PO timing issues for a specific construction
   # @param construction_id [Integer] The construction to check
   def perform(construction_id)
-    construction = Construction.find(construction_id)
+    construction = Job.find(construction_id)
     project = construction.project
 
     unless project

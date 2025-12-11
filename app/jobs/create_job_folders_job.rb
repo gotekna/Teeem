@@ -20,7 +20,7 @@ class CreateJobFoldersJob < ApplicationJob
   retry_on MicrosoftGraphClient::AuthenticationError, wait: 5.seconds, attempts: 2
 
   def perform(construction_id, template_id = nil)
-    construction = Construction.find(construction_id)
+    construction = Job.find(construction_id)
 
     # Mark as processing
     construction.update!(onedrive_folder_creation_status: "processing")

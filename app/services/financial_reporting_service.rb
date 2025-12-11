@@ -71,7 +71,7 @@ class FinancialReportingService
     )
 
     jobs = job_data.map do |data|
-      construction = Construction.find(data.construction_id)
+      construction = Job.find(data.construction_id)
       income = data.total_income.to_f
       expenses = data.total_expenses.to_f
       profit = income - expenses
