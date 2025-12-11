@@ -54,6 +54,7 @@ import { JobEstimatorTab } from "@/components/jobs/JobEstimatorTab";
 import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
 import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 import { JobProfitTab } from "@/components/jobs/JobProfitTab";
+import { StartWorkflowButton } from "@/components/jobs/StartWorkflowButton";
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -716,9 +717,12 @@ export default function JobDetailPage() {
             </div>
           </div>
         </div>
-        <Button onClick={() => router.push(`/jobs/${jobId}/schedule`)}>
-          Open Schedule Master
-        </Button>
+        <div className="flex items-center gap-2">
+          <StartWorkflowButton jobId={job.id} jobName={job.name} />
+          <Button onClick={() => router.push(`/jobs/${jobId}/schedule`)}>
+            Open Schedule Master
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
