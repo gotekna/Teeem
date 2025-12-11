@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: #f8fafc; padding: 30px; border-radius: 0 0 8px 8px; }
+    .details { background: white; padding: 15px; border-radius: 6px; margin: 15px 0; }
+    .footer { text-align: center; color: #64748b; font-size: 12px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Signature Declined</h1>
+    </div>
+    <div class="content">
+      <p>A signer has declined to sign the following document:</p>
+
+      <div class="details">
+        <p><strong>Document:</strong> <%= @request.title %></p>
+        <p><strong>Request Number:</strong> <%= @request.request_number %></p>
+        <p><strong>Declined By:</strong> <%= @signer.name %> (<%= @signer.email %>)</p>
+        <% if @signer.decline_reason.present? %>
+          <p><strong>Reason:</strong> <%= @signer.decline_reason %></p>
+        <% end %>
+      </div>
+
+      <p>The signing request has been marked as declined. You may need to contact the signer to resolve any issues and create a new signing request if needed.</p>
+    </div>
+    <div class="footer">
+      <p>This is an automated message from TEEEM E-Signature System.</p>
+    </div>
+  </div>
+</body>
+</html>
