@@ -30,6 +30,7 @@ import {
   Workflow,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { WorkflowProgress } from '@/components/workflows/WorkflowProgress';
 
 interface BpmnTask {
   id: number;
@@ -315,6 +316,14 @@ export function WorkflowTasksView() {
                   </div>
                 )}
               </div>
+
+              {/* Workflow Progress */}
+              {selectedTask.instance_id && (
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium mb-2">Workflow Progress</h4>
+                  <WorkflowProgress instanceId={selectedTask.instance_id} compact />
+                </div>
+              )}
 
               {/* Dynamic Form */}
               {selectedTask.form_schema?.fields && (
