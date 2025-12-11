@@ -410,7 +410,6 @@ namespace :document_templates do
       "{Client.postcode}" => "{{client_1.postcode}}",
       "{Client.phone}" => "{{client_1.phone}}",
       "{Client.email}" => "{{client_1.email}}",
-      "{Buyer1.Postcode}" => "{{client_1.postcode}}",
 
       # Client 2 fields
       "{Client2.First}" => "{{client_2.first_name}}",
@@ -482,24 +481,24 @@ namespace :document_templates do
 
     client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
-    # Ensure Warehousing/Templates folder exists
-    puts "Ensuring Warehousing/Templates folder exists..."
+    # Check if Warehousing/Templates folder exists
+    puts "Checking Warehousing/Templates folder..."
+    templates_folder_exists = false
     begin
       client.list_drive_items(sp_config[:drive_id], folder_path: "Warehousing/Templates")
       puts "  Folder exists"
+      templates_folder_exists = true
     rescue StandardError => e
       if e.message.include?("itemNotFound") || e.message.include?("404")
-        puts "  Creating folder..."
-        client.create_folder(
-          drive_id: sp_config[:drive_id],
-          parent_path: "Warehousing",
-          folder_name: "Templates"
-        )
-        puts "  Created"
+        puts "  Folder doesn't exist - will upload to Teeem Contract Info instead"
+        puts "  (Create Warehousing/Templates folder manually in SharePoint to use that location)"
       else
         raise e
       end
     end
+
+    # Determine upload folder
+    upload_folder = templates_folder_exists ? "Warehousing/Templates" : "Teeem Contract Info/Converted"
 
     puts ""
     puts "Converting templates..."
@@ -559,14 +558,14 @@ namespace :document_templates do
         puts "  Converted #{fields_converted} field occurrences"
 
         if fields_converted > 0
-          # Upload to Warehousing/Templates
+          # Upload converted file
           new_filename = "#{template.name.parameterize}.docx"
-          puts "  Uploading to Warehousing/Templates/#{new_filename}..."
+          puts "  Uploading to #{upload_folder}/#{new_filename}..."
 
           result = client.upload_file_content(
             sp_config[:site_id],
             sp_config[:drive_id],
-            "Warehousing/Templates",
+            upload_folder,
             new_filename,
             converted_content
           )
@@ -574,7 +573,7 @@ namespace :document_templates do
           # Update template record with new SharePoint location
           template.update!(
             sharepoint_item_id: result[:id],
-            sharepoint_path: "Warehousing/Templates/#{new_filename}"
+            sharepoint_path: "#{upload_folder}/#{new_filename}"
           )
 
           puts "  OK: Uploaded and linked (ID: #{result[:id]})"
