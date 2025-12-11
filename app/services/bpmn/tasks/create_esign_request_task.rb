@@ -1,6 +1,6 @@
 module Bpmn
   module Tasks
-    # CreateESignRequestTask - Create an e-signature request and send for signing
+    # CreateEsignRequestTask - Create an e-signature request and send for signing
     #
     # Config options:
     #   title: Title of the signing request (supports interpolation)
@@ -19,7 +19,7 @@ module Bpmn
     #   store_as_variable: Variable name to store request ID
     #   auto_send: Whether to send immediately (default true)
     #
-    class CreateESignRequestTask < BaseTask
+    class CreateEsignRequestTask < BaseTask
       def execute
         title = get_config("title", interpolate_value: true) || "Document for Signing"
         description = get_config("description", interpolate_value: true)
