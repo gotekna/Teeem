@@ -941,6 +941,7 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
           key: col.column_name,
           label: col.name
         }));
+        console.log('[BankAccountsTab] Transformed columns:', transformedColumns);
         setColumns(transformedColumns);
       }
 
@@ -949,6 +950,7 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
         `/api/v1/companies/${companyId}/bank_accounts`
       );
       if (entriesResponse.success) {
+        console.log('[BankAccountsTab] Bank accounts data:', entriesResponse.bank_accounts);
         setEntries(entriesResponse.bank_accounts || []);
       }
     } catch (error) {

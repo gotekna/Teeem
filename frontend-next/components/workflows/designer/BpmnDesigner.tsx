@@ -507,6 +507,64 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
           className="bg-slate-100 dark:bg-slate-950"
         >
           <Background gap={20} size={1} />
+
+          {/* Visual Grid Lines for Debugging */}
+          <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }}>
+            {/* Vertical lines every 250px (column spacing) */}
+            {Array.from({ length: 20 }).map((_, i) => (
+              <line
+                key={`v-${i}`}
+                x1={i * 250}
+                y1={0}
+                x2={i * 250}
+                y2={3000}
+                stroke="blue"
+                strokeWidth="2"
+                strokeDasharray="10,5"
+                opacity="0.5"
+              />
+            ))}
+            {/* Horizontal lines every 150px (row spacing) */}
+            {Array.from({ length: 20 }).map((_, i) => (
+              <line
+                key={`h-${i}`}
+                x1={0}
+                y1={i * 150}
+                x2={5000}
+                y2={i * 150}
+                stroke="red"
+                strokeWidth="2"
+                strokeDasharray="10,5"
+                opacity="0.5"
+              />
+            ))}
+            {/* Labels for rows and columns */}
+            {Array.from({ length: 20 }).map((_, i) => (
+              <text
+                key={`col-label-${i}`}
+                x={i * 250 + 10}
+                y={20}
+                fill="blue"
+                fontSize="14"
+                fontWeight="bold"
+              >
+                Col {i}
+              </text>
+            ))}
+            {Array.from({ length: 20 }).map((_, i) => (
+              <text
+                key={`row-label-${i}`}
+                x={10}
+                y={i * 150 + 20}
+                fill="red"
+                fontSize="14"
+                fontWeight="bold"
+              >
+                Row {i}
+              </text>
+            ))}
+          </svg>
+
           <Controls />
           <MiniMap
             nodeStrokeWidth={3}
