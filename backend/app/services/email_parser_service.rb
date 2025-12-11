@@ -30,11 +30,11 @@ class EmailParserService
   def match_construction
     # Strategy 1: Look for job number or reference in subject
     job_reference = extract_job_reference_from_subject
-    return Construction.find_by(id: job_reference) if job_reference
+    return Job.find_by(id: job_reference) if job_reference
 
     # Strategy 2: Look for job number in body
     job_reference = extract_job_reference_from_body
-    return Construction.find_by(id: job_reference) if job_reference
+    return Job.find_by(id: job_reference) if job_reference
 
     # Strategy 3: Match by sender email to contact/supplier
     construction_from_sender = match_by_sender_email
@@ -229,8 +229,8 @@ class EmailParserService
     body = [ extract_subject, extract_body_text, extract_body_html ].compact.join(" ")
     return nil if body.blank?
 
-    # Find constructions and check if their title/address appears in email
-    Construction.active.find_each do |construction|
+    # Find jobs and check if their title/address appears in email
+    Job.active.find_each do |construction|
       next if construction.title.blank?
 
       # Simple substring match (could be improved with fuzzy matching)

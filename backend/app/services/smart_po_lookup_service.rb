@@ -2,7 +2,7 @@ class SmartPoLookupService
   GST_RATE = 0.10 # 10% GST
 
   def initialize(construction_id:)
-    @construction = Construction.find(construction_id)
+    @construction = Job.find(construction_id)
   end
 
   # Main entry point for smart PO lookup

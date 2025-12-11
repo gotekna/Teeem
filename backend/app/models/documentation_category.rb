@@ -19,7 +19,7 @@ class DocumentationCategory < ApplicationRecord
 
   # When a new category is created, add it to all existing jobs
   def add_to_all_existing_jobs
-    Construction.find_each do |construction|
+    Job.find_each do |construction|
       # Skip if this tab already exists for this job
       next if construction.construction_documentation_tabs.exists?(name: name)
 

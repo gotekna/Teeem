@@ -359,7 +359,7 @@ class SmDashboardService
   def calculate_budget
     # Try to get budget from construction or project settings
     if @construction_id
-      construction = Construction.find_by(id: @construction_id)
+      construction = Job.find_by(id: @construction_id)
       return construction.labor_budget if construction&.respond_to?(:labor_budget)
     end
     nil

@@ -64,11 +64,11 @@ namespace :teeem do
           slug: "active-jobs",
           icon: "🏗️",
           file_location: "pages/ActiveJobsPage.jsx",
-          model_class: "Construction",
-          description: "Construction jobs management",
+          model_class: "Job",
+          description: "Jobs management",
           has_saved_views: true,
-          api_endpoint: "/api/v1/constructions",
-          database_table_name: "constructions"
+          api_endpoint: "/api/v1/jobs",
+          database_table_name: "jobs"
         },
         {
           id: 205,  # Fixed ID - matches production

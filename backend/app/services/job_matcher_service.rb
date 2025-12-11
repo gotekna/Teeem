@@ -35,7 +35,7 @@ class JobMatcherService
   private
 
   def find_matches
-    constructions = Construction.all.to_a
+    constructions = Job.all.to_a
 
     matches = constructions.map do |construction|
       score = calculate_similarity_score(construction.title)

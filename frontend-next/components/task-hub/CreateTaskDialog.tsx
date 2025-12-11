@@ -71,11 +71,10 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     setLoadingData(true);
     try {
       const [jobsResponse, usersResponse] = await Promise.all([
-        api.get<{ jobs?: Job[]; constructions?: Job[] }>('/api/v1/constructions'),
+        api.get<{ jobs?: Job[] }>('/api/v1/jobs'),
         api.get<{ users: User[] }>('/api/v1/users'),
       ]);
-      // Handle both 'jobs' and 'constructions' response keys
-      setJobs(jobsResponse?.jobs || jobsResponse?.constructions || []);
+      setJobs(jobsResponse?.jobs || []);
       setUsers(usersResponse?.users || []);
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -113,7 +112,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     setSaving(true);
     try {
       const response = await api.post<{ success: boolean; sm_task: unknown; message?: string }>(
-        `/api/v1/constructions/${formData.job_id}/sm_tasks`,
+        `/api/v1/jobs/${formData.job_id}/sm_tasks`,
         {
           sm_task: {
             name: formData.name,
