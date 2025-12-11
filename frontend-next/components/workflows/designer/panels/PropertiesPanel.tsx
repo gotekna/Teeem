@@ -12,8 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Loader2 } from "lucide-react";
+import { FileText, Loader2, Settings2, Database, FileQuestion } from "lucide-react";
 import { api } from "@/lib/api";
 import { NODE_TYPE_META, SERVICE_TASK_TYPES, BpmnNodeData } from "../types";
 
@@ -93,44 +94,126 @@ function NodeProperties({
         <p className="text-xs text-slate-500">{meta.description}</p>
       </div>
 
-      {/* Basic properties */}
-      <div className="space-y-3">
-        <div>
-          <Label htmlFor="name">Name</Label>
-          <Input
-            id="name"
-            value={data.name || ""}
-            onChange={(e) => handleChange("name", e.target.value)}
-            placeholder="Enter name..."
-          />
-        </div>
+      <Tabs defaultValue="element" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="element" className="text-xs">
+            <Settings2 className="mr-1.5 h-3 w-3" />
+            Element
+          </TabsTrigger>
+          <TabsTrigger value="data" className="text-xs">
+            <Database className="mr-1.5 h-3 w-3" />
+            Data
+          </TabsTrigger>
+          <TabsTrigger value="docs" className="text-xs">
+            <FileQuestion className="mr-1.5 h-3 w-3" />
+            Docs
+          </TabsTrigger>
+        </TabsList>
 
-        <div>
-          <Label htmlFor="description">Description</Label>
-          <Textarea
-            id="description"
-            value={data.description || ""}
-            onChange={(e) => handleChange("description", e.target.value)}
-            placeholder="Enter description..."
-            rows={2}
-          />
-        </div>
-      </div>
+        <TabsContent value="element" className="space-y-4 pt-4">
+          {/* Basic properties */}
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={data.name || ""}
+                onChange={(e) => handleChange("name", e.target.value)}
+                placeholder="Enter name..."
+              />
+            </div>
 
-      {/* Type-specific properties */}
-      {data.nodeType === "user_task" && (
-        <UserTaskProperties data={data} onChange={handleConfigChange} />
-      )}
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={data.description || ""}
+                onChange={(e) => handleChange("description", e.target.value)}
+                placeholder="Enter description..."
+                rows={2}
+              />
+            </div>
+          </div>
 
-      {data.nodeType === "service_task" && (
-        <ServiceTaskProperties data={data} onChange={handleConfigChange} />
-      )}
+          {/* Type-specific properties */}
+          {data.nodeType === "user_task" && (
+            <UserTaskProperties data={data} onChange={handleConfigChange} />
+          )}
 
-      {data.nodeType === "timer_event" && (
-        <TimerEventProperties data={data} onChange={handleConfigChange} />
-      )}
+          {data.nodeType === "service_task" && (
+            <ServiceTaskProperties data={data} onChange={handleConfigChange} />
+          )}
+
+          {data.nodeType === "timer_event" && (
+            <TimerEventProperties data={data} onChange={handleConfigChange} />
+          )}
+
+          {data.nodeType === "intermediate_event" && (
+            <IntermediateEventProperties data={data} onChange={handleConfigChange} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="data" className="space-y-4 pt-4">
+          <div className="rounded-md border border-dashed p-4 text-center">
+            <Database className="mx-auto mb-2 h-8 w-8 text-slate-400" />
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+              Data Bindings
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Configure input/output variables and data mappings for this element.
+            </p>
+            <p className="mt-3 text-xs text-slate-400">
+              Coming soon...
+            </p>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="docs" className="space-y-4 pt-4">
+          <div className="rounded-md border bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
+            <h4 className="mb-2 flex items-center gap-2 text-sm font-medium">
+              <FileQuestion className="h-4 w-4 text-blue-500" />
+              {meta.label}
+            </h4>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              {getNodeDocumentation(data.nodeType)}
+            </p>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
+}
+
+function getNodeDocumentation(nodeType: string): string {
+  const docs: Record<string, string> = {
+    start_event:
+      "A Start Event marks the beginning of a workflow. Every workflow must have exactly one start event. When the workflow is triggered, execution begins from this point.",
+    end_event:
+      "An End Event marks the completion of a workflow branch. A workflow can have multiple end events. When execution reaches an end event, that branch terminates.",
+    user_task:
+      "A User Task requires human interaction. The task is assigned to a user or role and waits for completion. Configure the assignee and optional due date.",
+    service_task:
+      "A Service Task executes an automated action like sending emails, generating documents, or updating records. Configure the task type and required parameters.",
+    exclusive_gateway:
+      "An Exclusive Gateway (XOR) represents a decision point where only one outgoing path is taken based on conditions. Configure conditions on the outgoing edges.",
+    parallel_gateway:
+      "A Parallel Gateway (AND) splits execution into multiple parallel branches or joins multiple branches back together. All outgoing paths are executed simultaneously.",
+    timer_event:
+      "A Timer Event pauses execution for a specified duration. Use ISO 8601 duration format (e.g., PT1H for 1 hour, P1D for 1 day).",
+    intermediate_event:
+      "An Intermediate Event can catch or throw events mid-process. Use for message passing, signal handling, or waiting for conditions.",
+    sub_process:
+      "A Sub-Process contains a nested workflow. It can be collapsed for simplicity or expanded to show details.",
+    annotation:
+      "An Annotation provides documentation or notes about the workflow. It does not affect execution flow.",
+    pool:
+      "A Pool represents a participant in the process, typically an organization or system. Contains lanes for different roles.",
+    lane:
+      "A Lane represents a role or department within a pool. Use to organize tasks by responsibility.",
+    data_store_reference:
+      "A Data Store Reference represents persistent data storage like a database. Use to indicate where data is read from or written to.",
+  };
+  return docs[nodeType] || "No documentation available for this element type.";
 }
 
 function UserTaskProperties({
@@ -435,6 +518,54 @@ function TimerEventProperties({
           PT1H = 1 hour, PT30M = 30 minutes, P1D = 1 day
         </p>
       </div>
+    </div>
+  );
+}
+
+function IntermediateEventProperties({
+  data,
+  onChange,
+}: {
+  data: BpmnNodeData;
+  onChange: (field: string, value: string) => void;
+}) {
+  return (
+    <div className="space-y-3 border-t pt-3">
+      <h4 className="text-sm font-medium">Intermediate Event</h4>
+
+      <div>
+        <Label>Event Type</Label>
+        <Select
+          value={(data.config?.eventType as string) || "message"}
+          onValueChange={(value) => onChange("eventType", value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select event type..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="message">Message</SelectItem>
+            <SelectItem value="timer">Timer</SelectItem>
+            <SelectItem value="signal">Signal</SelectItem>
+            <SelectItem value="conditional">Conditional</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="isThrowing"
+          checked={(data.config?.isThrowing as boolean) || false}
+          onChange={(e) => onChange("isThrowing", String(e.target.checked))}
+          className="h-4 w-4"
+        />
+        <Label htmlFor="isThrowing" className="cursor-pointer">
+          Throwing (sends event)
+        </Label>
+      </div>
+      <p className="text-xs text-slate-500">
+        Catching events wait for triggers. Throwing events send signals.
+      </p>
     </div>
   );
 }

@@ -10,10 +10,10 @@ export const UserTaskNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeDat
   return (
     <div
       className={cn(
-        "min-w-[180px] rounded-lg border-2 bg-white shadow-md transition-all dark:bg-slate-900",
+        "min-w-[200px] rounded-lg border-2 bg-white shadow-sm transition-all hover:shadow-md dark:bg-slate-900",
         selected
-          ? "border-blue-500 ring-2 ring-blue-500/30"
-          : "border-slate-200 dark:border-slate-700"
+          ? "border-blue-500 ring-2 ring-blue-400 ring-offset-2"
+          : "border-blue-200 hover:border-blue-300 dark:border-blue-800 dark:hover:border-blue-700"
       )}
     >
       <Handle
@@ -22,17 +22,17 @@ export const UserTaskNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeDat
         className="!h-3 !w-3 !border-2 !border-blue-500 !bg-white dark:!bg-slate-900"
       />
 
-      {/* Header */}
-      <div className="flex items-center gap-2 rounded-t-md bg-blue-50 px-3 py-2 dark:bg-blue-950/30">
-        <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-        <span className="text-xs font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">
+      {/* Header with solid color like Rapid Platform */}
+      <div className="flex items-center gap-2 rounded-t-md bg-blue-600 px-3 py-2 text-white">
+        <User className="h-4 w-4" />
+        <span className="text-xs font-medium uppercase tracking-wide">
           User Task
         </span>
       </div>
 
       {/* Body */}
-      <div className="px-3 py-2">
-        <p className="font-medium text-slate-900 dark:text-white">
+      <div className="px-3 py-2.5">
+        <p className="text-sm font-medium text-slate-900 dark:text-white">
           {data.name || "Unnamed Task"}
         </p>
         {data.config?.assignee_value && (

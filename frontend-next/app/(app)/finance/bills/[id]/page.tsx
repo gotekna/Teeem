@@ -304,6 +304,37 @@ export default function BillDetailPage() {
     }
   };
 
+  const handleOpenInApp = async () => {
+    // Opens in system default app (Preview on Mac, etc)
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `${getApiBaseUrl()}/api/v1/bill_inbox/${billId}/download?disposition=attachment`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to download file");
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
+      // Create a link and click it to trigger download/open
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = bill?.invoice_file_filename || `invoice-${billId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Cleanup after a delay
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error("Failed to open in app:", error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -384,6 +415,10 @@ export default function BillDetailPage() {
               </span>
               {pdfBlobUrl && (
                 <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleOpenInApp} title="Open in Preview/PDF app">
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open
+                  </Button>
                   <Button variant="outline" size="sm" onClick={handleDownload}>
                     <Download className="h-4 w-4 mr-1" />
                     Download

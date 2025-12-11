@@ -296,6 +296,11 @@ function getDefaultName(type: BpmnNodeType): string {
     parallel_gateway: "Parallel",
     timer_event: "Timer",
     data_store_reference: "Data Store",
+    intermediate_event: "Intermediate Event",
+    sub_process: "Sub-Process",
+    annotation: "Note",
+    pool: "Pool",
+    lane: "Lane",
   };
   return names[type] || "Node";
 }

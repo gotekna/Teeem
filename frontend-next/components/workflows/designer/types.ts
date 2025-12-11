@@ -8,7 +8,12 @@ export type BpmnNodeType =
   | "exclusive_gateway"
   | "parallel_gateway"
   | "timer_event"
-  | "data_store_reference";
+  | "data_store_reference"
+  | "intermediate_event"
+  | "sub_process"
+  | "annotation"
+  | "pool"
+  | "lane";
 
 export interface BpmnNodeConfig {
   // User task config
@@ -33,6 +38,13 @@ export interface BpmnNodeConfig {
 
   // Gateway config
   default_edge_key?: string;
+
+  // Intermediate event config
+  eventType?: "message" | "timer" | "signal" | "conditional";
+  isThrowing?: boolean;
+
+  // Sub-process config
+  isExpanded?: boolean;
 }
 
 export interface BpmnNodeData extends Record<string, unknown> {
@@ -137,5 +149,35 @@ export const NODE_TYPE_META: Record<
     icon: "database",
     color: "slate",
     description: "Reference to a data store",
+  },
+  intermediate_event: {
+    label: "Intermediate Event",
+    icon: "circle-dot",
+    color: "amber",
+    description: "Mid-process event (catch/throw)",
+  },
+  sub_process: {
+    label: "Sub-Process",
+    icon: "layers",
+    color: "indigo",
+    description: "Collapsed or expanded sub-workflow",
+  },
+  annotation: {
+    label: "Annotation",
+    icon: "sticky-note",
+    color: "yellow",
+    description: "Comment or note",
+  },
+  pool: {
+    label: "Pool",
+    icon: "users",
+    color: "teal",
+    description: "Swimlane container for participants",
+  },
+  lane: {
+    label: "Lane",
+    icon: "user",
+    color: "sky",
+    description: "Swimlane row for a role",
   },
 };

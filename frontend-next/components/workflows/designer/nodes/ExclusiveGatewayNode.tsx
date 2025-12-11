@@ -18,10 +18,10 @@ export const ExclusiveGatewayNode = memo(({ data, selected }: NodeProps<Node<Bpm
       {/* Diamond shape */}
       <div
         className={cn(
-          "flex h-12 w-12 rotate-45 items-center justify-center border-2 bg-white shadow-md transition-all dark:bg-slate-900",
+          "flex h-12 w-12 rotate-45 items-center justify-center border-2 bg-white shadow-sm transition-all hover:shadow-md dark:bg-slate-900",
           selected
-            ? "border-amber-500 ring-2 ring-amber-500/30"
-            : "border-amber-400 dark:border-amber-600"
+            ? "border-amber-500 ring-2 ring-amber-400 ring-offset-2"
+            : "border-amber-500 hover:border-amber-600 dark:border-amber-500"
         )}
       >
         {/* X marker inside diamond */}

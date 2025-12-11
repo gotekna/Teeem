@@ -70,9 +70,11 @@ class ClassifyEmailWithAiJob < ApplicationJob
     PROMPT
 
     response = client.messages(
-      model: "claude-3-haiku-20240307",
-      max_tokens: 200,
-      messages: [ { role: "user", content: prompt } ]
+      parameters: {
+        model: "claude-3-haiku-20240307",
+        max_tokens: 200,
+        messages: [ { role: "user", content: prompt } ]
+      }
     )
 
     # Parse JSON response

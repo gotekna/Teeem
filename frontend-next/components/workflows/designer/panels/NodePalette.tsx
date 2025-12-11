@@ -10,6 +10,10 @@ import {
   GitMerge,
   Clock,
   Database,
+  CircleDot,
+  Layers,
+  StickyNote,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BpmnNodeType } from "../types";
@@ -79,6 +83,41 @@ const PALETTE_ITEMS: PaletteItem[] = [
     color: "slate",
     description: "Reference to a data store",
   },
+  {
+    type: "intermediate_event",
+    label: "Intermediate Event",
+    icon: CircleDot,
+    color: "amber",
+    description: "Mid-process catch/throw event",
+  },
+  {
+    type: "sub_process",
+    label: "Sub-Process",
+    icon: Layers,
+    color: "indigo",
+    description: "Collapsed sub-workflow",
+  },
+  {
+    type: "annotation",
+    label: "Annotation",
+    icon: StickyNote,
+    color: "yellow",
+    description: "Comment or documentation",
+  },
+  {
+    type: "pool",
+    label: "Pool",
+    icon: Users,
+    color: "teal",
+    description: "Swimlane container",
+  },
+  {
+    type: "lane",
+    label: "Lane",
+    icon: User,
+    color: "sky",
+    description: "Swimlane row",
+  },
 ];
 
 const COLOR_CLASSES: Record<string, string> = {
@@ -95,6 +134,12 @@ const COLOR_CLASSES: Record<string, string> = {
   cyan: "bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100 dark:bg-cyan-950/30 dark:text-cyan-400 dark:border-cyan-800 dark:hover:bg-cyan-950/50",
   slate:
     "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-950/30 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-950/50",
+  indigo:
+    "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-800 dark:hover:bg-indigo-950/50",
+  yellow:
+    "bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:text-yellow-400 dark:border-yellow-800 dark:hover:bg-yellow-950/50",
+  teal: "bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100 dark:bg-teal-950/30 dark:text-teal-400 dark:border-teal-800 dark:hover:bg-teal-950/50",
+  sky: "bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-800 dark:hover:bg-sky-950/50",
 };
 
 export function NodePalette() {

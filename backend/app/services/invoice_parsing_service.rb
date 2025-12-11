@@ -64,14 +64,18 @@ class InvoiceParsingService
   end
 
   def call_ai(pdf_text)
-    client = Anthropic::Client.new(access_token: ENV["ANTHROPIC_API_KEY"])
+    api_key = ENV["ANTHROPIC_API_KEY"]
+    raise "ANTHROPIC_API_KEY not configured" if api_key.blank?
 
+    client = Anthropic::Client.new(access_token: api_key)
     messages = build_messages(pdf_text)
 
     response = client.messages(
-      model: CLAUDE_MODEL,
-      max_tokens: 2000,
-      messages: messages
+      parameters: {
+        model: CLAUDE_MODEL,
+        max_tokens: 2000,
+        messages: messages
+      }
     )
 
     parse_response(response.dig("content", 0, "text"))

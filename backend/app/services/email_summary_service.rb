@@ -78,11 +78,13 @@ class EmailSummaryService
     prompt = build_prompt
 
     response = client.messages(
-      model: CLAUDE_MODEL,
-      max_tokens: MAX_TOKENS,
-      messages: [
-        { role: "user", content: prompt }
-      ]
+      parameters: {
+        model: CLAUDE_MODEL,
+        max_tokens: MAX_TOKENS,
+        messages: [
+          { role: "user", content: prompt }
+        ]
+      }
     )
 
     # Parse the response

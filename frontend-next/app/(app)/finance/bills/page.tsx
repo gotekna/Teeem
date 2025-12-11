@@ -216,6 +216,41 @@ export default function BillInboxPage() {
     }
   };
 
+  const handleOpenPdf = async (billId: number) => {
+    // Open PDF in system default app (Preview on Mac, etc)
+    try {
+      const token = localStorage.getItem("token");
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      const response = await fetch(
+        `${baseUrl}/api/v1/bill_inbox/${billId}/download?disposition=attachment`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to download file");
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
+      // Get filename from response headers or use default
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const filenameMatch = contentDisposition?.match(/filename="?([^";\n]+)"?/);
+      const filename = filenameMatch?.[1] || `invoice-${billId}.pdf`;
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error("Failed to open PDF:", error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -453,6 +488,14 @@ export default function BillInboxPage() {
                           </Button>
                         </>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenPdf(bill.id)}
+                        title="Open PDF in Preview"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"

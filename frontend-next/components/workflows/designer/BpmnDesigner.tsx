@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState, useRef } from "react";
+import React, { useCallback, useState, useRef, useEffect, useMemo } from "react";
 import {
   ReactFlow,
   Node,
@@ -15,16 +15,36 @@ import {
   Panel,
   ReactFlowProvider,
   useReactFlow,
+  MarkerType,
+  SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 import { nodeTypes } from "./nodes";
 import { NodePalette } from "./panels/NodePalette";
+import { ToolPalette, ToolMode } from "./panels/ToolPalette";
 import { PropertiesPanel } from "./panels/PropertiesPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Save, Play, Settings, Zap, CheckCircle, Upload } from "lucide-react";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  Save,
+  Play,
+  Settings,
+  Zap,
+  CheckCircle,
+  Upload,
+  LayoutGrid,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+} from "lucide-react";
+import {
+  getLayoutedElements,
+  alignNodesHorizontally,
+  alignNodesVertically,
+} from "./utils/layoutNodes";
 import { importBpmnFile } from "./utils/bpmnParser";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -46,6 +66,11 @@ function getDefaultNodeName(nodeType: BpmnNodeType): string {
     parallel_gateway: "Parallel",
     timer_event: "Timer",
     data_store_reference: "Data Store",
+    intermediate_event: "Intermediate Event",
+    sub_process: "Sub-Process",
+    annotation: "Note",
+    pool: "Pool",
+    lane: "Lane",
   };
   return names[nodeType] || "Node";
 }
@@ -60,6 +85,11 @@ function getDefaultNodeConfig(nodeType: BpmnNodeType): Record<string, unknown> {
     parallel_gateway: {},
     timer_event: { duration: "PT1H" },
     data_store_reference: {},
+    intermediate_event: { eventType: "message", isThrowing: false },
+    sub_process: { isExpanded: false },
+    annotation: {},
+    pool: {},
+    lane: {},
   };
   return configs[nodeType] || {};
 }
@@ -67,7 +97,7 @@ function getDefaultNodeConfig(nodeType: BpmnNodeType): Record<string, unknown> {
 function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { screenToFlowPosition, getViewport } = useReactFlow();
+  const { screenToFlowPosition, getViewport, zoomIn, zoomOut, fitView } = useReactFlow();
 
   // Convert process data to React Flow format
   const initialNodes: Node<BpmnNodeData>[] = (process?.nodes || []).map((n) => ({
@@ -87,9 +117,19 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
     id: e.edgeKey || e.id,
     source: e.source,
     target: e.target,
-    type: e.conditionExpression ? "smoothstep" : "default",
+    type: "smoothstep",
     animated: !!e.conditionExpression,
     label: e.name,
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      width: 20,
+      height: 20,
+      color: e.conditionExpression ? "#3b82f6" : "#64748b",
+    },
+    style: {
+      strokeWidth: 2,
+      stroke: e.conditionExpression ? "#3b82f6" : "#64748b",
+    },
     data: {
       edgeKey: e.edgeKey || e.id,
       name: e.name,
@@ -108,6 +148,13 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [toolMode, setToolMode] = useState<ToolMode>("select");
+
+  // Track selected nodes for alignment tools
+  const selectedNodeIds = useMemo(
+    () => nodes.filter((n) => n.selected).map((n) => n.id),
+    [nodes]
+  );
 
   const handleImport = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -169,7 +216,17 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
       const newEdge: Edge = {
         ...params,
         id: `edge-${Date.now()}`,
-        type: "default",
+        type: "smoothstep",
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 20,
+          height: 20,
+          color: "#64748b",
+        },
+        style: {
+          strokeWidth: 2,
+          stroke: "#64748b",
+        },
         data: {
           edgeKey: `edge_${Date.now()}`,
           isDefault: false,
@@ -252,6 +309,8 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
 
   const handleEdgeUpdate = useCallback(
     (edgeId: string, data: Record<string, unknown>) => {
+      const hasCondition = !!data.conditionExpression;
+      const edgeColor = hasCondition ? "#3b82f6" : "#64748b";
       setEdges((eds) =>
         eds.map((edge) =>
           edge.id === edgeId
@@ -259,7 +318,17 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
                 ...edge,
                 data: { ...edge.data, ...data },
                 label: data.name as string,
-                animated: !!data.conditionExpression,
+                animated: hasCondition,
+                style: {
+                  strokeWidth: 2,
+                  stroke: edgeColor,
+                },
+                markerEnd: {
+                  type: MarkerType.ArrowClosed,
+                  width: 20,
+                  height: 20,
+                  color: edgeColor,
+                },
               }
             : edge
         )
@@ -267,6 +336,78 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
     },
     [setEdges]
   );
+
+  const handleAutoLayout = useCallback(() => {
+    const layoutedNodes = getLayoutedElements(nodes, edges, {
+      direction: "TB",
+      nodeSpacing: 80,
+      rankSpacing: 100,
+    });
+    setNodes(layoutedNodes);
+    toast({
+      title: "Layout applied",
+      description: "Nodes have been automatically arranged",
+    });
+  }, [nodes, edges, setNodes]);
+
+  const handleAlignHorizontal = useCallback(() => {
+    if (selectedNodeIds.length < 2) return;
+    const aligned = alignNodesHorizontally(nodes, selectedNodeIds);
+    setNodes(aligned);
+    toast({
+      title: "Aligned",
+      description: `${selectedNodeIds.length} nodes aligned horizontally`,
+    });
+  }, [nodes, selectedNodeIds, setNodes]);
+
+  const handleAlignVertical = useCallback(() => {
+    if (selectedNodeIds.length < 2) return;
+    const aligned = alignNodesVertically(nodes, selectedNodeIds);
+    setNodes(aligned);
+    toast({
+      title: "Aligned",
+      description: `${selectedNodeIds.length} nodes aligned vertically`,
+    });
+  }, [nodes, selectedNodeIds, setNodes]);
+
+  // Zoom handlers
+  const handleZoomIn = useCallback(() => {
+    zoomIn({ duration: 200 });
+  }, [zoomIn]);
+
+  const handleZoomOut = useCallback(() => {
+    zoomOut({ duration: 200 });
+  }, [zoomOut]);
+
+  const handleFitView = useCallback(() => {
+    fitView({ padding: 0.2, duration: 300 });
+  }, [fitView]);
+
+  // Keyboard shortcuts for tools and zoom
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+      if (e.key === "v" || e.key === "V") {
+        setToolMode("select");
+      } else if (e.key === "h" || e.key === "H") {
+        setToolMode("pan");
+      } else if (e.key === "+" || e.key === "=") {
+        handleZoomIn();
+      } else if (e.key === "-" || e.key === "_") {
+        handleZoomOut();
+      } else if (e.key === "0") {
+        handleFitView();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleZoomIn, handleZoomOut, handleFitView]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -317,8 +458,15 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
 
   return (
     <div className="flex h-full">
-      {/* Left Panel - Node Palette */}
+      {/* Left Panel - Tools & Node Palette */}
       <div className="w-64 flex-shrink-0 border-r bg-slate-50/50 p-4 dark:bg-slate-900/50">
+        <ToolPalette
+          toolMode={toolMode}
+          onToolModeChange={setToolMode}
+          selectedNodeIds={selectedNodeIds}
+          onAlignHorizontal={handleAlignHorizontal}
+          onAlignVertical={handleAlignVertical}
+        />
         <NodePalette />
       </div>
 
@@ -339,6 +487,11 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
           fitView
           defaultViewport={process?.canvasData?.viewport}
           deleteKeyCode={["Backspace", "Delete"]}
+          snapToGrid={true}
+          snapGrid={[20, 20]}
+          panOnDrag={toolMode === "pan"}
+          selectionOnDrag={toolMode === "select"}
+          selectionMode={SelectionMode.Partial}
           className="bg-slate-100 dark:bg-slate-950"
         >
           <Background gap={20} size={1} />
@@ -380,6 +533,51 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
                 <Upload className="mr-2 h-4 w-4" />
                 {importing ? "Importing..." : "Import"}
               </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAutoLayout}
+                title="Auto-arrange nodes"
+              >
+                <LayoutGrid className="mr-2 h-4 w-4" />
+                Layout
+              </Button>
+
+              <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+
+              {/* Zoom controls */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleZoomOut}
+                  title="Zoom out (-)"
+                  className="h-8 w-8 p-0"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleFitView}
+                  title="Fit to view (0)"
+                  className="h-8 w-8 p-0"
+                >
+                  <Maximize className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleZoomIn}
+                  title="Zoom in (+)"
+                  className="h-8 w-8 p-0"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
 
               <Button
                 variant="outline"
@@ -468,8 +666,10 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
 
 export function BpmnDesigner(props: BpmnDesignerProps) {
   return (
-    <ReactFlowProvider>
-      <BpmnDesignerInner {...props} />
-    </ReactFlowProvider>
+    <TooltipProvider>
+      <ReactFlowProvider>
+        <BpmnDesignerInner {...props} />
+      </ReactFlowProvider>
+    </TooltipProvider>
   );
 }

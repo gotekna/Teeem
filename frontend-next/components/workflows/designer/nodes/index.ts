@@ -7,6 +7,11 @@ import { ExclusiveGatewayNode } from "./ExclusiveGatewayNode";
 import { ParallelGatewayNode } from "./ParallelGatewayNode";
 import { TimerEventNode } from "./TimerEventNode";
 import { DataStoreReferenceNode } from "./DataStoreReferenceNode";
+import { IntermediateEventNode } from "./IntermediateEventNode";
+import { SubProcessNode } from "./SubProcessNode";
+import { AnnotationNode } from "./AnnotationNode";
+import { PoolNode } from "./PoolNode";
+import { LaneNode } from "./LaneNode";
 
 export const nodeTypes: NodeTypes = {
   start_event: StartEventNode,
@@ -17,6 +22,11 @@ export const nodeTypes: NodeTypes = {
   parallel_gateway: ParallelGatewayNode,
   timer_event: TimerEventNode,
   data_store_reference: DataStoreReferenceNode,
+  intermediate_event: IntermediateEventNode,
+  sub_process: SubProcessNode,
+  annotation: AnnotationNode,
+  pool: PoolNode,
+  lane: LaneNode,
 };
 
 export {
@@ -28,4 +38,9 @@ export {
   ParallelGatewayNode,
   TimerEventNode,
   DataStoreReferenceNode,
+  IntermediateEventNode,
+  SubProcessNode,
+  AnnotationNode,
+  PoolNode,
+  LaneNode,
 };
