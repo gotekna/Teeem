@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/use-toast";
 import { ContactEditModal } from "@/components/contacts/ContactEditModal";
 import { XeroSyncSection } from "@/components/contacts/XeroSyncSection";
 import { XeroTransactionsSection } from "@/components/contacts/XeroTransactionsSection";
@@ -973,6 +974,7 @@ export default function ContactDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
   const id = params.id as string;
 
   // SSoT: Entity types from API
@@ -1742,6 +1744,11 @@ export default function ContactDetailPage() {
   const handleTeamContactToggle = async (checked: boolean) => {
     if (!contact) return;
 
+    // Safety check: Team contacts require a company (UI should prevent this, but double-check)
+    if (checked && !contact.primary_company && selectedCompanies.length === 0) {
+      return;
+    }
+
     // Update local state immediately for responsive UI
     setFormData(prev => ({ ...prev, is_team_contact: checked }));
 
@@ -1755,6 +1762,11 @@ export default function ContactDetailPage() {
       loadContact();
     } catch (err) {
       console.error("Failed to save team contact setting:", err);
+      toast({
+        title: "Failed to save",
+        description: "Could not update team contact setting. Please try again.",
+        variant: "destructive",
+      });
       // Revert on error
       setFormData(prev => ({ ...prev, is_team_contact: !checked }));
     } finally {
@@ -2233,6 +2245,11 @@ export default function ContactDetailPage() {
         display_name = display_name.toUpperCase();
       }
 
+      // Ensure is_team_contact is false if no company is linked (prevents backend validation error)
+      const is_team_contact = (contact.primary_company || selectedCompanies.length > 0)
+        ? formData.is_team_contact
+        : false;
+
       // Prepare contact_emails_attributes (filtering out destroyed items for new records)
       const contact_emails_attributes = (contact.contact_emails || [])
         .filter(e => e.id || (!e.id && !e._destroy)) // Keep if has ID or is new and not destroyed
@@ -2267,6 +2284,7 @@ export default function ContactDetailPage() {
         contact: {
           ...formData,
           display_name,
+          is_team_contact, // Override formData value with validated value
           // Keep legacy fields in sync for backwards compatibility
           email: primaryEmail?.email || formData.email,
           mobile_phone: primaryMobile?.phone_number || formData.mobile_phone,
@@ -2955,10 +2973,18 @@ export default function ContactDetailPage() {
                     {isPerson(formData.entity_type) && (
                       <div className="flex items-center justify-between py-2">
                         <div>
-                          <Label>Team Contact</Label>
-                          <p className="text-xs text-muted-foreground">Append company name to avoid duplicates (e.g., "Accounts Team - Buildcraft")</p>
+                          <Label className={!contact.primary_company && selectedCompanies.length === 0 ? "text-muted-foreground" : ""}>Team Contact</Label>
+                          <p className="text-xs text-muted-foreground">
+                            {!contact.primary_company && selectedCompanies.length === 0
+                              ? "Add a company first to enable this option"
+                              : "Append company name to avoid duplicates (e.g., \"Accounts Team - Buildcraft\")"}
+                          </p>
                         </div>
-                        <Switch checked={formData.is_team_contact} onCheckedChange={handleTeamContactToggle} disabled={saving} />
+                        <Switch
+                          checked={formData.is_team_contact}
+                          onCheckedChange={handleTeamContactToggle}
+                          disabled={saving || (!contact.primary_company && selectedCompanies.length === 0)}
+                        />
                       </div>
                     )}
 

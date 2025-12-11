@@ -255,6 +255,35 @@ Rails.application.routes.draw do
         end
       end
 
+      # E-Signature Requests
+      resources :e_signature_requests, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          post :send_for_signing, path: "send"
+          post :cancel
+          get :audit_trail
+          get :certificate
+        end
+        resources :signers, controller: "e_signature_requests", only: [] do
+          collection do
+            post :add_signer, path: "", action: :add_signer
+          end
+          member do
+            delete :remove_signer, path: "", action: :remove_signer
+          end
+        end
+      end
+
+      # Public Signing Ceremony (token-based, no auth)
+      scope :sign do
+        get ":token", to: "signing_ceremony#verify_token"
+        post ":token/view", to: "signing_ceremony#mark_viewed"
+        post ":token/send_verification", to: "signing_ceremony#send_verification_code"
+        post ":token/verify", to: "signing_ceremony#verify_code"
+        post ":token/sign", to: "signing_ceremony#sign"
+        post ":token/decline", to: "signing_ceremony#decline"
+        get ":token/document", to: "signing_ceremony#download_document"
+      end
+
       # Purchase Orders management
       resources :purchase_orders do
         collection do
