@@ -76,7 +76,10 @@ class MicrosoftAppGraphClient
 
   # Get email attachments
   def get_email_attachments(user_identifier, message_id)
-    response = get("/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/attachments")
+    endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/attachments"
+    Rails.logger.info "[MicrosoftAppGraph] get_email_attachments - endpoint: #{endpoint}"
+    Rails.logger.info "[MicrosoftAppGraph] get_email_attachments - credential tenant: #{@credential.tenant_id}"
+    response = get(endpoint)
     response["value"] || []
   end
 
