@@ -143,16 +143,25 @@ class CorporateCompanyXeroConnection < ApplicationRecord
     sync_status&.last_synced_at || last_sync_at  # Fallback to deprecated column
   end
 
-  # Refresh tokens using XeroApiClient (delegates to credential)
+  # Refresh tokens using XeroTokenManager - Single Source of Truth
+  # XeroTokenManager handles:
+  # - 30-minute grace period retry for transient failures
+  # - Poisoned token detection
+  # - Proactive refresh buffer (15 min before expiry)
+  # - PostgreSQL advisory locks for concurrent safety
   def refresh_tokens!
     return false unless xero_credential.present?
 
-    client = XeroApiClient.new
-    result = client.refresh_access_token_for(xero_credential)
+    # Delegate directly to XeroTokenManager
+    result = XeroTokenManager.refresh_credential(xero_credential)
 
     if result[:success]
-      update!(connection_status: "connected")
+      update!(connection_status: "connected", last_sync_error: nil)
       true
+    elsif result[:poisoned]
+      # Token is permanently dead - user must reconnect
+      mark_error!("Token poisoned - reconnection required: #{result[:error]}")
+      false
     else
       mark_error!(result[:error])
       false

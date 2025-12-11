@@ -5020,6 +5020,7 @@ export default function CompanyDetailPage() {
   const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
   const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
   const [documentFolderTabs, setDocumentFolderTabs] = React.useState<Array<{ id: string; name: string; icon: any }>>([]);
+  const [xeroDocumentFolders, setXeroDocumentFolders] = React.useState<Array<{ id: string; name: string; description: string; folderId: number }>>([]);
 
   // Map folder names to icons
   const getFolderIcon = (folderName: string) => {
@@ -5058,7 +5059,8 @@ export default function CompanyDetailPage() {
         entityType = "trustee_company";
       }
 
-      const data = await api.get<{ success: boolean; data: any[] }>(`/api/v1/document_folders?entity_type=${entityType}&active=true`);
+      // Fetch with hierarchy to get parent/child relationships
+      const data = await api.get<{ success: boolean; data: any[] }>(`/api/v1/document_folders?entity_type=${entityType}&active=true&hierarchy=true`);
 
       if (data.success) {
         // Map folder data to tab format with appropriate icons
@@ -5074,11 +5076,24 @@ export default function CompanyDetailPage() {
           };
         });
         setDocumentFolderTabs(folderTabs);
+
+        // Extract XERO children for sub-tabs (SSoT for document folder sub-tabs)
+        const xeroFolder = data.data.find((f: any) => f.name === 'XERO');
+        if (xeroFolder?.children && xeroFolder.children.length > 0) {
+          const xeroChildren = xeroFolder.children.map((child: any) => ({
+            id: `xero-doc-${child.name.toLowerCase().replace(/\s+/g, '-')}`,
+            name: child.name,
+            description: child.description || '',
+            folderId: child.id
+          }));
+          setXeroDocumentFolders(xeroChildren);
+        }
       }
     } catch (error) {
       console.error("Failed to load document folders:", error);
       // Fallback to hard-coded list if API fails
       setDocumentFolderTabs([]);
+      setXeroDocumentFolders([]);
     }
   }, []);
 
@@ -5143,6 +5158,27 @@ export default function CompanyDetailPage() {
 
     return [...documentFolderTabs, ...specialTabs];
   }, [documentFolderTabs]);
+
+  // Merged XERO sub-tabs: functional tabs (from code) + document folder tabs (from DB)
+  const mergedXeroSubTabs = React.useMemo(() => {
+    // Functional tabs first (these have actual UI components)
+    const functionalTabs = XERO_SUB_TABS.map(tab => ({
+      ...tab,
+      type: 'functional' as const
+    }));
+
+    // Document folder tabs from database (for document storage)
+    const documentTabs = xeroDocumentFolders.map(folder => ({
+      id: folder.id,
+      name: folder.name,
+      type: 'document' as const,
+      folderId: folder.folderId,
+      description: folder.description
+    }));
+
+    // Return functional tabs first, then document folder tabs
+    return [...functionalTabs, ...documentTabs];
+  }, [xeroDocumentFolders]);
 
   React.useEffect(() => {
     loadCompany();
@@ -5446,9 +5482,9 @@ export default function CompanyDetailPage() {
           {/* XERO Tab with sub-tabs */}
           {activeTab === "xero" && (
             <>
-              {/* Xero Sub-tabs */}
-              <div className="flex gap-2 mb-4 border-b">
-                {XERO_SUB_TABS.map((subTab) => (
+              {/* Xero Sub-tabs - merged from code (functional) + database (document folders) */}
+              <div className="flex gap-2 mb-4 border-b flex-wrap">
+                {mergedXeroSubTabs.map((subTab) => (
                   <button
                     key={subTab.id}
                     onClick={() => setXeroSubTab(subTab.id)}
@@ -5456,9 +5492,11 @@ export default function CompanyDetailPage() {
                       "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
                       xeroSubTab === subTab.id
                         ? "border-primary text-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground"
+                        : "border-transparent text-muted-foreground hover:text-foreground",
+                      subTab.type === 'document' && "text-blue-600"
                     )}
                   >
+                    {subTab.type === 'document' && <FileText className="h-3 w-3 inline mr-1" />}
                     {subTab.name}
                   </button>
                 ))}
@@ -5511,6 +5549,15 @@ export default function CompanyDetailPage() {
                   <p>Bank Statement reports are available in the Gold Standard Tables.</p>
                   <p className="text-sm mt-2">Foundation ID: 487</p>
                 </div>
+              )}
+
+              {/* Document folder sub-tabs from database (SSoT) */}
+              {xeroSubTab.startsWith('xero-doc-') && (
+                <CompanyDocumentsTab
+                  companyId={companyId}
+                  company={company}
+                  category={xeroDocumentFolders.find(f => f.id === xeroSubTab)?.name || 'XERO'}
+                />
               )}
             </>
           )}

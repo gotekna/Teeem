@@ -159,6 +159,7 @@ class XeroApiClient
   end
 
   # Refresh the access token
+  # DELEGATES TO XeroTokenManager - Single Source of Truth for token operations
   def refresh_access_token
     credential = XeroCredential.current
     return { success: false, error: "No credentials found" } unless credential
@@ -167,66 +168,29 @@ class XeroApiClient
   end
 
   # Refresh the access token for a specific credential (multi-tenant support)
-  # Uses PostgreSQL advisory lock to prevent concurrent refreshes (refresh tokens are single-use)
+  # DELEGATES TO XeroTokenManager - Single Source of Truth for token operations
+  #
+  # XeroTokenManager handles:
+  # - 30-minute grace period retry (Xero allows retrying same refresh token)
+  # - Transaction safety with retry on DB failures
+  # - Poisoned token detection (burned tokens that will never work)
+  # - Proactive refresh buffer (15 min before expiry)
+  # - PostgreSQL advisory locks for concurrent safety
   def refresh_access_token_for(credential)
     return { success: false, error: "No credentials provided" } unless credential
 
-    # Use advisory lock to prevent concurrent refresh attempts
-    # Lock ID is based on credential ID to allow different credentials to refresh concurrently
-    lock_id = 987654321 + credential.id # Unique lock ID per credential
+    # Delegate to XeroTokenManager - the Single Source of Truth
+    result = XeroTokenManager.refresh_credential(credential)
 
-    # Try to get the lock - if another process is refreshing, wait for it
-    ActiveRecord::Base.connection.execute("SELECT pg_advisory_lock(#{lock_id})")
-
-    begin
-      # After getting the lock, reload the credential to see if another process already refreshed it
-      credential.reload
-
-      # If token was just refreshed (not expired), skip the refresh
-      if credential.expires_at && credential.expires_at > Time.current + 1.minute
-        Rails.logger.info("[Xero] Token was refreshed by another process, using existing token")
-        return { success: true, expires_at: credential.expires_at }
+    if result[:success]
+      { success: true, expires_at: result[:expires_at] }
+    else
+      # If token is poisoned, raise a specific error
+      if result[:poisoned]
+        raise AuthenticationError, "Xero token is poisoned. Please reconnect to Xero."
+      else
+        raise AuthenticationError, "Failed to refresh token: #{result[:error]}"
       end
-
-      # Try to access encrypted fields to check if decryption works
-      begin
-        access_token = credential.access_token
-        refresh_token_value = credential.refresh_token
-      rescue ActiveRecord::Encryption::Errors::Decryption => e
-        Rails.logger.error("Xero credential decryption failed in refresh_access_token - deleting corrupted credentials: #{e.message}")
-        # Delete the corrupted credential
-        credential.destroy
-        raise AuthenticationError, "Xero credentials are corrupted. Please reconnect to Xero."
-      end
-
-      client = oauth_client
-      old_token = OAuth2::AccessToken.new(
-        client,
-        access_token,
-        refresh_token: refresh_token_value
-      )
-
-      new_token = old_token.refresh!
-
-      # Update stored credential
-      credential.update!(
-        access_token: new_token.token,
-        refresh_token: new_token.refresh_token,
-        expires_at: Time.current + new_token.expires_in.seconds
-      )
-
-      Rails.logger.info("Xero token refreshed successfully for tenant #{credential.tenant_name}")
-
-      {
-        success: true,
-        expires_at: credential.expires_at
-      }
-    rescue OAuth2::Error => e
-      Rails.logger.error("Xero token refresh error: #{e.message}")
-      raise AuthenticationError, "Failed to refresh token: #{e.message}"
-    ensure
-      # Always release the lock
-      ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{lock_id})")
     end
   end
 
@@ -806,12 +770,17 @@ class XeroApiClient
       raise AuthenticationError, "Xero credentials are corrupted. Please reconnect to Xero."
     end
 
-    # Refresh token if expired - handle both credential types
-    if credential.respond_to?(:needs_refresh?) ? credential.needs_refresh? : credential.expired?
-      if credential.is_a?(CorporateCompanyXeroConnection)
+    # Proactive token refresh using XeroTokenManager (15 min buffer, grace period retry)
+    # This is the key fix: use XeroTokenManager for ALL token validation, not the old 1-min buffer
+    if credential.is_a?(CorporateCompanyXeroConnection)
+      # CorporateCompanyXeroConnection delegates to XeroTokenManager via refresh_tokens!
+      if credential.needs_refresh?
         credential.refresh_tokens!
-      else
-        refresh_access_token_for(credential)
+      end
+    else
+      # XeroCredential - use XeroTokenManager directly for proactive refresh
+      unless XeroTokenManager.ensure_valid_token(credential)
+        raise AuthenticationError, "Xero credential is disconnected or token refresh failed"
       end
     end
 
@@ -893,12 +862,14 @@ class XeroApiClient
       raise AuthenticationError, "Not authenticated with Xero"
     end
 
-    # Refresh token if needed
-    if credential.respond_to?(:needs_refresh?) ? credential.needs_refresh? : credential.expired?
-      if credential.is_a?(CorporateCompanyXeroConnection)
+    # Proactive token refresh using XeroTokenManager (15 min buffer, grace period retry)
+    if credential.is_a?(CorporateCompanyXeroConnection)
+      if credential.needs_refresh?
         credential.refresh_tokens!
-      else
-        refresh_access_token_for(credential)
+      end
+    else
+      unless XeroTokenManager.ensure_valid_token(credential)
+        raise AuthenticationError, "Xero credential is disconnected or token refresh failed"
       end
     end
 
