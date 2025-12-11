@@ -108,6 +108,17 @@ warehouse_job_documents_sync:
   schedule: every 6 hours at minute 15
 
 # ============================================
+# ACCOUNTS PAYABLE - BILL INBOX
+# ============================================
+
+# Monitor Pay@tekna.com.au for incoming invoices
+# DISABLED by default - enable when ready
+# bill_inbox_sync:
+#   class: BillInboxSyncJob
+#   queue: default
+#   schedule: every 15 minutes
+
+# ============================================
 # EMAIL MAINTENANCE
 # ============================================
 
