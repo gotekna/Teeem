@@ -660,9 +660,16 @@ class XeroContactSyncService
           # Pattern: "Business BSB" or "Operating BSB" or just BSB that's not after "Trust"
           if bank_details.match(/(?:business|operating|general)[^:]*BSB[:\s]+(\d{3}[-\s]?\d{3})/i)
             updates[:bank_bsb] = $1.gsub(/[-\s]/, "") if importable_fields.include?("bank_bsb")
-          elsif bank_details.match(/(?<!trust[^:]{0,20})BSB[:\s]+(\d{3}[-\s]?\d{3})/i)
-            # Fallback: first BSB that's not preceded by "trust"
-            updates[:bank_bsb] = $1.gsub(/[-\s]/, "") if importable_fields.include?("bank_bsb")
+          elsif importable_fields.include?("bank_bsb")
+            # Fallback: find BSB that's not part of trust account section
+            # Split by lines/sections and find first BSB not in a trust context
+            bank_details.scan(/(?:^|[\n,])([^\n,]*BSB[:\s]+(\d{3}[-\s]?\d{3}))/i).each do |match|
+              context, bsb = match
+              unless context =~ /trust/i
+                updates[:bank_bsb] = bsb.gsub(/[-\s]/, "")
+                break
+              end
+            end
           end
           if bank_details.match(/(?:business|operating|general)[^:]*Account(?:\s*(?:Number|#|No))?[:\s]+([\d\s-]+)/i)
             updates[:bank_account_number] = $1.gsub(/[\s-]/, "") if importable_fields.include?("bank_account_number")
