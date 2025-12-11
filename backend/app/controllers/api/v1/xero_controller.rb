@@ -781,7 +781,7 @@ module Api
       # SSoT: Includes all 3 sync timestamps (contact, invoices, PDFs) per contact
       def contacts_sync_list
         begin
-          contacts = Contact.includes(:primary_company, :external_invoices).all
+          contacts = Contact.includes(:primary_company, :external_invoices, :contact_external_links).all
 
           # Pre-calculate invoice/bill counts and PDF sync stats per contact
           invoice_counts = ExternalInvoice.where.not(contact_id: nil)
@@ -817,6 +817,9 @@ module Api
             pdfs_synced = pdf_counts_by_contact[contact.id] || 0
             pdf_sync_percent = total_docs > 0 ? ((pdfs_synced.to_f / total_docs) * 100).round(0) : nil
 
+            # Get sync info from ContactExternalLink (SSoT for sync status)
+            xero_link = contact.contact_external_links.xero.first
+
             {
               id: contact.id,
               display_name: contact.display_name,
@@ -830,17 +833,17 @@ module Api
               is_supplier: contact.is_supplier?,
               xero_id: contact.xero_id,
               synced: contact.xero_id.present?,
-              last_synced_at: contact.last_synced_at,
-              sync_enabled: contact.sync_with_xero,
-              sync_error: contact.xero_sync_error,
-              has_error: contact.xero_sync_error.present?,
+              last_synced_at: xero_link&.last_synced_at,
+              sync_enabled: xero_link&.sync_enabled || false,
+              sync_error: xero_link&.xero_sync_error,
+              has_error: xero_link&.xero_sync_error.present?,
               invoices_count: invoices_count,
               bills_count: bills_count,
               pdfs_synced: pdfs_synced,
               pdf_sync_percent: pdf_sync_percent,
               # SSoT: All 3 sync timestamps per contact
               sync_status: {
-                contact_synced_at: contact.last_synced_at&.iso8601,
+                contact_synced_at: xero_link&.last_synced_at&.iso8601,
                 invoices_synced_at: invoice_sync_times[contact.id]&.iso8601,
                 pdfs_synced_at: pdf_sync_times[contact.id]&.iso8601
               }
@@ -872,27 +875,31 @@ module Api
       end
 
       # GET /api/v1/xero/sync_history
-      # Returns recent sync activity for contacts
+      # Returns recent sync activity for contacts (from ContactExternalLink SSoT)
       def sync_history
         begin
-          # Get recently synced contacts (last 50)
-          recent_syncs = Contact.where.not(last_synced_at: nil)
-                                .order(last_synced_at: :desc)
-                                .limit(50)
-                                .select(:id, :display_name, :first_name, :last_name, :email, :last_synced_at, :xero_sync_error, :xero_id, :created_at, :updated_at)
+          # Get recently synced links (last 50) from ContactExternalLink SSoT
+          recent_links = ContactExternalLink.xero
+                                            .where.not(last_synced_at: nil)
+                                            .includes(:contact)
+                                            .order(last_synced_at: :desc)
+                                            .limit(50)
 
-          history_items = recent_syncs.map do |contact|
+          history_items = recent_links.map do |link|
+            contact = link.contact
+            next unless contact
+
             {
               id: contact.id,
               contact_name: contact.display_name || "#{contact.first_name} #{contact.last_name}".strip,
               email: contact.email,
-              synced_at: contact.last_synced_at,
-              has_error: contact.xero_sync_error.present?,
-              error_message: contact.xero_sync_error,
-              action: determine_sync_action(contact),
+              synced_at: link.last_synced_at,
+              has_error: link.xero_sync_error.present?,
+              error_message: link.xero_sync_error,
+              action: determine_sync_action_from_link(link),
               xero_id: contact.xero_id
             }
-          end
+          end.compact
 
           render json: {
             success: true,
@@ -2179,13 +2186,13 @@ module Api
         }
       end
 
-      # Determine what sync action was taken for a contact
-      def determine_sync_action(contact)
-        if contact.xero_sync_error.present?
+      # Determine what sync action was taken from a ContactExternalLink
+      def determine_sync_action_from_link(link)
+        if link.xero_sync_error.present?
           "Sync Failed"
-        elsif contact.xero_id.present? && contact.created_at < contact.last_synced_at
+        elsif link.external_contact_id.present? && link.contact&.created_at && link.last_synced_at && link.contact.created_at < link.last_synced_at
           "Updated from Xero"
-        elsif contact.xero_id.present?
+        elsif link.external_contact_id.present?
           "Created from Xero"
         else
           "Synced to Xero"

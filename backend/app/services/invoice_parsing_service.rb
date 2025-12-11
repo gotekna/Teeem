@@ -102,33 +102,53 @@ class InvoiceParsingService
       {
         "supplier_name": "company name issuing the invoice",
         "supplier_abn": "11 digit ABN without spaces if present, null otherwise",
-        "bill_to_name": "company name being billed",
-        "bill_to_abn": "ABN of company being billed if present, null otherwise",
+        "billing_company_name": "company name being billed (look for 'Bill To', 'Attention', address block)",
+        "billing_company_abn": "ABN of company being billed if present, null otherwise",
         "invoice_number": "invoice/reference number",
         "invoice_date": "YYYY-MM-DD format or null",
         "due_date": "YYYY-MM-DD format or null",
         "subtotal": numeric_value_without_gst_or_null,
         "tax_amount": gst_amount_or_null,
         "total_amount": total_inc_gst,
+        "balance_due": amount_actually_payable_after_deductions_or_null,
+        "trust_deduction": amount_deducted_from_trust_account_or_null,
         "currency": "AUD",
         "line_items": [
           {"description": "...", "quantity": 1, "unit_price": 100.00, "amount": 100.00, "gst": 10.00}
         ],
         "po_number": "purchase order number if referenced, null otherwise",
+        "payment_reference": "matter reference, file ref, or payment ref (e.g., 'AM:200261', 'Ref: 12345')",
+        "case_reference": "case/matter number if from lawyer/accountant invoice",
+        "matter_description": "brief matter/case description if present",
         "payment_terms": "e.g., Net 30, null if not specified",
-        "bank_details": {
-          "bsb": "BSB if provided",
-          "account_number": "account number if provided",
-          "account_name": "account name if provided"
-        },
-        "confidence": 0.0 to 1.0
+        "supplier_bank_bsb": "BSB number (6 digits, may have dash) if provided",
+        "supplier_bank_account": "bank account number if provided",
+        "supplier_bank_name": "account name if provided",
+        "confidence": 0.0 to 1.0,
+        "field_locations": {
+          "supplier_name": {"x": 0.0, "y": 0.0, "width": 0.2, "height": 0.03, "page": 1},
+          "invoice_number": {"x": 0.0, "y": 0.0, "width": 0.1, "height": 0.02, "page": 1},
+          "total_amount": {"x": 0.0, "y": 0.0, "width": 0.1, "height": 0.02, "page": 1},
+          "balance_due": {"x": 0.0, "y": 0.0, "width": 0.1, "height": 0.02, "page": 1},
+          "trust_deduction": {"x": 0.0, "y": 0.0, "width": 0.1, "height": 0.02, "page": 1}
+        }
       }
+
+      For field_locations: Estimate the position (0.0 to 1.0 as fraction of page) where each field appears:
+      - x: left edge position (0=left margin, 1=right margin)
+      - y: top edge position (0=top of page, 1=bottom of page)
+      - width/height: approximate size of the text
+      - Typical positions: letterhead/supplier at top (y=0.05-0.15), invoice details mid-right (y=0.1-0.3), amounts near bottom (y=0.6-0.9)
 
       Important:
       - ABN is always 11 digits (remove spaces)
       - Dates must be YYYY-MM-DD format
       - All amounts should be numbers, not strings
       - Return null for fields you cannot find, not empty strings
+      - For lawyers/accountants: Look for "Less funds in Trust" or similar for trust_deduction
+      - balance_due is the actual amount to pay (total_amount minus trust_deduction if applicable)
+      - payment_reference is often near bank details or at top (file ref, matter ref, etc.)
+      - billing_company_name: Look carefully for who is being billed (may say "Bill To:", "Tax Invoice To:", etc.)
       - confidence should reflect how certain you are about the extracted data
     PROMPT
   end
@@ -169,25 +189,28 @@ class InvoiceParsingService
       {
         "supplier_name": "company name issuing the invoice",
         "supplier_abn": "11 digit ABN without spaces if present, null otherwise",
-        "bill_to_name": "company name being billed",
-        "bill_to_abn": "ABN of company being billed if present, null otherwise",
+        "billing_company_name": "company name being billed (look for 'Bill To', 'Attention', address block)",
+        "billing_company_abn": "ABN of company being billed if present, null otherwise",
         "invoice_number": "invoice/reference number",
         "invoice_date": "YYYY-MM-DD format or null",
         "due_date": "YYYY-MM-DD format or null",
         "subtotal": numeric_value_without_gst_or_null,
         "tax_amount": gst_amount_or_null,
         "total_amount": total_inc_gst,
+        "balance_due": amount_actually_payable_after_deductions_or_null,
+        "trust_deduction": amount_deducted_from_trust_account_or_null,
         "currency": "AUD",
         "line_items": [
           {"description": "...", "quantity": 1, "unit_price": 100.00, "amount": 100.00, "gst": 10.00}
         ],
         "po_number": "purchase order number if referenced, null otherwise",
+        "payment_reference": "matter reference, file ref, or payment ref (e.g., 'AM:200261', 'Ref: 12345')",
+        "case_reference": "case/matter number if from lawyer/accountant invoice",
+        "matter_description": "brief matter/case description if present",
         "payment_terms": "e.g., Net 30, null if not specified",
-        "bank_details": {
-          "bsb": "BSB if provided",
-          "account_number": "account number if provided",
-          "account_name": "account name if provided"
-        },
+        "supplier_bank_bsb": "BSB number (6 digits, may have dash) if provided",
+        "supplier_bank_account": "bank account number if provided",
+        "supplier_bank_name": "account name if provided",
         "confidence": 0.0 to 1.0,
         "field_locations": {
           "supplier_name": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
@@ -195,7 +218,11 @@ class InvoiceParsingService
           "invoice_number": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
           "invoice_date": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
           "due_date": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
-          "total_amount": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1}
+          "total_amount": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
+          "balance_due": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
+          "trust_deduction": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
+          "payment_reference": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
+          "billing_company_name": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1}
         }
       }
 
@@ -206,7 +233,12 @@ class InvoiceParsingService
       - height: box height as percentage of image height
       - page: page number (1-indexed)
 
-      Only include field_locations for fields you actually found in the document.
+      Important notes:
+      - For lawyers/accountants: Look for "Less funds in Trust" or similar for trust_deduction
+      - balance_due is the actual amount to pay (total_amount minus trust_deduction if applicable)
+      - payment_reference is often near bank details or at top (file ref, matter ref, etc.)
+      - billing_company_name: Look carefully for who is being billed (may say "Bill To:", "Tax Invoice To:", etc.)
+      - Only include field_locations for fields you actually found in the document.
 
       Return ONLY the JSON, no explanations.
     PROMPT
@@ -265,7 +297,8 @@ class InvoiceParsingService
 
   def detect_company!
     result = @bill.ai_extraction_result
-    bill_to_abn = clean_abn(result["bill_to_abn"])
+    # Support both old and new field names for ABN
+    bill_to_abn = clean_abn(result["billing_company_abn"] || result["bill_to_abn"])
 
     return if bill_to_abn.blank?
 

@@ -92,6 +92,14 @@ interface AIExtractionResult {
   purchase_order_number?: string;
   notes?: string;
   field_locations?: Record<string, FieldLocation>;
+  // New fields for lawyer/trust invoices
+  payment_reference?: string;       // e.g., "AM:200261" - their matter reference
+  balance_due?: number;             // Actual amount to pay (after trust deductions)
+  trust_deduction?: number;         // Amount deducted from trust (e.g., $10,000)
+  supplier_bank_bsb?: string;       // Extracted BSB from invoice
+  supplier_bank_account?: string;   // Extracted account number from invoice
+  case_reference?: string;          // Case/matter reference (e.g., "[W2G]")
+  matter_description?: string;      // Matter description from invoice
   [key: string]: unknown;
 }
 
@@ -552,7 +560,13 @@ export default function BillDetailPage() {
                   ) : hasTrustAccount ? (
                     <>
                       {/* Single payment to Trust OR Business account */}
-                      <span className="font-mono font-bold text-emerald-700">${(bill.remaining_balance || bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                      <span className="font-mono font-bold text-emerald-700">${(bill.ai_extraction_result?.balance_due || bill.remaining_balance || bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                      {bill.ai_extraction_result?.trust_deduction && (
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-purple-200 dark:bg-purple-900/50 rounded text-[10px] border border-purple-400">
+                          <Wallet className="h-3 w-3 text-purple-700" />
+                          <span className="text-purple-700 font-semibold">Trust: -${bill.ai_extraction_result.trust_deduction.toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1 px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 rounded text-[10px]">
                         <Wallet className="h-3 w-3 text-purple-600" />
                         <span className="text-purple-600">Trust: {supplierTrustBSB}/{supplierTrustAccount}</span>
@@ -565,7 +579,7 @@ export default function BillDetailPage() {
                   ) : (
                     <>
                       {/* Single payment - standard supplier */}
-                      <span className="font-mono font-bold text-emerald-700">${(bill.remaining_balance || bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                      <span className="font-mono font-bold text-emerald-700">${(bill.ai_extraction_result?.balance_due || bill.remaining_balance || bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
                       <span className="text-muted-foreground">|</span>
                       <span className="font-mono text-muted-foreground">{supplierBusinessBSB ? `${supplierBusinessBSB}/${supplierBusinessAccount}` : "No bank"}</span>
                     </>
@@ -735,24 +749,104 @@ export default function BillDetailPage() {
               </div>
             </div>
 
-            {/* Row 3: Billing Company ABN */}
+            {/* Row 3: Bill To Company + Payment Reference */}
             <div className="grid grid-cols-2 gap-2">
-              <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
-                <p className="text-[10px] text-muted-foreground uppercase">Bill To (Company)</p>
-                <p className="font-medium truncate">{bill.detected_company?.name || bill.corporate_company?.name || "-"}</p>
-              </div>
-              <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
-                <p className="text-[10px] text-muted-foreground uppercase">Company ABN</p>
-                <p className="font-mono font-medium">
-                  {(() => {
-                    const abn = bill.detected_company?.abn || bill.corporate_company?.abn || "";
-                    if (!abn) return "-";
-                    const clean = abn.replace(/\s/g, '');
-                    return clean.length === 11 ? `${clean.slice(0,2)} ${clean.slice(2,5)} ${clean.slice(5,8)} ${clean.slice(8)}` : abn;
-                  })()}
+              <div
+                className={`p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] ${
+                  bill.ai_extraction_result?.billing_company_name
+                    ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400'
+                    : 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300'
+                } ${highlightedField === 'bill_to' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'bill_to' ? null : 'bill_to')}
+              >
+                <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                  Bill To
+                  {bill.ai_extraction_result?.billing_company_name
+                    ? <CheckCircle2 className="h-3 w-3 text-green-600" />
+                    : <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                </p>
+                <p className="font-bold truncate" title={bill.ai_extraction_result?.billing_company_name || bill.detected_company?.name || "-"}>
+                  {bill.ai_extraction_result?.billing_company_name || bill.detected_company?.name || bill.corporate_company?.name || "-"}
                 </p>
               </div>
+              <div
+                className={`p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] ${
+                  bill.ai_extraction_result?.payment_reference
+                    ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400'
+                    : 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300'
+                } ${highlightedField === 'payment_ref' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'payment_ref' ? null : 'payment_ref')}
+              >
+                <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                  Payment Ref
+                  {bill.ai_extraction_result?.payment_reference
+                    ? <CheckCircle2 className="h-3 w-3 text-green-600" />
+                    : <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                </p>
+                <p className="font-mono font-bold">{bill.ai_extraction_result?.payment_reference || "-"}</p>
+              </div>
             </div>
+
+            {/* Row 4: Case/Matter Reference */}
+            {(bill.ai_extraction_result?.case_reference || bill.ai_extraction_result?.matter_description) && (
+              <div
+                className={`p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] bg-blue-100 dark:bg-blue-900/40 border-2 border-blue-400
+                ${highlightedField === 'case_ref' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'case_ref' ? null : 'case_ref')}
+              >
+                <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                  Case/Matter
+                  <CheckCircle2 className="h-3 w-3 text-blue-600" />
+                </p>
+                <p className="font-bold text-blue-700 truncate">
+                  {bill.ai_extraction_result?.case_reference} {bill.ai_extraction_result?.matter_description}
+                </p>
+              </div>
+            )}
+
+            {/* Row 5: Bank Account Verification */}
+            {(bill.ai_extraction_result?.supplier_bank_bsb || bill.supplier?.bank_bsb) && (
+              <div
+                className={`p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] ${
+                  (() => {
+                    const extractedBSB = bill.ai_extraction_result?.supplier_bank_bsb?.replace(/[\s-]/g, '');
+                    const storedBSB = bill.supplier?.bank_bsb?.replace(/[\s-]/g, '');
+                    const extractedAcc = bill.ai_extraction_result?.supplier_bank_account?.replace(/[\s-]/g, '');
+                    const storedAcc = bill.supplier?.bank_account_number?.replace(/[\s-]/g, '');
+                    const bsbMatch = !extractedBSB || !storedBSB || extractedBSB === storedBSB;
+                    const accMatch = !extractedAcc || !storedAcc || extractedAcc === storedAcc;
+                    return bsbMatch && accMatch
+                      ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400'
+                      : 'bg-red-100 dark:bg-red-900/40 border-2 border-red-400';
+                  })()
+                } ${highlightedField === 'bank' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'bank' ? null : 'bank')}
+              >
+                <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                  Bank Details
+                  {(() => {
+                    const extractedBSB = bill.ai_extraction_result?.supplier_bank_bsb?.replace(/[\s-]/g, '');
+                    const storedBSB = bill.supplier?.bank_bsb?.replace(/[\s-]/g, '');
+                    const extractedAcc = bill.ai_extraction_result?.supplier_bank_account?.replace(/[\s-]/g, '');
+                    const storedAcc = bill.supplier?.bank_account_number?.replace(/[\s-]/g, '');
+                    const bsbMatch = !extractedBSB || !storedBSB || extractedBSB === storedBSB;
+                    const accMatch = !extractedAcc || !storedAcc || extractedAcc === storedAcc;
+                    return bsbMatch && accMatch
+                      ? <CheckCircle2 className="h-3 w-3 text-green-600" />
+                      : <XCircle2 className="h-3 w-3 text-red-500" />;
+                  })()}
+                </p>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-mono">
+                    Invoice: {bill.ai_extraction_result?.supplier_bank_bsb || '-'}/{bill.ai_extraction_result?.supplier_bank_account || '-'}
+                  </span>
+                  <span className="text-muted-foreground">vs</span>
+                  <span className="font-mono">
+                    Stored: {bill.supplier?.bank_bsb || '-'}/{bill.supplier?.bank_account_number || '-'}
+                  </span>
+                </div>
+              </div>
+            )}
 
             <Separator className="my-2" />
 
@@ -801,6 +895,39 @@ export default function BillDetailPage() {
                 </span>
                 <span className="font-mono text-lg">${(bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
               </div>
+
+              {/* Trust Deduction - shown when funds deducted from trust */}
+              {bill.ai_extraction_result?.trust_deduction && bill.ai_extraction_result.trust_deduction > 0 && (
+                <div
+                  className={`flex justify-between p-2 rounded cursor-pointer transition-all hover:scale-[1.02] bg-purple-100 dark:bg-purple-900/40 border-2 border-purple-400 shadow-sm
+                  ${highlightedField === 'trust_deduction' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                  onClick={() => setHighlightedField(highlightedField === 'trust_deduction' ? null : 'trust_deduction')}
+                >
+                  <span className="flex items-center gap-1 text-purple-700 font-medium">
+                    <Wallet className="h-4 w-4" />
+                    Less Funds in Trust
+                    <CheckCircle2 className="h-3 w-3 text-purple-600" />
+                  </span>
+                  <span className="font-mono font-bold text-purple-700">-${bill.ai_extraction_result.trust_deduction.toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                </div>
+              )}
+
+              {/* Balance Due - shown when different from total (e.g., after trust deduction) */}
+              {bill.ai_extraction_result?.balance_due && bill.ai_extraction_result.balance_due !== bill.total_amount && (
+                <div
+                  className={`flex justify-between p-2 rounded cursor-pointer transition-all hover:scale-[1.02] bg-emerald-200 dark:bg-emerald-900/50 border-2 border-emerald-500 shadow-md font-bold text-sm
+                  ${highlightedField === 'balance_due' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                  onClick={() => setHighlightedField(highlightedField === 'balance_due' ? null : 'balance_due')}
+                >
+                  <span className="flex items-center gap-1 text-emerald-800">
+                    <DollarSign className="h-4 w-4" />
+                    Balance Due
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  </span>
+                  <span className="font-mono text-lg text-emerald-800">${bill.ai_extraction_result.balance_due.toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                </div>
+              )}
+
               {totalPaid > 0 && (
                 <>
                   <div className="flex justify-between text-green-600 p-1">

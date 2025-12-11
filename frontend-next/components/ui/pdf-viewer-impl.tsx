@@ -40,7 +40,12 @@ export function PDFViewerImpl({
     return { data: new Uint8Array(pdfData) };
   }, [pdfData]);
 
+  // Store onError in a ref to avoid re-fetching when callback changes
+  const onErrorRef = React.useRef(onError);
+  onErrorRef.current = onError;
+
   // Fetch PDF with credentials for authenticated API endpoints
+  // Only re-fetch when URL changes, not when callbacks change
   React.useEffect(() => {
     const fetchPDF = async () => {
       try {
@@ -72,8 +77,8 @@ export function PDFViewerImpl({
         const errorMessage = err instanceof Error ? err.message : "Failed to load PDF";
         console.error("Failed to load PDF:", err);
         setLoadError(errorMessage);
-        if (onError) {
-          onError(new Error(errorMessage));
+        if (onErrorRef.current) {
+          onErrorRef.current(new Error(errorMessage));
         }
       } finally {
         setIsLoading(false);
@@ -81,7 +86,7 @@ export function PDFViewerImpl({
     };
 
     fetchPDF();
-  }, [url, onError]);
+  }, [url]); // Only depend on URL - use ref for callbacks
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
