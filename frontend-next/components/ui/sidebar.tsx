@@ -69,7 +69,7 @@ const navigationItems: NavigationItem[] = [
   { name: "Schedule", href: "/schedule-master", icon: CalendarClock },
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "WHS", href: "/whs", icon: Shield },
-  { name: "Finance", href: "/finance", icon: Layers },
+  { name: "Finance", href: "/finance", icon: Layers, badgeKey: "pendingBills" },
   { name: "Purchase Orders", href: "/purchase_orders", icon: FileText },
   { name: "Quote Requests", href: "/quote-requests", icon: FileQuestion },
   { name: "Contacts", href: urls.contacts(), icon: Users },
@@ -173,6 +173,18 @@ export function Sidebar() {
         setBadges(prev => ({ ...prev, pendingCaseProposals: pendingCaseCount }));
       } catch (error) {
         console.debug("Failed to load case proposal badge counts:", error);
+      }
+
+      try {
+        // Load pending bills count (for Finance)
+        const billResponse = await api.get<{ pending: number; errors: number; awaiting_approval: number }>(
+          "/api/v1/bill_inbox/stats"
+        );
+        // Show badge for pending + errors + awaiting approval
+        const pendingBillsCount = (billResponse.pending || 0) + (billResponse.errors || 0) + (billResponse.awaiting_approval || 0);
+        setBadges(prev => ({ ...prev, pendingBills: pendingBillsCount }));
+      } catch (error) {
+        console.debug("Failed to load bill inbox badge counts:", error);
       }
     };
 
