@@ -742,17 +742,17 @@ module Api
                                               .order(last_synced_at: :desc)
                                               .first
 
-          # Get sync statistics
+          # Get sync statistics (SSoT: ContactExternalLink for sync status)
           total_contacts = Contact.count
           synced_contacts = Contact.where.not(xero_id: nil).count
-          sync_enabled = Contact.where(sync_with_xero: true).count
-          contacts_with_errors = ContactExternalLink.xero.where.not(sync_error: nil).count
+          sync_enabled = ContactExternalLink.xero.enabled.count
+          contacts_with_errors = ContactExternalLink.xero.with_errors.count
 
           # Check for active sync jobs
           active_job = find_active_sync_job
 
           response_data = {
-            last_synced_at: last_xero_link&.last_synced_at,  # SSoT: Use ContactXeroLink.last_synced_at
+            last_synced_at: last_xero_link&.last_synced_at,  # SSoT: ContactExternalLink.last_synced_at
             last_sync_at: last_xero_link&.last_synced_at,    # Deprecated: kept for backwards compatibility
             total_contacts: total_contacts,
             synced_contacts: synced_contacts,
