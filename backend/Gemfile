@@ -61,6 +61,10 @@ gem "cloudinary", "~> 2.1"  # Cloud image storage and CDN
 gem "httparty", "~> 0.22"  # HTTP requests for image scraping
 gem "http", "~> 5.1"  # HTTP client for OAuth token refresh
 gem "mini_magick", "~> 4.12"  # Image processing
+gem "rtesseract", "~> 3.1"  # OCR with Tesseract for precise field location extraction
+
+# Web scraping and automation
+gem "selenium-webdriver", "~> 4.10"  # Browser automation for ASIC Connect scraping
 
 # OAuth2 for Xero integration
 gem "oauth2", "~> 2.0"  # OAuth2 authentication for Xero API

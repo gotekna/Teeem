@@ -19,14 +19,23 @@ class InvoiceParsingService
 
     Rails.logger.info "[InvoiceParsing] Starting extraction for BillInbox ##{@bill.id}"
 
+    # Run OCR extraction (Tesseract) for exact coordinates
+    Rails.logger.info "[InvoiceParsing] Running OCR extraction..."
+    ocr_result = OcrExtractionService.new(@bill).extract!
+
     # Extract text from PDF
     pdf_text = extract_pdf_text
 
-    # Use Claude to parse the invoice
-    result = call_ai(pdf_text)
+    # Use Claude to parse the invoice (with vision for field locations)
+    Rails.logger.info "[InvoiceParsing] Running AI extraction..."
+    ai_result = call_ai(pdf_text)
 
-    # Update bill with extracted data
-    update_bill_with_result(result)
+    # Compare OCR and AI results to match fields with exact coordinates
+    Rails.logger.info "[InvoiceParsing] Comparing OCR and AI results..."
+    comparison = compare_ocr_and_ai(ocr_result, ai_result)
+
+    # Update bill with all extraction data
+    update_bill_with_results(ai_result, ocr_result, comparison)
 
     # Try to match supplier by ABN
     match_supplier!
@@ -35,7 +44,7 @@ class InvoiceParsingService
     detect_company!
 
     Rails.logger.info "[InvoiceParsing] Completed extraction for BillInbox ##{@bill.id}"
-    result
+    ai_result
   rescue StandardError => e
     Rails.logger.error "[InvoiceParsing] Error extracting BillInbox ##{@bill.id}: #{e.message}"
     @bill.update!(status: "error", notes: "Extraction failed: #{e.message}")
@@ -304,6 +313,27 @@ class InvoiceParsingService
     )
   end
 
+  def update_bill_with_results(ai_result, ocr_result, comparison)
+    @bill.update!(
+      supplier_name_raw: ai_result[:supplier_name],
+      supplier_abn_raw: clean_abn(ai_result[:supplier_abn]),
+      invoice_number: ai_result[:invoice_number],
+      invoice_date: parse_date(ai_result[:invoice_date]),
+      due_date: parse_date(ai_result[:due_date]),
+      subtotal: ai_result[:subtotal],
+      tax_amount: ai_result[:tax_amount],
+      total_amount: ai_result[:total_amount],
+      currency: ai_result[:currency] || "AUD",
+      line_items: ai_result[:line_items] || [],
+      ai_confidence: ai_result[:confidence],
+      ai_extraction_result: ai_result,
+      ocr_extraction_result: ocr_result,
+      comparison_data: comparison,
+      extracted_at: Time.current,
+      status: "extracted"
+    )
+  end
+
   def match_supplier!
     return if @bill.supplier_abn_raw.blank?
 
@@ -321,6 +351,13 @@ class InvoiceParsingService
     else
       Rails.logger.info "[InvoiceParsing] No supplier found for ABN: #{abn}"
     end
+  end
+
+  def compare_ocr_and_ai(ocr_result, ai_result)
+    return {} if ocr_result.blank? || ai_result.blank?
+    return {} if ocr_result[:error].present?
+
+    InvoiceFieldMatcherService.new(ocr_result, ai_result).compare!
   end
 
   def detect_company!

@@ -4,22 +4,22 @@ import { Node, Edge } from "@xyflow/react";
 // Node dimensions for layout calculation (horizontal flow)
 // IMPORTANT: These must match the actual component widths in the node files
 const NODE_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  start_event: { width: 100, height: 40 },
-  end_event: { width: 80, height: 40 },
-  timer_event: { width: 140, height: 50 },
-  intermediate_event: { width: 180, height: 50 },
-  user_task: { width: 180, height: 60 },
-  service_task: { width: 180, height: 60 },
-  exclusive_gateway: { width: 120, height: 50 },
-  parallel_gateway: { width: 120, height: 50 },
-  data_store_reference: { width: 180, height: 60 },
-  sub_process: { width: 180, height: 60 },
-  annotation: { width: 200, height: 80 },
-  pool: { width: 200, height: 60 },
-  lane: { width: 180, height: 60 },
+  start_event: { width: 120, height: 50 },
+  end_event: { width: 100, height: 50 },
+  timer_event: { width: 170, height: 65 },
+  intermediate_event: { width: 220, height: 65 },
+  user_task: { width: 220, height: 80 },
+  service_task: { width: 220, height: 80 },
+  exclusive_gateway: { width: 140, height: 65 },
+  parallel_gateway: { width: 140, height: 65 },
+  data_store_reference: { width: 220, height: 80 },
+  sub_process: { width: 220, height: 80 },
+  annotation: { width: 240, height: 100 },
+  pool: { width: 240, height: 80 },
+  lane: { width: 220, height: 80 },
 };
 
-const DEFAULT_DIMENSIONS = { width: 150, height: 60 };
+const DEFAULT_DIMENSIONS = { width: 180, height: 80 };
 
 export type LayoutDirection = "TB" | "LR" | "BT" | "RL";
 
@@ -85,8 +85,11 @@ function simpleGridLayout<T extends Record<string, unknown>>(
   nodes: Node<T>[],
   edges: Edge[]
 ): Node<T>[] {
-  const COL_WIDTH = 250;  // Horizontal spacing between columns
-  const ROW_HEIGHT = 150; // Vertical spacing between rows
+  const COL_WIDTH = 300;  // Horizontal spacing between columns (matches canvas grid)
+  const ROW_HEIGHT = 200; // Vertical spacing between rows (matches canvas grid)
+  const START_X = -350;   // Negative offset to shift workflow left and eliminate wasted space
+  const START_Y = 150;    // Starting Y offset to align with canvas rows
+  const UNIFORM_NODE_HEIGHT = 60; // Use uniform height for vertical centering (matches service_task height)
 
   // Build adjacency lists
   const outgoing = new Map<string, string[]>();
@@ -99,61 +102,91 @@ function simpleGridLayout<T extends Record<string, unknown>>(
     incoming.get(edge.target)!.push(edge.source);
   });
 
-  // Find start nodes (no incoming edges)
-  const startNodes = nodes.filter(n => !incoming.has(n.id) || incoming.get(n.id)!.length === 0);
+  // Find parallel gateways and start node
+  const startNode = nodes.find(n => (!incoming.has(n.id) || incoming.get(n.id)!.length === 0) && n.type === 'start_event');
+  const parallelGateways = nodes.filter(n => n.type === 'parallel_gateway');
+  const endNode = nodes.find(n => n.type === 'end_event');
 
-  // Assign column (depth) to each node using BFS
-  const nodeColumns = new Map<string, number>();
-  const nodeRows = new Map<string, number>();
-  const queue: Array<{id: string, col: number, row: number}> = [];
+  const nodePositions = new Map<string, {col: number, row: number}>();
 
-  startNodes.forEach((n, idx) => {
-    queue.push({id: n.id, col: 0, row: idx});
-    nodeColumns.set(n.id, 0);
-    nodeRows.set(n.id, idx);
-  });
-
-  const visited = new Set<string>();
-
-  while (queue.length > 0) {
-    const {id, col, row} = queue.shift()!;
-    if (visited.has(id)) continue;
-    visited.add(id);
-
-    const neighbors = outgoing.get(id) || [];
-
-    // Check if this is a parallel gateway (multiple outgoing edges)
-    if (neighbors.length > 1) {
-      // Parallel split - assign each branch to a different row
-      neighbors.forEach((neighborId, idx) => {
-        if (!nodeColumns.has(neighborId)) {
-          nodeColumns.set(neighborId, col + 1);
-          nodeRows.set(neighborId, idx);
-          queue.push({id: neighborId, col: col + 1, row: idx});
-        }
-      });
-    } else {
-      // Single path - continue in same row
-      neighbors.forEach(neighborId => {
-        if (!nodeColumns.has(neighborId)) {
-          nodeColumns.set(neighborId, col + 1);
-          nodeRows.set(neighborId, row);
-          queue.push({id: neighborId, col: col + 1, row: row});
-        }
-      });
-    }
+  // Start event at column 0, row 1 (middle)
+  if (startNode) {
+    nodePositions.set(startNode.id, {col: 0, row: 1});
   }
 
-  // Apply grid positions
+  // First parallel gateway at column 1, row 1
+  if (parallelGateways[0]) {
+    nodePositions.set(parallelGateways[0].id, {col: 1, row: 1});
+
+    // Get the 3 parallel branches
+    const branches = outgoing.get(parallelGateways[0].id) || [];
+
+    // For each branch, traverse and assign positions
+    branches.forEach((branchStartId, branchIndex) => {
+      let currentId = branchStartId;
+      let col = 2; // Start at column 2
+
+      // Walk this branch until we hit the convergence gateway
+      while (currentId) {
+        // Assign this node to its row and column
+        nodePositions.set(currentId, {col, row: branchIndex});
+
+        // Get next node in path
+        const nextNodes = outgoing.get(currentId) || [];
+        if (nextNodes.length === 0) break;
+
+        const nextId = nextNodes[0];
+        const nextNode = nodes.find(n => n.id === nextId);
+
+        // Stop if we hit the convergence gateway
+        if (nextNode?.type === 'parallel_gateway') break;
+
+        // Move to next node
+        currentId = nextId;
+        col++;
+      }
+    });
+  }
+
+  // Find max column used
+  const maxCol = Math.max(
+    ...Array.from(nodePositions.values()).map(p => p.col),
+    0
+  );
+
+  // Second parallel gateway (convergence) at maxCol + 1, row 1
+  if (parallelGateways[1]) {
+    nodePositions.set(parallelGateways[1].id, {col: maxCol + 1, row: 1});
+  }
+
+  // End event at maxCol + 2, row 1
+  if (endNode) {
+    nodePositions.set(endNode.id, {col: maxCol + 2, row: 1});
+  }
+
+  // Ensure all nodes have positions - assign any missing nodes to row 1, next available column
+  nodes.forEach(node => {
+    if (!nodePositions.has(node.id)) {
+      console.warn(`Node ${node.id} not positioned, defaulting to row 1`);
+      nodePositions.set(node.id, {col: maxCol + 3, row: 1});
+    }
+  });
+
+  // Apply grid positions with offsets to align with canvas grid
   return nodes.map(node => {
-    const col = nodeColumns.get(node.id) ?? 0;
-    const row = nodeRows.get(node.id) ?? 0;
+    const pos = nodePositions.get(node.id)!; // Now guaranteed to exist
+
+    // Get node dimensions for horizontal centering only
+    const dimensions = NODE_DIMENSIONS[node.type || ''] || DEFAULT_DIMENSIONS;
+
+    // Calculate exact Y position for this row (all nodes in same row get identical Y)
+    const rowY = Math.round(START_Y + (pos.row * ROW_HEIGHT) - (UNIFORM_NODE_HEIGHT / 2));
 
     return {
       ...node,
       position: {
-        x: col * COL_WIDTH,
-        y: row * ROW_HEIGHT,
+        x: Math.round(START_X + (pos.col * COL_WIDTH) - (dimensions.width / 2)),
+        y: rowY,
       },
     };
   });

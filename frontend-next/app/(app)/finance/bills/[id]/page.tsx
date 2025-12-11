@@ -103,6 +103,51 @@ interface AIExtractionResult {
   [key: string]: unknown;
 }
 
+interface OcrWord {
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  confidence: number;
+  page: number;
+  pixel_x: number;
+  pixel_y: number;
+  pixel_width: number;
+  pixel_height: number;
+}
+
+interface OcrExtractionResult {
+  text: string;
+  words: OcrWord[];
+  pages: Array<{
+    page: number;
+    text: string;
+    words: OcrWord[];
+    image_width: number;
+    image_height: number;
+  }>;
+  extracted_at: string;
+  ocr_engine: string;
+  ocr_version: string;
+  error?: string;
+}
+
+interface FieldComparison {
+  ai_value: string | number;
+  ocr_match: string | null;
+  coordinates: FieldLocation | null;
+  match_confidence: number;
+  exact_match: boolean;
+  ocr_words: string[];
+}
+
+interface ComparisonData {
+  fields: Record<string, FieldComparison>;
+  overall_match_rate: number;
+  timestamp: string;
+}
+
 interface BillDetail {
   id: number;
   invoice_number: string;
@@ -128,6 +173,8 @@ interface BillDetail {
   status_color: string;
   extracted_at: string | null;
   ai_extraction_result: AIExtractionResult | null;
+  ocr_extraction_result: OcrExtractionResult | null;
+  comparison_data: ComparisonData | null;
   xero_tenant_name: string | null;
   corporate_company: {
     id: number;
@@ -226,12 +273,45 @@ export default function BillDetailPage() {
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [mismatchDetailsOpen, setMismatchDetailsOpen] = useState(false);
 
-  // Build highlights array from field_locations
+  // Build highlights array from OCR coordinates (exact) or AI field_locations (estimated)
   const pdfHighlights: FieldHighlight[] = React.useMemo(() => {
-    if (!highlightedField || !bill?.ai_extraction_result?.field_locations) return [];
+    if (!highlightedField) return [];
 
-    const location = bill.ai_extraction_result.field_locations[highlightedField];
-    if (!location) return [];
+    // Priority 1: Use exact OCR coordinates from comparison_data
+    const ocrCoordinates = bill?.comparison_data?.fields[highlightedField]?.coordinates;
+    if (ocrCoordinates && ocrCoordinates.x !== undefined) {
+      const fieldLabels: Record<string, string> = {
+        supplier_name: "Supplier Name",
+        supplier_abn: "Supplier ABN",
+        invoice_number: "Invoice #",
+        invoice_date: "Invoice Date",
+        due_date: "Due Date",
+        total_amount: "Total Amount",
+        subtotal: "Subtotal",
+        tax_amount: "Tax/GST",
+        billing_company_name: "Bill To Company",
+        billing_company_abn: "Bill To ABN",
+        payment_reference: "Payment Reference",
+        balance_due: "Balance Due",
+        trust_deduction: "Trust Deduction",
+        supplier_bank_bsb: "Bank BSB",
+        supplier_bank_account: "Bank Account",
+      };
+
+      return [{
+        x: ocrCoordinates.x,
+        y: ocrCoordinates.y,
+        width: ocrCoordinates.width,
+        height: ocrCoordinates.height,
+        page: ocrCoordinates.page || 1,
+        label: `${fieldLabels[highlightedField] || highlightedField} (OCR)`,
+        color: "#10b981" // green for exact OCR match
+      }];
+    }
+
+    // Priority 2: Fall back to AI estimated field_locations
+    const aiLocation = bill?.ai_extraction_result?.field_locations?.[highlightedField];
+    if (!aiLocation) return [];
 
     const fieldLabels: Record<string, string> = {
       supplier_name: "Supplier Name",
@@ -252,15 +332,15 @@ export default function BillDetailPage() {
     };
 
     return [{
-      x: location.x,
-      y: location.y,
-      width: location.width,
-      height: location.height,
-      page: location.page || 1,
-      label: fieldLabels[highlightedField] || highlightedField,
-      color: "#eab308" // yellow
+      x: aiLocation.x,
+      y: aiLocation.y,
+      width: aiLocation.width,
+      height: aiLocation.height,
+      page: aiLocation.page || 1,
+      label: `${fieldLabels[highlightedField] || highlightedField} (AI Est.)`,
+      color: "#eab308" // yellow for AI estimated
     }];
-  }, [highlightedField, bill?.ai_extraction_result?.field_locations]);
+  }, [highlightedField, bill?.comparison_data, bill?.ai_extraction_result?.field_locations]);
 
   // Helper to check if a field has location data
   const hasLocation = (fieldName: string): boolean => {
@@ -847,6 +927,94 @@ export default function BillDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* OCR vs AI Comparison Table */}
+            {bill.comparison_data && bill.comparison_data.fields && Object.keys(bill.comparison_data.fields).length > 0 && (
+              <>
+                <Separator />
+                <p className="text-xs font-semibold flex items-center gap-2">
+                  <ScanText className="h-4 w-4" />
+                  OCR vs AI Field Comparison
+                  <Badge variant="outline" className="text-[10px] ml-auto">
+                    {bill.comparison_data.overall_match_rate}% Overall Match
+                  </Badge>
+                </p>
+
+                <div className="space-y-1 text-xs max-h-64 overflow-auto">
+                  {Object.entries(bill.comparison_data.fields).map(([fieldName, comparison]: [string, any]) => {
+                    const fieldLabels: Record<string, string> = {
+                      invoice_number: "Invoice #",
+                      invoice_date: "Invoice Date",
+                      due_date: "Due Date",
+                      subtotal: "Subtotal",
+                      tax_amount: "Tax/GST",
+                      total_amount: "Total",
+                      supplier_name: "Supplier Name",
+                      supplier_abn: "Supplier ABN",
+                      billing_company_name: "Bill To Company",
+                      billing_company_abn: "Bill To ABN",
+                      payment_reference: "Payment Ref",
+                      balance_due: "Balance Due",
+                    };
+
+                    const isExactMatch = comparison.exact_match;
+                    const hasFuzzyMatch = comparison.match_confidence > 0.7 && !isExactMatch;
+                    const hasNoMatch = comparison.match_confidence <= 0.7;
+
+                    return (
+                      <div
+                        key={fieldName}
+                        className={`p-2 rounded border ${
+                          isExactMatch ? 'bg-green-50 border-green-300' :
+                          hasFuzzyMatch ? 'bg-yellow-50 border-yellow-300' :
+                          'bg-gray-50 border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-xs">{fieldLabels[fieldName] || fieldName}</span>
+                          <div className="flex items-center gap-1">
+                            {isExactMatch && (
+                              <Badge className="bg-green-600 text-white text-[9px] px-1 py-0">
+                                <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
+                                Exact Match
+                              </Badge>
+                            )}
+                            {hasFuzzyMatch && (
+                              <Badge className="bg-yellow-500 text-white text-[9px] px-1 py-0">
+                                {Math.round(comparison.match_confidence * 100)}% Match
+                              </Badge>
+                            )}
+                            {hasNoMatch && (
+                              <Badge variant="outline" className="text-gray-500 text-[9px] px-1 py-0">
+                                No OCR Match
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                          <div>
+                            <span className="text-muted-foreground">AI:</span>
+                            <span className="ml-1 font-mono">{String(comparison.ai_value)}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">OCR:</span>
+                            <span className="ml-1 font-mono">
+                              {comparison.ocr_match || <span className="text-gray-400 italic">not found</span>}
+                            </span>
+                          </div>
+                        </div>
+                        {comparison.coordinates && (
+                          <div className="mt-1 text-[9px] text-muted-foreground flex items-center gap-1">
+                            <MapPin className="h-2.5 w-2.5" />
+                            Exact location: Page {comparison.coordinates.page}, ({Math.round(comparison.coordinates.x * 100)}%, {Math.round(comparison.coordinates.y * 100)}%)
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}
@@ -902,6 +1070,12 @@ export default function BillDetailPage() {
                 <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
                   Invoice #
                   {bill.ai_extraction_result?.invoice_number && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                  {bill.comparison_data?.fields?.invoice_number?.coordinates && (
+                    <Badge className="bg-green-600 text-white text-[8px] px-1 py-0 ml-auto">OCR</Badge>
+                  )}
+                  {!bill.comparison_data?.fields?.invoice_number?.coordinates && bill.ai_extraction_result?.field_locations?.invoice_number && (
+                    <Badge className="bg-yellow-500 text-white text-[8px] px-1 py-0 ml-auto">AI Est.</Badge>
+                  )}
                 </p>
                 <p className="font-mono font-bold">{bill.invoice_number || "-"}</p>
               </div>
@@ -956,6 +1130,12 @@ export default function BillDetailPage() {
                 <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
                   Supplier ABN
                   {bill.ai_extraction_result?.supplier_abn && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                  {bill.comparison_data?.fields?.supplier_abn?.coordinates && (
+                    <Badge className="bg-green-600 text-white text-[8px] px-1 py-0 ml-auto">OCR</Badge>
+                  )}
+                  {!bill.comparison_data?.fields?.supplier_abn?.coordinates && bill.ai_extraction_result?.field_locations?.supplier_abn && (
+                    <Badge className="bg-yellow-500 text-white text-[8px] px-1 py-0 ml-auto">AI Est.</Badge>
+                  )}
                 </p>
                 <div className="flex items-center gap-1">
                   <p className="font-mono font-bold">
@@ -1119,6 +1299,12 @@ export default function BillDetailPage() {
                 <span className="flex items-center gap-1">
                   Total
                   {bill.ai_extraction_result?.total_amount && <CheckCircle2 className="h-4 w-4 text-green-600" />}
+                  {bill.comparison_data?.fields?.total_amount?.coordinates && (
+                    <Badge className="bg-green-600 text-white text-[8px] px-1 py-0">OCR</Badge>
+                  )}
+                  {!bill.comparison_data?.fields?.total_amount?.coordinates && bill.ai_extraction_result?.field_locations?.total_amount && (
+                    <Badge className="bg-yellow-500 text-white text-[8px] px-1 py-0">AI Est.</Badge>
+                  )}
                 </span>
                 <span className="font-mono text-lg">${(bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
               </div>

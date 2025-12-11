@@ -939,7 +939,8 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
         const transformedColumns = (foundationResponse.foundation.columns || []).map((col: any) => ({
           ...col,
           key: col.column_name,
-          label: col.name
+          label: col.name,
+          defaultHidden: false // Ensure all columns are visible by default
         }));
         console.log('[BankAccountsTab] Transformed columns:', transformedColumns);
         setColumns(transformedColumns);
