@@ -510,9 +510,7 @@ class MicrosoftAppGraphClient
   private
 
   def access_token
-    token = @credential.valid_access_token
-    Rails.logger.info "[MicrosoftAppGraph] access_token - using token ending in: #{token[-10..]}"
-    token
+    @credential.valid_access_token
   end
 
   def get(endpoint, params = {}, include_search: false)
