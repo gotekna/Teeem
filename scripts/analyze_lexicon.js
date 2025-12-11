@@ -21,7 +21,7 @@ function fetch(url) {
 async function main() {
   console.log('Fetching Lexicon entries...\n');
 
-  const response = await fetch('https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=lexicon');
+  const response = await fetch('https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=lexicon');
   const entries = response.data;
 
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

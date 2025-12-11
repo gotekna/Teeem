@@ -9,7 +9,7 @@ Commits ONLY the changes made in THIS chat session and deploys to production. St
 ## PRODUCTION DEPLOY
 
 This deploys directly to **PRODUCTION**:
-- Backend: https://teeem-backend-39604ccca45a.herokuapp.com/
+- Backend: https://teeemlive-ce8e2660a615.herokuapp.com/
 - Frontend: https://teeemlive.vercel.app/
 
 ## Instructions
@@ -74,7 +74,7 @@ git branch -D temp-live-deploy
 ### Step 6 - Verify Deploy
 ```bash
 sleep 10
-curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
+curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version
 heroku releases --app teeemlive -n 1
 ```
 

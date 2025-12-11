@@ -67,7 +67,7 @@ Specialized agent for diagnosing and fixing bugs in the Gantt Chart and Schedule
 
 ```bash
 # ALWAYS fetch from the live API first
-curl -s 'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=bible&chapter_number=9'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter_number=9'
 ```
 
 **This returns all Chapter 9 Bible rules** from the database (always up-to-date).
@@ -116,11 +116,11 @@ Execute all 12 visual tests via API:
 
 ```bash
 # Get test list
-curl -s https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/bug_hunter_tests
+curl -s https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/bug_hunter_tests
 
 # Run all tests
 for test_id in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  curl -X POST https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/bug_hunter_tests/$test_id/run
+  curl -X POST https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/bug_hunter_tests/$test_id/run
 done
 ```
 

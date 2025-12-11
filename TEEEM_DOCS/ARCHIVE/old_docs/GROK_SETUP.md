@@ -31,7 +31,7 @@ XAI_API_KEY=your_api_key_here
 #### Production (Heroku)
 
 ```bash
-heroku config:set XAI_API_KEY=your_api_key_here -a teeem-backend
+heroku config:set XAI_API_KEY=your_api_key_here -a teeemlive
 ```
 
 ### 3. Restart Your Servers

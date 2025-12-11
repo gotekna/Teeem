@@ -5409,7 +5409,7 @@ First, upload your CSV files to the Heroku dyno:
 
 ```bash
 # Create a temporary directory on Heroku
-heroku run bash --app teeem-backend
+heroku run bash --app teeemlive
 mkdir -p tmp
 exit
 
@@ -5428,7 +5428,7 @@ exit
 Or manually copy/paste the content:
 
 ```bash
-heroku run bash --app teeem-backend
+heroku run bash --app teeemlive
 
 # In the Heroku shell:
 cat > tmp/suppliers.csv << 'EOF'
@@ -5541,7 +5541,7 @@ bundle exec rails pricebook:import_clean
 
 ```bash
 # Create a temporary directory on Heroku
-heroku run bash --app teeem-backend
+heroku run bash --app teeemlive
 mkdir -p tmp
 exit
 
@@ -5552,7 +5552,7 @@ exit
 ```
 
 ```bash
-heroku run bash --app teeem-backend
+heroku run bash --app teeemlive
 
 # In the Heroku shell:
 cat > tmp/suppliers.csv << 'EOF'
@@ -5639,7 +5639,7 @@ bundle exec rails pricebook:import_clean
 
 ```bash
 # Create a temporary directory on Heroku
-heroku run bash --app teeem-backend
+heroku run bash --app teeemlive
 mkdir -p tmp
 exit
 
@@ -5650,7 +5650,7 @@ exit
 ```
 
 ```bash
-heroku run bash --app teeem-backend
+heroku run bash --app teeemlive
 
 # In the Heroku shell:
 cat > tmp/suppliers.csv << 'EOF'
@@ -6790,7 +6790,7 @@ First, upload your CSV files to the Heroku dyno:
 
 ```bash
 # Create a temporary directory on Heroku
-heroku run bash --app teeem-backend
+heroku run bash --app teeemlive
 mkdir -p tmp
 exit
 
@@ -6809,7 +6809,7 @@ exit
 Or manually copy/paste the content:
 
 ```bash
-heroku run bash --app teeem-backend
+heroku run bash --app teeemlive
 
 # In the Heroku shell:
 cat > tmp/suppliers.csv << 'EOF'
@@ -6922,7 +6922,7 @@ bundle exec rails pricebook:import_clean
 
 ```bash
 # Create a temporary directory on Heroku
-heroku run bash --app teeem-backend
+heroku run bash --app teeemlive
 mkdir -p tmp
 exit
 
@@ -6933,7 +6933,7 @@ exit
 ```
 
 ```bash
-heroku run bash --app teeem-backend
+heroku run bash --app teeemlive
 
 # In the Heroku shell:
 cat > tmp/suppliers.csv << 'EOF'
@@ -7020,7 +7020,7 @@ bundle exec rails pricebook:import_clean
 
 ```bash
 # Create a temporary directory on Heroku
-heroku run bash --app teeem-backend
+heroku run bash --app teeemlive
 mkdir -p tmp
 exit
 
@@ -7031,7 +7031,7 @@ exit
 ```
 
 ```bash
-heroku run bash --app teeem-backend
+heroku run bash --app teeemlive
 
 # In the Heroku shell:
 cat > tmp/suppliers.csv << 'EOF'
@@ -27121,27 +27121,27 @@ Before performing any audit, the agent MUST gather the latest rules from all thr
 
 ### 1. Fetch Chapter 19 (UI/UX Standards) - Bible
 ```bash
-curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter_number=19'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter_number=19'
 ```
 
 ### 2. Fetch Chapter 19 (UI/UX Standards) - Teacher
 ```bash
-curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=19'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=19'
 ```
 
 ### 3. Fetch Chapter 20 (Agent System) - Bible
 ```bash
-curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter_number=20'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter_number=20'
 ```
 
 ### 4. Fetch Chapter 20 (Agent System) - Teacher
 ```bash
-curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=20'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=20'
 ```
 
 ### 5. Fetch UI/UX Related Lexicon Entries
 ```bash
-curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=lexicon' | jq 'select(.title | test("ui|ux|table|component|dark|mode|icon|button"; "i"))'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=lexicon' | jq 'select(.title | test("ui|ux|table|component|dark|mode|icon|button"; "i"))'
 ```
 
 **Why all sources?**

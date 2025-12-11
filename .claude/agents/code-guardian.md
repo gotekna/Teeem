@@ -74,7 +74,7 @@ jobs:
 
 ```bash
 # Get dense_index for token efficiency (97% savings)
-curl "https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=bible&chapter=1&fields=dense_index,section_number,title"
+curl "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter=1&fields=dense_index,section_number,title"
 
 # Chapter 1 contains PATTERN-001, 002, 003 (system-wide patterns)
 # Chapter 19 contains PATTERN-004 (UI/UX pattern)
@@ -411,7 +411,7 @@ function detectPattern004(fileContent, filePath) {
 import TEEEMTableView from './TEEEMTableView'
 \`\`\`
 
-**Migration Guide:** [Teacher §19.1](https://teeem-backend.../api/v1/trinity?category=teacher&chapter=19)
+**Migration Guide:** [Teacher §19.1](https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher&chapter=19)
 **Gold Standard:** `/settings?tab=gold-standard`
 
 [Read more](TEEEM_DOCS/PATTERN_LIBRARY.md#pattern-004)
@@ -491,7 +491,7 @@ const data = useMemo(() => calculateData(), [deps])
 ```javascript
 // Step 1: Fetch dense_index for ALL Bible rules
 const response = await fetch(
-  'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=bible&fields=dense_index,section_number,title,chapter_number'
+  'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&fields=dense_index,section_number,title,chapter_number'
 )
 const { data } = await response.json()
 
@@ -504,7 +504,7 @@ const patternRules = data.filter(rule =>
 
 // Step 3: For violations found, fetch full details
 const ruleDetails = await fetch(
-  `https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity/${ruleId}`
+  `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity/${ruleId}`
 )
 
 // Use in PR comment with links
@@ -561,7 +561,7 @@ predecessor_ids: task.predecessor_ids || []
 
 **References:**
 - [Pattern Library PATTERN-001](TEEEM_DOCS/PATTERN_LIBRARY.md#pattern-001)
-- [Trinity Bible §1.{X}](https://teeem-backend.../api/v1/trinity?section=1.X)
+- [Trinity Bible §1.{X}](https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?section=1.X)
 "
 ```
 
@@ -694,7 +694,7 @@ The Code Guardian Agent **replaces and consolidates:**
 
 - **Pattern Library:** [TEEEM_DOCS/PATTERN_LIBRARY.md](TEEEM_DOCS/PATTERN_LIBRARY.md)
 - **Detection Rules:** [TEEEM_DOCS/DETECTION_RULES.md](TEEEM_DOCS/DETECTION_RULES.md)
-- **Trinity Bible:** `https://teeem-backend.../api/v1/trinity?category=bible`
+- **Trinity Bible:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible`
 - **Pre-Commit Guardian:** [scripts/safeguard-checker.js](scripts/safeguard-checker.js)
 
 ---

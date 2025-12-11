@@ -95,7 +95,7 @@ Response:
 
 ### Option 1: Fetch All Images (Recommended for First Run)
 ```bash
-curl -X POST "https://teeem-backend-447058022b51.herokuapp.com/api/v1/pricebook/fetch_all_images?limit=100"
+curl -X POST "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/pricebook/fetch_all_images?limit=100"
 ```
 
 This will:
@@ -108,17 +108,17 @@ This will:
 
 ### Option 2: Fetch for Specific Supplier
 ```bash
-curl -X POST "https://teeem-backend-447058022b51.herokuapp.com/api/v1/pricebook/fetch_all_images?supplier_id=47&limit=50"
+curl -X POST "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/pricebook/fetch_all_images?supplier_id=47&limit=50"
 ```
 
 ### Option 3: Fetch Single Item
 ```bash
-curl -X POST "https://teeem-backend-447058022b51.herokuapp.com/api/v1/pricebook/275/fetch_image"
+curl -X POST "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/pricebook/275/fetch_image"
 ```
 
 ### Check Progress
 ```bash
-curl "https://teeem-backend-447058022b51.herokuapp.com/api/v1/pricebook/image_stats"
+curl "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/pricebook/image_stats"
 ```
 
 ## 🎯 Image Search Strategy
@@ -259,7 +259,7 @@ The system now uses **Claude 3 Haiku** to intelligently select product images:
 ```bash
 #!/bin/bash
 
-API_URL="https://teeem-backend-447058022b51.herokuapp.com/api/v1"
+API_URL="https://teeemlive-ce8e2660a615.herokuapp.com/api/v1"
 
 # Get total count
 stats=$(curl -s "$API_URL/pricebook/image_stats")
@@ -296,7 +296,7 @@ echo "✓ Complete!"
 ## 📞 Support
 
 For issues or questions:
-- Check Heroku logs: `heroku logs --tail --app teeem-backend`
+- Check Heroku logs: `heroku logs --tail --app teeemlive`
 - Review background job status in SolidQueue
 - Check Cloudinary dashboard for storage usage
 

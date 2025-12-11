@@ -354,7 +354,7 @@ module Api
         require "net/http"
         require "json"
 
-        production_url = "https://teeem-backend-447058022b51.herokuapp.com/api/v1/schema/tables"
+        production_url = "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/schema/tables"
 
         begin
           uri = URI(production_url)

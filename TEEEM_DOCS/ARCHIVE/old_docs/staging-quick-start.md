@@ -46,11 +46,11 @@ cd /Users/jakebaird/teeem/frontend
 
 # Option A: Use production backend (simpler)
 vercel env add VITE_API_URL production
-# Enter: https://teeem-backend-447058022b51.herokuapp.com
+# Enter: https://teeemlive-ce8e2660a615.herokuapp.com
 
 # Option B: Use staging backend (if you created one)
 vercel env add VITE_API_URL production
-# Enter: https://teeem-backend-staging.herokuapp.com
+# Enter: https://teeemlive-staging.herokuapp.com
 
 # Copy other required env vars
 vercel env add CLOUDINARY_CLOUD_NAME production

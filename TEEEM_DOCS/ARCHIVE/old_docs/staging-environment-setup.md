@@ -72,7 +72,7 @@ Set the same API URL as production:
 ```bash
 cd /Users/jakebaird/teeem/frontend
 vercel env add VITE_API_URL production
-# When prompted, enter: https://teeem-backend-447058022b51.herokuapp.com
+# When prompted, enter: https://teeemlive-ce8e2660a615.herokuapp.com
 ```
 
 Also add other required variables:
@@ -88,14 +88,14 @@ vercel env add VITE_XERO_CLIENT_ID production
 
 If you want to create a separate staging backend:
 
-1. Create new Heroku app: `teeem-backend-staging`
+1. Create new Heroku app: `teeemlive-staging`
 2. Deploy backend to staging
 3. Set different API URL:
 
 ```bash
 cd /Users/jakebaird/teeem/frontend
 vercel env add VITE_API_URL production
-# When prompted, enter: https://teeem-backend-staging.herokuapp.com
+# When prompted, enter: https://teeemlive-staging.herokuapp.com
 ```
 
 ### Step 4: Add GitHub Secret
@@ -145,7 +145,7 @@ The staging deployment workflow (`.github/workflows/deploy-staging.yml`) automat
 | Branch | `main` | `rob` |
 | URL | https://teeem.vercel.app | https://teeem-staging.vercel.app |
 | Project ID | `prj_mQk4ClT5cVPRAcmEDigB3LBAb0Gl` | `${{ secrets.VERCEL_STAGING_PROJECT_ID }}` |
-| Backend API | https://teeem-backend-447058022b51.herokuapp.com | (Your choice - same or separate) |
+| Backend API | https://teeemlive-ce8e2660a615.herokuapp.com | (Your choice - same or separate) |
 | Deployment | Manual or on push to main | Automatic on push to rob |
 
 ## Custom Domain (Optional)

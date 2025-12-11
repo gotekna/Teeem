@@ -25,7 +25,7 @@
 - **File Processing:** Roo (Excel/CSV parsing), Caxlsx (Excel generation)
 - **Formula Engine:** Dentaku gem (safe mathematical expression evaluation)
 - **Deployment:** Heroku (currently v38)
-- **URL:** https://teeem-backend-447058022b51.herokuapp.com
+- **URL:** https://teeemlive-ce8e2660a615.herokuapp.com
 
 ### Frontend (Vercel)
 - **Framework:** React 18 (standalone SPA)
@@ -522,7 +522,7 @@ SECRET_KEY_BASE=<rails secret>
 
 ### Frontend (Vercel)
 ```bash
-VITE_API_URL=https://teeem-backend-447058022b51.herokuapp.com
+VITE_API_URL=https://teeemlive-ce8e2660a615.herokuapp.com
 ```
 
 ---
@@ -826,7 +826,7 @@ heroku run rails runner "p SolidQueue::Job.count"
 **Project Location:** `/Users/jakebaird/teeem`
 
 **Git Repository:** Local git repo, deploying to:
-- Heroku: teeem-backend
+- Heroku: teeemlive
 - Vercel: frontend project
 
 **Documentation:**

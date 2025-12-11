@@ -247,7 +247,7 @@ API Key: 928102f6b6fc1209d393af83009e26d8043bf2b7a3bed527179c39d4c4a3f929
 
 **Production Endpoint:**
 ```
-https://teeem-backend-447058022b51.herokuapp.com/api/v1/external/unreal_estimates
+https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/external/unreal_estimates
 ```
 
 ### Documentation
@@ -816,7 +816,7 @@ Copy the generated key and share securely with Unreal Engine team.
 **Step 5: Configure Unreal Engine Integration**
 
 Share with Unreal Engine developer:
-- API Endpoint: `https://teeem-backend-447058022b51.herokuapp.com/api/v1/external/unreal_estimates`
+- API Endpoint: `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/external/unreal_estimates`
 - API Key: `[Generated key from Step 4]`
 - Request format: See "For Unreal Engine Team" section below
 
@@ -884,7 +884,7 @@ Training duration: ~1 hour per role
 
 Option A: Via Unreal Engine API (if integrated)
 ```bash
-curl -X POST https://teeem-backend-447058022b51.herokuapp.com/api/v1/external/unreal_estimates \
+curl -X POST https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/external/unreal_estimates \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
   -d '{
@@ -1009,7 +1009,7 @@ You've completed the full workflow from job creation to AI-verified purchase ord
 
 **2. Export Estimate:**
 ```http
-POST https://teeem-backend-447058022b51.herokuapp.com/api/v1/external/unreal_estimates
+POST https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/external/unreal_estimates
 Content-Type: application/json
 X-API-Key: 928102f6b6fc1209d393af83009e26d8043bf2b7a3bed527179c39d4c4a3f929
 

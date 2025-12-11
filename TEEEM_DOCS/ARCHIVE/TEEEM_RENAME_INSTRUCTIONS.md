@@ -25,7 +25,7 @@ heroku apps:rename teeem-backend --app trapid-backend
 
 ### What this changes:
 - App name: `trapid-backend` → `teeem-backend`
-- Git URL: `https://git.heroku.com/trapid-backend.git` → `https://git.heroku.com/teeem-backend.git`
+- Git URL: `https://git.heroku.com/trapid-backend.git` → `https://git.heroku.com/teeemlive.git`
 - App URL: `https://trapid-backend-XXXXX.herokuapp.com` → `https://teeem-backend-XXXXX.herokuapp.com`
 
 ### After Heroku rename:
@@ -33,7 +33,7 @@ heroku apps:rename teeem-backend --app trapid-backend
 Everyone on the team needs to update their local git remote:
 
 ```bash
-git remote set-url heroku https://git.heroku.com/teeem-backend.git
+git remote set-url heroku https://git.heroku.com/teeemlive.git
 ```
 
 ---
@@ -106,10 +106,10 @@ The database migration will run automatically on deploy. It renames:
 **Manual verification after deploy:**
 
 ```bash
-heroku run rails runner "puts Contact.column_names.grep(/teeem/)" --app teeem-backend
+heroku run rails runner "puts Contact.column_names.grep(/teeem/)" --app teeemlive
 # Should output: teeem_rating
 
-heroku run rails runner "puts FeatureTracker.column_names.grep(/teeem/)" --app teeem-backend
+heroku run rails runner "puts FeatureTracker.column_names.grep(/teeem/)" --app teeemlive
 # Should output: teeem_has
 ```
 
@@ -120,7 +120,7 @@ heroku run rails runner "puts FeatureTracker.column_names.grep(/teeem/)" --app t
 If Trinity documentation exists in the database, run:
 
 ```bash
-heroku run rails teeem:rename_content --app teeem-backend
+heroku run rails teeem:rename_content --app teeemlive
 ```
 
 This updates any "Trapid" references in:
@@ -167,7 +167,7 @@ git log --oneline | head -5
 
 If something goes wrong:
 
-1. **Heroku:** `heroku apps:rename trapid-backend --app teeem-backend`
+1. **Heroku:** `heroku apps:rename trapid-backend --app teeemlive`
 2. **GitHub:** Rename back to `trapid` in settings
 3. **Code:** `git revert 83d0aac2 cdbf2c4c`
 

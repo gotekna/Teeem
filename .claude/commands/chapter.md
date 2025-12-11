@@ -10,7 +10,7 @@ Work on a specific feature by fetching the relevant documentation from the unifi
 5. Follow all rules without exception
 6. Proceed with work
 
-**API Base URL:** `https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity`
+**API Base URL:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity`
 
 **Common chapters:**
 - Chapter 9: Gantt & Schedule Master
