@@ -34,10 +34,34 @@ class DailyHealthCheckJob < ApplicationJob
       results[:auto_fixes] += run_company_self_healing
 
       # 2. Run all health checks and cache results
-      health_data = HealthChecks::Registry.system_health
-      results[:health_checks_run] = health_data[:summary][:total_checks]
-      results[:issues_found] = health_data[:summary][:total_issues]
-      results[:critical_issues] = health_data[:summary][:critical_issues]
+      # Cache system-wide health
+      system_health = HealthChecks::Registry.system_health
+      HealthCheckCache.cache_system_health(system_health)
+      results[:health_checks_run] = system_health[:summary][:total_checks]
+      results[:issues_found] = system_health[:summary][:total_issues]
+      results[:critical_issues] = system_health[:summary][:critical_issues]
+      Rails.logger.info "[DailyHealthCheck] Cached system-wide health (score: #{system_health[:overall_health]})"
+
+      # Cache individual foundation health checks
+      foundations_cached = 0
+      Foundation.where(id: [204, 205, 214, 353, 357]).find_each do |foundation|
+        begin
+          result = HealthChecks::Registry.run_all(
+            foundation_id: foundation.id,
+            table_name: foundation.database_table_name
+          )
+
+          HealthCheckCache.cache_foundation_health(foundation.id, result)
+          foundations_cached += 1
+
+          Rails.logger.info "[DailyHealthCheck] Cached health for #{foundation.name} (ID: #{foundation.id}, score: #{result[:overall_health]})"
+        rescue StandardError => e
+          Rails.logger.error "[DailyHealthCheck] Error caching health for foundation #{foundation.id}: #{e.message}"
+          Sentry.capture_exception(e) if defined?(Sentry)
+        end
+      end
+
+      results[:foundations_cached] = foundations_cached
 
       # 3. Calculate system kudos earned
       results[:system_kudos] = HealthKudosEvent.by_system.today.sum(:points)

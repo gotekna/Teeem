@@ -137,3 +137,21 @@ cleanup_ephemeral_emails:
   queue: low
   args: [{ dry_run: false, delete_from_outlook: true }]
   schedule: at 3am every day
+
+# ============================================
+# FOUNDATION SYSTEM HEALTH
+# ============================================
+
+# Daily health check - runs all health checks, auto-fixes issues, and caches results
+# Runs at 6am Brisbane time to populate cache for instant health dashboard loading
+daily_health_check:
+  class: DailyHealthCheckJob
+  queue: low
+  schedule: at 6am every day
+
+# Monitor Foundation metadata sync (detect drift between DB schema and Foundation columns)
+# Sends alerts if columns are missing from Foundation system
+foundation_sync_monitor:
+  class: FoundationSyncMonitorJob
+  queue: low
+  schedule: at 4am every day

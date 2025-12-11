@@ -90,15 +90,17 @@ export function DataHealthWidget({
   }, [compact]);
 
   // Load health data from API
-  const loadHealthData = useCallback(async () => {
+  const loadHealthData = useCallback(async (forceRefresh = false) => {
     if (!foundationId) return;
 
     try {
       setLoading(true);
       setError(null);
-      const data = await api.get<HealthData>(
-        `/api/v1/foundations/${foundationId}/health`
-      );
+      // Add refresh=true parameter to force fresh calculation when user clicks refresh
+      const url = forceRefresh
+        ? `/api/v1/foundations/${foundationId}/health?refresh=true`
+        : `/api/v1/foundations/${foundationId}/health`;
+      const data = await api.get<HealthData>(url);
       setHealthData(data);
     } catch (err) {
       console.error("Failed to load health data:", err);
@@ -274,7 +276,7 @@ export function DataHealthWidget({
             className="h-8 w-8 ml-2"
             onClick={(e) => {
               e.stopPropagation();
-              loadHealthData();
+              loadHealthData(true); // Force refresh with fresh health check
             }}
             title="Refresh"
           >

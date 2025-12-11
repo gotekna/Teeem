@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_11_221318) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_11_233346) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2568,6 +2568,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_221318) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["user_id"], name: "index_grok_plans_on_user_id"
+  end
+
+  create_table "health_check_caches", force: :cascade do |t|
+    t.integer "foundation_id"
+    t.string "check_type"
+    t.jsonb "results"
+    t.datetime "last_run_at"
+    t.integer "overall_health"
+    t.integer "total_issues"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["check_type"], name: "index_health_check_caches_on_check_type"
+    t.index ["foundation_id", "check_type"], name: "index_health_cache_on_foundation_and_type", unique: true
+    t.index ["last_run_at"], name: "index_health_check_caches_on_last_run_at"
   end
 
   create_table "health_kudos_events", force: :cascade do |t|

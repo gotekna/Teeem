@@ -90,7 +90,28 @@ module Api
 
       # GET /api/v1/foundations/:id/health
       # Returns all health checks for this table with their current status
+      # Supports caching with optional ?refresh=true parameter to force fresh calculation
       def health
+        # Check if user wants to force refresh
+        force_refresh = params[:refresh] == "true"
+
+        # Try to get cached results first (unless forcing refresh)
+        unless force_refresh
+          cached = HealthCheckCache.for_foundation(@foundation.id).first
+          if cached&.fresh?
+            Rails.logger.info "[Health] Serving cached results for foundation #{@foundation.id} (age: #{cached.age_in_hours}h)"
+            return render json: cached.results.merge(
+              foundation_id: @foundation.id,
+              table_name: @foundation.name,
+              cached: true,
+              cached_at: cached.last_run_at.iso8601
+            )
+          end
+        end
+
+        # Run fresh health check
+        Rails.logger.info "[Health] Running fresh health check for foundation #{@foundation.id} (forced: #{force_refresh})"
+
         # Use new HealthChecks::Registry service
         result = HealthChecks::Registry.run_all(
           foundation_id: @foundation.id,
@@ -120,9 +141,13 @@ module Api
           end
         end
 
+        # Cache the fresh results
+        HealthCheckCache.cache_foundation_health(@foundation.id, result) if result.present?
+
         render json: result.merge(
           foundation_id: @foundation.id,
-          table_name: @foundation.name
+          table_name: @foundation.name,
+          cached: false
         )
       end
 

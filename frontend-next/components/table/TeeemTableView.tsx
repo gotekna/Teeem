@@ -446,7 +446,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
       className="mb-4"
       style={{ marginLeft: `${(depth + 1) * 24}px`, marginRight: '16px' }}
     >
-      <Table className="w-full border rounded" style={{ tableLayout: 'fixed' }}>
+      <Table className="w-full border-t border-b" style={{ tableLayout: 'fixed' }}>
         {renderTableHeader()}
         <TableBody>
           <tr>
@@ -3041,7 +3041,7 @@ export default function TeeemTableView({
             <span className="font-medium text-[11px]">
               {groupKey}
             </span>
-            <Badge variant="secondary" className="text-xs">{rowCount} rows</Badge>
+            <span className="text-xs bg-white px-2 py-0.5 rounded">({rowCount})</span>
           </div>
         </div>
       );
@@ -4079,7 +4079,7 @@ export default function TeeemTableView({
       {/* Account for: nav(64) + page header(80) + data health(60 collapsed/40vh expanded) + toolbar(50) + footer(30) */}
       <div
         ref={tableContainerRef}
-        className="flex-1 min-h-[200px] max-h-[calc(100vh-420px)] w-full overflow-auto relative border rounded-md"
+        className="flex-1 min-h-[200px] max-h-[calc(100vh-420px)] w-full overflow-auto relative border-t border-b"
       >
         {groupedEntries ? renderGroupedTable() : renderFlatTable()}
       </div>
