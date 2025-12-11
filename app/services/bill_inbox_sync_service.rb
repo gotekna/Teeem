@@ -32,6 +32,57 @@ class BillInboxSyncService
     results
   end
 
+  # Re-attach the invoice file from the original email for a bill that lost its file
+  def self.reattach_file!(bill_id)
+    bill = BillInbox.find(bill_id)
+
+    unless bill.email_message_id.present?
+      raise "Bill ##{bill_id} has no email_message_id - cannot re-fetch"
+    end
+
+    client = MicrosoftAppGraphClient.new
+    mailbox = MONITORED_MAILBOX
+
+    # Find the email by internet_message_id
+    emails = client.get_user_emails(mailbox, folder: "inbox", top: 500, since: 30.days.ago)
+    email = emails.find { |e| e["internetMessageId"] == bill.email_message_id }
+
+    unless email
+      raise "Could not find email with message_id: #{bill.email_message_id}"
+    end
+
+    # Get attachments
+    attachments = client.get_email_attachments(mailbox, email["id"])
+    invoice_attachment = attachments.find { |a| a["name"] == bill.original_filename }
+
+    unless invoice_attachment
+      # Try first PDF/image attachment
+      invoice_attachment = attachments.find { |a| SUPPORTED_CONTENT_TYPES.include?(a["contentType"]&.downcase) }
+    end
+
+    unless invoice_attachment
+      raise "No suitable attachment found in email"
+    end
+
+    # Download content
+    content = if invoice_attachment["contentBytes"]
+      Base64.decode64(invoice_attachment["contentBytes"])
+    else
+      client.get_attachment_content(mailbox, email["id"], invoice_attachment["id"])
+    end
+
+    # Re-attach file
+    bill.invoice_file.purge if bill.invoice_file.attached?
+    bill.invoice_file.attach(
+      io: StringIO.new(content),
+      filename: invoice_attachment["name"],
+      content_type: invoice_attachment["contentType"]
+    )
+
+    Rails.logger.info "[BillInboxSync] Re-attached file to BillInbox ##{bill.id}"
+    bill
+  end
+
   private
 
   def fetch_emails
