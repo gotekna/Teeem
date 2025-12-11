@@ -224,6 +224,7 @@ export default function BillDetailPage() {
   const [pdfExpandedOpen, setPdfExpandedOpen] = useState(false);
   const [highlightedField, setHighlightedField] = useState<string | null>(null);
   const [notesExpanded, setNotesExpanded] = useState(false);
+  const [mismatchDetailsOpen, setMismatchDetailsOpen] = useState(false);
 
   // Build highlights array from field_locations
   const pdfHighlights: FieldHighlight[] = React.useMemo(() => {
@@ -241,8 +242,13 @@ export default function BillDetailPage() {
       total_amount: "Total Amount",
       subtotal: "Subtotal",
       tax_amount: "Tax/GST",
-      bill_to_name: "Bill To",
-      bill_to_abn: "Bill To ABN",
+      billing_company_name: "Bill To Company",
+      billing_company_abn: "Bill To ABN",
+      payment_reference: "Payment Reference",
+      balance_due: "Balance Due",
+      trust_deduction: "Trust Deduction",
+      supplier_bank_bsb: "Bank BSB",
+      supplier_bank_account: "Bank Account",
     };
 
     return [{
@@ -498,16 +504,32 @@ export default function BillDetailPage() {
             <div className="text-[10px] uppercase tracking-wide opacity-80">PO #</div>
             <div className="font-bold text-sm font-mono">{bill.matched_purchase_order?.purchase_order_number || bill.ai_extraction_result?.purchase_order_number || "-"}</div>
           </div>
-          {/* Match % Box */}
-          <div className={`px-2 py-1 rounded min-w-[70px] ${
-            bill.ai_confidence && bill.ai_confidence >= 0.9 ? 'bg-green-600' :
-            bill.ai_confidence && bill.ai_confidence >= 0.7 ? 'bg-yellow-500' :
-            'bg-orange-500'
-          } text-white`}>
-            <div className="text-[10px] uppercase tracking-wide opacity-80">Match %</div>
-            <div className="font-bold text-sm font-mono">
-              {bill.ai_confidence ? `${Math.round((bill.ai_confidence <= 1 ? bill.ai_confidence * 100 : bill.ai_confidence))}%` : "-"}
-            </div>
+          {/* Match % Box with Rematch Button */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setMismatchDetailsOpen(!mismatchDetailsOpen)}
+              className={`px-2 py-1 rounded min-w-[70px] transition-all hover:scale-105 ${
+                bill.ai_confidence && bill.ai_confidence >= 0.9 ? 'bg-green-600 hover:bg-green-700' :
+                bill.ai_confidence && bill.ai_confidence >= 0.7 ? 'bg-yellow-500 hover:bg-yellow-600' :
+                'bg-orange-500 hover:bg-orange-600'
+              } text-white cursor-pointer`}
+              title="Click to see what's not matching"
+            >
+              <div className="text-[10px] uppercase tracking-wide opacity-80">Match %</div>
+              <div className="font-bold text-sm font-mono">
+                {bill.ai_confidence ? `${Math.round((bill.ai_confidence <= 1 ? bill.ai_confidence * 100 : bill.ai_confidence))}%` : "-"}
+              </div>
+            </button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-[42px] px-2 text-xs border-2 hover:bg-blue-50"
+              onClick={handleMatch}
+              disabled={actionLoading}
+              title="Re-run matching algorithm"
+            >
+              <Link2 className="h-3 w-3" />
+            </Button>
           </div>
         </div>
       </div>
@@ -632,6 +654,203 @@ export default function BillDetailPage() {
         );
       })()}
 
+      {/* Mismatch Details - Collapsible */}
+      {mismatchDetailsOpen && (
+        <Card className="shrink-0">
+          <CardHeader className="py-2 px-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                Match Details - What's Not 100%
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={() => setMismatchDetailsOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="py-2 px-3 space-y-2">
+            {/* Overall Match Score */}
+            <div className={`p-2 rounded ${
+              bill.ai_confidence && bill.ai_confidence >= 0.9 ? 'bg-green-50 border border-green-300' :
+              bill.ai_confidence && bill.ai_confidence >= 0.7 ? 'bg-yellow-50 border border-yellow-300' :
+              'bg-orange-50 border border-orange-300'
+            }`}>
+              <p className="text-xs font-semibold mb-1">AI Extraction Confidence</p>
+              <p className="text-sm">
+                {bill.ai_confidence ? `${Math.round((bill.ai_confidence <= 1 ? bill.ai_confidence * 100 : bill.ai_confidence))}%` : "Unknown"}
+                {bill.ai_confidence && bill.ai_confidence < 1 && (
+                  <span className="text-xs text-muted-foreground ml-2">
+                    ({bill.ai_confidence < 0.9 ? 'Review recommended' : bill.ai_confidence < 0.95 ? 'Good confidence' : 'High confidence'})
+                  </span>
+                )}
+              </p>
+            </div>
+
+            {/* Field Mismatches */}
+            <Separator />
+            <p className="text-xs font-semibold">Field-Level Issues:</p>
+
+            <div className="space-y-1 text-xs">
+              {/* ABN Mismatch */}
+              {(() => {
+                const match = abnMatches(bill.ai_extraction_result?.supplier_abn, bill.supplier?.tax_number);
+                if (match === false) {
+                  return (
+                    <div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded">
+                      <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-medium text-red-700">Supplier ABN Mismatch</p>
+                        <p className="text-red-600 mt-0.5">
+                          Invoice: {bill.ai_extraction_result?.supplier_abn || 'N/A'}<br />
+                          Expected: {bill.supplier?.tax_number || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+                if (match === null && bill.ai_extraction_result?.supplier_abn && !bill.supplier?.tax_number) {
+                  return (
+                    <div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                      <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-medium text-amber-700">Missing Supplier ABN</p>
+                        <p className="text-amber-600 mt-0.5">
+                          Invoice has ABN ({bill.ai_extraction_result.supplier_abn}), but supplier record doesn't
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+              })()}
+
+              {/* Bank Details Mismatch */}
+              {(() => {
+                const extractedBSB = bill.ai_extraction_result?.supplier_bank_bsb?.replace(/[\s-]/g, '');
+                const storedBSB = bill.supplier?.bank_bsb?.replace(/[\s-]/g, '');
+                const extractedAcc = bill.ai_extraction_result?.supplier_bank_account?.replace(/[\s-]/g, '');
+                const storedAcc = bill.supplier?.bank_account_number?.replace(/[\s-]/g, '');
+                const bsbMatch = !extractedBSB || !storedBSB || extractedBSB === storedBSB;
+                const accMatch = !extractedAcc || !storedAcc || extractedAcc === storedAcc;
+
+                if (!bsbMatch || !accMatch) {
+                  return (
+                    <div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded">
+                      <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-medium text-red-700">Bank Details Mismatch</p>
+                        <p className="text-red-600 mt-0.5">
+                          Invoice: {bill.ai_extraction_result?.supplier_bank_bsb || '-'}/{bill.ai_extraction_result?.supplier_bank_account || '-'}<br />
+                          Expected: {bill.supplier?.bank_bsb || '-'}/{bill.supplier?.bank_account_number || '-'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+              })()}
+
+              {/* PO Variance */}
+              {bill.matched_purchase_order && bill.variance_amount !== null && bill.variance_amount !== 0 && (
+                <div className={`flex items-start gap-2 p-2 rounded ${
+                  Math.abs(bill.variance_percent || 0) > 5
+                    ? 'bg-red-50 border border-red-200'
+                    : 'bg-amber-50 border border-amber-200'
+                }`}>
+                  <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${
+                    Math.abs(bill.variance_percent || 0) > 5 ? 'text-red-500' : 'text-amber-500'
+                  }`} />
+                  <div className="flex-1">
+                    <p className={`font-medium ${
+                      Math.abs(bill.variance_percent || 0) > 5 ? 'text-red-700' : 'text-amber-700'
+                    }`}>
+                      Purchase Order Variance
+                    </p>
+                    <p className={`mt-0.5 ${
+                      Math.abs(bill.variance_percent || 0) > 5 ? 'text-red-600' : 'text-amber-600'
+                    }`}>
+                      PO: ${bill.matched_purchase_order.total?.toLocaleString('en-AU', {minimumFractionDigits: 2})}<br />
+                      Invoice: ${(bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}<br />
+                      Difference: {bill.variance_amount > 0 ? '+' : ''}${bill.variance_amount.toLocaleString('en-AU', {minimumFractionDigits: 2})}
+                      {bill.variance_percent && ` (${bill.variance_percent.toFixed(1)}%)`}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Missing Bill To Company */}
+              {!bill.ai_extraction_result?.billing_company_name && (
+                <div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-medium text-amber-700">Missing Bill To Company</p>
+                    <p className="text-amber-600 mt-0.5">
+                      Could not extract "Bill To" company name from invoice
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Missing Payment Reference */}
+              {!bill.ai_extraction_result?.payment_reference && bill.supplier?.has_trust_account && (
+                <div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-medium text-amber-700">Missing Payment Reference</p>
+                    <p className="text-amber-600 mt-0.5">
+                      No payment reference extracted (required for trust account payments)
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* No PO Match */}
+              {!bill.matched_purchase_order && bill.match_status === "no_match" && (
+                <div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-medium text-amber-700">No Purchase Order Matched</p>
+                    <p className="text-amber-600 mt-0.5">
+                      {bill.ai_extraction_result?.purchase_order_number
+                        ? `Extracted PO #${bill.ai_extraction_result.purchase_order_number} not found in system`
+                        : 'No PO reference found on invoice'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* All Good */}
+              {bill.ai_confidence && bill.ai_confidence >= 0.95 &&
+               abnMatches(bill.ai_extraction_result?.supplier_abn, bill.supplier?.tax_number) !== false &&
+               bill.ai_extraction_result?.billing_company_name &&
+               (!bill.matched_purchase_order || (bill.variance_amount === null || bill.variance_amount === 0)) &&
+               (() => {
+                 const extractedBSB = bill.ai_extraction_result?.supplier_bank_bsb?.replace(/[\s-]/g, '');
+                 const storedBSB = bill.supplier?.bank_bsb?.replace(/[\s-]/g, '');
+                 const extractedAcc = bill.ai_extraction_result?.supplier_bank_account?.replace(/[\s-]/g, '');
+                 const storedAcc = bill.supplier?.bank_account_number?.replace(/[\s-]/g, '');
+                 const bsbMatch = !extractedBSB || !storedBSB || extractedBSB === storedBSB;
+                 const accMatch = !extractedAcc || !storedAcc || extractedAcc === storedAcc;
+                 return bsbMatch && accMatch;
+               })() && (
+                <div className="flex items-start gap-2 p-2 bg-green-50 border border-green-200 rounded">
+                  <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-medium text-green-700">All Checks Passed</p>
+                    <p className="text-green-600 mt-0.5">
+                      High extraction confidence, all fields match expected values
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Notes - Collapsible */}
       {bill.notes && (
         <div className="border border-gray-300 rounded shrink-0">
@@ -655,9 +874,17 @@ export default function BillDetailPage() {
         {/* Invoice Details - A4 Portrait */}
         <Card className="overflow-auto aspect-[1/1.414] max-h-[calc(100vh-220px)]">
           <CardHeader className="py-2 px-3">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <FileText className="h-4 w-4" />
-              Invoice Details
+            <CardTitle className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Invoice Details
+              </span>
+              {bill.ai_extraction_result?.field_locations && Object.keys(bill.ai_extraction_result.field_locations).length > 0 && (
+                <span className="text-[10px] font-normal text-muted-foreground flex items-center gap-1">
+                  <ScanText className="h-3 w-3" />
+                  Click fields to see on PDF
+                </span>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 px-3 py-0 text-xs">
@@ -756,8 +983,8 @@ export default function BillDetailPage() {
                   bill.ai_extraction_result?.billing_company_name
                     ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400'
                     : 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300'
-                } ${highlightedField === 'bill_to' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
-                onClick={() => setHighlightedField(highlightedField === 'bill_to' ? null : 'bill_to')}
+                } ${highlightedField === 'billing_company_name' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'billing_company_name' ? null : 'billing_company_name')}
               >
                 <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
                   Bill To
@@ -774,8 +1001,8 @@ export default function BillDetailPage() {
                   bill.ai_extraction_result?.payment_reference
                     ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400'
                     : 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300'
-                } ${highlightedField === 'payment_ref' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
-                onClick={() => setHighlightedField(highlightedField === 'payment_ref' ? null : 'payment_ref')}
+                } ${highlightedField === 'payment_reference' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'payment_reference' ? null : 'payment_reference')}
               >
                 <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
                   Payment Ref
@@ -791,8 +1018,8 @@ export default function BillDetailPage() {
             {(bill.ai_extraction_result?.case_reference || bill.ai_extraction_result?.matter_description) && (
               <div
                 className={`p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] bg-blue-100 dark:bg-blue-900/40 border-2 border-blue-400
-                ${highlightedField === 'case_ref' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
-                onClick={() => setHighlightedField(highlightedField === 'case_ref' ? null : 'case_ref')}
+                ${highlightedField === 'case_reference' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'case_reference' ? null : 'case_reference')}
               >
                 <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
                   Case/Matter
@@ -819,8 +1046,8 @@ export default function BillDetailPage() {
                       ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400'
                       : 'bg-red-100 dark:bg-red-900/40 border-2 border-red-400';
                   })()
-                } ${highlightedField === 'bank' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
-                onClick={() => setHighlightedField(highlightedField === 'bank' ? null : 'bank')}
+                } ${highlightedField === 'supplier_bank_bsb' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'supplier_bank_bsb' ? null : 'supplier_bank_bsb')}
               >
                 <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
                   Bank Details
@@ -871,8 +1098,8 @@ export default function BillDetailPage() {
                   bill.ai_extraction_result?.tax_amount
                     ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400'
                     : 'bg-gray-50 dark:bg-gray-800 border border-gray-200'
-                } ${highlightedField === 'gst' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
-                onClick={() => setHighlightedField(highlightedField === 'gst' ? null : 'gst')}
+                } ${highlightedField === 'tax_amount' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'tax_amount' ? null : 'tax_amount')}
               >
                 <span className="text-muted-foreground flex items-center gap-1">
                   GST
@@ -886,8 +1113,8 @@ export default function BillDetailPage() {
                   bill.ai_extraction_result?.total_amount
                     ? 'bg-green-200 dark:bg-green-900/50 border-2 border-green-500 shadow-md'
                     : 'bg-gray-100 dark:bg-gray-800 border border-gray-200'
-                } ${highlightedField === 'total' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
-                onClick={() => setHighlightedField(highlightedField === 'total' ? null : 'total')}
+                } ${highlightedField === 'total_amount' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                onClick={() => setHighlightedField(highlightedField === 'total_amount' ? null : 'total_amount')}
               >
                 <span className="flex items-center gap-1">
                   Total
@@ -899,8 +1126,12 @@ export default function BillDetailPage() {
               {/* Trust Deduction - shown when funds deducted from trust */}
               {bill.ai_extraction_result?.trust_deduction && bill.ai_extraction_result.trust_deduction > 0 && (
                 <div
-                  className={`flex justify-between p-2 rounded cursor-pointer transition-all hover:scale-[1.02] bg-purple-100 dark:bg-purple-900/40 border-2 border-purple-400 shadow-sm
-                  ${highlightedField === 'trust_deduction' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                  className="flex justify-between p-2 rounded cursor-pointer transition-all hover:scale-[1.02] bg-purple-100 dark:bg-purple-900/40 border-2 border-purple-400 shadow-sm"
+                  style={highlightedField === 'trust_deduction' ? {
+                    boxShadow: '0 0 0 4px rgba(234, 179, 8, 0.5)',
+                    transform: 'scale(1.05)',
+                    animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                  } : {}}
                   onClick={() => setHighlightedField(highlightedField === 'trust_deduction' ? null : 'trust_deduction')}
                 >
                   <span className="flex items-center gap-1 text-purple-700 font-medium">
@@ -915,8 +1146,12 @@ export default function BillDetailPage() {
               {/* Balance Due - shown when different from total (e.g., after trust deduction) */}
               {bill.ai_extraction_result?.balance_due && bill.ai_extraction_result.balance_due !== bill.total_amount && (
                 <div
-                  className={`flex justify-between p-2 rounded cursor-pointer transition-all hover:scale-[1.02] bg-emerald-200 dark:bg-emerald-900/50 border-2 border-emerald-500 shadow-md font-bold text-sm
-                  ${highlightedField === 'balance_due' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
+                  className="flex justify-between p-2 rounded cursor-pointer transition-all hover:scale-[1.02] bg-emerald-200 dark:bg-emerald-900/50 border-2 border-emerald-500 shadow-md font-bold text-sm"
+                  style={highlightedField === 'balance_due' ? {
+                    boxShadow: '0 0 0 4px rgba(234, 179, 8, 0.5)',
+                    transform: 'scale(1.05)',
+                    animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                  } : {}}
                   onClick={() => setHighlightedField(highlightedField === 'balance_due' ? null : 'balance_due')}
                 >
                   <span className="flex items-center gap-1 text-emerald-800">

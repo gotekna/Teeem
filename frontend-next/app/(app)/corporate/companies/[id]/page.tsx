@@ -917,31 +917,32 @@ function ShareholdingsTab({ company, companyId }: { company: Company; companyId:
   );
 }
 
-// Bank Accounts Tab - SSoT: Uses bank_accounts table
+// Bank Accounts Tab - SSoT: Uses bank_accounts table via Foundation (ID: 350)
 function BankAccountsTab({ company, companyId }: { company: Company; companyId: string }) {
-  const [bankAccounts, setBankAccounts] = React.useState<BankAccount[]>([]);
+  const [entries, setEntries] = React.useState<any[]>([]);
+  const [columns, setColumns] = React.useState<any[]>([]);
+  const [foundation, setFoundation] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
-  const [showAddForm, setShowAddForm] = React.useState(false);
-  const [editingId, setEditingId] = React.useState<number | null>(null);
-  const [saving, setSaving] = React.useState(false);
-  const [formData, setFormData] = React.useState({
-    institution_name: "",
-    bsb: "",
-    account_number: "",
-    account_name: "",
-    date_opened: "",
-    date_closed: "",
-    status: "active" as "active" | "closed",
-  });
 
-  const loadBankAccounts = React.useCallback(async () => {
+  const loadData = React.useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get<{ success: boolean; bank_accounts: BankAccount[] }>(
+
+      // Load foundation definition for Bank Account (ID: 350)
+      const foundationResponse = await api.get<{ success: boolean; foundation: any }>(
+        `/api/v1/foundations/350`
+      );
+      if (foundationResponse.success) {
+        setFoundation(foundationResponse.foundation);
+        setColumns(foundationResponse.foundation.columns || []);
+      }
+
+      // Load bank account entries for this company
+      const entriesResponse = await api.get<{ success: boolean; bank_accounts: any[] }>(
         `/api/v1/companies/${companyId}/bank_accounts`
       );
-      if (response.success) {
-        setBankAccounts(response.bank_accounts || []);
+      if (entriesResponse.success) {
+        setEntries(entriesResponse.bank_accounts || []);
       }
     } catch (error) {
       console.error("Failed to load bank accounts:", error);
@@ -951,68 +952,40 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
   }, [companyId]);
 
   React.useEffect(() => {
-    loadBankAccounts();
-  }, [loadBankAccounts]);
+    loadData();
+  }, [loadData]);
 
-  const resetForm = () => {
-    setFormData({
-      institution_name: "",
-      bsb: "",
-      account_number: "",
-      account_name: "",
-      date_opened: "",
-      date_closed: "",
-      status: "active",
-    });
-    setShowAddForm(false);
-    setEditingId(null);
+  const handleRefresh = async () => {
+    await loadData();
   };
 
-  const handleEdit = (account: BankAccount) => {
-    setFormData({
-      institution_name: account.institution_name,
-      bsb: account.bsb || "",
-      account_number: account.account_number,
-      account_name: account.account_name || "",
-      date_opened: account.date_opened || "",
-      date_closed: account.date_closed || "",
-      status: account.status,
-    });
-    setEditingId(account.id);
-    setShowAddForm(true);
-  };
-
-  const handleSave = async () => {
-    if (!formData.institution_name || !formData.account_number) {
-      return;
-    }
-    setSaving(true);
+  const handleRowUpdate = async (id: number, updates: Record<string, any>) => {
     try {
-      if (editingId) {
-        await api.put(`/api/v1/bank_accounts/${editingId}`, { bank_account: formData });
-      } else {
-        await api.post("/api/v1/bank_accounts", {
-          bank_account: { ...formData, company_id: companyId },
-        });
-      }
-      resetForm();
-      await loadBankAccounts();
+      await api.put(`/api/v1/bank_accounts/${id}`, { bank_account: updates });
+      await loadData();
     } catch (error) {
-      console.error("Failed to save bank account:", error);
-    } finally {
-      setSaving(false);
+      console.error("Failed to update bank account:", error);
+      throw error;
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this bank account?")) {
-      return;
-    }
     try {
       await api.delete(`/api/v1/bank_accounts/${id}`);
-      await loadBankAccounts();
+      await loadData();
     } catch (error) {
       console.error("Failed to delete bank account:", error);
+      throw error;
+    }
+  };
+
+  const handleBulkDelete = async (ids: number[]) => {
+    try {
+      await Promise.all(ids.map(id => api.delete(`/api/v1/bank_accounts/${id}`)));
+      await loadData();
+    } catch (error) {
+      console.error("Failed to bulk delete bank accounts:", error);
+      throw error;
     }
   };
 
@@ -1024,174 +997,29 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
     );
   }
 
+  if (!foundation) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        Failed to load bank accounts configuration
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">Bank Accounts</h3>
-        {!showAddForm && (
-          <Button variant="outline" size="sm" onClick={() => setShowAddForm(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Account
-          </Button>
-        )}
-      </div>
-
-      {/* Add/Edit Form */}
-      {showAddForm && (
-        <Card className="border-primary/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              {editingId ? "Edit Bank Account" : "Add Bank Account"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <Label>Bank Name *</Label>
-                <Input
-                  value={formData.institution_name}
-                  onChange={(e) => setFormData({ ...formData, institution_name: e.target.value })}
-                  placeholder="e.g. NAB, Commonwealth Bank"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label>BSB</Label>
-                <Input
-                  value={formData.bsb}
-                  onChange={(e) => setFormData({ ...formData, bsb: e.target.value.replace(/\D/g, "").slice(0, 6) })}
-                  placeholder="000000"
-                  className="mt-1 font-mono"
-                />
-              </div>
-              <div>
-                <Label>Account Number *</Label>
-                <Input
-                  value={formData.account_number}
-                  onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
-                  placeholder="Account number"
-                  className="mt-1 font-mono"
-                />
-              </div>
-              <div>
-                <Label>Account Name</Label>
-                <Input
-                  value={formData.account_name}
-                  onChange={(e) => setFormData({ ...formData, account_name: e.target.value })}
-                  placeholder="Account holder name"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label>Date Opened</Label>
-                <Input
-                  type="date"
-                  value={formData.date_opened}
-                  onChange={(e) => setFormData({ ...formData, date_opened: e.target.value })}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label>Date Closed</Label>
-                <Input
-                  type="date"
-                  value={formData.date_closed}
-                  onChange={(e) => setFormData({ ...formData, date_closed: e.target.value, status: e.target.value ? "closed" : formData.status })}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label>Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value: "active" | "closed") => setFormData({ ...formData, status: value, date_closed: value === "closed" && !formData.date_closed ? new Date().toISOString().split("T")[0] : formData.date_closed })}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="closed">Closed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <Button onClick={handleSave} disabled={saving || !formData.institution_name || !formData.account_number}>
-                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                <Save className="h-4 w-4 mr-2" />
-                {editingId ? "Update" : "Add"}
-              </Button>
-              <Button variant="outline" onClick={resetForm}>
-                <X className="h-4 w-4 mr-2" />
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Bank Accounts List */}
-      {bankAccounts.length > 0 ? (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Bank</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">BSB</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Account</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Name</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Opened</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Closed</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Last Txn</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Xero</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Status</th>
-                <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {bankAccounts.map((account) => (
-                <tr key={account.id} className={cn("hover:bg-muted/30", account.status === "closed" && "opacity-50")}>
-                  <td className="px-4 py-3 text-sm font-medium">{account.institution_name}</td>
-                  <td className="px-4 py-3 text-sm font-mono">{account.formatted_bsb || account.bsb || "-"}</td>
-                  <td className="px-4 py-3 text-sm font-mono">{account.masked_account_number || account.account_number}</td>
-                  <td className="px-4 py-3 text-sm">{account.account_name || "-"}</td>
-                  <td className="px-4 py-3 text-sm">{account.date_opened ? format(new Date(account.date_opened), "dd/MM/yyyy") : account.first_transaction_date ? format(new Date(account.first_transaction_date), "dd/MM/yyyy") : "-"}</td>
-                  <td className="px-4 py-3 text-sm">{account.date_closed ? format(new Date(account.date_closed), "dd/MM/yyyy") : "-"}</td>
-                  <td className="px-4 py-3 text-sm">{account.last_transaction_date ? format(new Date(account.last_transaction_date), "dd/MM/yyyy") : "-"}</td>
-                  <td className="px-4 py-3">
-                    {account.linked_to_xero || account.xero_account_id ? (
-                      <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Linked
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={account.status === "active" ? "default" : "secondary"}>
-                      {account.status}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(account)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(account.id)} className="text-red-600 hover:text-red-700">
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="text-muted-foreground text-center py-8">No bank accounts recorded</p>
-      )}
+      <TeeemTableView
+        entries={entries}
+        columns={columns}
+        foundationId="bank_accounts"
+        foundationIdNumeric={350}
+        tableName="Bank Accounts"
+        enableExport={true}
+        enableImport={false}
+        onRefresh={handleRefresh}
+        onRowUpdate={handleRowUpdate}
+        onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
+      />
     </div>
   );
 }
