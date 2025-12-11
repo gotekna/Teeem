@@ -265,7 +265,8 @@ class BulkEmailSyncJob < ApplicationJob
   def upload_attachment(teeem_client, sp_config, filename, content, content_type, file_size, email_date, content_hash)
     year = email_date.year
     month = email_date.strftime("%m")
-    folder_path = "#{@credential.attachment_root_path}/#{year}/#{month}"
+    org_name = @credential.name.gsub(/[<>:"\/\\|?*]/, "_")  # Sanitize org name
+    folder_path = "emails/attachments/#{org_name}/#{year}/#{month}"
 
     hash_prefix = content_hash[0..7]
     safe_filename = filename.gsub(/[<>:"\/\\|?*]/, "_")
@@ -338,7 +339,8 @@ class BulkEmailSyncJob < ApplicationJob
 
     year = email.received_at.year
     month = email.received_at.strftime("%m")
-    folder_path = "Emails/#{@credential.name}/#{year}/#{month}"
+    org_name = @credential.name.gsub(/[<>:"\/\\|?*]/, "_")  # Sanitize org name
+    folder_path = "emails/eml/#{org_name}/#{year}/#{month}"
     filename = "#{email.id}.eml"
 
     result = if mime_content.bytesize >= 4 * 1024 * 1024
