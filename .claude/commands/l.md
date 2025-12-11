@@ -6,9 +6,12 @@ Commits only THIS chat session's changes and deploys to production.
 
 **Use `/lp` to commit ALL pending changes from ALL sessions instead.**
 
+> **NOTE:** This file and `/lp.md` share the same deployment logic.
+> If you update one, update the other to stay in sync.
+
 ## PRODUCTION DEPLOY
 
-- Backend: Heroku (`teeemlive`) - manual deploy via subtree
+- Backend: Heroku (`teeemlive`) - manual deploy via FAST orphan method
 - Frontend: Vercel - auto-deploys from GitHub push
 
 ## Instructions
@@ -54,9 +57,19 @@ ALLOW_PUSH=1 git push origin Live
 git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
 ```
 
-**If backend changed**, deploy to Heroku:
+**If backend changed**, deploy to Heroku using FAST method (no history processing):
 ```bash
-cd /Users/robertharder/GitHub/teeem && ALLOW_PUSH=1 git subtree push --prefix backend heroku-teeemlive main
+# FAST DEPLOY - creates orphan branch with current backend state only
+# This takes ~5 seconds vs ~2 minutes for subtree split
+cd /Users/robertharder/GitHub/teeem
+git checkout --orphan heroku-deploy-temp
+git reset
+git add backend/
+git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
+git subtree split --prefix backend -b heroku-push-temp
+ALLOW_PUSH=1 git push heroku-teeemlive heroku-push-temp:main --force
+git checkout Live
+git branch -D heroku-deploy-temp heroku-push-temp
 ```
 
 **If no backend changes, skip this step entirely.**

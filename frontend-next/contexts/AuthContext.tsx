@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { api } from '@/lib/api';
 
 interface User {
@@ -64,6 +64,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [token, setToken] = useState<string | null>(null);
   const [tokenChecked, setTokenChecked] = useState(false);
 
+  // Prevent duplicate auth checks (React StrictMode double-mount)
+  const authCheckingRef = useRef(false);
+
   // Initialize token from localStorage (client-side only)
   // Also sync to cookie for server-side rendering access
   useEffect(() => {
@@ -95,12 +98,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
 
     if (token) {
+      // Prevent duplicate auth checks on React StrictMode double-mount
+      if (authCheckingRef.current) return;
+      authCheckingRef.current = true;
       // Verify token and get user info
       checkAuth();
     } else {
       setLoading(false);
     }
-     
+
   }, [token, tokenChecked, devModeBypass]);
 
   const checkAuth = async () => {
@@ -116,6 +122,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       logout();
     } finally {
       setLoading(false);
+      authCheckingRef.current = false;
     }
   };
 

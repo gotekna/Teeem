@@ -4,7 +4,7 @@
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSidebar } from "@/contexts/SidebarContext";
 import {
   Home,
@@ -101,6 +101,9 @@ export function Sidebar() {
   const { theme, setTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
 
+  // Prevent duplicate fetches (React StrictMode double-mount)
+  const badgeFetchingRef = useRef(false);
+
   // Load persona from localStorage on mount
   useEffect(() => {
     setPersona(getStoredPersona());
@@ -189,10 +192,17 @@ export function Sidebar() {
     };
 
     if (isAuthenticated) {
+      // Prevent duplicate fetches on React StrictMode double-mount
+      if (badgeFetchingRef.current) return;
+      badgeFetchingRef.current = true;
+
       loadBadgeCounts();
       // Refresh every 60 seconds
       const interval = setInterval(loadBadgeCounts, 60000);
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        badgeFetchingRef.current = false;
+      };
     }
   }, [isAuthenticated]);
 

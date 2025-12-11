@@ -36,13 +36,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="h-screen bg-background overflow-hidden">
-      {/* Fixed Header Bar - spans full width, above everything */}
-      <div className="fixed top-0 left-0 right-0 z-50 hidden md:block">
-        <HeaderBar onMenuClick={() => setSidebarOpen(true)} />
-      </div>
-
-      {/* Mobile Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 md:hidden">
+      {/* Fixed Header Bar - single instance for both desktop and mobile */}
+      <div className="fixed top-0 left-0 right-0 z-50">
         <HeaderBar onMenuClick={() => setSidebarOpen(true)} />
       </div>
 

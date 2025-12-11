@@ -6,9 +6,12 @@ Commits ALL pending changes from ALL chat sessions and deploys to production.
 
 **Use `/l` to commit and deploy only THIS chat's changes instead.**
 
+> **NOTE:** This file and `/l.md` share the same deployment logic.
+> If you update one, update the other to stay in sync.
+
 ## PRODUCTION DEPLOY
 
-- Backend: Heroku (`teeemlive`) - manual deploy via subtree
+- Backend: Heroku (`teeemlive`) - manual deploy via FAST orphan method
 - Frontend: Vercel - auto-deploys from GitHub push
 
 ## Instructions

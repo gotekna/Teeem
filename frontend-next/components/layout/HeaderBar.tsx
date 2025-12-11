@@ -74,6 +74,9 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const [xeroTooltip, setXeroTooltip] = React.useState('Xero: Not Connected');
   const [office365Tooltip, setOffice365Tooltip] = React.useState('Office 365: Not Connected');
 
+  // Prevent duplicate fetches (React StrictMode double-mount)
+  const fetchingRef = React.useRef(false);
+
   // Fetch unread message count and integration statuses
   React.useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -182,12 +185,19 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       }
     };
 
+    // Prevent duplicate fetches on React StrictMode double-mount
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+
     fetchUnreadCount();
     fetchIntegrationStatus();
 
     // Poll every 30 seconds for unread count
     const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      fetchingRef.current = false;
+    };
   }, []);
 
   // Helper to get color classes based on connection status
