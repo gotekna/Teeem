@@ -22,7 +22,7 @@ export const ServiceTaskNode = memo(({ data, selected }: NodeProps<Node<BpmnNode
   return (
     <div
       className={cn(
-        "w-[350px] rounded border-2 border-red-500 bg-red-50/50 px-3 py-2 shadow-sm transition-all dark:bg-red-900/20 relative",
+        "w-[350px] h-[140px] rounded border-2 border-red-500 bg-red-50/50 px-3 py-2 shadow-sm transition-all dark:bg-red-900/20 relative flex items-center",
         selected
           ? "ring-2 ring-blue-300"
           : ""
@@ -30,7 +30,7 @@ export const ServiceTaskNode = memo(({ data, selected }: NodeProps<Node<BpmnNode
     >
       {/* UI DEBUG LABEL */}
       <div className="absolute -top-6 left-0 bg-red-600 text-white px-2 py-0.5 text-[10px] font-bold rounded whitespace-nowrap">
-        [NODE] w-[350px] - ServiceTask
+        [NODE] w-[350px] h-[140px] - ServiceTask
       </div>
 
       {/* Left handle for incoming */}
@@ -43,12 +43,12 @@ export const ServiceTaskNode = memo(({ data, selected }: NodeProps<Node<BpmnNode
       {/* Simple content like Rapid Platform */}
       <div className="flex items-center gap-2">
         <Cog className="h-4 w-4 flex-shrink-0 text-slate-500" />
-        <div className="min-w-0">
-          <p className="truncate text-sm text-slate-700 dark:text-slate-200">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-slate-700 dark:text-slate-200 break-words leading-tight">
             {data.name || "Service Task"}
           </p>
           {taskType !== "default" && (
-            <p className="truncate text-xs text-slate-400">
+            <p className="text-xs text-slate-400 break-words leading-tight mt-1">
               {taskType.replace(/_/g, " ")}
             </p>
           )}

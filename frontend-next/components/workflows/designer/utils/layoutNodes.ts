@@ -8,18 +8,18 @@ const NODE_DIMENSIONS: Record<string, { width: number; height: number }> = {
   end_event: { width: 150, height: 70 },
   timer_event: { width: 250, height: 90 },
   intermediate_event: { width: 320, height: 90 },
-  user_task: { width: 350, height: 110 },
-  service_task: { width: 350, height: 110 },
+  user_task: { width: 350, height: 140 },
+  service_task: { width: 350, height: 140 },
   exclusive_gateway: { width: 180, height: 90 },
   parallel_gateway: { width: 180, height: 90 },
-  data_store_reference: { width: 350, height: 110 },
-  sub_process: { width: 350, height: 110 },
-  annotation: { width: 380, height: 130 },
-  pool: { width: 380, height: 110 },
-  lane: { width: 350, height: 110 },
+  data_store_reference: { width: 350, height: 140 },
+  sub_process: { width: 350, height: 140 },
+  annotation: { width: 380, height: 160 },
+  pool: { width: 380, height: 140 },
+  lane: { width: 350, height: 140 },
 };
 
-const DEFAULT_DIMENSIONS = { width: 320, height: 110 };
+const DEFAULT_DIMENSIONS = { width: 320, height: 140 };
 
 export type LayoutDirection = "TB" | "LR" | "BT" | "RL";
 
@@ -85,11 +85,11 @@ function simpleGridLayout<T extends Record<string, unknown>>(
   nodes: Node<T>[],
   edges: Edge[]
 ): Node<T>[] {
-  const COL_WIDTH = 300;  // Horizontal spacing between columns (matches canvas grid)
-  const ROW_HEIGHT = 200; // Vertical spacing between rows (matches canvas grid)
+  const COL_WIDTH = 450;  // Horizontal spacing between columns (RULE: must be > node width to prevent overlap)
+  const ROW_HEIGHT = 320; // Vertical spacing between rows (RULE: nodes can NEVER overlap)
   const START_X = -350;   // Negative offset to shift workflow left and eliminate wasted space
   const START_Y = 150;    // Starting Y offset to align with canvas rows
-  const UNIFORM_NODE_HEIGHT = 60; // Use uniform height for vertical centering (matches service_task height)
+  const UNIFORM_NODE_HEIGHT = 80; // Use uniform height for vertical centering (adjusted for actual rendered height)
 
   // Build adjacency lists
   const outgoing = new Map<string, string[]>();
@@ -176,11 +176,15 @@ function simpleGridLayout<T extends Record<string, unknown>>(
   return nodes.map(node => {
     const pos = nodePositions.get(node.id)!; // Now guaranteed to exist
 
-    // Get node dimensions for horizontal centering only
+    // Get node dimensions for both horizontal and vertical centering
     const dimensions = NODE_DIMENSIONS[node.type || ''] || DEFAULT_DIMENSIONS;
 
-    // Calculate exact Y position for this row (all nodes in same row get identical Y)
-    const rowY = Math.round(START_Y + (pos.row * ROW_HEIGHT) - (UNIFORM_NODE_HEIGHT / 2));
+    // Calculate exact Y position for this row - use actual node height for proper centering
+    const rowCenterY = START_Y + (pos.row * ROW_HEIGHT);
+    const rowY = Math.round(rowCenterY - (dimensions.height / 2));
+
+    // Debug logging
+    console.log(`Node: ${node.data?.name || node.id}, Row: ${pos.row}, Col: ${pos.col}, Y: ${rowY}, Height: ${dimensions.height}`);
 
     return {
       ...node,
@@ -188,6 +192,8 @@ function simpleGridLayout<T extends Record<string, unknown>>(
         x: Math.round(START_X + (pos.col * COL_WIDTH) - (dimensions.width / 2)),
         y: rowY,
       },
+      // Prevent React Flow from auto-positioning
+      draggable: node.draggable ?? true,
     };
   });
 }

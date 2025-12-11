@@ -7,7 +7,7 @@ class AsicConnectScraper
 
   def initialize(company, headless: true)
     @company = company
-    @corporate_key = company.corporate_key
+    @acn = company.acn&.gsub(/\s+/, '') # Remove spaces from ACN
     @username = company.asic_username
     @password = company.encrypted_asic_password # Rails auto-decrypts
     @recovery_answer = company.encrypted_recovery_answer
@@ -38,7 +38,7 @@ class AsicConnectScraper
   private
 
   def credentials_valid?
-    @corporate_key.present? && @username.present? && @password.present?
+    @acn.present? && @username.present? && @password.present?
   end
 
   def setup_driver
@@ -67,13 +67,13 @@ class AsicConnectScraper
 
     wait = Selenium::WebDriver::Wait.new(timeout: LOGIN_TIMEOUT)
 
-    # STEP 1: Enter ACN/ABN (Corporate Key)
-    Rails.logger.info("Step 1: Entering ACN/ABN...")
+    # STEP 1: Enter ACN/ABN
+    Rails.logger.info("Step 1: Entering ACN (#{@acn})...")
     acn_field = wait.until {
       @driver.find_element(name: 'Portal-1-COMPServicesLogin-1-ACN-1')
     }
     acn_field.clear
-    acn_field.send_keys(@corporate_key)
+    acn_field.send_keys(@acn)
 
     # Click Next button (image input)
     Rails.logger.info("Clicking Next...")
