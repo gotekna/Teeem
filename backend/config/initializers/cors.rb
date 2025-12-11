@@ -10,7 +10,8 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
     # Allow all Vercel preview and production deployments, plus localhost
     origins(
       "https://teeemlive.vercel.app",      # Production frontend
-      "https://teeemrob.vercel.app",       # Staging frontend
+      "https://teeemrob.vercel.app",       # Rob's dev frontend
+      "https://teeemsam.vercel.app",       # Sam's dev frontend
       "https://teeem.vercel.app",          # Legacy production frontend
       "https://oldfrontend-one.vercel.app", # Legacy frontend deployment
       /https:\/\/teeem.*\.vercel\.app$/,   # All Vercel deployments (teeem.vercel.app, teeem-*.vercel.app, etc.)

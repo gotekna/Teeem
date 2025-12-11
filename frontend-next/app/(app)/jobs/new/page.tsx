@@ -26,8 +26,6 @@ const LocationMapSelector = dynamic(
 );
 
 interface JobFormData {
-  name: string;
-  job_number: string;
   site_supervisor_name: string;
   address: string;
   description: string;
@@ -70,8 +68,6 @@ export default function NewJobPage() {
   const [jobStages, setJobStages] = React.useState<JobStage[]>([]);
 
   const [formData, setFormData] = React.useState<JobFormData>({
-    name: "",
-    job_number: "",
     site_supervisor_name: "",
     address: "",
     description: "",
@@ -177,7 +173,6 @@ export default function NewJobPage() {
       address: data.location || prev.address,
       latitude: data.latitude || null,
       longitude: data.longitude || null,
-      name: data.name || prev.name,
       lot_number: data.lotNumber || prev.lot_number,
       street_number: data.streetNumber || prev.street_number,
       street_name: data.streetName || prev.street_name,
@@ -195,8 +190,8 @@ export default function NewJobPage() {
     try {
       const response = await api.post<{ id: number }>("/api/v1/jobs", {
         job: {
-          name: formData.name,
-          job_number: formData.job_number,
+          // name: Auto-generated on backend from address components
+          // job_number: Auto-created on backend
           site_supervisor_name: formData.site_supervisor_name,
           location: formData.address,
           latitude: formData.latitude,
@@ -253,28 +248,96 @@ export default function NewJobPage() {
               <CardDescription>Basic information about the job</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Job Name *</Label>
-                  <Input
-                    id="name"
-                    placeholder="Auto-generated from address"
-                    value={formData.name}
-                    onChange={(e) => handleChange("name", e.target.value)}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Automatically generated when you select an address
-                  </p>
+              {/* Map Selector - Moved to top */}
+              <div className="space-y-2">
+                <Label>Location Pin</Label>
+                <LocationMapSelector
+                  latitude={formData.latitude}
+                  longitude={formData.longitude}
+                  onLocationChange={handleLocationChange}
+                />
+              </div>
+
+              {/* Address Details */}
+              <div className="space-y-2">
+                <Label className="text-base font-semibold">Address Details</Label>
+                <p className="text-xs text-muted-foreground">
+                  These fields auto-populate from the map or can be edited manually
+                </p>
+
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <Label htmlFor="lot_number">Lot Number</Label>
+                    <Input
+                      id="lot_number"
+                      value={formData.lot_number}
+                      onChange={(e) => handleChange("lot_number", e.target.value)}
+                      placeholder="Enter lot number"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="street_number">Street Number</Label>
+                    <Input
+                      id="street_number"
+                      value={formData.street_number}
+                      onChange={(e) => handleChange("street_number", e.target.value)}
+                      placeholder="Enter street number"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="job_number">Job Number</Label>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="street_name">Street Name</Label>
+                    <Input
+                      id="street_name"
+                      value={formData.street_name}
+                      onChange={(e) => handleChange("street_name", e.target.value)}
+                      placeholder="e.g., Alperton"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="street_type">Street Type</Label>
+                    <Input
+                      id="street_type"
+                      value={formData.street_type}
+                      onChange={(e) => handleChange("street_type", e.target.value)}
+                      placeholder="e.g., Road, ST"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="suburb">Suburb</Label>
                   <Input
-                    id="job_number"
-                    placeholder="e.g., JOB-2024-001"
-                    value={formData.job_number}
-                    onChange={(e) => handleChange("job_number", e.target.value)}
+                    id="suburb"
+                    value={formData.suburb}
+                    onChange={(e) => handleChange("suburb", e.target.value)}
+                    placeholder="Enter suburb"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="state">State</Label>
+                    <Input
+                      id="state"
+                      value={formData.state}
+                      onChange={(e) => handleChange("state", e.target.value)}
+                      placeholder="e.g., QLD"
+                      maxLength={3}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="postcode">Postcode</Label>
+                    <Input
+                      id="postcode"
+                      value={formData.postcode}
+                      onChange={(e) => handleChange("postcode", e.target.value)}
+                      placeholder="e.g., 4000"
+                      maxLength={4}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -286,40 +349,6 @@ export default function NewJobPage() {
                   value={formData.site_supervisor_name}
                   onChange={(e) => handleChange("site_supervisor_name", e.target.value)}
                   required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="address">Site Address</Label>
-                <Input
-                  id="address"
-                  placeholder="e.g., 123 Main Street, Sydney NSW 2000"
-                  value={formData.address}
-                  onChange={(e) => handleChange("address", e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use the map below to select the exact location
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Brief description of the project..."
-                  value={formData.description}
-                  onChange={(e) => handleChange("description", e.target.value)}
-                  rows={3}
-                />
-              </div>
-
-              {/* Map Selector */}
-              <div className="space-y-2">
-                <Label>Location Pin</Label>
-                <LocationMapSelector
-                  latitude={formData.latitude}
-                  longitude={formData.longitude}
-                  onLocationChange={handleLocationChange}
                 />
               </div>
             </CardContent>
@@ -411,6 +440,17 @@ export default function NewJobPage() {
                       placeholder="e.g., 500000"
                       value={formData.contract_value}
                       onChange={(e) => handleChange("contract_value", e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      placeholder="Brief description of the project..."
+                      value={formData.description}
+                      onChange={(e) => handleChange("description", e.target.value)}
+                      rows={3}
                     />
                   </div>
                 </>

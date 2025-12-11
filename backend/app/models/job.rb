@@ -58,8 +58,8 @@ class Job < ApplicationRecord
   end
 
   # Callbacks
-  before_save :auto_generate_name, if: :address_components_changed?
-  before_save :auto_generate_council, if: :postcode_or_suburb_changed?
+  before_validation :auto_generate_name, if: :should_generate_name?
+  before_validation :auto_generate_council, if: :should_generate_council?
   after_create :create_documentation_tabs_from_categories
   after_create :queue_onedrive_folder_creation
   after_create :log_job_created
@@ -226,6 +226,7 @@ class Job < ApplicationRecord
   # Format: "Lot X (Y) Street Name Type Suburb Postcode State"
   # or:     "Lot X Street Name Type Suburb Postcode State"
   # or:     "Y Street Name Type Suburb Postcode State"
+  # If no address components, generate placeholder: "New Job #{id}"
   def auto_generate_name
     parts = []
 
@@ -251,7 +252,12 @@ class Job < ApplicationRecord
     # State (abbreviated)
     parts << abbreviate_state(state) if state.present?
 
-    self.name = parts.join(' ') if parts.any?
+    if parts.any?
+      self.name = parts.join(' ')
+    elsif new_record?
+      # Generate placeholder for new records without address
+      self.name = "New Job (Pending Address)"
+    end
   end
 
   # Auto-generate council from postcode/suburb
@@ -264,8 +270,19 @@ class Job < ApplicationRecord
   end
 
   # Check if job has any address components
+  # Returns true only if we have a meaningful address (street_name is key indicator)
   def has_address_components?
-    street_name.present? || suburb.present?
+    street_name.present?
+  end
+
+  # Check if we should generate name (new record or address changed)
+  def should_generate_name?
+    new_record? || address_components_changed?
+  end
+
+  # Check if we should generate council (new record with postcode/suburb or those fields changed)
+  def should_generate_council?
+    (new_record? && (postcode.present? || suburb.present?)) || postcode_or_suburb_changed?
   end
 
   # Check if address components have changed
