@@ -1,9 +1,14 @@
 class DropOldWorkflowTables < ActiveRecord::Migration[8.0]
   def up
+    # Remove any foreign key constraints referencing old workflow tables first
+    if foreign_key_exists?(:bpmn_process_instances, :workflow_instances)
+      remove_foreign_key :bpmn_process_instances, :workflow_instances
+    end
+
     # Drop old workflow tables - replaced by BPMN workflow engine
-    drop_table :workflow_steps if table_exists?(:workflow_steps)
-    drop_table :workflow_instances if table_exists?(:workflow_instances)
-    drop_table :workflow_definitions if table_exists?(:workflow_definitions)
+    drop_table :workflow_steps, force: :cascade if table_exists?(:workflow_steps)
+    drop_table :workflow_instances, force: :cascade if table_exists?(:workflow_instances)
+    drop_table :workflow_definitions, force: :cascade if table_exists?(:workflow_definitions)
   end
 
   def down
