@@ -62,6 +62,7 @@ module Api
         render json: @bill.as_json(
           include: {
             corporate_company: { only: [ :id, :name, :code, :abn ] },
+            detected_company: { only: [ :id, :name, :code, :abn ] },
             supplier: { only: [ :id, :display_name, :tax_number, :bank_bsb, :bank_account_number ] },
             matched_purchase_order: {
               only: [ :id, :purchase_order_number, :total, :status ],
@@ -74,6 +75,9 @@ module Api
             }
           },
           methods: [ :remaining_balance, :variance_percent, :status_color, :has_invoice_file?, :invoice_file_content_type, :invoice_file_filename ]
+        ).merge(
+          ai_extraction_result: @bill.ai_extraction_result,
+          extracted_at: @bill.extracted_at
         )
       end
 

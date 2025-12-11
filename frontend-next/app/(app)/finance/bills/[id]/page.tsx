@@ -39,9 +39,34 @@ import {
   ImageIcon,
   Maximize2,
   X,
+  ScanText,
+  Wallet,
 } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
+
+interface AIExtractionResult {
+  invoice_number?: string;
+  invoice_date?: string;
+  due_date?: string;
+  subtotal?: number;
+  tax_amount?: number;
+  total_amount?: number;
+  supplier_name?: string;
+  supplier_abn?: string;
+  billing_company_name?: string;
+  billing_company_abn?: string;
+  line_items?: Array<{
+    description?: string;
+    quantity?: number;
+    unit_price?: number;
+    amount?: number;
+  }>;
+  payment_terms?: string;
+  purchase_order_number?: string;
+  notes?: string;
+  [key: string]: unknown;
+}
 
 interface BillDetail {
   id: number;
@@ -66,7 +91,15 @@ interface BillDetail {
   approved_at: string | null;
   remaining_balance: number;
   status_color: string;
+  extracted_at: string | null;
+  ai_extraction_result: AIExtractionResult | null;
   corporate_company: {
+    id: number;
+    name: string;
+    code: string;
+    abn: string;
+  } | null;
+  detected_company: {
     id: number;
     name: string;
     code: string;
@@ -636,21 +669,58 @@ export default function BillDetailPage() {
             <Separator />
 
             <div>
-              <p className="text-sm text-muted-foreground">Billing Company</p>
-              {bill.corporate_company ? (
+              <p className="text-sm text-muted-foreground">Billing Company (on invoice)</p>
+              {bill.detected_company ? (
                 <div className="mt-1">
-                  <p className="font-medium">{bill.corporate_company.name}</p>
+                  <p className="font-medium">{bill.detected_company.name}</p>
                   <p className="text-sm text-muted-foreground">
+                    Code: {bill.detected_company.code}
+                  </p>
+                  {bill.detected_company.abn && (
+                    <p className="text-sm text-muted-foreground">
+                      ABN: {bill.detected_company.abn}
+                    </p>
+                  )}
+                </div>
+              ) : bill.ai_extraction_result?.billing_company_name ? (
+                <div className="mt-1">
+                  <p className="font-medium">{bill.ai_extraction_result.billing_company_name}</p>
+                  {bill.ai_extraction_result.billing_company_abn && (
+                    <p className="text-sm text-muted-foreground">
+                      ABN: {bill.ai_extraction_result.billing_company_abn}
+                    </p>
+                  )}
+                  <p className="text-xs text-yellow-600 mt-1">Not matched to company</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">Not detected</p>
+              )}
+            </div>
+
+            <Separator />
+
+            <div>
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Pay From</p>
+              </div>
+              {bill.corporate_company ? (
+                <div className="mt-1 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
+                  <p className="font-medium text-green-700 dark:text-green-400">{bill.corporate_company.name}</p>
+                  <p className="text-sm text-green-600 dark:text-green-500">
                     Code: {bill.corporate_company.code}
                   </p>
                   {bill.corporate_company.abn && (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-green-600 dark:text-green-500">
                       ABN: {bill.corporate_company.abn}
                     </p>
                   )}
                 </div>
               ) : (
-                <p className="text-muted-foreground">Not assigned</p>
+                <div className="mt-1 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                  <p className="text-yellow-700 dark:text-yellow-400">Not assigned</p>
+                  <p className="text-xs text-yellow-600 dark:text-yellow-500">Assign a company to process payment</p>
+                </div>
               )}
             </div>
 
@@ -753,6 +823,115 @@ export default function BillDetailPage() {
           </Card>
         )}
 
+        {/* Extracted Data */}
+        {bill.ai_extraction_result && (
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ScanText className="h-5 w-5" />
+                AI Extracted Data
+              </CardTitle>
+              {bill.extracted_at && (
+                <CardDescription>
+                  Extracted {new Date(bill.extracted_at).toLocaleString("en-AU")}
+                </CardDescription>
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {bill.ai_extraction_result.invoice_number && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Invoice #</p>
+                    <p className="font-mono text-sm">{bill.ai_extraction_result.invoice_number}</p>
+                  </div>
+                )}
+                {bill.ai_extraction_result.invoice_date && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Invoice Date</p>
+                    <p className="text-sm">{bill.ai_extraction_result.invoice_date}</p>
+                  </div>
+                )}
+                {bill.ai_extraction_result.due_date && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Due Date</p>
+                    <p className="text-sm">{bill.ai_extraction_result.due_date}</p>
+                  </div>
+                )}
+                {bill.ai_extraction_result.supplier_name && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier Name</p>
+                    <p className="text-sm">{bill.ai_extraction_result.supplier_name}</p>
+                  </div>
+                )}
+                {bill.ai_extraction_result.supplier_abn && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier ABN</p>
+                    <p className="font-mono text-sm">{bill.ai_extraction_result.supplier_abn}</p>
+                  </div>
+                )}
+                {bill.ai_extraction_result.billing_company_name && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Billing Company</p>
+                    <p className="text-sm">{bill.ai_extraction_result.billing_company_name}</p>
+                  </div>
+                )}
+                {bill.ai_extraction_result.billing_company_abn && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Billing ABN</p>
+                    <p className="font-mono text-sm">{bill.ai_extraction_result.billing_company_abn}</p>
+                  </div>
+                )}
+                {bill.ai_extraction_result.purchase_order_number && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">PO Reference</p>
+                    <p className="font-mono text-sm">{bill.ai_extraction_result.purchase_order_number}</p>
+                  </div>
+                )}
+                {bill.ai_extraction_result.subtotal != null && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Subtotal</p>
+                    <p className="font-mono text-sm">${Number(bill.ai_extraction_result.subtotal).toLocaleString()}</p>
+                  </div>
+                )}
+                {bill.ai_extraction_result.tax_amount != null && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Tax/GST</p>
+                    <p className="font-mono text-sm">${Number(bill.ai_extraction_result.tax_amount).toLocaleString()}</p>
+                  </div>
+                )}
+                {bill.ai_extraction_result.total_amount != null && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Total</p>
+                    <p className="font-mono text-sm font-medium">${Number(bill.ai_extraction_result.total_amount).toLocaleString()}</p>
+                  </div>
+                )}
+                {bill.ai_extraction_result.payment_terms && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Terms</p>
+                    <p className="text-sm">{bill.ai_extraction_result.payment_terms}</p>
+                  </div>
+                )}
+              </div>
+              {bill.ai_extraction_result.line_items && bill.ai_extraction_result.line_items.length > 0 && (
+                <div className="mt-4 pt-4 border-t">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Line Items ({bill.ai_extraction_result.line_items.length})</p>
+                  <div className="space-y-2">
+                    {bill.ai_extraction_result.line_items.slice(0, 5).map((item, idx) => (
+                      <div key={idx} className="flex justify-between text-sm p-2 bg-muted/30 rounded">
+                        <span className="truncate flex-1 mr-4">{item.description || "Item " + (idx + 1)}</span>
+                        <span className="font-mono">${Number(item.amount || 0).toLocaleString()}</span>
+                      </div>
+                    ))}
+                    {bill.ai_extraction_result.line_items.length > 5 && (
+                      <p className="text-xs text-muted-foreground">+ {bill.ai_extraction_result.line_items.length - 5} more items</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Payments */}
         {bill.bill_payments && bill.bill_payments.length > 0 && (
           <Card className="md:col-span-2">
@@ -808,6 +987,62 @@ export default function BillDetailPage() {
         )}
         </div>{/* End Details Column */}
       </div>
+
+      {/* PDF Expanded Dialog */}
+      <Dialog open={pdfExpandedOpen} onOpenChange={setPdfExpandedOpen}>
+        <DialogContent className="max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] p-0">
+          <div className="flex flex-col h-full">
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5" />
+                <div>
+                  <h2 className="font-semibold">{bill.invoice_file_filename || "Invoice Document"}</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {bill.invoice_number} - {bill.supplier?.display_name || bill.supplier_name_raw}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleOpenInApp}>
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Open
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-1" />
+                  Download
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setPdfExpandedOpen(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden bg-muted/30">
+              {bill.invoice_file_content_type === "application/pdf" ? (
+                <PDFViewer
+                  url={`${getApiBaseUrl()}/api/v1/bill_inbox/${billId}/download`}
+                  className="w-full h-full"
+                  fallbackUrl={pdfBlobUrl || undefined}
+                  onError={(e) => setPdfError(e.message)}
+                />
+              ) : bill.invoice_file_content_type?.startsWith("image/") ? (
+                <div className="w-full h-full flex items-center justify-center p-4">
+                  <img
+                    src={pdfBlobUrl || ""}
+                    alt="Invoice"
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+              ) : pdfBlobUrl ? (
+                <iframe
+                  src={pdfBlobUrl}
+                  className="w-full h-full"
+                  title="Invoice Preview"
+                />
+              ) : null}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Reject Dialog */}
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
