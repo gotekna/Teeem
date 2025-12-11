@@ -648,7 +648,7 @@ export default function TeeemTableView({
     // Check if any column is explicitly marked as email type or has "email" in key
     const hasEmailColumn = COLUMNS.some(col =>
       col.column_type === 'email' ||
-      col.key.toLowerCase().includes('email')
+      col.key?.toLowerCase().includes('email')
     );
 
     if (hasEmailColumn) return true;
