@@ -3,7 +3,7 @@
 # Controller to proxy pricebook images from SharePoint with authentication
 # This allows images to be displayed in the browser without auth issues
 class Api::V1::PricebookImagesController < ApplicationController
-  skip_before_action :verify_authenticity_token
+  # CSRF not applicable in API mode (ActionController::API)
 
   # GET /api/v1/pricebook_images/:id
   # Returns the image binary data for a pricebook item
