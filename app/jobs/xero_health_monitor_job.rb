@@ -67,10 +67,7 @@ class XeroHealthMonitorJob < ApplicationJob
                        "Health: #{summary[:connected]} connected, #{summary[:degraded]} degraded, " \
                        "#{summary[:disconnected]} disconnected, #{summary[:circuit_open]} circuit open"
 
-      event.complete!(
-        records_processed: XeroCredential.count,
-        metadata: { issues_found: issues_found, self_healed: healed, health_summary: summary }
-      )
+      event.complete!(records_processed: XeroCredential.count)
     rescue StandardError => e
       event.fail!(error: e.message, error_class: e.class.name)
       Rails.logger.error "[XeroHealthMonitor] Error: #{e.message}"
