@@ -2,6 +2,10 @@ class Job < ApplicationRecord
   # Explicitly set table name since it was renamed from 'constructions' to 'jobs'
   self.table_name = "jobs"
 
+  # BPMN Workflow Triggers - fires when job status changes
+  include BpmnTriggerable
+  bpmn_status_trigger :job_status_id
+
   # Associations
   has_many :purchase_orders, dependent: :destroy
   has_many :job_claims, dependent: :destroy

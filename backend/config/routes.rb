@@ -497,6 +497,7 @@ Rails.application.routes.draw do
           member do
             post :activate
             post :deactivate
+            post :fire
           end
         end
       end
@@ -1143,6 +1144,7 @@ Rails.application.routes.draw do
           get :validate_contacts
           get :pdf_sync_status
           get :sync_health
+          get :sync_stats
         end
         member do
           get :sync_contacts_status

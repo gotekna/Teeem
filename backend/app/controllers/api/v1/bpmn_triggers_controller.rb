@@ -2,7 +2,7 @@ module Api
   module V1
     class BpmnTriggersController < ApplicationController
       before_action :set_process
-      before_action :set_trigger, only: [:show, :update, :destroy, :activate, :deactivate]
+      before_action :set_trigger, only: [:show, :update, :destroy, :activate, :deactivate, :fire]
 
       def index
         @triggers = @process.bpmn_triggers.order(:created_at)
@@ -51,6 +51,49 @@ module Api
       def deactivate
         @trigger.deactivate!
         render json: { success: true, trigger: serialize_trigger(@trigger) }
+      end
+
+      # POST /api/v1/bpmn_processes/:bpmn_process_id/bpmn_triggers/:id/fire
+      # Manually fire a trigger to start a workflow
+      def fire
+        subject_type = params[:subject_type]
+        subject_id = params[:subject_id]
+        variables = params[:variables] || {}
+
+        unless subject_type.present? && subject_id.present?
+          return render json: {
+            success: false,
+            error: "subject_type and subject_id are required"
+          }, status: :unprocessable_entity
+        end
+
+        # Resolve the subject
+        begin
+          subject = subject_type.constantize.find(subject_id)
+        rescue NameError
+          return render json: { success: false, error: "Invalid subject_type" }, status: :unprocessable_entity
+        rescue ActiveRecord::RecordNotFound
+          return render json: { success: false, error: "Subject not found" }, status: :not_found
+        end
+
+        # Fire the trigger
+        instance = Bpmn::TriggerFiringService.fire_manual(
+          trigger_id: @trigger.id,
+          subject: subject,
+          variables: variables,
+          user: current_user
+        )
+
+        render json: {
+          success: true,
+          process_instance: {
+            id: instance.id,
+            status: instance.status,
+            started_at: instance.started_at
+          }
+        }
+      rescue ArgumentError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
       private

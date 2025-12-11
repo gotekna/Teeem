@@ -16,10 +16,12 @@ import {
   RefreshCw,
   AlertTriangle,
   X,
+  Workflow,
 } from 'lucide-react';
 import { BoardView } from './views/BoardView';
 import { ListView } from './views/ListView';
 import { MyTasksView } from './views/MyTasksView';
+import { WorkflowTasksView } from './views/WorkflowTasksView';
 import { CreateTaskDialog } from './CreateTaskDialog';
 
 export function TaskHub() {
@@ -117,6 +119,10 @@ export function TaskHub() {
             <User className="h-3 w-3 mr-1" />
             Mine
           </TabsTrigger>
+          <TabsTrigger value="workflow" className="text-xs h-7 px-3">
+            <Workflow className="h-3 w-3 mr-1" />
+            Workflow
+          </TabsTrigger>
           <TabsTrigger value="board" className="text-xs h-7 px-3">
             <LayoutGrid className="h-3 w-3 mr-1" />
             Board
@@ -129,6 +135,10 @@ export function TaskHub() {
 
         <TabsContent value="my-tasks" className="mt-3">
           <MyTasksView />
+        </TabsContent>
+
+        <TabsContent value="workflow" className="mt-3">
+          <WorkflowTasksView />
         </TabsContent>
 
         <TabsContent value="board" className="mt-3">
