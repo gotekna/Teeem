@@ -74,8 +74,9 @@ namespace :document_templates do
 
     puts "=" * 60
     puts "Next steps:"
-    puts "1. Upload Word templates to SharePoint: gotekna.sharepoint.com/sites/TEEEM/Shared Documents/Templates/"
-    puts "2. Link each template via the TEEEM UI or API"
+    puts "1. Upload Word templates to SharePoint: gotekna.sharepoint.com/sites/TEEEM/Shared Documents/Warehousing/Templates/"
+    puts "2. Run: rake document_templates:setup_sharepoint_folder  (creates folder if needed)"
+    puts "3. Run: rake document_templates:link_to_sharepoint       (auto-links by filename match)"
     puts ""
     puts "Word Template Variable Format:"
     puts "  {{job.address}}           - Job address"
@@ -135,7 +136,7 @@ namespace :document_templates do
     end
   end
 
-  desc "Create Templates folder in TEEEM SharePoint and list contents"
+  desc "Create Warehousing/Templates folder in TEEEM SharePoint and list contents"
   task setup_sharepoint_folder: :environment do
     sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
     unless sp_config
@@ -151,29 +152,46 @@ namespace :document_templates do
 
     client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
-    # Check if Templates folder exists
-    puts "Checking for Templates folder..."
+    # Check if Warehousing/Templates folder exists
+    puts "Checking for Warehousing/Templates folder..."
     begin
       existing = client.list_folder_contents(
         site_id: sp_config[:site_id],
         drive_id: sp_config[:drive_id],
-        folder_path: "Templates"
+        folder_path: "Warehousing/Templates"
       )
-      puts "✓ Templates folder exists with #{existing.count} files:"
+      puts "✓ Warehousing/Templates folder exists with #{existing.count} files:"
       existing.each do |item|
         type = item[:folder] ? "📁" : "📄"
         puts "  #{type} #{item[:name]} (#{item[:id]})"
       end
     rescue StandardError => e
       if e.message.include?("itemNotFound") || e.message.include?("404")
-        puts "Creating Templates folder..."
+        puts "Creating Warehousing/Templates folder..."
+        # First ensure Warehousing exists
+        begin
+          client.list_folder_contents(
+            site_id: sp_config[:site_id],
+            drive_id: sp_config[:drive_id],
+            folder_path: "Warehousing"
+          )
+        rescue StandardError
+          client.create_folder(
+            site_id: sp_config[:site_id],
+            drive_id: sp_config[:drive_id],
+            parent_path: "",
+            folder_name: "Warehousing"
+          )
+          puts "  Created Warehousing folder"
+        end
+        # Create Templates under Warehousing
         client.create_folder(
           site_id: sp_config[:site_id],
           drive_id: sp_config[:drive_id],
-          parent_path: "",
+          parent_path: "Warehousing",
           folder_name: "Templates"
         )
-        puts "✓ Templates folder created"
+        puts "✓ Warehousing/Templates folder created"
       else
         puts "ERROR: #{e.message}"
       end
@@ -184,12 +202,12 @@ namespace :document_templates do
     puts "To use this SharePoint for templates, templates should be linked with:"
     puts "  site_id: #{sp_config[:site_id]}"
     puts "  drive_id: #{sp_config[:drive_id]}"
-    puts "  path: Templates/{filename}"
+    puts "  path: Warehousing/Templates/{filename}"
     puts ""
-    puts "Upload Word templates to: SharePoint > #{sp_config[:drive_name]} > Templates"
+    puts "Upload Word templates to: SharePoint > #{sp_config[:drive_name]} > Warehousing > Templates"
   end
 
-  desc "List files in TEEEM SharePoint Templates folder"
+  desc "List files in TEEEM SharePoint Warehousing/Templates folder"
   task list_sharepoint_templates: :environment do
     sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
     unless sp_config
@@ -199,14 +217,14 @@ namespace :document_templates do
 
     client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
-    puts "Templates in TEEEM SharePoint:"
+    puts "Templates in TEEEM SharePoint (Warehousing/Templates):"
     puts "=" * 60
 
     begin
       files = client.list_folder_contents(
         site_id: sp_config[:site_id],
         drive_id: sp_config[:drive_id],
-        folder_path: "Templates"
+        folder_path: "Warehousing/Templates"
       )
 
       files.each do |item|
@@ -220,11 +238,11 @@ namespace :document_templates do
       puts "Total: #{files.reject { |f| f[:folder] }.count} template files"
     rescue StandardError => e
       puts "ERROR: #{e.message}"
-      puts "(Templates folder may not exist yet - run rake document_templates:setup_sharepoint_folder)"
+      puts "(Warehousing/Templates folder may not exist yet - run rake document_templates:setup_sharepoint_folder)"
     end
   end
 
-  desc "Link DocumentTemplates to files in TEEEM SharePoint Templates folder"
+  desc "Link DocumentTemplates to files in TEEEM SharePoint Warehousing/Templates folder"
   task link_to_sharepoint: :environment do
     sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
     unless sp_config
@@ -237,12 +255,12 @@ namespace :document_templates do
     puts "Linking DocumentTemplates to TEEEM SharePoint files..."
     puts "=" * 60
 
-    # Get files from Templates folder
+    # Get files from Warehousing/Templates folder
     begin
       files = client.list_folder_contents(
         site_id: sp_config[:site_id],
         drive_id: sp_config[:drive_id],
-        folder_path: "Templates"
+        folder_path: "Warehousing/Templates"
       )
     rescue StandardError => e
       puts "ERROR: #{e.message}"
@@ -289,7 +307,7 @@ namespace :document_templates do
           sharepoint_site_id: sp_config[:site_id],
           sharepoint_drive_id: sp_config[:drive_id],
           sharepoint_item_id: file[:id],
-          sharepoint_path: "Templates/#{file[:name]}"
+          sharepoint_path: "Warehousing/Templates/#{file[:name]}"
         )
         puts "#{template.name}: ✓ Linked to #{file[:name]}"
       else
