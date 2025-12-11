@@ -13,7 +13,7 @@ namespace :employees do
     puts ""
 
     # Get all companies with email_domains configured
-    companies_with_domains = Contact.where(entity_type: ['company', 'trust'])
+    companies_with_domains = Contact.where(entity_type: [ "company", "trust" ])
       .where("email_domains != '[]'::jsonb")
       .where("jsonb_array_length(email_domains) > 0")
 
@@ -29,7 +29,7 @@ namespace :employees do
 
     puts "Found #{companies_with_domains.count} companies with email domains:"
     companies_with_domains.each do |company|
-      domains = company.email_domains.join(', ')
+      domains = company.email_domains.join(", ")
       puts "  - #{company.display_name}: #{domains}"
     end
     puts ""
@@ -44,8 +44,8 @@ namespace :employees do
     end
 
     # Find all persons with emails
-    persons_with_emails = Contact.where(entity_type: 'person')
-      .where.not(email: [nil, ''])
+    persons_with_emails = Contact.where(entity_type: "person")
+      .where.not(email: [ nil, "" ])
 
     puts "Scanning #{persons_with_emails.count} persons with emails..."
     puts ""
@@ -61,7 +61,7 @@ namespace :employees do
       next if email.blank?
 
       # Extract domain from email
-      domain = email.split('@').last
+      domain = email.split("@").last
       next unless domain
 
       # Find matching companies
@@ -73,7 +73,7 @@ namespace :employees do
         existing = ContactRelationship.find_by(
           source_contact_id: person.id,
           related_contact_id: company.id,
-          relationship_type: 'employee_of'
+          relationship_type: "employee_of"
         )
 
         if existing
@@ -85,7 +85,7 @@ namespace :employees do
         ContactRelationship.create!(
           source_contact_id: person.id,
           related_contact_id: company.id,
-          relationship_type: 'employee_of',
+          relationship_type: "employee_of",
           is_active: true,
           notes: "Auto-created from email domain match (#{domain})"
         )
@@ -108,16 +108,16 @@ namespace :employees do
       next if email.blank?
 
       # Extract domain and company name from email
-      domain = email.split('@').last
+      domain = email.split("@").last
       next unless domain
 
       # Extract company name from domain (e.g., "bunnings.com.au" → "bunnings")
-      company_name_from_domain = domain.split('.').first
+      company_name_from_domain = domain.split(".").first
       next if company_name_from_domain.blank? || company_name_from_domain.length < 3
 
       # Find companies with similar names (case-insensitive partial match)
-      matching_companies = Contact.where(entity_type: ['company', 'trust', 'sole_trader'])
-        .where('display_name ILIKE ?', "%#{company_name_from_domain}%")
+      matching_companies = Contact.where(entity_type: [ "company", "trust", "sole_trader" ])
+        .where("display_name ILIKE ?", "%#{company_name_from_domain}%")
 
       matching_companies.each do |company|
         # Skip if this domain is already in the company's email_domains (already handled in STEP 1)
@@ -127,7 +127,7 @@ namespace :employees do
         existing = ContactRelationship.find_by(
           source_contact_id: person.id,
           related_contact_id: company.id,
-          relationship_type: 'employee_of'
+          relationship_type: "employee_of"
         )
 
         if existing
@@ -139,7 +139,7 @@ namespace :employees do
         ContactRelationship.create!(
           source_contact_id: person.id,
           related_contact_id: company.id,
-          relationship_type: 'employee_of',
+          relationship_type: "employee_of",
           is_active: true,
           notes: "Auto-created from email company name match (#{company_name_from_domain} in #{domain})"
         )
@@ -154,21 +154,21 @@ namespace :employees do
     puts ""
 
     # Find all persons with primary_company_id set
-    persons_with_primary_company = Contact.where(entity_type: 'person')
+    persons_with_primary_company = Contact.where(entity_type: "person")
       .where.not(primary_company_id: nil)
 
     puts "Found #{persons_with_primary_company.count} persons with primary_company_id set"
     puts ""
 
     persons_with_primary_company.find_each do |person|
-      company = Contact.find_by(id: person.primary_company_id, entity_type: ['company', 'trust', 'sole_trader'])
+      company = Contact.find_by(id: person.primary_company_id, entity_type: [ "company", "trust", "sole_trader" ])
       next unless company
 
       # Check if relationship already exists
       existing = ContactRelationship.find_by(
         source_contact_id: person.id,
         related_contact_id: company.id,
-        relationship_type: 'employee_of'
+        relationship_type: "employee_of"
       )
 
       if existing
@@ -180,7 +180,7 @@ namespace :employees do
       ContactRelationship.create!(
         source_contact_id: person.id,
         related_contact_id: company.id,
-        relationship_type: 'employee_of',
+        relationship_type: "employee_of",
         is_active: true,
         notes: "Auto-created from primary_company_id field"
       )
@@ -220,7 +220,7 @@ namespace :employees do
     puts ""
 
     # Get all companies with email_domains configured
-    companies_with_domains = Contact.where(entity_type: ['company', 'trust'])
+    companies_with_domains = Contact.where(entity_type: [ "company", "trust" ])
       .where("email_domains != '[]'::jsonb")
       .where("jsonb_array_length(email_domains) > 0")
 
@@ -236,7 +236,7 @@ namespace :employees do
 
     puts "Companies with email domains configured:"
     companies_with_domains.each do |company|
-      domains = company.email_domains.join(', ')
+      domains = company.email_domains.join(", ")
       puts "  - #{company.display_name}: #{domains}"
     end
     puts ""
@@ -251,8 +251,8 @@ namespace :employees do
     end
 
     # Find all persons with emails
-    persons_with_emails = Contact.where(entity_type: 'person')
-      .where.not(email: [nil, ''])
+    persons_with_emails = Contact.where(entity_type: "person")
+      .where.not(email: [ nil, "" ])
 
     # Count matches
     matches_by_company = Hash.new(0)
@@ -262,7 +262,7 @@ namespace :employees do
       email = person.email.to_s.downcase.strip
       next if email.blank?
 
-      domain = email.split('@').last
+      domain = email.split("@").last
       next unless domain
 
       matching_companies = domain_to_companies[domain]
@@ -273,7 +273,7 @@ namespace :employees do
         existing = ContactRelationship.find_by(
           source_contact_id: person.id,
           related_contact_id: company.id,
-          relationship_type: 'employee_of'
+          relationship_type: "employee_of"
         )
 
         unless existing

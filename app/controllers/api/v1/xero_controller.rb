@@ -1415,7 +1415,7 @@ module Api
           invoices_without_contacts = total_invoices_in_db - total_with_contacts
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
-          invoice_sync_status = XeroSyncStatus.where(sync_type: 'invoices').order(last_synced_at: :desc).first
+          invoice_sync_status = XeroSyncStatus.where(sync_type: "invoices").order(last_synced_at: :desc).first
           last_invoice_sync = invoice_sync_status&.last_synced_at || ExternalInvoice.maximum(:last_synced_at)
 
           # Invoice breakdown by type
@@ -1454,7 +1454,7 @@ module Api
           pdf_progress = total_with_contacts.zero? ? 0 : ((invoices_with_pdfs.to_f / total_with_contacts) * 100).round(1)
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
-          pdf_sync_status = XeroSyncStatus.where(sync_type: 'pdfs').order(last_synced_at: :desc).first
+          pdf_sync_status = XeroSyncStatus.where(sync_type: "pdfs").order(last_synced_at: :desc).first
           last_pdf_sync = pdf_sync_status&.last_synced_at || CorporateCompanyDocument.where(source: "xero")
                                          .where(documentable_type: "ExternalInvoice")
                                          .maximum(:created_at)
@@ -1484,7 +1484,7 @@ module Api
           sharepoint_progress = [ sharepoint_progress, 100 ].min # Cap at 100%
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
-          sharepoint_sync_status = XeroSyncStatus.where(sync_type: 'sharepoint').order(last_synced_at: :desc).first
+          sharepoint_sync_status = XeroSyncStatus.where(sync_type: "sharepoint").order(last_synced_at: :desc).first
           last_sharepoint_sync = sharepoint_sync_status&.last_synced_at || CorporateCompanyDocument.where(source: "xero")
                                                          .where(documentable_type: "ExternalInvoice")
                                                          .where.not(onedrive_file_id: nil)

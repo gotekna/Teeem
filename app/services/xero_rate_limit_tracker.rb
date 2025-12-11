@@ -45,13 +45,13 @@ class XeroRateLimitTracker
         minute: {
           used: minute_count,
           limit: MINUTE_LIMIT,
-          remaining: [MINUTE_LIMIT - minute_count, 0].max,
+          remaining: [ MINUTE_LIMIT - minute_count, 0 ].max,
           percentage: (minute_count.to_f / MINUTE_LIMIT * 100).round(1)
         },
         daily: {
           used: daily_count,
           limit: DAILY_LIMIT,
-          remaining: [DAILY_LIMIT - daily_count, 0].max,
+          remaining: [ DAILY_LIMIT - daily_count, 0 ].max,
           percentage: (daily_count.to_f / DAILY_LIMIT * 100).round(1)
         },
         total_7d: total_count,
@@ -131,12 +131,12 @@ class XeroRateLimitTracker
     private
 
     def minute_key_for(tenant_id)
-      minute = Time.current.strftime('%Y%m%d%H%M')
+      minute = Time.current.strftime("%Y%m%d%H%M")
       "xero:rate:minute:#{tenant_id}:#{minute}"
     end
 
     def daily_key_for(tenant_id)
-      day = Time.current.strftime('%Y%m%d')
+      day = Time.current.strftime("%Y%m%d")
       "xero:rate:daily:#{tenant_id}:#{day}"
     end
 

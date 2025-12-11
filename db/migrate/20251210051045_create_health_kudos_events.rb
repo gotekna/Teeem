@@ -27,7 +27,7 @@ class CreateHealthKudosEvents < ActiveRecord::Migration[8.0]
       t.index :user_id
       t.index :action
       t.index :fix_type
-      t.index [:record_type, :record_id]
+      t.index [ :record_type, :record_id ]
       t.index :created_at
     end
 

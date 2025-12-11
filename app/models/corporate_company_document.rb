@@ -121,9 +121,9 @@ class CorporateCompanyDocument < ApplicationRecord
   scope :by_content_hash, ->(hash) { where(content_hash: hash) if hash.present? }
   # Filter by focus (company, people, job)
   scope :by_focus, ->(focus) { where(focus: focus) if focus.present? }
-  scope :company_focus, -> { where(focus: 'company') }
-  scope :people_focus, -> { where(focus: 'people') }
-  scope :job_focus, -> { where(focus: 'job') }
+  scope :company_focus, -> { where(focus: "company") }
+  scope :people_focus, -> { where(focus: "people") }
+  scope :job_focus, -> { where(focus: "job") }
 
   # Callbacks
   after_create :create_activity
@@ -173,12 +173,12 @@ class CorporateCompanyDocument < ApplicationRecord
   # Priority: people > job > company
   def set_focus
     self.focus = if contact_id.present?
-                   'people'
-                 elsif job_id.present? || documentable_type&.include?('Job')
-                   'job'
-                 else
-                   'company'
-                 end
+                   "people"
+    elsif job_id.present? || documentable_type&.include?("Job")
+                   "job"
+    else
+                   "company"
+    end
   end
 
   def create_activity

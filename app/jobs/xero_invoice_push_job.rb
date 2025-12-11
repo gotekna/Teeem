@@ -51,7 +51,7 @@ class XeroInvoicePushJob < ApplicationJob
       return
     end
 
-    with_xero_credential(credential_id: credential.id, sync_type: 'invoices', trigger: 'manual') do |cred|
+    with_xero_credential(credential_id: credential.id, sync_type: "invoices", trigger: "manual") do |cred|
       # Check for conflicts unless forced
       unless force
         if conflict_detected?(invoice)
@@ -106,7 +106,7 @@ class XeroInvoicePushJob < ApplicationJob
       return
     end
 
-    with_xero_credential(credential_id: credential.id, sync_type: 'invoices', trigger: 'scheduled') do |cred|
+    with_xero_credential(credential_id: credential.id, sync_type: "invoices", trigger: "scheduled") do |cred|
       service = ExternalInvoiceSyncService.new
 
       scope.find_each do |invoice|
@@ -169,9 +169,9 @@ class XeroInvoicePushJob < ApplicationJob
     XeroAlert.create!(
       xero_credential: credential,
       corporate_company: find_company_for_invoice(invoice),
-      alert_type: 'sync_stale',
-      severity: 'warning',
-      title: 'Invoice sync conflict',
+      alert_type: "sync_stale",
+      severity: "warning",
+      title: "Invoice sync conflict",
       message: "Invoice #{invoice.invoice_number} was modified in both TEEEM and Xero. " \
                "Please review and choose which version to keep."
     )

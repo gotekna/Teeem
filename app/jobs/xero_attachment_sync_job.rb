@@ -53,11 +53,11 @@ class XeroAttachmentSyncJob < ApplicationJob
       remaining = count_remaining_invoices
       next_sync = if remaining.zero?
                     30.minutes.from_now  # Stay near-live when caught up
-                  elsif remaining < 100
+      elsif remaining < 100
                     10.minutes.from_now  # Almost caught up
-                  else
+      else
                     5.minutes.from_now   # Still catching up - go fast
-                  end
+      end
 
       XeroSyncStatus.complete_sync!(
         "pdfs",
@@ -96,7 +96,7 @@ class XeroAttachmentSyncJob < ApplicationJob
     max_by_minute = (minute_remaining / api_calls_per_pdf).clamp(0, 20)  # Max 20 per minute
     max_by_daily = (daily_remaining / api_calls_per_pdf).clamp(0, 500)   # Max 500 per batch
 
-    limit = [max_by_minute, max_by_daily, options[:limit] || 100].min
+    limit = [ max_by_minute, max_by_daily, options[:limit] || 100 ].min
 
     if limit <= 0
       Rails.logger.info("[XeroAttachmentSync] Rate limited, skipping batch")
@@ -133,7 +133,7 @@ class XeroAttachmentSyncJob < ApplicationJob
         end
       rescue StandardError => e
         results[:failed] += 1
-        results[:errors] << { invoice_id: invoice.id, errors: [e.message] }
+        results[:errors] << { invoice_id: invoice.id, errors: [ e.message ] }
         Rails.logger.error("[XeroAttachmentSync] Error processing invoice #{invoice.id}: #{e.message}")
       end
 

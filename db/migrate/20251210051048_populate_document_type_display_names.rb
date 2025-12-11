@@ -4,7 +4,7 @@ class PopulateDocumentTypeDisplayNames < ActiveRecord::Migration[8.0]
     # display_name should be a user-friendly version, defaulting to name if not set
 
     count = 0
-    DocumentType.where(display_name: [nil, ""]).find_each do |doc_type|
+    DocumentType.where(display_name: [ nil, "" ]).find_each do |doc_type|
       # Extract friendly name from full name
       # e.g., "CTR - Company Tax Return" -> "Company Tax Return"
       # or "Annual Statement" -> "Annual Statement" (no change)

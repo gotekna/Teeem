@@ -15,10 +15,10 @@ class XeroHealthMonitorJob < ApplicationJob
 
   # Expected sync intervals (if no sync in this time, it's stale)
   EXPECTED_INTERVALS = {
-    'invoices' => 1.hour,
-    'contacts' => 1.hour,
-    'bank_transactions' => 8.hours,
-    'attachments' => 4.hours
+    "invoices" => 1.hour,
+    "contacts" => 1.hour,
+    "bank_transactions" => 8.hours,
+    "attachments" => 4.hours
   }.freeze
 
   # Maximum failed jobs before alerting
@@ -29,8 +29,8 @@ class XeroHealthMonitorJob < ApplicationJob
 
     event = XeroSyncEvent.start!(
       credential: nil,
-      sync_type: 'health_check',
-      trigger: 'scheduled'
+      sync_type: "health_check",
+      trigger: "scheduled"
     )
 
     begin
@@ -102,12 +102,12 @@ class XeroHealthMonitorJob < ApplicationJob
 
       # Create a system-level alert (no specific credential)
       XeroAlert.find_or_create_by!(
-        alert_type: 'sync_failed',
-        severity: 'critical',
+        alert_type: "sync_failed",
+        severity: "critical",
         dismissed: false,
         auto_resolved: false
       ) do |alert|
-        alert.title = 'High number of failed Xero jobs'
+        alert.title = "High number of failed Xero jobs"
         alert.message = "There are #{failed_count} failed Xero sync jobs in the queue. " \
                        "This may indicate a systemic problem with the Xero integration."
       end
@@ -116,7 +116,7 @@ class XeroHealthMonitorJob < ApplicationJob
     end
 
     # Auto-resolve if back under threshold
-    XeroAlert.where(alert_type: 'sync_failed', dismissed: false, auto_resolved: false)
+    XeroAlert.where(alert_type: "sync_failed", dismissed: false, auto_resolved: false)
              .update_all(auto_resolved: true, auto_resolved_at: Time.current)
 
     0
@@ -128,7 +128,7 @@ class XeroHealthMonitorJob < ApplicationJob
   # Check for credentials at risk of 60-day inactivity expiry
   def check_inactive_credentials
     XeroTokenManager.check_inactive_credentials
-    XeroCredential.healthy.where('last_successful_api_call_at < ?', XeroTokenManager::INACTIVITY_WARNING_DAYS.days.ago).count
+    XeroCredential.healthy.where("last_successful_api_call_at < ?", XeroTokenManager::INACTIVITY_WARNING_DAYS.days.ago).count
   end
 
   # Log disconnected credentials (for awareness)
@@ -146,7 +146,7 @@ class XeroHealthMonitorJob < ApplicationJob
   def attempt_degraded_recovery
     recovered = 0
 
-    XeroCredential.where(status: 'degraded').find_each do |credential|
+    XeroCredential.where(status: "degraded").find_each do |credential|
       # If refresh_failure_count is low, try refreshing again
       next if credential.refresh_failure_count >= XeroTokenManager::MAX_REFRESH_ATTEMPTS
 
@@ -168,7 +168,7 @@ class XeroHealthMonitorJob < ApplicationJob
     # Check if we already have an active alert for this
     existing = XeroAlert.where(
       xero_credential: credential,
-      alert_type: 'sync_stale',
+      alert_type: "sync_stale",
       dismissed: false,
       auto_resolved: false
     ).where("message LIKE ?", "%#{sync_type}%").exists?

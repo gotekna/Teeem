@@ -65,8 +65,8 @@ class RefreshIntegrationTokensJob < ApplicationJob
       # Create sync event for tracking
       event = XeroSyncEvent.start!(
         credential: credential,
-        sync_type: 'token_refresh',
-        trigger: 'scheduled'
+        sync_type: "token_refresh",
+        trigger: "scheduled"
       )
 
       begin

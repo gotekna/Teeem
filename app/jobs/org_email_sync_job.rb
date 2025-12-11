@@ -14,11 +14,11 @@ class OrgEmailSyncJob < ApplicationJob
     # Find credential - support specific org or default to first active
     @credential = if credential_id.present?
                     OrganizationMicrosoftAppCredential.find_by(id: credential_id)
-                  elsif org_name.present?
+    elsif org_name.present?
                     OrganizationMicrosoftAppCredential.find_by_name(org_name)
-                  else
+    else
                     OrganizationMicrosoftAppCredential.active_credential
-                  end
+    end
 
     unless @credential&.status == "connected"
       Rails.logger.info "[OrgEmailSync] Skipping - org Microsoft app not connected"
@@ -81,9 +81,9 @@ class OrgEmailSyncJob < ApplicationJob
                       else
                         sync_days.days.ago  # Last N days (24-hour periods)
                       end
-                    else
+    else
                       sync_years.years.ago
-                    end
+    end
 
     since = case sync_type
     when "full"

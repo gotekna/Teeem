@@ -4,7 +4,7 @@ module Api
   module V1
     class XeroAlertsController < ApplicationController
       # Authentication handled by ApplicationController's authorize_request
-      before_action :set_alert, only: [:dismiss]
+      before_action :set_alert, only: [ :dismiss ]
 
       # GET /api/v1/xero/alerts
       # Get all active alerts for the current user's company
@@ -34,7 +34,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Alert dismissed'
+          message: "Alert dismissed"
         }
       end
 
@@ -100,7 +100,7 @@ module Api
                 total_7d: tenant[:usage]&.dig(:total_7d),
                 can_make_request: tenant[:usage]&.dig(:can_make_request),
                 # SSoT: Include credential status so UI shows actual token health
-                status: credential&.status || 'disconnected',
+                status: credential&.status || "disconnected",
                 # Only show "Needs Re-auth" when truly disconnected/degraded, not just close to expiry
                 # Token refresh is handled automatically by XeroTokenManager
                 needs_reauth: credential ? %w[disconnected degraded].include?(credential.status) : true,
@@ -144,7 +144,7 @@ module Api
         # Ensure user can access this alert
         company = current_user.corporate_company
         if company && @alert.corporate_company_id && @alert.corporate_company_id != company.id
-          render json: { success: false, error: 'Not authorized' }, status: :forbidden
+          render json: { success: false, error: "Not authorized" }, status: :forbidden
         end
       end
 
@@ -158,8 +158,8 @@ module Api
 
       def calculate_overall_status(credential)
         return :disconnected unless credential
-        return :disconnected if credential.status == 'disconnected'
-        return :degraded if credential.status == 'degraded'
+        return :disconnected if credential.status == "disconnected"
+        return :degraded if credential.status == "degraded"
         return :warning if credential.circuit_open?
         return :warning if credential.needs_refresh?
         :healthy
@@ -220,9 +220,9 @@ module Api
 
       def expected_interval_for(sync_type)
         case sync_type
-        when 'invoices', 'contacts' then 1.hour
-        when 'bank_transactions' then 8.hours
-        when 'attachments' then 4.hours
+        when "invoices", "contacts" then 1.hour
+        when "bank_transactions" then 8.hours
+        when "attachments" then 4.hours
         else 2.hours
         end
       end

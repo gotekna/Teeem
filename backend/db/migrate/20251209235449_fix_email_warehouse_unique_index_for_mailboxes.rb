@@ -6,7 +6,7 @@ class FixEmailWarehouseUniqueIndexForMailboxes < ActiveRecord::Migration[8.0]
     # Add composite unique index on (internet_message_id, mailbox_owner_email)
     # This allows the same email to exist in multiple mailboxes with different outlook_ids
     add_index :email_warehouse,
-              [:internet_message_id, :mailbox_owner_email],
+              [ :internet_message_id, :mailbox_owner_email ],
               unique: true,
               name: "index_email_warehouse_on_message_id_and_mailbox",
               if_not_exists: true

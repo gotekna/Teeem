@@ -32,8 +32,8 @@ class CreateXeroSyncEvents < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :xero_sync_events, [:xero_credential_id, :sync_type, :created_at], name: 'idx_xero_sync_events_cred_type_time'
-    add_index :xero_sync_events, [:sync_type, :event_type, :created_at], name: 'idx_xero_sync_events_type_status'
+    add_index :xero_sync_events, [ :xero_credential_id, :sync_type, :created_at ], name: 'idx_xero_sync_events_cred_type_time'
+    add_index :xero_sync_events, [ :sync_type, :event_type, :created_at ], name: 'idx_xero_sync_events_type_status'
     add_index :xero_sync_events, :created_at
   end
 end

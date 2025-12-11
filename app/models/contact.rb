@@ -730,7 +730,7 @@ class Contact < ApplicationRecord
     # REMOVED: Companies can also be customers/suppliers in Xero
     # Roles (customer, supplier) can be assigned to any entity type (person, company, trust, etc.)
     # This validation was blocking Xero sync for companies that are suppliers/customers
-    return
+    nil
   end
 
   def validate_name_fields_for_entity_type
@@ -927,7 +927,7 @@ class Contact < ApplicationRecord
   def should_sync_to_corporate?
     # Only sync if this is a company/trust with a linked CorporateCompany record
     # Don't sync if we're already syncing from CorporateCompany to Contact (prevent loop)
-    entity_type.in?(['company', 'trust']) &&
+    entity_type.in?([ "company", "trust" ]) &&
       company_record.present? &&
       !Thread.current[:syncing_company_to_contact]
   end

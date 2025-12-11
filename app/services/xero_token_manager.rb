@@ -53,7 +53,7 @@ class XeroTokenManager
       return false unless credential
 
       # Check if credential is disconnected
-      if credential.status == 'disconnected'
+      if credential.status == "disconnected"
         Rails.logger.warn("[XeroTokenManager] Credential #{credential.id} is disconnected, cannot use")
         return false
       end
@@ -115,14 +115,14 @@ class XeroTokenManager
       }
 
       # If circuit was half-open, close it (successful test)
-      if credential.circuit_state == 'half_open'
-        updates[:circuit_state] = 'closed'
+      if credential.circuit_state == "half_open"
+        updates[:circuit_state] = "closed"
         Rails.logger.info("[XeroTokenManager] Circuit closed for #{credential.tenant_name} after successful API call")
       end
 
       # If was degraded, reconnect
-      if credential.status == 'degraded' && credential.refresh_failure_count == 0
-        updates[:status] = 'connected'
+      if credential.status == "degraded" && credential.refresh_failure_count == 0
+        updates[:status] = "connected"
         Rails.logger.info("[XeroTokenManager] Credential #{credential.tenant_name} recovered to connected state")
         auto_resolve_alerts(credential)
       end
@@ -138,10 +138,10 @@ class XeroTokenManager
       updates = { circuit_failure_count: new_count }
 
       if new_count >= CIRCUIT_FAILURE_THRESHOLD
-        updates[:circuit_state] = 'open'
+        updates[:circuit_state] = "open"
         updates[:circuit_opened_at] = Time.current
         Rails.logger.warn("[XeroTokenManager] Circuit opened for #{credential.tenant_name} after #{new_count} failures")
-        create_alert(credential, 'rate_limited', 'warning', 'Too many API failures', error&.message)
+        create_alert(credential, "rate_limited", "warning", "Too many API failures", error&.message)
       end
 
       credential.update_columns(updates)
@@ -149,12 +149,12 @@ class XeroTokenManager
 
     # Check if credential's circuit breaker is open
     def circuit_open?(credential)
-      return false unless credential.circuit_state == 'open'
+      return false unless credential.circuit_state == "open"
 
       # Check if enough time has passed to test again
       if credential.circuit_opened_at && credential.circuit_opened_at < CIRCUIT_RESET_TIMEOUT.ago
         # Transition to half-open for testing
-        credential.update_columns(circuit_state: 'half_open')
+        credential.update_columns(circuit_state: "half_open")
         Rails.logger.info("[XeroTokenManager] Circuit half-open for #{credential.tenant_name}, will test on next request")
         return false
       end
@@ -167,7 +167,7 @@ class XeroTokenManager
     def check_inactive_credentials
       # Find credentials that haven't been used in 50+ days
       at_risk = XeroCredential.where(status: %w[connected degraded])
-                              .where('last_successful_api_call_at < ? OR last_successful_api_call_at IS NULL',
+                              .where("last_successful_api_call_at < ? OR last_successful_api_call_at IS NULL",
                                      INACTIVITY_WARNING_DAYS.days.ago)
 
       at_risk.find_each do |credential|
@@ -176,11 +176,11 @@ class XeroTokenManager
         # Create inactivity warning alert
         create_alert(
           credential,
-          'inactivity_warning',
-          'warning',
-          'Xero connection may expire soon',
+          "inactivity_warning",
+          "warning",
+          "Xero connection may expire soon",
           "This Xero connection hasn't been used in over #{INACTIVITY_WARNING_DAYS} days. " \
-          'Refresh tokens expire after 60 days of inactivity. Please sync data to keep the connection active.'
+          "Refresh tokens expire after 60 days of inactivity. Please sync data to keep the connection active."
         )
 
         # Touch the credential by making a lightweight API call
@@ -195,7 +195,7 @@ class XeroTokenManager
       begin
         client = XeroApiClient.new
         # Make a simple API call to refresh the token
-        client.get('Organisation', { tenant_id: credential.tenant_id })
+        client.get("Organisation", { tenant_id: credential.tenant_id })
         credential.update_columns(last_successful_api_call_at: Time.current)
         Rails.logger.info("[XeroTokenManager] Touched credential #{credential.tenant_name} to prevent 60-day expiry")
       rescue StandardError => e
@@ -206,20 +206,20 @@ class XeroTokenManager
     # Get credentials that need proactive refresh (expiring in next 15 minutes)
     def credentials_needing_refresh
       XeroCredential.where(status: %w[connected degraded])
-                    .where('expires_at < ?', REFRESH_BUFFER.from_now)
+                    .where("expires_at < ?", REFRESH_BUFFER.from_now)
     end
 
     # Get health summary for all credentials
     def health_summary
       {
         total: XeroCredential.count,
-        connected: XeroCredential.where(status: 'connected').count,
-        degraded: XeroCredential.where(status: 'degraded').count,
-        disconnected: XeroCredential.where(status: 'disconnected').count,
-        circuit_open: XeroCredential.where(circuit_state: 'open').count,
+        connected: XeroCredential.where(status: "connected").count,
+        degraded: XeroCredential.where(status: "degraded").count,
+        disconnected: XeroCredential.where(status: "disconnected").count,
+        circuit_open: XeroCredential.where(circuit_state: "open").count,
         expiring_soon: credentials_needing_refresh.count,
         at_risk_of_inactivity: XeroCredential.where(status: %w[connected degraded])
-                                             .where('last_successful_api_call_at < ?', INACTIVITY_WARNING_DAYS.days.ago)
+                                             .where("last_successful_api_call_at < ?", INACTIVITY_WARNING_DAYS.days.ago)
                                              .count
       }
     end
@@ -250,10 +250,10 @@ class XeroTokenManager
       GRACE_PERIOD_RETRIES.times do |attempt|
         begin
           client = OAuth2::Client.new(
-            ENV['XERO_CLIENT_ID'],
-            ENV['XERO_CLIENT_SECRET'],
-            site: 'https://identity.xero.com',
-            token_url: '/connect/token'
+            ENV["XERO_CLIENT_ID"],
+            ENV["XERO_CLIENT_SECRET"],
+            site: "https://identity.xero.com",
+            token_url: "/connect/token"
           )
 
           # Always use the ORIGINAL refresh token within the grace period
@@ -281,7 +281,7 @@ class XeroTokenManager
               last_refresh_at: Time.current,
               last_refresh_error: nil,
               refresh_failure_count: 0,
-              status: 'connected',
+              status: "connected",
               token_poisoned_at: nil,
               poisoned_reason: nil
             )
@@ -308,9 +308,9 @@ class XeroTokenManager
           error_message = e.message.to_s.downcase
 
           # Check if token is truly poisoned (burned outside grace period)
-          if error_message.include?('invalid_grant') ||
-             error_message.include?('refresh token has expired') ||
-             error_message.include?('refresh token is invalid')
+          if error_message.include?("invalid_grant") ||
+             error_message.include?("refresh token has expired") ||
+             error_message.include?("refresh token is invalid")
 
             if attempt > 0
               # We successfully got a new token before but now getting invalid_grant
@@ -351,7 +351,7 @@ class XeroTokenManager
 
     def mark_as_poisoned(credential, error)
       credential.update_columns(
-        status: 'disconnected',
+        status: "disconnected",
         token_poisoned_at: Time.current,
         poisoned_reason: error.message.to_s.truncate(255),
         last_refresh_error: "POISONED: #{error.message}"
@@ -368,11 +368,11 @@ class XeroTokenManager
       }
 
       if fatal || new_count >= MAX_REFRESH_ATTEMPTS
-        updates[:status] = 'disconnected'
+        updates[:status] = "disconnected"
         Rails.logger.error("[XeroTokenManager] Credential #{credential.tenant_name} disconnected after #{new_count} failures")
         create_disconnect_alert(credential, error)
       else
-        updates[:status] = 'degraded'
+        updates[:status] = "degraded"
         Rails.logger.warn("[XeroTokenManager] Credential #{credential.tenant_name} degraded (failure #{new_count}/#{MAX_REFRESH_ATTEMPTS})")
         create_degraded_alert(credential, error)
       end
@@ -383,9 +383,9 @@ class XeroTokenManager
     def create_disconnect_alert(credential, error)
       create_alert(
         credential,
-        'disconnected',
-        'critical',
-        'Xero connection disconnected',
+        "disconnected",
+        "critical",
+        "Xero connection disconnected",
         "Your Xero connection to #{credential.tenant_name} has been disconnected. " \
         "Error: #{error.message.truncate(200)}. Please reconnect to continue syncing."
       )
@@ -394,9 +394,9 @@ class XeroTokenManager
     def create_degraded_alert(credential, error)
       create_alert(
         credential,
-        'token_expired',
-        'warning',
-        'Xero connection issue',
+        "token_expired",
+        "warning",
+        "Xero connection issue",
         "There was a problem refreshing your Xero connection to #{credential.tenant_name}. " \
         "We'll keep trying. Error: #{error.message.truncate(200)}"
       )
