@@ -340,9 +340,9 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
 
   const handleAutoLayout = useCallback(() => {
     const layoutedNodes = getLayoutedElements(nodes, edges, {
-      direction: "TB",
-      nodeSpacing: 80,
-      rankSpacing: 100,
+      direction: "LR",
+      nodeSpacing: 120,
+      rankSpacing: 180,
     });
     setNodes(layoutedNodes);
     toast({

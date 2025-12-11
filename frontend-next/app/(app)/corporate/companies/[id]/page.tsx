@@ -959,9 +959,11 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
     await loadData();
   };
 
-  const handleRowUpdate = async (id: number, updates: Record<string, any>) => {
+  const handleRowUpdate = async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.put(`/api/v1/bank_accounts/${id}`, { bank_account: updates });
+      await api.put(`/api/v1/bank_accounts/${rowId}`, {
+        bank_account: { [field]: value }
+      });
       await loadData();
     } catch (error) {
       console.error("Failed to update bank account:", error);
@@ -969,9 +971,9 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (row: { id: number | string; [key: string]: unknown }) => {
     try {
-      await api.delete(`/api/v1/bank_accounts/${id}`);
+      await api.delete(`/api/v1/bank_accounts/${row.id}`);
       await loadData();
     } catch (error) {
       console.error("Failed to delete bank account:", error);
@@ -979,7 +981,7 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
     }
   };
 
-  const handleBulkDelete = async (ids: number[]) => {
+  const handleBulkDelete = async (ids: (number | string)[]) => {
     try {
       await Promise.all(ids.map(id => api.delete(`/api/v1/bank_accounts/${id}`)));
       await loadData();

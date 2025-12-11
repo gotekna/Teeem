@@ -11,7 +11,7 @@ export const SubProcessNode = memo(
     return (
       <div
         className={cn(
-          "min-w-[140px] rounded border bg-white px-3 py-2 shadow-sm transition-all dark:bg-slate-900",
+          "w-[180px] rounded border bg-white px-3 py-2 shadow-sm transition-all dark:bg-slate-900",
           selected
             ? "border-blue-500 ring-2 ring-blue-300"
             : "border-slate-300 dark:border-slate-600"
