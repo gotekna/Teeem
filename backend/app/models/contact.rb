@@ -149,6 +149,7 @@ class Contact < ApplicationRecord
   validate :validate_name_casing          # Block ALL CAPS and lowercase names
   validate :validate_no_email_as_name     # Block email addresses used as names
   validate :validate_team_contact_company # Team contacts must have a company
+  validate :validate_primary_company       # Prevent self-reference and ensure company type
 
   # Callbacks
   # prepend: true ensures these run BEFORE AutoColumnValidation's validate_column_types
@@ -798,6 +799,24 @@ class Contact < ApplicationRecord
   def validate_team_contact_company
     if is_team_contact && primary_company_id.blank?
       errors.add(:primary_company, "must be selected for team contacts. A team contact represents a person at a specific company.")
+    end
+  end
+
+  def validate_primary_company
+    return if primary_company_id.blank?
+
+    # Cannot reference self as primary company
+    if primary_company_id == id
+      errors.add(:primary_company, "cannot be self-referencing")
+      return
+    end
+
+    # Primary company must exist and be a company/trust type (not person/sole_trader)
+    primary = Contact.find_by(id: primary_company_id)
+    if primary.nil?
+      errors.add(:primary_company, "must exist")
+    elsif !%w[company trust].include?(primary.entity_type)
+      errors.add(:primary_company, "must be a Company or Trust, not a #{primary.entity_type}")
     end
   end
 
