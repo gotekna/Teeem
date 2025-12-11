@@ -15,7 +15,6 @@ class EmailWarehouse < ApplicationRecord
   has_many :email_recipients, dependent: :destroy
   has_many :email_attachments, dependent: :destroy
   has_many :attachments, through: :email_attachments
-  has_many :contacts, through: :contact_ids  # Virtual association via contact_ids array
 
   # Direction constants (for SSoT tracking)
   DIRECTIONS = %w[sent received cc bcc].freeze
