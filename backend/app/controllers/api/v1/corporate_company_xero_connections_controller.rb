@@ -22,7 +22,7 @@ module Api
             tenant_name: credential.tenant_name,
             # Use effectively_connected? which checks BOTH token expiry AND status field
             connected: credential.effectively_connected?,
-            status: credential.status || 'connected', # Include status for UI to show degraded/disconnected
+            status: credential.status || "connected", # Include status for UI to show degraded/disconnected
             degraded: credential.degraded?,
             expires_at: credential.expires_at,
             expired: credential.expired?,

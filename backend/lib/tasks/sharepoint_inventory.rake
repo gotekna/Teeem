@@ -1,4 +1,4 @@
-require 'csv'
+require "csv"
 
 namespace :sharepoint do
   desc "Generate complete SharePoint Corporate folder inventory"
@@ -135,7 +135,7 @@ namespace :sharepoint do
       item_path = current_path.empty? ? item["name"] : "#{current_path}/#{item["name"]}"
 
       # Extract path components
-      path_parts = item_path.split('/')
+      path_parts = item_path.split("/")
       group_name = path_parts[0] if path_parts.length > 0
       company_folder = path_parts[1] if path_parts.length > 1
       current_folder_name = path_parts.length > 2 ? path_parts[-2] : nil
@@ -143,8 +143,8 @@ namespace :sharepoint do
 
       # Extract company code (pattern: "CODE - Company Name")
       company_code = nil
-      if company_folder&.include?(' - ')
-        company_code = company_folder.split(' - ').first
+      if company_folder&.include?(" - ")
+        company_code = company_folder.split(" - ").first
       end
 
       # Check if it's a folder

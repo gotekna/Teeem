@@ -293,8 +293,8 @@ module HealthChecks
 
     # Contacts with uppercase email addresses (should be lowercase)
     def check_uppercase_emails
-      contacts = Contact.where(deleted: [false, nil])
-                       .where.not(email: [nil, ''])
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where.not(email: [ nil, "" ])
                        .where("email != LOWER(email)")
                        .select(:id, :display_name, :email, :entity_type, :is_team_contact, :primary_company_id)
 
@@ -315,8 +315,8 @@ module HealthChecks
     def check_unformatted_phone
       # Find contacts with phone numbers that aren't properly formatted
       # Properly formatted: 0X XXXX XXXX or +61 X XXXX XXXX
-      contacts = Contact.where(deleted: [false, nil])
-                       .where.not(mobile_phone: [nil, ''])
+      contacts = Contact.where(deleted: [ false, nil ])
+                       .where.not(mobile_phone: [ nil, "" ])
                        .where("mobile_phone !~ '^[0-9]{2} [0-9]{4} [0-9]{4}$' AND mobile_phone !~ '^\\+61 [0-9] [0-9]{4} [0-9]{4}$'")
                        .select(:id, :display_name, :mobile_phone, :entity_type, :is_team_contact, :primary_company_id)
 

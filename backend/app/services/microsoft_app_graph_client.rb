@@ -436,7 +436,7 @@ class MicrosoftAppGraphClient
     offset = 0
 
     while offset < total_size
-      chunk_end = [offset + chunk_size, total_size].min - 1
+      chunk_end = [ offset + chunk_size, total_size ].min - 1
       chunk = content.byteslice(offset, chunk_end - offset + 1)
 
       headers = {

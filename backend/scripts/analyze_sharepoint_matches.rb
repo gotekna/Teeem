@@ -142,8 +142,8 @@ output_path = "/tmp/sharepoint_match_analysis.csv"
 CSV.open(output_path, "w") do |csv|
   csv << %w[filename folder matched_type matched_type_id match_method confidence]
   results.each do |r|
-    csv << [r[:filename], r[:folder], r[:matched_type], r[:matched_type_id],
-            r[:match_method], r[:confidence]]
+    csv << [ r[:filename], r[:folder], r[:matched_type], r[:matched_type_id],
+            r[:match_method], r[:confidence] ]
   end
 end
 

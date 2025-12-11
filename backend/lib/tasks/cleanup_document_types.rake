@@ -11,7 +11,7 @@ namespace :document_types do
       escaped_name = Regexp.escape(clean_name)
       # Match the full name as a complete word/segment
       name_regex = /(?<=\s|^|\})#{escaped_name}(?=\s|$|\{)/i
-      result = result.gsub(name_regex, '{DocTypeName}')
+      result = result.gsub(name_regex, "{DocTypeName}")
     end
 
     # Replace abbreviation only if it's a standalone word (2+ chars)
@@ -20,7 +20,7 @@ namespace :document_types do
       escaped_abbrev = Regexp.escape(abbrev)
       # Match abbreviation as standalone word, not inside curly braces
       abbrev_regex = /(?<!\{)(?<=\s|^)#{escaped_abbrev}(?=\s|$)(?!\})/i
-      result = result.gsub(abbrev_regex, '{DocTypeCode}')
+      result = result.gsub(abbrev_regex, "{DocTypeCode}")
     end
 
     result
@@ -41,9 +41,9 @@ namespace :document_types do
       # Get clean name without prefix (e.g., "ASIC Form 484" from "484 - ASIC Form 484")
       clean_name = if name.include?(" - ")
                      name.split(" - ")[1..-1].join(" - ")
-                   else
+      else
                      name
-                   end
+      end
 
       original_file_name = doc_type.file_name || ""
       original_display_name = doc_type.display_name || ""
@@ -96,9 +96,9 @@ namespace :document_types do
 
       clean_name = if name.include?(" - ")
                      name.split(" - ")[1..-1].join(" - ")
-                   else
+      else
                      name
-                   end
+      end
 
       original_file_name = doc_type.file_name || ""
       original_display_name = doc_type.display_name || ""

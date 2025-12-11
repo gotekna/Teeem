@@ -133,7 +133,7 @@ module XeroJobBase
       raise CredentialDisconnectedError, "No Xero credential available"
     end
 
-    if credential.status == 'disconnected'
+    if credential.status == "disconnected"
       Rails.logger.warn("[#{self.class.name}] Credential #{credential.tenant_name} is disconnected, skipping job")
       raise CredentialDisconnectedError, "Credential disconnected: #{credential.tenant_name}"
     end
@@ -155,7 +155,7 @@ module XeroJobBase
   # Create sync event for tracking
   def create_sync_event(credential, options)
     sync_type = options[:sync_type] || infer_sync_type
-    trigger = options[:trigger] || 'scheduled'
+    trigger = options[:trigger] || "scheduled"
 
     XeroSyncEvent.start!(
       credential: credential,
@@ -168,13 +168,13 @@ module XeroJobBase
   # Infer sync type from job class name
   def infer_sync_type
     case self.class.name
-    when /Invoice/ then 'invoices'
-    when /Contact/ then 'contacts'
-    when /BankTransaction/ then 'bank_transactions'
-    when /Attachment/ then 'attachments'
-    when /Payment/ then 'payments'
-    when /Quote/ then 'quotes'
-    else 'unknown'
+    when /Invoice/ then "invoices"
+    when /Contact/ then "contacts"
+    when /BankTransaction/ then "bank_transactions"
+    when /Attachment/ then "attachments"
+    when /Payment/ then "payments"
+    when /Quote/ then "quotes"
+    else "unknown"
     end
   end
 

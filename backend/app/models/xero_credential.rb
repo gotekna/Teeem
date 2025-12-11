@@ -39,11 +39,11 @@ class XeroCredential < ApplicationRecord
 
   # Scopes
   scope :primary, -> { where(is_primary: true) }
-  scope :connected, -> { where(status: 'connected') }
+  scope :connected, -> { where(status: "connected") }
   scope :healthy, -> { where(status: %w[connected degraded]) }
-  scope :disconnected, -> { where(status: 'disconnected') }
-  scope :circuit_open, -> { where(circuit_state: 'open') }
-  scope :needs_refresh, -> { where('expires_at < ?', XeroTokenManager::REFRESH_BUFFER.from_now) }
+  scope :disconnected, -> { where(status: "disconnected") }
+  scope :circuit_open, -> { where(circuit_state: "open") }
+  scope :needs_refresh, -> { where("expires_at < ?", XeroTokenManager::REFRESH_BUFFER.from_now) }
 
   # Callbacks
   after_create :set_as_primary_if_none_exists
@@ -71,12 +71,12 @@ class XeroCredential < ApplicationRecord
   # Check if effectively connected (both token valid AND status not disconnected)
   # This is the method to use for UI display - returns true only when actually usable
   def effectively_connected?
-    !expired? && status != 'disconnected' && status != 'degraded'
+    !expired? && status != "disconnected" && status != "degraded"
   end
 
   # Check if in a degraded state (token refresh failed but not fully disconnected)
   def degraded?
-    status == 'degraded'
+    status == "degraded"
   end
 
   # Check if token needs refresh (within 15 minutes of expiry)
@@ -87,7 +87,7 @@ class XeroCredential < ApplicationRecord
 
   # Check if this credential can be used for API calls
   def usable?
-    status != 'disconnected' && circuit_state != 'open' && !poisoned?
+    status != "disconnected" && circuit_state != "open" && !poisoned?
   end
 
   # Check if the token is poisoned (burned and will never work again)
@@ -97,7 +97,7 @@ class XeroCredential < ApplicationRecord
   # - The refresh token expired from 60 days of inactivity
   def poisoned?
     token_poisoned_at.present? ||
-      (last_refresh_error.present? && last_refresh_error.include?('POISONED'))
+      (last_refresh_error.present? && last_refresh_error.include?("POISONED"))
   end
 
   # Clear poisoned state (called after successful reconnection)
@@ -105,7 +105,7 @@ class XeroCredential < ApplicationRecord
     update!(
       token_poisoned_at: nil,
       poisoned_reason: nil,
-      status: 'connected',
+      status: "connected",
       last_refresh_error: nil,
       refresh_failure_count: 0
     )
@@ -113,20 +113,20 @@ class XeroCredential < ApplicationRecord
 
   # State transition helpers
   def mark_degraded!
-    return if status == 'disconnected'
-    update!(status: 'degraded')
+    return if status == "disconnected"
+    update!(status: "degraded")
   end
 
   def mark_disconnected!
-    update!(status: 'disconnected')
+    update!(status: "disconnected")
   end
 
   def reconnect!
     update!(
-      status: 'connected',
+      status: "connected",
       refresh_failure_count: 0,
       last_refresh_error: nil,
-      circuit_state: 'closed',
+      circuit_state: "closed",
       circuit_failure_count: 0,
       token_poisoned_at: nil,
       poisoned_reason: nil
@@ -138,24 +138,24 @@ class XeroCredential < ApplicationRecord
 
   # Circuit breaker helpers
   def circuit_open?
-    circuit_state == 'open' && circuit_opened_at.present? &&
+    circuit_state == "open" && circuit_opened_at.present? &&
       circuit_opened_at > XeroTokenManager::CIRCUIT_RESET_TIMEOUT.ago
   end
 
   def open_circuit!
-    update!(circuit_state: 'open', circuit_opened_at: Time.current)
+    update!(circuit_state: "open", circuit_opened_at: Time.current)
   end
 
   def close_circuit!
-    update!(circuit_state: 'closed', circuit_failure_count: 0)
+    update!(circuit_state: "closed", circuit_failure_count: 0)
   end
 
   # Health check helpers
   def health_status
     return :poisoned if poisoned?
-    return :disconnected if status == 'disconnected'
+    return :disconnected if status == "disconnected"
     return :circuit_open if circuit_open?
-    return :degraded if status == 'degraded'
+    return :degraded if status == "degraded"
     return :expiring if needs_refresh?
     :healthy
   end
