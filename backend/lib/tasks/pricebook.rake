@@ -324,4 +324,117 @@ namespace :pricebook do
 
     puts "\nTemplates created in tmp/ directory"
   end
+
+  desc "Sync pricebook photos from SharePoint to pricebook items"
+  task sync_photos: :environment do
+    require_relative "../../app/services/pricebook_photo_sync_service"
+
+    dry_run = ENV["DRY_RUN"] != "false"
+
+    puts "\n" + "="*80
+    puts "PRICEBOOK PHOTO SYNC FROM SHAREPOINT"
+    puts "="*80
+    puts "Mode: #{dry_run ? '🔍 DRY RUN (no changes will be made)' : '⚡ LIVE (will update database)'}"
+    puts "="*80 + "\n"
+
+    begin
+      service = PricebookPhotoSyncService.new
+      stats = service.sync_photos(dry_run: dry_run)
+
+      # Display detailed results
+      puts "\n" + "="*80
+      puts "SYNC RESULTS"
+      puts "="*80
+
+      puts "\n📊 Overall Statistics:"
+      puts "  Total photos found: #{stats[:total_photos]}"
+      puts "  ✅ Matched: #{stats[:matched]} (#{(stats[:matched].to_f / stats[:total_photos] * 100).round(1)}%)"
+      puts "  ❌ Unmatched: #{stats[:unmatched]}"
+      puts "  ❗ Errors: #{stats[:errors]}"
+      puts "  🔄 Items updated: #{stats[:updated]}" unless dry_run
+
+      # Show match breakdown by strategy
+      if stats[:matches].any?
+        puts "\n🎯 Match Strategies:"
+        strategies = stats[:matches].group_by { |m| m[:match_strategy] }
+        strategies.each do |strategy, matches|
+          puts "  #{strategy}: #{matches.size}"
+        end
+
+        # Show confidence breakdown
+        puts "\n🎲 Confidence Levels:"
+        confidences = stats[:matches].group_by { |m| m[:confidence] }
+        confidences.each do |confidence, matches|
+          puts "  #{confidence}: #{matches.size}"
+        end
+
+        # Show sample matches
+        puts "\n📝 Sample Matches (first 10):"
+        stats[:matches].first(10).each do |match|
+          puts "  #{match[:photo][:name]}"
+          puts "    → #{match[:item].item_code}: #{match[:item].item_name}"
+          puts "    Strategy: #{match[:match_strategy]}, Confidence: #{match[:confidence]}"
+          puts "    URL: #{match[:photo][:web_url]}"
+          puts ""
+        end
+      end
+
+      if dry_run
+        puts "\n" + "="*80
+        puts "⚠️  DRY RUN COMPLETE - No changes were made"
+        puts "Run with DRY_RUN=false to apply changes:"
+        puts "  rake pricebook:sync_photos DRY_RUN=false"
+        puts "="*80
+      else
+        puts "\n" + "="*80
+        puts "✅ SYNC COMPLETE - Database updated"
+        puts "="*80
+      end
+
+    rescue StandardError => e
+      puts "\n" + "="*80
+      puts "❌ ERROR: #{e.message}"
+      puts "="*80
+      puts e.backtrace.first(5).join("\n")
+      exit 1
+    end
+  end
+
+  desc "Show pricebook photo sync stats (no changes)"
+  task photo_stats: :environment do
+    require_relative "../../app/services/pricebook_photo_sync_service"
+
+    puts "\n" + "="*80
+    puts "PRICEBOOK PHOTO STATISTICS"
+    puts "="*80 + "\n"
+
+    # Current image stats
+    total_items = PricebookItem.active.count
+    items_with_images = PricebookItem.active.where.not(image_url: nil).count
+    items_without_images = total_items - items_with_images
+
+    puts "📊 Current Database State:"
+    puts "  Total active items: #{total_items}"
+    puts "  Items with images: #{items_with_images} (#{(items_with_images.to_f / total_items * 100).round(1)}%)"
+    puts "  Items without images: #{items_without_images} (#{(items_without_images.to_f / total_items * 100).round(1)}%)"
+
+    # Image sources
+    puts "\n🖼️  Image Sources:"
+    sources = PricebookItem.active.where.not(image_url: nil).group(:image_source).count
+    sources.each do |source, count|
+      puts "  #{source || 'unknown'}: #{count}"
+    end
+
+    # Run dry run sync to see potential matches
+    puts "\n🔍 Running match analysis..."
+    service = PricebookPhotoSyncService.new
+    stats = service.sync_photos(dry_run: true)
+
+    puts "\n📈 Potential Improvements:"
+    potential_new_images = stats[:matched] - items_with_images
+    puts "  New images that could be added: #{[ potential_new_images, 0 ].max}"
+    puts "  Match rate: #{(stats[:matched].to_f / stats[:total_photos] * 100).round(1)}%"
+
+    puts "\n" + "="*80
+  end
 end
