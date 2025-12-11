@@ -35,6 +35,7 @@ import { XeroFieldMapping, XeroContactSync } from "./components/XeroTabs";
 import { XeroPdfSyncStatus } from "./components/XeroPdfSyncStatus";
 import { XeroSyncStats } from "./components/XeroSyncStats";
 import { XeroConnectionsPopup } from "@/components/xero/XeroConnectionsPopup";
+import { XeroCommonContacts } from "./components/XeroCommonContacts";
 
 interface XeroStatus {
   connected: boolean;
@@ -273,7 +274,7 @@ export default function XeroIntegrationPage() {
         }}
         className="space-y-6"
       >
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="connection">
             <Link2 className="h-4 w-4 mr-2" />
             Connection
@@ -293,6 +294,10 @@ export default function XeroIntegrationPage() {
           <TabsTrigger value="sync">
             <Users className="h-4 w-4 mr-2" />
             Contact Sync
+          </TabsTrigger>
+          <TabsTrigger value="common">
+            <Users className="h-4 w-4 mr-2" />
+            Common
           </TabsTrigger>
         </TabsList>
 
@@ -723,6 +728,11 @@ export default function XeroIntegrationPage() {
         {/* Contact Sync Tab */}
         <TabsContent value="sync">
           <XeroContactSync />
+        </TabsContent>
+
+        {/* Common Contacts Tab */}
+        <TabsContent value="common">
+          <XeroCommonContacts />
         </TabsContent>
       </Tabs>
 
