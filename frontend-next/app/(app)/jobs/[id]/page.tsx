@@ -40,6 +40,7 @@ import {
   Pencil,
   Save,
   X,
+  FileSignature,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import dynamic from "next/dynamic";
@@ -98,6 +99,27 @@ interface Job {
   site_supervisor_name?: string;
   site_supervisor_email?: string;
   site_supervisor_phone?: string;
+  // Contract fields
+  plan_number?: string;
+  contract_price?: number;
+  deposit?: number;
+  prime_cost?: number;
+  provisional_sums?: number;
+  contract_date?: string;
+  // Build schedule
+  build_period?: string;
+  stage_slab?: string;
+  stage_frame?: string;
+  stage_enclosed?: string;
+  stage_fixing?: string;
+  stage_practical?: string;
+  stage_weather?: string;
+  weekend_work?: string;
+  // Important dates
+  plan_date?: string;
+  spec_date?: string;
+  practical_completion_date?: string;
+  warranty_end_date?: string;
   contacts?: Contact[];
   estimator_analysis?: {
     job_summary?: string;
@@ -133,6 +155,7 @@ interface JobStage {
 
 const tabs = [
   { name: "Overview", slug: "overview", icon: ClipboardList },
+  { name: "Contract", slug: "contract", icon: FileSignature },
   { name: "People", slug: "people", icon: Users },
   { name: "Purchase Orders", slug: "purchase-orders", icon: ShoppingCart },
   { name: "Estimates", slug: "estimates", icon: FileText },
@@ -1004,6 +1027,10 @@ export default function JobDetailPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="contract" className="mt-6">
+          <JobContractTab job={job} onUpdate={loadJob} />
         </TabsContent>
 
         <TabsContent value="people" className="mt-6">

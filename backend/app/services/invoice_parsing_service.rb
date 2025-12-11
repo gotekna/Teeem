@@ -45,14 +45,21 @@ class InvoiceParsingService
   private
 
   def extract_pdf_text
-    @bill.invoice_file.open do |file|
-      if @bill.content_type == "application/pdf"
-        reader = PDF::Reader.new(file.path)
+    # Download raw bytes directly - bypasses ActiveStorage integrity check
+    # which can fail when checksums don't match (common with SharePoint storage)
+    content = @bill.invoice_file.download
+
+    if @bill.content_type == "application/pdf"
+      # Write to temp file for PDF::Reader
+      Tempfile.create(["invoice", ".pdf"], binmode: true) do |temp_file|
+        temp_file.write(content)
+        temp_file.rewind
+        reader = PDF::Reader.new(temp_file.path)
         reader.pages.map(&:text).join("\n")
-      else
-        # For images, we'll rely on Claude's vision capability
-        ""
       end
+    else
+      # For images, we'll rely on Claude's vision capability
+      ""
     end
   end
 
@@ -124,30 +131,30 @@ class InvoiceParsingService
 
   def build_vision_messages
     # For image-based invoices, use Claude's vision capability
-    @bill.invoice_file.open do |file|
-      image_data = Base64.strict_encode64(file.read)
-      media_type = @bill.content_type
+    # Download raw bytes directly - bypasses ActiveStorage integrity check
+    content = @bill.invoice_file.download
+    image_data = Base64.strict_encode64(content)
+    media_type = @bill.content_type
 
-      [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: media_type,
-                data: image_data
-              }
-            },
-            {
-              type: "text",
-              text: build_vision_prompt
+    [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: media_type,
+              data: image_data
             }
-          ]
-        }
-      ]
-    end
+          },
+          {
+            type: "text",
+            text: build_vision_prompt
+          }
+        ]
+      }
+    ]
   end
 
   def build_vision_prompt

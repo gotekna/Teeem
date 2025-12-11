@@ -582,7 +582,28 @@ module Api
           :design_name,
           :job_type_id,
           :job_status_id,
-          :job_stage_id
+          :job_stage_id,
+          # Contract fields
+          :plan_number,
+          :contract_price,
+          :deposit,
+          :prime_cost,
+          :provisional_sums,
+          :contract_date,
+          # Build schedule
+          :build_period,
+          :stage_slab,
+          :stage_frame,
+          :stage_enclosed,
+          :stage_fixing,
+          :stage_practical,
+          :stage_weather,
+          :weekend_work,
+          # Important dates
+          :plan_date,
+          :spec_date,
+          :practical_completion_date,
+          :warranty_end_date
         )
       end
 
