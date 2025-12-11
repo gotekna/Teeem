@@ -170,6 +170,135 @@ function getStageBadgeVariant(stage: string): "default" | "secondary" | "outline
   }
 }
 
+// Editable Contract Value Card
+function ContractValueCard({
+  value,
+  onSave,
+}: {
+  value: number;
+  onSave: (newValue: number) => Promise<void>;
+}) {
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editValue, setEditValue] = React.useState(value.toString());
+  const [saving, setSaving] = React.useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const savingRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  // Sync value when prop changes
+  React.useEffect(() => {
+    if (!isEditing) {
+      setEditValue(value.toString());
+    }
+  }, [value, isEditing]);
+
+  const handleSave = async () => {
+    const numValue = parseFloat(editValue.replace(/[^0-9.-]/g, "")) || 0;
+    setSaving(true);
+    savingRef.current = true;
+    try {
+      await onSave(numValue);
+      setIsEditing(false);
+    } catch {
+      // Reset to original value on error
+      setEditValue(value.toString());
+    } finally {
+      setSaving(false);
+      savingRef.current = false;
+    }
+  };
+
+  const handleCancel = () => {
+    setEditValue(value.toString());
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === "Escape") {
+      handleCancel();
+    }
+  };
+
+  const handleCardClick = () => {
+    if (!isEditing) {
+      setIsEditing(true);
+    }
+  };
+
+  return (
+    <Card
+      className={`group cursor-pointer transition-colors ${!isEditing ? "hover:bg-muted/50" : ""}`}
+      onClick={handleCardClick}
+    >
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Contract Value</span>
+          </div>
+          {!isEditing && (
+            <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          )}
+        </div>
+        {isEditing ? (
+          <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+              <Input
+                ref={inputRef}
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="pl-7 text-xl font-bold"
+                placeholder="0"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSave();
+                }}
+                disabled={saving}
+                className="flex-1"
+              >
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+                Save
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCancel();
+                }}
+                disabled={saving}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-2xl font-bold mt-1">{formatCurrency(value)}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -187,7 +316,7 @@ export default function JobDetailPage() {
   // Lookup data for dropdowns
   const [jobTypes, setJobTypes] = React.useState<JobType[]>([]);
   const [jobStatuses, setJobStatuses] = React.useState<JobStatus[]>([]);
-  const [jobStages, setJobStages] = React.useState<JobStage[]>([]);
+  const [lookupLoading, setLookupLoading] = React.useState(false);
 
   // Get tab from URL or default to "overview"
   const tabFromUrl = searchParams.get("tab") || "overview";
@@ -216,24 +345,18 @@ export default function JobDetailPage() {
 
   // Load lookup data for dropdowns - only when editing starts
   const loadLookupData = React.useCallback(async () => {
+    setLookupLoading(true);
     try {
-      const [typesRes, statusesRes, stagesRes] = await Promise.all([
+      const [typesRes, statusesRes] = await Promise.all([
         api.get<{ job_types: JobType[] }>("/api/v1/job_types"),
         api.get<{ job_statuses: JobStatus[] }>("/api/v1/job_status"),
-        api.get<{ job_stages: JobStage[] } | JobStage[]>("/api/v1/job_stages"),
       ]);
       setJobTypes(typesRes?.job_types || []);
       setJobStatuses(statusesRes?.job_statuses || []);
-      // Handle both wrapped and array responses for stages
-      if (Array.isArray(stagesRes)) {
-        setJobStages(stagesRes);
-      } else if (stagesRes?.job_stages) {
-        setJobStages(stagesRes.job_stages);
-      } else {
-        setJobStages([]);
-      }
     } catch (error) {
       console.error("Failed to load lookup data:", error);
+    } finally {
+      setLookupLoading(false);
     }
   }, []);
 
@@ -254,7 +377,6 @@ export default function JobDetailPage() {
         location: job.location,
         job_type_id: job.job_type?.id || job.job_type_id,
         job_status_id: job.job_status?.id || job.job_status_id,
-        job_stage_id: job.job_stage?.id || job.job_stage_id,
       });
       setIsEditing(true);
       // Load dropdown data only when editing
@@ -342,15 +464,18 @@ export default function JobDetailPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Contract Value</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{formatCurrency(job.contract_value || 0)}</p>
-          </CardContent>
-        </Card>
+        <ContractValueCard
+          value={job.contract_value || 0}
+          onSave={async (newValue) => {
+            try {
+              await api.patch(`/api/v1/jobs/${job.id}`, { job: { contract_value: newValue } });
+              setJob({ ...job, contract_value: newValue });
+            } catch (error) {
+              console.error("Failed to update contract value:", error);
+              throw error;
+            }
+          }}
+        />
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
@@ -443,21 +568,28 @@ export default function JobDetailPage() {
                   <div className="space-y-2">
                     <Label>Job Type</Label>
                     {isEditing ? (
-                      <Select
-                        value={editForm.job_type_id?.toString() || ""}
-                        onValueChange={(value) => setEditForm({ ...editForm, job_type_id: parseInt(value) })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select job type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {jobTypes.map((type) => (
-                            <SelectItem key={type.id} value={type.id.toString()}>
-                              {type.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      lookupLoading ? (
+                        <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="text-muted-foreground">{job.job_type?.name || "Loading..."}</span>
+                        </div>
+                      ) : (
+                        <Select
+                          value={editForm.job_type_id?.toString() || ""}
+                          onValueChange={(value) => setEditForm({ ...editForm, job_type_id: parseInt(value) })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={job.job_type?.name || "Select job type"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {jobTypes.map((type) => (
+                              <SelectItem key={type.id} value={type.id.toString()}>
+                                {type.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )
                     ) : (
                       <Input value={job.job_type?.name || "-"} readOnly />
                     )}
@@ -465,45 +597,30 @@ export default function JobDetailPage() {
                   <div className="space-y-2">
                     <Label>Status</Label>
                     {isEditing ? (
-                      <Select
-                        value={editForm.job_status_id?.toString() || ""}
-                        onValueChange={(value) => setEditForm({ ...editForm, job_status_id: parseInt(value) })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {jobStatuses.map((status) => (
-                            <SelectItem key={status.id} value={status.id.toString()}>
-                              {status.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      lookupLoading ? (
+                        <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="text-muted-foreground">{job.job_status?.name || "Loading..."}</span>
+                        </div>
+                      ) : (
+                        <Select
+                          value={editForm.job_status_id?.toString() || ""}
+                          onValueChange={(value) => setEditForm({ ...editForm, job_status_id: parseInt(value) })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={job.job_status?.name || "Select status"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {jobStatuses.map((status) => (
+                              <SelectItem key={status.id} value={status.id.toString()}>
+                                {status.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )
                     ) : (
                       <Input value={job.job_status?.name || "-"} readOnly />
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Stage</Label>
-                    {isEditing ? (
-                      <Select
-                        value={editForm.job_stage_id?.toString() || ""}
-                        onValueChange={(value) => setEditForm({ ...editForm, job_stage_id: parseInt(value) })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select stage" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {jobStages.map((stage) => (
-                            <SelectItem key={stage.id} value={stage.id.toString()}>
-                              {stage.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input value={job.job_stage?.name || job.stage || "-"} readOnly />
                     )}
                   </div>
                   <div className="space-y-2">

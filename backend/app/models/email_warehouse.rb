@@ -9,6 +9,7 @@ class EmailWarehouse < ApplicationRecord
   belongs_to :synced_by_user, class_name: "User", optional: true
   belongs_to :ssot_owner, class_name: "User", optional: true  # User who owns the SSoT copy
   belongs_to :microsoft_credential, class_name: "OrganizationMicrosoftAppCredential", optional: true
+  belongs_to :primary_contact, class_name: "Contact", optional: true
 
   # SSoT associations
   has_many :email_recipients, dependent: :destroy
@@ -32,13 +33,17 @@ class EmailWarehouse < ApplicationRecord
   scope :received_before, ->(date) { where("received_at <= ?", date) }
 
   # SSoT scopes
-  scope :sent, -> { where(direction: "sent") }
-  scope :received, -> { where(direction: "received") }
   scope :owned_by, ->(user) { where(ssot_owner: user) }
   scope :with_ai_summary, -> { where.not(ai_summary: nil) }
   scope :needs_ai_summary, -> { where(ai_summary: nil) }
   scope :spam, -> { where("email_classification->>'email_type' = ?", "spam") }
   scope :not_spam, -> { where("email_classification->>'email_type' != ? OR email_classification IS NULL", "spam") }
+
+  # Contact scopes
+  scope :with_contact, ->(contact_id) { where("? = ANY(contact_ids)", contact_id) }
+  scope :primary_contact, ->(contact_id) { where(primary_contact_id: contact_id) }
+  scope :matched_to_contacts, -> { where.not(contacts_matched_at: nil) }
+  scope :unmatched_to_contacts, -> { where(contacts_matched_at: nil) }
 
   # Microsoft organization scopes
   scope :for_microsoft_credential, ->(credential_id) { where(microsoft_credential_id: credential_id) }

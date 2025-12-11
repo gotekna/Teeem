@@ -76,7 +76,10 @@ class MicrosoftAppGraphClient
 
   # Get email attachments
   def get_email_attachments(user_identifier, message_id)
-    response = get("/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/attachments")
+    endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/attachments"
+    Rails.logger.info "[MicrosoftAppGraph] get_email_attachments - endpoint: #{endpoint}"
+    Rails.logger.info "[MicrosoftAppGraph] get_email_attachments - credential tenant: #{@credential.tenant_id}"
+    response = get(endpoint)
     response["value"] || []
   end
 
@@ -537,12 +540,14 @@ class MicrosoftAppGraphClient
     path_parts.each do |folder_name|
       # Try to get folder
       begin
-        encoded_name = CGI.escape(folder_name)
-        result = get("/sites/#{site_id}/drives/#{drive_id}/items/#{current_folder_id}:/#{encoded_name}")
+        # NOTE: Don't use CGI.escape here - it converts spaces to + which SharePoint doesn't understand
+        # The path segment should be URL-encoded with %20 for spaces, not +
+        # Using ERB::Util.url_encode or simply passing the raw name works
+        result = get("/drives/#{drive_id}/items/#{current_folder_id}:/#{folder_name}")
         current_folder_id = result["id"]
       rescue ApiError => e
         # Folder doesn't exist, create it
-        if e.message.include?("itemNotFound")
+        if e.message.include?("itemNotFound") || e.message.include?("404")
           result = create_folder(site_id, drive_id, current_folder_id, folder_name)
           current_folder_id = result["id"]
         else
