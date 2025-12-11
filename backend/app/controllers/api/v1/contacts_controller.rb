@@ -3640,7 +3640,7 @@ module Api
           company_group_name: membership.corporate_group&.name,
           membership_type: membership.membership_type,
           company_id: membership.company_id,
-          company_name: membership.company&.name,
+          company_name: membership.corporate_company&.name,
           can_view_confidential: membership.can_view_confidential,
           can_edit: membership.can_edit,
           is_active: membership.is_active

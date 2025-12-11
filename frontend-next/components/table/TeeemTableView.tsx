@@ -2642,29 +2642,6 @@ export default function TeeemTableView({
   // ============================================================================
 
   /**
-   * Helper function to extract display value from objects
-   * Handles lookup values, related objects, etc.
-   */
-  const getDisplayValue = (value: unknown): string => {
-    if (value == null || value === "") return "-";
-
-    // Handle objects (lookup values, etc.) - extract display value
-    if (typeof value === "object" && value !== null) {
-      const obj = value as Record<string, unknown>;
-      if ("display_value" in obj && obj.display_value != null) return String(obj.display_value);
-      if ("display_name" in obj && obj.display_name != null) return String(obj.display_name);
-      if ("name" in obj && obj.name != null) return String(obj.name);
-      if ("display" in obj && obj.display != null) return String(obj.display);
-      if ("label" in obj && obj.label != null) return String(obj.label);
-      // If object has no known display property, show JSON
-      console.warn("[TeeemTableView] Object without known display property:", value);
-      return JSON.stringify(value);
-    }
-
-    return String(value);
-  };
-
-  /**
    * Main cell renderer - routes to appropriate component based on column type
    * Uses ColumnRenderer registry for display mode (SSoT pattern)
    * Not memoized to ensure select column always has latest selectedRows state
@@ -2736,7 +2713,8 @@ export default function TeeemTableView({
           // Fall through to normal rendering
         } else {
           // Show the value with a subtle indicator it's not editable
-          const displayValue = getDisplayValue(value);
+          // Use getDisplayValue to handle objects (e.g., lookup values)
+          const displayValue = value == null || value === "" ? "-" : getDisplayValue(value);
           return (
             <span className="text-muted-foreground italic text-[11px]" title={isComputed ? "Computed column" : "System column - not editable"}>
               {displayValue}
@@ -2748,7 +2726,8 @@ export default function TeeemTableView({
       // Global edit mode - show clickable cells that start row editing on click
       // Cells stay as lightweight text until clicked
       if (isEditMode && isColumnEditable) {
-        const displayValue = getDisplayValue(value);
+        // Use getDisplayValue to handle objects (e.g., lookup values)
+        const displayValue = value == null || value === "" ? "-" : getDisplayValue(value);
         return (
           <div
             className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px] text-[11px]"
@@ -2907,7 +2886,8 @@ export default function TeeemTableView({
         return <span className="text-muted-foreground text-[11px]">—</span>;
       }
 
-      // Extract display value (handles objects, lookups, etc.)
+      // Extract display value (handles objects like lookup values)
+      // For objects like {id: 123, name: "Company"}, this extracts "Company"
       const strValue = getDisplayValue(value);
 
       // Get priority for smart truncation

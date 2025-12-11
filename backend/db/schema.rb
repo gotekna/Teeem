@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_11_213533) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_11_221318) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -268,6 +268,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_213533) do
     t.string "aba_file_description", limit: 12
     t.boolean "is_ap_enabled", default: false
     t.integer "next_aba_sequence", default: 1
+    t.string "bank_feed_name"
     t.index ["company_id", "is_ap_enabled"], name: "idx_bank_accounts_company_ap"
     t.index ["company_id", "status"], name: "index_bank_accounts_on_company_id_and_status"
     t.index ["company_id"], name: "index_bank_accounts_on_company_id"
