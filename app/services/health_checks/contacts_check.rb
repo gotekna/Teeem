@@ -63,7 +63,7 @@ module HealthChecks
     # Contacts missing both email and phone
     def check_missing_contact_info
       # Exclude price_only contacts - they don't need contact info (just pricing references)
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where.not(entity_type: "price_only")
                        .where("(email IS NULL OR email = '') AND (mobile_phone IS NULL OR mobile_phone = '') AND (office_phone IS NULL OR office_phone = '')")
                        .select(:id, :display_name, :entity_type, :is_team_contact, :primary_company_id)
@@ -80,7 +80,7 @@ module HealthChecks
 
     # Person contacts missing required first_name
     def check_person_missing_first_name
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where(entity_type: "person")
                        .where("first_name IS NULL OR first_name = ''")
                        .select(:id, :display_name, :first_name, :entity_type, :is_team_contact, :primary_company_id)
@@ -97,7 +97,7 @@ module HealthChecks
 
     # Company contacts missing display_name
     def check_company_missing_display_name
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where(entity_type: "company")
                        .where("display_name IS NULL OR display_name = ''")
                        .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
@@ -116,7 +116,7 @@ module HealthChecks
     def check_invalid_entity_type
       # Use Contact::ENTITY_TYPES as SSoT for valid values
       valid_types = Contact::ENTITY_TYPES + [ nil ]
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where.not(entity_type: valid_types)
                        .select(:id, :display_name, :entity_type, :is_team_contact, :primary_company_id)
 
@@ -133,7 +133,7 @@ module HealthChecks
     # Contacts with invalid website URLs (not starting with http:// or https://)
     def check_invalid_website
       # Find contacts with website that doesn't start with http:// or https://
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where.not(website: [ nil, "" ])
                        .where.not("website LIKE 'http://%' OR website LIKE 'https://%'")
                        .select(:id, :display_name, :website, :entity_type, :is_team_contact, :primary_company_id)
@@ -158,7 +158,7 @@ module HealthChecks
     # Person contacts with names in ALL CAPS (should be Title Case)
     # Excludes single-letter names (initials like "V" or "M" are fine as uppercase)
     def check_all_caps_names
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where(entity_type: "person")
                        .where("(first_name IS NOT NULL AND LENGTH(first_name) > 1 AND first_name = UPPER(first_name) AND first_name != LOWER(first_name)) OR (last_name IS NOT NULL AND LENGTH(last_name) > 1 AND last_name = UPPER(last_name) AND last_name != LOWER(last_name))")
                        .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
@@ -179,7 +179,7 @@ module HealthChecks
     # Person contacts with names in all lowercase (should be Title Case)
     def check_all_lowercase_names
       # PostgreSQL compatible - check if name equals its lowercase version and contains letters
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where(entity_type: "person")
                        .where("(first_name IS NOT NULL AND first_name != '' AND first_name = LOWER(first_name) AND first_name ~ '[a-z]') OR (last_name IS NOT NULL AND last_name != '' AND last_name = LOWER(last_name) AND last_name ~ '[a-z]')")
                        .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
@@ -199,7 +199,7 @@ module HealthChecks
 
     # Contacts with email address used as first_name or last_name
     def check_email_as_name
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where("first_name LIKE '%@%' OR last_name LIKE '%@%'")
                        .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :is_team_contact, :primary_company_id)
 
@@ -216,7 +216,7 @@ module HealthChecks
 
     # Person contacts missing last_name (should have first + last)
     def check_person_missing_last_name
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where(entity_type: "person")
                        .where("first_name IS NOT NULL AND first_name != ''")
                        .where("last_name IS NULL OR last_name = ''")
@@ -235,7 +235,7 @@ module HealthChecks
 
     # Team contacts (is_team_contact=true) without a linked primary_company
     def check_team_contact_missing_company
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where(is_team_contact: true)
                        .where(primary_company_id: nil)
                        .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
@@ -253,7 +253,7 @@ module HealthChecks
 
     # Company or Trust contacts missing company_name_or_trust
     def check_company_missing_business_name
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where(entity_type: [ "company", "trust" ])
                        .where("company_name_or_trust IS NULL OR company_name_or_trust = ''")
                        .select(:id, :display_name, :company_name_or_trust, :entity_type, :is_team_contact, :primary_company_id)
@@ -271,7 +271,7 @@ module HealthChecks
 
     # Sole trader contacts missing company_name_or_trust (optional but recommended)
     def check_sole_trader_missing_business_name
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where(entity_type: "sole_trader")
                        .where("company_name_or_trust IS NULL OR company_name_or_trust = ''")
                        .select(:id, :display_name, :first_name, :last_name, :company_name_or_trust, :entity_type, :is_team_contact, :primary_company_id)
@@ -293,7 +293,7 @@ module HealthChecks
 
     # Contacts with uppercase email addresses (should be lowercase)
     def check_uppercase_emails
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where.not(email: [ nil, "" ])
                        .where("email != LOWER(email)")
                        .select(:id, :display_name, :email, :entity_type, :is_team_contact, :primary_company_id)
@@ -315,7 +315,7 @@ module HealthChecks
     def check_unformatted_phone
       # Find contacts with phone numbers that aren't properly formatted
       # Properly formatted: 0X XXXX XXXX or +61 X XXXX XXXX
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where.not(mobile_phone: [ nil, "" ])
                        .where("mobile_phone !~ '^[0-9]{2} [0-9]{4} [0-9]{4}$' AND mobile_phone !~ '^\\+61 [0-9] [0-9]{4} [0-9]{4}$'")
                        .select(:id, :display_name, :mobile_phone, :entity_type, :is_team_contact, :primary_company_id)
@@ -339,7 +339,7 @@ module HealthChecks
 
     # Company/Trust contacts missing website URL
     def check_company_missing_website
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where(entity_type: [ "company", "trust" ])
                        .where("website IS NULL OR website = ''")
                        .select(:id, :display_name, :company_name_or_trust, :entity_type, :is_team_contact, :primary_company_id)
@@ -357,7 +357,7 @@ module HealthChecks
 
     # Company/Trust contacts missing ABN/Tax Number
     def check_company_missing_abn
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where(entity_type: [ "company", "trust", "sole_trader" ])
                        .where("tax_number IS NULL OR tax_number = ''")
                        .select(:id, :display_name, :company_name_or_trust, :entity_type, :is_team_contact, :primary_company_id)
@@ -375,7 +375,7 @@ module HealthChecks
 
     # Company/Trust/Price_only contacts with person name fields that should be cleared
     def check_non_person_with_person_fields
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .where(entity_type: [ "company", "trust", "price_only" ])
                        .where("first_name IS NOT NULL AND first_name != '' OR middle_name IS NOT NULL AND middle_name != '' OR last_name IS NOT NULL AND last_name != ''")
                        .select(:id, :display_name, :first_name, :middle_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
@@ -461,7 +461,7 @@ module HealthChecks
 
       # Include all fields needed by the merge modal
       # Note: completeness_score is calculated, not a column - don't select it
-      contacts = Contact.where(deleted: [ false, nil ])
+      contacts = Contact.all
                        .select(:id, :display_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :entity_type, :is_team_contact, :primary_company_id)
                        .includes(:jobs, :purchase_orders, :primary_company)
 
