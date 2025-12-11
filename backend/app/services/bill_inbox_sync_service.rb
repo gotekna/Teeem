@@ -32,6 +32,11 @@ class BillInboxSyncService
     results
   end
 
+  # Wrapper method without bang for CLI compatibility
+  def self.reattach_file(bill_id)
+    reattach_file!(bill_id)
+  end
+
   # Re-attach the invoice file from the original email for a bill that lost its file
   def self.reattach_file!(bill_id)
     bill = BillInbox.find(bill_id)
