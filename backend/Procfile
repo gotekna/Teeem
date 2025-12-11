@@ -1,3 +1,3 @@
 web: bundle exec puma -C config/puma.rb
 worker: bundle exec bin/jobs
-release: bundle exec rails db:migrate && bundle exec rails solid_queue:setup && bundle exec rails release:increment_version
+release: bundle exec rails db:migrate && bundle exec rails release:increment_version
