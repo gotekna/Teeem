@@ -87,6 +87,44 @@ module Api
         }
       end
 
+      # POST /api/v1/bpmn_processes/import
+      # Import a Compoza BPMN XML file
+      def import
+        unless params[:file].present? || params[:xml_content].present?
+          render json: { success: false, error: "No BPMN file or content provided" }, status: :bad_request
+          return
+        end
+
+        xml_content = if params[:file].present?
+                        params[:file].read
+                      else
+                        params[:xml_content]
+                      end
+
+        importer = CompozaBpmnImporter.new(
+          xml_content,
+          name: params[:name],
+          user: current_user
+        )
+
+        if params[:preview] == "true"
+          preview = importer.preview
+          render json: { success: true, preview: preview }
+        else
+          process = importer.import!
+          render json: {
+            success: true,
+            bpmn_process: serialize_process_full(process),
+            message: "Workflow imported successfully"
+          }, status: :created
+        end
+      rescue CompozaBpmnImporter::ImportError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      rescue StandardError => e
+        Rails.logger.error("BPMN Import failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+        render json: { success: false, error: "Import failed: #{e.message}" }, status: :unprocessable_entity
+      end
+
       private
 
       def set_process

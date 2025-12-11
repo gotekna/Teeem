@@ -33,8 +33,11 @@ import {
   CreditCard,
   Receipt,
   ExternalLink,
+  Download,
+  Eye,
+  FileWarning,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 
 interface BillDetail {
   id: number;
@@ -99,6 +102,9 @@ interface BillDetail {
       status: string;
     } | null;
   }>;
+  "has_invoice_file?": boolean;
+  invoice_file_content_type: string | null;
+  invoice_file_filename: string | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -132,6 +138,9 @@ export default function BillDetailPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const loadBill = async () => {
     setLoading(true);
@@ -145,9 +154,53 @@ export default function BillDetailPage() {
     }
   };
 
+  const loadPdf = async () => {
+    if (!bill?.["has_invoice_file?"]) return;
+
+    setPdfLoading(true);
+    setPdfError(null);
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/bill_inbox/${billId}/download`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to load PDF");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setPdfBlobUrl(url);
+    } catch (error) {
+      console.error("Failed to load PDF:", error);
+      setPdfError(error instanceof Error ? error.message : "Failed to load PDF");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadBill();
   }, [billId]);
+
+  useEffect(() => {
+    // Load PDF when bill data is available and has a file
+    if (bill?.["has_invoice_file?"]) {
+      loadPdf();
+    }
+
+    // Cleanup blob URL on unmount
+    return () => {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  }, [bill?.id, bill?.["has_invoice_file?"]]);
 
   const handleExtract = async () => {
     if (!bill) return;
@@ -238,6 +291,17 @@ export default function BillDetailPage() {
   const isOverdue = bill.due_date && new Date(bill.due_date) < new Date() && bill.status !== "paid";
   const totalPaid = bill.bill_payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
 
+  const handleDownload = () => {
+    if (pdfBlobUrl) {
+      const link = document.createElement("a");
+      link.href = pdfBlobUrl;
+      link.download = bill.invoice_file_filename || `invoice-${bill.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -303,7 +367,84 @@ export default function BillDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* PDF Preview - Takes up 1 column on large screens */}
+        <Card className="lg:col-span-1 lg:row-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Invoice Document
+              </span>
+              {pdfBlobUrl && (
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleDownload}>
+                    <Download className="h-4 w-4 mr-1" />
+                    Download
+                  </Button>
+                </div>
+              )}
+            </CardTitle>
+            {bill.invoice_file_filename && (
+              <CardDescription>{bill.invoice_file_filename}</CardDescription>
+            )}
+          </CardHeader>
+          <CardContent>
+            {pdfLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "600px" }}>
+                <Loader />
+                <p className="text-sm text-muted-foreground mt-4">Loading invoice...</p>
+              </div>
+            ) : pdfBlobUrl && !pdfError ? (
+              <div className="relative w-full" style={{ height: "600px" }}>
+                <iframe
+                  src={pdfBlobUrl}
+                  className="w-full h-full border rounded-lg"
+                  title="Invoice Preview"
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "400px" }}>
+                <FileWarning className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">
+                  {pdfError ? "Error Loading Invoice" : "No Invoice File"}
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                  {pdfError
+                    ? pdfError
+                    : bill.notes?.includes("FileNotFoundError")
+                    ? "The invoice file could not be found in storage."
+                    : "No invoice file has been attached to this bill."}
+                </p>
+                {(bill.status === "error" || pdfError) && bill["has_invoice_file?"] && (
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => loadPdf()}
+                    disabled={pdfLoading}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Retry Loading
+                  </Button>
+                )}
+                {bill.status === "error" && (
+                  <Button
+                    variant="outline"
+                    className="mt-2"
+                    onClick={handleExtract}
+                    disabled={actionLoading}
+                  >
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    Re-extract Data
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Details Column - Takes up 2 columns on large screens */}
+        <div className="lg:col-span-2 grid gap-6 md:grid-cols-2">
         {/* Invoice Details */}
         <Card>
           <CardHeader>
@@ -598,6 +739,7 @@ export default function BillDetailPage() {
             </CardContent>
           </Card>
         )}
+        </div>{/* End Details Column */}
       </div>
 
       {/* Reject Dialog */}

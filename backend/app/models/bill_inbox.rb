@@ -124,6 +124,18 @@ class BillInbox < ApplicationRecord
     end
   end
 
+  def has_invoice_file?
+    invoice_file.attached?
+  end
+
+  def invoice_file_content_type
+    invoice_file.attached? ? invoice_file.content_type : nil
+  end
+
+  def invoice_file_filename
+    invoice_file.attached? ? invoice_file.filename.to_s : nil
+  end
+
   private
 
   def set_defaults
