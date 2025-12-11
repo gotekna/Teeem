@@ -166,8 +166,15 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           setOffice365Tooltip('Microsoft 365: Reconnecting...');
 
           // Auto-redirect to Microsoft OAuth to get new consent
-          setTimeout(() => {
-            window.location.href = '/api/v1/microsoft/auth';
+          setTimeout(async () => {
+            try {
+              const { url } = await api.get<{ url: string }>("/api/v1/microsoft/auth_url");
+              if (url) {
+                window.location.href = url;
+              }
+            } catch (err) {
+              console.error('[Microsoft Self-Heal] Failed to get auth URL:', err);
+            }
           }, 2000); // 2 second delay to show "reconnecting" message
         } else {
           // Default: always show as connected (TEEEM rule - never disconnected)

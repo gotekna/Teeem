@@ -1559,9 +1559,20 @@ module Api
 
           # Stage 2 info - smart rate-limited sync status
           # SSoT: Show actual status including rate limit pauses
-          # Rate limit resets at midnight UTC (server time), which is 10:00 AM Brisbane
+          # Xero daily rate limit resets at midnight UTC
+          # Midnight UTC = 10:00 AM Brisbane (AEST, UTC+10)
+          # We use end_of_day (23:59:59) which converts to 9:59 AM Brisbane next day
           utc_reset = Time.current.utc.end_of_day
           brisbane_reset = utc_reset.in_time_zone("Australia/Brisbane")
+
+          # SSoT: Format reset time with "tomorrow" context if it's the next day
+          now_brisbane_date = now_brisbane.to_date
+          reset_brisbane_date = brisbane_reset.to_date
+          resets_at_display = if reset_brisbane_date > now_brisbane_date
+            "Tomorrow #{brisbane_reset.strftime("%-I:%M %p")}"
+          else
+            brisbane_reset.strftime("%-I:%M %p")
+          end
 
           stage2_blocker = if is_rate_limited && pdfs_pending > 0
             {
@@ -1571,7 +1582,7 @@ module Api
               sync_mode: "rate_limited",
               daily_percentage: daily_percentage.round(1),
               resets_at: brisbane_reset.iso8601,
-              resets_at_display: brisbane_reset.strftime("%-I:%M %p")
+              resets_at_display: resets_at_display
             }
           elsif pdfs_pending > 100
             {
