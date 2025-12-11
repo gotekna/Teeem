@@ -382,4 +382,262 @@ namespace :document_templates do
     )
     node.update!(config: new_config)
   end
+
+  desc "Convert old merge field syntax to new Sablon syntax in all templates"
+  task convert_fields: :environment do
+    require "zip"
+    require "nokogiri"
+
+    # Field mapping: old -> new
+    FIELD_MAP = {
+      # Client 1 fields
+      "{Client1.First}" => "{{client_1.first_name}}",
+      "{Client1.Full_Name}" => "{{client_1.display_name}}",
+      "{Buyer1.Full_Name}" => "{{client_1.display_name}}",
+      "{Buyer1.First_Name}" => "{{client_1.first_name}}",
+      "{Buyer1.Home_Phone}" => "{{client_1.phone}}",
+      "{Buyer1.Mobile}" => "{{client_1.mobile}}",
+      "{Buyer1.Street}" => "{{client_1.address_line_1}}",
+      "{Buyer1.Suburb}" => "{{client_1.suburb}}",
+      "{Buyer1.State}" => "{{client_1.state}}",
+      "{Buyer1.Postcode}" => "{{client_1.postcode}}",
+      "{Buyer1.Email}" => "{{client_1.email}}",
+
+      # Client 2 fields
+      "{Client2.First}" => "{{client_2.first_name}}",
+      "{Client2.Full_Name}" => "{{client_2.display_name}}",
+      "{Buyer2.Full_Name}" => "{{client_2.display_name}}",
+      "{Buyer2.First_Name}" => "{{client_2.first_name}}",
+      "{Buyer2.Home_Phone}" => "{{client_2.phone}}",
+      "{Buyer2.Mobile}" => "{{client_2.mobile}}",
+      "{Buyer2.Street}" => "{{client_2.address_line_1}}",
+      "{Buyer2.Suburb}" => "{{client_2.suburb}}",
+      "{Buyer2.State}" => "{{client_2.state}}",
+      "{Buyer2.Postcode}" => "{{client_2.postcode}}",
+      "{Buyer2.Email}" => "{{client_2.email}}",
+
+      # Job/Address fields
+      "{Job_Address.Title}" => "{{job.address}}",
+      "{Job.Title}" => "{{job.title}}",
+      "{Job.Address}" => "{{job.address}}",
+      "{Job.Full_Address}" => "{{job.full_address}}",
+      "{Job.Suburb}" => "{{job.suburb}}",
+      "{Job.State}" => "{{job.state}}",
+      "{Job.Postcode}" => "{{job.postcode}}",
+
+      # Land fields
+      "{Land.lot}" => "{{job.lot}}",
+      "{land.lot}" => "{{job.lot}}",
+      "{Land.Lot}" => "{{job.lot}}",
+      "{land.SP_Number}" => "{{job.plan_number}}",
+      "{Land.SP_Number}" => "{{job.plan_number}}",
+      "{land.council}" => "{{job.council}}",
+      "{Land.Council}" => "{{job.council}}",
+
+      # Contract fields
+      "{Contract.Contract_Price}" => "{{job.contract_price}}",
+      "{Contract.Fixed_Price}" => "{{job.contract_price}}",
+      "{Contract.Prime_Cost}" => "{{job.prime_cost}}",
+      "{Contract.Provisonial_Sums}" => "{{job.provisional_sums}}",
+      "{Contract.plan_date}" => "{{job.plan_date}}",
+      "{Contract.spec_date}" => "{{job.spec_date}}",
+      "{Contract.prime}" => "{{job.prime_cost}}",
+      "{Contract.prov}" => "{{job.provisional_sums}}",
+
+      # House/Build fields
+      "{house.deposit}" => "{{job.deposit}}",
+      "{House.Deposit}" => "{{job.deposit}}",
+      "{house.build_days}" => "{{job.build_period}}",
+      "{house.total_build}" => "{{job.build_period}}",
+      "{house.slab}" => "{{job.stage_slab}}",
+      "{house.frame}" => "{{job.stage_frame}}",
+      "{house.enclosed}" => "{{job.stage_enclosed}}",
+      "{house.fixing}" => "{{job.stage_fixing}}",
+      "{house.practical}" => "{{job.stage_practical}}",
+      "{house.weather}" => "{{job.stage_weather}}",
+      "{house.weekend}" => "{{job.weekend_work}}",
+
+      # Client type
+      "{Client.type}" => "{{client_type}}",
+
+      # Date fields
+      "{Today}" => "{{generated_date}}",
+      "{Date}" => "{{generated_date}}",
+    }.freeze
+
+    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    unless sp_config
+      puts "ERROR: TEEEM SharePoint not configured"
+      exit 1
+    end
+
+    client = MicrosoftAppGraphClient.new(sp_config[:credential])
+
+    # Ensure Warehousing/Templates folder exists
+    puts "Ensuring Warehousing/Templates folder exists..."
+    begin
+      client.list_drive_items(sp_config[:drive_id], folder_path: "Warehousing/Templates")
+      puts "  Folder exists"
+    rescue StandardError => e
+      if e.message.include?("itemNotFound") || e.message.include?("404")
+        puts "  Creating folder..."
+        client.create_folder(
+          drive_id: sp_config[:drive_id],
+          parent_path: "Warehousing",
+          folder_name: "Templates"
+        )
+        puts "  Created"
+      else
+        raise e
+      end
+    end
+
+    puts ""
+    puts "Converting templates..."
+    puts "=" * 60
+
+    DocumentTemplate.find_each do |template|
+      puts ""
+      puts "#{template.id}: #{template.name}"
+
+      unless template.sharepoint_item_id.present?
+        puts "  SKIP: Not linked to SharePoint"
+        next
+      end
+
+      begin
+        # Download the template
+        content = client.get_drive_item_content(
+          site_id: sp_config[:site_id],
+          drive_id: sp_config[:drive_id],
+          item_id: template.sharepoint_item_id
+        )
+        puts "  Downloaded #{content.bytesize} bytes"
+
+        # Process the DOCX file
+        output = StringIO.new
+        output.set_encoding("ASCII-8BIT")
+        fields_converted = 0
+
+        Zip::OutputStream.write_buffer(output) do |out|
+          Zip::File.open_buffer(StringIO.new(content)) do |zip|
+            zip.each do |entry|
+              if entry.name.end_with?(".xml", ".rels")
+                # Process XML files for field replacement
+                xml_content = entry.get_input_stream.read
+
+                FIELD_MAP.each do |old_field, new_field|
+                  if xml_content.include?(old_field)
+                    xml_content = xml_content.gsub(old_field, new_field)
+                    fields_converted += 1
+                  end
+                end
+
+                out.put_next_entry(entry.name)
+                out.write(xml_content)
+              else
+                # Copy other files as-is
+                out.put_next_entry(entry.name)
+                out.write(entry.get_input_stream.read)
+              end
+            end
+          end
+        end
+
+        output.rewind
+        converted_content = output.read
+
+        puts "  Converted #{fields_converted} field occurrences"
+
+        if fields_converted > 0
+          # Upload to Warehousing/Templates
+          new_filename = "#{template.name.parameterize}.docx"
+          puts "  Uploading to Warehousing/Templates/#{new_filename}..."
+
+          result = client.upload_file_content(
+            sp_config[:site_id],
+            sp_config[:drive_id],
+            "Warehousing/Templates",
+            new_filename,
+            converted_content
+          )
+
+          # Update template record with new SharePoint location
+          template.update!(
+            sharepoint_item_id: result[:id],
+            sharepoint_path: "Warehousing/Templates/#{new_filename}"
+          )
+
+          puts "  OK: Uploaded and linked (ID: #{result[:id]})"
+        else
+          puts "  No fields to convert - keeping original"
+        end
+
+      rescue StandardError => e
+        puts "  ERROR: #{e.message}"
+      end
+    end
+
+    puts ""
+    puts "=" * 60
+    puts "Conversion complete!"
+    puts ""
+    puts "Templates are now in: SharePoint > Documents > Warehousing > Templates"
+  end
+
+  desc "Show what fields would be converted (dry run)"
+  task convert_fields_preview: :environment do
+    require "zip"
+
+    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    unless sp_config
+      puts "ERROR: TEEEM SharePoint not configured"
+      exit 1
+    end
+
+    client = MicrosoftAppGraphClient.new(sp_config[:credential])
+
+    puts "Scanning templates for old field syntax..."
+    puts "=" * 60
+
+    all_fields = Set.new
+
+    DocumentTemplate.find_each do |template|
+      next unless template.sharepoint_item_id.present?
+
+      begin
+        content = client.get_drive_item_content(
+          site_id: sp_config[:site_id],
+          drive_id: sp_config[:drive_id],
+          item_id: template.sharepoint_item_id
+        )
+
+        Zip::File.open_buffer(StringIO.new(content)) do |zip|
+          doc_entry = zip.find_entry("word/document.xml")
+          next unless doc_entry
+
+          xml = doc_entry.get_input_stream.read
+          fields = xml.scan(/\{[A-Za-z0-9_\.]+\}/).uniq
+
+          if fields.any?
+            puts ""
+            puts "#{template.name}:"
+            fields.each do |f|
+              all_fields.add(f)
+              puts "  #{f}"
+            end
+          end
+        end
+      rescue StandardError => e
+        puts "#{template.name}: ERROR - #{e.message}"
+      end
+    end
+
+    puts ""
+    puts "=" * 60
+    puts "All unique fields found:"
+    all_fields.sort.each { |f| puts "  #{f}" }
+    puts ""
+    puts "Total: #{all_fields.count} unique fields"
+  end
 end
