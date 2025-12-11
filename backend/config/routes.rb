@@ -435,16 +435,6 @@ Rails.application.routes.draw do
       # User groups management
       resources :user_groups, only: [ :index, :create, :destroy ]
 
-      # Workflow management
-      resources :workflow_definitions
-      resources :workflow_steps, only: [ :index, :show ] do
-        member do
-          post :approve
-          post :reject
-          post :request_changes
-        end
-      end
-
       # BPMN Workflow Engine
       resources :bpmn_processes do
         member do
