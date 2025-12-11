@@ -56,9 +56,11 @@ class XeroRateLimitTracker
         },
         total_7d: total_count,
         can_make_request: minute_count < MINUTE_LIMIT && daily_count < DAILY_LIMIT,
+        # SSoT: Times are in server timezone (UTC on Heroku)
+        # Xero daily limit resets at midnight UTC (10:00 AM Brisbane AEST)
         resets: {
           minute: Time.current.end_of_minute,
-          daily: Time.current.end_of_day
+          daily: Time.current.end_of_day  # UTC midnight = 10:00 AM Brisbane
         }
       }
     end

@@ -65,8 +65,19 @@ module Api
         credentials_by_tenant = XeroCredential.all.index_by(&:tenant_id)
 
         # Calculate reset time (midnight UTC = 10:00 AM Brisbane)
+        # We use end_of_day (23:59:59 UTC) which converts to 9:59 AM Brisbane next day
         utc_reset = Time.current.utc.end_of_day
         brisbane_reset = utc_reset.in_time_zone("Australia/Brisbane")
+        now_brisbane = Time.current.in_time_zone("Australia/Brisbane")
+
+        # SSoT: Format reset time with "tomorrow" context if it's the next day
+        now_brisbane_date = now_brisbane.to_date
+        reset_brisbane_date = brisbane_reset.to_date
+        resets_at_display = if reset_brisbane_date > now_brisbane_date
+          "Tomorrow #{brisbane_reset.strftime("%-I:%M %p")}"
+        else
+          brisbane_reset.strftime("%-I:%M %p")
+        end
 
         render json: {
           success: true,
@@ -78,7 +89,7 @@ module Api
             },
             # SSoT: Daily rate limit reset time
             resets_at: brisbane_reset.iso8601,
-            resets_at_display: brisbane_reset.strftime("%-I:%M %p"),
+            resets_at_display: resets_at_display,
             tenants: usage[:per_tenant].map do |tenant|
               credential = credentials_by_tenant[tenant[:tenant_id]]
               {
