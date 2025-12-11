@@ -759,41 +759,47 @@ export default function BillDetailPage() {
             {/* Amounts */}
             <div className="space-y-1">
               <div
-                className={`flex justify-between p-1 rounded cursor-pointer transition-all hover:ring-2 hover:ring-blue-400 ${
-                  bill.ai_extraction_result?.subtotal ? 'bg-green-50 dark:bg-green-900/20' : ''
-                } ${highlightedField === 'subtotal' ? 'ring-2 ring-yellow-400' : ''}`}
+                className={`flex justify-between p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] ${
+                  bill.ai_extraction_result?.subtotal
+                    ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400'
+                    : 'bg-gray-50 dark:bg-gray-800 border border-gray-200'
+                } ${highlightedField === 'subtotal' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
                 onClick={() => setHighlightedField(highlightedField === 'subtotal' ? null : 'subtotal')}
               >
                 <span className="text-muted-foreground flex items-center gap-1">
                   Subtotal
-                  {bill.ai_extraction_result?.subtotal && <CheckCircle2 className="h-2.5 w-2.5 text-green-500" />}
+                  {bill.ai_extraction_result?.subtotal && <CheckCircle2 className="h-3 w-3 text-green-600" />}
                 </span>
-                <span className="font-mono">${(bill.subtotal || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                <span className="font-mono font-bold">${(bill.subtotal || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
               </div>
               <div
-                className={`flex justify-between p-1 rounded cursor-pointer transition-all hover:ring-2 hover:ring-blue-400 ${
-                  bill.ai_extraction_result?.tax_amount ? 'bg-green-50 dark:bg-green-900/20' : ''
-                } ${highlightedField === 'gst' ? 'ring-2 ring-yellow-400' : ''}`}
+                className={`flex justify-between p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] ${
+                  bill.ai_extraction_result?.tax_amount
+                    ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400'
+                    : 'bg-gray-50 dark:bg-gray-800 border border-gray-200'
+                } ${highlightedField === 'gst' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
                 onClick={() => setHighlightedField(highlightedField === 'gst' ? null : 'gst')}
               >
                 <span className="text-muted-foreground flex items-center gap-1">
                   GST
-                  {bill.ai_extraction_result?.tax_amount && <CheckCircle2 className="h-2.5 w-2.5 text-green-500" />}
+                  {bill.ai_extraction_result?.tax_amount && <CheckCircle2 className="h-3 w-3 text-green-600" />}
                 </span>
-                <span className="font-mono">${(bill.tax_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                <span className="font-mono font-bold">${(bill.tax_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
               </div>
               <Separator className="my-1" />
               <div
-                className={`flex justify-between p-1 font-bold text-sm rounded cursor-pointer transition-all hover:ring-2 hover:ring-blue-400 ${
-                  bill.ai_extraction_result?.total_amount ? 'bg-green-100 dark:bg-green-900/30 border border-green-300' : 'bg-gray-100 dark:bg-gray-800'
-                } ${highlightedField === 'total' ? 'ring-2 ring-yellow-400' : ''}`}
+                className={`flex justify-between p-2 font-bold text-sm rounded cursor-pointer transition-all hover:scale-[1.02] ${
+                  bill.ai_extraction_result?.total_amount
+                    ? 'bg-green-200 dark:bg-green-900/50 border-2 border-green-500 shadow-md'
+                    : 'bg-gray-100 dark:bg-gray-800 border border-gray-200'
+                } ${highlightedField === 'total' ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse scale-105 shadow-lg' : ''}`}
                 onClick={() => setHighlightedField(highlightedField === 'total' ? null : 'total')}
               >
                 <span className="flex items-center gap-1">
                   Total
-                  {bill.ai_extraction_result?.total_amount && <CheckCircle2 className="h-3 w-3 text-green-500" />}
+                  {bill.ai_extraction_result?.total_amount && <CheckCircle2 className="h-4 w-4 text-green-600" />}
                 </span>
-                <span className="font-mono">${(bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                <span className="font-mono text-lg">${(bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
               </div>
               {totalPaid > 0 && (
                 <>
