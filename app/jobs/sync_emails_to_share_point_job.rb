@@ -124,6 +124,9 @@ class SyncEmailsToSharePointJob < ApplicationJob
               attachment: existing_attachment
             ) do |l|
               l.outlook_attachment_id = outlook_attachment_id
+              l.filename = filename
+              l.sharepoint_path = existing_attachment.sharepoint_path
+              l.content_hash = content_hash
             end
 
             Rails.logger.info "[SyncToSharePoint] Linked existing attachment: #{filename} (#{content_hash[0..7]})"
@@ -150,11 +153,14 @@ class SyncEmailsToSharePointJob < ApplicationJob
               organization_microsoft_app_credential: @credential
             )
 
-            # Create link
+            # Create link with denormalized fields for easy viewing
             EmailAttachment.create!(
               email_warehouse: email,
               attachment: attachment,
-              outlook_attachment_id: outlook_attachment_id
+              outlook_attachment_id: outlook_attachment_id,
+              filename: filename,
+              sharepoint_path: result[:path],
+              content_hash: content_hash
             )
 
             Rails.logger.info "[SyncToSharePoint] Uploaded new attachment: #{filename} (#{content_hash[0..7]})"
