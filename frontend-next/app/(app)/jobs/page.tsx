@@ -15,7 +15,7 @@ import { Plus } from "lucide-react";
 
 interface Job {
   id: number;
-  title: string;
+  name: string;
   ted_number: string | null;
   stage: string | null;
   job_status: string | null;
@@ -25,6 +25,14 @@ interface Job {
   profit_percentage: number | null;
   start_date: string | null;
   location: string | null;
+  lot_number: string | null;
+  street_number: string | null;
+  street_name: string | null;
+  street_type: string | null;
+  suburb: string | null;
+  postcode: string | null;
+  state: string | null;
+  council: string | null;
   site_supervisor_name: string | null;
   site_supervisor_email: string | null;
   site_supervisor_phone: string | null;

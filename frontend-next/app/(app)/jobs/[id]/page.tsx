@@ -70,7 +70,7 @@ interface Contact {
 
 interface Job {
   id: number;
-  title: string;
+  name: string;
   status: string;
   stage: string;
   job_type?: { id: number; name: string; icon?: string };
@@ -87,6 +87,14 @@ interface Job {
   location?: string;
   latitude?: number;
   longitude?: number;
+  lot_number?: string;
+  street_number?: string;
+  street_name?: string;
+  street_type?: string;
+  suburb?: string;
+  postcode?: string;
+  state?: string;
+  council?: string;
   site_supervisor_name?: string;
   site_supervisor_email?: string;
   site_supervisor_phone?: string;
@@ -299,6 +307,233 @@ function ContractValueCard({
   );
 }
 
+// Editable Address Details Card
+function AddressDetailsCard({
+  job,
+  onSave,
+}: {
+  job: Job;
+  onSave: (addressData: {
+    lot_number?: string;
+    street_number?: string;
+    street_name?: string;
+    street_type?: string;
+    suburb?: string;
+    postcode?: string;
+    state?: string;
+  }) => Promise<void>;
+}) {
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [editForm, setEditForm] = React.useState({
+    lot_number: job.lot_number || "",
+    street_number: job.street_number || "",
+    street_name: job.street_name || "",
+    street_type: job.street_type || "",
+    suburb: job.suburb || "",
+    postcode: job.postcode || "",
+    state: job.state || "",
+  });
+
+  // Sync form when job prop changes
+  React.useEffect(() => {
+    if (!isEditing) {
+      setEditForm({
+        lot_number: job.lot_number || "",
+        street_number: job.street_number || "",
+        street_name: job.street_name || "",
+        street_type: job.street_type || "",
+        suburb: job.suburb || "",
+        postcode: job.postcode || "",
+        state: job.state || "",
+      });
+    }
+  }, [job, isEditing]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(editForm);
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to save address:", error);
+      // Reset form on error
+      setEditForm({
+        lot_number: job.lot_number || "",
+        street_number: job.street_number || "",
+        street_name: job.street_name || "",
+        street_type: job.street_type || "",
+        suburb: job.suburb || "",
+        postcode: job.postcode || "",
+        state: job.state || "",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditForm({
+      lot_number: job.lot_number || "",
+      street_number: job.street_number || "",
+      street_name: job.street_name || "",
+      street_type: job.street_type || "",
+      suburb: job.suburb || "",
+      postcode: job.postcode || "",
+      state: job.state || "",
+    });
+    setIsEditing(false);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Address Details</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isEditing ? "Edit address manually or use the map above" : "Use the map above to search and select an address"}
+            </p>
+          </div>
+          {!isEditing ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsEditing(true)}
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Save className="h-3 w-3 mr-2" />}
+                Save
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCancel}
+                disabled={saving}
+              >
+                <X className="h-3 w-3 mr-2" />
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="lot-number">Lot Number</Label>
+            <Input
+              id="lot-number"
+              value={editForm.lot_number}
+              onChange={(e) => setEditForm({ ...editForm, lot_number: e.target.value })}
+              readOnly={!isEditing}
+              placeholder="Enter lot number"
+              className={!isEditing ? "bg-muted/50" : ""}
+            />
+          </div>
+          <div>
+            <Label htmlFor="street-number">Street Number</Label>
+            <Input
+              id="street-number"
+              value={editForm.street_number}
+              onChange={(e) => setEditForm({ ...editForm, street_number: e.target.value })}
+              readOnly={!isEditing}
+              placeholder="Enter street number"
+              className={!isEditing ? "bg-muted/50" : ""}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="street-name">Street Name</Label>
+            <Input
+              id="street-name"
+              value={editForm.street_name}
+              onChange={(e) => setEditForm({ ...editForm, street_name: e.target.value })}
+              readOnly={!isEditing}
+              placeholder="e.g., Alperton"
+              className={!isEditing ? "bg-muted/50" : ""}
+            />
+          </div>
+          <div>
+            <Label htmlFor="street-type">Street Type</Label>
+            <Input
+              id="street-type"
+              value={editForm.street_type}
+              onChange={(e) => setEditForm({ ...editForm, street_type: e.target.value })}
+              readOnly={!isEditing}
+              placeholder="e.g., Road, ST"
+              className={!isEditing ? "bg-muted/50" : ""}
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="suburb">Suburb</Label>
+          <Input
+            id="suburb"
+            value={editForm.suburb}
+            onChange={(e) => setEditForm({ ...editForm, suburb: e.target.value })}
+            readOnly={!isEditing}
+            placeholder="Enter suburb"
+            className={!isEditing ? "bg-muted/50" : ""}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="state">State</Label>
+            <Input
+              id="state"
+              value={editForm.state}
+              onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
+              readOnly={!isEditing}
+              placeholder="e.g., QLD"
+              className={!isEditing ? "bg-muted/50" : ""}
+            />
+          </div>
+          <div>
+            <Label htmlFor="postcode">Postcode</Label>
+            <Input
+              id="postcode"
+              value={editForm.postcode}
+              onChange={(e) => setEditForm({ ...editForm, postcode: e.target.value })}
+              readOnly={!isEditing}
+              placeholder="e.g., 4000"
+              maxLength={4}
+              className={!isEditing ? "bg-muted/50" : ""}
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="council">Council</Label>
+          <Input
+            id="council"
+            value={job.council || ""}
+            readOnly
+            placeholder="Auto-generated from postcode/suburb"
+            className="bg-muted/50"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Council is automatically generated when you save
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -370,7 +605,7 @@ export default function JobDetailPage() {
   const startEditing = async () => {
     if (job) {
       setEditForm({
-        title: job.title,
+        title: job.name,
         contract_value: job.contract_value,
         certifier_job_no: job.certifier_job_no,
         start_date: job.start_date,
@@ -445,7 +680,7 @@ export default function JobDetailPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight font-serif">{job.title}</h1>
+            <h1 className="text-2xl font-bold tracking-tight font-serif">{job.name}</h1>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant={getStageBadgeVariant(job.stage)}>{job.stage}</Badge>
               <span className="text-sm text-muted-foreground">{job.job_status?.name}</span>
@@ -555,15 +790,18 @@ export default function JobDetailPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Title</Label>
+                    <Label>Job Name</Label>
                     {isEditing ? (
                       <Input
                         value={editForm.title || ""}
                         onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
                       />
                     ) : (
-                      <Input value={job.title} readOnly />
+                      <Input value={job.name} readOnly />
                     )}
+                    <p className="text-xs text-muted-foreground">
+                      Auto-generated from address components
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label>Job Type</Label>
@@ -658,6 +896,32 @@ export default function JobDetailPage() {
               />
             </div>
 
+            {/* Address Details */}
+            <AddressDetailsCard
+              job={job}
+              onSave={async (addressData) => {
+                try {
+                  const response = await api.patch(`/api/v1/jobs/${job.id}`, {
+                    job: {
+                      lot_number: addressData.lot_number,
+                      street_number: addressData.street_number,
+                      street_name: addressData.street_name,
+                      street_type: addressData.street_type,
+                      suburb: addressData.suburb,
+                      postcode: addressData.postcode,
+                      state: addressData.state,
+                    },
+                  });
+
+                  // Update job state with new data
+                  setJob((prevJob) => prevJob ? { ...prevJob, ...response } : prevJob);
+                } catch (error) {
+                  console.error("Failed to update address:", error);
+                  throw error;
+                }
+              }}
+            />
+
             {/* Contacts */}
             <Card>
               <CardHeader>
@@ -747,7 +1011,7 @@ export default function JobDetailPage() {
         </TabsContent>
 
         <TabsContent value="purchase-orders" className="mt-6">
-          <JobPurchaseOrdersTab jobId={job.id} jobTitle={job.title} />
+          <JobPurchaseOrdersTab jobId={job.id} jobTitle={job.name} />
         </TabsContent>
 
         <TabsContent value="estimates" className="mt-6">
@@ -938,11 +1202,11 @@ export default function JobDetailPage() {
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
-          <JobDocumentsTab jobId={job.id} jobTitle={job.title} />
+          <JobDocumentsTab jobId={job.id} jobTitle={job.name} />
         </TabsContent>
 
         <TabsContent value="coms" className="mt-6">
-          <JobCommunicationsTab jobId={job.id} jobTitle={job.title} />
+          <JobCommunicationsTab jobId={job.id} jobTitle={job.name} />
         </TabsContent>
 
         <TabsContent value="team" className="mt-6">

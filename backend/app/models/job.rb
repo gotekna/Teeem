@@ -42,8 +42,12 @@ class Job < ApplicationRecord
   }, prefix: :folders, default: :not_requested
 
   # Validations
-  validates :title, presence: true
+  validates :name, presence: true
   validates :site_supervisor_name, presence: true, unless: -> { imported_from_xero? || enquiry_status? }
+  validates :suburb, presence: true, if: :has_address_components?
+  validates :state, presence: true, if: :has_address_components?
+  validates :postcode, length: { is: 4 }, allow_blank: true
+  validate :at_least_lot_or_street_number, if: :has_address_components?
   # TODO: Re-enable once jobs have contacts assigned
   # validate :must_have_at_least_one_contact, on: :update
   validate :stage_must_be_valid_for_type_and_status
@@ -54,6 +58,8 @@ class Job < ApplicationRecord
   end
 
   # Callbacks
+  before_save :auto_generate_name, if: :address_components_changed?
+  before_save :auto_generate_council, if: :postcode_or_suburb_changed?
   after_create :create_documentation_tabs_from_categories
   after_create :queue_onedrive_folder_creation
   after_create :log_job_created
@@ -75,9 +81,9 @@ class Job < ApplicationRecord
   }
 
   # Methods
-  def create_project!(project_manager:, name: nil)
+  def create_project!(project_manager:, project_name: nil)
     create_project(
-      name: name || "#{title} - Master Schedule",
+      name: project_name || "#{name} - Master Schedule",
       project_code: "PROJ-#{id}",
       project_manager: project_manager,
       status: "planning",
@@ -216,11 +222,91 @@ class Job < ApplicationRecord
     updated_at < 90.days.ago
   end
 
+  # Auto-generate job name from address components
+  # Format: "Lot X (Y) Street Name Type Suburb Postcode State"
+  # or:     "Lot X Street Name Type Suburb Postcode State"
+  # or:     "Y Street Name Type Suburb Postcode State"
+  def auto_generate_name
+    parts = []
+
+    # Lot number and street number (house number in parentheses)
+    if lot_number.present? && street_number.present?
+      parts << "Lot #{lot_number} (#{street_number})"
+    elsif lot_number.present?
+      parts << "Lot #{lot_number}"
+    elsif street_number.present?
+      parts << street_number
+    end
+
+    # Street name and type
+    parts << street_name if street_name.present?
+    parts << street_type if street_type.present?
+
+    # Suburb
+    parts << suburb if suburb.present?
+
+    # Postcode
+    parts << postcode if postcode.present?
+
+    # State (abbreviated)
+    parts << abbreviate_state(state) if state.present?
+
+    self.name = parts.join(' ') if parts.any?
+  end
+
+  # Auto-generate council from postcode/suburb
+  def auto_generate_council
+    council_name = CouncilLookupService.find_council(
+      postcode: postcode,
+      suburb: suburb
+    )
+    self.council = council_name if council_name.present?
+  end
+
+  # Check if job has any address components
+  def has_address_components?
+    street_name.present? || suburb.present?
+  end
+
+  # Check if address components have changed
+  def address_components_changed?
+    lot_number_changed? || street_number_changed? ||
+      street_name_changed? || street_type_changed? ||
+      suburb_changed? || state_changed?
+  end
+
+  # Check if postcode or suburb changed
+  def postcode_or_suburb_changed?
+    postcode_changed? || suburb_changed?
+  end
+
+  # Abbreviate Australian state names
+  def abbreviate_state(state_value)
+    return nil if state_value.blank?
+    state_map = {
+      'queensland' => 'QLD',
+      'new south wales' => 'NSW',
+      'victoria' => 'VIC',
+      'south australia' => 'SA',
+      'western australia' => 'WA',
+      'tasmania' => 'TAS',
+      'northern territory' => 'NT',
+      'australian capital territory' => 'ACT'
+    }
+    state_map[state_value.downcase] || state_value.upcase
+  end
+
   private
 
   def must_have_at_least_one_contact
     if job_contacts.empty?
       errors.add(:base, "Job must have at least one contact")
+    end
+  end
+
+  def at_least_lot_or_street_number
+    if lot_number.blank? && street_number.blank?
+      errors.add(:base, "Must have either lot number or street number")
     end
   end
 
