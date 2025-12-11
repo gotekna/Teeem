@@ -26,11 +26,18 @@ const LocationMapSelector = dynamic(
 );
 
 interface JobFormData {
-  title: string;
+  name: string;
   job_number: string;
   site_supervisor_name: string;
   address: string;
   description: string;
+  lot_number: string;
+  street_number: string;
+  street_name: string;
+  street_type: string;
+  suburb: string;
+  postcode: string;
+  state: string;
   job_type_id: string;
   job_status_id: string;
   job_stage_id: string;
@@ -63,11 +70,18 @@ export default function NewJobPage() {
   const [jobStages, setJobStages] = React.useState<JobStage[]>([]);
 
   const [formData, setFormData] = React.useState<JobFormData>({
-    title: "",
+    name: "",
     job_number: "",
     site_supervisor_name: "",
     address: "",
     description: "",
+    lot_number: "",
+    street_number: "",
+    street_name: "",
+    street_type: "",
+    suburb: "",
+    postcode: "",
+    state: "",
     job_type_id: "",
     job_status_id: "",
     job_stage_id: "",
@@ -149,14 +163,28 @@ export default function NewJobPage() {
     location?: string;
     latitude?: number;
     longitude?: number;
-    title?: string;
+    name?: string;
+    lotNumber?: string;
+    streetNumber?: string;
+    streetName?: string;
+    streetType?: string;
+    suburb?: string;
+    postcode?: string;
+    state?: string;
   }) => {
     setFormData((prev) => ({
       ...prev,
       address: data.location || prev.address,
       latitude: data.latitude || null,
       longitude: data.longitude || null,
-      title: data.title || prev.title,
+      name: data.name || prev.name,
+      lot_number: data.lotNumber || prev.lot_number,
+      street_number: data.streetNumber || prev.street_number,
+      street_name: data.streetName || prev.street_name,
+      street_type: data.streetType || prev.street_type,
+      suburb: data.suburb || prev.suburb,
+      postcode: data.postcode || prev.postcode,
+      state: data.state || prev.state,
     }));
   };
 
@@ -167,12 +195,19 @@ export default function NewJobPage() {
     try {
       const response = await api.post<{ id: number }>("/api/v1/jobs", {
         job: {
-          title: formData.title,
+          name: formData.name,
           job_number: formData.job_number,
           site_supervisor_name: formData.site_supervisor_name,
           location: formData.address,
           latitude: formData.latitude,
           longitude: formData.longitude,
+          lot_number: formData.lot_number,
+          street_number: formData.street_number,
+          street_name: formData.street_name,
+          street_type: formData.street_type,
+          suburb: formData.suburb,
+          postcode: formData.postcode,
+          state: formData.state,
           description: formData.description,
           job_type_id: formData.job_type_id ? parseInt(formData.job_type_id) : null,
           job_status_id: formData.job_status_id ? parseInt(formData.job_status_id) : null,
@@ -220,14 +255,17 @@ export default function NewJobPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="title">Job Title *</Label>
+                  <Label htmlFor="name">Job Name *</Label>
                   <Input
-                    id="title"
-                    placeholder="e.g., Smith Residence - New Build"
-                    value={formData.title}
-                    onChange={(e) => handleChange("title", e.target.value)}
+                    id="name"
+                    placeholder="Auto-generated from address"
+                    value={formData.name}
+                    onChange={(e) => handleChange("name", e.target.value)}
                     required
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Automatically generated when you select an address
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="job_number">Job Number</Label>

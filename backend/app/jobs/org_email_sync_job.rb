@@ -143,15 +143,37 @@ class OrgEmailSyncJob < ApplicationJob
     # Transform Graph API response to our format
     internet_message_id = email_data["internetMessageId"] || email_data["id"]
 
+    # Extract sender info first (needed for filtering)
+    from_data = email_data["from"]&.dig("emailAddress") || {}
+    from_email = from_data["address"]
+    subject = email_data["subject"] || ""
+
+    # FILTER: Skip system/automated emails
+    automated_senders = ["noreply@", "no-reply@", "security@", "donotreply@"]
+    if from_email && automated_senders.any? { |pattern| from_email.downcase.include?(pattern) }
+      Rails.logger.debug "[OrgEmailSync] Skipping automated email: #{subject}"
+      return nil
+    end
+
+    automated_subjects = ["verification", "verify your", "security alert", "password reset", "confirm a", "reset password"]
+    if automated_subjects.any? { |pattern| subject.downcase.include?(pattern) }
+      Rails.logger.debug "[OrgEmailSync] Skipping automated email by subject: #{subject}"
+      return nil
+    end
+
+    # FILTER: Skip marketing emails
+    marketing_patterns = ["events.", "optin@", "marketing@", "promo@", "newsletter@"]
+    if from_email && marketing_patterns.any? { |pattern| from_email.downcase.include?(pattern) }
+      Rails.logger.debug "[OrgEmailSync] Skipping marketing email: #{subject}"
+      return nil
+    end
+
     # Find or create - use composite key (internet_message_id + mailbox_owner_email)
     # This ensures each mailbox has its own copy with the correct outlook_id
     email = EmailWarehouse.find_or_initialize_by(
       internet_message_id: internet_message_id,
       mailbox_owner_email: owner_email
     )
-
-    # Extract sender info
-    from_data = email_data["from"]&.dig("emailAddress") || {}
 
     # Extract recipients
     to_emails = (email_data["toRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact

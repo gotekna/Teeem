@@ -36,11 +36,25 @@ interface LocationMapProps {
   location?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  lotNumber?: string | null;
+  streetNumber?: string | null;
+  streetName?: string | null;
+  streetType?: string | null;
+  suburb?: string | null;
+  postcode?: string | null;
+  state?: string | null;
+  council?: string | null;
   onLocationUpdate?: (data: {
     location?: string;
     latitude?: number;
     longitude?: number;
-    title?: string;
+    lot_number?: string;
+    street_number?: string;
+    street_name?: string;
+    street_type?: string;
+    suburb?: string;
+    postcode?: string;
+    state?: string;
   }) => void;
 }
 
@@ -51,6 +65,8 @@ interface AddressSuggestion {
   address: {
     houseNumber: string;
     street: string;
+    streetName: string;
+    streetType: string;
     suburb: string;
     state: string;
     postcode: string;
@@ -62,8 +78,11 @@ interface PendingSaveData {
   latitude: number;
   longitude: number;
   street: string;
+  streetName: string;
+  streetType: string;
   suburb: string;
   state: string;
+  postcode: string;
   lotNumber: string;
   streetNumber: string;
 }
@@ -280,8 +299,11 @@ export function LocationMap({
       latitude: lat,
       longitude: lon,
       street: street,
+      streetName: addr.streetName || street,
+      streetType: addr.streetType || "",
       suburb: suburb,
       state: state,
+      postcode: addr.postcode || "",
       lotNumber: houseNumber,
       streetNumber: "",
     });
@@ -414,7 +436,13 @@ export function LocationMap({
           latitude: tempPosition[0],
           longitude: tempPosition[1],
           location: newLocation,
-          title: newTitle,
+          lot_number: pendingSaveData?.lotNumber || null,
+          street_number: pendingSaveData?.streetNumber || null,
+          street_name: pendingSaveData?.streetName || null,
+          street_type: pendingSaveData?.streetType || null,
+          suburb: pendingSaveData?.suburb || null,
+          postcode: pendingSaveData?.postcode || null,
+          state: pendingSaveData?.state || null,
         },
       });
 

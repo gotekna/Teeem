@@ -29,7 +29,14 @@ interface LocationMapSelectorProps {
     location?: string;
     latitude?: number;
     longitude?: number;
-    title?: string;
+    name?: string;
+    lotNumber?: string;
+    streetNumber?: string;
+    streetName?: string;
+    streetType?: string;
+    suburb?: string;
+    postcode?: string;
+    state?: string;
   }) => void;
 }
 
@@ -40,6 +47,8 @@ interface AddressSuggestion {
   address: {
     houseNumber: string;
     street: string;
+    streetName: string;
+    streetType: string;
     suburb: string;
     state: string;
     postcode: string;
@@ -126,17 +135,26 @@ export function LocationMapSelector({
   const handleAddressSelect = (suggestion: AddressSuggestion) => {
     const [lon, lat] = suggestion.center;
     const newPosition: [number, number] = [lat, lon];
+    const addr = suggestion.address || {};
+
     setMapPosition(newPosition);
     setSearchAddress(suggestion.placeName);
     setShowSuggestions(false);
 
-    // Notify parent component
+    // Notify parent component with all address components
     if (onLocationChange) {
       onLocationChange({
         location: suggestion.placeName,
         latitude: lat,
         longitude: lon,
-        title: suggestion.placeName,
+        name: suggestion.placeName,
+        lotNumber: addr.houseNumber || "",
+        streetNumber: "",
+        streetName: addr.streetName || addr.street || "",
+        streetType: addr.streetType || "",
+        suburb: addr.suburb || "",
+        postcode: addr.postcode || "",
+        state: addr.state || "",
       });
     }
   };
