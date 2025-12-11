@@ -9,7 +9,6 @@ class PurchaseOrder < ApplicationRecord
   has_many :payments, dependent: :destroy
   has_many :project_tasks, dependent: :nullify
   has_many :schedule_tasks, dependent: :nullify
-  has_many :workflow_instances, as: :subject, dependent: :destroy
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
   has_many :kudos_events, dependent: :destroy
@@ -196,23 +195,6 @@ class PurchaseOrder < ApplicationRecord
       end
     end
     warnings
-  end
-
-  # Workflow helper methods
-  def active_workflow
-    workflow_instances.find_by(status: [ "pending", "in_progress" ])
-  end
-
-  def has_active_workflow?
-    active_workflow.present?
-  end
-
-  def workflow_status
-    active_workflow&.status || "none"
-  end
-
-  def current_workflow_step
-    active_workflow&.workflow_steps&.find_by(status: [ "pending", "in_progress" ])
   end
 
   # Determine payment status based on invoice amount
