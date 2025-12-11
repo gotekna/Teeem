@@ -217,6 +217,7 @@ class DocumentGenerator
 
   def build_job_context(job)
     {
+      # Core fields
       job_number: job.job_number,
       title: job.title,
       address: job.address,
@@ -225,13 +226,33 @@ class DocumentGenerator
       postcode: job.postcode,
       full_address: [ job.address, job.suburb, job.state, job.postcode ].compact.join(", "),
       status: job.status&.humanize,
+
+      # Contract details
       contract_price: format_currency(job.contract_price),
       contract_price_raw: job.contract_price,
+      contract_price_ex_gst: format_currency(job.try(:contract_price_ex_gst)),
+      deposit: format_currency(job.try(:deposit)),
+      deposit_percentage: job.try(:deposit_percentage),
+      build_period: job.try(:build_period),
+      build_period_weeks: job.try(:build_period_weeks),
+
+      # Dates
       contract_date: format_date(job.contract_date),
       practical_completion_date: format_date(job.practical_completion_date),
       site_start_date: format_date(job.site_start_date),
+
+      # Property details
       lot_number: job.lot_number,
+      lot: job.lot_number, # Alias for Compoza compatibility
       plan_number: job.plan_number,
+      plan_sp_number: job.plan_number, # Alias for Compoza compatibility
+      council: job.try(:council),
+
+      # Builder info
+      builder_brand: job.try(:builder_brand),
+      builder_licence: job.try(:builder_licence),
+      builder_abn: job.try(:builder_abn),
+
       description: job.description
     }
   end
@@ -240,14 +261,23 @@ class DocumentGenerator
     return {} unless contact
 
     {
+      # Name fields
       display_name: contact.display_name,
+      full_name: contact.display_name, # Alias for Compoza compatibility
       first_name: contact.first_name,
       last_name: contact.last_name,
+      name: contact.display_name, # Short alias
+
+      # Contact details
       email: contact.email,
       phone: contact.phone,
       mobile: contact.mobile,
+
+      # Business details
       company_name: contact.company_name,
       abn: contact.abn,
+
+      # Address
       address_line_1: contact.address_line_1,
       address_line_2: contact.address_line_2,
       suburb: contact.suburb,
