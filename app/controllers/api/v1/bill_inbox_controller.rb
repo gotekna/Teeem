@@ -35,7 +35,13 @@ module Api
           )
         end
 
-        bills = bills.recent.page(params[:page]).per(params[:per_page] || 25)
+        # Manual pagination (no kaminari)
+        page = (params[:page] || 1).to_i
+        per_page = (params[:per_page] || 25).to_i
+        total_count = bills.count
+        total_pages = (total_count.to_f / per_page).ceil
+
+        bills = bills.recent.limit(per_page).offset((page - 1) * per_page)
 
         render json: {
           bills: bills.as_json(include: {
@@ -44,9 +50,9 @@ module Api
             matched_purchase_order: { only: [ :id, :purchase_order_number, :total ] }
           }),
           meta: {
-            total_count: bills.total_count,
-            total_pages: bills.total_pages,
-            current_page: bills.current_page
+            total_count: total_count,
+            total_pages: total_pages,
+            current_page: page
           }
         }
       end
