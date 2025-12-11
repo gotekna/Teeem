@@ -478,6 +478,9 @@ Rails.application.routes.draw do
 
       # BPMN Workflow Engine
       resources :bpmn_processes do
+        collection do
+          post :import
+        end
         member do
           post :publish
           post :unpublish
@@ -1074,6 +1077,7 @@ Rails.application.routes.draw do
           get :stats
         end
         member do
+          get :download
           post :extract
           post :match
           post :approve

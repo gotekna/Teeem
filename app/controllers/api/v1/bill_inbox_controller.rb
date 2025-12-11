@@ -3,7 +3,7 @@
 module Api
   module V1
     class BillInboxController < ApplicationController
-      before_action :set_bill, only: [ :show, :update, :destroy, :extract, :match, :approve, :reject ]
+      before_action :set_bill, only: [ :show, :update, :destroy, :download, :extract, :match, :approve, :reject ]
 
       # GET /api/v1/bill_inbox
       def index
@@ -73,8 +73,26 @@ module Api
               include: { bill_payment_batch: { only: [ :id, :batch_reference, :status ] } }
             }
           },
-          methods: [ :remaining_balance, :variance_percent, :status_color ]
+          methods: [ :remaining_balance, :variance_percent, :status_color, :has_invoice_file?, :invoice_file_content_type, :invoice_file_filename ]
         )
+      end
+
+      # GET /api/v1/bill_inbox/:id/download
+      def download
+        unless @bill.invoice_file.attached?
+          return render json: { error: "No invoice file attached" }, status: :not_found
+        end
+
+        begin
+          # Stream the file
+          send_data @bill.invoice_file.download,
+                    filename: @bill.invoice_file.filename.to_s,
+                    type: @bill.invoice_file.content_type,
+                    disposition: "inline"
+        rescue ActiveStorage::FileNotFoundError => e
+          Rails.logger.error("File not found in storage for BillInbox #{@bill.id}: #{e.message}")
+          render json: { error: "Invoice file not found in storage" }, status: :not_found
+        end
       end
 
       # POST /api/v1/bill_inbox

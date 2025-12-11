@@ -10,6 +10,7 @@ class ApplicationController < ActionController::API
   rescue_from ActiveRecord::RecordInvalid, with: :handle_validation_error
   rescue_from ActionController::ParameterMissing, with: :handle_parameter_missing
   rescue_from ActiveRecord::DeleteRestrictionError, with: :handle_delete_restriction
+  rescue_from ActiveStorage::FileNotFoundError, with: :handle_file_not_found
 
   private
 
@@ -106,5 +107,13 @@ class ApplicationController < ActionController::API
       error: "Cannot delete this record because it has associated dependencies. Please remove or reassign the dependent records first.",
       error_code: "HAS_DEPENDENCIES"
     }, status: :unprocessable_entity
+  end
+
+  def handle_file_not_found(exception)
+    Rails.logger.warn("File not found in storage: #{exception.message}")
+    render json: {
+      success: false,
+      error: "File not found in storage"
+    }, status: :not_found
   end
 end
