@@ -16,8 +16,8 @@ module Api
 
       # GET /api/v1/contacts
       def index
-        # Exclude soft-deleted contacts by default
-        @contacts = Contact.where(deleted: [ false, nil ])
+        # Show all active contacts
+        @contacts = Contact.all
 
         # Filter to only show actual company directors (from company_directors table)
         if params[:is_director] == "true"
@@ -160,7 +160,7 @@ module Api
           only: [
             :id, :display_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :fax_phone, :website,
             :tax_number, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :xero_sync_error,
-            :sys_type_id, :deleted, :parent_id, :parent,
+            :sys_type_id, :parent_id, :parent,
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
             :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
             :entity_type, :primary_role, :employment_status, :primary_company_id, :company_name_or_trust,
@@ -546,7 +546,7 @@ module Api
 
         # If there are reasons to archive, do soft delete instead
         if archive_reasons.any?
-          @contact.update!(is_active: false, deleted: true)
+          @contact.update!(is_active: false)
 
           return render json: {
             success: true,
@@ -565,7 +565,7 @@ module Api
 
           if paid_pos.any?
             # Auto-archive instead of blocking
-            @contact.update!(is_active: false, deleted: true)
+            @contact.update!(is_active: false)
 
             return render json: {
               success: true,
@@ -579,7 +579,7 @@ module Api
           total_pos = @contact.purchase_orders.count
           if total_pos > 0
             # Auto-archive instead of blocking
-            @contact.update!(is_active: false, deleted: true)
+            @contact.update!(is_active: false)
 
             return render json: {
               success: true,
@@ -2338,7 +2338,7 @@ module Api
 
         # Find contacts with similar display_name (case insensitive, ignoring extra whitespace)
         # Group by normalized name
-        contacts_by_name = Contact.where(deleted: [ false, nil ])
+        contacts_by_name = Contact.all
           .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| normalize_name(c.display_name) }
 
@@ -2355,7 +2355,7 @@ module Api
         end
 
         # Also check for first_name + last_name combinations that match
-        contacts_by_first_last = Contact.where(deleted: [ false, nil ])
+        contacts_by_first_last = Contact.all
           .where.not(first_name: [ nil, "" ])
           .where.not(last_name: [ nil, "" ])
           .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
@@ -2380,7 +2380,7 @@ module Api
         end
 
         # Check for same email (different contacts with same email)
-        contacts_by_email = Contact.where(deleted: [ false, nil ])
+        contacts_by_email = Contact.all
           .where.not(email: [ nil, "" ])
           .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| c.email&.downcase&.strip }
@@ -3403,7 +3403,7 @@ module Api
         end
 
         # Soft delete the duplicate contact
-        duplicate.update!(deleted: true)
+        duplicate.update!(is_active: false)
 
         Rails.logger.info("Merged and deleted duplicate contact #{duplicate.id}")
       end
@@ -3569,7 +3569,7 @@ module Api
 
       # Find all contact IDs that are possible duplicates (share normalized name with another contact)
       def find_duplicate_contact_ids
-        contacts_by_name = Contact.where(deleted: [ false, nil ])
+        contacts_by_name = Contact.all
           .select(:id, :display_name)
           .group_by { |c| normalize_name(c.display_name) }
 
@@ -3775,7 +3775,6 @@ module Api
           :tax_number,
           :xero_id,
           :sys_type_id,
-          :deleted,
           :parent_id,
           :parent,
           :drive_id,
