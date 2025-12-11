@@ -221,35 +221,27 @@ class CompozaBpmnImporter
         }
       )
 
-      # Create nodes first, building a map from node_key to node record
-      node_map = {}
+      # Create nodes
       @nodes.each do |node_data|
-        node = process.bpmn_nodes.create!(
+        process.nodes.create!(
           node_key: node_data[:node_key],
           node_type: node_data[:node_type],
           name: node_data[:name],
           description: node_data[:description],
-          position_x: node_data[:position][:x],
-          position_y: node_data[:position][:y],
+          position: node_data[:position],
           config: node_data[:config]
         )
-        node_map[node_data[:node_key]] = node
       end
 
-      # Create edges using the node map
+      # Create edges
       @edges.each do |edge_data|
-        source_node = node_map[edge_data[:source_key]]
-        target_node = node_map[edge_data[:target_key]]
-
-        next unless source_node && target_node
-
-        process.bpmn_edges.create!(
+        process.edges.create!(
           edge_key: edge_data[:edge_key],
-          source_node_id: source_node.id,
-          target_node_id: target_node.id,
+          source_key: edge_data[:source_key],
+          target_key: edge_data[:target_key],
           name: edge_data[:name],
           condition_expression: edge_data[:condition_expression],
-          is_default: edge_data[:is_default] || false
+          is_default: edge_data[:is_default]
         )
       end
 
