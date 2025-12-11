@@ -5,7 +5,7 @@ namespace :db do
 
     puts "Syncing data from production..."
 
-    base_url = "https://teeem-backend-447058022b51.herokuapp.com"
+    base_url = "https://teeemlive-ce8e2660a615.herokuapp.com"
 
     # Get contacts
     puts "Fetching contacts..."

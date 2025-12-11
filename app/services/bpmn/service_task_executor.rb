@@ -8,7 +8,9 @@ module Bpmn
       "sync_to_sharepoint" => "Bpmn::Tasks::SyncToSharepointTask",
       "send_notification" => "Bpmn::Tasks::SendNotificationTask",
       "call_webhook" => "Bpmn::Tasks::CallWebhookTask",
-      "set_variable" => "Bpmn::Tasks::SetVariableTask"
+      "set_variable" => "Bpmn::Tasks::SetVariableTask",
+      "create_esign_request" => "Bpmn::Tasks::CreateESignRequestTask",
+      "wait_for_signatures" => "Bpmn::Tasks::WaitForSignaturesTask"
     }.freeze
 
     def self.execute(token)
@@ -38,6 +40,16 @@ module Bpmn
 
         task_instance.complete!(result)
         Rails.logger.info("BPMN: Service task '#{@node.display_name}' completed successfully")
+      rescue Bpmn::Tasks::WaitForSignaturesTask::WaitingError => e
+        # Special handling for wait tasks - pause the token and schedule retry
+        task_instance.update!(status: "waiting", result: { message: e.message })
+        @token.update!(status: "waiting")
+
+        retry_interval = @config["retry_interval_minutes"] || 60
+        Rails.logger.info("BPMN: Task '#{@node.display_name}' waiting, will retry in #{retry_interval} minutes")
+
+        # Schedule a retry job (SolidQueue)
+        BpmnRetryWaitingTaskJob.set(wait: retry_interval.minutes).perform_later(@token.id)
       rescue StandardError => e
         task_instance.fail!(e.message)
         Rails.logger.error("BPMN: Service task '#{@node.display_name}' failed: #{e.message}")
