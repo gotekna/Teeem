@@ -72,7 +72,7 @@ git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy 
 
 **If backend changed**, deploy to Heroku:
 ```bash
-cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend --rejoin -b backend-heroku && git push heroku-teeemlive backend-heroku:main --force
+cd /Users/robertharder/GitHub/teeem && git subtree push --prefix backend heroku-teeemlive main
 ```
 
 **If no backend changes, skip this step entirely.**
