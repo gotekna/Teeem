@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_11_012442) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_11_015139) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -310,6 +310,124 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_012442) do
     t.index ["status"], name: "index_bank_transactions_on_status"
     t.index ["xero_contact_id"], name: "index_bank_transactions_on_xero_contact_id"
     t.index ["xero_transaction_id"], name: "index_bank_transactions_on_xero_transaction_id", unique: true
+  end
+
+  create_table "bpmn_edges", force: :cascade do |t|
+    t.bigint "bpmn_process_id", null: false
+    t.string "edge_key", null: false
+    t.bigint "source_node_id", null: false
+    t.bigint "target_node_id", null: false
+    t.string "name"
+    t.text "condition_expression"
+    t.boolean "is_default", default: false
+    t.jsonb "style", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bpmn_process_id", "edge_key"], name: "index_bpmn_edges_on_bpmn_process_id_and_edge_key", unique: true
+    t.index ["bpmn_process_id"], name: "index_bpmn_edges_on_bpmn_process_id"
+    t.index ["source_node_id"], name: "index_bpmn_edges_on_source_node_id"
+    t.index ["target_node_id"], name: "index_bpmn_edges_on_target_node_id"
+  end
+
+  create_table "bpmn_nodes", force: :cascade do |t|
+    t.bigint "bpmn_process_id", null: false
+    t.string "node_type", null: false
+    t.string "node_key", null: false
+    t.string "name"
+    t.text "description"
+    t.float "position_x", default: 0.0
+    t.float "position_y", default: 0.0
+    t.jsonb "config", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bpmn_process_id", "node_key"], name: "index_bpmn_nodes_on_bpmn_process_id_and_node_key", unique: true
+    t.index ["bpmn_process_id"], name: "index_bpmn_nodes_on_bpmn_process_id"
+    t.index ["node_type"], name: "index_bpmn_nodes_on_node_type"
+  end
+
+  create_table "bpmn_process_instances", force: :cascade do |t|
+    t.bigint "bpmn_process_id", null: false
+    t.bigint "workflow_instance_id"
+    t.string "subject_type", null: false
+    t.bigint "subject_id", null: false
+    t.string "status", default: "active"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.jsonb "variables", default: {}
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bpmn_process_id"], name: "index_bpmn_process_instances_on_bpmn_process_id"
+    t.index ["status"], name: "index_bpmn_process_instances_on_status"
+    t.index ["subject_type", "subject_id"], name: "index_bpmn_process_instances_on_subject_type_and_subject_id"
+    t.index ["workflow_instance_id"], name: "index_bpmn_process_instances_on_workflow_instance_id"
+  end
+
+  create_table "bpmn_processes", force: :cascade do |t|
+    t.bigint "workflow_definition_id"
+    t.string "name", null: false
+    t.text "description"
+    t.integer "version", default: 1
+    t.text "bpmn_xml"
+    t.jsonb "canvas_data", default: {}
+    t.boolean "is_published", default: false
+    t.datetime "published_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_published"], name: "index_bpmn_processes_on_is_published"
+    t.index ["name"], name: "index_bpmn_processes_on_name"
+    t.index ["workflow_definition_id"], name: "index_bpmn_processes_on_workflow_definition_id"
+  end
+
+  create_table "bpmn_task_instances", force: :cascade do |t|
+    t.bigint "bpmn_token_id", null: false
+    t.bigint "bpmn_node_id", null: false
+    t.string "task_type", null: false
+    t.string "status", default: "pending"
+    t.string "assigned_to_type"
+    t.bigint "assigned_to_id"
+    t.datetime "due_date"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.jsonb "form_data", default: {}
+    t.jsonb "execution_result", default: {}
+    t.text "error_message"
+    t.integer "retry_count", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["assigned_to_type", "assigned_to_id"], name: "idx_on_assigned_to_type_assigned_to_id_c36150f21d"
+    t.index ["bpmn_node_id"], name: "index_bpmn_task_instances_on_bpmn_node_id"
+    t.index ["bpmn_token_id"], name: "index_bpmn_task_instances_on_bpmn_token_id"
+    t.index ["status"], name: "index_bpmn_task_instances_on_status"
+  end
+
+  create_table "bpmn_tokens", force: :cascade do |t|
+    t.bigint "bpmn_process_instance_id", null: false
+    t.bigint "current_node_id", null: false
+    t.bigint "parent_token_id"
+    t.string "status", default: "active"
+    t.datetime "arrived_at"
+    t.datetime "completed_at"
+    t.jsonb "data", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bpmn_process_instance_id"], name: "index_bpmn_tokens_on_bpmn_process_instance_id"
+    t.index ["current_node_id"], name: "index_bpmn_tokens_on_current_node_id"
+    t.index ["parent_token_id"], name: "index_bpmn_tokens_on_parent_token_id"
+    t.index ["status"], name: "index_bpmn_tokens_on_status"
+  end
+
+  create_table "bpmn_triggers", force: :cascade do |t|
+    t.bigint "bpmn_process_id", null: false
+    t.string "trigger_type", null: false
+    t.string "name", null: false
+    t.boolean "is_active", default: true
+    t.jsonb "config", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bpmn_process_id", "trigger_type"], name: "index_bpmn_triggers_on_bpmn_process_id_and_trigger_type"
+    t.index ["bpmn_process_id"], name: "index_bpmn_triggers_on_bpmn_process_id"
+    t.index ["is_active"], name: "index_bpmn_triggers_on_is_active"
   end
 
   create_table "bug_hunter_test_runs", force: :cascade do |t|
@@ -4967,6 +5085,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_012442) do
   add_foreign_key "bank_accounts", "corporate_companies", column: "company_id"
   add_foreign_key "bank_transactions", "bank_accounts"
   add_foreign_key "bank_transactions", "corporate_companies", column: "company_id"
+  add_foreign_key "bpmn_edges", "bpmn_nodes", column: "source_node_id", on_delete: :cascade
+  add_foreign_key "bpmn_edges", "bpmn_nodes", column: "target_node_id", on_delete: :cascade
+  add_foreign_key "bpmn_edges", "bpmn_processes", on_delete: :cascade
+  add_foreign_key "bpmn_nodes", "bpmn_processes", on_delete: :cascade
+  add_foreign_key "bpmn_process_instances", "bpmn_processes"
+  add_foreign_key "bpmn_process_instances", "workflow_instances"
+  add_foreign_key "bpmn_processes", "workflow_definitions"
+  add_foreign_key "bpmn_task_instances", "bpmn_nodes"
+  add_foreign_key "bpmn_task_instances", "bpmn_tokens", on_delete: :cascade
+  add_foreign_key "bpmn_tokens", "bpmn_nodes", column: "current_node_id"
+  add_foreign_key "bpmn_tokens", "bpmn_process_instances", on_delete: :cascade
+  add_foreign_key "bpmn_tokens", "bpmn_tokens", column: "parent_token_id"
+  add_foreign_key "bpmn_triggers", "bpmn_processes", on_delete: :cascade
   add_foreign_key "case_actions", "cases"
   add_foreign_key "case_actions", "users", column: "created_by_id"
   add_foreign_key "case_companies", "cases"

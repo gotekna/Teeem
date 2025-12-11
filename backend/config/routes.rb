@@ -445,6 +445,45 @@ Rails.application.routes.draw do
         end
       end
 
+      # BPMN Workflow Engine
+      resources :bpmn_processes do
+        member do
+          post :publish
+          post :unpublish
+          post :duplicate
+          get :validate
+        end
+        resources :bpmn_triggers, only: [ :index, :show, :create, :update, :destroy ] do
+          member do
+            post :activate
+            post :deactivate
+          end
+        end
+      end
+
+      resources :bpmn_process_instances, only: [ :index, :show, :create ] do
+        collection do
+          get :for_subject
+        end
+        member do
+          post :cancel
+          post :suspend
+          post :resume
+        end
+      end
+
+      resources :bpmn_tasks, only: [ :index, :show ] do
+        collection do
+          get :all
+        end
+        member do
+          post :complete
+          post :claim
+          post :unclaim
+          post :skip
+        end
+      end
+
       # Emails management
       resources :emails do
         collection do
