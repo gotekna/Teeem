@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Node, Edge } from "@xyflow/react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { FileText, Loader2 } from "lucide-react";
+import { api } from "@/lib/api";
 import { NODE_TYPE_META, SERVICE_TASK_TYPES, BpmnNodeData } from "../types";
+
+interface DocumentTemplate {
+  id: number;
+  name: string;
+  description?: string;
+  category: string;
+  output_format: string;
+  is_active: boolean;
+  sharepoint_linked: boolean;
+}
 
 interface PropertiesPanelProps {
   selectedNode: Node<BpmnNodeData> | null;
@@ -183,6 +196,33 @@ function ServiceTaskProperties({
   onChange: (field: string, value: string) => void;
 }) {
   const taskType = data.config?.task_type;
+  const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  // Fetch document templates when task type is generate_document
+  useEffect(() => {
+    if (taskType === "generate_document") {
+      setLoadingTemplates(true);
+      api.get<{ success: boolean; document_templates: DocumentTemplate[] }>(
+        "/api/v1/document_templates?active_only=true"
+      )
+        .then((response) => {
+          if (response?.success) {
+            setTemplates(response.document_templates);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch templates:", err);
+        })
+        .finally(() => {
+          setLoadingTemplates(false);
+        });
+    }
+  }, [taskType]);
+
+  const selectedTemplate = templates.find(
+    (t) => t.id === Number(data.config?.template_id)
+  );
 
   return (
     <div className="space-y-3 border-t pt-3">
@@ -206,6 +246,98 @@ function ServiceTaskProperties({
           </SelectContent>
         </Select>
       </div>
+
+      {taskType === "generate_document" && (
+        <div className="space-y-3">
+          <div>
+            <Label>Document Template</Label>
+            {loadingTemplates ? (
+              <div className="flex items-center gap-2 py-2 text-sm text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading templates...
+              </div>
+            ) : templates.length === 0 ? (
+              <div className="rounded-md border border-dashed p-3 text-center text-sm text-slate-500">
+                <FileText className="mx-auto mb-1 h-5 w-5" />
+                No document templates found.
+                <br />
+                <span className="text-xs">Create templates in Settings.</span>
+              </div>
+            ) : (
+              <Select
+                value={data.config?.template_id?.toString() || ""}
+                onValueChange={(value) => onChange("template_id", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a template..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={template.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <span>{template.name}</span>
+                        {!template.sharepoint_linked && (
+                          <Badge variant="outline" className="text-xs">
+                            Not linked
+                          </Badge>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {selectedTemplate && (
+            <div className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-800">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-slate-500" />
+                <span className="font-medium">{selectedTemplate.name}</span>
+              </div>
+              {selectedTemplate.description && (
+                <p className="mt-1 text-xs text-slate-500">
+                  {selectedTemplate.description}
+                </p>
+              )}
+              <div className="mt-2 flex gap-2">
+                <Badge variant="secondary" className="text-xs">
+                  {selectedTemplate.category}
+                </Badge>
+                <Badge variant="secondary" className="text-xs">
+                  {selectedTemplate.output_format.toUpperCase()}
+                </Badge>
+                {selectedTemplate.sharepoint_linked ? (
+                  <Badge variant="default" className="bg-green-600 text-xs">
+                    SharePoint Linked
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive" className="text-xs">
+                    Not Linked
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <Label>Output Destination</Label>
+            <Select
+              value={data.config?.output_destination || ""}
+              onValueChange={(value) => onChange("output_destination", value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Where to save..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="job_documents">Job Documents Folder</SelectItem>
+                <SelectItem value="sharepoint">SharePoint (same location as template)</SelectItem>
+                <SelectItem value="email_attachment">Email as Attachment</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
 
       {taskType === "send_email" && (
         <>

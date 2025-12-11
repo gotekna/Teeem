@@ -120,11 +120,15 @@ class XeroTokenManager
         Rails.logger.info("[XeroTokenManager] Circuit closed for #{credential.tenant_name} after successful API call")
       end
 
-      # If was degraded, reconnect
+      # If was degraded, reconnect and trigger sync restart
       if credential.status == "degraded" && credential.refresh_failure_count == 0
         updates[:status] = "connected"
         Rails.logger.info("[XeroTokenManager] Credential #{credential.tenant_name} recovered to connected state")
         auto_resolve_alerts(credential)
+
+        # Trigger sync restart to resume syncing after recovery
+        # Do this synchronously since record_api_success is already in a job context
+        trigger_sync_restart(reason: "credential_recovery")
       end
 
       credential.update_columns(updates)
@@ -222,6 +226,40 @@ class XeroTokenManager
                                              .where("last_successful_api_call_at < ?", INACTIVITY_WARNING_DAYS.days.ago)
                                              .count
       }
+    end
+
+    # Trigger restart of all Xero sync jobs immediately
+    # Call this when reconnecting after a crash/disconnect to resume syncing
+    def trigger_sync_restart(reason: "reconnection")
+      Rails.logger.info("[XeroTokenManager] Triggering sync restart (reason: #{reason})")
+
+      jobs_triggered = []
+
+      # Queue all sync jobs - they will self-deduplicate via SolidQueue
+      begin
+        XeroInvoiceSyncJob.perform_later(incremental: true)
+        jobs_triggered << "XeroInvoiceSyncJob"
+      rescue StandardError => e
+        Rails.logger.error("[XeroTokenManager] Failed to queue XeroInvoiceSyncJob: #{e.message}")
+      end
+
+      begin
+        XeroContactSyncJob.perform_later
+        jobs_triggered << "XeroContactSyncJob"
+      rescue StandardError => e
+        Rails.logger.error("[XeroTokenManager] Failed to queue XeroContactSyncJob: #{e.message}")
+      end
+
+      begin
+        XeroAttachmentSyncJob.perform_later
+        jobs_triggered << "XeroAttachmentSyncJob"
+      rescue StandardError => e
+        Rails.logger.error("[XeroTokenManager] Failed to queue XeroAttachmentSyncJob: #{e.message}")
+      end
+
+      Rails.logger.info("[XeroTokenManager] Sync restart complete. Jobs triggered: #{jobs_triggered.join(', ')}")
+
+      { success: true, jobs_triggered: jobs_triggered, reason: reason }
     end
 
     private

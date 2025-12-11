@@ -36,8 +36,10 @@ import {
   Download,
   Eye,
   FileWarning,
+  ImageIcon,
 } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
 
 interface BillDetail {
   id: number;
@@ -373,7 +375,11 @@ export default function BillDetailPage() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
+                {bill.invoice_file_content_type?.startsWith("image/") ? (
+                  <ImageIcon className="h-5 w-5" />
+                ) : (
+                  <FileText className="h-5 w-5" />
+                )}
                 Invoice Document
               </span>
               {pdfBlobUrl && (
@@ -396,12 +402,29 @@ export default function BillDetailPage() {
                 <p className="text-sm text-muted-foreground mt-4">Loading invoice...</p>
               </div>
             ) : pdfBlobUrl && !pdfError ? (
-              <div className="relative w-full" style={{ height: "600px" }}>
-                <iframe
-                  src={pdfBlobUrl}
-                  className="w-full h-full border rounded-lg"
-                  title="Invoice Preview"
-                />
+              <div className="relative w-full border rounded-lg overflow-hidden" style={{ height: "600px" }}>
+                {bill.invoice_file_content_type === "application/pdf" ? (
+                  <PDFViewer
+                    url={`${getApiBaseUrl()}/api/v1/bill_inbox/${billId}/download`}
+                    className="w-full h-full"
+                    fallbackUrl={pdfBlobUrl}
+                    onError={(e) => setPdfError(e.message)}
+                  />
+                ) : bill.invoice_file_content_type?.startsWith("image/") ? (
+                  <div className="w-full h-full flex items-center justify-center bg-muted/30 p-4">
+                    <img
+                      src={pdfBlobUrl}
+                      alt="Invoice"
+                      className="max-w-full max-h-full object-contain rounded"
+                    />
+                  </div>
+                ) : (
+                  <iframe
+                    src={pdfBlobUrl}
+                    className="w-full h-full"
+                    title="Invoice Preview"
+                  />
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "400px" }}>

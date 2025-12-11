@@ -227,6 +227,9 @@ class XeroHealthMonitorJob < ApplicationJob
       if result[:success]
         Rails.logger.info "[XeroHealthMonitor] Recovered credential: #{credential.tenant_name}"
         recovered += 1
+
+        # Trigger sync restart to resume syncing after recovery
+        XeroTokenManager.trigger_sync_restart(reason: "health_monitor_recovery")
       end
     end
 

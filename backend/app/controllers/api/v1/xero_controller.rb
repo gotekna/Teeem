@@ -43,13 +43,19 @@ module Api
           client = XeroApiClient.new
           result = client.exchange_code_for_token(code)
 
+          # Trigger sync restart immediately after reconnection
+          # This resumes syncing without waiting for scheduled jobs
+          sync_result = XeroTokenManager.trigger_sync_restart(reason: "oauth_reconnection")
+          Rails.logger.info("[XeroController] Reconnection sync restart triggered: #{sync_result[:jobs_triggered].join(', ')}")
+
           render json: {
             success: true,
             message: "Successfully connected to Xero",
             data: {
               tenant_name: result[:tenant_name],
               tenant_id: result[:tenant_id],
-              expires_at: result[:expires_at]
+              expires_at: result[:expires_at],
+              sync_restart: sync_result
             }
           }
         rescue XeroApiClient::AuthenticationError => e

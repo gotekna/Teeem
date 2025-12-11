@@ -20,6 +20,7 @@ export interface BpmnNodeConfig {
   // Service task config
   task_type?: string;
   template_id?: number;
+  output_destination?: "job_documents" | "sharepoint" | "email_attachment";
   recipient_type?: string;
   recipient_value?: string;
   subject?: string;
