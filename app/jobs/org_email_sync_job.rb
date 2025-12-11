@@ -157,6 +157,20 @@ class OrgEmailSyncJob < ApplicationJob
     to_emails = (email_data["toRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
     cc_emails = (email_data["ccRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
 
+    # Extract body content
+    body_data = email_data["body"] || {}
+    body_content = body_data["content"]
+    body_type = body_data["contentType"]&.downcase
+
+    # Store body in both text and html based on content type
+    if body_type == "html"
+      body_html = body_content
+      body_text = extract_text_from_html(body_content)
+    else
+      body_text = body_content
+      body_html = nil
+    end
+
     email.assign_attributes(
       outlook_id: email_data["id"],
       subject: email_data["subject"],
@@ -165,11 +179,17 @@ class OrgEmailSyncJob < ApplicationJob
       to_emails: to_emails,
       cc_emails: cc_emails,
       received_at: email_data["receivedDateTime"],
+      sent_at: email_data["sentDateTime"],
       has_attachments: email_data["hasAttachments"] || false,
       body_preview: email_data["bodyPreview"],
+      body_text: body_text,
+      body_html: body_html,
       conversation_id: email_data["conversationId"],
       folder_name: folder_name,
       is_read: email_data["isRead"] || false,
+      importance: email_data["importance"],
+      in_reply_to: email_data["inReplyTo"],
+      references: email_data["references"],
       last_synced_at: Time.current,
       microsoft_credential_id: @credential&.id,  # Track which org this email came from
       mailbox_owner_email: owner_email  # Track which mailbox this email came from (for fetching attachments)
@@ -231,5 +251,14 @@ class OrgEmailSyncJob < ApplicationJob
 
     Rails.logger.info "[OrgEmailSync] Matched email #{email.id} to job #{best_match[:job].id} (#{best_match[:match_type]}, confidence: #{best_match[:confidence]})"
     best_match[:job]
+  end
+
+  def extract_text_from_html(html_content)
+    return nil if html_content.blank?
+
+    # Simple HTML stripping - remove tags and decode entities
+    text = html_content.gsub(/<[^>]*>/, "")  # Remove HTML tags
+    text = CGI.unescapeHTML(text)             # Decode HTML entities (&nbsp;, etc.)
+    text.strip
   end
 end
