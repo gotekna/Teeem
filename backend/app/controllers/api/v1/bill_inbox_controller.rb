@@ -59,6 +59,9 @@ module Api
 
       # GET /api/v1/bill_inbox/:id
       def show
+        # Get xero tenant name from corporate company's xero connection
+        xero_tenant_name = @bill.corporate_company&.corporate_company_xero_connection&.xero_tenant_name
+
         render json: @bill.as_json(
           include: {
             corporate_company: { only: [ :id, :name, :code, :abn ] },
@@ -77,7 +80,8 @@ module Api
           methods: [ :remaining_balance, :variance_percent, :status_color, :has_invoice_file?, :invoice_file_content_type, :invoice_file_filename ]
         ).merge(
           ai_extraction_result: @bill.ai_extraction_result,
-          extracted_at: @bill.extracted_at
+          extracted_at: @bill.extracted_at,
+          xero_tenant_name: xero_tenant_name
         )
       end
 

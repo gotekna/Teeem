@@ -19,6 +19,7 @@ export function PDFViewerImpl({
   className,
   showThumbnails = false,
   onError,
+  highlights = [],
 }: PDFViewerProps) {
   const [pdfData, setPdfData] = React.useState<Uint8Array | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -26,7 +27,9 @@ export function PDFViewerImpl({
   const [numPages, setNumPages] = React.useState<number>(0);
   const [pageNumber, setPageNumber] = React.useState<number>(1);
   const [scale, setScale] = React.useState<number>(1.0);
+  const [pageSize, setPageSize] = React.useState<{ width: number; height: number } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const pageRef = React.useRef<HTMLDivElement>(null);
 
   // Create a stable copy of PDF data to prevent ArrayBuffer detachment issues
   // The ArrayBuffer can only be transferred to the worker once, so we need to
@@ -84,6 +87,13 @@ export function PDFViewerImpl({
     setNumPages(numPages);
     setPageNumber(1);
   };
+
+  const onPageRenderSuccess = (page: { width: number; height: number }) => {
+    setPageSize({ width: page.width, height: page.height });
+  };
+
+  // Filter highlights for current page
+  const currentPageHighlights = highlights.filter(h => h.page === pageNumber);
 
   const onDocumentLoadError = (error: Error) => {
     console.error("PDF load error:", error);
@@ -187,16 +197,56 @@ export function PDFViewerImpl({
             </div>
           }
         >
-          <Page
-            pageNumber={pageNumber}
-            scale={scale}
-            loading={
-              <div className="flex items-center justify-center h-96">
-                <Loader2 className="h-6 w-6 animate-spin" />
+          <div className="relative" ref={pageRef}>
+            <Page
+              pageNumber={pageNumber}
+              scale={scale}
+              loading={
+                <div className="flex items-center justify-center h-96">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              }
+              className="shadow-lg"
+              onRenderSuccess={onPageRenderSuccess}
+            />
+            {/* Highlight overlays */}
+            {pageSize && currentPageHighlights.length > 0 && (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  width: pageSize.width * scale,
+                  height: pageSize.height * scale
+                }}
+              >
+                {currentPageHighlights.map((highlight, idx) => (
+                  <div
+                    key={idx}
+                    className="absolute border-2 border-yellow-500 bg-yellow-300/30 rounded transition-all duration-300 animate-pulse"
+                    style={{
+                      left: `${highlight.x * 100}%`,
+                      top: `${highlight.y * 100}%`,
+                      width: `${highlight.width * 100}%`,
+                      height: `${highlight.height * 100}%`,
+                      borderColor: highlight.color || '#eab308',
+                      backgroundColor: highlight.color ? `${highlight.color}33` : 'rgba(234, 179, 8, 0.3)',
+                    }}
+                  >
+                    {highlight.label && (
+                      <span
+                        className="absolute -top-6 left-0 text-xs font-medium px-1.5 py-0.5 rounded whitespace-nowrap"
+                        style={{
+                          backgroundColor: highlight.color || '#eab308',
+                          color: 'white'
+                        }}
+                      >
+                        {highlight.label}
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
-            }
-            className="shadow-lg"
-          />
+            )}
+          </div>
         </Document>
       </div>
     </div>

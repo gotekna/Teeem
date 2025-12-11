@@ -6,6 +6,16 @@ import { cn } from "@/lib/utils";
 import { Loader2, FileText, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "./button";
 
+export interface FieldHighlight {
+  x: number;      // percentage 0-1
+  y: number;      // percentage 0-1
+  width: number;  // percentage 0-1
+  height: number; // percentage 0-1
+  page: number;
+  label?: string;
+  color?: string;
+}
+
 export interface PDFViewerProps {
   url: string;
   className?: string;
@@ -13,6 +23,7 @@ export interface PDFViewerProps {
   showThumbnails?: boolean;
   onError?: (error: Error) => void;
   fallbackUrl?: string;
+  highlights?: FieldHighlight[];
 }
 
 // Loading component shown while PDF viewer loads

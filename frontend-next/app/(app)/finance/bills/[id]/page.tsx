@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,33 @@ import {
   Wallet,
 } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
-import { PDFViewer } from "@/components/ui/pdf-viewer";
+import { PDFViewer, FieldHighlight } from "@/components/ui/pdf-viewer";
+import { CheckCircle2, XCircle as XCircle2, MapPin } from "lucide-react";
+
+// Normalize ABN for comparison (remove spaces, dashes, and non-digit characters)
+const normalizeAbn = (abn: string | null | undefined): string => {
+  if (!abn) return "";
+  return abn.replace(/[^0-9]/g, "");
+};
+
+// Check if two ABNs match
+const abnMatches = (abn1: string | null | undefined, abn2: string | null | undefined): boolean | null => {
+  const normalized1 = normalizeAbn(abn1);
+  const normalized2 = normalizeAbn(abn2);
+
+  // If either is empty, we can't determine a match
+  if (!normalized1 || !normalized2) return null;
+
+  return normalized1 === normalized2;
+};
+
+interface FieldLocation {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  page: number;
+}
 
 interface AIExtractionResult {
   invoice_number?: string;
@@ -65,6 +91,7 @@ interface AIExtractionResult {
   payment_terms?: string;
   purchase_order_number?: string;
   notes?: string;
+  field_locations?: Record<string, FieldLocation>;
   [key: string]: unknown;
 }
 
@@ -93,6 +120,7 @@ interface BillDetail {
   status_color: string;
   extracted_at: string | null;
   ai_extraction_result: AIExtractionResult | null;
+  xero_tenant_name: string | null;
   corporate_company: {
     id: number;
     name: string;
@@ -179,6 +207,52 @@ export default function BillDetailPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [pdfExpandedOpen, setPdfExpandedOpen] = useState(false);
+  const [highlightedField, setHighlightedField] = useState<string | null>(null);
+
+  // Build highlights array from field_locations
+  const pdfHighlights: FieldHighlight[] = React.useMemo(() => {
+    if (!highlightedField || !bill?.ai_extraction_result?.field_locations) return [];
+
+    const location = bill.ai_extraction_result.field_locations[highlightedField];
+    if (!location) return [];
+
+    const fieldLabels: Record<string, string> = {
+      supplier_name: "Supplier Name",
+      supplier_abn: "Supplier ABN",
+      invoice_number: "Invoice #",
+      invoice_date: "Invoice Date",
+      due_date: "Due Date",
+      total_amount: "Total Amount",
+      subtotal: "Subtotal",
+      tax_amount: "Tax/GST",
+      bill_to_name: "Bill To",
+      bill_to_abn: "Bill To ABN",
+    };
+
+    return [{
+      x: location.x,
+      y: location.y,
+      width: location.width,
+      height: location.height,
+      page: location.page || 1,
+      label: fieldLabels[highlightedField] || highlightedField,
+      color: "#eab308" // yellow
+    }];
+  }, [highlightedField, bill?.ai_extraction_result?.field_locations]);
+
+  // Helper to check if a field has location data
+  const hasLocation = (fieldName: string): boolean => {
+    return !!bill?.ai_extraction_result?.field_locations?.[fieldName];
+  };
+
+  // Toggle highlight for a field
+  const toggleHighlight = (fieldName: string) => {
+    if (highlightedField === fieldName) {
+      setHighlightedField(null);
+    } else {
+      setHighlightedField(fieldName);
+    }
+  };
 
   const loadBill = async () => {
     setLoading(true);
@@ -393,6 +467,11 @@ export default function BillDetailPage() {
               <Badge className={matchStatusColors[bill.match_status] || matchStatusColors.pending}>
                 {bill.match_status?.replace("_", " ") || "pending"}
               </Badge>
+              {bill.xero_tenant_name && (
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800">
+                  Xero: {bill.xero_tenant_name}
+                </Badge>
+              )}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
               {bill.supplier?.display_name || bill.supplier_name_raw || "Unknown Supplier"}
@@ -437,8 +516,8 @@ export default function BillDetailPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* PDF Preview - Takes up 1 column on large screens */}
-        <Card className="lg:col-span-1 lg:row-span-2">
+        {/* PDF Preview - Takes up 1 column on large screens, full height */}
+        <Card className="lg:col-span-1 lg:row-span-3 lg:sticky lg:top-4">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span className="flex items-center gap-2">
@@ -472,18 +551,19 @@ export default function BillDetailPage() {
           </CardHeader>
           <CardContent>
             {pdfLoading ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "600px" }}>
+              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "calc(100vh - 250px)", minHeight: "600px" }}>
                 <Loader />
                 <p className="text-sm text-muted-foreground mt-4">Loading invoice...</p>
               </div>
             ) : pdfBlobUrl && !pdfError ? (
-              <div className="relative w-full border rounded-lg overflow-hidden" style={{ height: "600px" }}>
+              <div className="relative w-full border rounded-lg overflow-hidden" style={{ height: "calc(100vh - 250px)", minHeight: "600px" }}>
                 {bill.invoice_file_content_type === "application/pdf" ? (
                   <PDFViewer
                     url={`${getApiBaseUrl()}/api/v1/bill_inbox/${billId}/download`}
                     className="w-full h-full"
                     fallbackUrl={pdfBlobUrl}
                     onError={(e) => setPdfError(e.message)}
+                    highlights={pdfHighlights}
                   />
                 ) : bill.invoice_file_content_type?.startsWith("image/") ? (
                   <div className="w-full h-full flex items-center justify-center bg-muted/30 p-4">
@@ -502,7 +582,7 @@ export default function BillDetailPage() {
                 )}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "400px" }}>
+              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "calc(100vh - 250px)", minHeight: "400px" }}>
                 <FileWarning className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium">
                   {pdfError ? "Error Loading Invoice" : "No Invoice File"}
@@ -840,33 +920,89 @@ export default function BillDetailPage() {
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {bill.ai_extraction_result.invoice_number && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Invoice #</p>
+                  <div
+                    className={`cursor-pointer rounded p-1.5 -m-1.5 transition-colors ${highlightedField === 'invoice_number' ? 'bg-yellow-100 dark:bg-yellow-900/30' : hasLocation('invoice_number') ? 'hover:bg-muted' : ''}`}
+                    onClick={() => hasLocation('invoice_number') && toggleHighlight('invoice_number')}
+                  >
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                      Invoice #
+                      {hasLocation('invoice_number') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                    </p>
                     <p className="font-mono text-sm">{bill.ai_extraction_result.invoice_number}</p>
                   </div>
                 )}
                 {bill.ai_extraction_result.invoice_date && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Invoice Date</p>
+                  <div
+                    className={`cursor-pointer rounded p-1.5 -m-1.5 transition-colors ${highlightedField === 'invoice_date' ? 'bg-yellow-100 dark:bg-yellow-900/30' : hasLocation('invoice_date') ? 'hover:bg-muted' : ''}`}
+                    onClick={() => hasLocation('invoice_date') && toggleHighlight('invoice_date')}
+                  >
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                      Invoice Date
+                      {hasLocation('invoice_date') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                    </p>
                     <p className="text-sm">{bill.ai_extraction_result.invoice_date}</p>
                   </div>
                 )}
                 {bill.ai_extraction_result.due_date && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Due Date</p>
+                  <div
+                    className={`cursor-pointer rounded p-1.5 -m-1.5 transition-colors ${highlightedField === 'due_date' ? 'bg-yellow-100 dark:bg-yellow-900/30' : hasLocation('due_date') ? 'hover:bg-muted' : ''}`}
+                    onClick={() => hasLocation('due_date') && toggleHighlight('due_date')}
+                  >
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                      Due Date
+                      {hasLocation('due_date') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                    </p>
                     <p className="text-sm">{bill.ai_extraction_result.due_date}</p>
                   </div>
                 )}
                 {bill.ai_extraction_result.supplier_name && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier Name</p>
+                  <div
+                    className={`cursor-pointer rounded p-1.5 -m-1.5 transition-colors ${highlightedField === 'supplier_name' ? 'bg-yellow-100 dark:bg-yellow-900/30' : hasLocation('supplier_name') ? 'hover:bg-muted' : ''}`}
+                    onClick={() => hasLocation('supplier_name') && toggleHighlight('supplier_name')}
+                  >
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                      Supplier Name
+                      {hasLocation('supplier_name') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                    </p>
                     <p className="text-sm">{bill.ai_extraction_result.supplier_name}</p>
                   </div>
                 )}
                 {bill.ai_extraction_result.supplier_abn && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier ABN</p>
-                    <p className="font-mono text-sm">{bill.ai_extraction_result.supplier_abn}</p>
+                  <div
+                    className={`cursor-pointer rounded p-1.5 -m-1.5 transition-colors ${highlightedField === 'supplier_abn' ? 'bg-yellow-100 dark:bg-yellow-900/30' : hasLocation('supplier_abn') ? 'hover:bg-muted' : ''}`}
+                    onClick={() => hasLocation('supplier_abn') && toggleHighlight('supplier_abn')}
+                  >
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                      Supplier ABN
+                      {hasLocation('supplier_abn') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-mono text-sm">{bill.ai_extraction_result.supplier_abn}</p>
+                      {(() => {
+                        const match = abnMatches(bill.ai_extraction_result.supplier_abn, bill.supplier?.tax_number);
+                        if (match === true) {
+                          return (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+                              <CheckCircle2 className="h-3 w-3" />
+                              100% Match
+                            </span>
+                          );
+                        } else if (match === false) {
+                          return (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full">
+                              <XCircle2 className="h-3 w-3" />
+                              Mismatch
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                    {bill.supplier?.tax_number && abnMatches(bill.ai_extraction_result.supplier_abn, bill.supplier.tax_number) === false && (
+                      <p className="text-xs text-red-500 mt-1">
+                        Stored: {bill.supplier.tax_number}
+                      </p>
+                    )}
                   </div>
                 )}
                 {bill.ai_extraction_result.billing_company_name && (
@@ -900,8 +1036,14 @@ export default function BillDetailPage() {
                   </div>
                 )}
                 {bill.ai_extraction_result.total_amount != null && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Total</p>
+                  <div
+                    className={`cursor-pointer rounded p-1.5 -m-1.5 transition-colors ${highlightedField === 'total_amount' ? 'bg-yellow-100 dark:bg-yellow-900/30' : hasLocation('total_amount') ? 'hover:bg-muted' : ''}`}
+                    onClick={() => hasLocation('total_amount') && toggleHighlight('total_amount')}
+                  >
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                      Total
+                      {hasLocation('total_amount') && <MapPin className="h-3 w-3 text-yellow-500" />}
+                    </p>
                     <p className="font-mono text-sm font-medium">${Number(bill.ai_extraction_result.total_amount).toLocaleString()}</p>
                   </div>
                 )}

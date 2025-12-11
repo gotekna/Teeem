@@ -188,8 +188,25 @@ class InvoiceParsingService
           "account_number": "account number if provided",
           "account_name": "account name if provided"
         },
-        "confidence": 0.0 to 1.0
+        "confidence": 0.0 to 1.0,
+        "field_locations": {
+          "supplier_name": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
+          "supplier_abn": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
+          "invoice_number": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
+          "invoice_date": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
+          "due_date": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1},
+          "total_amount": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0, "page": 1}
+        }
       }
+
+      IMPORTANT for field_locations: Provide bounding box coordinates as percentages (0.0 to 1.0) of the image dimensions.
+      - x: left edge as percentage of image width
+      - y: top edge as percentage of image height
+      - width: box width as percentage of image width
+      - height: box height as percentage of image height
+      - page: page number (1-indexed)
+
+      Only include field_locations for fields you actually found in the document.
 
       Return ONLY the JSON, no explanations.
     PROMPT
