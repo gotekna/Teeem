@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,13 +11,24 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Loader } from "@/components/ui/loader";
 import Link from "next/link";
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState("");
   const { login, isAuthenticated, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Check for session expired redirect
+  useEffect(() => {
+    if (searchParams.get('expired') === 'true') {
+      setSessionExpiredMessage("Your session has expired. Please log in again.");
+      // Clean up the URL without triggering a reload
+      window.history.replaceState({}, '', '/login');
+    }
+  }, [searchParams]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -29,6 +40,7 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSessionExpiredMessage("");
     setIsLoading(true);
 
     try {
@@ -76,6 +88,11 @@ export default function LoginPage() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {sessionExpiredMessage && (
+              <div className="p-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md">
+                {sessionExpiredMessage}
+              </div>
+            )}
             {error && (
               <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20">
                 {error}
@@ -161,5 +178,17 @@ export default function LoginPage() {
         </form>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -243,27 +243,54 @@ class XeroContactSyncService
               @stats[:matched] += 1
             end
           else
-            # Try to find matching TEEEM contact
-            teeem_contact = find_matching_teeem_contact(
-              xero_contact,
-              {},  # No xero_id lookup for new matches
-              teeem_by_tax_number,
-              teeem_by_email,
-              teeem_contacts - matched_teeem_ids.map { |id| teeem_contacts.find { |c| c.id == id } }.compact
-            )
+            # Try cross-tenant matching first (searches ALL TEEEM contacts)
+            # This handles cases where a contact exists in TEEEM from a different Xero org
+            cross_match = detect_cross_tenant_match(xero_contact)
 
-            if teeem_contact
-              # Match found - create link and update
+            if cross_match
+              # Cross-tenant match found - link to existing contact
+              teeem_contact = cross_match[:contact]
               matched_teeem_ids.add(teeem_contact.id)
               matched_xero_ids.add(xero_id)
-              link = create_or_update_xero_link(teeem_contact, xero_contact, tenant_id)
-              sync_matched_contact(teeem_contact, xero_contact, link)
+
+              link = create_or_update_xero_link(
+                teeem_contact,
+                xero_contact,
+                tenant_id,
+                match_type: cross_match[:match_type],
+                match_confidence: cross_match[:match_confidence],
+                needs_review: cross_match[:needs_review]
+              )
+
+              # Only sync data if not needing review
+              unless cross_match[:needs_review]
+                sync_matched_contact(teeem_contact, xero_contact, link)
+              end
+
               @stats[:matched] += 1
             else
-              # No match - create in TEEEM with link
-              new_contact = create_teeem_contact_from_xero(xero_contact, tenant_id)
-              matched_xero_ids.add(xero_id)
-              @stats[:created_in_teeem] += 1
+              # Try local matching (within this sync batch)
+              teeem_contact = find_matching_teeem_contact(
+                xero_contact,
+                {},  # No xero_id lookup for new matches
+                teeem_by_tax_number,
+                teeem_by_email,
+                teeem_contacts - matched_teeem_ids.map { |id| teeem_contacts.find { |c| c.id == id } }.compact
+              )
+
+              if teeem_contact
+                # Match found - create link and update
+                matched_teeem_ids.add(teeem_contact.id)
+                matched_xero_ids.add(xero_id)
+                link = create_or_update_xero_link(teeem_contact, xero_contact, tenant_id, match_type: "exact_abn")
+                sync_matched_contact(teeem_contact, xero_contact, link)
+                @stats[:matched] += 1
+              else
+                # No match - create in TEEEM with link
+                new_contact = create_teeem_contact_from_xero(xero_contact, tenant_id)
+                matched_xero_ids.add(xero_id)
+                @stats[:created_in_teeem] += 1
+              end
             end
           end
 
@@ -511,17 +538,21 @@ class XeroContactSyncService
     link.assign_attributes(
       source: "xero",
       tenant_name: @sync_config&.xero_tenant_name || "Unknown",
-      sync_enabled: true,
+      sync_enabled: !needs_review,  # Disable sync until reviewed if needed
       sync_direction: "bidirectional",
-      last_synced_at: @sync_timestamp,
+      last_synced_at: needs_review ? nil : @sync_timestamp,
       external_last_modified_at: parse_xero_date(xero_contact["UpdatedDateUTC"]),
-      sync_error: nil
+      sync_error: nil,
+      match_type: match_type,
+      match_confidence: match_confidence,
+      needs_review: needs_review
     )
 
     if link.new_record?
       link.save!
       @stats[:links_created] += 1
-      Rails.logger.info("Created xero_link for contact ##{teeem_contact.id} -> #{xero_id}")
+      review_note = needs_review ? " (NEEDS REVIEW)" : ""
+      Rails.logger.info("Created xero_link for contact ##{teeem_contact.id} -> #{xero_id} [#{match_type}]#{review_note}")
     else
       link.save!
       @stats[:links_updated] += 1

@@ -1,12 +1,13 @@
 class BpmnTaskInstance < ApplicationRecord
   # Associations
-  belongs_to :bpmn_token
-  belongs_to :bpmn_node
+  # Optional to allow standalone tasks (e.g., bill approval tasks without full BPMN workflow)
+  belongs_to :bpmn_token, optional: true
+  belongs_to :bpmn_node, optional: true
   belongs_to :assigned_to, polymorphic: true, optional: true
 
-  # Delegate to process instance
-  delegate :bpmn_process_instance, to: :bpmn_token
-  delegate :subject, to: :bpmn_process_instance
+  # Delegate to process instance (only when token exists)
+  delegate :bpmn_process_instance, to: :bpmn_token, allow_nil: true
+  delegate :subject, to: :bpmn_process_instance, allow_nil: true
 
   # Constants
   STATUSES = %w[pending in_progress completed failed cancelled skipped].freeze
@@ -73,7 +74,8 @@ class BpmnTaskInstance < ApplicationRecord
       execution_result: result
     )
     log_task_completed
-    BpmnTokenAdvanceJob.perform_later(bpmn_token_id)
+    # Only advance token if this is part of a BPMN workflow
+    BpmnTokenAdvanceJob.perform_later(bpmn_token_id) if bpmn_token_id.present?
   end
 
   def fail!(error)
@@ -91,7 +93,8 @@ class BpmnTaskInstance < ApplicationRecord
 
   def skip!
     update!(status: "skipped", completed_at: Time.current)
-    BpmnTokenAdvanceJob.perform_later(bpmn_token_id)
+    # Only advance token if this is part of a BPMN workflow
+    BpmnTokenAdvanceJob.perform_later(bpmn_token_id) if bpmn_token_id.present?
   end
 
   # Form data management
@@ -113,10 +116,15 @@ class BpmnTaskInstance < ApplicationRecord
       return assigned_to_id == user.id
     end
 
-    # If assigned to role
-    config = bpmn_node.config
-    if config&.dig("assignee_type") == "role"
-      return user.role == config["assignee_value"]
+    # If assigned to role (from bpmn_node config or standalone task)
+    if bpmn_node.present?
+      config = bpmn_node.config
+      if config&.dig("assignee_type") == "role"
+        return user.role == config["assignee_value"]
+      end
+    elsif assigned_to_role.present?
+      # Standalone task with role assignment
+      return user.role == assigned_to_role
     end
 
     # Allow any user if not specifically assigned
@@ -140,11 +148,11 @@ class BpmnTaskInstance < ApplicationRecord
 
   # Display helpers
   def display_name
-    bpmn_node.display_name
+    bpmn_node&.display_name || form_data&.dig("task_type")&.humanize || "Task"
   end
 
   def process_name
-    bpmn_process_instance.bpmn_process.name
+    bpmn_process_instance&.bpmn_process&.name || "Standalone Task"
   end
 
   def assignee_name

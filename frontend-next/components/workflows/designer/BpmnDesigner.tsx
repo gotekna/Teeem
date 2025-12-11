@@ -24,6 +24,7 @@ import { nodeTypes } from "./nodes";
 import { NodePalette } from "./panels/NodePalette";
 import { ToolPalette, ToolMode } from "./panels/ToolPalette";
 import { PropertiesPanel } from "./panels/PropertiesPanel";
+import { TriggersPanel } from "./panels/TriggersPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -654,9 +655,7 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
           </TabsContent>
 
           <TabsContent value="triggers" className="p-4">
-            <div className="text-sm text-slate-500">
-              Trigger configuration coming soon...
-            </div>
+            <TriggersPanel processId={process?.id} />
           </TabsContent>
         </Tabs>
       </div>

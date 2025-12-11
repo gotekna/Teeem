@@ -63,8 +63,36 @@ const getAuthHeaders = (): HeadersInit => {
   return headers;
 };
 
+// Helper to clear auth token (mirrors AuthContext's clearAuthToken)
+const clearAuthToken = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('token');
+    document.cookie = 'auth_token=; path=/; max-age=0';
+  }
+};
+
 const handleErrorResponse = async (response: Response): Promise<never> => {
   const errorData = await response.json().catch(() => ({}));
+
+  // Handle 401 Unauthorized - session expired
+  if (response.status === 401) {
+    clearAuthToken();
+
+    const error: ApiError = new Error('Session expired - please log in again');
+    error.status = 401;
+    error.data = errorData;
+    error.isRetryable = false;
+
+    // Redirect to login page (client-side only)
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      // Use setTimeout to allow the error to be thrown first
+      setTimeout(() => {
+        window.location.href = '/login?expired=true';
+      }, 100);
+    }
+
+    throw error;
+  }
 
   let errorMessage: string;
   if (errorData.errors && Array.isArray(errorData.errors)) {

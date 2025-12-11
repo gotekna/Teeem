@@ -173,7 +173,7 @@ module Api
       end
 
       # GET /api/v1/external_invoices/by_contact/:contact_id
-      # Get all invoices for a TEEEM contact
+      # Get all invoices for a TEEEM contact, grouped by Xero tenant
       def by_contact
         contact = Contact.find(params[:contact_id])
 
@@ -190,9 +190,49 @@ module Api
         # Get last sync time - SSoT: use this contact's most recent sync, not global
         contact_last_sync = invoices.maximum(:last_synced_at)
 
+        # Group invoices by tenant_id for tabbed display
+        grouped_by_tenant = invoices.group_by(&:tenant_id)
+
+        # Build tenant info lookup
+        tenant_info = {}
+        grouped_by_tenant.keys.compact.each do |tenant_id|
+          config = SyncConfiguration.find_by(xero_tenant_id: tenant_id)
+          tenant_info[tenant_id] = {
+            tenant_id: tenant_id,
+            tenant_name: config&.xero_tenant_name || "Unknown Xero Company",
+            badge_color: config&.badge_color || "blue"
+          }
+        end
+
+        # Build by_tenant response
+        by_tenant = {}
+        grouped_by_tenant.each do |tenant_id, tenant_invoices|
+          next unless tenant_id
+
+          tenant_sales = tenant_invoices.select(&:sales_invoice?)
+          tenant_bills = tenant_invoices.select(&:bill?)
+          tenant_credit_notes = tenant_invoices.select(&:credit_note?)
+          tenant_quotes = tenant_invoices.select(&:quote?)
+
+          by_tenant[tenant_id] = {
+            tenant_info: tenant_info[tenant_id],
+            invoices: tenant_sales.map { |inv| serialize_invoice(inv) },
+            bills: tenant_bills.map { |inv| serialize_invoice(inv) },
+            credit_notes: tenant_credit_notes.map { |inv| serialize_invoice(inv) },
+            quotes: tenant_quotes.map { |inv| serialize_invoice(inv) },
+            total_invoices: tenant_sales.count,
+            total_bills: tenant_bills.count,
+            total_credit_notes: tenant_credit_notes.count,
+            total_quotes: tenant_quotes.count
+          }
+        end
+
         render json: {
           success: true,
           data: {
+            # Grouped by tenant (new - for tabbed display)
+            by_tenant: by_tenant,
+            # Flat lists (backwards compatible)
             invoices: sales_invoices.map { |inv| serialize_invoice(inv) },
             bills: bills.map { |inv| serialize_invoice(inv) },
             credit_notes: credit_notes.map { |inv| serialize_invoice(inv) },
@@ -206,6 +246,7 @@ module Api
           },
           meta: {
             source: "local_cache",
+            tenant_count: by_tenant.keys.count,
             last_synced_at: contact_last_sync&.iso8601,
             cache_age_seconds: contact_last_sync ? (Time.current - contact_last_sync).to_i : nil
           }

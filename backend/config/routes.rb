@@ -412,6 +412,7 @@ Rails.application.routes.draw do
           delete :delete_price_column
           get :activities
           post :link_xero_contact
+          post :link_to_xero_tenant
           post :sync_from_xero
           post :sync_to_xero
           post :portal_user, to: "contacts#create_portal_user"
@@ -432,6 +433,8 @@ Rails.application.routes.draw do
           member do
             post :sync
             post :resolve_conflict
+            post :approve
+            post :reject
           end
           collection do
             get :conflicts
@@ -451,6 +454,9 @@ Rails.application.routes.draw do
       # SMS webhooks (Twilio callbacks - not nested)
       post "sms/webhook", to: "sms_messages#webhook"
       post "sms/status", to: "sms_messages#status_webhook"
+
+      # Global Xero links endpoints (not nested under contacts)
+      get "xero_links/pending_review", to: "contact_xero_links#pending_review"
 
       # Chat messages
       resources :chat_messages, only: [ :index, :create, :destroy ] do

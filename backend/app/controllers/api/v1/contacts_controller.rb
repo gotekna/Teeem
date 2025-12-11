@@ -595,6 +595,96 @@ module Api
         }, status: :internal_server_error
       end
 
+      # POST /api/v1/contacts/:id/link_to_xero_tenant
+      # Manually link a contact to a specific Xero contact in a specific tenant
+      def link_to_xero_tenant
+        tenant_id = params[:tenant_id]
+        xero_contact_id = params[:xero_contact_id]
+
+        unless tenant_id.present? && xero_contact_id.present?
+          return render json: {
+            success: false,
+            error: "tenant_id and xero_contact_id are required"
+          }, status: :bad_request
+        end
+
+        # Check if already linked to this tenant
+        existing_link = @contact.xero_links.find_by(tenant_id: tenant_id)
+        if existing_link
+          return render json: {
+            success: false,
+            error: "Contact is already linked to this Xero organization",
+            existing_link_id: existing_link.id
+          }, status: :unprocessable_entity
+        end
+
+        # Verify the Xero contact exists
+        client = XeroApiClient.new
+        result = client.get("Contacts/#{xero_contact_id}", tenant_id: tenant_id)
+
+        unless result[:success]
+          return render json: {
+            success: false,
+            error: "Failed to verify Xero contact: #{result[:error]}"
+          }, status: :unprocessable_entity
+        end
+
+        xero_contact = result[:data]["Contacts"]&.first
+
+        unless xero_contact
+          return render json: {
+            success: false,
+            error: "Xero contact not found"
+          }, status: :not_found
+        end
+
+        # Get sync config for tenant name
+        config = SyncConfiguration.find_by(xero_tenant_id: tenant_id)
+
+        # Create the link
+        link = @contact.xero_links.create!(
+          source: "xero",
+          tenant_id: tenant_id,
+          tenant_name: config&.xero_tenant_name || xero_contact["Name"] || "Unknown",
+          external_contact_id: xero_contact_id,
+          sync_enabled: true,
+          sync_direction: "bidirectional",
+          match_type: "manual",
+          needs_review: false,
+          last_synced_at: Time.current
+        )
+
+        # Optionally sync data from Xero
+        begin
+          sync_service = XeroContactSyncService.new(tenant_id: tenant_id)
+          sync_service.send(:sync_matched_contact, @contact, xero_contact, link)
+        rescue StandardError => e
+          Rails.logger.error("Failed to sync after manual link: #{e.message}")
+        end
+
+        render json: {
+          success: true,
+          message: "Contact linked to Xero successfully",
+          xero_link: {
+            id: link.id,
+            tenant_id: link.tenant_id,
+            tenant_name: link.tenant_name,
+            external_contact_id: link.external_contact_id,
+            xero_contact_name: xero_contact["Name"]
+          }
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: {
+          success: false,
+          errors: e.record.errors.full_messages
+        }, status: :unprocessable_entity
+      rescue StandardError => e
+        render json: {
+          success: false,
+          error: "Failed to link contact: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       # POST /api/v1/contacts/:id/reorder_employees
       # Updates the display_order of employees for a company contact
       # Expects: { employee_ids: [123, 456, 789] } (in desired order)

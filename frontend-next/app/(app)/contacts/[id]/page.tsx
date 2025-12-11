@@ -56,7 +56,7 @@ import { ContactEditModal } from "@/components/contacts/ContactEditModal";
 import { XeroSyncSection } from "@/components/contacts/XeroSyncSection";
 import { XeroTransactionsSection } from "@/components/contacts/XeroTransactionsSection";
 import { XeroInvoiceDetailModal } from "@/components/contacts/XeroInvoiceDetailModal";
-import { XeroInvoicesList } from "@/components/contacts/XeroInvoicesList";
+import { XeroInvoicesListByTenant } from "@/components/contacts/XeroInvoicesListByTenant";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
@@ -4667,7 +4667,7 @@ export default function ContactDetailPage() {
                     <CardTitle>Bills</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <XeroInvoicesList
+                    <XeroInvoicesListByTenant
                       contactId={contact.id}
                       type="ACCPAY"
                       onViewInvoiceDetail={handleViewInvoiceDetail}
@@ -4997,7 +4997,7 @@ export default function ContactDetailPage() {
                 <CardTitle>Invoices</CardTitle>
               </CardHeader>
               <CardContent>
-                <XeroInvoicesList
+                <XeroInvoicesListByTenant
                   contactId={contact.id}
                   type="ACCREC"
                   onViewInvoiceDetail={handleViewInvoiceDetail}
