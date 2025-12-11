@@ -579,10 +579,16 @@ module HealthChecks
       seen_ids = Set.new
 
       # Include all fields needed by the merge modal
-      # Note: completeness_score is calculated, not a column - don't select it
+      # Note: Use SQL subqueries for counts instead of loading associations (performance optimization)
       contacts = Contact.all
-                       .select(:id, :display_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :entity_type, :is_team_contact, :primary_company_id)
-                       .includes(:jobs, :purchase_orders, :primary_company)
+                       .select(
+                         :id, :display_name, :first_name, :middle_name, :last_name,
+                         :email, :mobile_phone, :office_phone, :xero_id,
+                         :entity_type, :is_team_contact, :primary_company_id,
+                         # Use SQL to count without loading associations (prevents timeout on 1400+ contacts)
+                         "(SELECT COUNT(*) FROM job_contacts WHERE job_contacts.contact_id = contacts.id) AS jobs_count",
+                         "(SELECT COUNT(*) FROM purchase_orders WHERE purchase_orders.supplier_id = contacts.id) AS purchase_orders_count"
+                       )
 
       case type
       when :name
@@ -638,9 +644,9 @@ module HealthChecks
             # Modal expects 'xero_contact_id' for Xero badge
             xero_contact_id: c.xero_id,
             xero_id: c.xero_id,
-            # Modal needs these counts for merge preview
-            jobs_count: c.respond_to?(:jobs) ? c.jobs.size : 0,
-            purchase_orders_count: c.respond_to?(:purchase_orders) ? c.purchase_orders.size : 0,
+            # Modal needs these counts for merge preview (loaded via SQL subquery for performance)
+            jobs_count: c.try(:jobs_count) || 0,
+            purchase_orders_count: c.try(:purchase_orders_count) || 0,
             # completeness_score is calculated - would need to load full record
             completeness_score: 0
           }
