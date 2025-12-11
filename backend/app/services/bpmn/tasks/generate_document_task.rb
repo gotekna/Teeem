@@ -14,11 +14,8 @@ module Bpmn
     #
     class GenerateDocumentTask < BaseTask
       def execute
-        template_id = @config["template_id"]
-        raise "No template_id specified" if template_id.blank?
-
-        template = DocumentTemplate.find_by(id: template_id)
-        raise "Template not found: #{template_id}" unless template
+        template = resolve_template
+        raise "No template specified (provide template_id or template_name)" unless template
 
         log_info("Generating document from template '#{template.name}' (#{template.category})")
 
@@ -52,7 +49,7 @@ module Bpmn
         # Store result in variable
         if @config["store_as_variable"]
           set_variable(@config["store_as_variable"], {
-            template_id: template_id,
+            template_id: template.id,
             template_name: template.name,
             filename: result[:filename],
             pdf_filename: result[:pdf_filename],
@@ -65,7 +62,7 @@ module Bpmn
 
         {
           success: true,
-          template_id: template_id,
+          template_id: template.id,
           template_name: template.name,
           filename: result[:filename],
           pdf_filename: result[:pdf_filename],
@@ -78,6 +75,36 @@ module Bpmn
       end
 
       private
+
+      def resolve_template
+        # First try by ID
+        if @config["template_id"].present?
+          template = DocumentTemplate.find_by(id: @config["template_id"])
+          return template if template
+        end
+
+        # Then try by name (supports imported BPMN workflows)
+        if @config["template_name"].present?
+          template = DocumentTemplate.find_by(name: @config["template_name"])
+          return template if template
+        end
+
+        # Check for Compoza-style task_type
+        if @config["task_type"] == "generate_document"
+          # Try to find template by looking up from Compoza config
+          # The template_name might be stored differently in Compoza imports
+          if @config["output_filename"].present?
+            # Extract template name from output filename pattern
+            name_match = @config["output_filename"].match(/- (.+?)(?:\s*-|\.)/)
+            if name_match
+              template = DocumentTemplate.find_by(name: name_match[1])
+              return template if template
+            end
+          end
+        end
+
+        nil
+      end
 
       def resolve_job
         # Subject is typically a Job
