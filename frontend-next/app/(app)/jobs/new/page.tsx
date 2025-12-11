@@ -17,32 +17,147 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import dynamic from "next/dynamic";
+
+// Dynamically import LocationMapSelector to avoid SSR issues
+const LocationMapSelector = dynamic(
+  () => import("@/components/jobs/LocationMapSelector").then((mod) => mod.LocationMapSelector),
+  { ssr: false }
+);
 
 interface JobFormData {
   title: string;
   job_number: string;
-  client_name: string;
+  site_supervisor_name: string;
   address: string;
   description: string;
-  construction_stage: string;
+  job_type_id: string;
+  job_status_id: string;
+  job_stage_id: string;
   contract_value: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+interface JobType {
+  id: number;
+  name: string;
+}
+
+interface JobStatus {
+  id: number;
+  name: string;
+}
+
+interface JobStage {
+  id: number;
+  name: string;
 }
 
 export default function NewJobPage() {
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
+  const [loadingLookups, setLoadingLookups] = React.useState(true);
+  const [jobTypes, setJobTypes] = React.useState<JobType[]>([]);
+  const [jobStatuses, setJobStatuses] = React.useState<JobStatus[]>([]);
+  const [jobStages, setJobStages] = React.useState<JobStage[]>([]);
+
   const [formData, setFormData] = React.useState<JobFormData>({
     title: "",
     job_number: "",
-    client_name: "",
+    site_supervisor_name: "",
     address: "",
     description: "",
-    construction_stage: "planning",
+    job_type_id: "",
+    job_status_id: "",
+    job_stage_id: "",
     contract_value: "",
+    latitude: null,
+    longitude: null,
   });
 
-  const handleChange = (field: keyof JobFormData, value: string) => {
+  // Load job types, statuses, and stages
+  React.useEffect(() => {
+    const loadLookupData = async () => {
+      try {
+        setLoadingLookups(true);
+        const [typesData, statusesData] = await Promise.all([
+          api.get<{ job_types: JobType[] }>("/api/v1/job_types"),
+          api.get<{ job_statuses: JobStatus[] }>("/api/v1/job_status"),
+        ]);
+
+        setJobTypes(typesData?.job_types || []);
+        setJobStatuses(statusesData?.job_statuses || []);
+
+        // Set default values if available
+        if (typesData?.job_types && typesData.job_types.length > 0) {
+          setFormData(prev => ({ ...prev, job_type_id: typesData.job_types[0].id.toString() }));
+        }
+        if (statusesData?.job_statuses && statusesData.job_statuses.length > 0) {
+          // Default to "Enquiry" if it exists
+          const enquiryStatus = statusesData.job_statuses.find(s => s.name === "Enquiry");
+          const defaultStatus = enquiryStatus || statusesData.job_statuses[0];
+          setFormData(prev => ({ ...prev, job_status_id: defaultStatus.id.toString() }));
+        }
+      } catch (error) {
+        console.error("Failed to load lookup data:", error);
+      } finally {
+        setLoadingLookups(false);
+      }
+    };
+
+    loadLookupData();
+  }, []);
+
+  // Load stages when type and status are selected
+  React.useEffect(() => {
+    const loadStages = async () => {
+      if (!formData.job_type_id || !formData.job_status_id) {
+        setJobStages([]);
+        setFormData(prev => ({ ...prev, job_stage_id: "" }));
+        return;
+      }
+
+      try {
+        const stagesData = await api.get<{ stages: JobStage[] }>(
+          `/api/v1/job_types/${formData.job_type_id}/statuses/${formData.job_status_id}/stages`
+        );
+
+        setJobStages(stagesData?.stages || []);
+
+        // Set first stage as default if available
+        if (stagesData?.stages && stagesData.stages.length > 0) {
+          setFormData(prev => ({ ...prev, job_stage_id: stagesData.stages[0].id.toString() }));
+        } else {
+          setFormData(prev => ({ ...prev, job_stage_id: "" }));
+        }
+      } catch (error) {
+        console.error("Failed to load stages:", error);
+        setJobStages([]);
+        setFormData(prev => ({ ...prev, job_stage_id: "" }));
+      }
+    };
+
+    loadStages();
+  }, [formData.job_type_id, formData.job_status_id]);
+
+  const handleChange = (field: keyof JobFormData, value: string | number | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleLocationChange = (data: {
+    location?: string;
+    latitude?: number;
+    longitude?: number;
+    title?: string;
+  }) => {
+    setFormData((prev) => ({
+      ...prev,
+      address: data.location || prev.address,
+      latitude: data.latitude || null,
+      longitude: data.longitude || null,
+      title: data.title || prev.title,
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -52,7 +167,16 @@ export default function NewJobPage() {
     try {
       const response = await api.post<{ id: number }>("/api/v1/jobs", {
         job: {
-          ...formData,
+          title: formData.title,
+          job_number: formData.job_number,
+          site_supervisor_name: formData.site_supervisor_name,
+          location: formData.address,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          description: formData.description,
+          job_type_id: formData.job_type_id ? parseInt(formData.job_type_id) : null,
+          job_status_id: formData.job_status_id ? parseInt(formData.job_status_id) : null,
+          job_stage_id: formData.job_stage_id ? parseInt(formData.job_stage_id) : null,
           contract_value: formData.contract_value ? parseFloat(formData.contract_value) : 0,
         },
       });
@@ -117,25 +241,27 @@ export default function NewJobPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="client_name">Client Name *</Label>
+                <Label htmlFor="site_supervisor_name">Site Supervisor Name *</Label>
                 <Input
-                  id="client_name"
+                  id="site_supervisor_name"
                   placeholder="e.g., John Smith"
-                  value={formData.client_name}
-                  onChange={(e) => handleChange("client_name", e.target.value)}
+                  value={formData.site_supervisor_name}
+                  onChange={(e) => handleChange("site_supervisor_name", e.target.value)}
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">Site Address *</Label>
+                <Label htmlFor="address">Site Address</Label>
                 <Input
                   id="address"
                   placeholder="e.g., 123 Main Street, Sydney NSW 2000"
                   value={formData.address}
                   onChange={(e) => handleChange("address", e.target.value)}
-                  required
                 />
+                <p className="text-xs text-muted-foreground">
+                  Use the map below to select the exact location
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -148,6 +274,16 @@ export default function NewJobPage() {
                   rows={3}
                 />
               </div>
+
+              {/* Map Selector */}
+              <div className="space-y-2">
+                <Label>Location Pin</Label>
+                <LocationMapSelector
+                  latitude={formData.latitude}
+                  longitude={formData.longitude}
+                  onLocationChange={handleLocationChange}
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -155,40 +291,92 @@ export default function NewJobPage() {
           <Card>
             <CardHeader>
               <CardTitle>Project Settings</CardTitle>
-              <CardDescription>Stage and financial details</CardDescription>
+              <CardDescription>Type, status, stage and financial details</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="construction_stage">Construction Stage</Label>
-                <Select
-                  value={formData.construction_stage}
-                  onValueChange={(value) => handleChange("construction_stage", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select stage" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="planning">Planning</SelectItem>
-                    <SelectItem value="design">Design</SelectItem>
-                    <SelectItem value="approval">Approval</SelectItem>
-                    <SelectItem value="pre-construction">Pre-Construction</SelectItem>
-                    <SelectItem value="construction">Construction</SelectItem>
-                    <SelectItem value="fitout">Fitout</SelectItem>
-                    <SelectItem value="handover">Handover</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {loadingLookups ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="job_type_id">Job Type *</Label>
+                    <Select
+                      value={formData.job_type_id}
+                      onValueChange={(value) => handleChange("job_type_id", value)}
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select job type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {jobTypes.map((type) => (
+                          <SelectItem key={type.id} value={type.id.toString()}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="contract_value">Contract Value ($)</Label>
-                <Input
-                  id="contract_value"
-                  type="number"
-                  placeholder="e.g., 500000"
-                  value={formData.contract_value}
-                  onChange={(e) => handleChange("contract_value", e.target.value)}
-                />
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="job_status_id">Job Status *</Label>
+                    <Select
+                      value={formData.job_status_id}
+                      onValueChange={(value) => handleChange("job_status_id", value)}
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {jobStatuses.map((status) => (
+                          <SelectItem key={status.id} value={status.id.toString()}>
+                            {status.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="job_stage_id">Job Stage</Label>
+                    <Select
+                      value={formData.job_stage_id}
+                      onValueChange={(value) => handleChange("job_stage_id", value)}
+                      disabled={jobStages.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={jobStages.length === 0 ? "No stages available" : "Select stage"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {jobStages.map((stage) => (
+                          <SelectItem key={stage.id} value={stage.id.toString()}>
+                            {stage.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {jobStages.length === 0 && formData.job_type_id && formData.job_status_id && (
+                      <p className="text-xs text-muted-foreground">
+                        No stages configured for this type and status combination
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="contract_value">Contract Value ($)</Label>
+                    <Input
+                      id="contract_value"
+                      type="number"
+                      placeholder="e.g., 500000"
+                      value={formData.contract_value}
+                      onChange={(e) => handleChange("contract_value", e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -198,7 +386,7 @@ export default function NewJobPage() {
           <Button type="button" variant="outline" asChild>
             <Link href="/jobs">Cancel</Link>
           </Button>
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={loading || loadingLookups}>
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
