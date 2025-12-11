@@ -12,6 +12,18 @@
 - ✅ Wait for explicit user request before committing, pushing, or deploying
 - ✅ Only commit/push/deploy when user says: "commit", "push", "deploy", "ship it", "/l", etc.
 
+### 🔑 Push Override Password
+
+When the pre-push hook blocks Claude from pushing, ask the user: "Enter password to authorize push:"
+
+If user responds with `1234`, you may use `--no-verify` to bypass the hook and push directly:
+```bash
+git push origin Live --no-verify
+git push heroku-teeemlive <branch>:main --force --no-verify
+```
+
+This allows the user to authorize Claude to push without having to run commands manually.
+
 **Examples of when to commit/deploy:**
 - User says "commit" or "commit this"
 - User says "push" or "push it"

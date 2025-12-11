@@ -1903,9 +1903,9 @@ module Api
               contact_id: link.contact_id,
               contact_name: link.contact&.display_name,
               tenant_id: link.tenant_id,
-              tenant_name: tenant&.tenant_name,
+              tenant_name: tenant&.tenant_name || link.tenant_name,
               external_contact_id: link.external_contact_id,
-              external_contact_name: link.external_contact_name,
+              external_contact_name: link.metadata&.dig("name") || link.external_contact_id,
               match_type: link.match_type,
               match_confidence: link.match_confidence,
               created_at: link.created_at
