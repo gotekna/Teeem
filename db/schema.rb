@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_10_234445) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_11_001112) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2513,26 +2513,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_234445) do
     t.decimal "contract_value", precision: 15, scale: 2
     t.decimal "live_profit", precision: 15, scale: 2
     t.decimal "profit_percentage", precision: 10, scale: 2
-    t.string "stage"
-    t.string "ted_number"
     t.string "certifier_job_no"
     t.date "start_date"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "purchase_orders_count", default: 0, null: false
     t.string "site_supervisor_name", default: "Andrew Clement"
-    t.string "site_supervisor_email"
     t.string "site_supervisor_phone", default: "0407 150 081"
-    t.bigint "design_id"
-    t.string "design_name"
-    t.datetime "onedrive_folders_created_at"
     t.string "onedrive_folder_creation_status", default: "not_requested"
     t.decimal "latitude", precision: 10, scale: 6
     t.decimal "longitude", precision: 10, scale: 6
     t.string "location"
     t.bigint "job_type_id"
     t.bigint "job_status_id"
-    t.bigint "job_stage_id"
     t.string "xero_tracking_option_id"
     t.string "xero_tracking_option_name"
     t.datetime "archived_at"
@@ -2542,9 +2535,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_234445) do
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
     t.index ["created_at"], name: "index_jobs_on_created_at"
-    t.index ["design_id"], name: "index_jobs_on_design_id"
-    t.index ["design_name"], name: "index_jobs_on_design_name"
-    t.index ["job_stage_id"], name: "index_jobs_on_job_stage_id"
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["onedrive_folder_creation_status"], name: "index_jobs_on_onedrive_folder_creation_status"
@@ -5124,8 +5114,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_10_234445) do
   add_foreign_key "job_status_stages", "job_types"
   add_foreign_key "job_type_statuses", "job_status"
   add_foreign_key "job_type_statuses", "job_types"
-  add_foreign_key "jobs", "designs"
-  add_foreign_key "jobs", "job_stages"
   add_foreign_key "jobs", "job_status", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
   add_foreign_key "jobs", "users", column: "archived_by_id", on_delete: :nullify
