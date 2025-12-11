@@ -11,6 +11,7 @@ class ExternalInvoiceSyncService
       updated: 0,
       linked_to_jobs: 0,
       linked_to_contacts: 0,
+      contacts_auto_created: 0,
       pos_auto_created: 0,
       errors: [],
       pages_fetched: 0,
@@ -412,6 +413,44 @@ class ExternalInvoiceSyncService
       invoice.update!(contact: contact)
       @stats[:linked_to_contacts] += 1
       Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{contact.display_name} via xero_id")
+      return
+    end
+
+    # Auto-create contact if not found (new Xero contact)
+    contact = auto_create_contact_from_xero(invoice)
+    if contact
+      invoice.update!(contact: contact)
+      @stats[:linked_to_contacts] += 1
+      @stats[:contacts_auto_created] += 1
+      Rails.logger.info("Auto-created contact #{contact.display_name} from Xero and linked to invoice #{invoice.invoice_number}")
+    end
+  end
+
+  # Auto-create a TEEEM contact from Xero contact data embedded in invoice
+  def auto_create_contact_from_xero(invoice)
+    return nil if invoice.contact_name.blank?
+
+    Rails.logger.info("Auto-creating contact for Xero contact: #{invoice.contact_name}")
+
+    begin
+      contact = Contact.new(
+        display_name: invoice.contact_name,
+        company_name_or_trust: invoice.contact_name,
+        entity_type: "company",
+        xero_id: invoice.external_contact_id,
+        sync_with_xero: true
+      )
+
+      if contact.save
+        Rails.logger.info("Successfully created contact #{contact.id}: #{contact.display_name}")
+        contact
+      else
+        Rails.logger.warn("Failed to create contact for #{invoice.contact_name}: #{contact.errors.full_messages.join(', ')}")
+        nil
+      end
+    rescue StandardError => e
+      Rails.logger.error("Error auto-creating contact for #{invoice.contact_name}: #{e.message}")
+      nil
     end
   end
 
