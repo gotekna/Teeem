@@ -459,7 +459,7 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
   return (
     <div className="flex h-full">
       {/* Left Panel - Tools & Node Palette */}
-      <div className="w-64 flex-shrink-0 border-r bg-slate-50/50 p-4 dark:bg-slate-900/50">
+      <div className="w-64 flex-shrink-0 overflow-y-auto border-r bg-slate-50/50 p-4 dark:bg-slate-900/50">
         <ToolPalette
           toolMode={toolMode}
           onToolModeChange={setToolMode}

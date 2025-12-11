@@ -149,9 +149,9 @@ export function NodePalette() {
   };
 
   return (
-    <div className="space-y-2">
-      <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
-        Drag elements to canvas
+    <div className="space-y-1.5">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        Drag to canvas
       </h3>
       {PALETTE_ITEMS.map((item) => (
         <div
@@ -159,14 +159,13 @@ export function NodePalette() {
           draggable
           onDragStart={(e) => onDragStart(e, item.type)}
           className={cn(
-            "flex cursor-grab items-center gap-3 rounded-lg border p-3 transition-colors active:cursor-grabbing",
+            "flex cursor-grab items-center gap-2 rounded-md border p-2 transition-colors active:cursor-grabbing",
             COLOR_CLASSES[item.color]
           )}
         >
-          <item.icon className="h-5 w-5 flex-shrink-0" />
+          <item.icon className="h-4 w-4 flex-shrink-0" />
           <div className="min-w-0">
-            <p className="text-sm font-medium">{item.label}</p>
-            <p className="truncate text-xs opacity-70">{item.description}</p>
+            <p className="text-xs font-medium">{item.label}</p>
           </div>
         </div>
       ))}
