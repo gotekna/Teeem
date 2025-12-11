@@ -4,22 +4,22 @@ import { Node, Edge } from "@xyflow/react";
 // Node dimensions for layout calculation (horizontal flow)
 // IMPORTANT: These must match the actual component widths in the node files
 const NODE_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  start_event: { width: 120, height: 50 },
-  end_event: { width: 100, height: 50 },
-  timer_event: { width: 170, height: 65 },
-  intermediate_event: { width: 220, height: 65 },
-  user_task: { width: 220, height: 80 },
-  service_task: { width: 220, height: 80 },
-  exclusive_gateway: { width: 140, height: 65 },
-  parallel_gateway: { width: 140, height: 65 },
-  data_store_reference: { width: 220, height: 80 },
-  sub_process: { width: 220, height: 80 },
-  annotation: { width: 240, height: 100 },
-  pool: { width: 240, height: 80 },
-  lane: { width: 220, height: 80 },
+  start_event: { width: 180, height: 70 },
+  end_event: { width: 150, height: 70 },
+  timer_event: { width: 250, height: 90 },
+  intermediate_event: { width: 320, height: 90 },
+  user_task: { width: 350, height: 110 },
+  service_task: { width: 350, height: 110 },
+  exclusive_gateway: { width: 180, height: 90 },
+  parallel_gateway: { width: 180, height: 90 },
+  data_store_reference: { width: 350, height: 110 },
+  sub_process: { width: 350, height: 110 },
+  annotation: { width: 380, height: 130 },
+  pool: { width: 380, height: 110 },
+  lane: { width: 350, height: 110 },
 };
 
-const DEFAULT_DIMENSIONS = { width: 180, height: 80 };
+const DEFAULT_DIMENSIONS = { width: 320, height: 110 };
 
 export type LayoutDirection = "TB" | "LR" | "BT" | "RL";
 

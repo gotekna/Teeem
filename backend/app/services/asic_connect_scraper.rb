@@ -1,7 +1,7 @@
 require 'selenium-webdriver'
 
 class AsicConnectScraper
-  ASIC_CONNECT_URL = 'https://connectonline.asic.gov.au'
+  ASIC_CONNECT_URL = 'https://www.edge.asic.gov.au/004/compportal/get/ServicesLogin'
   LOGIN_TIMEOUT = 30 # seconds
   PAGE_LOAD_TIMEOUT = 60 # seconds
 
@@ -65,36 +65,44 @@ class AsicConnectScraper
     Rails.logger.info("Navigating to ASIC Connect...")
     @driver.get(ASIC_CONNECT_URL)
 
-    # Wait for login page to load
     wait = Selenium::WebDriver::Wait.new(timeout: LOGIN_TIMEOUT)
 
-    # Find and fill corporate key field
-    Rails.logger.info("Entering corporate key...")
-    corporate_key_field = wait.until {
-      @driver.find_element(css: "input[name='corporateKey'], input[id*='corporateKey'], input[type='text']")
+    # STEP 1: Enter ACN/ABN (Corporate Key)
+    Rails.logger.info("Step 1: Entering ACN/ABN...")
+    acn_field = wait.until {
+      @driver.find_element(name: 'Portal-1-COMPServicesLogin-1-ACN-1')
     }
-    corporate_key_field.clear
-    corporate_key_field.send_keys(@corporate_key)
+    acn_field.clear
+    acn_field.send_keys(@corporate_key)
 
-    # Find and fill username field
-    Rails.logger.info("Entering username...")
-    username_field = @driver.find_element(css: "input[name='username'], input[id*='username'], input[type='email']")
+    # Click Next button (image input)
+    Rails.logger.info("Clicking Next...")
+    next_button = @driver.find_element(css: "input[type='image'][alt*='next']")
+    next_button.click
+
+    sleep 2 # Wait for page transition
+
+    # STEP 2: Enter username and password
+    Rails.logger.info("Step 2: Entering username and password...")
+
+    # Find username field (field names will be different on this page)
+    username_field = wait.until {
+      @driver.find_element(css: "input[type='text']:not([name*='ACN'])")
+    }
     username_field.clear
     username_field.send_keys(@username)
 
-    # Find and fill password field
-    Rails.logger.info("Entering password...")
-    password_field = @driver.find_element(css: "input[name='password'], input[id*='password'], input[type='password']")
+    # Find password field
+    password_field = @driver.find_element(css: "input[type='password']")
     password_field.clear
     password_field.send_keys(@password)
 
-    # Submit login form
+    # Submit login
     Rails.logger.info("Submitting login...")
-    submit_button = @driver.find_element(css: "button[type='submit'], input[type='submit'], button:contains('Log in')")
-    submit_button.click
+    login_button = @driver.find_element(css: "input[type='image'], input[type='submit'], button[type='submit']")
+    login_button.click
 
-    # Wait for dashboard/home page or security question
-    sleep 3
+    sleep 3 # Wait for potential security question or dashboard
 
     # Check if security question appears
     if page_has_security_question?
@@ -102,12 +110,12 @@ class AsicConnectScraper
       answer_security_question
     end
 
-    # Verify login success
+    # Verify login success - look for typical logged-in page elements
     wait.until {
-      @driver.current_url.include?('home') ||
-      @driver.current_url.include?('dashboard') ||
-      @driver.page_source.include?('Company Details') ||
-      @driver.page_source.include?('Officers')
+      @driver.current_url.include?('Forms') ||
+      @driver.current_url.include?('compportal') ||
+      @driver.page_source.include?('Forms manager') ||
+      @driver.page_source.include?('Company')
     }
 
     Rails.logger.info("Login successful!")

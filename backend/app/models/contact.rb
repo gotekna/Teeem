@@ -310,7 +310,7 @@ class Contact < ApplicationRecord
   end
 
   def director_companies
-    current_directorships.includes(:company).map(&:company)
+    current_directorships.includes(:corporate_company).map(&:company)
   end
 
   # Company/Employment relationship helpers
