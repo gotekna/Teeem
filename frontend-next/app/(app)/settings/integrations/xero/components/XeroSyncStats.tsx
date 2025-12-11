@@ -429,152 +429,115 @@ export function XeroSyncStats() {
         </Card>
       )}
 
-      {/* Per-Tenant Stats */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-base">Per-Organization Stats</CardTitle>
-          </div>
-          <CardDescription>
-            Sync status for each connected Xero organization
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {tenants
-              .sort((a, b) => {
-                if (a.is_primary) return -1;
-                if (b.is_primary) return 1;
-                return a.tenant_name.localeCompare(b.tenant_name);
-              })
-              .map((tenant) => (
-                <div
-                  key={tenant.tenant_id}
-                  className={`p-4 rounded-lg border ${
-                    tenant.is_primary
-                      ? "bg-cyan-50 border-cyan-200"
-                      : tenant.rate_limits?.is_limited
-                      ? "bg-amber-50 border-amber-200"
-                      : "bg-muted/50"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-3">
+      {/* Per-Tenant Stats - 2 Column Grid */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Building2 className="h-5 w-5 text-muted-foreground" />
+          <h3 className="font-semibold">Xero Organizations</h3>
+          <Badge className="bg-muted text-muted-foreground">{tenants.length} connected</Badge>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {tenants
+            .sort((a, b) => {
+              if (a.is_primary) return -1;
+              if (b.is_primary) return 1;
+              return a.tenant_name.localeCompare(b.tenant_name);
+            })
+            .map((tenant) => (
+              <Card
+                key={tenant.tenant_id}
+                className={`${
+                  tenant.is_primary
+                    ? "border-cyan-300 bg-cyan-50/50"
+                    : tenant.rate_limits?.is_limited
+                    ? "border-amber-300 bg-amber-50/50"
+                    : ""
+                }`}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{tenant.tenant_name}</span>
+                      <CardTitle className="text-sm font-medium">{tenant.tenant_name}</CardTitle>
                       {tenant.is_primary && (
                         <Badge className="bg-cyan-100 text-cyan-800 text-xs">Primary</Badge>
                       )}
-                      {tenant.rate_limits?.is_limited && (
-                        <Badge className="bg-amber-100 text-amber-800 text-xs">
-                          Rate Limited
-                        </Badge>
-                      )}
                     </div>
                     <Badge
-                      className={
+                      className={`text-xs ${
                         tenant.status === "connected"
                           ? "bg-green-100 text-green-800"
-                          : tenant.status === "degraded"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-red-100 text-red-800"
-                      }
+                          : "bg-amber-100 text-amber-800"
+                      }`}
                     >
-                      <Activity className="h-3 w-3 mr-1" />
+                      {tenant.status === "connected" ? (
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                      ) : (
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                      )}
                       {tenant.status}
                     </Badge>
                   </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {/* Contacts */}
-                    <div className="space-y-1">
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="p-2 bg-muted/50 rounded">
+                      <div className="text-lg font-bold">{tenant.contacts.total_links}</div>
                       <div className="text-xs text-muted-foreground">Contacts</div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{tenant.contacts.total_links}</span>
-                        {tenant.contacts.pending_review > 0 && (
-                          <Badge className="bg-amber-100 text-amber-800 text-xs">
-                            {tenant.contacts.pending_review} review
-                          </Badge>
-                        )}
-                      </div>
-                      {tenant.contacts.last_synced_at && (
-                        <div className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDistanceToNow(new Date(tenant.contacts.last_synced_at), { addSuffix: true })}
-                        </div>
-                      )}
                     </div>
-
-                    {/* Documents */}
-                    <div className="space-y-1">
+                    <div className="p-2 bg-muted/50 rounded">
+                      <div className="text-lg font-bold">{tenant.documents.total}</div>
                       <div className="text-xs text-muted-foreground">Documents</div>
-                      <div className="font-semibold">{tenant.documents.total}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {tenant.documents.invoices}I / {tenant.documents.bills}B / {tenant.documents.quotes}Q
+                    </div>
+                    <div className="p-2 bg-muted/50 rounded">
+                      <div className="text-lg font-bold">{tenant.contacts.cross_tenant_matches}</div>
+                      <div className="text-xs text-muted-foreground">Shared</div>
+                    </div>
+                  </div>
+
+                  {/* Document breakdown */}
+                  <div className="flex justify-between text-xs text-muted-foreground px-1">
+                    <span>{tenant.documents.invoices} invoices</span>
+                    <span>{tenant.documents.bills} bills</span>
+                    <span>{tenant.documents.quotes} quotes</span>
+                  </div>
+
+                  {/* Rate Limits */}
+                  {tenant.rate_limits && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Daily API</span>
+                        <span className={`font-medium ${tenant.rate_limits.daily_percentage >= 80 ? "text-amber-600" : ""}`}>
+                          {tenant.rate_limits.daily_percentage}%
+                        </span>
                       </div>
+                      <Progress
+                        value={tenant.rate_limits.daily_percentage}
+                        className={`h-2 ${tenant.rate_limits.daily_percentage >= 80 ? "[&>div]:bg-amber-500" : ""}`}
+                      />
                     </div>
+                  )}
 
-                    {/* Cross-tenant */}
-                    <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground">Cross-tenant</div>
-                      <div className="font-semibold">{tenant.contacts.cross_tenant_matches}</div>
-                      <div className="text-xs text-muted-foreground">shared contacts</div>
+                  {/* Pending Reviews Warning */}
+                  {tenant.contacts.pending_review > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                      <AlertTriangle className="h-3 w-3" />
+                      {tenant.contacts.pending_review} pending review
                     </div>
+                  )}
 
-                    {/* Rate Limits */}
-                    <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground">API Usage</div>
-                      {tenant.rate_limits ? (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <Progress
-                              value={tenant.rate_limits.daily_percentage}
-                              className={`h-2 flex-1 ${
-                                tenant.rate_limits.daily_percentage >= 80 ? "[&>div]:bg-amber-500" : ""
-                              }`}
-                            />
-                            <span className="text-xs font-medium">{tenant.rate_limits.daily_percentage}%</span>
-                          </div>
-                          <div className="text-xs text-muted-foreground">daily limit</div>
-                        </>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">No data</span>
-                      )}
+                  {/* Last Sync */}
+                  {tenant.contacts.last_synced_at && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      Synced {formatDistanceToNow(new Date(tenant.contacts.last_synced_at), { addSuffix: true })}
                     </div>
-                  </div>
-
-                  {/* Match breakdown for tenant */}
-                  <div className="mt-3 pt-3 border-t border-dashed">
-                    <div className="flex items-center gap-4 text-xs">
-                      <span className="text-muted-foreground">Match types:</span>
-                      {tenant.match_breakdown.exact_abn > 0 && (
-                        <span className="flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3 text-green-500" />
-                          ABN: {tenant.match_breakdown.exact_abn}
-                        </span>
-                      )}
-                      {tenant.match_breakdown.exact_email > 0 && (
-                        <span className="flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3 text-green-500" />
-                          Email: {tenant.match_breakdown.exact_email}
-                        </span>
-                      )}
-                      {tenant.match_breakdown.fuzzy_name > 0 && (
-                        <span className="flex items-center gap-1 text-amber-600">
-                          <AlertTriangle className="h-3 w-3" />
-                          Fuzzy: {tenant.match_breakdown.fuzzy_name}
-                        </span>
-                      )}
-                      {tenant.match_breakdown.manual > 0 && (
-                        <span>Manual: {tenant.match_breakdown.manual}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </CardContent>
-      </Card>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+        </div>
+      </div>
     </div>
   );
 }

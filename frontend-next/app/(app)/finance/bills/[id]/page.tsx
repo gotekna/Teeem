@@ -446,9 +446,22 @@ export default function BillDetailPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex gap-6 border-4 border-blue-500 bg-blue-50 dark:bg-blue-900/10 p-2 relative">
+      <div className="absolute top-0 left-0 bg-blue-600 text-white px-2 py-1 text-xs font-bold z-50">
+        [1] PAGE CONTAINER (BLUE) - flex gap-6 (side-by-side)
+      </div>
+
+      {/* LEFT HALF - Header + Details */}
+      <div className="w-1/2 space-y-6 border-4 border-green-500 bg-green-50 dark:bg-green-900/10 p-2 relative mt-6">
+        <div className="absolute -top-3 left-0 bg-green-600 text-white px-2 py-0.5 text-xs font-bold z-50">
+          [2] LEFT HALF (GREEN) - w-1/2 space-y-6
+        </div>
+
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/10 p-2 relative">
+        <div className="absolute -top-3 left-0 bg-purple-600 text-white px-2 py-0.5 text-xs font-bold z-50">
+          [3] HEADER (PURPLE) - flex justify-between
+        </div>
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" asChild>
             <Link href="/finance/bills">
@@ -515,116 +528,16 @@ export default function BillDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* PDF Preview - Takes up 1 column on large screens, full height */}
-        <Card className="lg:col-span-1 lg:row-span-3 lg:sticky lg:top-4">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                {bill.invoice_file_content_type?.startsWith("image/") ? (
-                  <ImageIcon className="h-5 w-5" />
-                ) : (
-                  <FileText className="h-5 w-5" />
-                )}
-                Invoice Document
-              </span>
-              {pdfBlobUrl && (
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setPdfExpandedOpen(true)} title="View fullscreen">
-                    <Maximize2 className="h-4 w-4 mr-1" />
-                    Expand
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleOpenInApp} title="Open in Preview/PDF app">
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    Open
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleDownload}>
-                    <Download className="h-4 w-4 mr-1" />
-                    Download
-                  </Button>
-                </div>
-              )}
-            </CardTitle>
-            {bill.invoice_file_filename && (
-              <CardDescription>{bill.invoice_file_filename}</CardDescription>
-            )}
-          </CardHeader>
-          <CardContent>
-            {pdfLoading ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "calc(100vh - 250px)", minHeight: "600px" }}>
-                <Loader />
-                <p className="text-sm text-muted-foreground mt-4">Loading invoice...</p>
-              </div>
-            ) : pdfBlobUrl && !pdfError ? (
-              <div className="relative w-full border rounded-lg overflow-hidden" style={{ height: "calc(100vh - 250px)", minHeight: "600px" }}>
-                {bill.invoice_file_content_type === "application/pdf" ? (
-                  <PDFViewer
-                    url={`${getApiBaseUrl()}/api/v1/bill_inbox/${billId}/download`}
-                    className="w-full h-full"
-                    fallbackUrl={pdfBlobUrl}
-                    onError={(e) => setPdfError(e.message)}
-                    highlights={pdfHighlights}
-                  />
-                ) : bill.invoice_file_content_type?.startsWith("image/") ? (
-                  <div className="w-full h-full flex items-center justify-center bg-muted/30 p-4">
-                    <img
-                      src={pdfBlobUrl}
-                      alt="Invoice"
-                      className="max-w-full max-h-full object-contain rounded"
-                    />
-                  </div>
-                ) : (
-                  <iframe
-                    src={pdfBlobUrl}
-                    className="w-full h-full"
-                    title="Invoice Preview"
-                  />
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "calc(100vh - 250px)", minHeight: "400px" }}>
-                <FileWarning className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium">
-                  {pdfError ? "Error Loading Invoice" : "No Invoice File"}
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-                  {pdfError
-                    ? pdfError
-                    : bill.notes?.includes("FileNotFoundError")
-                    ? "The invoice file could not be found in storage."
-                    : "No invoice file has been attached to this bill."}
-                </p>
-                {(bill.status === "error" || pdfError) && bill["has_invoice_file?"] && (
-                  <Button
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => loadPdf()}
-                    disabled={pdfLoading}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Retry Loading
-                  </Button>
-                )}
-                {bill.status === "error" && (
-                  <Button
-                    variant="outline"
-                    className="mt-2"
-                    onClick={handleExtract}
-                    disabled={actionLoading}
-                  >
-                    <Wand2 className="h-4 w-4 mr-2" />
-                    Re-extract Data
-                  </Button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Details Column - Takes up 2 columns on large screens */}
-        <div className="lg:col-span-2 grid gap-6 md:grid-cols-2">
+      {/* Details Grid - in left half */}
+      <div className="grid gap-6 md:grid-cols-2 border-4 border-red-500 bg-red-50 dark:bg-red-900/10 p-2 relative">
+        <div className="absolute -top-3 left-0 bg-red-600 text-white px-2 py-0.5 text-xs font-bold z-50">
+          [4] DETAILS GRID (RED) - grid md:grid-cols-2 gap-6
+        </div>
         {/* Invoice Details */}
-        <Card>
+        <Card className="border-2 border-cyan-500 relative">
+          <div className="absolute -top-3 left-0 bg-cyan-600 text-white px-2 py-0.5 text-xs font-bold z-50">
+            [6] Invoice Details (CYAN)
+          </div>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -712,7 +625,10 @@ export default function BillDetailPage() {
         </Card>
 
         {/* Supplier & Company */}
-        <Card>
+        <Card className="border-2 border-pink-500 relative">
+          <div className="absolute -top-3 left-0 bg-pink-600 text-white px-2 py-0.5 text-xs font-bold z-50">
+            [7] Supplier & Company (PINK)
+          </div>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
@@ -905,7 +821,10 @@ export default function BillDetailPage() {
 
         {/* Extracted Data */}
         {bill.ai_extraction_result && (
-          <Card className="md:col-span-2">
+          <Card className="md:col-span-2 border-2 border-yellow-500 relative">
+            <div className="absolute -top-3 left-0 bg-yellow-600 text-white px-2 py-0.5 text-xs font-bold z-50">
+              [8] AI Extracted Data (YELLOW) - md:col-span-2
+            </div>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ScanText className="h-5 w-5" />
@@ -1127,8 +1046,118 @@ export default function BillDetailPage() {
             </CardContent>
           </Card>
         )}
-        </div>{/* End Details Column */}
-      </div>
+        </div>{/* End Details Grid */}
+      </div>{/* End Left Half */}
+
+      {/* RIGHT HALF - PDF Preview */}
+      <div className="w-1/2 border-4 border-orange-500 bg-orange-50 dark:bg-orange-900/10 p-2 relative mt-6 sticky top-4 self-start">
+        <div className="absolute -top-3 left-0 bg-orange-600 text-white px-2 py-0.5 text-xs font-bold z-50">
+          [5] RIGHT HALF - PDF (ORANGE) - w-1/2 sticky top-4
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                {bill.invoice_file_content_type?.startsWith("image/") ? (
+                  <ImageIcon className="h-5 w-5" />
+                ) : (
+                  <FileText className="h-5 w-5" />
+                )}
+                Invoice Document
+              </span>
+              {pdfBlobUrl && (
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setPdfExpandedOpen(true)} title="View fullscreen">
+                    <Maximize2 className="h-4 w-4 mr-1" />
+                    Expand
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleOpenInApp} title="Open in Preview/PDF app">
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleDownload}>
+                    <Download className="h-4 w-4 mr-1" />
+                    Download
+                  </Button>
+                </div>
+              )}
+            </CardTitle>
+            {bill.invoice_file_filename && (
+              <CardDescription>{bill.invoice_file_filename}</CardDescription>
+            )}
+          </CardHeader>
+          <CardContent>
+            {pdfLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "calc(100vh - 250px)", minHeight: "600px" }}>
+                <Loader />
+                <p className="text-sm text-muted-foreground mt-4">Loading invoice...</p>
+              </div>
+            ) : pdfBlobUrl && !pdfError ? (
+              <div className="relative w-full border rounded-lg overflow-hidden" style={{ height: "calc(100vh - 250px)", minHeight: "600px" }}>
+                {bill.invoice_file_content_type === "application/pdf" ? (
+                  <PDFViewer
+                    url={`${getApiBaseUrl()}/api/v1/bill_inbox/${billId}/download`}
+                    className="w-full h-full"
+                    fallbackUrl={pdfBlobUrl}
+                    onError={(e) => setPdfError(e.message)}
+                    highlights={pdfHighlights}
+                  />
+                ) : bill.invoice_file_content_type?.startsWith("image/") ? (
+                  <div className="w-full h-full flex items-center justify-center bg-muted/30 p-4">
+                    <img
+                      src={pdfBlobUrl}
+                      alt="Invoice"
+                      className="max-w-full max-h-full object-contain rounded"
+                    />
+                  </div>
+                ) : (
+                  <iframe
+                    src={pdfBlobUrl}
+                    className="w-full h-full"
+                    title="Invoice Preview"
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30" style={{ height: "calc(100vh - 250px)", minHeight: "400px" }}>
+                <FileWarning className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">
+                  {pdfError ? "Error Loading Invoice" : "No Invoice File"}
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                  {pdfError
+                    ? pdfError
+                    : bill.notes?.includes("FileNotFoundError")
+                    ? "The invoice file could not be found in storage."
+                    : "No invoice file has been attached to this bill."}
+                </p>
+                {(bill.status === "error" || pdfError) && bill["has_invoice_file?"] && (
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => loadPdf()}
+                    disabled={pdfLoading}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Retry Loading
+                  </Button>
+                )}
+                {bill.status === "error" && (
+                  <Button
+                    variant="outline"
+                    className="mt-2"
+                    onClick={handleExtract}
+                    disabled={actionLoading}
+                  >
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    Re-extract Data
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>{/* End Right Half */}
 
       {/* PDF Expanded Dialog */}
       <Dialog open={pdfExpandedOpen} onOpenChange={setPdfExpandedOpen}>
