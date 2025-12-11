@@ -3,9 +3,10 @@
 # Can link to existing company_documents for deduplication
 class EmailAttachment < ApplicationRecord
   belongs_to :email_warehouse
+  belongs_to :attachment, optional: true  # Link to Attachment model (SharePoint-stored attachments)
   belongs_to :company_document, optional: true  # If linking to existing doc
 
-  validates :filename, presence: true
+  # Note: filename is optional when linking to an Attachment record (which has the filename)
 
   # Scopes
   scope :linked_to_document, -> { where(is_existing_doc: true) }
