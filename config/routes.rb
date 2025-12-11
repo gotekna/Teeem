@@ -296,6 +296,7 @@ Rails.application.routes.draw do
           get :image_stats
           get :export_price_history
           post :import_price_history
+          get :all_price_histories
         end
       end
 
@@ -564,6 +565,12 @@ Rails.application.routes.draw do
       # Company Settings
       resource :company_settings, only: [ :show, :update ] do
         post :test_twilio, on: :collection
+      end
+
+      # Corporate Company Settings (document paths)
+      resource :corporate_company_settings, only: [] do
+        get :document_paths, on: :collection
+        patch :document_paths, on: :collection, action: :update_document_paths
       end
 
       # Folder Templates for OneDrive sync
@@ -1114,6 +1121,7 @@ Rails.application.routes.draw do
       get "organization_onedrive/callback", to: "organization_onedrive#callback"
       delete "organization_onedrive/disconnect", to: "organization_onedrive#disconnect"
       get "organization_onedrive/browse_folders", to: "organization_onedrive#browse_folders"
+      post "organization_onedrive/create_root_folder", to: "organization_onedrive#create_root_folder"
       get "organization_onedrive/validate_folder", to: "organization_onedrive#validate_folder"
       patch "organization_onedrive/change_root_folder", to: "organization_onedrive#change_root_folder"
       post "organization_onedrive/create_job_folders", to: "organization_onedrive#create_job_folders"
@@ -1501,6 +1509,14 @@ Rails.application.routes.draw do
       resources :document_folders do
         collection do
           post :reorder
+        end
+      end
+
+      # System Settings
+      resources :system_settings, only: [ :index, :update ] do
+        collection do
+          get :sharepoint_path_templates
+          put :update_sharepoint_path_templates
         end
       end
 

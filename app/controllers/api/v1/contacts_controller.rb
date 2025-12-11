@@ -2158,7 +2158,7 @@ module Api
       # Returns all directorships for this contact (from CorporateCompanyDirector table)
       def directorships
         directorships = @contact.corporate_company_directorships
-          .includes(company: :corporate_group)
+          .includes(corporate_company: :corporate_group)
           .order(is_current: :desc, appointment_date: :desc)
 
         render json: {
@@ -2167,13 +2167,13 @@ module Api
             {
               id: d.id,
               company_id: d.company_id,
-              company_name: d.company&.name,
-              company_acn: d.company&.acn,
-              company_abn: d.company&.abn,
-              company_status: d.company&.status,
-              company_entity_type: d.company&.entity_type,
-              company_group_id: d.company&.company_group_id,
-              company_group_name: d.company&.corporate_group&.name,
+              company_name: d.corporate_company&.name,
+              company_acn: d.corporate_company&.acn,
+              company_abn: d.corporate_company&.abn,
+              company_status: d.corporate_company&.status,
+              company_entity_type: d.corporate_company&.entity_type,
+              company_group_id: d.corporate_company&.company_group_id,
+              company_group_name: d.corporate_company&.corporate_group&.name,
               position: d.position,
               formatted_position: d.formatted_position,
               appointment_date: d.appointment_date,
@@ -2196,7 +2196,7 @@ module Api
       # Returns all shareholdings for this contact (from CorporateCompanyShareholding table)
       def shareholdings
         shareholdings = @contact.corporate_company_shareholdings
-          .includes(company: :corporate_group)
+          .includes(corporate_company: :corporate_group)
           .order(created_at: :desc)
 
         render json: {
@@ -2205,13 +2205,13 @@ module Api
             {
               id: s.id,
               company_id: s.company_id,
-              company_name: s.company&.name,
-              company_acn: s.company&.acn,
-              company_abn: s.company&.abn,
-              company_status: s.company&.status,
-              company_entity_type: s.company&.entity_type,
-              company_group_id: s.company&.company_group_id,
-              company_group_name: s.company&.corporate_group&.name,
+              company_name: s.corporate_company&.name,
+              company_acn: s.corporate_company&.acn,
+              company_abn: s.corporate_company&.abn,
+              company_status: s.corporate_company&.status,
+              company_entity_type: s.corporate_company&.entity_type,
+              company_group_id: s.corporate_company&.company_group_id,
+              company_group_name: s.corporate_company&.corporate_group&.name,
               share_class: s.share_class,
               number_of_shares: s.number_of_shares,
               percentage_of_total: s.percentage_of_total,
@@ -2311,13 +2311,13 @@ module Api
       def ownership_chain
         # Get direct shareholdings for this contact
         direct_holdings = @contact.corporate_company_shareholdings
-          .includes(company: [ :corporate_group ])
+          .includes(corporate_company: [ :corporate_group ])
           .where("number_of_shares > 0")
 
         chain = direct_holdings.map do |holding|
           percentage = holding.percentage_of_total
           next nil if percentage <= 0
-          build_ownership_node(holding.company, percentage)
+          build_ownership_node(holding.corporate_company, percentage)
         end.compact
 
         render json: {
@@ -3604,12 +3604,12 @@ module Api
         child_holdings = CorporateCompanyShareholding
           .where(shareholder_type: "Company", shareholder_id: company.id)
           .where("number_of_shares > 0")
-          .includes(company: [ :corporate_group ])
+          .includes(corporate_company: [ :corporate_group ])
 
         children = child_holdings.map do |holding|
           child_percentage = holding.percentage_of_total
           next nil if child_percentage <= 0
-          build_ownership_node(holding.company, child_percentage, visited)
+          build_ownership_node(holding.corporate_company, child_percentage, visited)
         end.compact
 
         # Check if this company is a trustee

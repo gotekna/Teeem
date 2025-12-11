@@ -586,6 +586,50 @@ module Api
         end
       end
 
+      # GET /api/v1/pricebook/all_price_histories
+      def all_price_histories
+        # Support pagination with optional limit and offset
+        limit = params[:limit]&.to_i || 50000 # Default to large number (all records)
+        offset = params[:offset]&.to_i || 0
+
+        total_count = PriceHistory.count
+        histories = PriceHistory
+          .includes(:pricebook_item, :supplier)
+          .order(created_at: :desc)
+          .limit(limit)
+          .offset(offset)
+
+        render json: {
+          success: true,
+          total_count: total_count,
+          returned_count: histories.length,
+          limit: limit,
+          offset: offset,
+          data: histories.map do |h|
+            {
+              id: h.id,
+              pricebook_item_id: h.pricebook_item_id,
+              pricebook_item_name: h.pricebook_item&.name,
+              pricebook_item_code: h.pricebook_item&.code,
+              supplier_id: h.supplier_id,
+              supplier_name: h.supplier&.display_name,
+              old_price: h.old_price,
+              new_price: h.new_price,
+              price_change: h.price_change_amount,
+              price_change_percentage: h.price_change_percentage,
+              change_reason: h.change_reason,
+              quote_reference: h.quote_reference,
+              lga: h.lga,
+              date_effective: h.date_effective,
+              user_name: h.user_name,
+              changed_by_user_id: h.changed_by_user_id,
+              created_at: h.created_at,
+              updated_at: h.updated_at
+            }
+          end
+        }
+      end
+
       # POST /api/v1/pricebook/import_price_history
       def import_price_history
         unless params[:file]

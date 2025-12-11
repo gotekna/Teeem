@@ -6,6 +6,7 @@ class ContactRelationship < ApplicationRecord
   # source_types: what entity types can BE this relationship
   # target_types: what entity types can be the TARGET of this relationship
   # category: grouping for UI display
+  # bidirectional: if true, automatically creates reverse relationship (A→B also creates B→A)
   RELATIONSHIP_TYPE_METADATA = {
     # Employment - Person works for Company/Trust
     "employee_of" => {
@@ -13,53 +14,44 @@ class ContactRelationship < ApplicationRecord
       category: "employment",
       source_types: %w[person],
       target_types: %w[company trust sole_trader],
-      description: "Works as an employee"
+      description: "Works as an employee",
+      bidirectional: false  # Directional: person → company only
     },
     "contractor_for" => {
       label: "Contractor",
       category: "employment",
       source_types: %w[person sole_trader company],
       target_types: %w[company trust sole_trader],
-      description: "Works as a contractor"
+      description: "Works as a contractor",
+      bidirectional: false  # Directional: contractor → company only
     },
 
     # Company/Trust roles - Person has role in Company/Trust
-    "director_of" => {
-      label: "Director",
-      category: "company_role",
-      source_types: %w[person company], # Companies can be corporate directors
-      target_types: %w[company],
-      description: "Director of the company",
-      syncs_to_corporate: true
-    },
-    "shareholder_of" => {
-      label: "Shareholder",
-      category: "company_role",
-      source_types: %w[person company trust], # Companies/Trusts can own shares
-      target_types: %w[company],
-      description: "Holds shares in the company",
-      syncs_to_corporate: true
-    },
+    # NOTE: director_of and shareholder_of removed - now managed via Corporate tables only
+    # See: corporate_company_directors and corporate_company_shareholdings tables
     "authorized_signatory_of" => {
       label: "Authorized Signatory",
       category: "company_role",
       source_types: %w[person],
       target_types: %w[company trust],
-      description: "Authorized to sign on behalf of"
+      description: "Authorized to sign on behalf of",
+      bidirectional: false  # Directional: person → company only
     },
     "beneficial_owner_of" => {
       label: "Beneficial Owner",
       category: "company_role",
       source_types: %w[person company trust],
       target_types: %w[company trust],
-      description: "Ultimate beneficial owner"
+      description: "Ultimate beneficial owner",
+      bidirectional: false  # Directional: owner → entity only
     },
     "partner_in" => {
       label: "Partner",
       category: "company_role",
       source_types: %w[person company],
       target_types: %w[company],
-      description: "Partner in the business"
+      description: "Partner in the business",
+      bidirectional: false  # Directional: person → company only
     },
 
     # Trust roles
@@ -68,21 +60,24 @@ class ContactRelationship < ApplicationRecord
       category: "trust_role",
       source_types: %w[person company], # Corporate trustees are common
       target_types: %w[trust],
-      description: "Trustee of the trust"
+      description: "Trustee of the trust",
+      bidirectional: false  # Directional: trustee → trust only
     },
     "beneficiary_of" => {
       label: "Beneficiary",
       category: "trust_role",
       source_types: %w[person company trust], # Trusts can be beneficiaries
       target_types: %w[trust],
-      description: "Beneficiary of the trust"
+      description: "Beneficiary of the trust",
+      bidirectional: false  # Directional: beneficiary → trust only
     },
     "appointor_of" => {
       label: "Appointor",
       category: "trust_role",
       source_types: %w[person company],
       target_types: %w[trust],
-      description: "Appointor of the trust"
+      description: "Appointor of the trust",
+      bidirectional: false  # Directional: appointor → trust only
     },
 
     # Ownership
@@ -91,14 +86,16 @@ class ContactRelationship < ApplicationRecord
       category: "ownership",
       source_types: %w[person company trust],
       target_types: %w[company trust sole_trader],
-      description: "Owner of the entity"
+      description: "Owner of the entity",
+      bidirectional: false  # Directional: owner → entity only
     },
     "co_owner_with" => {
       label: "Co-Owner",
       category: "ownership",
       source_types: %w[person company trust],
       target_types: %w[person company trust],
-      description: "Co-owner with another entity"
+      description: "Co-owner with another entity",
+      bidirectional: true  # Bidirectional: A co-owns with B, B co-owns with A
     },
 
     # Corporate hierarchy
@@ -107,14 +104,16 @@ class ContactRelationship < ApplicationRecord
       category: "corporate_structure",
       source_types: %w[company trust],
       target_types: %w[company trust],
-      description: "Parent company of"
+      description: "Parent company of",
+      bidirectional: false  # Directional: parent → subsidiary only
     },
     "subsidiary" => {
       label: "Subsidiary",
       category: "corporate_structure",
       source_types: %w[company trust],
       target_types: %w[company trust],
-      description: "Subsidiary of"
+      description: "Subsidiary of",
+      bidirectional: false  # Directional: subsidiary → parent only
     },
 
     # General relationships
@@ -123,42 +122,48 @@ class ContactRelationship < ApplicationRecord
       category: "general",
       source_types: %w[person company trust sole_trader],
       target_types: %w[person company trust sole_trader],
-      description: "Former client relationship"
+      description: "Former client relationship",
+      bidirectional: false  # Directional: client → service provider
     },
     "referral" => {
       label: "Referral",
       category: "general",
       source_types: %w[person company trust sole_trader],
       target_types: %w[person company trust sole_trader],
-      description: "Referred by or referred to"
+      description: "Referred by or referred to",
+      bidirectional: true  # Bidirectional: mutual referral relationship
     },
     "supplier_alternate" => {
       label: "Alternative Supplier",
       category: "general",
       source_types: %w[company sole_trader],
       target_types: %w[company sole_trader],
-      description: "Alternative supplier for same products"
+      description: "Alternative supplier for same products",
+      bidirectional: true  # Bidirectional: alternatives to each other
     },
     "related_project" => {
       label: "Related Project",
       category: "general",
       source_types: %w[person company trust sole_trader],
       target_types: %w[person company trust sole_trader],
-      description: "Related through a project"
+      description: "Related through a project",
+      bidirectional: true  # Bidirectional: related to each other
     },
     "family_member" => {
       label: "Family Member",
       category: "personal",
       source_types: %w[person],
       target_types: %w[person],
-      description: "Family relationship"
+      description: "Family relationship",
+      bidirectional: true  # Bidirectional: family relationship is mutual
     },
     "other" => {
       label: "Other",
       category: "general",
       source_types: %w[person company trust sole_trader],
       target_types: %w[person company trust sole_trader],
-      description: "Other relationship type"
+      description: "Other relationship type",
+      bidirectional: false  # Default to directional for safety
     }
   }.freeze
 
@@ -179,6 +184,16 @@ class ContactRelationship < ApplicationRecord
   def self.types_by_category
     RELATIONSHIP_TYPE_METADATA.group_by { |_type, meta| meta[:category] }
       .transform_values { |pairs| pairs.map(&:first) }
+  end
+
+  # Check if a relationship type is bidirectional (auto-creates reverse)
+  def self.bidirectional?(relationship_type)
+    RELATIONSHIP_TYPE_METADATA.dig(relationship_type, :bidirectional) == true
+  end
+
+  # Instance method wrapper
+  def bidirectional?
+    self.class.bidirectional?(relationship_type)
   end
 
   # Get metadata as array for API responses
@@ -209,9 +224,9 @@ class ContactRelationship < ApplicationRecord
   scope :inactive, -> { where(is_active: false) }
   scope :by_type, ->(type) { where(relationship_type: type) }
   scope :employment, -> { where(relationship_type: [ "employee_of", "contractor_for" ]) }
-  scope :company_roles, -> { where(relationship_type: [ "director_of", "shareholder_of", "authorized_signatory_of", "beneficial_owner_of" ]) }
+  scope :company_roles, -> { where(relationship_type: [ "authorized_signatory_of", "beneficial_owner_of" ]) }
   scope :trust_roles, -> { where(relationship_type: [ "trustee_of", "beneficiary_of", "appointor_of" ]) }
-  scope :ownership, -> { where(relationship_type: [ "owner_of", "co_owner_with", "shareholder_of" ]) }
+  scope :ownership, -> { where(relationship_type: [ "owner_of", "co_owner_with" ]) }
 
   # Callbacks for bidirectional sync
   after_create :create_reverse_relationship
@@ -220,9 +235,6 @@ class ContactRelationship < ApplicationRecord
 
   # Callback to sync primary_company_id when employee_of relationships change
   after_commit :sync_primary_company_id, if: :should_sync_primary_company?
-
-  # SSoT: Sync director_of/shareholder_of to Corporate tables
-  after_commit :sync_to_corporate_tables, if: :should_sync_to_corporate?
 
   # Find the reverse relationship (must match relationship_type too)
   def reverse_relationship
@@ -260,6 +272,8 @@ class ContactRelationship < ApplicationRecord
   end
 
   def create_reverse_relationship
+    # Only create reverse for bidirectional relationship types
+    return unless bidirectional?
     # Skip if reverse already exists or if we're being called from the reverse creation
     return if reverse_relationship.present?
     return if Thread.current[:creating_reverse_relationship]
@@ -283,6 +297,8 @@ class ContactRelationship < ApplicationRecord
   end
 
   def update_reverse_relationship
+    # Only update reverse for bidirectional relationship types
+    return unless bidirectional?
     return if Thread.current[:updating_reverse_relationship]
 
     reverse = reverse_relationship
@@ -305,6 +321,8 @@ class ContactRelationship < ApplicationRecord
   end
 
   def destroy_reverse_relationship
+    # Only destroy reverse for bidirectional relationship types
+    return unless bidirectional?
     return if Thread.current[:destroying_reverse_relationship]
 
     reverse = reverse_relationship
@@ -348,81 +366,7 @@ class ContactRelationship < ApplicationRecord
   end
 
   # Guard method to determine if we should sync to corporate tables
-  def should_sync_to_corporate?
-    %w[director_of shareholder_of].include?(relationship_type)
-  end
-
-  # SSoT: Sync director_of/shareholder_of relationships to Corporate tables
-  # This ensures CorporateCompanyDirector/CorporateCompanyShareholding stay in sync with Overview tab changes
-  def sync_to_corporate_tables
-    # Prevent infinite loops
-    return if Thread.current[:syncing_director_relationship]
-    return if Thread.current[:syncing_shareholder_relationship]
-
-    # Find the Company record linked to the related Contact (company contact)
-    company = CorporateCompany.find_by(contact_id: related_contact_id)
-    return unless company # Skip if no linked Company record
-
-    case relationship_type
-    when "director_of"
-      sync_director_to_corporate(company)
-    when "shareholder_of"
-      sync_shareholder_to_corporate(company)
-    end
-  end
-
-  def sync_director_to_corporate(company)
-    Thread.current[:syncing_director_relationship] = true
-
-    if is_active
-      # Create or activate director record
-      director = CorporateCompanyDirector.find_or_initialize_by(
-        contact_id: source_contact_id,
-        company_id: company.id
-      )
-      director.position ||= "director"
-      director.appointment_date ||= start_date || Date.today
-      director.is_current = true
-      director.resignation_date = nil
-      director.save!
-    else
-      # Deactivate the director record
-      director = CorporateCompanyDirector.find_by(contact_id: source_contact_id, company_id: company.id)
-      director&.update!(is_current: false, resignation_date: end_date || Date.today)
-    end
-  rescue StandardError => e
-    Rails.logger.error("ContactRelationship##{id}: SSoT director sync failed - #{e.message}")
-  ensure
-    Thread.current[:syncing_director_relationship] = false
-  end
-
-  def sync_shareholder_to_corporate(company)
-    Thread.current[:syncing_shareholder_relationship] = true
-
-    if is_active
-      # Create or update shareholding record
-      shareholding = CorporateCompanyShareholding.find_or_initialize_by(
-        shareholder_id: source_contact_id,
-        shareholder_type: "Contact",
-        company_id: company.id,
-        share_class: "ordinary"
-      )
-      shareholding.number_of_shares ||= 1 # Default to 1 share if not specified
-      shareholding.acquisition_date ||= start_date || Date.today
-      shareholding.disposal_date = nil
-      shareholding.save!
-    else
-      # Set disposal date on shareholding
-      shareholding = CorporateCompanyShareholding.find_by(
-        shareholder_id: source_contact_id,
-        shareholder_type: "Contact",
-        company_id: company.id
-      )
-      shareholding&.update!(disposal_date: end_date || Date.today)
-    end
-  rescue StandardError => e
-    Rails.logger.error("ContactRelationship##{id}: SSoT shareholder sync failed - #{e.message}")
-  ensure
-    Thread.current[:syncing_shareholder_relationship] = false
-  end
+  # NOTE: sync_to_corporate_tables methods removed
+  # Directors and shareholders are now managed ONLY via Corporate tables
+  # See: corporate_company_directors and corporate_company_shareholdings
 end

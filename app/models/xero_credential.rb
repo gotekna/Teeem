@@ -87,7 +87,28 @@ class XeroCredential < ApplicationRecord
 
   # Check if this credential can be used for API calls
   def usable?
-    status != 'disconnected' && circuit_state != 'open'
+    status != 'disconnected' && circuit_state != 'open' && !poisoned?
+  end
+
+  # Check if the token is poisoned (burned and will never work again)
+  # A token becomes poisoned when:
+  # - The refresh token was used outside the 30-minute grace period
+  # - The user revoked consent in Xero
+  # - The refresh token expired from 60 days of inactivity
+  def poisoned?
+    token_poisoned_at.present? ||
+      (last_refresh_error.present? && last_refresh_error.include?('POISONED'))
+  end
+
+  # Clear poisoned state (called after successful reconnection)
+  def clear_poisoned_state!
+    update!(
+      token_poisoned_at: nil,
+      poisoned_reason: nil,
+      status: 'connected',
+      last_refresh_error: nil,
+      refresh_failure_count: 0
+    )
   end
 
   # State transition helpers
@@ -106,7 +127,9 @@ class XeroCredential < ApplicationRecord
       refresh_failure_count: 0,
       last_refresh_error: nil,
       circuit_state: 'closed',
-      circuit_failure_count: 0
+      circuit_failure_count: 0,
+      token_poisoned_at: nil,
+      poisoned_reason: nil
     )
     # Auto-resolve any active alerts
     xero_alerts.where(dismissed: false, auto_resolved: false)
@@ -129,6 +152,7 @@ class XeroCredential < ApplicationRecord
 
   # Health check helpers
   def health_status
+    return :poisoned if poisoned?
     return :disconnected if status == 'disconnected'
     return :circuit_open if circuit_open?
     return :degraded if status == 'degraded'

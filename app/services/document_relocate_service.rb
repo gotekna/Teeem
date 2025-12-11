@@ -122,7 +122,8 @@ class DocumentRelocateService
 
     unless company_folder_id
       # Try to find company folder by name in the root
-      root_items = @client.get("/drives/#{drive_id}/root:/00 TEEEM PRIVATE:/children")
+      base_path = CorporateCompanySetting.company_documents_base_path
+      root_items = @client.get("/drives/#{drive_id}/root:/#{base_path}:/children")
       company_folder = root_items["value"]&.find { |item| item["name"] == company.name && item["folder"].present? }
       company_folder_id = company_folder&.dig("id")
 

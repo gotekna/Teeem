@@ -1,24 +1,24 @@
 class SetDefaultSharepointPaths < ActiveRecord::Migration[8.0]
   def up
-    # Default SharePoint path template: /Corporate/{company_code}/{FOLDER_NAME}
+    # Default SharePoint path template: /Teeem/Companies/{company_code}/{FOLDER_NAME}
     # Users can customize these paths in the UI
 
     default_paths = {
-      'COMPANY' => '/Corporate/{company_code}/Company',
-      'XERO' => '/Corporate/{company_code}/Xero',
-      'BANK' => '/Corporate/{company_code}/Bank',
-      'ATO' => '/Corporate/{company_code}/ATO',
-      'ASIC' => '/Corporate/{company_code}/ASIC',
-      'TRUST' => '/Corporate/{company_code}/Trust',
-      'REGISTRY' => '/Corporate/{company_code}/Registry',
-      'DIVIDENDS' => '/Corporate/{company_code}/Dividends',
-      'FINANCIALS' => '/Corporate/{company_code}/Financials',
-      'LOANS' => '/Corporate/{company_code}/Loans',
-      'ASSETS' => '/Corporate/{company_code}/Assets',
-      'INSURANCE' => '/Corporate/{company_code}/Insurance',
-      'MINUTES' => '/Corporate/{company_code}/Minutes',
-      'ADVICE' => '/Corporate/{company_code}/Advice',
-      'GENERAL' => '/Corporate/{company_code}/General'
+      'COMPANY' => '/Teeem/Companies/{company_code}/Company',
+      'XERO' => '/Teeem/Companies/{company_code}/Xero',
+      'BANK' => '/Teeem/Companies/{company_code}/Bank',
+      'ATO' => '/Teeem/Companies/{company_code}/ATO',
+      'ASIC' => '/Teeem/Companies/{company_code}/ASIC',
+      'TRUST' => '/Teeem/Companies/{company_code}/Trust',
+      'REGISTRY' => '/Teeem/Companies/{company_code}/Registry',
+      'DIVIDENDS' => '/Teeem/Companies/{company_code}/Dividends',
+      'FINANCIALS' => '/Teeem/Companies/{company_code}/Financials',
+      'LOANS' => '/Teeem/Companies/{company_code}/Loans',
+      'ASSETS' => '/Teeem/Companies/{company_code}/Assets',
+      'INSURANCE' => '/Teeem/Companies/{company_code}/Insurance',
+      'MINUTES' => '/Teeem/Companies/{company_code}/Minutes',
+      'ADVICE' => '/Teeem/Companies/{company_code}/Advice',
+      'GENERAL' => '/Teeem/Companies/{company_code}/General'
     }
 
     default_paths.each do |folder_name, path|

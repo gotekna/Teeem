@@ -4,18 +4,25 @@
 #
 # This is the Single Source of Truth for token management with:
 # - Proactive token refresh (15 min before expiry, not after)
+# - 30-minute grace period retry (Xero allows retrying same refresh token for 30 min)
 # - Failure tracking with retry counters
 # - State machine transitions (connected -> degraded -> disconnected)
 # - Circuit breaker to stop hammering broken credentials
 # - 60-day inactivity detection and prevention
+# - Poisoned token detection (burned tokens that will never work again)
 #
 # Usage:
 #   XeroTokenManager.ensure_valid_token(credential)
 #   XeroTokenManager.refresh_credential(credential)
 #   XeroTokenManager.check_inactive_credentials
 #
+# Key Insight: Xero refresh tokens are single-use BUT have a 30-minute grace period.
+# If the first refresh attempt fails (e.g., DB save fails), we can retry with the
+# SAME refresh token for up to 30 minutes. This makes the system much more resilient.
+#
 class XeroTokenManager
   # Refresh tokens 15 minutes BEFORE they expire (proactive, not reactive)
+  # Xero access tokens expire after 30 minutes, so 15 min buffer is ideal
   REFRESH_BUFFER = 15.minutes
 
   # After 3 consecutive refresh failures, mark credential as disconnected
@@ -32,6 +39,11 @@ class XeroTokenManager
 
   # Refresh tokens expire after 60 days of inactivity
   REFRESH_TOKEN_LIFETIME = 60.days
+
+  # Xero allows retrying the same refresh token for 30 minutes after first use
+  # We retry up to 5 times within this window for DB save failures
+  GRACE_PERIOD_RETRIES = 5
+  GRACE_PERIOD_DELAY = 2.seconds
 
   class << self
     # Ensure a credential has a valid token before making API calls
@@ -218,57 +230,133 @@ class XeroTokenManager
       # Check for corrupted credentials
       begin
         access_token = credential.access_token
-        refresh_token_value = credential.refresh_token
+        original_refresh_token = credential.refresh_token
       rescue ActiveRecord::Encryption::Errors::Decryption => e
         Rails.logger.error("[XeroTokenManager] Decryption failed for #{credential.id}: #{e.message}")
         handle_refresh_failure(credential, e, fatal: true)
         return { success: false, error: "Credentials corrupted" }
       end
 
-      if refresh_token_value.blank?
+      if original_refresh_token.blank?
         handle_refresh_failure(credential, StandardError.new("No refresh token"), fatal: true)
         return { success: false, error: "No refresh token" }
       end
 
-      begin
-        client = OAuth2::Client.new(
-          ENV['XERO_CLIENT_ID'],
-          ENV['XERO_CLIENT_SECRET'],
-          site: 'https://identity.xero.com',
-          token_url: '/connect/token'
-        )
+      # Xero has a 30-minute grace period where the SAME refresh token can be retried
+      # We leverage this to handle transient DB failures by retrying multiple times
+      last_oauth_error = nil
+      last_db_error = nil
 
-        old_token = OAuth2::AccessToken.new(
-          client,
-          access_token,
-          refresh_token: refresh_token_value
-        )
+      GRACE_PERIOD_RETRIES.times do |attempt|
+        begin
+          client = OAuth2::Client.new(
+            ENV['XERO_CLIENT_ID'],
+            ENV['XERO_CLIENT_SECRET'],
+            site: 'https://identity.xero.com',
+            token_url: '/connect/token'
+          )
 
-        new_token = old_token.refresh!
+          # Always use the ORIGINAL refresh token within the grace period
+          # This is safe because Xero allows retrying for 30 minutes
+          old_token = OAuth2::AccessToken.new(
+            client,
+            access_token,
+            refresh_token: original_refresh_token
+          )
 
-        # Update credential with new tokens
-        credential.update!(
-          access_token: new_token.token,
-          refresh_token: new_token.refresh_token,
-          expires_at: Time.current + new_token.expires_in.seconds,
-          refresh_token_expires_at: Time.current + REFRESH_TOKEN_LIFETIME,
-          last_refresh_at: Time.current,
-          last_refresh_error: nil,
-          refresh_failure_count: 0,
-          status: 'connected'
-        )
+          new_token = old_token.refresh!
 
-        Rails.logger.info("[XeroTokenManager] Token refreshed for #{credential.tenant_name}")
-        auto_resolve_alerts(credential)
+          # Store new tokens in memory before DB update
+          new_access_token = new_token.token
+          new_refresh_token = new_token.refresh_token
+          new_expires_at = Time.current + new_token.expires_in.seconds
 
-        { success: true, expires_at: credential.expires_at }
-      rescue OAuth2::Error => e
-        handle_refresh_failure(credential, e)
-        { success: false, error: e.message }
-      rescue StandardError => e
-        handle_refresh_failure(credential, e)
-        { success: false, error: e.message }
+          # Wrap DB update in transaction
+          ActiveRecord::Base.transaction do
+            credential.update!(
+              access_token: new_access_token,
+              refresh_token: new_refresh_token,
+              expires_at: new_expires_at,
+              refresh_token_expires_at: Time.current + REFRESH_TOKEN_LIFETIME,
+              last_refresh_at: Time.current,
+              last_refresh_error: nil,
+              refresh_failure_count: 0,
+              status: 'connected',
+              token_poisoned_at: nil,
+              poisoned_reason: nil
+            )
+          end
+
+          Rails.logger.info("[XeroTokenManager] Token refreshed for #{credential.tenant_name} (attempt #{attempt + 1})")
+          auto_resolve_alerts(credential)
+
+          return { success: true, expires_at: credential.expires_at }
+
+        rescue ActiveRecord::ActiveRecordError => e
+          # DB save failed - this is what the grace period helps with!
+          # We can safely retry with the same refresh token
+          last_db_error = e
+          Rails.logger.warn("[XeroTokenManager] DB save failed (attempt #{attempt + 1}/#{GRACE_PERIOD_RETRIES}): #{e.message}")
+
+          if attempt < GRACE_PERIOD_RETRIES - 1
+            sleep(GRACE_PERIOD_DELAY)
+            next
+          end
+
+        rescue OAuth2::Error => e
+          last_oauth_error = e
+          error_message = e.message.to_s.downcase
+
+          # Check if token is truly poisoned (burned outside grace period)
+          if error_message.include?('invalid_grant') ||
+             error_message.include?('refresh token has expired') ||
+             error_message.include?('refresh token is invalid')
+
+            if attempt > 0
+              # We successfully got a new token before but now getting invalid_grant
+              # This means grace period expired or consent was revoked
+              Rails.logger.error("[XeroTokenManager] Token POISONED for #{credential.tenant_name} after #{attempt + 1} attempts")
+              mark_as_poisoned(credential, e)
+              return { success: false, error: "Token poisoned - requires re-authentication", poisoned: true }
+            else
+              # First attempt failed with invalid_grant - token was already bad
+              Rails.logger.error("[XeroTokenManager] Token already invalid for #{credential.tenant_name}: #{e.message}")
+              mark_as_poisoned(credential, e)
+              return { success: false, error: "Token invalid - requires re-authentication", poisoned: true }
+            end
+          end
+
+          # Other OAuth errors - don't retry, just handle the failure
+          handle_refresh_failure(credential, e)
+          return { success: false, error: e.message }
+
+        rescue StandardError => e
+          # Unexpected error - log and retry
+          Rails.logger.error("[XeroTokenManager] Unexpected error (attempt #{attempt + 1}): #{e.message}")
+          if attempt < GRACE_PERIOD_RETRIES - 1
+            sleep(GRACE_PERIOD_DELAY)
+            next
+          end
+          handle_refresh_failure(credential, e)
+          return { success: false, error: e.message }
+        end
       end
+
+      # All retries exhausted
+      error = last_db_error || last_oauth_error || StandardError.new("All #{GRACE_PERIOD_RETRIES} retry attempts failed")
+      Rails.logger.error("[XeroTokenManager] All #{GRACE_PERIOD_RETRIES} refresh attempts failed for #{credential.tenant_name}")
+      handle_refresh_failure(credential, error)
+      { success: false, error: "Refresh failed after #{GRACE_PERIOD_RETRIES} attempts: #{error.message}" }
+    end
+
+    def mark_as_poisoned(credential, error)
+      credential.update_columns(
+        status: 'disconnected',
+        token_poisoned_at: Time.current,
+        poisoned_reason: error.message.to_s.truncate(255),
+        last_refresh_error: "POISONED: #{error.message}"
+      )
+      create_disconnect_alert(credential, error)
     end
 
     def handle_refresh_failure(credential, error, fatal: false)

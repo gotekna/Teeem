@@ -359,7 +359,7 @@ class Column < ApplicationRecord
         changed = true
       end
 
-      view.save! if changed
+      view.save!(validate: false) if changed
     end
 
     Rails.logger.info "[Column] Removed column '#{column_name}' from #{views.count} saved views for foundation #{foundation_id}"
