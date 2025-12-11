@@ -62,8 +62,10 @@ interface BpmnTask {
 interface FormField {
   name: string;
   label: string;
-  type: 'text' | 'textarea' | 'number' | 'date' | 'select';
+  type: 'text' | 'textarea' | 'number' | 'date' | 'select' | 'currency';
   required?: boolean;
+  placeholder?: string;
+  prefix?: string;
   options?: { label: string; value: string }[];
 }
 
@@ -131,12 +133,41 @@ export function WorkflowTasksView() {
     const schema = task.form_schema;
     if (!schema?.fields) return [];
 
-    return schema.fields.map((field: string) => ({
-      name: field,
-      label: field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-      type: field.includes('date') ? 'date' : field.includes('price') || field.includes('amount') ? 'number' : 'text',
-      required: true,
-    }));
+    return schema.fields.map((field: string) => {
+      const fieldLower = field.toLowerCase();
+      const label = field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+      // Determine field type based on name patterns
+      let type: FormField['type'] = 'text';
+      let placeholder = '';
+      let prefix = '';
+
+      if (fieldLower.includes('date')) {
+        type = 'date';
+        placeholder = 'Select a date';
+      } else if (fieldLower.includes('price') || fieldLower.includes('amount') || fieldLower.includes('cost') || fieldLower.includes('value') || fieldLower.includes('deposit')) {
+        type = 'currency';
+        placeholder = '0.00';
+        prefix = '$';
+      } else if (fieldLower.includes('quantity') || fieldLower.includes('count') || fieldLower.includes('number') || fieldLower.includes('period') || fieldLower.includes('days')) {
+        type = 'number';
+        placeholder = '0';
+      } else if (fieldLower.includes('description') || fieldLower.includes('notes') || fieldLower.includes('conditions') || fieldLower.includes('comments')) {
+        type = 'textarea';
+        placeholder = `Enter ${label.toLowerCase()}...`;
+      } else {
+        placeholder = `Enter ${label.toLowerCase()}`;
+      }
+
+      return {
+        name: field,
+        label,
+        type,
+        required: true,
+        placeholder,
+        prefix,
+      };
+    });
   };
 
   const getStatusBadge = (status: string, isOverdue: boolean) => {
@@ -300,15 +331,32 @@ export function WorkflowTasksView() {
                           id={field.name}
                           value={formData[field.name] || ''}
                           onChange={(e) => setFormData(prev => ({ ...prev, [field.name]: e.target.value }))}
+                          placeholder={field.placeholder}
                           className="text-sm"
                           rows={3}
                         />
+                      ) : field.type === 'currency' ? (
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                            {field.prefix}
+                          </span>
+                          <Input
+                            id={field.name}
+                            type="number"
+                            step="0.01"
+                            value={formData[field.name] || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, [field.name]: e.target.value }))}
+                            placeholder={field.placeholder}
+                            className="h-8 text-sm pl-7"
+                          />
+                        </div>
                       ) : (
                         <Input
                           id={field.name}
-                          type={field.type}
+                          type={field.type === 'number' ? 'number' : field.type}
                           value={formData[field.name] || ''}
                           onChange={(e) => setFormData(prev => ({ ...prev, [field.name]: e.target.value }))}
+                          placeholder={field.placeholder}
                           className="h-8 text-sm"
                         />
                       )}

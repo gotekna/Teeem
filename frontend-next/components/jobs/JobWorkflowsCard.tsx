@@ -4,6 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { api } from '@/lib/api';
 import {
   Workflow,
@@ -14,9 +20,14 @@ import {
   ChevronRight,
   RefreshCw,
   XCircle,
+  MoreVertical,
+  Pause,
+  Play,
+  X,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
+import { useToast } from '@/components/ui/use-toast';
 
 interface WorkflowInstance {
   id: number;
@@ -37,6 +48,7 @@ interface JobWorkflowsCardProps {
 export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
   const [instances, setInstances] = useState<WorkflowInstance[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   const loadInstances = useCallback(async () => {
     try {
@@ -57,6 +69,41 @@ export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
     loadInstances();
   }, [loadInstances]);
 
+  const handleCancel = async (instanceId: number) => {
+    try {
+      await api.post(`/api/v1/bpmn_process_instances/${instanceId}/cancel`, {
+        reason: 'Cancelled by user',
+      });
+      toast({ title: 'Workflow cancelled' });
+      loadInstances();
+    } catch (err) {
+      console.error('Failed to cancel workflow:', err);
+      toast({ title: 'Failed to cancel workflow', variant: 'destructive' });
+    }
+  };
+
+  const handleSuspend = async (instanceId: number) => {
+    try {
+      await api.post(`/api/v1/bpmn_process_instances/${instanceId}/suspend`);
+      toast({ title: 'Workflow suspended' });
+      loadInstances();
+    } catch (err) {
+      console.error('Failed to suspend workflow:', err);
+      toast({ title: 'Failed to suspend workflow', variant: 'destructive' });
+    }
+  };
+
+  const handleResume = async (instanceId: number) => {
+    try {
+      await api.post(`/api/v1/bpmn_process_instances/${instanceId}/resume`);
+      toast({ title: 'Workflow resumed' });
+      loadInstances();
+    } catch (err) {
+      console.error('Failed to resume workflow:', err);
+      toast({ title: 'Failed to resume workflow', variant: 'destructive' });
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'active':
@@ -68,7 +115,7 @@ export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
       case 'error':
         return <AlertCircle className="h-4 w-4 text-red-500" />;
       case 'suspended':
-        return <Clock className="h-4 w-4 text-orange-500" />;
+        return <Pause className="h-4 w-4 text-orange-500" />;
       default:
         return <Workflow className="h-4 w-4 text-gray-500" />;
     }
@@ -110,6 +157,7 @@ export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
   }
 
   const activeInstances = instances.filter(i => i.status === 'active');
+  const suspendedInstances = instances.filter(i => i.status === 'suspended');
   const completedInstances = instances.filter(i => i.status === 'completed');
 
   return (
@@ -135,7 +183,7 @@ export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
           </p>
         ) : (
           <div className="space-y-3">
-            {/* Active workflows first */}
+            {/* Active workflows */}
             {activeInstances.map((instance) => (
               <div
                 key={instance.id}
@@ -163,11 +211,72 @@ export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </Link>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleSuspend(instance.id)}>
+                        <Pause className="h-4 w-4 mr-2" />
+                        Suspend
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleCancel(instance.id)}
+                        className="text-destructive"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             ))}
 
-            {/* Completed workflows (collapsed if many) */}
+            {/* Suspended workflows */}
+            {suspendedInstances.map((instance) => (
+              <div
+                key={instance.id}
+                className="flex items-center justify-between p-3 border rounded-lg bg-orange-50/50 border-orange-100"
+              >
+                <div className="flex items-center gap-3">
+                  {getStatusIcon(instance.status)}
+                  <div>
+                    <p className="font-medium text-sm">{instance.process_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Suspended • Started {formatDistanceToNow(new Date(instance.started_at), { addSuffix: true })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {getStatusBadge(instance.status)}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleResume(instance.id)}>
+                        <Play className="h-4 w-4 mr-2" />
+                        Resume
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleCancel(instance.id)}
+                        className="text-destructive"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            ))}
+
+            {/* Completed workflows (collapsed) */}
             {completedInstances.length > 0 && (
               <details className="group">
                 <summary className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground">
