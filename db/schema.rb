@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_11_001112) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_11_002703) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4894,6 +4894,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_001112) do
     t.datetime "circuit_opened_at"
     t.integer "circuit_failure_count", default: 0, null: false
     t.string "granted_scopes"
+    t.datetime "token_poisoned_at"
+    t.string "poisoned_reason"
     t.index ["circuit_state"], name: "index_xero_credentials_on_circuit_state"
     t.index ["is_primary"], name: "index_xero_credentials_on_is_primary"
     t.index ["last_successful_api_call_at"], name: "index_xero_credentials_on_last_successful_api_call_at"
