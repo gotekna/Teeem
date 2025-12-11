@@ -19,7 +19,7 @@ module Api
           success: true,
           bank_accounts: @bank_accounts.as_json(
             include: { corporate_company: { only: [ :id, :name ] } },
-            methods: [ :display_name, :masked_account_number, :formatted_bsb ]
+            methods: [ :display_name, :masked_account_number, :formatted_bsb, :last_transaction_date, :first_transaction_date ]
           )
         }
       end

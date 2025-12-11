@@ -260,6 +260,8 @@ interface BankAccount {
   formatted_bsb?: string;
   masked_account_number?: string;
   linked_to_xero?: boolean;
+  last_transaction_date?: string;
+  first_transaction_date?: string;
 }
 
 // Unused - keeping for future implementation
@@ -1140,6 +1142,7 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
                 <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Name</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Opened</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Closed</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Last Txn</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Xero</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Status</th>
                 <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">Actions</th>
@@ -1152,8 +1155,9 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
                   <td className="px-4 py-3 text-sm font-mono">{account.formatted_bsb || account.bsb || "-"}</td>
                   <td className="px-4 py-3 text-sm font-mono">{account.masked_account_number || account.account_number}</td>
                   <td className="px-4 py-3 text-sm">{account.account_name || "-"}</td>
-                  <td className="px-4 py-3 text-sm">{account.date_opened ? format(new Date(account.date_opened), "dd/MM/yyyy") : "-"}</td>
+                  <td className="px-4 py-3 text-sm">{account.date_opened ? format(new Date(account.date_opened), "dd/MM/yyyy") : account.first_transaction_date ? format(new Date(account.first_transaction_date), "dd/MM/yyyy") : "-"}</td>
                   <td className="px-4 py-3 text-sm">{account.date_closed ? format(new Date(account.date_closed), "dd/MM/yyyy") : "-"}</td>
+                  <td className="px-4 py-3 text-sm">{account.last_transaction_date ? format(new Date(account.last_transaction_date), "dd/MM/yyyy") : "-"}</td>
                   <td className="px-4 py-3">
                     {account.linked_to_xero || account.xero_account_id ? (
                       <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200">
@@ -3299,6 +3303,15 @@ function ATOSetupCard({ company }: { company: Company }) {
   );
 }
 
+interface TenantStats {
+  tenant_id: string;
+  tenant_name: string;
+  status: string;
+  contacts: { total_links: number; pending_review: number; last_synced_at: string | null };
+  documents: { invoices: number; bills: number; quotes: number; total: number; last_synced_at: string | null };
+  rate_limits: { daily_percentage: number } | null;
+}
+
 function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnectionChange }: { companyId: string; companyName?: string; onSyncComplete?: () => void; onConnectionChange?: (connected: boolean) => void }) {
   const [status, setStatus] = React.useState<XeroConnectionStatus | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -3307,10 +3320,11 @@ function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnecti
   const [syncing, setSyncing] = React.useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
   const [pendingConnection, setPendingConnection] = React.useState<XeroConnectionStatus | null>(null);
+  const [tenantStats, setTenantStats] = React.useState<TenantStats | null>(null);
 
   React.useEffect(() => {
     loadStatus();
-     
+
   }, [companyId]);
 
   const loadStatus = async () => {
@@ -3334,8 +3348,28 @@ function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnecti
     if (status !== null) {
       onConnectionChange?.(status.connected);
     }
-     
+
   }, [status?.connected]);
+
+  // Load tenant stats when connected
+  React.useEffect(() => {
+    const loadTenantStats = async () => {
+      if (!status?.connected || !status?.xero_tenant_id) {
+        setTenantStats(null);
+        return;
+      }
+      try {
+        const response = await api.get<{ success: boolean; data: { tenants: TenantStats[] } }>("/api/v1/xero/sync_stats");
+        if (response.success && response.data?.tenants) {
+          const tenant = response.data.tenants.find(t => t.tenant_id === status.xero_tenant_id);
+          setTenantStats(tenant || null);
+        }
+      } catch (error) {
+        console.error("Failed to load tenant stats:", error);
+      }
+    };
+    loadTenantStats();
+  }, [status?.connected, status?.xero_tenant_id]);
 
   const handleConnect = async () => {
     try {
@@ -3498,6 +3532,14 @@ function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnecti
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => window.open("https://go.xero.com/", "_blank")}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open Xero
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleSync}
                   disabled={syncing}
                 >
@@ -3539,6 +3581,37 @@ function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnecti
             )}
           </div>
         </div>
+
+        {/* Tenant Stats */}
+        {status?.connected && tenantStats && (
+          <div className="mt-4 pt-4 border-t">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="text-2xl font-bold">{tenantStats.contacts.total_links}</div>
+                <div className="text-xs text-muted-foreground">Contacts</div>
+              </div>
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="text-2xl font-bold">{tenantStats.documents.total}</div>
+                <div className="text-xs text-muted-foreground">Documents</div>
+              </div>
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="text-2xl font-bold">{tenantStats.rate_limits?.daily_percentage || 0}%</div>
+                <div className="text-xs text-muted-foreground">Daily API</div>
+              </div>
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground mt-3 px-1">
+              <span>{tenantStats.documents.invoices} invoices</span>
+              <span>{tenantStats.documents.bills} bills</span>
+              <span>{tenantStats.documents.quotes} quotes</span>
+            </div>
+            {tenantStats.contacts.pending_review > 0 && (
+              <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded mt-3">
+                <AlertTriangle className="h-3 w-3" />
+                {tenantStats.contacts.pending_review} pending review
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
 
       {/* Confirmation Dialog */}

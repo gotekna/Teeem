@@ -65,6 +65,14 @@ class BankAccount < ApplicationRecord
     xero_account_id.present?
   end
 
+  def last_transaction_date
+    bank_transactions.maximum(:transaction_date)
+  end
+
+  def first_transaction_date
+    bank_transactions.minimum(:transaction_date)
+  end
+
   def link_to_xero!(xero_account_id)
     update!(xero_account_id: xero_account_id)
   end
