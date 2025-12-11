@@ -8,7 +8,7 @@
 
 import { cookies } from 'next/headers';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://teeemlive-ce8e2660a615.herokuapp.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://teeem-backend-39604ccca45a.herokuapp.com';
 
 interface ApiColumn {
   id: number;

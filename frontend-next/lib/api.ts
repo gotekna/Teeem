@@ -3,7 +3,7 @@
  * Fetch-based API client with authentication headers, timeouts, retry logic, and request deduplication
  */
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://teeemlive-ce8e2660a615.herokuapp.com').trim();
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://teeem-backend-39604ccca45a.herokuapp.com').trim();
 
 export const getApiBaseUrl = () => API_URL;
 
