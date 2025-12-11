@@ -101,7 +101,7 @@ recommendations = [
     abbreviation: "P&L",
     folder: "FINANCIALS",
     category: "financial",
-    aliases: ["P&L", "Profit and Loss", "Income Statement", "P L Statement"],
+    aliases: [ "P&L", "Profit and Loss", "Income Statement", "P L Statement" ],
     file_name_template: "{CompanyCode} P&L {PeriodLong} FY{YY}",
     display_name_template: "P&L {PeriodLong} FY{YY}",
     estimated_files: patterns['Profit & Loss Statement'].count
@@ -111,7 +111,7 @@ recommendations = [
     abbreviation: "BS",
     folder: "FINANCIALS",
     category: "financial",
-    aliases: ["Balance Sheet", "Statement of Financial Position"],
+    aliases: [ "Balance Sheet", "Statement of Financial Position" ],
     file_name_template: "{CompanyCode} Balance Sheet {Date}",
     display_name_template: "Balance Sheet {Date}",
     estimated_files: patterns['Balance Sheet'].count
@@ -121,7 +121,7 @@ recommendations = [
     abbreviation: "PASS",
     folder: "PEOPLE",
     category: "people",
-    aliases: ["Passport", "Australian Passport", "Travel Document"],
+    aliases: [ "Passport", "Australian Passport", "Travel Document" ],
     file_name_template: "{PersonName} Passport {Date}",
     display_name_template: "Passport {Date}",
     estimated_files: patterns['Passport'].count + patterns['Personal ID Documents (Numbered Series)'].count
@@ -131,7 +131,7 @@ recommendations = [
     abbreviation: "DL",
     folder: "PEOPLE",
     category: "people",
-    aliases: ["Driver License", "Drivers Licence", "DL", "Licence"],
+    aliases: [ "Driver License", "Drivers Licence", "DL", "Licence" ],
     file_name_template: "{PersonName} Driver License {Date}",
     display_name_template: "Driver License {Date}",
     estimated_files: patterns['Driver License'].count
@@ -141,7 +141,7 @@ recommendations = [
     abbreviation: "MEDI",
     folder: "PEOPLE",
     category: "people",
-    aliases: ["Medicare", "Medicare Card"],
+    aliases: [ "Medicare", "Medicare Card" ],
     file_name_template: "{PersonName} Medicare Card {Date}",
     display_name_template: "Medicare Card {Date}",
     estimated_files: patterns['Medicare Card'].count
@@ -151,7 +151,7 @@ recommendations = [
     abbreviation: "BC",
     folder: "PEOPLE",
     category: "people",
-    aliases: ["Birth Certificate", "BC"],
+    aliases: [ "Birth Certificate", "BC" ],
     file_name_template: "{PersonName} Birth Certificate",
     display_name_template: "Birth Certificate",
     estimated_files: patterns['Birth Certificate'].count
@@ -161,7 +161,7 @@ recommendations = [
     abbreviation: "INV",
     folder: "GENERAL",
     category: "general",
-    aliases: ["Invoice", "Tax Invoice", "INV"],
+    aliases: [ "Invoice", "Tax Invoice", "INV" ],
     file_name_template: "{CompanyCode} Invoice {InvoiceNum} {Date}",
     display_name_template: "Invoice {InvoiceNum} {Date}",
     estimated_files: patterns['Invoice'].count
@@ -171,7 +171,7 @@ recommendations = [
     abbreviation: "REC",
     folder: "GENERAL",
     category: "general",
-    aliases: ["Receipt", "Payment Receipt", "REC"],
+    aliases: [ "Receipt", "Payment Receipt", "REC" ],
     file_name_template: "{CompanyCode} Receipt {Date}",
     display_name_template: "Receipt {Date}",
     estimated_files: patterns['Receipt'].count
@@ -181,7 +181,7 @@ recommendations = [
     abbreviation: "NOT",
     folder: "GENERAL",
     category: "general",
-    aliases: ["Notice", "Official Notice", "NOT"],
+    aliases: [ "Notice", "Official Notice", "NOT" ],
     file_name_template: "{CompanyCode} Notice {Date}",
     display_name_template: "Notice {Date}",
     estimated_files: patterns['Notice'].count
@@ -191,7 +191,7 @@ recommendations = [
     abbreviation: "REP",
     folder: "GENERAL",
     category: "general",
-    aliases: ["Report", "REP"],
+    aliases: [ "Report", "REP" ],
     file_name_template: "{CompanyCode} Report {Description} {Date}",
     display_name_template: "Report {Description} {Date}",
     estimated_files: patterns['Report'].count
@@ -221,12 +221,12 @@ puts "-" * 80
 alias_suggestions = [
   {
     existing_type: "Minutes",
-    add_aliases: ["Meeting Minutes", "Board Meeting", "Directors Meeting", "Shareholders Meeting"],
+    add_aliases: [ "Meeting Minutes", "Board Meeting", "Directors Meeting", "Shareholders Meeting" ],
     reason: "#{patterns['Minutes (Unmatched)'].count} files with 'minutes' not matching existing type"
   },
   {
     existing_type: "Resolution",
-    add_aliases: ["Board Resolution", "Shareholders Resolution", "Directors Resolution"],
+    add_aliases: [ "Board Resolution", "Shareholders Resolution", "Directors Resolution" ],
     reason: "#{patterns['Resolution (Unmatched)'].count} files with 'resolution' not matching existing type"
   }
 ]

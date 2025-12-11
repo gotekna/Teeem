@@ -2,39 +2,58 @@
 
 # XeroHealthMonitorJob - Self-healing health checks for Xero integration
 #
-# This job runs periodically (every hour) to:
-# 1. Detect stale syncs (no activity in expected time window)
-# 2. Check for excessive failed jobs in the queue
-# 3. Monitor credentials at risk of 60-day inactivity expiry
-# 4. Attempt auto-recovery for degraded credentials
-# 5. Create/resolve alerts based on health status
+# This job runs periodically (every 15 minutes) to:
+# 1. SELF-HEAL stalled syncs (trigger jobs when next_sync_at is overdue)
+# 2. Detect stale syncs (no activity in expected time window)
+# 3. Check for excessive failed jobs in the queue
+# 4. Monitor credentials at risk of 60-day inactivity expiry
+# 5. Attempt auto-recovery for degraded credentials
+# 6. Create/resolve alerts based on health status
 #
 # Run via solid_queue recurring schedule
 class XeroHealthMonitorJob < ApplicationJob
-  queue_as :xero_critical
+  queue_as :default
 
   # Expected sync intervals (if no sync in this time, it's stale)
   EXPECTED_INTERVALS = {
-    'invoices' => 1.hour,
-    'contacts' => 1.hour,
-    'bank_transactions' => 8.hours,
-    'attachments' => 4.hours
+    "invoices" => 1.hour,
+    "contacts" => 1.hour,
+    "bank_transactions" => 8.hours,
+    "attachments" => 4.hours
   }.freeze
 
   # Maximum failed jobs before alerting
   MAX_FAILED_JOBS_THRESHOLD = 50
+
+  # Sync type to job class mapping for self-healing
+  SYNC_TYPE_TO_JOB = {
+    "invoices" => "XeroInvoiceSyncJob",
+    "contacts" => "XeroContactSyncJob",
+    "pdfs" => "XeroAttachmentSyncJob",
+    "bank_transactions" => "XeroBankTransactionSyncJob"
+  }.freeze
+
+  # How long past next_sync_at before we trigger self-heal (grace period)
+  SELF_HEAL_GRACE_PERIOD = 15.minutes
+
+  # Maximum time a sync can be "in_progress" before we consider it stuck
+  MAX_IN_PROGRESS_DURATION = 30.minutes
 
   def perform
     Rails.logger.info "[XeroHealthMonitor] Starting health check"
 
     event = XeroSyncEvent.start!(
       credential: nil,
-      sync_type: 'health_check',
-      trigger: 'scheduled'
+      sync_type: "health_check",
+      trigger: "scheduled"
     )
 
     begin
       issues_found = 0
+      healed = 0
+
+      # SELF-HEAL FIRST - trigger any overdue syncs
+      healed = self_heal_stalled_syncs
 
       issues_found += check_stale_syncs
       issues_found += check_excessive_failures
@@ -44,14 +63,11 @@ class XeroHealthMonitorJob < ApplicationJob
 
       # Log summary
       summary = XeroTokenManager.health_summary
-      Rails.logger.info "[XeroHealthMonitor] Complete. Issues: #{issues_found}. " \
+      Rails.logger.info "[XeroHealthMonitor] Complete. Issues: #{issues_found}, Self-healed: #{healed}. " \
                        "Health: #{summary[:connected]} connected, #{summary[:degraded]} degraded, " \
                        "#{summary[:disconnected]} disconnected, #{summary[:circuit_open]} circuit open"
 
-      event.complete!(
-        records_processed: XeroCredential.count,
-        metadata: { issues_found: issues_found, health_summary: summary }
-      )
+      event.complete!(records_processed: XeroCredential.count)
     rescue StandardError => e
       event.fail!(error: e.message, error_class: e.class.name)
       Rails.logger.error "[XeroHealthMonitor] Error: #{e.message}"
@@ -60,6 +76,60 @@ class XeroHealthMonitorJob < ApplicationJob
   end
 
   private
+
+  # SELF-HEAL: Check for stalled syncs and trigger them automatically
+  # This is the key self-healing mechanism that prevents sync outages
+  def self_heal_stalled_syncs
+    healed = 0
+    threshold = Time.current - SELF_HEAL_GRACE_PERIOD
+    stuck_threshold = Time.current - MAX_IN_PROGRESS_DURATION
+
+    XeroSyncStatus.all.find_each do |status|
+      job_class_name = SYNC_TYPE_TO_JOB[status.sync_type]
+      next unless job_class_name # Skip unknown sync types
+
+      should_heal = false
+      reason = nil
+
+      # Case 1: next_sync_at is overdue and status is not in_progress
+      if status.next_sync_at.present? && status.next_sync_at < threshold && status.status != "in_progress"
+        should_heal = true
+        reason = "overdue by #{((Time.current - status.next_sync_at) / 60).round} minutes"
+      end
+
+      # Case 2: Stuck in "in_progress" for too long (job may have crashed)
+      if status.status == "in_progress" && status.updated_at < stuck_threshold
+        should_heal = true
+        reason = "stuck in_progress for #{((Time.current - status.updated_at) / 60).round} minutes"
+        # Reset status to allow new job to start
+        status.update!(status: "failed", last_error: "Auto-reset: job appeared stuck")
+      end
+
+      next unless should_heal
+
+      # Check if a job for this sync type is already queued/running
+      pending_job = SolidQueue::Job.where(finished_at: nil)
+                                   .where("class_name = ?", job_class_name)
+                                   .exists?
+
+      if pending_job
+        Rails.logger.info "[XeroHealthMonitor] Self-heal skipped for #{status.sync_type}: job already queued"
+        next
+      end
+
+      # Trigger the sync job
+      begin
+        job_class = job_class_name.constantize
+        job_class.perform_later
+        healed += 1
+        Rails.logger.info "[XeroHealthMonitor] Self-healed #{status.sync_type}: triggered #{job_class_name} (#{reason})"
+      rescue StandardError => e
+        Rails.logger.error "[XeroHealthMonitor] Failed to self-heal #{status.sync_type}: #{e.message}"
+      end
+    end
+
+    healed
+  end
 
   # Check for syncs that haven't run in their expected time window
   def check_stale_syncs
@@ -102,12 +172,12 @@ class XeroHealthMonitorJob < ApplicationJob
 
       # Create a system-level alert (no specific credential)
       XeroAlert.find_or_create_by!(
-        alert_type: 'sync_failed',
-        severity: 'critical',
+        alert_type: "sync_failed",
+        severity: "critical",
         dismissed: false,
         auto_resolved: false
       ) do |alert|
-        alert.title = 'High number of failed Xero jobs'
+        alert.title = "High number of failed Xero jobs"
         alert.message = "There are #{failed_count} failed Xero sync jobs in the queue. " \
                        "This may indicate a systemic problem with the Xero integration."
       end
@@ -116,7 +186,7 @@ class XeroHealthMonitorJob < ApplicationJob
     end
 
     # Auto-resolve if back under threshold
-    XeroAlert.where(alert_type: 'sync_failed', dismissed: false, auto_resolved: false)
+    XeroAlert.where(alert_type: "sync_failed", dismissed: false, auto_resolved: false)
              .update_all(auto_resolved: true, auto_resolved_at: Time.current)
 
     0
@@ -128,7 +198,7 @@ class XeroHealthMonitorJob < ApplicationJob
   # Check for credentials at risk of 60-day inactivity expiry
   def check_inactive_credentials
     XeroTokenManager.check_inactive_credentials
-    XeroCredential.healthy.where('last_successful_api_call_at < ?', XeroTokenManager::INACTIVITY_WARNING_DAYS.days.ago).count
+    XeroCredential.healthy.where("last_successful_api_call_at < ?", XeroTokenManager::INACTIVITY_WARNING_DAYS.days.ago).count
   end
 
   # Log disconnected credentials (for awareness)
@@ -146,7 +216,7 @@ class XeroHealthMonitorJob < ApplicationJob
   def attempt_degraded_recovery
     recovered = 0
 
-    XeroCredential.where(status: 'degraded').find_each do |credential|
+    XeroCredential.where(status: "degraded").find_each do |credential|
       # If refresh_failure_count is low, try refreshing again
       next if credential.refresh_failure_count >= XeroTokenManager::MAX_REFRESH_ATTEMPTS
 
@@ -168,7 +238,7 @@ class XeroHealthMonitorJob < ApplicationJob
     # Check if we already have an active alert for this
     existing = XeroAlert.where(
       xero_credential: credential,
-      alert_type: 'sync_stale',
+      alert_type: "sync_stale",
       dismissed: false,
       auto_resolved: false
     ).where("message LIKE ?", "%#{sync_type}%").exists?

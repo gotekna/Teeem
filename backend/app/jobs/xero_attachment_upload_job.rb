@@ -68,7 +68,7 @@ class XeroAttachmentUploadJob < ApplicationJob
       return
     end
 
-    with_xero_credential(credential_id: credential.id, sync_type: 'attachments', trigger: 'manual') do |_cred|
+    with_xero_credential(credential_id: credential.id, sync_type: "attachments", trigger: "manual") do |_cred|
       # Get the file content
       file_content = download_document_content(document)
 
@@ -165,14 +165,14 @@ class XeroAttachmentUploadJob < ApplicationJob
     end
 
     # Check if document is linked to an invoice via documentable
-    if document.documentable_type == 'ExternalInvoice' && document.documentable.present?
+    if document.documentable_type == "ExternalInvoice" && document.documentable.present?
       invoice = document.documentable
       if invoice.xero_id.present?
         credential = XeroCredential.find_by(tenant_id: invoice.tenant_id)
         return nil unless credential
 
         return {
-          entity_type: 'Invoices',
+          entity_type: "Invoices",
           entity_id: invoice.xero_id,
           credential: credential
         }
@@ -188,7 +188,7 @@ class XeroAttachmentUploadJob < ApplicationJob
         return nil unless credential
 
         return {
-          entity_type: 'Contacts',
+          entity_type: "Contacts",
           entity_id: xero_contact[:xero_id],
           credential: credential
         }
@@ -196,7 +196,7 @@ class XeroAttachmentUploadJob < ApplicationJob
     end
 
     # Check if linked to a job with invoices
-    if document.documentable_type == 'Job' && document.documentable.present?
+    if document.documentable_type == "Job" && document.documentable.present?
       job = document.documentable
       # Find the primary invoice for this job
       invoice = ExternalInvoice.where(job_id: job.id).where.not(xero_id: nil).first
@@ -205,7 +205,7 @@ class XeroAttachmentUploadJob < ApplicationJob
         return nil unless credential
 
         return {
-          entity_type: 'Invoices',
+          entity_type: "Invoices",
           entity_id: invoice.xero_id,
           credential: credential
         }
@@ -251,10 +251,10 @@ class XeroAttachmentUploadJob < ApplicationJob
 
     # Try to infer tenant from entity
     case entity_type
-    when 'Invoices'
+    when "Invoices"
       invoice = ExternalInvoice.find_by(xero_id: entity_id)
       XeroCredential.find_by(tenant_id: invoice&.tenant_id)
-    when 'Contacts'
+    when "Contacts"
       contact = ExternalContact.find_by(xero_id: entity_id)
       XeroCredential.find_by(tenant_id: contact&.tenant_id)
     else
@@ -339,11 +339,11 @@ class XeroAttachmentUploadJob < ApplicationJob
   # Xero has restrictions on attachment filenames
   def sanitize_filename(filename)
     # Remove invalid characters
-    sanitized = filename.gsub(/[<>:\"\/\\|?*]/, '_')
+    sanitized = filename.gsub(/[<>:\"\/\\|?*]/, "_")
 
     # Ensure it has an extension
-    unless sanitized.include?('.')
-      sanitized += '.pdf'
+    unless sanitized.include?(".")
+      sanitized += ".pdf"
     end
 
     # Limit length (Xero max is 255, but be conservative)
@@ -360,28 +360,28 @@ class XeroAttachmentUploadJob < ApplicationJob
   def guess_content_type(filename)
     ext = File.extname(filename).downcase
     case ext
-    when '.pdf'
-      'application/pdf'
-    when '.png'
-      'image/png'
-    when '.jpg', '.jpeg'
-      'image/jpeg'
-    when '.gif'
-      'image/gif'
-    when '.doc'
-      'application/msword'
-    when '.docx'
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    when '.xls'
-      'application/vnd.ms-excel'
-    when '.xlsx'
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    when '.csv'
-      'text/csv'
-    when '.txt'
-      'text/plain'
+    when ".pdf"
+      "application/pdf"
+    when ".png"
+      "image/png"
+    when ".jpg", ".jpeg"
+      "image/jpeg"
+    when ".gif"
+      "image/gif"
+    when ".doc"
+      "application/msword"
+    when ".docx"
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    when ".xls"
+      "application/vnd.ms-excel"
+    when ".xlsx"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    when ".csv"
+      "text/csv"
+    when ".txt"
+      "text/plain"
     else
-      'application/octet-stream'
+      "application/octet-stream"
     end
   end
 end

@@ -243,6 +243,18 @@ Rails.application.routes.draw do
         end
       end
 
+      # Document Templates for mail merge
+      resources :document_templates, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          get :categories
+          get :sharepoint_files
+        end
+        member do
+          get :preview
+          post :link_sharepoint
+        end
+      end
+
       # Purchase Orders management
       resources :purchase_orders do
         collection do
@@ -435,13 +447,42 @@ Rails.application.routes.draw do
       # User groups management
       resources :user_groups, only: [ :index, :create, :destroy ]
 
-      # Workflow management
-      resources :workflow_definitions
-      resources :workflow_steps, only: [ :index, :show ] do
+      # BPMN Workflow Engine
+      resources :bpmn_processes do
         member do
-          post :approve
-          post :reject
-          post :request_changes
+          post :publish
+          post :unpublish
+          post :duplicate
+          get :validate
+        end
+        resources :bpmn_triggers, only: [ :index, :show, :create, :update, :destroy ] do
+          member do
+            post :activate
+            post :deactivate
+          end
+        end
+      end
+
+      resources :bpmn_process_instances, only: [ :index, :show, :create ] do
+        collection do
+          get :for_subject
+        end
+        member do
+          post :cancel
+          post :suspend
+          post :resume
+        end
+      end
+
+      resources :bpmn_tasks, only: [ :index, :show ] do
+        collection do
+          get :all
+        end
+        member do
+          post :complete
+          post :claim
+          post :unclaim
+          post :skip
         end
       end
 
@@ -998,6 +1039,39 @@ Rails.application.routes.draw do
         end
       end
 
+      # Bill Inbox (AP Automation)
+      resources :bill_inbox, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          get :stats
+        end
+        member do
+          post :extract
+          post :match
+          post :approve
+          post :reject
+        end
+      end
+
+      # Bill Payment Batches (ABA file generation)
+      resources :bill_payment_batches, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          get :eligible_bills
+        end
+        member do
+          post :add_bill
+          delete "remove_bill/:bill_payment_id", action: :remove_bill
+          post :generate_aba
+          get :download_aba
+          post :submit_for_approval
+          post :approve
+          post :mark_submitted
+          post :mark_completed
+        end
+      end
+
+      # Company Approval Rules (per-company AP approval config)
+      resources :company_approval_rules
+
       # Xero integration
       resources :xero, only: [] do
         collection do
@@ -1274,6 +1348,13 @@ Rails.application.routes.draw do
 
         # Bank Accounts (nested under companies)
         resources :bank_accounts, only: [ :index ]
+
+        # Bill Payment Batches (AP automation - nested under companies)
+        resources :bill_payment_batches, only: [ :index, :create ] do
+          collection do
+            get :eligible_bills
+          end
+        end
 
         # Shareholdings (nested under companies)
         resources :shareholdings, controller: "corporate_company_shareholdings", only: [ :index, :show, :create, :update, :destroy ] do

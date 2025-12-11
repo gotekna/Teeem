@@ -241,10 +241,11 @@ export function DocumentTypesTab() {
   const [showAddForm, setShowAddForm] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [showFolderConfig, setShowFolderConfig] = React.useState(false);
+  // SSoT: These templates define the folder structure for all document types
   const [baseFolders, setBaseFolders] = React.useState({
-    company: "/Corporate/{{CompanyCode}}/{{Folder}}",
-    job: "/Jobs/{{JobCode}}/{{Category}}",
-    people: "/Contacts/{{ContactName}}"
+    company: "/Teeem/Companies/{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
+    job: "/Teeem/Jobs/{{JobCode}}/{{Category}}",
+    people: "/Teeem/People/{{ContactName}}"
   });
   const [newDocType, setNewDocType] = React.useState({
     name: "",
@@ -772,7 +773,7 @@ export function DocumentTypesTab() {
                   <SharePointFolderBrowser
                     onSelect={(folder, path) => {
                       // Only update the base path portion, preserve the placeholders
-                      const template = path ? `${path}/{{CompanyCode}}/{{Folder}}` : "/Corporate/{{CompanyCode}}/{{Folder}}";
+                      const template = path ? `${path}/{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}` : "/Teeem/Companies/{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}";
                       setBaseFolders(prev => ({ ...prev, company: template }));
                     }}
                     rootFolder=""
@@ -859,7 +860,7 @@ export function DocumentTypesTab() {
                   <SharePointFolderBrowser
                     onSelect={(folder, path) => {
                       // Only update the base path portion, preserve the placeholders
-                      const template = path ? `${path}/{{JobCode}}/{{Category}}` : "/Jobs/{{JobCode}}/{{Category}}";
+                      const template = path ? `${path}/{{JobCode}}/{{Category}}` : "/Teeem/Jobs/{{JobCode}}/{{Category}}";
                       setBaseFolders(prev => ({ ...prev, job: template }));
                     }}
                     rootFolder=""
@@ -931,7 +932,7 @@ export function DocumentTypesTab() {
                   </div>
                   <SharePointFolderBrowser
                     onSelect={(folder, path) => {
-                      const template = path ? `${path}/{{ContactName}}` : "/Contacts/{{ContactName}}";
+                      const template = path ? `${path}/{{ContactName}}` : "/Teeem/People/{{ContactName}}";
                       setBaseFolders(prev => ({ ...prev, people: template }));
                     }}
                     rootFolder=""

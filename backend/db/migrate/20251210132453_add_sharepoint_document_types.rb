@@ -12,7 +12,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
       folder: "COMPANY",
       file_name: "{CompanyCode} P&L {PeriodLong} FY{YY}",
       display_name: "P&L {PeriodLong} FY{YY}",
-      aliases: ["P&L", "Profit and Loss", "Income Statement", "P L Statement", "Profit Loss"],
+      aliases: [ "P&L", "Profit and Loss", "Income Statement", "P L Statement", "Profit Loss" ],
       active: true
     )
 
@@ -23,7 +23,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
       folder: "COMPANY",
       file_name: "{CompanyCode} Balance Sheet {Date} FY{YY}",
       display_name: "Balance Sheet {Date} FY{YY}",
-      aliases: ["Balance Sheet", "Statement of Financial Position", "BS"],
+      aliases: [ "Balance Sheet", "Statement of Financial Position", "BS" ],
       active: true
     )
 
@@ -34,7 +34,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
       folder: "COMPANY",
       file_name: "{CompanyCode} Cash Flow {PeriodLong} FY{YY}",
       display_name: "Cash Flow {PeriodLong} FY{YY}",
-      aliases: ["Cash Flow", "Cash Flow Statement", "Statement of Cash Flows", "CFS"],
+      aliases: [ "Cash Flow", "Cash Flow Statement", "Statement of Cash Flows", "CFS" ],
       active: true
     )
 
@@ -47,7 +47,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
       folder: "GENERAL",
       file_name: "{CompanyCode} Invoice {InvoiceNum} {Date}",
       display_name: "Invoice {InvoiceNum} {Date}",
-      aliases: ["Invoice", "Tax Invoice", "INV"],
+      aliases: [ "Invoice", "Tax Invoice", "INV" ],
       active: true
     )
 
@@ -58,7 +58,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
       folder: "GENERAL",
       file_name: "{CompanyCode} Receipt {Date}",
       display_name: "Receipt {Date}",
-      aliases: ["Receipt", "Payment Receipt", "REC"],
+      aliases: [ "Receipt", "Payment Receipt", "REC" ],
       active: true
     )
 
@@ -69,7 +69,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
       folder: "GENERAL",
       file_name: "{CompanyCode} Quote {QuoteNum} {Date}",
       display_name: "Quote {QuoteNum} {Date}",
-      aliases: ["Quote", "Quotation", "QTE"],
+      aliases: [ "Quote", "Quotation", "QTE" ],
       active: true
     )
 
@@ -82,7 +82,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
       folder: "INSURANCE",
       file_name: "{CompanyCode} Insurance Policy {PolicyType} {Date}",
       display_name: "Insurance Policy {PolicyType} {Date}",
-      aliases: ["Insurance", "Insurance Policy", "Policy", "INS"],
+      aliases: [ "Insurance", "Insurance Policy", "Policy", "INS" ],
       active: true
     )
 
@@ -93,7 +93,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
       folder: "INSURANCE",
       file_name: "{CompanyCode} Certificate of Currency {Date}",
       display_name: "Certificate of Currency {Date}",
-      aliases: ["Certificate of Currency", "COC", "Currency Certificate"],
+      aliases: [ "Certificate of Currency", "COC", "Currency Certificate" ],
       active: true
     )
 
@@ -106,7 +106,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
       folder: "GENERAL",
       file_name: "{CompanyCode} Notice {Description} {Date}",
       display_name: "Notice {Description} {Date}",
-      aliases: ["Notice", "Official Notice", "NOT"],
+      aliases: [ "Notice", "Official Notice", "NOT" ],
       active: true
     )
 
@@ -117,7 +117,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
       folder: "GENERAL",
       file_name: "{CompanyCode} Report {Description} {Date}",
       display_name: "Report {Description} {Date}",
-      aliases: ["Report", "REP"],
+      aliases: [ "Report", "REP" ],
       active: true
     )
 
@@ -128,7 +128,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
       folder: "GENERAL",
       file_name: "{PropertyName} {DocumentType} {Date}",
       display_name: "{PropertyName} {DocumentType} {Date}",
-      aliases: ["Property", "Property Document", "Livin the Dream", "Living the Dream", "PROP"],
+      aliases: [ "Property", "Property Document", "Livin the Dream", "Living the Dream", "PROP" ],
       active: true
     )
 
@@ -185,7 +185,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
     # Add aliases to Minutes
     minutes = DocumentType.find_by(name: "Minutes - Signed") || DocumentType.find_by("name LIKE ?", "%Minutes%")
     if minutes
-      new_aliases = ["Meeting Minutes", "Board Meeting", "Directors Meeting", "Shareholders Meeting", "Minutes of Meeting", "Minutes"]
+      new_aliases = [ "Meeting Minutes", "Board Meeting", "Directors Meeting", "Shareholders Meeting", "Minutes of Meeting", "Minutes" ]
       minutes.aliases = (minutes.aliases || []) | new_aliases
       minutes.save!
     end
@@ -193,7 +193,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
     # Add aliases to Resolution
     resolution = DocumentType.find_by("name LIKE ?", "%Resolution%")
     if resolution
-      new_aliases = ["Board Resolution", "Shareholders Resolution", "Directors Resolution", "Company Resolution", "Resolution"]
+      new_aliases = [ "Board Resolution", "Shareholders Resolution", "Directors Resolution", "Company Resolution", "Resolution" ]
       resolution.aliases = (resolution.aliases || []) | new_aliases
       resolution.save!
     end
@@ -201,7 +201,7 @@ class AddSharepointDocumentTypes < ActiveRecord::Migration[8.0]
     # Add aliases to Constitution
     constitution = DocumentType.find_by(name: "Constitution")
     if constitution
-      new_aliases = ["Company Constitution", "Trust Deed", "CONST"]
+      new_aliases = [ "Company Constitution", "Trust Deed", "CONST" ]
       constitution.aliases = (constitution.aliases || []) | new_aliases
       constitution.save!
     end

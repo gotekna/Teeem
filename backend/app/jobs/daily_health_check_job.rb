@@ -108,7 +108,7 @@ class DailyHealthCheckJob < ApplicationJob
   end
 
   def needs_name_fix?(contact)
-    [contact.first_name, contact.last_name].compact.any? do |name|
+    [ contact.first_name, contact.last_name ].compact.any? do |name|
       name.present? && (name == name.upcase || name == name.downcase)
     end
   end
@@ -116,13 +116,13 @@ class DailyHealthCheckJob < ApplicationJob
   def needs_company_fix?(company)
     # Check ABN formatting (should be XX XXX XXX XXX)
     if company.abn.present?
-      digits_only = company.abn.gsub(/\D/, '')
+      digits_only = company.abn.gsub(/\D/, "")
       return true if digits_only.length == 11 && company.abn != "#{digits_only[0..1]} #{digits_only[2..4]} #{digits_only[5..7]} #{digits_only[8..10]}"
     end
 
     # Check ACN formatting (should be XXX XXX XXX)
     if company.acn.present?
-      digits_only = company.acn.gsub(/\D/, '')
+      digits_only = company.acn.gsub(/\D/, "")
       return true if digits_only.length == 9 && company.acn != "#{digits_only[0..2]} #{digits_only[3..5]} #{digits_only[6..8]}"
     end
 

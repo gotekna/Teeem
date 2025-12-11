@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_11_023951) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_11_124661) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -244,6 +244,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_023951) do
     t.datetime "updated_at", null: false
     t.string "xero_account_id"
     t.string "bank_code"
+    t.string "aba_user_name", limit: 26
+    t.string "aba_user_number", limit: 6
+    t.string "aba_file_description", limit: 12
+    t.boolean "is_ap_enabled", default: false
+    t.integer "next_aba_sequence", default: 1
+    t.index ["company_id", "is_ap_enabled"], name: "idx_bank_accounts_company_ap"
     t.index ["company_id", "status"], name: "index_bank_accounts_on_company_id_and_status"
     t.index ["company_id"], name: "index_bank_accounts_on_company_id"
     t.index ["status"], name: "index_bank_accounts_on_status"
@@ -307,6 +313,232 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_023951) do
     t.index ["status"], name: "index_bank_transactions_on_status"
     t.index ["xero_contact_id"], name: "index_bank_transactions_on_xero_contact_id"
     t.index ["xero_transaction_id"], name: "index_bank_transactions_on_xero_transaction_id", unique: true
+  end
+
+  create_table "bill_inboxes", force: :cascade do |t|
+    t.string "source", default: "email", null: false
+    t.string "email_message_id"
+    t.bigint "email_warehouse_id"
+    t.bigint "corporate_company_id"
+    t.bigint "detected_company_id"
+    t.bigint "supplier_id"
+    t.string "supplier_name_raw"
+    t.string "supplier_abn_raw"
+    t.string "invoice_number"
+    t.date "invoice_date"
+    t.date "due_date"
+    t.decimal "subtotal", precision: 15, scale: 2
+    t.decimal "tax_amount", precision: 15, scale: 2
+    t.decimal "total_amount", precision: 15, scale: 2
+    t.string "currency", default: "AUD"
+    t.jsonb "line_items", default: []
+    t.jsonb "ai_extraction_result", default: {}
+    t.decimal "ai_confidence", precision: 5, scale: 4
+    t.datetime "extracted_at"
+    t.bigint "matched_purchase_order_id"
+    t.string "match_status", default: "unmatched"
+    t.decimal "variance_amount", precision: 15, scale: 2
+    t.string "variance_reason"
+    t.string "status", default: "pending", null: false
+    t.bigint "bpmn_process_instance_id"
+    t.bigint "approved_by_id"
+    t.datetime "approved_at"
+    t.text "rejection_reason"
+    t.bigint "external_invoice_id"
+    t.string "xero_invoice_id"
+    t.datetime "synced_to_xero_at"
+    t.string "original_filename"
+    t.string "content_type"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_bill_inboxes_on_approved_by_id"
+    t.index ["corporate_company_id", "status"], name: "index_bill_inboxes_on_corporate_company_id_and_status"
+    t.index ["corporate_company_id"], name: "index_bill_inboxes_on_corporate_company_id"
+    t.index ["email_message_id"], name: "index_bill_inboxes_on_email_message_id", unique: true, where: "(email_message_id IS NOT NULL)"
+    t.index ["external_invoice_id"], name: "index_bill_inboxes_on_external_invoice_id"
+    t.index ["match_status"], name: "index_bill_inboxes_on_match_status"
+    t.index ["matched_purchase_order_id"], name: "index_bill_inboxes_on_matched_purchase_order_id"
+    t.index ["status"], name: "index_bill_inboxes_on_status"
+    t.index ["supplier_id", "invoice_number"], name: "index_bill_inboxes_on_supplier_id_and_invoice_number", unique: true, where: "(invoice_number IS NOT NULL)"
+    t.index ["supplier_id"], name: "index_bill_inboxes_on_supplier_id"
+  end
+
+  create_table "bill_payment_batches", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "bank_account_id", null: false
+    t.string "batch_reference", null: false
+    t.string "status", default: "draft", null: false
+    t.date "payment_date", null: false
+    t.decimal "total_amount", precision: 15, scale: 2, default: "0.0"
+    t.integer "payment_count", default: 0
+    t.string "aba_file_name"
+    t.text "aba_file_content"
+    t.datetime "aba_generated_at"
+    t.string "aba_sequence_number"
+    t.string "processing_description"
+    t.string "self_balancing_reference"
+    t.bigint "created_by_id"
+    t.bigint "approved_by_id"
+    t.datetime "approved_at"
+    t.bigint "bpmn_process_instance_id"
+    t.datetime "submitted_to_bank_at"
+    t.datetime "completed_at"
+    t.text "bank_response"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_bill_payment_batches_on_approved_by_id"
+    t.index ["bank_account_id"], name: "index_bill_payment_batches_on_bank_account_id"
+    t.index ["batch_reference"], name: "index_bill_payment_batches_on_batch_reference", unique: true
+    t.index ["corporate_company_id", "status"], name: "index_bill_payment_batches_on_corporate_company_id_and_status"
+    t.index ["corporate_company_id"], name: "index_bill_payment_batches_on_corporate_company_id"
+    t.index ["created_by_id"], name: "index_bill_payment_batches_on_created_by_id"
+    t.index ["payment_date"], name: "index_bill_payment_batches_on_payment_date"
+    t.index ["status"], name: "index_bill_payment_batches_on_status"
+  end
+
+  create_table "bill_payments", force: :cascade do |t|
+    t.bigint "bill_payment_batch_id", null: false
+    t.bigint "bill_inbox_id", null: false
+    t.bigint "purchase_order_id"
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.string "status", default: "pending", null: false
+    t.string "payee_name"
+    t.string "payee_bsb"
+    t.string "payee_account_number"
+    t.string "payment_reference", limit: 18
+    t.string "remittance_email"
+    t.boolean "send_remittance", default: true
+    t.datetime "remittance_sent_at"
+    t.string "xero_payment_id"
+    t.datetime "synced_to_xero_at"
+    t.string "sync_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bill_inbox_id"], name: "index_bill_payments_on_bill_inbox_id"
+    t.index ["bill_payment_batch_id", "bill_inbox_id"], name: "idx_bill_payments_batch_inbox_unique", unique: true
+    t.index ["bill_payment_batch_id"], name: "index_bill_payments_on_bill_payment_batch_id"
+    t.index ["purchase_order_id"], name: "index_bill_payments_on_purchase_order_id"
+    t.index ["status"], name: "index_bill_payments_on_status"
+  end
+
+  create_table "bpmn_edges", force: :cascade do |t|
+    t.bigint "bpmn_process_id", null: false
+    t.string "edge_key", null: false
+    t.bigint "source_node_id", null: false
+    t.bigint "target_node_id", null: false
+    t.string "name"
+    t.text "condition_expression"
+    t.boolean "is_default", default: false
+    t.jsonb "style", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bpmn_process_id", "edge_key"], name: "index_bpmn_edges_on_bpmn_process_id_and_edge_key", unique: true
+    t.index ["bpmn_process_id"], name: "index_bpmn_edges_on_bpmn_process_id"
+    t.index ["source_node_id"], name: "index_bpmn_edges_on_source_node_id"
+    t.index ["target_node_id"], name: "index_bpmn_edges_on_target_node_id"
+  end
+
+  create_table "bpmn_nodes", force: :cascade do |t|
+    t.bigint "bpmn_process_id", null: false
+    t.string "node_type", null: false
+    t.string "node_key", null: false
+    t.string "name"
+    t.text "description"
+    t.float "position_x", default: 0.0
+    t.float "position_y", default: 0.0
+    t.jsonb "config", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bpmn_process_id", "node_key"], name: "index_bpmn_nodes_on_bpmn_process_id_and_node_key", unique: true
+    t.index ["bpmn_process_id"], name: "index_bpmn_nodes_on_bpmn_process_id"
+    t.index ["node_type"], name: "index_bpmn_nodes_on_node_type"
+  end
+
+  create_table "bpmn_process_instances", force: :cascade do |t|
+    t.bigint "bpmn_process_id", null: false
+    t.bigint "workflow_instance_id"
+    t.string "subject_type", null: false
+    t.bigint "subject_id", null: false
+    t.string "status", default: "active"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.jsonb "variables", default: {}
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bpmn_process_id"], name: "index_bpmn_process_instances_on_bpmn_process_id"
+    t.index ["status"], name: "index_bpmn_process_instances_on_status"
+    t.index ["subject_type", "subject_id"], name: "index_bpmn_process_instances_on_subject_type_and_subject_id"
+    t.index ["workflow_instance_id"], name: "index_bpmn_process_instances_on_workflow_instance_id"
+  end
+
+  create_table "bpmn_processes", force: :cascade do |t|
+    t.bigint "workflow_definition_id"
+    t.string "name", null: false
+    t.text "description"
+    t.integer "version", default: 1
+    t.text "bpmn_xml"
+    t.jsonb "canvas_data", default: {}
+    t.boolean "is_published", default: false
+    t.datetime "published_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_published"], name: "index_bpmn_processes_on_is_published"
+    t.index ["name"], name: "index_bpmn_processes_on_name"
+    t.index ["workflow_definition_id"], name: "index_bpmn_processes_on_workflow_definition_id"
+  end
+
+  create_table "bpmn_task_instances", force: :cascade do |t|
+    t.bigint "bpmn_token_id", null: false
+    t.bigint "bpmn_node_id", null: false
+    t.string "task_type", null: false
+    t.string "status", default: "pending"
+    t.string "assigned_to_type"
+    t.bigint "assigned_to_id"
+    t.datetime "due_date"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.jsonb "form_data", default: {}
+    t.jsonb "execution_result", default: {}
+    t.text "error_message"
+    t.integer "retry_count", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["assigned_to_type", "assigned_to_id"], name: "idx_on_assigned_to_type_assigned_to_id_c36150f21d"
+    t.index ["bpmn_node_id"], name: "index_bpmn_task_instances_on_bpmn_node_id"
+    t.index ["bpmn_token_id"], name: "index_bpmn_task_instances_on_bpmn_token_id"
+    t.index ["status"], name: "index_bpmn_task_instances_on_status"
+  end
+
+  create_table "bpmn_tokens", force: :cascade do |t|
+    t.bigint "bpmn_process_instance_id", null: false
+    t.bigint "current_node_id", null: false
+    t.bigint "parent_token_id"
+    t.string "status", default: "active"
+    t.datetime "arrived_at"
+    t.datetime "completed_at"
+    t.jsonb "data", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bpmn_process_instance_id"], name: "index_bpmn_tokens_on_bpmn_process_instance_id"
+    t.index ["current_node_id"], name: "index_bpmn_tokens_on_current_node_id"
+    t.index ["parent_token_id"], name: "index_bpmn_tokens_on_parent_token_id"
+    t.index ["status"], name: "index_bpmn_tokens_on_status"
+  end
+
+  create_table "bpmn_triggers", force: :cascade do |t|
+    t.bigint "bpmn_process_id", null: false
+    t.string "trigger_type", null: false
+    t.string "name", null: false
+    t.boolean "is_active", default: true
+    t.jsonb "config", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bpmn_process_id", "trigger_type"], name: "index_bpmn_triggers_on_bpmn_process_id_and_trigger_type"
+    t.index ["bpmn_process_id"], name: "index_bpmn_triggers_on_bpmn_process_id"
+    t.index ["is_active"], name: "index_bpmn_triggers_on_is_active"
   end
 
   create_table "bug_hunter_test_runs", force: :cascade do |t|
@@ -639,6 +871,33 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_023951) do
     t.index ["foundation_id"], name: "index_columns_on_foundation_id"
     t.index ["has_cross_table_refs"], name: "index_columns_on_has_cross_table_refs"
     t.index ["lookup_foundation_id"], name: "index_columns_on_lookup_foundation_id"
+  end
+
+  create_table "company_approval_rules", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "rule_type", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.decimal "min_amount", precision: 15, scale: 2
+    t.decimal "max_amount", precision: 15, scale: 2
+    t.decimal "variance_threshold_percent", precision: 5, scale: 2
+    t.decimal "variance_threshold_amount", precision: 15, scale: 2
+    t.string "approver_type", null: false
+    t.bigint "approver_id"
+    t.string "approver_role"
+    t.bigint "approver_group_id"
+    t.integer "escalation_hours"
+    t.bigint "escalation_to_user_id"
+    t.bigint "bpmn_process_id"
+    t.jsonb "config", default: {}
+    t.integer "priority", default: 0
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bpmn_process_id"], name: "index_company_approval_rules_on_bpmn_process_id"
+    t.index ["corporate_company_id", "rule_type", "is_active"], name: "idx_approval_rules_company_type_active"
+    t.index ["corporate_company_id"], name: "index_company_approval_rules_on_corporate_company_id"
+    t.index ["priority"], name: "index_company_approval_rules_on_priority"
   end
 
   create_table "company_documents", force: :cascade do |t|
@@ -1510,6 +1769,24 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_023951) do
     t.datetime "updated_at", null: false
     t.string "sharepoint_url"
     t.index ["job_id"], name: "index_document_tasks_on_job_id"
+  end
+
+  create_table "document_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.string "category"
+    t.string "sharepoint_site_id"
+    t.string "sharepoint_drive_id"
+    t.string "sharepoint_item_id"
+    t.string "sharepoint_path"
+    t.string "output_format", default: "pdf"
+    t.string "output_naming_pattern"
+    t.jsonb "data_schema", default: {}
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_document_templates_on_category"
+    t.index ["is_active"], name: "index_document_templates_on_is_active"
   end
 
   create_table "document_type_folders", force: :cascade do |t|
@@ -3287,6 +3564,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_023951) do
     t.datetime "arrived_at"
     t.datetime "completed_at"
     t.string "xero_invoice_number"
+    t.decimal "total_billed", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_paid_via_ap", precision: 15, scale: 2, default: "0.0"
+    t.decimal "remaining_to_pay", precision: 15, scale: 2, default: "0.0"
+    t.bigint "last_bill_inbox_id"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["completed_at"], name: "index_purchase_orders_on_completed_at"
@@ -4730,53 +5011,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_023951) do
     t.index ["whs_swms_id"], name: "index_whs_swms_hazards_on_whs_swms_id"
   end
 
-  create_table "workflow_definitions", force: :cascade do |t|
-    t.string "name", null: false
-    t.text "description"
-    t.string "workflow_type", null: false
-    t.jsonb "config", default: {}, null: false
-    t.boolean "active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["active"], name: "index_workflow_definitions_on_active"
-    t.index ["workflow_type"], name: "index_workflow_definitions_on_workflow_type"
-  end
-
-  create_table "workflow_instances", force: :cascade do |t|
-    t.bigint "workflow_definition_id", null: false
-    t.string "subject_type", null: false
-    t.bigint "subject_id", null: false
-    t.string "status", default: "pending", null: false
-    t.string "current_step"
-    t.datetime "started_at"
-    t.datetime "completed_at"
-    t.jsonb "metadata", default: {}
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["status"], name: "index_workflow_instances_on_status"
-    t.index ["subject_type", "subject_id"], name: "index_workflow_instances_on_subject"
-    t.index ["subject_type", "subject_id"], name: "index_workflow_instances_on_subject_type_and_subject_id"
-    t.index ["workflow_definition_id"], name: "index_workflow_instances_on_workflow_definition_id"
-  end
-
-  create_table "workflow_steps", force: :cascade do |t|
-    t.bigint "workflow_instance_id", null: false
-    t.string "step_name", null: false
-    t.string "status", default: "pending", null: false
-    t.string "assigned_to_type"
-    t.bigint "assigned_to_id"
-    t.datetime "started_at"
-    t.datetime "completed_at"
-    t.jsonb "data", default: {}
-    t.text "comment"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["assigned_to_type", "assigned_to_id"], name: "index_workflow_steps_on_assigned_to"
-    t.index ["assigned_to_type", "assigned_to_id"], name: "index_workflow_steps_on_assigned_to_type_and_assigned_to_id"
-    t.index ["status"], name: "index_workflow_steps_on_status"
-    t.index ["workflow_instance_id"], name: "index_workflow_steps_on_workflow_instance_id"
-  end
-
   create_table "xero_accounts", force: :cascade do |t|
     t.string "code", null: false
     t.string "name", null: false
@@ -4927,6 +5161,33 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_023951) do
   add_foreign_key "bank_accounts", "corporate_companies", column: "company_id"
   add_foreign_key "bank_transactions", "bank_accounts"
   add_foreign_key "bank_transactions", "corporate_companies", column: "company_id"
+  add_foreign_key "bill_inboxes", "bpmn_process_instances"
+  add_foreign_key "bill_inboxes", "contacts", column: "supplier_id"
+  add_foreign_key "bill_inboxes", "corporate_companies"
+  add_foreign_key "bill_inboxes", "corporate_companies", column: "detected_company_id"
+  add_foreign_key "bill_inboxes", "email_warehouse"
+  add_foreign_key "bill_inboxes", "external_invoices"
+  add_foreign_key "bill_inboxes", "purchase_orders", column: "matched_purchase_order_id"
+  add_foreign_key "bill_inboxes", "users", column: "approved_by_id"
+  add_foreign_key "bill_payment_batches", "bank_accounts"
+  add_foreign_key "bill_payment_batches", "bpmn_process_instances"
+  add_foreign_key "bill_payment_batches", "corporate_companies"
+  add_foreign_key "bill_payment_batches", "users", column: "approved_by_id"
+  add_foreign_key "bill_payment_batches", "users", column: "created_by_id"
+  add_foreign_key "bill_payments", "bill_inboxes"
+  add_foreign_key "bill_payments", "bill_payment_batches"
+  add_foreign_key "bill_payments", "purchase_orders"
+  add_foreign_key "bpmn_edges", "bpmn_nodes", column: "source_node_id", on_delete: :cascade
+  add_foreign_key "bpmn_edges", "bpmn_nodes", column: "target_node_id", on_delete: :cascade
+  add_foreign_key "bpmn_edges", "bpmn_processes", on_delete: :cascade
+  add_foreign_key "bpmn_nodes", "bpmn_processes", on_delete: :cascade
+  add_foreign_key "bpmn_process_instances", "bpmn_processes"
+  add_foreign_key "bpmn_task_instances", "bpmn_nodes"
+  add_foreign_key "bpmn_task_instances", "bpmn_tokens", on_delete: :cascade
+  add_foreign_key "bpmn_tokens", "bpmn_nodes", column: "current_node_id"
+  add_foreign_key "bpmn_tokens", "bpmn_process_instances", on_delete: :cascade
+  add_foreign_key "bpmn_tokens", "bpmn_tokens", column: "parent_token_id"
+  add_foreign_key "bpmn_triggers", "bpmn_processes", on_delete: :cascade
   add_foreign_key "case_actions", "cases"
   add_foreign_key "case_actions", "users", column: "created_by_id"
   add_foreign_key "case_companies", "cases"
@@ -4961,6 +5222,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_023951) do
   add_foreign_key "chat_messages", "users"
   add_foreign_key "columns", "column_type_definitions"
   add_foreign_key "columns", "foundations"
+  add_foreign_key "company_approval_rules", "bpmn_processes"
+  add_foreign_key "company_approval_rules", "corporate_companies"
+  add_foreign_key "company_approval_rules", "users", column: "approver_id"
+  add_foreign_key "company_approval_rules", "users", column: "escalation_to_user_id"
   add_foreign_key "contact_activities", "contacts"
   add_foreign_key "contact_addresses", "contacts"
   add_foreign_key "contact_corporate_group_memberships", "contacts"
@@ -5133,6 +5398,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_023951) do
   add_foreign_key "purchase_order_documents", "purchase_orders"
   add_foreign_key "purchase_order_line_items", "pricebook", column: "pricebook_item_id"
   add_foreign_key "purchase_order_line_items", "purchase_orders"
+  add_foreign_key "purchase_orders", "bill_inboxes", column: "last_bill_inbox_id"
   add_foreign_key "purchase_orders", "contacts", column: "supplier_id", name: "fk_rails_purchase_orders_contact"
   add_foreign_key "purchase_orders", "estimates"
   add_foreign_key "purchase_orders", "jobs"
@@ -5253,8 +5519,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_023951) do
   add_foreign_key "whs_swms_acknowledgments", "whs_swms"
   add_foreign_key "whs_swms_controls", "whs_swms_hazards"
   add_foreign_key "whs_swms_hazards", "whs_swms"
-  add_foreign_key "workflow_instances", "workflow_definitions"
-  add_foreign_key "workflow_steps", "workflow_instances"
   add_foreign_key "xero_alerts", "corporate_companies"
   add_foreign_key "xero_alerts", "users", column: "dismissed_by_id"
   add_foreign_key "xero_alerts", "xero_credentials"

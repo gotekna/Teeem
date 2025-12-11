@@ -32,6 +32,7 @@ import {
   Wrench,
   Scale,
   History,
+  Workflow,
 } from "lucide-react";
 import {
   Persona,
@@ -68,13 +69,14 @@ const navigationItems: NavigationItem[] = [
   { name: "Schedule", href: "/schedule-master", icon: CalendarClock },
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "WHS", href: "/whs", icon: Shield },
-  { name: "Xero", href: "/xero", icon: Layers },
+  { name: "Finance", href: "/finance", icon: Layers },
   { name: "Purchase Orders", href: "/purchase_orders", icon: FileText },
   { name: "Quote Requests", href: "/quote-requests", icon: FileQuestion },
   { name: "Contacts", href: urls.contacts(), icon: Users },
   { name: "Price Book", href: urls.pricebook(), icon: Package },
   { name: "Price Histories", href: "/price_histories", icon: History },
   { name: "Documents", href: "/documents", icon: FolderOpen },
+  { name: "Workflows", href: "/workflows/processes", icon: Workflow },
   { name: "Corporate", href: "/corporate", icon: Building2 },
   { name: "Cases", href: "/cases", icon: Scale, badgeKey: "pendingCaseProposals" },
   { name: "Portal", href: "/portal", icon: ExternalLink },

@@ -149,6 +149,7 @@ class Contact < ApplicationRecord
   validate :validate_name_casing          # Block ALL CAPS and lowercase names
   validate :validate_no_email_as_name     # Block email addresses used as names
   validate :validate_team_contact_company # Team contacts must have a company
+  validate :validate_primary_company       # Prevent self-reference and ensure company type
 
   # Callbacks
   # prepend: true ensures these run BEFORE AutoColumnValidation's validate_column_types
@@ -730,7 +731,7 @@ class Contact < ApplicationRecord
     # REMOVED: Companies can also be customers/suppliers in Xero
     # Roles (customer, supplier) can be assigned to any entity type (person, company, trust, etc.)
     # This validation was blocking Xero sync for companies that are suppliers/customers
-    return
+    nil
   end
 
   def validate_name_fields_for_entity_type
@@ -798,6 +799,24 @@ class Contact < ApplicationRecord
   def validate_team_contact_company
     if is_team_contact && primary_company_id.blank?
       errors.add(:primary_company, "must be selected for team contacts. A team contact represents a person at a specific company.")
+    end
+  end
+
+  def validate_primary_company
+    return if primary_company_id.blank?
+
+    # Cannot reference self as primary company
+    if primary_company_id == id
+      errors.add(:primary_company, "cannot be self-referencing")
+      return
+    end
+
+    # Primary company must exist and be a company/trust type (not person/sole_trader)
+    primary = Contact.find_by(id: primary_company_id)
+    if primary.nil?
+      errors.add(:primary_company, "must exist")
+    elsif !%w[company trust].include?(primary.entity_type)
+      errors.add(:primary_company, "must be a Company or Trust, not a #{primary.entity_type}")
     end
   end
 
@@ -927,7 +946,7 @@ class Contact < ApplicationRecord
   def should_sync_to_corporate?
     # Only sync if this is a company/trust with a linked CorporateCompany record
     # Don't sync if we're already syncing from CorporateCompany to Contact (prevent loop)
-    entity_type.in?(['company', 'trust']) &&
+    entity_type.in?([ "company", "trust" ]) &&
       company_record.present? &&
       !Thread.current[:syncing_company_to_contact]
   end

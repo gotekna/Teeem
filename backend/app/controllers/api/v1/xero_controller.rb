@@ -1415,7 +1415,7 @@ module Api
           invoices_without_contacts = total_invoices_in_db - total_with_contacts
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
-          invoice_sync_status = XeroSyncStatus.where(sync_type: 'invoices').order(last_synced_at: :desc).first
+          invoice_sync_status = XeroSyncStatus.where(sync_type: "invoices").order(last_synced_at: :desc).first
           last_invoice_sync = invoice_sync_status&.last_synced_at || ExternalInvoice.maximum(:last_synced_at)
 
           # Invoice breakdown by type
@@ -1454,7 +1454,7 @@ module Api
           pdf_progress = total_with_contacts.zero? ? 0 : ((invoices_with_pdfs.to_f / total_with_contacts) * 100).round(1)
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
-          pdf_sync_status = XeroSyncStatus.where(sync_type: 'pdfs').order(last_synced_at: :desc).first
+          pdf_sync_status = XeroSyncStatus.where(sync_type: "pdfs").order(last_synced_at: :desc).first
           last_pdf_sync = pdf_sync_status&.last_synced_at || CorporateCompanyDocument.where(source: "xero")
                                          .where(documentable_type: "ExternalInvoice")
                                          .maximum(:created_at)
@@ -1484,7 +1484,7 @@ module Api
           sharepoint_progress = [ sharepoint_progress, 100 ].min # Cap at 100%
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
-          sharepoint_sync_status = XeroSyncStatus.where(sync_type: 'sharepoint').order(last_synced_at: :desc).first
+          sharepoint_sync_status = XeroSyncStatus.where(sync_type: "sharepoint").order(last_synced_at: :desc).first
           last_sharepoint_sync = sharepoint_sync_status&.last_synced_at || CorporateCompanyDocument.where(source: "xero")
                                                          .where(documentable_type: "ExternalInvoice")
                                                          .where.not(onedrive_file_id: nil)
@@ -1559,9 +1559,19 @@ module Api
 
           # Stage 2 info - smart rate-limited sync status
           # SSoT: Show actual status including rate limit pauses
-          # Rate limit resets at midnight UTC (server time), which is 10:00 AM Brisbane
-          utc_reset = Time.current.utc.end_of_day
-          brisbane_reset = utc_reset.in_time_zone("Australia/Brisbane")
+          # Xero daily rate limit resets at midnight UTC (00:00:00)
+          # Midnight UTC = 10:00 AM Brisbane (AEST, UTC+10)
+          # The NEXT reset is: today 10 AM if before 10 AM, tomorrow 10 AM if after
+          brisbane_10am_today = now_brisbane.change(hour: 10, min: 0, sec: 0)
+
+          resets_at_display = if now_brisbane < brisbane_10am_today
+            # Before 10 AM Brisbane - reset happens today
+            "Today 10:00 AM"
+          else
+            # After 10 AM Brisbane - reset happens tomorrow
+            "Tomorrow 10:00 AM"
+          end
+          brisbane_reset = now_brisbane < brisbane_10am_today ? brisbane_10am_today : brisbane_10am_today + 1.day
 
           stage2_blocker = if is_rate_limited && pdfs_pending > 0
             {
@@ -1571,7 +1581,7 @@ module Api
               sync_mode: "rate_limited",
               daily_percentage: daily_percentage.round(1),
               resets_at: brisbane_reset.iso8601,
-              resets_at_display: brisbane_reset.strftime("%-I:%M %p")
+              resets_at_display: resets_at_display
             }
           elsif pdfs_pending > 100
             {

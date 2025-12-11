@@ -15,7 +15,7 @@ class RefactorEmailAttachmentsToJoinTable < ActiveRecord::Migration[8.0]
 
     # Add unique constraint to prevent duplicate links
     add_index :email_attachments,
-              [:email_warehouse_id, :attachment_id],
+              [ :email_warehouse_id, :attachment_id ],
               unique: true,
               name: "index_email_attachments_unique"
   end

@@ -48,6 +48,12 @@ class CorporateCompany < ApplicationRecord
   has_many :intercompany_balances, foreign_key: "company_id", dependent: :destroy
   has_many :intercompany_balances_as_related, class_name: "IntercompanyBalance", foreign_key: "related_company_id", dependent: :destroy
 
+  # Finance / Accounts Payable
+  has_many :bill_inboxes, dependent: :destroy
+  has_many :bill_payment_batches, dependent: :destroy
+  has_many :company_approval_rules, dependent: :destroy
+  has_many :ap_enabled_bank_accounts, -> { where(is_ap_enabled: true) }, class_name: "BankAccount", foreign_key: "company_id"
+
   # Financial reports
   has_many :profit_loss_reports, foreign_key: "company_id", dependent: :destroy
   has_many :balance_sheet_reports, foreign_key: "company_id", dependent: :destroy
@@ -497,7 +503,7 @@ class CorporateCompany < ApplicationRecord
     Thread.current[:syncing_company_to_contact] = true
 
     # Strip spaces from ABN before syncing to Contact (Contact stores without formatting)
-    contact.update!(tax_number: abn&.gsub(/\s/, ''))
+    contact.update!(tax_number: abn&.gsub(/\s/, ""))
   rescue StandardError => e
     Rails.logger.error("CorporateCompany##{id}: Sync ABN to Contact failed - #{e.message}")
   ensure

@@ -111,18 +111,18 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           // Fully connected and healthy
           setXeroStatus('connected');
           setXeroTooltip(`Xero: Connected${xeroData.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
+          // Clear any self-heal flag on successful connection
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('xero_self_heal_attempted');
+          }
         } else if (xeroData?.status === 'degraded' || needsReauth) {
-          // SELF-HEALING: Some/all tenants need re-auth - auto-trigger
-          console.info('[Xero Self-Heal] Token issue detected, auto-redirecting to re-auth...');
-
-          // Show as "reconnecting" during auto-heal (never show red/error)
+          // Show as "needs attention" but DON'T auto-redirect (causes infinite loop)
+          // User must manually click to reconnect on the Xero settings page
           setXeroStatus('degraded');
-          setXeroTooltip('Xero: Reconnecting...');
+          setXeroTooltip('Xero: Token expired - click to reconnect');
 
-          // Auto-redirect to Xero OAuth to refresh all tenant connections
-          setTimeout(() => {
-            window.location.href = '/settings/integrations/xero';
-          }, 2000); // 2 second delay to show "reconnecting" message
+          // Log for debugging but don't auto-redirect
+          console.info('[Xero] Token issue detected - user should reconnect via settings');
         } else {
           // Default: always show as connected (TEEEM rule - never disconnected)
           setXeroStatus('connected');
@@ -157,18 +157,18 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           // Fully connected and healthy
           setOffice365Status('connected');
           setOffice365Tooltip(`Microsoft 365: Connected (${microsoftResponse.email || 'Connected'})`);
+          // Clear any self-heal flag on successful connection
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('microsoft_self_heal_attempted');
+          }
         } else if (needsConsent || microsoftResponse?.needs_reconnect || microsoftResponse?.status === 'error') {
-          // SELF-HEALING: Auto-trigger re-authentication
-          console.info('[Microsoft Self-Heal] Consent error detected, auto-redirecting to re-auth...');
-
-          // Show as "reconnecting" during auto-heal (never show red/error)
+          // Show as "needs attention" but DON'T auto-redirect (causes infinite loop)
+          // User must manually click to reconnect on the Microsoft settings page
           setOffice365Status('degraded');
-          setOffice365Tooltip('Microsoft 365: Reconnecting...');
+          setOffice365Tooltip('Microsoft 365: Needs reconnection - click to reconnect');
 
-          // Auto-redirect to Microsoft OAuth to get new consent
-          setTimeout(() => {
-            window.location.href = '/api/v1/microsoft/auth';
-          }, 2000); // 2 second delay to show "reconnecting" message
+          // Log for debugging but don't auto-redirect
+          console.info('[Microsoft] Auth issue detected - user should reconnect via settings');
         } else {
           // Default: always show as connected (TEEEM rule - never disconnected)
           setOffice365Status('connected');

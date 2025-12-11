@@ -9,6 +9,6 @@ class CreateDocumentTypeFolders < ActiveRecord::Migration[8.0]
     end
 
     # Unique constraint to prevent duplicate assignments
-    add_index :document_type_folders, [:document_type_id, :document_folder_id], unique: true, name: "idx_doc_type_folders_unique"
+    add_index :document_type_folders, [ :document_type_id, :document_folder_id ], unique: true, name: "idx_doc_type_folders_unique"
   end
 end

@@ -337,6 +337,69 @@ class MicrosoftAppGraphClient
     (response["value"] || []).map { |item| format_drive_item(item) }
   end
 
+  # Download file content from SharePoint/OneDrive
+  # Returns binary content of the file
+  def get_drive_item_content(site_id: nil, drive_id:, item_id:)
+    # Get the item first to get the download URL
+    if site_id
+      response = get("/sites/#{CGI.escape(site_id)}/drives/#{CGI.escape(drive_id)}/items/#{item_id}")
+    else
+      response = get("/drives/#{CGI.escape(drive_id)}/items/#{item_id}")
+    end
+
+    download_url = response["@microsoft.graph.downloadUrl"]
+    raise ApiError, "No download URL available for item #{item_id}" unless download_url
+
+    # Download the file content
+    download_response = HTTP.follow.get(download_url)
+    unless download_response.status.success?
+      raise ApiError, "Failed to download file: #{download_response.status.code}"
+    end
+
+    download_response.body.to_s.force_encoding("BINARY")
+  end
+
+  # Delete a drive item
+  def delete_drive_item(site_id: nil, drive_id:, item_id:)
+    if site_id
+      endpoint = "/sites/#{CGI.escape(site_id)}/drives/#{CGI.escape(drive_id)}/items/#{item_id}"
+    else
+      endpoint = "/drives/#{CGI.escape(drive_id)}/items/#{item_id}"
+    end
+
+    url = "#{GRAPH_API_BASE}#{endpoint}"
+    response = HTTP.auth("Bearer #{access_token}").delete(url)
+
+    if response.status.success? || response.status.code == 204
+      true
+    else
+      error_body = JSON.parse(response.body.to_s) rescue { "error" => { "message" => response.body.to_s } }
+      error_msg = error_body.dig("error", "message") || "HTTP #{response.status}"
+      raise ApiError, "#{response.status.code} - #{error_msg}"
+    end
+  end
+
+  # Convert DOCX to PDF using Microsoft Graph API
+  # Returns binary PDF content
+  def convert_to_pdf(site_id: nil, drive_id:, item_id:)
+    if site_id
+      endpoint = "/sites/#{CGI.escape(site_id)}/drives/#{CGI.escape(drive_id)}/items/#{item_id}/content?format=pdf"
+    else
+      endpoint = "/drives/#{CGI.escape(drive_id)}/items/#{item_id}/content?format=pdf"
+    end
+
+    url = "#{GRAPH_API_BASE}#{endpoint}"
+    response = HTTP.auth("Bearer #{access_token}").follow.get(url)
+
+    unless response.status.success?
+      error_body = JSON.parse(response.body.to_s) rescue { "error" => { "message" => response.body.to_s } }
+      error_msg = error_body.dig("error", "message") || "HTTP #{response.status}"
+      raise ApiError, "#{response.status.code} - #{error_msg}"
+    end
+
+    response.body.to_s.force_encoding("BINARY")
+  end
+
   # Search across ALL SharePoint and OneDrive in the tenant
   def search_all_files(query, top: 50)
     # Use the search API for tenant-wide search
@@ -439,7 +502,7 @@ class MicrosoftAppGraphClient
     offset = 0
 
     while offset < total_size
-      chunk_end = [offset + chunk_size, total_size].min - 1
+      chunk_end = [ offset + chunk_size, total_size ].min - 1
       chunk = content.byteslice(offset, chunk_end - offset + 1)
 
       headers = {

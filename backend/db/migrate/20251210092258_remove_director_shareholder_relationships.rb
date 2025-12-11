@@ -17,7 +17,7 @@ class RemoveDirectorShareholderRelationships < ActiveRecord::Migration[7.1]
     puts ""
 
     # Delete relationships (Corporate tables are the SSoT)
-    ContactRelationship.where(relationship_type: ['director_of', 'shareholder_of']).delete_all
+    ContactRelationship.where(relationship_type: [ 'director_of', 'shareholder_of' ]).delete_all
 
     puts "✅ Deleted #{director_count + shareholder_count} relationships"
     puts ""

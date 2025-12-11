@@ -97,7 +97,7 @@ module SelfHealing
 
   def fix_website_prefix
     return unless website.present?
-    return if website.start_with?('http://', 'https://')
+    return if website.start_with?("http://", "https://")
 
     original = website
     self.website = "https://#{website}"
@@ -151,7 +151,7 @@ module SelfHealing
     return unless abn.present?
 
     # Remove non-digits first
-    digits_only = abn.gsub(/\D/, '')
+    digits_only = abn.gsub(/\D/, "")
     return unless digits_only.length == 11
 
     # Format as XX XXX XXX XXX
@@ -168,7 +168,7 @@ module SelfHealing
     return unless acn.present?
 
     # Remove non-digits first
-    digits_only = acn.gsub(/\D/, '')
+    digits_only = acn.gsub(/\D/, "")
     return unless digits_only.length == 9
 
     # Format as XXX XXX XXX
@@ -212,22 +212,22 @@ module SelfHealing
     return phone if phone.blank?
 
     # Remove all non-digit characters
-    digits = phone.gsub(/\D/, '')
+    digits = phone.gsub(/\D/, "")
 
     # Handle Australian mobile numbers (04XX XXX XXX)
-    if digits.length == 10 && digits.start_with?('04')
+    if digits.length == 10 && digits.start_with?("04")
       return "#{digits[0..3]} #{digits[4..6]} #{digits[7..9]}"
     end
 
     # Handle Australian landlines with area code (XX XXXX XXXX)
-    if digits.length == 10 && digits.start_with?('0')
+    if digits.length == 10 && digits.start_with?("0")
       return "#{digits[0..1]} #{digits[2..5]} #{digits[6..9]}"
     end
 
     # Handle international format starting with 61 (Australia)
-    if digits.length == 11 && digits.start_with?('61')
+    if digits.length == 11 && digits.start_with?("61")
       local = digits[2..]
-      if local.start_with?('4')
+      if local.start_with?("4")
         return "+61 #{local[0..2]} #{local[3..5]} #{local[6..8]}"
       else
         return "+61 #{local[0]} #{local[1..4]} #{local[5..8]}"

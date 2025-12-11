@@ -809,10 +809,10 @@ export function XeroPdfSyncStatus() {
                         className={`h-2 ${(tenant.minute?.percentage || 0) > 80 ? '[&>div]:bg-amber-500' : '[&>div]:bg-blue-500'} ${(tenant.minute?.percentage || 0) > 95 ? '[&>div]:bg-red-500' : ''}`}
                       />
                     </div>
-                    {/* Daily */}
+                    {/* Daily - SSoT: Xero resets at midnight UTC (10 AM Brisbane) */}
                     <div>
                       <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="text-muted-foreground">Today</span>
+                        <span className="text-muted-foreground" title="Resets at 10:00 AM Brisbane (midnight UTC)">Today</span>
                         <span className="font-mono font-medium">
                           {tenant.daily?.used || 0}/{rateLimits.limits.daily}
                         </span>

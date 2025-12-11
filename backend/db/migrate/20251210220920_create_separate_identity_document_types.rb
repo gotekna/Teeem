@@ -9,7 +9,7 @@ class CreateSeparateIdentityDocumentTypes < ActiveRecord::Migration[8.0]
       dt.scope = "people"
       dt.file_name = "{PersonName} Passport {Date}"
       dt.display_name = "Passport {Date}"
-      dt.aliases = ["Australian Passport", "Travel Document", "Passport Document"]
+      dt.aliases = [ "Australian Passport", "Travel Document", "Passport Document" ]
       dt.active = true
     end
 
@@ -20,7 +20,7 @@ class CreateSeparateIdentityDocumentTypes < ActiveRecord::Migration[8.0]
       dt.scope = "people"
       dt.file_name = "{PersonName} Driver License {Date}"
       dt.display_name = "Driver License {Date}"
-      dt.aliases = ["Drivers Licence", "Driver's License", "Licence", "License", "Driving Licence"]
+      dt.aliases = [ "Drivers Licence", "Driver's License", "Licence", "License", "Driving Licence" ]
       dt.active = true
     end
 
@@ -31,7 +31,7 @@ class CreateSeparateIdentityDocumentTypes < ActiveRecord::Migration[8.0]
       dt.scope = "people"
       dt.file_name = "{PersonName} Medicare Card {Date}"
       dt.display_name = "Medicare Card {Date}"
-      dt.aliases = ["Medicare", "Medicare Document"]
+      dt.aliases = [ "Medicare", "Medicare Document" ]
       dt.active = true
     end
 
@@ -42,7 +42,7 @@ class CreateSeparateIdentityDocumentTypes < ActiveRecord::Migration[8.0]
       dt.scope = "people"
       dt.file_name = "{PersonName} Birth Certificate {Date}"
       dt.display_name = "Birth Certificate {Date}"
-      dt.aliases = ["Birth Cert", "Certificate of Birth"]
+      dt.aliases = [ "Birth Cert", "Certificate of Birth" ]
       dt.active = true
     end
 
@@ -53,7 +53,7 @@ class CreateSeparateIdentityDocumentTypes < ActiveRecord::Migration[8.0]
       dt.scope = "people"
       dt.file_name = "{PersonName} Marriage Certificate {Date}"
       dt.display_name = "Marriage Certificate {Date}"
-      dt.aliases = ["Marriage Cert", "Certificate of Marriage"]
+      dt.aliases = [ "Marriage Cert", "Certificate of Marriage" ]
       dt.active = true
     end
 
@@ -62,7 +62,7 @@ class CreateSeparateIdentityDocumentTypes < ActiveRecord::Migration[8.0]
 
   def down
     # Remove the 5 identity document types
-    DocumentType.where(abbreviation: ['PASS', 'DL', 'MEDI', 'BC', 'MC']).destroy_all
+    DocumentType.where(abbreviation: [ 'PASS', 'DL', 'MEDI', 'BC', 'MC' ]).destroy_all
     puts "🗑️  Removed 5 identity document types"
   end
 end

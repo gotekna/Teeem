@@ -49,8 +49,8 @@ module HealthChecks
 
     # Companies missing ABN (critical for business operations)
     def check_companies_without_abn
-      companies = CorporateCompany.where(active: [true, nil])
-                        .where(abn: [nil, ""])
+      companies = CorporateCompany.where(active: [ true, nil ])
+                        .where(abn: [ nil, "" ])
                         .select(:id, :name, :code, :entity_type)
 
       build_result(
@@ -66,8 +66,8 @@ module HealthChecks
 
     # Companies missing ACN (for Pty Ltd companies)
     def check_companies_without_acn
-      companies = CorporateCompany.where(active: [true, nil])
-                        .where(acn: [nil, ""])
+      companies = CorporateCompany.where(active: [ true, nil ])
+                        .where(acn: [ nil, "" ])
                         .where("entity_type ILIKE '%pty%' OR entity_type ILIKE '%proprietary%' OR entity_type ILIKE '%limited%' OR entity_type ILIKE '%company%'")
                         .select(:id, :name, :code, :entity_type)
 
@@ -86,7 +86,7 @@ module HealthChecks
     def check_companies_without_directors
       # Find companies with no current directors
       companies_with_directors = CorporateCompanyDirector.where(is_current: true).select(:company_id).distinct
-      companies = CorporateCompany.where(active: [true, nil])
+      companies = CorporateCompany.where(active: [ true, nil ])
                         .where.not(id: companies_with_directors)
                         .select(:id, :name, :code, :entity_type)
 
@@ -103,8 +103,8 @@ module HealthChecks
 
     # Companies missing registered office address
     def check_companies_without_registered_office
-      companies = CorporateCompany.where(active: [true, nil])
-                        .where(registered_office_address: [nil, ""])
+      companies = CorporateCompany.where(active: [ true, nil ])
+                        .where(registered_office_address: [ nil, "" ])
                         .select(:id, :name, :code, :entity_type)
 
       build_result(
@@ -124,8 +124,8 @@ module HealthChecks
 
     # Companies missing TFN
     def check_companies_without_tfn
-      companies = CorporateCompany.where(active: [true, nil])
-                        .where(tfn: [nil, ""])
+      companies = CorporateCompany.where(active: [ true, nil ])
+                        .where(tfn: [ nil, "" ])
                         .select(:id, :name, :code, :entity_type)
 
       build_result(
@@ -142,7 +142,7 @@ module HealthChecks
     # Companies without any bank accounts
     def check_companies_without_bank_accounts
       companies_with_accounts = BankAccount.where(status: "active").select(:company_id).distinct
-      companies = CorporateCompany.where(active: [true, nil])
+      companies = CorporateCompany.where(active: [ true, nil ])
                         .where.not(id: companies_with_accounts)
                         .select(:id, :name, :code, :entity_type)
 
@@ -160,7 +160,7 @@ module HealthChecks
     # Companies without shareholders
     def check_companies_without_shareholders
       companies_with_shareholders = CorporateCompanyShareholding.select(:company_id).distinct
-      companies = CorporateCompany.where(active: [true, nil])
+      companies = CorporateCompany.where(active: [ true, nil ])
                         .where("LOWER(entity_type) = 'company'")
                         .where.not(id: companies_with_shareholders)
                         .select(:id, :name, :code, :entity_type)
@@ -181,8 +181,8 @@ module HealthChecks
       # Find companies with shareholdings where total doesn't match shares_on_issue
       mismatched = []
 
-      CorporateCompany.where(active: [true, nil])
-                      .where.not(shares_on_issue: [nil, 0])
+      CorporateCompany.where(active: [ true, nil ])
+                      .where.not(shares_on_issue: [ nil, 0 ])
                       .includes(:corporate_company_shareholdings)
                       .find_each do |company|
         total_shares = company.corporate_company_shareholdings.sum(:number_of_shares)
@@ -222,7 +222,7 @@ module HealthChecks
         .where("LOWER(position) LIKE '%secretary%'")
         .select(:company_id).distinct
 
-      companies = CorporateCompany.where(active: [true, nil])
+      companies = CorporateCompany.where(active: [ true, nil ])
                         .where("LOWER(entity_type) = 'company'")
                         .where.not(id: companies_with_secretary)
                         .select(:id, :name, :code, :entity_type)
@@ -245,7 +245,7 @@ module HealthChecks
         .where("LOWER(position) LIKE '%public%officer%'")
         .select(:company_id).distinct
 
-      companies = CorporateCompany.where(active: [true, nil])
+      companies = CorporateCompany.where(active: [ true, nil ])
                         .where.not(id: companies_with_officer)
                         .select(:id, :name, :code, :entity_type)
 
@@ -262,7 +262,7 @@ module HealthChecks
 
     # Companies with overdue review
     def check_companies_overdue_review
-      companies = CorporateCompany.where(active: [true, nil])
+      companies = CorporateCompany.where(active: [ true, nil ])
                         .where("review_date < ?", Date.current)
                         .select(:id, :name, :code, :review_date)
 
@@ -305,7 +305,7 @@ module HealthChecks
 
     # Companies without review date set
     def check_companies_without_review_date
-      companies = CorporateCompany.where(active: [true, nil])
+      companies = CorporateCompany.where(active: [ true, nil ])
                         .where(review_date: nil)
                         .select(:id, :name, :code)
 
@@ -322,8 +322,8 @@ module HealthChecks
 
     # Companies without corporate key
     def check_companies_without_corporate_key
-      companies = CorporateCompany.where(active: [true, nil])
-                        .where(corporate_key: [nil, ""])
+      companies = CorporateCompany.where(active: [ true, nil ])
+                        .where(corporate_key: [ nil, "" ])
                         .select(:id, :name, :code)
 
       build_result(
@@ -339,8 +339,8 @@ module HealthChecks
 
     # Companies without ASIC credentials
     def check_companies_without_asic_credentials
-      companies = CorporateCompany.where(active: [true, nil])
-                        .where(asic_username: [nil, ""])
+      companies = CorporateCompany.where(active: [ true, nil ])
+                        .where(asic_username: [ nil, "" ])
                         .select(:id, :name, :code)
 
       build_result(
@@ -356,7 +356,7 @@ module HealthChecks
 
     # Companies without date of incorporation
     def check_companies_without_incorporation_date
-      companies = CorporateCompany.where(active: [true, nil])
+      companies = CorporateCompany.where(active: [ true, nil ])
                         .where(date_incorporated: nil)
                         .select(:id, :name, :code, :entity_type)
 
@@ -399,8 +399,8 @@ module HealthChecks
     # Companies with improperly formatted ABN (should be XX XXX XXX XXX)
     def check_abn_formatting
       # Find companies with ABN that doesn't match format XX XXX XXX XXX
-      companies = CorporateCompany.where(active: [true, nil])
-                        .where.not(abn: [nil, ''])
+      companies = CorporateCompany.where(active: [ true, nil ])
+                        .where.not(abn: [ nil, "" ])
                         .where("abn !~ '^[0-9]{2} [0-9]{3} [0-9]{3} [0-9]{3}$'")
                         .select(:id, :name, :code, :abn)
 
@@ -420,8 +420,8 @@ module HealthChecks
     # Companies with improperly formatted ACN (should be XXX XXX XXX)
     def check_acn_formatting
       # Find companies with ACN that doesn't match format XXX XXX XXX
-      companies = CorporateCompany.where(active: [true, nil])
-                        .where.not(acn: [nil, ''])
+      companies = CorporateCompany.where(active: [ true, nil ])
+                        .where.not(acn: [ nil, "" ])
                         .where("acn !~ '^[0-9]{3} [0-9]{3} [0-9]{3}$'")
                         .select(:id, :name, :code, :acn)
 

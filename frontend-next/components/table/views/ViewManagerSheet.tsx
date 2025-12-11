@@ -77,7 +77,7 @@ import { sortHiddenColumnsAlphabetically } from "../column-utils";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
 import type { SavedView, CascadeFilter, FilterGroup, SortColumn } from "../types";
 import { useSetAtom } from "jotai";
-import { foundationViewsAtom } from "@/lib/view-state-atoms";
+import { foundationViewsAtom, invalidateViewsCacheAtom } from "@/lib/view-state-atoms";
 
 import { SortableViewItem } from "./SortableViewItem";
 import { SortableColumnItem } from "./SortableColumnItem";
@@ -138,8 +138,7 @@ export function ViewManagerSheet({
   // Global views atom - update this to sync view order with main table
   const setGlobalViews = useSetAtom(foundationViewsAtom);
 
-  // Import invalidate cache action
-  const { invalidateViewsCacheAtom } = require('@/lib/view-state-atoms');
+  // Import invalidate cache action (now imported at top of file)
   const invalidateCache = useSetAtom(invalidateViewsCacheAtom);
 
   // State

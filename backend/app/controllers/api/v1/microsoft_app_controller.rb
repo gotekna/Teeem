@@ -312,11 +312,11 @@ class Api::V1::MicrosoftAppController < ApplicationController
     # Support fetching users for specific org by id or name
     credential = if params[:organization_id].present?
                    OrganizationMicrosoftAppCredential.find_by(id: params[:organization_id])
-                 elsif params[:name].present?
+    elsif params[:name].present?
                    OrganizationMicrosoftAppCredential.find_by_name(params[:name])
-                 else
+    else
                    OrganizationMicrosoftAppCredential.active_credential
-                 end
+    end
 
     unless credential&.status == "connected"
       return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
@@ -669,9 +669,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
     # Get the credential to use for SharePoint (either specified or first active)
     credential = if params[:credential_id].present?
                    OrganizationMicrosoftAppCredential.find_by(id: params[:credential_id])
-                 else
+    else
                    OrganizationMicrosoftAppCredential.active_credential
-                 end
+    end
 
     unless credential&.status == "connected"
       return render json: { error: "No connected Microsoft credential found" }, status: :not_found
@@ -738,9 +738,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
     # Get the credential to store the config on (either specified or first active)
     credential = if params[:credential_id].present?
                    OrganizationMicrosoftAppCredential.find_by(id: params[:credential_id])
-                 else
+    else
                    OrganizationMicrosoftAppCredential.active_credential
-                 end
+    end
 
     unless credential
       return render json: { error: "No Microsoft credential found" }, status: :not_found
