@@ -83,11 +83,16 @@ module Api
           return render json: { error: "No invoice file attached" }, status: :not_found
         end
 
-        # Stream the file
-        send_data @bill.invoice_file.download,
-                  filename: @bill.invoice_file.filename.to_s,
-                  type: @bill.invoice_file.content_type,
-                  disposition: "inline"
+        begin
+          # Stream the file
+          send_data @bill.invoice_file.download,
+                    filename: @bill.invoice_file.filename.to_s,
+                    type: @bill.invoice_file.content_type,
+                    disposition: "inline"
+        rescue ActiveStorage::FileNotFoundError => e
+          Rails.logger.error("File not found in storage for BillInbox #{@bill.id}: #{e.message}")
+          render json: { error: "Invoice file not found in storage" }, status: :not_found
+        end
       end
 
       # POST /api/v1/bill_inbox
