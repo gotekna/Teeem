@@ -18,7 +18,7 @@ module Api
         render json: {
           success: true,
           bank_accounts: @bank_accounts.as_json(
-            include: { company: { only: [ :id, :name ] } },
+            include: { corporate_company: { only: [ :id, :name ] } },
             methods: [ :display_name, :masked_account_number, :formatted_bsb ]
           )
         }
@@ -29,7 +29,7 @@ module Api
         render json: {
           success: true,
           bank_account: @bank_account.as_json(
-            include: { company: { only: [ :id, :name ] } },
+            include: { corporate_company: { only: [ :id, :name ] } },
             methods: [ :display_name, :formatted_bsb ]
           )
         }
