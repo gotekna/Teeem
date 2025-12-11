@@ -1,21 +1,21 @@
 import dagre from "dagre";
 import { Node, Edge } from "@xyflow/react";
 
-// Node dimensions for layout calculation
+// Node dimensions for layout calculation (horizontal flow)
 const NODE_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  start_event: { width: 50, height: 70 },
-  end_event: { width: 50, height: 70 },
-  timer_event: { width: 50, height: 80 },
-  intermediate_event: { width: 50, height: 80 },
-  user_task: { width: 200, height: 80 },
-  service_task: { width: 200, height: 80 },
-  exclusive_gateway: { width: 50, height: 70 },
-  parallel_gateway: { width: 50, height: 70 },
-  data_store_reference: { width: 60, height: 80 },
-  sub_process: { width: 250, height: 120 },
-  annotation: { width: 150, height: 80 },
-  pool: { width: 600, height: 300 },
-  lane: { width: 500, height: 120 },
+  start_event: { width: 100, height: 40 },
+  end_event: { width: 80, height: 40 },
+  timer_event: { width: 120, height: 50 },
+  intermediate_event: { width: 160, height: 50 },
+  user_task: { width: 160, height: 50 },
+  service_task: { width: 160, height: 50 },
+  exclusive_gateway: { width: 120, height: 50 },
+  parallel_gateway: { width: 120, height: 50 },
+  data_store_reference: { width: 160, height: 40 },
+  sub_process: { width: 160, height: 50 },
+  annotation: { width: 180, height: 60 },
+  pool: { width: 200, height: 60 },
+  lane: { width: 160, height: 50 },
 };
 
 const DEFAULT_DIMENSIONS = { width: 150, height: 60 };
@@ -41,9 +41,9 @@ export function getLayoutedElements<T extends Record<string, unknown>>(
   options: LayoutOptions = {}
 ): Node<T>[] {
   const {
-    direction = "TB",
-    nodeSpacing = 80,
-    rankSpacing = 100,
+    direction = "LR",
+    nodeSpacing = 50,
+    rankSpacing = 80,
   } = options;
 
   // Create a new dagre graph

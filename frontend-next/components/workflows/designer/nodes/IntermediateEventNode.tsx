@@ -20,35 +20,35 @@ export const IntermediateEventNode = memo(
     const Icon = EVENT_ICONS[eventType] || Mail;
 
     return (
-      <div className="relative flex flex-col items-center">
-        {/* Top handle */}
+      <div className="relative flex items-center">
+        {/* Left handle for incoming */}
         <Handle
           type="target"
-          position={Position.Top}
-          className="!h-3 !w-3 !border-2 !border-amber-500 !bg-white dark:!bg-slate-900"
+          position={Position.Left}
+          className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
         />
 
         {/* Double-ring circle (characteristic of intermediate events) */}
         <div
           className={cn(
-            "relative flex h-12 w-12 items-center justify-center rounded-full border-2 bg-white shadow-md transition-all dark:bg-slate-900",
+            "relative flex h-10 w-10 items-center justify-center rounded-full border-2 bg-white shadow-sm transition-all dark:bg-slate-900",
             selected
-              ? "border-amber-500 ring-2 ring-amber-500/30"
-              : "border-amber-400 dark:border-amber-600"
+              ? "border-amber-500 ring-2 ring-amber-300"
+              : "border-amber-500 dark:border-amber-500"
           )}
         >
           {/* Inner ring */}
           <div
             className={cn(
-              "absolute inset-1 rounded-full border-2",
+              "absolute inset-1 rounded-full border",
               selected
                 ? "border-amber-500"
-                : "border-amber-400 dark:border-amber-600"
+                : "border-amber-400 dark:border-amber-500"
             )}
           />
           <Icon
             className={cn(
-              "relative z-10 h-4 w-4",
+              "relative z-10 h-3 w-3",
               isThrowing
                 ? "fill-amber-500 text-amber-600"
                 : "text-amber-600 dark:text-amber-400"
@@ -56,19 +56,21 @@ export const IntermediateEventNode = memo(
           />
         </div>
 
-        {/* Label below */}
-        <div className="mt-2 whitespace-nowrap text-xs font-medium text-slate-600 dark:text-slate-400">
-          {data.name || "Intermediate Event"}
-        </div>
-        <div className="text-xs capitalize text-slate-400 dark:text-slate-500">
-          {isThrowing ? "Throw" : "Catch"} {eventType}
+        {/* Label to the right */}
+        <div className="ml-2 min-w-0">
+          <p className="whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
+            {data.name || "Intermediate Event"}
+          </p>
+          <p className="text-xs capitalize text-slate-400">
+            {isThrowing ? "Throw" : "Catch"} {eventType}
+          </p>
         </div>
 
-        {/* Bottom handle */}
+        {/* Right handle for outgoing */}
         <Handle
           type="source"
-          position={Position.Bottom}
-          className="!h-3 !w-3 !border-2 !border-amber-500 !bg-white dark:!bg-slate-900"
+          position={Position.Right}
+          className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
         />
       </div>
     );

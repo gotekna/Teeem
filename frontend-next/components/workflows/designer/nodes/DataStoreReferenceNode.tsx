@@ -8,70 +8,36 @@ import type { BpmnNodeData } from "../types";
 
 export const DataStoreReferenceNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeData>>) => {
   return (
-    <div className="relative flex flex-col items-center">
-      {/* Connection handles */}
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="!h-3 !w-3 !border-2 !border-slate-500 !bg-white dark:!bg-slate-900"
-      />
+    <div
+      className={cn(
+        "min-w-[140px] rounded border bg-white px-3 py-2 shadow-sm transition-all dark:bg-slate-900",
+        selected
+          ? "border-blue-500 ring-2 ring-blue-300"
+          : "border-slate-300 dark:border-slate-600"
+      )}
+    >
+      {/* Left handle for incoming */}
       <Handle
         type="target"
         position={Position.Left}
-        className="!h-3 !w-3 !border-2 !border-slate-500 !bg-white dark:!bg-slate-900"
+        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
       />
 
-      {/* Data store shape (cylinder) */}
-      <div
-        className={cn(
-          "relative flex h-14 w-16 flex-col items-center justify-center rounded-t-[50%] border-2 bg-white shadow-md transition-all dark:bg-slate-900",
-          selected
-            ? "border-slate-500 ring-2 ring-slate-500/30"
-            : "border-slate-400 dark:border-slate-600"
-        )}
-        style={{
-          borderRadius: "50% 50% 0 0 / 30% 30% 0 0",
-        }}
-      >
-        {/* Top ellipse to simulate cylinder */}
-        <div
-          className={cn(
-            "absolute -top-1 left-0 right-0 h-3 rounded-[50%] border-2 bg-slate-50 dark:bg-slate-800",
-            selected
-              ? "border-slate-500"
-              : "border-slate-400 dark:border-slate-600"
-          )}
-        />
-        <Database className="mt-2 h-5 w-5 text-slate-600 dark:text-slate-400" />
+      {/* Simple content */}
+      <div className="flex items-center gap-2">
+        <Database className="h-4 w-4 flex-shrink-0 text-slate-500" />
+        <div className="min-w-0">
+          <p className="truncate text-sm text-slate-700 dark:text-slate-200">
+            {data.name || "Data Store"}
+          </p>
+        </div>
       </div>
 
-      {/* Bottom of cylinder */}
-      <div
-        className={cn(
-          "h-4 w-16 rounded-b-[50%] border-2 border-t-0 bg-white dark:bg-slate-900",
-          selected
-            ? "border-slate-500"
-            : "border-slate-400 dark:border-slate-600"
-        )}
-        style={{
-          borderRadius: "0 0 50% 50% / 0 0 60% 60%",
-        }}
-      />
-
-      {/* Label below */}
-      <div className="mt-2 max-w-[120px] text-center text-xs font-medium text-slate-600 dark:text-slate-400">
-        {data.name || "Data Store"}
-      </div>
-
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="!h-3 !w-3 !border-2 !border-slate-500 !bg-white dark:!bg-slate-900"
-      />
+      {/* Right handle for outgoing */}
       <Handle
         type="source"
         position={Position.Right}
-        className="!h-3 !w-3 !border-2 !border-slate-500 !bg-white dark:!bg-slate-900"
+        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
       />
     </div>
   );

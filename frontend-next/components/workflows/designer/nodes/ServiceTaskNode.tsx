@@ -22,47 +22,39 @@ export const ServiceTaskNode = memo(({ data, selected }: NodeProps<Node<BpmnNode
   return (
     <div
       className={cn(
-        "min-w-[200px] rounded-lg border-2 bg-white shadow-sm transition-all hover:shadow-md dark:bg-slate-900",
+        "min-w-[140px] rounded border bg-white px-3 py-2 shadow-sm transition-all dark:bg-slate-900",
         selected
-          ? "border-purple-500 ring-2 ring-purple-400 ring-offset-2"
-          : "border-purple-200 hover:border-purple-300 dark:border-purple-800 dark:hover:border-purple-700"
+          ? "border-blue-500 ring-2 ring-blue-300"
+          : "border-slate-300 dark:border-slate-600"
       )}
     >
+      {/* Left handle for incoming */}
       <Handle
         type="target"
-        position={Position.Top}
-        className="!h-3 !w-3 !border-2 !border-purple-500 !bg-white dark:!bg-slate-900"
+        position={Position.Left}
+        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
       />
 
-      {/* Header with solid color like Rapid Platform */}
-      <div className="flex items-center gap-2 rounded-t-md bg-purple-600 px-3 py-2 text-white">
-        <Cog className="h-4 w-4" />
-        <span className="text-xs font-medium uppercase tracking-wide">
-          Service Task
-        </span>
-      </div>
-
-      {/* Body */}
-      <div className="flex items-center gap-3 px-3 py-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
-          <Icon className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-        </div>
-        <div>
-          <p className="text-sm font-medium text-slate-900 dark:text-white">
+      {/* Simple content like Rapid Platform */}
+      <div className="flex items-center gap-2">
+        <Cog className="h-4 w-4 flex-shrink-0 text-slate-500" />
+        <div className="min-w-0">
+          <p className="truncate text-sm text-slate-700 dark:text-slate-200">
             {data.name || "Service Task"}
           </p>
           {taskType !== "default" && (
-            <p className="text-xs capitalize text-slate-500 dark:text-slate-400">
+            <p className="truncate text-xs text-slate-400">
               {taskType.replace(/_/g, " ")}
             </p>
           )}
         </div>
       </div>
 
+      {/* Right handle for outgoing */}
       <Handle
         type="source"
-        position={Position.Bottom}
-        className="!h-3 !w-3 !border-2 !border-purple-500 !bg-white dark:!bg-slate-900"
+        position={Position.Right}
+        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
       />
     </div>
   );

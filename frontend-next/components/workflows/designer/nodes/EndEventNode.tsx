@@ -8,28 +8,28 @@ import type { BpmnNodeData } from "../types";
 
 export const EndEventNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeData>>) => {
   return (
-    <div className="relative flex flex-col items-center">
-      {/* Only incoming connection */}
+    <div className="relative flex items-center">
+      {/* Left handle for incoming */}
       <Handle
         type="target"
-        position={Position.Top}
-        className="!h-3 !w-3 !border-2 !border-red-500 !bg-white dark:!bg-slate-900"
+        position={Position.Left}
+        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
       />
 
-      {/* Circle node with thick border (BPMN standard for end events) */}
+      {/* Circle node with thick border */}
       <div
         className={cn(
-          "flex h-12 w-12 items-center justify-center rounded-full border-[5px] bg-white shadow-sm transition-all hover:shadow-md dark:bg-slate-900",
+          "flex h-10 w-10 items-center justify-center rounded-full border-4 bg-white shadow-sm transition-all dark:bg-slate-900",
           selected
-            ? "border-red-500 ring-2 ring-red-400 ring-offset-2"
-            : "border-red-500 hover:border-red-600 dark:border-red-500"
+            ? "border-red-500 ring-2 ring-red-300"
+            : "border-red-500 dark:border-red-500"
         )}
       >
-        <Square className="h-4 w-4 fill-red-500 text-red-500" />
+        <Square className="h-3 w-3 fill-red-500 text-red-500" />
       </div>
 
-      {/* Label below */}
-      <div className="mt-2 whitespace-nowrap text-xs font-medium text-slate-600 dark:text-slate-400">
+      {/* Label to the right */}
+      <div className="ml-2 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
         {data.name || "End"}
       </div>
     </div>
