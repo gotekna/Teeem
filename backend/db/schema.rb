@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_11_124660) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_11_124661) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1780,6 +1780,24 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_124660) do
     t.datetime "updated_at", null: false
     t.string "sharepoint_url"
     t.index ["job_id"], name: "index_document_tasks_on_job_id"
+  end
+
+  create_table "document_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.string "category"
+    t.string "sharepoint_site_id"
+    t.string "sharepoint_drive_id"
+    t.string "sharepoint_item_id"
+    t.string "sharepoint_path"
+    t.string "output_format", default: "pdf"
+    t.string "output_naming_pattern"
+    t.jsonb "data_schema", default: {}
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_document_templates_on_category"
+    t.index ["is_active"], name: "index_document_templates_on_is_active"
   end
 
   create_table "document_type_folders", force: :cascade do |t|
