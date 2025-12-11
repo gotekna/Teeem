@@ -991,6 +991,8 @@ export default function ContactDetailPage() {
   // Track if component is mounted to prevent state updates after deletion/navigation
   const mountedRef = useRef(true);
 
+  // Refresh key to force tab data reload after save
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // SSoT: Dedicated state for rich data tabs
   const [directorships, setDirectorships] = useState<Directorship[]>([]);
@@ -2297,6 +2299,8 @@ export default function ContactDetailPage() {
       // Signal that contacts list needs refresh when navigating back
       sessionStorage.setItem('contacts_needs_refresh', 'true');
       loadContact();
+      // Increment refresh key to force tab data reload (directorships, shareholdings, etc.)
+      setRefreshKey(prev => prev + 1);
     } catch (err) {
       console.error("Failed to save contact:", err);
     } finally {
@@ -2450,7 +2454,7 @@ export default function ContactDetailPage() {
     }
   };
 
-  // SSoT: Load tab-specific data when tab changes
+  // SSoT: Load tab-specific data when tab changes (initial load only when data is empty)
   useEffect(() => {
     if (!contact?.id) return;
 
@@ -2471,8 +2475,27 @@ export default function ContactDetailPage() {
       resetFiltersForEmailsTab();
       loadEmails();
     }
-     
+
   }, [activeTab, contact?.id]);
+
+  // Force reload current tab data when refreshKey changes (after save)
+  useEffect(() => {
+    if (!contact?.id || refreshKey === 0) return; // Skip initial render
+
+    if (activeTab === "corporate") {
+      loadDirectorships();
+      loadShareholdings();
+      loadTrustRoles();
+      loadOwnershipChain();
+    }
+    if (activeTab === "cases") {
+      loadCaseRelationships();
+    }
+    if (activeTab === "emails" && contact?.email) {
+      loadEmails(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   // Reload emails when showAllInThread changes
   useEffect(() => {
