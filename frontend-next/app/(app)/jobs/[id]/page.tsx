@@ -605,7 +605,7 @@ export default function JobDetailPage() {
   const startEditing = async () => {
     if (job) {
       setEditForm({
-        title: job.name,
+        name: job.name,
         contract_value: job.contract_value,
         certifier_job_no: job.certifier_job_no,
         start_date: job.start_date,
@@ -793,8 +793,8 @@ export default function JobDetailPage() {
                     <Label>Job Name</Label>
                     {isEditing ? (
                       <Input
-                        value={editForm.title || ""}
-                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                        value={editForm.name || ""}
+                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                       />
                     ) : (
                       <Input value={job.name} readOnly />
@@ -901,7 +901,7 @@ export default function JobDetailPage() {
               job={job}
               onSave={async (addressData) => {
                 try {
-                  const response = await api.patch(`/api/v1/jobs/${job.id}`, {
+                  const response = await api.patch<Job>(`/api/v1/jobs/${job.id}`, {
                     job: {
                       lot_number: addressData.lot_number,
                       street_number: addressData.street_number,

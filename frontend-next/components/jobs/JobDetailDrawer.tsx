@@ -57,7 +57,7 @@ interface Contact {
 
 interface Job {
   id: number;
-  title: string;
+  name: string;
   status: string;
   stage: string;
   job_status?: { id: number; name: string; color?: string };
@@ -145,7 +145,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
 
   const handleOpenFullPage = () => {
     if (job) {
-      const slug = slugifyJobTitle(job.title);
+      const slug = slugifyJobTitle(job.name);
       router.push(`/jobs/${slug}`);
     }
   };
@@ -167,7 +167,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
             <SheetHeader className="p-4 border-b shrink-0">
               <div className="flex items-start justify-between">
                 <div>
-                  <SheetTitle className="text-xl font-serif">{job.title}</SheetTitle>
+                  <SheetTitle className="text-xl font-serif">{job.name}</SheetTitle>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge variant="outline">{job.stage || job.job_stage?.name}</Badge>
                     <span className="text-sm text-muted-foreground">
@@ -319,7 +319,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                   </TabsContent>
 
                   <TabsContent value="purchase-orders" className="mt-0">
-                    <JobPurchaseOrdersTab jobId={job.id} jobTitle={job.title} />
+                    <JobPurchaseOrdersTab jobId={job.id} jobTitle={job.name} />
                   </TabsContent>
 
                   <TabsContent value="estimates" className="mt-0">
@@ -371,11 +371,11 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                   </TabsContent>
 
                   <TabsContent value="documents" className="mt-0">
-                    <JobDocumentsTab jobId={job.id} jobTitle={job.title} />
+                    <JobDocumentsTab jobId={job.id} jobTitle={job.name} />
                   </TabsContent>
 
                   <TabsContent value="coms" className="mt-0">
-                    <JobCommunicationsTab jobId={job.id} jobTitle={job.title} />
+                    <JobCommunicationsTab jobId={job.id} jobTitle={job.name} />
                   </TabsContent>
                 </div>
               </ScrollArea>

@@ -466,7 +466,6 @@ export function LocationMap({
           latitude: savedPosition[0],
           longitude: savedPosition[1],
           location: newLocation,
-          title: newTitle,
         });
       }
     } catch (err) {

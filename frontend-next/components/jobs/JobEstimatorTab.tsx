@@ -34,7 +34,7 @@ interface Analysis {
 
 interface Job {
   id: number;
-  title: string;
+  name: string;
   estimator_analysis?: Analysis;
 }
 
