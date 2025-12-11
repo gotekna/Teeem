@@ -1,10 +1,10 @@
-# Deploy ALL Changes to Production
+# Deploy THIS Chat's Changes to Production
 
-**Shortcut:** `/lp` (Live Push - Everything)
+**Shortcut:** `/l` (Live - This Chat Only)
 
-Commits ALL pending changes from ALL chat sessions and deploys to production.
+Commits only THIS chat session's changes and deploys to production.
 
-**Use `/l` to commit and deploy only THIS chat's changes instead.**
+**Use `/lp` to commit ALL pending changes from ALL sessions instead.**
 
 ## PRODUCTION DEPLOY
 
@@ -19,24 +19,9 @@ git branch --show-current
 git status --short
 ```
 
-### Step 2 - Ensure on Live Branch
-```bash
-git checkout Live
-git pull origin Live
-```
+### Step 2 - Commit This Chat's Changes
 
-### Step 3 - Pop Any Stashed Changes
-
-**Include any stashed work from other chats:**
-```bash
-git stash list
-# If there are stashes from other chats, pop them:
-git stash pop
-```
-
-### Step 4 - Auto-Generate Commit Message and Commit
-
-**Analyze ALL changes and auto-generate message:**
+**Auto-generate commit message based on changes:**
 
 Rules (in priority order):
 1. Only `package.json` version → `chore: Bump version to X.X.X`
@@ -47,7 +32,6 @@ Rules (in priority order):
 6. Multiple types → Combine appropriately
 7. Default → `chore: Update project files`
 
-**Auto-commit ALL changes (including untracked):**
 ```bash
 git add -A
 git commit -m "[auto-generated message]
@@ -57,13 +41,13 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 5 - Push to GitHub
+### Step 3 - Push to GitHub
 ```bash
 git push origin Live
 ```
 *Vercel auto-deploys frontend from this push*
 
-### Step 6 - Deploy Backend (ONLY if backend changed)
+### Step 4 - Deploy Backend (ONLY if backend changed)
 
 **Check if backend files were in the commit:**
 ```bash
@@ -77,7 +61,7 @@ cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend --rejo
 
 **If no backend changes, skip this step entirely.**
 
-### Step 7 - Report Status
+### Step 5 - Report Status
 
 **Show Brisbane time:**
 ```

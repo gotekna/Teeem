@@ -22,6 +22,7 @@ import {
   Workflow,
   CheckCircle,
   XCircle,
+  Upload,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -58,6 +59,8 @@ export default function BpmnProcessesPage() {
   const { toast } = useToast();
   const [processes, setProcesses] = useState<BpmnProcessSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const fetchProcesses = useCallback(async () => {
     try {
@@ -164,6 +167,45 @@ export default function BpmnProcessesPage() {
     }
   };
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith(".bpmn") && !file.name.endsWith(".xml")) {
+      toast({ title: "Error", description: "Please select a BPMN (.bpmn) or XML file", variant: "destructive" });
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const xmlContent = await file.text();
+      const response = await api.post<ApiResponse & { message?: string }>("/api/v1/bpmn_processes/import", {
+        xml_content: xmlContent,
+        name: file.name.replace(/\.(bpmn|xml)$/, ""),
+      });
+
+      if (response?.success && response.bpmn_process) {
+        toast({ title: "Success", description: response.message || "Workflow imported" });
+        router.push(`/workflows/designer/${response.bpmn_process.id}`);
+      } else {
+        toast({ title: "Error", description: "Import failed", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error("Failed to import:", error);
+      toast({ title: "Error", description: "Failed to import workflow", variant: "destructive" });
+    } finally {
+      setImporting(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -181,10 +223,23 @@ export default function BpmnProcessesPage() {
             Design and manage automated business processes
           </p>
         </div>
-        <Button onClick={handleCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Workflow
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleImportClick} disabled={importing}>
+            <Upload className="mr-2 h-4 w-4" />
+            {importing ? "Importing..." : "Import BPMN"}
+          </Button>
+          <Button onClick={handleCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Workflow
+          </Button>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".bpmn,.xml"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
       </div>
 
       {processes.length === 0 ? (

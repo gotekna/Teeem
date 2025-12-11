@@ -5,6 +5,8 @@
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://teeemlive-ce8e2660a615.herokuapp.com').trim();
 
+export const getApiBaseUrl = () => API_URL;
+
 // Configuration
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 const MAX_RETRIES = 3;
