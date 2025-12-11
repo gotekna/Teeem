@@ -17,11 +17,13 @@ class BpmnNode < ApplicationRecord
     inclusive_gateway
     timer_event
     message_event
+    data_store_reference
   ].freeze
 
   EVENT_TYPES = %w[start_event end_event timer_event message_event].freeze
   TASK_TYPES = %w[user_task service_task].freeze
   GATEWAY_TYPES = %w[exclusive_gateway parallel_gateway inclusive_gateway].freeze
+  DATA_TYPES = %w[data_store_reference].freeze
 
   # Validations
   validates :node_type, presence: true, inclusion: { in: NODE_TYPES }
