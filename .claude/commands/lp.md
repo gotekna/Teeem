@@ -59,7 +59,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ### Step 5 - Push to GitHub
 ```bash
-git push origin Live
+ALLOW_PUSH=1 git push origin Live
 ```
 *Vercel auto-deploys frontend from this push*
 
@@ -72,7 +72,7 @@ git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy 
 
 **If backend changed**, deploy to Heroku:
 ```bash
-cd /Users/robertharder/GitHub/teeem && git subtree push --prefix backend heroku-teeemlive main
+cd /Users/robertharder/GitHub/teeem && ALLOW_PUSH=1 git subtree push --prefix backend heroku-teeemlive main
 ```
 
 **If no backend changes, skip this step entirely.**

@@ -113,7 +113,7 @@ cd frontend-next && npm run dev
 
 # Or manually deploy backend to Heroku:
 cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend -b temp-backend-deploy
-git push heroku-teeemlive temp-backend-deploy:main --force
+ALLOW_PUSH=1 git push heroku-teeemlive temp-backend-deploy:main --force
 git branch -D temp-backend-deploy
 ```
 
