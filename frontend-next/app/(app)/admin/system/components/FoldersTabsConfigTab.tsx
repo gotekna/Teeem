@@ -20,7 +20,10 @@ import {
   Scale,
   Users,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Check,
+  X,
+  Pencil
 } from "lucide-react";
 import {
   Select,
@@ -170,6 +173,8 @@ export function FoldersTabsConfigTab() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   const [expandedFolders, setExpandedFolders] = React.useState<Set<number>>(new Set());
+  const [editingFolderNameId, setEditingFolderNameId] = React.useState<number | null>(null);
+  const [editingFolderNameValue, setEditingFolderNameValue] = React.useState("");
 
   // Get root folders (no parent)
   const rootFolders = React.useMemo(() =>
@@ -343,6 +348,31 @@ export function FoldersTabsConfigTab() {
     setHasChanges(true);
   };
 
+  const updateFolderName = (folderId: number, name: string) => {
+    setFolders(folders.map(f =>
+      f.id === folderId ? { ...f, name: name.toUpperCase() } : f
+    ));
+    setHasChanges(true);
+  };
+
+  const startEditingFolderName = (folder: Folder) => {
+    setEditingFolderNameId(folder.id);
+    setEditingFolderNameValue(folder.name);
+  };
+
+  const saveEditingFolderName = () => {
+    if (editingFolderNameId !== null && editingFolderNameValue.trim()) {
+      updateFolderName(editingFolderNameId, editingFolderNameValue.trim());
+    }
+    setEditingFolderNameId(null);
+    setEditingFolderNameValue("");
+  };
+
+  const cancelEditingFolderName = () => {
+    setEditingFolderNameId(null);
+    setEditingFolderNameValue("");
+  };
+
   const saveChanges = async () => {
     try {
       setIsSaving(true);
@@ -460,12 +490,49 @@ export function FoldersTabsConfigTab() {
                   Sub-Tab
                 </Badge>
               )}
-              <Badge variant="secondary" className={cn(
-                "font-mono font-bold",
-                isChild && "bg-blue-100 dark:bg-blue-900/30"
-              )}>
-                {folder.name}
-              </Badge>
+              {editingFolderNameId === folder.id ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={editingFolderNameValue}
+                    onChange={(e) => setEditingFolderNameValue(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveEditingFolderName();
+                      if (e.key === "Escape") cancelEditingFolderName();
+                    }}
+                    className="h-7 w-32 font-mono font-bold text-sm uppercase"
+                    autoFocus
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={saveEditingFolderName}
+                  >
+                    <Check className="h-3 w-3 text-green-600" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={cancelEditingFolderName}
+                  >
+                    <X className="h-3 w-3 text-red-600" />
+                  </Button>
+                </div>
+              ) : (
+                <div
+                  className="flex items-center gap-1 cursor-pointer group/name"
+                  onClick={() => startEditingFolderName(folder)}
+                >
+                  <Badge variant="secondary" className={cn(
+                    "font-mono font-bold",
+                    isChild && "bg-blue-100 dark:bg-blue-900/30"
+                  )}>
+                    {folder.name}
+                  </Badge>
+                  <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover/name:opacity-100 transition-opacity" />
+                </div>
+              )}
               <Input
                 value={folder.description}
                 onChange={(e) => updateDescription(folder.id, e.target.value)}
