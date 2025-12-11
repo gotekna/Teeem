@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "https://teeem-backend-39604ccca45a.herokuapp.com";
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "https://teeemlive-ce8e2660a615.herokuapp.com";
 
 export async function POST(request: Request) {
   try {
