@@ -95,10 +95,10 @@ module Api
         include_jobs = params[:include_jobs] == "true"
 
         # Include director details if filtering for directors
-        director_fields = params[:is_director] == "true" ? [ :director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country, :residential_address, :drivers_licence, :passport_number, :photo_url ] : []
+        director_fields = params[:is_director] == "true" ? [ :place_of_birth, :birth_state, :birth_country, :residential_address ] : []
 
         contacts_json = @contacts.as_json(
-          only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status, :is_family_member, :is_potential_director, :company_group_id, :is_team_contact ] + director_fields,
+          only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :is_active, :address, :lgas, :xero_id, :xero_synced, :sync_with_xero, :total_purchase_orders_count, :total_purchase_orders_value, :entity_type, :is_family_member, :is_potential_director, :company_group_id, :is_team_contact ] + director_fields,
           include: {
             portal_user: { only: [ :id, :email, :portal_type, :active ] },
             corporate_group: { only: [ :id, :name ] }
@@ -158,24 +158,20 @@ module Api
         # If this contact is a supplier, include their supplier-specific data
         contact_json = @contact.as_json(
           only: [
-            :id, :display_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :fax_phone, :website,
-            :tax_number, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :xero_sync_error,
-            :sys_type_id, :parent_id, :parent,
-            :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
-            :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
-            :entity_type, :primary_role, :employment_status, :primary_company_id, :company_name_or_trust,
+            :id, :display_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :website,
+            :tax_number, :xero_id, :xero_synced, :sync_with_xero,
+            :created_at, :updated_at,
+            :roles, :is_active, :address, :lgas,
+            :entity_type, :primary_company_id, :company_name_or_trust,
             # Family/Director flags
             :is_family_member, :is_potential_director, :company_group_id, :is_team_contact,
             # Xero fields
             :bank_bsb, :bank_account_number, :bank_account_name,
             :default_purchase_account, :default_sales_account,
             :bill_due_day, :bill_due_type, :sales_due_day, :sales_due_type,
-            :xero_contact_number, :xero_contact_status, :xero_account_number, :company_number, :default_discount,
-            :accounts_receivable_outstanding, :accounts_receivable_overdue,
-            :accounts_payable_outstanding, :accounts_payable_overdue,
+            :xero_contact_number, :xero_contact_status, :xero_account_number, :default_discount,
             # Director details fields
-            :director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country,
-            :residential_address, :drivers_licence, :passport_number, :photo_url
+            :place_of_birth, :birth_state, :birth_country, :residential_address
           ],
           include: {
             contact_emails: { only: [ :id, :email, :is_primary, :label, :position ] },
@@ -239,9 +235,6 @@ module Api
             website: company.website,
             address: company.address,
             roles: company.roles,
-            role: @contact.primary_role,
-            employment_status: @contact.employment_status,
-            start_date: @contact.employment_start_date,
             # Include ABN/ACN if company record exists
             abn: company_record&.abn,
             acn: company_record&.acn,
@@ -290,7 +283,6 @@ module Api
               last_name: employee.last_name,
               email: employee.email,
               mobile_phone: employee.mobile_phone,
-              primary_role: employee.primary_role,
               display_order: employee_display_order[employee.id] || index,  # Use stored order or position
               is_primary: index == 0  # First employee is primary
             }
@@ -3374,8 +3366,6 @@ module Api
         primary.office_phone ||= duplicate.office_phone
         primary.first_name ||= duplicate.first_name
         primary.last_name ||= duplicate.last_name
-        primary.primary_role ||= duplicate.primary_role
-        primary.notes = [ primary.notes, duplicate.notes ].compact.reject(&:blank?).join("\n\n---\nMerged from #{duplicate.display_name}:\n") if duplicate.notes.present? && duplicate.notes != primary.notes
         primary.save! if primary.changed?
 
         # Move outgoing relationships (where duplicate is source)
