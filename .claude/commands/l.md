@@ -8,9 +8,8 @@ Commits only THIS chat session's changes and deploys to production.
 
 ## PRODUCTION DEPLOY
 
-This deploys directly to **PRODUCTION**:
-- Backend: https://teeemlive-ce8e2660a615.herokuapp.com/
-- Frontend: https://teeemlive.vercel.app/
+- Backend: Heroku (`teeemlive`) - manual deploy via subtree
+- Frontend: Vercel - auto-deploys from GitHub push
 
 ## Instructions
 
@@ -20,18 +19,7 @@ git branch --show-current
 git status --short
 ```
 
-### Step 2 - Detect What Changed
-
-Check which parts of the codebase have changes:
-```bash
-# Check for backend changes
-git diff --name-only HEAD | grep -q "^backend/" && echo "BACKEND_CHANGED=true" || echo "BACKEND_CHANGED=false"
-
-# Check for frontend changes
-git diff --name-only HEAD | grep -q "^frontend-next/" && echo "FRONTEND_CHANGED=true" || echo "FRONTEND_CHANGED=false"
-```
-
-### Step 3 - Commit This Chat's Changes
+### Step 2 - Commit This Chat's Changes
 
 **Auto-generate commit message based on changes:**
 
@@ -53,51 +41,38 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 4 - Push to GitHub (Live branch)
+### Step 3 - Push to GitHub
 ```bash
 git push origin Live
 ```
+*Vercel auto-deploys frontend from this push*
 
-### Step 5 - Deploy Backend (ONLY if backend changed)
+### Step 4 - Deploy Backend (ONLY if backend changed)
 
-**Skip this step if no backend files changed.**
+**Check if backend files were in the commit:**
+```bash
+git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
+```
 
-If backend changed, deploy to Heroku:
+**If backend changed**, deploy to Heroku:
 ```bash
 cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend --rejoin -b backend-heroku && git push heroku-teeemlive backend-heroku:main --force
 ```
 
-Note: First deploy is slow (~60s), subsequent deploys are fast (~10-15s)
+**If no backend changes, skip this step entirely.**
 
-### Step 6 - Verify Deploy
-```bash
-sleep 10
-curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version
-heroku releases --app teeemlive -n 1
-```
-
-### Step 7 - Report Status
+### Step 5 - Report Status
 
 **Show Brisbane time:**
 ```
 ========================================
 DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
-Backend: v[XXX] or "No changes"
-Frontend: Auto-deploy via Vercel (skips if no changes)
-Heroku: v[XXX]
-Files: [count] files changed
+Backend: v[XXX] or "No changes - skipped"
+Frontend: Auto-deployed via Vercel
+Heroku: v[XXX] or "Skipped"
 ========================================
 ```
-
-## Smart Deploy Logic
-
-| Backend Changed | Frontend Changed | Action |
-|-----------------|------------------|--------|
-| Yes | Yes | Deploy backend to Heroku, Vercel auto-deploys frontend |
-| Yes | No | Deploy backend to Heroku, Vercel auto-skips |
-| No | Yes | Skip Heroku, Vercel auto-deploys frontend |
-| No | No | Nothing to deploy |
 
 ## Error Handling
 
@@ -112,5 +87,3 @@ The `heroku-teeemlive` remote must be configured:
 ```bash
 git remote add heroku-teeemlive https://git.heroku.com/teeemlive.git
 ```
-
-Verify with: `git remote -v | grep teeemlive`
