@@ -46,6 +46,14 @@ refresh_integration_tokens:
 # ============================================
 # XERO INTEGRATION
 # ============================================
+
+# SELF-HEALING: Health monitor checks for stalled syncs and auto-triggers them
+# This prevents sync outages by detecting when next_sync_at is overdue
+xero_health_monitor:
+  class: XeroHealthMonitorJob
+  queue: default
+  schedule: every 15 minutes
+
 xero_invoice_incremental_sync:
   class: XeroInvoiceSyncJob
   queue: default
