@@ -257,6 +257,9 @@ class BulkEmailSyncJob < ApplicationJob
 
       @progress["attachments_processed"] += 1
     end
+
+    # Update attachment_count after processing all attachments for this email
+    email.update!(attachment_count: email.email_attachments.count)
   end
 
   def upload_attachment(teeem_client, sp_config, filename, content, content_type, file_size, email_date, content_hash)
