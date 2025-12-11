@@ -403,6 +403,15 @@ namespace :document_templates do
       "{Buyer1.Postcode}" => "{{client_1.postcode}}",
       "{Buyer1.Email}" => "{{client_1.email}}",
 
+      # Generic Client fields (map to client_1)
+      "{Client.address}" => "{{client_1.address_line_1}}",
+      "{Client.City}" => "{{client_1.suburb}}",
+      "{Client.State}" => "{{client_1.state}}",
+      "{Client.postcode}" => "{{client_1.postcode}}",
+      "{Client.phone}" => "{{client_1.phone}}",
+      "{Client.email}" => "{{client_1.email}}",
+      "{Buyer1.Postcode}" => "{{client_1.postcode}}",
+
       # Client 2 fields
       "{Client2.First}" => "{{client_2.first_name}}",
       "{Client2.Full_Name}" => "{{client_2.display_name}}",
