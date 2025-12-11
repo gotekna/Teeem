@@ -135,6 +135,169 @@ namespace :document_templates do
     end
   end
 
+  desc "Create Templates folder in TEEEM SharePoint and list contents"
+  task setup_sharepoint_folder: :environment do
+    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    unless sp_config
+      puts "ERROR: TEEEM SharePoint not configured"
+      exit 1
+    end
+
+    puts "TEEEM SharePoint Configuration:"
+    puts "  Site ID: #{sp_config[:site_id]}"
+    puts "  Drive ID: #{sp_config[:drive_id]}"
+    puts "  Drive Name: #{sp_config[:drive_name]}"
+    puts ""
+
+    client = MicrosoftAppGraphClient.new(sp_config[:credential])
+
+    # Check if Templates folder exists
+    puts "Checking for Templates folder..."
+    begin
+      existing = client.list_folder_contents(
+        site_id: sp_config[:site_id],
+        drive_id: sp_config[:drive_id],
+        folder_path: "Templates"
+      )
+      puts "✓ Templates folder exists with #{existing.count} files:"
+      existing.each do |item|
+        type = item[:folder] ? "📁" : "📄"
+        puts "  #{type} #{item[:name]} (#{item[:id]})"
+      end
+    rescue StandardError => e
+      if e.message.include?("itemNotFound") || e.message.include?("404")
+        puts "Creating Templates folder..."
+        client.create_folder(
+          site_id: sp_config[:site_id],
+          drive_id: sp_config[:drive_id],
+          parent_path: "",
+          folder_name: "Templates"
+        )
+        puts "✓ Templates folder created"
+      else
+        puts "ERROR: #{e.message}"
+      end
+    end
+
+    # Store config for use by other tasks
+    puts ""
+    puts "To use this SharePoint for templates, templates should be linked with:"
+    puts "  site_id: #{sp_config[:site_id]}"
+    puts "  drive_id: #{sp_config[:drive_id]}"
+    puts "  path: Templates/{filename}"
+    puts ""
+    puts "Upload Word templates to: SharePoint > #{sp_config[:drive_name]} > Templates"
+  end
+
+  desc "List files in TEEEM SharePoint Templates folder"
+  task list_sharepoint_templates: :environment do
+    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    unless sp_config
+      puts "ERROR: TEEEM SharePoint not configured"
+      exit 1
+    end
+
+    client = MicrosoftAppGraphClient.new(sp_config[:credential])
+
+    puts "Templates in TEEEM SharePoint:"
+    puts "=" * 60
+
+    begin
+      files = client.list_folder_contents(
+        site_id: sp_config[:site_id],
+        drive_id: sp_config[:drive_id],
+        folder_path: "Templates"
+      )
+
+      files.each do |item|
+        next if item[:folder]
+        puts "#{item[:name]}"
+        puts "  ID: #{item[:id]}"
+        puts "  Size: #{item[:size]} bytes"
+        puts ""
+      end
+
+      puts "Total: #{files.reject { |f| f[:folder] }.count} template files"
+    rescue StandardError => e
+      puts "ERROR: #{e.message}"
+      puts "(Templates folder may not exist yet - run rake document_templates:setup_sharepoint_folder)"
+    end
+  end
+
+  desc "Link DocumentTemplates to files in TEEEM SharePoint Templates folder"
+  task link_to_sharepoint: :environment do
+    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    unless sp_config
+      puts "ERROR: TEEEM SharePoint not configured"
+      exit 1
+    end
+
+    client = MicrosoftAppGraphClient.new(sp_config[:credential])
+
+    puts "Linking DocumentTemplates to TEEEM SharePoint files..."
+    puts "=" * 60
+
+    # Get files from Templates folder
+    begin
+      files = client.list_folder_contents(
+        site_id: sp_config[:site_id],
+        drive_id: sp_config[:drive_id],
+        folder_path: "Templates"
+      )
+    rescue StandardError => e
+      puts "ERROR: #{e.message}"
+      exit 1
+    end
+
+    # Build lookup map (filename without extension => file info)
+    file_map = {}
+    files.each do |file|
+      next if file[:folder]
+      base_name = File.basename(file[:name], ".*")
+      file_map[base_name.downcase] = file
+      # Also try without leading numbers: "01 Welcome Letter" => "Welcome Letter"
+      simple_name = base_name.sub(/^\d+\s+/, "")
+      file_map[simple_name.downcase] = file
+    end
+
+    # Link templates
+    DocumentTemplate.find_each do |template|
+      if template.sharepoint_linked?
+        puts "#{template.name}: Already linked"
+        next
+      end
+
+      # Try to find matching file
+      match_key = template.name.downcase
+      file = file_map[match_key]
+
+      # Try with common variations
+      unless file
+        variations = [
+          template.name.downcase,
+          template.name.sub(/^\d+\s+/, "").downcase,
+          template.name.gsub(/\s+/, " ").downcase
+        ]
+        variations.each do |v|
+          file = file_map[v]
+          break if file
+        end
+      end
+
+      if file
+        template.update!(
+          sharepoint_site_id: sp_config[:site_id],
+          sharepoint_drive_id: sp_config[:drive_id],
+          sharepoint_item_id: file[:id],
+          sharepoint_path: "Templates/#{file[:name]}"
+        )
+        puts "#{template.name}: ✓ Linked to #{file[:name]}"
+      else
+        puts "#{template.name}: ✗ No matching file found"
+      end
+    end
+  end
+
   desc "Map Compoza item_data expressions to TEEEM field paths"
   task show_field_mapping: :environment do
     puts "Compoza to TEEEM Field Mapping"
