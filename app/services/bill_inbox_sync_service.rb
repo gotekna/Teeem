@@ -103,8 +103,8 @@ class BillInboxSyncService
       e.from_name = email.dig("from", "emailAddress", "name")
       e.received_at = email["receivedDateTime"]
       e.has_attachments = true
-      e.body_preview = email["bodyPreview"]
-      e.mailbox_owner = @mailbox
+      # Store the monitored mailbox info in folder_name as a workaround
+      e.folder_name = "bill_inbox:#{@mailbox}"
     end
   end
 
