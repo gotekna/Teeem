@@ -934,7 +934,14 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
       );
       if (foundationResponse.success) {
         setFoundation(foundationResponse.foundation);
-        setColumns(foundationResponse.foundation.columns || []);
+
+        // Transform columns to add 'key' property (TeeemTableView expects 'key', backend returns 'column_name')
+        const transformedColumns = (foundationResponse.foundation.columns || []).map((col: any) => ({
+          ...col,
+          key: col.column_name,
+          label: col.name
+        }));
+        setColumns(transformedColumns);
       }
 
       // Load bank account entries for this company

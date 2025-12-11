@@ -40,6 +40,45 @@ function snapToGrid(value: number, gridSize: number): number {
 }
 
 /**
+ * Groups values that are close together (within threshold)
+ * and returns the average for each group
+ */
+function groupAndAlignValues(values: number[], threshold: number = 40): Map<number, number> {
+  const sorted = [...values].sort((a, b) => a - b);
+  const groups: number[][] = [];
+
+  sorted.forEach(value => {
+    // Find a group this value belongs to
+    let foundGroup = false;
+    for (const group of groups) {
+      const groupAvg = group.reduce((sum, v) => sum + v, 0) / group.length;
+      if (Math.abs(value - groupAvg) <= threshold) {
+        group.push(value);
+        foundGroup = true;
+        break;
+      }
+    }
+
+    // Create new group if not found
+    if (!foundGroup) {
+      groups.push([value]);
+    }
+  });
+
+  // Create a map of original value -> aligned value
+  const alignmentMap = new Map<number, number>();
+  groups.forEach(group => {
+    const alignedValue = group.reduce((sum, v) => sum + v, 0) / group.length;
+    const snappedValue = snapToGrid(alignedValue, 20);
+    group.forEach(originalValue => {
+      alignmentMap.set(originalValue, snappedValue);
+    });
+  });
+
+  return alignmentMap;
+}
+
+/**
  * Applies automatic layout to nodes using dagre algorithm with grid snapping
  * @param nodes - Array of React Flow nodes
  * @param edges - Array of React Flow edges
@@ -88,25 +127,48 @@ export function getLayoutedElements<T extends Record<string, unknown>>(
   // Run the layout algorithm
   dagre.layout(dagreGraph);
 
-  // Grid size for snapping (20px matches ReactFlow snap grid)
+  // LANE-BASED ALIGNMENT: Force all nodes to snap to horizontal lanes
+  const LANE_HEIGHT = 120; // Height of each horizontal lane (matches nodeSpacing)
   const GRID_SIZE = 20;
 
-  // Apply calculated positions to nodes with grid snapping
-  return nodes.map((node) => {
+  // Get all positions from dagre
+  const positions = nodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
     const nodeType = node.type || "default";
     const dimensions = NODE_DIMENSIONS[nodeType] || DEFAULT_DIMENSIONS;
 
-    // Calculate position (centered on dagre position)
-    const rawX = nodeWithPosition.x - dimensions.width / 2;
-    const rawY = nodeWithPosition.y - dimensions.height / 2;
+    return {
+      id: node.id,
+      x: nodeWithPosition.x - dimensions.width / 2,
+      y: nodeWithPosition.y - dimensions.height / 2,
+    };
+  });
 
+  // Snap X positions to grid and align nodes in same column
+  const xPositions = positions.map(p => p.x);
+  const xGroups = groupAndAlignValues(xPositions, 100); // Group nodes in same column
+
+  // Snap Y positions to fixed lanes (every LANE_HEIGHT pixels)
+  // This forces perfect horizontal alignment
+  const alignedPositions = positions.map(pos => {
+    const laneIndex = Math.round(pos.y / LANE_HEIGHT);
+    const laneY = laneIndex * LANE_HEIGHT;
+
+    return {
+      id: pos.id,
+      x: xGroups.get(pos.x) ?? snapToGrid(pos.x, GRID_SIZE),
+      y: snapToGrid(laneY, GRID_SIZE),
+    };
+  });
+
+  // Apply aligned positions to nodes
+  return nodes.map((node) => {
+    const alignedPos = alignedPositions.find(p => p.id === node.id)!;
     return {
       ...node,
       position: {
-        // Snap to grid for perfect alignment
-        x: snapToGrid(rawX, GRID_SIZE),
-        y: snapToGrid(rawY, GRID_SIZE),
+        x: alignedPos.x,
+        y: alignedPos.y,
       },
     };
   });
