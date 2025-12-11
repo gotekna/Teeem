@@ -138,12 +138,12 @@ export default function BpmnProcessesPage() {
 
   const handlePublish = async (id: number) => {
     try {
-      const response = await api.post(`/api/v1/bpmn_processes/${id}/publish`) as AxiosResponse<ApiResponse> | null;
-      if (response?.data.success) {
+      const response = await api.post<ApiResponse>(`/api/v1/bpmn_processes/${id}/publish`);
+      if (response?.success) {
         toast({ title: "Success", description: "Workflow published" });
         fetchProcesses();
       } else if (response) {
-        toast({ title: "Error", description: response.data.errors?.join(", ") || "Failed to publish", variant: "destructive" });
+        toast({ title: "Error", description: response.errors?.join(", ") || "Failed to publish", variant: "destructive" });
       }
     } catch (error) {
       console.error("Failed to publish:", error);
@@ -153,8 +153,8 @@ export default function BpmnProcessesPage() {
 
   const handleUnpublish = async (id: number) => {
     try {
-      const response = await api.post(`/api/v1/bpmn_processes/${id}/unpublish`) as AxiosResponse<ApiResponse> | null;
-      if (response?.data.success) {
+      const response = await api.post<ApiResponse>(`/api/v1/bpmn_processes/${id}/unpublish`);
+      if (response?.success) {
         toast({ title: "Success", description: "Workflow unpublished" });
         fetchProcesses();
       }
