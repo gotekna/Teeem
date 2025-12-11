@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_11_021405) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_11_023951) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1727,11 +1727,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_021405) do
     t.string "user_classification"
     t.datetime "user_classification_at"
     t.bigint "user_classification_by_id"
-    t.string "direction"
     t.bigint "ssot_owner_id"
-    t.string "sharepoint_file_id"
-    t.string "sharepoint_path"
-    t.datetime "sharepoint_synced_at"
     t.string "body_preview", limit: 500
     t.text "ai_summary"
     t.jsonb "extracted_contacts", default: {}
@@ -1741,9 +1737,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_021405) do
     t.string "mailbox_owner_email"
     t.string "sharepoint_email_file_id"
     t.string "sharepoint_email_path"
+    t.bigint "contact_ids", default: [], array: true
+    t.bigint "primary_contact_id"
+    t.datetime "contacts_matched_at"
     t.index ["cc_emails"], name: "index_email_warehouse_on_cc_emails", using: :gin
+    t.index ["contact_ids"], name: "index_email_warehouse_on_contact_ids", using: :gin
     t.index ["conversation_id"], name: "index_email_warehouse_on_conversation_id"
-    t.index ["direction"], name: "index_email_warehouse_on_direction"
     t.index ["email_classification"], name: "index_email_warehouse_on_email_classification", using: :gin
     t.index ["from_email"], name: "index_email_warehouse_on_from_email"
     t.index ["internet_headers"], name: "index_email_warehouse_on_internet_headers", using: :gin
@@ -1755,10 +1754,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_021405) do
     t.index ["job_id"], name: "index_email_warehouse_on_job_id"
     t.index ["mailbox_owner_email"], name: "index_email_warehouse_on_mailbox_owner_email"
     t.index ["microsoft_credential_id"], name: "index_email_warehouse_on_microsoft_credential_id"
+    t.index ["primary_contact_id"], name: "index_email_warehouse_on_primary_contact_id"
     t.index ["received_at"], name: "index_email_warehouse_on_received_at"
     t.index ["searchable"], name: "index_email_warehouse_on_searchable", using: :gin
     t.index ["sharepoint_email_file_id"], name: "index_email_warehouse_on_sharepoint_email_file_id"
-    t.index ["sharepoint_file_id"], name: "index_email_warehouse_on_sharepoint_file_id"
     t.index ["ssot_owner_id"], name: "index_email_warehouse_on_ssot_owner_id"
     t.index ["synced_by_user_id"], name: "index_email_warehouse_on_synced_by_user_id"
     t.index ["to_emails"], name: "index_email_warehouse_on_to_emails", using: :gin
@@ -5032,6 +5031,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_021405) do
   add_foreign_key "email_recipients", "email_warehouse"
   add_foreign_key "email_recipients", "users"
   add_foreign_key "email_sync_statuses", "users"
+  add_foreign_key "email_warehouse", "contacts", column: "primary_contact_id"
   add_foreign_key "email_warehouse", "jobs"
   add_foreign_key "email_warehouse", "organization_microsoft_app_credentials", column: "microsoft_credential_id"
   add_foreign_key "email_warehouse", "users", column: "ssot_owner_id"

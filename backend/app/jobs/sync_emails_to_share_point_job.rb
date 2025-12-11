@@ -169,6 +169,9 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
           uploaded += 1
         end
+
+        # Update attachment_count after processing all attachments for this email
+        email.update!(attachment_count: email.email_attachments.count)
       rescue StandardError => e
         Rails.logger.error "[SyncToSharePoint] Error processing email #{email.id}: #{e.message}"
         skipped += 1
