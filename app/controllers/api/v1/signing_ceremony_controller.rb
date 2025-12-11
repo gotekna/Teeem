@@ -2,7 +2,7 @@
 # This controller uses token-based authentication, not JWT.
 #
 class Api::V1::SigningCeremonyController < ApplicationController
-  skip_before_action :authenticate_request
+  skip_before_action :authorize_request
   before_action :authenticate_signer, except: [ :verify_token ]
 
   # GET /api/v1/sign/:token
