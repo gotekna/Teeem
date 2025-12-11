@@ -1,10 +1,10 @@
-# Deploy ALL Changes to Production
+# Deploy THIS Chat's Changes to Production
 
-**Shortcut:** `/lp` (Live Push - Everything)
+**Shortcut:** `/l` (Live - This Chat Only)
 
-Commits ALL pending changes from ALL chat sessions and deploys to production.
+Commits only THIS chat session's changes and deploys to production.
 
-**Use `/l` to commit and deploy only THIS chat's changes instead.**
+**Use `/lp` to commit ALL pending changes from ALL sessions instead.**
 
 ## PRODUCTION DEPLOY
 
@@ -20,35 +20,19 @@ git branch --show-current
 git status --short
 ```
 
-### Step 2 - Ensure on Live Branch
-```bash
-git checkout Live
-git pull origin Live
-```
+### Step 2 - Commit This Chat's Changes
 
-### Step 3 - Pop Any Stashed Changes
-
-**Include any stashed work from other chats:**
-```bash
-git stash list
-# If there are stashes from other chats, pop them:
-git stash pop
-```
-
-### Step 4 - Auto-Generate Commit Message and Commit
-
-**Analyze ALL changes and auto-generate message:**
+**Auto-generate commit message based on changes:**
 
 Rules (in priority order):
-1. Only `package.json` version → `chore: Bump version to X.X.X`
-2. `.claude/commands/*` → `chore: Update slash commands`
-3. `db/migrate/*` → `feat: Add migration`
-4. Backend `.rb` → `feat: Update backend`
-5. Frontend `.tsx/.jsx` → `feat: Update frontend`
-6. Multiple types → Combine appropriately
-7. Default → `chore: Update project files`
+1. Only `package.json` version -> `chore: Bump version to X.X.X`
+2. `.claude/commands/*` -> `chore: Update slash commands`
+3. `db/migrate/*` -> `feat: Add migration`
+4. Backend `.rb` -> `feat: Update backend`
+5. Frontend `.tsx/.jsx` -> `feat: Update frontend`
+6. Multiple types -> Combine appropriately
+7. Default -> `chore: Update project files`
 
-**Auto-commit ALL changes (including untracked):**
 ```bash
 git add -A
 git commit -m "[auto-generated message]
@@ -58,12 +42,12 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 5 - Push to GitHub (Live branch)
+### Step 3 - Push to GitHub (Live branch)
 ```bash
 git push origin Live
 ```
 
-### Step 6 - Deploy Backend to Production via Git Subtree (FAST)
+### Step 4 - Deploy Backend to Production via Git Subtree (FAST)
 
 **IMPORTANT: Uses --rejoin for faster subsequent deploys**
 
@@ -73,14 +57,14 @@ cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend --rejo
 
 Note: First deploy is slow (~60s), subsequent deploys are fast (~10-15s)
 
-### Step 7 - Verify Deploy
+### Step 5 - Verify Deploy
 ```bash
 sleep 10
 curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version
 heroku releases --app teeemlive -n 1
 ```
 
-### Step 8 - Report Status
+### Step 6 - Report Status
 
 **Show Brisbane time:**
 ```
