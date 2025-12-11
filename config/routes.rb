@@ -1027,6 +1027,39 @@ Rails.application.routes.draw do
         end
       end
 
+      # Bill Inbox (AP Automation)
+      resources :bill_inbox, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          get :stats
+        end
+        member do
+          post :extract
+          post :match
+          post :approve
+          post :reject
+        end
+      end
+
+      # Bill Payment Batches (ABA file generation)
+      resources :bill_payment_batches, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          get :eligible_bills
+        end
+        member do
+          post :add_bill
+          delete "remove_bill/:bill_payment_id", action: :remove_bill
+          post :generate_aba
+          get :download_aba
+          post :submit_for_approval
+          post :approve
+          post :mark_submitted
+          post :mark_completed
+        end
+      end
+
+      # Company Approval Rules (per-company AP approval config)
+      resources :company_approval_rules
+
       # Xero integration
       resources :xero, only: [] do
         collection do
@@ -1303,6 +1336,13 @@ Rails.application.routes.draw do
 
         # Bank Accounts (nested under companies)
         resources :bank_accounts, only: [ :index ]
+
+        # Bill Payment Batches (AP automation - nested under companies)
+        resources :bill_payment_batches, only: [ :index, :create ] do
+          collection do
+            get :eligible_bills
+          end
+        end
 
         # Shareholdings (nested under companies)
         resources :shareholdings, controller: "corporate_company_shareholdings", only: [ :index, :show, :create, :update, :destroy ] do
