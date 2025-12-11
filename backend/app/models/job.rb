@@ -46,7 +46,7 @@ class Job < ApplicationRecord
   validates :site_supervisor_name, presence: true, unless: -> { imported_from_xero? || enquiry_status? }
   validates :suburb, presence: true, if: :has_address_components?
   validates :state, presence: true, if: :has_address_components?
-  validates :postcode, length: { is: 4 }, allow_blank: true
+  validates :postcode, length: { is: 4 }, allow_blank: true, if: -> { postcode.present? }
   validate :at_least_lot_or_street_number, if: :has_address_components?
   # TODO: Re-enable once jobs have contacts assigned
   # validate :must_have_at_least_one_contact, on: :update
@@ -58,7 +58,9 @@ class Job < ApplicationRecord
   end
 
   # Callbacks
+  before_validation :normalize_postcode
   before_validation :auto_generate_name, if: :should_generate_name?
+  before_validation :ensure_name_present
   before_validation :auto_generate_council, if: :should_generate_council?
   after_create :create_documentation_tabs_from_categories
   after_create :queue_onedrive_folder_creation
@@ -314,6 +316,33 @@ class Job < ApplicationRecord
   end
 
   private
+
+  # Normalize postcode: strip whitespace and clear invalid ones
+  # Australian postcodes must be exactly 4 digits
+  def normalize_postcode
+    return if postcode.blank?
+
+    # Strip whitespace
+    self.postcode = postcode.to_s.strip
+
+    # If postcode is not exactly 4 digits, clear it to allow auto-generation
+    # This handles partial postcodes from location pickers
+    unless postcode.match?(/\A\d{4}\z/)
+      self.postcode = nil
+    end
+  end
+
+  # Ensure name is always present - fallback safety net
+  def ensure_name_present
+    return if name.present?
+
+    # Generate a placeholder name if still blank after auto_generate_name
+    self.name = if new_record?
+      "New Job (Pending Address)"
+    else
+      "Job ##{id}"
+    end
+  end
 
   def must_have_at_least_one_contact
     if job_contacts.empty?
