@@ -22,7 +22,7 @@ export default function WorkflowDesignerPage() {
   useEffect(() => {
     const fetchProcess = async () => {
       try {
-        const response = await api.get(`/bpmn_processes/${processId}`) as { data: { success: boolean; bpmn_process: Record<string, unknown> } };
+        const response = await api.get(`/api/v1/bpmn_processes/${processId}`) as { data: { success: boolean; bpmn_process: Record<string, unknown> } };
         if (response.data.success) {
           const p = response.data.bpmn_process;
           const nodes = (p.nodes || []) as Record<string, unknown>[];
@@ -114,9 +114,9 @@ export default function WorkflowDesignerPage() {
 
         let response: { data: { success: boolean; bpmn_process?: Record<string, unknown>; errors?: string[] } };
         if (process?.id) {
-          response = await api.patch(`/bpmn_processes/${process.id}`, payload) as typeof response;
+          response = await api.patch(`/api/v1/bpmn_processes/${process.id}`, payload) as typeof response;
         } else {
-          response = await api.post("/bpmn_processes", payload) as typeof response;
+          response = await api.post("/api/v1/bpmn_processes", payload) as typeof response;
         }
 
         if (response.data.success) {
@@ -149,7 +149,7 @@ export default function WorkflowDesignerPage() {
   const handlePublish = useCallback(
     async (id: number) => {
       try {
-        const response = await api.post(`/bpmn_processes/${id}/publish`) as { data: { success: boolean; errors?: string[] } };
+        const response = await api.post(`/api/v1/bpmn_processes/${id}/publish`) as { data: { success: boolean; errors?: string[] } };
         if (response.data.success) {
           toast({ title: "Success", description: "Workflow published" });
           setProcess((prev) => (prev ? { ...prev, isPublished: true } : prev));

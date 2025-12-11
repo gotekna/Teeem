@@ -62,7 +62,7 @@ export default function BpmnProcessesPage() {
 
   const fetchProcesses = useCallback(async () => {
     try {
-      const response: AxiosResponse<ApiResponse> = await api.get("/bpmn_processes");
+      const response: AxiosResponse<ApiResponse> = await api.get("/api/v1/bpmn_processes");
       if (response.data.success && response.data.bpmn_processes) {
         setProcesses(
           response.data.bpmn_processes.map((p) => ({
@@ -94,7 +94,7 @@ export default function BpmnProcessesPage() {
 
   const handleCreate = async () => {
     try {
-      const response = await api.post("/bpmn_processes", {
+      const response = await api.post("/api/v1/bpmn_processes", {
         bpmn_process: {
           name: "New Workflow",
           description: "",
@@ -111,7 +111,7 @@ export default function BpmnProcessesPage() {
 
   const handleDuplicate = async (id: number) => {
     try {
-      const response = await api.post(`/bpmn_processes/${id}/duplicate`) as AxiosResponse<ApiResponse> | null;
+      const response = await api.post(`/api/v1/bpmn_processes/${id}/duplicate`) as AxiosResponse<ApiResponse> | null;
       if (response?.data.success) {
         toast({ title: "Success", description: "Workflow duplicated" });
         fetchProcesses();
@@ -126,7 +126,7 @@ export default function BpmnProcessesPage() {
     if (!confirm("Are you sure you want to delete this workflow?")) return;
 
     try {
-      const response = await api.delete(`/bpmn_processes/${id}`) as AxiosResponse<ApiResponse> | null;
+      const response = await api.delete(`/api/v1/bpmn_processes/${id}`) as AxiosResponse<ApiResponse> | null;
       if (response?.data.success) {
         toast({ title: "Success", description: "Workflow deleted" });
         fetchProcesses();
@@ -139,7 +139,7 @@ export default function BpmnProcessesPage() {
 
   const handlePublish = async (id: number) => {
     try {
-      const response = await api.post(`/bpmn_processes/${id}/publish`) as AxiosResponse<ApiResponse> | null;
+      const response = await api.post(`/api/v1/bpmn_processes/${id}/publish`) as AxiosResponse<ApiResponse> | null;
       if (response?.data.success) {
         toast({ title: "Success", description: "Workflow published" });
         fetchProcesses();
@@ -154,7 +154,7 @@ export default function BpmnProcessesPage() {
 
   const handleUnpublish = async (id: number) => {
     try {
-      const response = await api.post(`/bpmn_processes/${id}/unpublish`) as AxiosResponse<ApiResponse> | null;
+      const response = await api.post(`/api/v1/bpmn_processes/${id}/unpublish`) as AxiosResponse<ApiResponse> | null;
       if (response?.data.success) {
         toast({ title: "Success", description: "Workflow unpublished" });
         fetchProcesses();
