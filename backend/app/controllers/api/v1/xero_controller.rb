@@ -1951,6 +1951,68 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/common_contacts
+      # Returns contacts linked to multiple Xero organizations
+      def common_contacts
+        begin
+          credentials = XeroCredential.all
+
+          # Find contacts linked to 2+ Xero tenants
+          contact_ids_with_multiple_links = ContactExternalLink
+            .xero
+            .group(:contact_id)
+            .having("COUNT(DISTINCT tenant_id) >= 2")
+            .count
+            .keys
+
+          # Get full contact info with their links
+          contacts = Contact.where(id: contact_ids_with_multiple_links)
+                           .includes(:contact_external_links)
+                           .order(:display_name)
+
+          common_contacts_data = contacts.map do |contact|
+            xero_links = contact.contact_external_links.xero.to_a
+            tenant_ids = xero_links.map(&:tenant_id).uniq
+
+            {
+              id: contact.id,
+              display_name: contact.display_name,
+              entity_type: contact.entity_type,
+              email: contact.email,
+              tax_number: contact.tax_number,
+              tenant_count: tenant_ids.count,
+              tenants: tenant_ids.map do |tid|
+                cred = credentials.find { |c| c.tenant_id == tid }
+                link = xero_links.find { |l| l.tenant_id == tid }
+                {
+                  tenant_id: tid,
+                  tenant_name: cred&.tenant_name || "Unknown",
+                  external_contact_id: link&.external_contact_id,
+                  external_contact_name: link&.external_contact_name,
+                  match_type: link&.match_type,
+                  sync_enabled: link&.sync_enabled,
+                  last_synced_at: link&.last_synced_at
+                }
+              end
+            }
+          end
+
+          render json: {
+            success: true,
+            data: {
+              total_count: common_contacts_data.count,
+              contacts: common_contacts_data
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero common_contacts error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to get common contacts: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/xero/validate_contacts
       # Validate all contacts that should be synced to Xero
       def validate_contacts

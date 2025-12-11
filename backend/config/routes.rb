@@ -1145,6 +1145,7 @@ Rails.application.routes.draw do
           get :pdf_sync_status
           get :sync_health
           get :sync_stats
+          get :common_contacts
         end
         member do
           get :sync_contacts_status

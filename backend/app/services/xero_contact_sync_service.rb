@@ -633,18 +633,51 @@ class XeroContactSyncService
       end
     end
 
-    # Bank details
+    # Bank details - parse both business and trust accounts
+    # Lawyers/accountants often have both in the BankAccountDetails field
     if importable_fields.include?("bank_bsb") || importable_fields.include?("bank_account_number")
       if xero_contact["BankAccountDetails"].present?
         bank_details = xero_contact["BankAccountDetails"]
-        if bank_details.match(/BSB[:\s]+(\d{6})/) && importable_fields.include?("bank_bsb")
-          updates[:bank_bsb] = $1
-        end
-        if bank_details.match(/Account Number[:\s]+([\d\s]+)/) && importable_fields.include?("bank_account_number")
-          updates[:bank_account_number] = $1.gsub(/\s/, "")
-        end
-        if bank_details.match(/Account Name[:\s]+([^,\n]+)/) && importable_fields.include?("bank_account_name")
-          updates[:bank_account_name] = $1.strip
+
+        # Check if this contains trust account info (common patterns lawyers use)
+        has_trust_info = bank_details.match?(/trust/i)
+
+        if has_trust_info
+          # Extract Trust account details
+          # Patterns: "Trust BSB: 123456" or "Trust Account BSB: 123456"
+          if bank_details.match(/trust[^:]*BSB[:\s]+(\d{3}[-\s]?\d{3})/i)
+            updates[:has_trust_account] = true
+            updates[:trust_bsb] = $1.gsub(/[-\s]/, "")
+          end
+          if bank_details.match(/trust[^:]*Account(?:\s*(?:Number|#|No))?[:\s]+([\d\s-]+)/i)
+            updates[:trust_account_number] = $1.gsub(/[\s-]/, "")
+          end
+          if bank_details.match(/trust[^:]*Account\s*Name[:\s]+([^,\n]+)/i)
+            updates[:trust_account_name] = $1.strip
+          end
+
+          # Extract Business/Operating account (look for non-trust BSB)
+          # Pattern: "Business BSB" or "Operating BSB" or just BSB that's not after "Trust"
+          if bank_details.match(/(?:business|operating|general)[^:]*BSB[:\s]+(\d{3}[-\s]?\d{3})/i)
+            updates[:bank_bsb] = $1.gsub(/[-\s]/, "") if importable_fields.include?("bank_bsb")
+          elsif bank_details.match(/(?<!trust[^:]{0,20})BSB[:\s]+(\d{3}[-\s]?\d{3})/i)
+            # Fallback: first BSB that's not preceded by "trust"
+            updates[:bank_bsb] = $1.gsub(/[-\s]/, "") if importable_fields.include?("bank_bsb")
+          end
+          if bank_details.match(/(?:business|operating|general)[^:]*Account(?:\s*(?:Number|#|No))?[:\s]+([\d\s-]+)/i)
+            updates[:bank_account_number] = $1.gsub(/[\s-]/, "") if importable_fields.include?("bank_account_number")
+          end
+        else
+          # Standard single account extraction
+          if bank_details.match(/BSB[:\s]+(\d{3}[-\s]?\d{3})/) && importable_fields.include?("bank_bsb")
+            updates[:bank_bsb] = $1.gsub(/[-\s]/, "")
+          end
+          if bank_details.match(/Account\s*(?:Number|#|No)?[:\s]+([\d\s-]+)/) && importable_fields.include?("bank_account_number")
+            updates[:bank_account_number] = $1.gsub(/[\s-]/, "")
+          end
+          if bank_details.match(/Account\s*Name[:\s]+([^,\n]+)/) && importable_fields.include?("bank_account_name")
+            updates[:bank_account_name] = $1.strip
+          end
         end
       end
     end
@@ -655,6 +688,9 @@ class XeroContactSyncService
         bills = xero_contact["PaymentTerms"]["Bills"]
         updates[:bill_due_day] = bills["Day"] if bills["Day"].present?
         updates[:bill_due_type] = bills["Type"] if bills["Type"].present?
+
+        # Convert to readable payment_terms string (e.g., "Net 30", "7 days", "EOM+30")
+        updates[:payment_terms] = format_payment_terms(bills["Type"], bills["Day"])
       end
       if xero_contact["PaymentTerms"]["Sales"].present? && importable_fields.include?("sales_due_day")
         sales = xero_contact["PaymentTerms"]["Sales"]
@@ -1038,6 +1074,25 @@ class XeroContactSyncService
   def normalize_tax_number(tax_number)
     return nil if tax_number.blank?
     tax_number.to_s.gsub(/[\s\-]/, "").upcase
+  end
+
+  # Convert Xero payment terms to readable string
+  # Xero Types: DAYSAFTERBILLDATE, DAYSAFTERBILLMONTH, OFCURRENTMONTH, OFFOLLOWINGMONTH
+  def format_payment_terms(type, day)
+    return nil if type.blank?
+
+    case type
+    when "DAYSAFTERBILLDATE"
+      day.to_i == 0 ? "Due on receipt" : "Net #{day}"
+    when "DAYSAFTERBILLMONTH"
+      "#{day} days after EOM"
+    when "OFCURRENTMONTH"
+      "#{day}th of month"
+    when "OFFOLLOWINGMONTH"
+      day.to_i == 0 ? "EOM" : "EOM+#{day}"
+    else
+      "Net #{day || 30}"
+    end
   end
 
   def parse_xero_date(date_string)
