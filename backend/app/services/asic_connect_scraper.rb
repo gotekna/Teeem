@@ -80,29 +80,21 @@ class AsicConnectScraper
     next_button = @driver.find_element(css: "input[type='image'][alt*='next']")
     next_button.click
 
-    sleep 2 # Wait for page transition
+    sleep 3 # Wait for HTTP Basic Auth redirect
 
-    # STEP 2: Enter username and password
-    Rails.logger.info("Step 2: Entering username and password...")
+    # STEP 2: Navigate with credentials in URL to handle HTTP Basic Auth
+    Rails.logger.info("Step 2: Handling HTTP Basic Authentication...")
+    current_url = @driver.current_url
 
-    # Find username field (field names will be different on this page)
-    username_field = wait.until {
-      @driver.find_element(css: "input[type='text']:not([name*='ACN'])")
-    }
-    username_field.clear
-    username_field.send_keys(@username)
+    # Build authenticated URL: https://username:password@domain/path
+    uri = URI.parse(current_url)
+    authenticated_url = "#{uri.scheme}://#{CGI.escape(@username)}:#{CGI.escape(@password)}@#{uri.host}#{uri.path}"
+    authenticated_url += "?#{uri.query}" if uri.query
 
-    # Find password field
-    password_field = @driver.find_element(css: "input[type='password']")
-    password_field.clear
-    password_field.send_keys(@password)
+    Rails.logger.info("Navigating to authenticated URL...")
+    @driver.get(authenticated_url)
 
-    # Submit login
-    Rails.logger.info("Submitting login...")
-    login_button = @driver.find_element(css: "input[type='image'], input[type='submit'], button[type='submit']")
-    login_button.click
-
-    sleep 3 # Wait for potential security question or dashboard
+    sleep 3 # Wait for page to load
 
     # Check if security question appears
     if page_has_security_question?
@@ -110,7 +102,7 @@ class AsicConnectScraper
       answer_security_question
     end
 
-    # Verify login success - look for typical logged-in page elements
+    # Verify login success
     wait.until {
       @driver.current_url.include?('Forms') ||
       @driver.current_url.include?('compportal') ||
