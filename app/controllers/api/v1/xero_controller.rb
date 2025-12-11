@@ -1559,20 +1559,19 @@ module Api
 
           # Stage 2 info - smart rate-limited sync status
           # SSoT: Show actual status including rate limit pauses
-          # Xero daily rate limit resets at midnight UTC
+          # Xero daily rate limit resets at midnight UTC (00:00:00)
           # Midnight UTC = 10:00 AM Brisbane (AEST, UTC+10)
-          # We use end_of_day (23:59:59) which converts to 9:59 AM Brisbane next day
-          utc_reset = Time.current.utc.end_of_day
-          brisbane_reset = utc_reset.in_time_zone("Australia/Brisbane")
+          # The NEXT reset is: today 10 AM if before 10 AM, tomorrow 10 AM if after
+          brisbane_10am_today = now_brisbane.change(hour: 10, min: 0, sec: 0)
 
-          # SSoT: Format reset time with "tomorrow" context if it's the next day
-          now_brisbane_date = now_brisbane.to_date
-          reset_brisbane_date = brisbane_reset.to_date
-          resets_at_display = if reset_brisbane_date > now_brisbane_date
-            "Tomorrow #{brisbane_reset.strftime("%-I:%M %p")}"
+          resets_at_display = if now_brisbane < brisbane_10am_today
+            # Before 10 AM Brisbane - reset happens today
+            "Today 10:00 AM"
           else
-            brisbane_reset.strftime("%-I:%M %p")
+            # After 10 AM Brisbane - reset happens tomorrow
+            "Tomorrow 10:00 AM"
           end
+          brisbane_reset = now_brisbane < brisbane_10am_today ? brisbane_10am_today : brisbane_10am_today + 1.day
 
           stage2_blocker = if is_rate_limited && pdfs_pending > 0
             {
