@@ -736,23 +736,24 @@ module Api
       # Returns the last contact sync time and statistics, plus any active job info
       def sync_status
         begin
-          # Get the most recent sync time from contacts
-          last_synced_contact = Contact.where.not(last_synced_at: nil)
-                                       .order(last_synced_at: :desc)
-                                       .first
+          # Get the most recent sync time from ContactExternalLink (SSoT for sync status)
+          last_xero_link = ContactExternalLink.xero
+                                              .where.not(last_synced_at: nil)
+                                              .order(last_synced_at: :desc)
+                                              .first
 
           # Get sync statistics
           total_contacts = Contact.count
           synced_contacts = Contact.where.not(xero_id: nil).count
           sync_enabled = Contact.where(sync_with_xero: true).count
-          contacts_with_errors = Contact.where.not(xero_sync_error: nil).count
+          contacts_with_errors = ContactExternalLink.xero.where.not(sync_error: nil).count
 
           # Check for active sync jobs
           active_job = find_active_sync_job
 
           response_data = {
-            last_synced_at: last_synced_contact&.last_synced_at,  # SSoT: Use last_synced_at consistently
-            last_sync_at: last_synced_contact&.last_synced_at,    # Deprecated: kept for backwards compatibility
+            last_synced_at: last_xero_link&.last_synced_at,  # SSoT: Use ContactXeroLink.last_synced_at
+            last_sync_at: last_xero_link&.last_synced_at,    # Deprecated: kept for backwards compatibility
             total_contacts: total_contacts,
             synced_contacts: synced_contacts,
             sync_enabled_contacts: sync_enabled,
@@ -835,8 +836,8 @@ module Api
               synced: contact.xero_id.present?,
               last_synced_at: xero_link&.last_synced_at,
               sync_enabled: xero_link&.sync_enabled || false,
-              sync_error: xero_link&.xero_sync_error,
-              has_error: xero_link&.xero_sync_error.present?,
+              sync_error: xero_link&.sync_error,
+              has_error: xero_link&.sync_error.present?,
               invoices_count: invoices_count,
               bills_count: bills_count,
               pdfs_synced: pdfs_synced,
@@ -894,8 +895,8 @@ module Api
               contact_name: contact.display_name || "#{contact.first_name} #{contact.last_name}".strip,
               email: contact.email,
               synced_at: link.last_synced_at,
-              has_error: link.xero_sync_error.present?,
-              error_message: link.xero_sync_error,
+              has_error: link.sync_error.present?,
+              error_message: link.sync_error,
               action: determine_sync_action_from_link(link),
               xero_id: contact.xero_id
             }
@@ -2188,7 +2189,7 @@ module Api
 
       # Determine what sync action was taken from a ContactExternalLink
       def determine_sync_action_from_link(link)
-        if link.xero_sync_error.present?
+        if link.sync_error.present?
           "Sync Failed"
         elsif link.external_contact_id.present? && link.contact&.created_at && link.last_synced_at && link.contact.created_at < link.last_synced_at
           "Updated from Xero"

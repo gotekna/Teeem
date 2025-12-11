@@ -63,6 +63,28 @@ class InvoiceParsingService
     end
   end
 
+  # Convert PDF to PNG image for vision-based extraction
+  def pdf_to_image
+    content = @bill.invoice_file.download
+
+    Tempfile.create(["invoice", ".pdf"], binmode: true) do |pdf_file|
+      pdf_file.write(content)
+      pdf_file.rewind
+
+      # Use MiniMagick to convert PDF to PNG (first page only for now)
+      # Higher density = better quality for text recognition
+      image = MiniMagick::Image.open(pdf_file.path)
+      image.format "png"
+      image.density 150  # DPI - balance between quality and size
+
+      # Read the converted image
+      image.to_blob
+    end
+  rescue StandardError => e
+    Rails.logger.error "[InvoiceParsing] PDF to image conversion failed: #{e.message}"
+    nil
+  end
+
   def call_ai(pdf_text)
     api_key = ENV["ANTHROPIC_API_KEY"]
     raise "ANTHROPIC_API_KEY not configured" if api_key.blank?
@@ -73,7 +95,7 @@ class InvoiceParsingService
     response = client.messages(
       parameters: {
         model: CLAUDE_MODEL,
-        max_tokens: 2000,
+        max_tokens: 4000,
         messages: messages
       }
     )
@@ -82,13 +104,9 @@ class InvoiceParsingService
   end
 
   def build_messages(pdf_text)
-    if @bill.content_type == "application/pdf" && pdf_text.present?
-      # Text-based extraction
-      [{ role: "user", content: build_text_prompt(pdf_text) }]
-    else
-      # Vision-based extraction for images
-      build_vision_messages
-    end
+    # Always use vision for accurate field_locations
+    # PDFs are converted to images first
+    build_vision_messages
   end
 
   def build_text_prompt(pdf_text)
@@ -154,11 +172,21 @@ class InvoiceParsingService
   end
 
   def build_vision_messages
-    # For image-based invoices, use Claude's vision capability
-    # Download raw bytes directly - bypasses ActiveStorage integrity check
-    content = @bill.invoice_file.download
-    image_data = Base64.strict_encode64(content)
-    media_type = @bill.content_type
+    # Use Claude's vision capability for accurate field location detection
+    # PDFs are converted to PNG first, images are used directly
+
+    if @bill.content_type == "application/pdf"
+      # Convert PDF to image for vision processing
+      image_content = pdf_to_image
+      raise "Failed to convert PDF to image" if image_content.nil?
+      image_data = Base64.strict_encode64(image_content)
+      media_type = "image/png"
+    else
+      # Use image directly
+      content = @bill.invoice_file.download
+      image_data = Base64.strict_encode64(content)
+      media_type = @bill.content_type
+    end
 
     [
       {
