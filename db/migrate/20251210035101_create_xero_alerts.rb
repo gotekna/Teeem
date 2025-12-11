@@ -26,8 +26,8 @@ class CreateXeroAlerts < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :xero_alerts, [:corporate_company_id, :dismissed, :created_at], name: 'idx_xero_alerts_company_active'
-    add_index :xero_alerts, [:xero_credential_id, :alert_type, :dismissed], name: 'idx_xero_alerts_credential_type'
-    add_index :xero_alerts, [:severity, :dismissed], name: 'idx_xero_alerts_severity_active'
+    add_index :xero_alerts, [ :corporate_company_id, :dismissed, :created_at ], name: 'idx_xero_alerts_company_active'
+    add_index :xero_alerts, [ :xero_credential_id, :alert_type, :dismissed ], name: 'idx_xero_alerts_credential_type'
+    add_index :xero_alerts, [ :severity, :dismissed ], name: 'idx_xero_alerts_severity_active'
   end
 end

@@ -217,6 +217,7 @@ class ContactRelationship < ApplicationRecord
   validates :related_contact_id, presence: true
   validate :cannot_relate_to_self
   validate :unique_relationship_pair
+  validate :validate_entity_types_for_relationship
   validates :ownership_percentage, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   # Scopes
@@ -268,6 +269,26 @@ class ContactRelationship < ApplicationRecord
 
     if existing.exists?
       errors.add(:base, "This relationship type already exists between these contacts")
+    end
+  end
+
+  def validate_entity_types_for_relationship
+    return if relationship_type.blank? || source_contact.blank? || related_contact.blank?
+
+    metadata = RELATIONSHIP_TYPE_METADATA[relationship_type]
+    return unless metadata # Skip for unknown relationship types
+
+    source_types = metadata[:source_types]
+    target_types = metadata[:target_types]
+
+    # Validate source entity type
+    if source_types.present? && !source_types.include?(source_contact.entity_type)
+      errors.add(:source_contact, "must be #{source_types.join(' or ')} for #{relationship_type} relationship")
+    end
+
+    # Validate target entity type
+    if target_types.present? && !target_types.include?(related_contact.entity_type)
+      errors.add(:related_contact, "must be #{target_types.join(' or ')} for #{relationship_type} relationship (got #{related_contact.entity_type})")
     end
   end
 

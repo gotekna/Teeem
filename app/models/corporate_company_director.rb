@@ -1,6 +1,7 @@
 class CorporateCompanyDirector < ApplicationRecord
   # Associations
   belongs_to :corporate_company, foreign_key: "company_id"
+  alias_method :company, :corporate_company  # Alias for convenience
   belongs_to :contact
 
   # Validations

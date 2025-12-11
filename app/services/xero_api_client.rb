@@ -287,16 +287,16 @@ class XeroApiClient
     if all_credentials.empty?
       return {
         connected: false,
-        status: 'disconnected',
+        status: "disconnected",
         message: "Not connected to Xero"
       }
     end
 
     # Count credentials by status to show aggregate health
     total = all_credentials.count
-    connected_count = all_credentials.where(status: 'connected').count
-    degraded_count = all_credentials.where(status: 'degraded').count
-    disconnected_count = all_credentials.where(status: 'disconnected').count
+    connected_count = all_credentials.where(status: "connected").count
+    degraded_count = all_credentials.where(status: "degraded").count
+    disconnected_count = all_credentials.where(status: "disconnected").count
 
     # Check for any corrupted credentials
     all_credentials.each do |credential|
@@ -321,9 +321,9 @@ class XeroApiClient
 
     if !has_working || total == 0
       # No working connections - red
-      return {
+      {
         connected: false,
-        status: 'disconnected',
+        status: "disconnected",
         message: "All Xero connections require re-authentication.",
         total: total,
         connected_count: connected_count,
@@ -332,9 +332,9 @@ class XeroApiClient
     elsif needs_attention > 0
       # Some need attention but some work - orange
       primary = XeroCredential.current
-      return {
+      {
         connected: true,
-        status: 'degraded',
+        status: "degraded",
         message: "#{needs_attention} of #{total} Xero connections need re-authentication.",
         tenant_name: primary&.tenant_name,
         tenant_id: primary&.tenant_id,
@@ -345,9 +345,9 @@ class XeroApiClient
     else
       # All good - green
       primary = XeroCredential.current
-      return {
+      {
         connected: true,
-        status: 'connected',
+        status: "connected",
         tenant_name: primary&.tenant_name,
         tenant_id: primary&.tenant_id,
         expires_at: primary&.expires_at,
@@ -612,7 +612,7 @@ class XeroApiClient
     url = "#{BASE_URL}/#{entity_type}/#{entity_id}/Attachments/#{CGI.escape(filename)}"
 
     # Add query param for online invoices
-    url += "?IncludeOnline=true" if include_online && entity_type == 'Invoices'
+    url += "?IncludeOnline=true" if include_online && entity_type == "Invoices"
 
     request_tenant_id = credential.respond_to?(:xero_tenant_id) ? credential.xero_tenant_id : credential.tenant_id
 
@@ -690,17 +690,17 @@ class XeroApiClient
   def guess_content_type(filename)
     ext = File.extname(filename).downcase
     case ext
-    when '.pdf' then 'application/pdf'
-    when '.png' then 'image/png'
-    when '.jpg', '.jpeg' then 'image/jpeg'
-    when '.gif' then 'image/gif'
-    when '.doc' then 'application/msword'
-    when '.docx' then 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    when '.xls' then 'application/vnd.ms-excel'
-    when '.xlsx' then 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    when '.csv' then 'text/csv'
-    when '.txt' then 'text/plain'
-    else 'application/octet-stream'
+    when ".pdf" then "application/pdf"
+    when ".png" then "image/png"
+    when ".jpg", ".jpeg" then "image/jpeg"
+    when ".gif" then "image/gif"
+    when ".doc" then "application/msword"
+    when ".docx" then "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    when ".xls" then "application/vnd.ms-excel"
+    when ".xlsx" then "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    when ".csv" then "text/csv"
+    when ".txt" then "text/plain"
+    else "application/octet-stream"
     end
   end
 

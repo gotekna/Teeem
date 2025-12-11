@@ -43,19 +43,19 @@ class XeroSyncEvent < ApplicationRecord
   # Scopes
   scope :for_credential, ->(credential_id) { where(xero_credential_id: credential_id) }
   scope :for_sync_type, ->(type) { where(sync_type: type) }
-  scope :completed, -> { where(event_type: 'completed') }
-  scope :failed, -> { where(event_type: 'failed') }
+  scope :completed, -> { where(event_type: "completed") }
+  scope :failed, -> { where(event_type: "failed") }
   scope :recent, -> { order(created_at: :desc) }
-  scope :today, -> { where('created_at >= ?', Time.current.beginning_of_day) }
-  scope :last_24_hours, -> { where('created_at >= ?', 24.hours.ago) }
-  scope :last_week, -> { where('created_at >= ?', 1.week.ago) }
+  scope :today, -> { where("created_at >= ?", Time.current.beginning_of_day) }
+  scope :last_24_hours, -> { where("created_at >= ?", 24.hours.ago) }
+  scope :last_week, -> { where("created_at >= ?", 1.week.ago) }
 
   # Start a new sync event
   def self.start!(credential:, sync_type:, trigger:, metadata: {})
     create!(
       xero_credential: credential,
       sync_type: sync_type,
-      event_type: 'started',
+      event_type: "started",
       trigger: trigger,
       started_at: Time.current,
       metadata: metadata
@@ -65,7 +65,7 @@ class XeroSyncEvent < ApplicationRecord
   # Mark event as completed
   def complete!(records_processed: 0, records_created: 0, records_updated: 0, records_skipped: 0)
     update!(
-      event_type: 'completed',
+      event_type: "completed",
       completed_at: Time.current,
       duration_ms: calculate_duration,
       records_processed: records_processed,
@@ -78,7 +78,7 @@ class XeroSyncEvent < ApplicationRecord
   # Mark event as failed
   def fail!(error:, error_class: nil, records_processed: 0, records_failed: 0)
     update!(
-      event_type: 'failed',
+      event_type: "failed",
       completed_at: Time.current,
       duration_ms: calculate_duration,
       error_message: error.to_s.truncate(1000),
@@ -91,7 +91,7 @@ class XeroSyncEvent < ApplicationRecord
   # Mark event as skipped
   def skip!(reason:)
     update!(
-      event_type: 'skipped',
+      event_type: "skipped",
       completed_at: Time.current,
       duration_ms: calculate_duration,
       error_message: reason
@@ -100,12 +100,12 @@ class XeroSyncEvent < ApplicationRecord
 
   # Check if event succeeded
   def success?
-    event_type == 'completed'
+    event_type == "completed"
   end
 
   # Check if event failed
   def failed?
-    event_type == 'failed'
+    event_type == "failed"
   end
 
   # Get total records affected
@@ -121,7 +121,7 @@ class XeroSyncEvent < ApplicationRecord
 
   # Get human-readable duration
   def duration_human
-    return 'N/A' unless duration_ms
+    return "N/A" unless duration_ms
     if duration_ms < 1000
       "#{duration_ms}ms"
     elsif duration_ms < 60_000
@@ -147,7 +147,7 @@ class XeroSyncEvent < ApplicationRecord
 
   # Summary statistics for a credential
   def self.summary_for_credential(credential_id, period: 24.hours)
-    events = for_credential(credential_id).where('created_at >= ?', period.ago)
+    events = for_credential(credential_id).where("created_at >= ?", period.ago)
 
     {
       total: events.count,
@@ -164,13 +164,13 @@ class XeroSyncEvent < ApplicationRecord
     last_event = last_sync(sync_type: sync_type, credential: credential)
 
     if last_event.nil?
-      { status: :never_run, last_run: nil, message: 'Never synced' }
+      { status: :never_run, last_run: nil, message: "Never synced" }
     elsif last_event.failed?
       { status: :failed, last_run: last_event.completed_at, message: last_event.error_message }
     elsif last_event.completed_at && last_event.completed_at < expected_interval.ago
-      { status: :stale, last_run: last_event.completed_at, message: 'Sync is overdue' }
+      { status: :stale, last_run: last_event.completed_at, message: "Sync is overdue" }
     else
-      { status: :healthy, last_run: last_event.completed_at, message: 'OK' }
+      { status: :healthy, last_run: last_event.completed_at, message: "OK" }
     end
   end
 end

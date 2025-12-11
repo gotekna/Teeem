@@ -53,10 +53,10 @@ class HealthKudosEvent < ApplicationRecord
   validates :fix_type, presence: true
   validates :points, presence: true, numericality: { greater_than_or_equal_to: 0 }
 
-  scope :by_system, -> { where(actor_type: 'system') }
-  scope :by_users, -> { where(actor_type: 'user') }
-  scope :this_week, -> { where('created_at >= ?', Time.current.beginning_of_week) }
-  scope :today, -> { where('created_at >= ?', Time.current.beginning_of_day) }
+  scope :by_system, -> { where(actor_type: "system") }
+  scope :by_users, -> { where(actor_type: "user") }
+  scope :this_week, -> { where("created_at >= ?", Time.current.beginning_of_week) }
+  scope :today, -> { where("created_at >= ?", Time.current.beginning_of_day) }
   scope :recent, -> { order(created_at: :desc).limit(100) }
 
   class << self
@@ -65,8 +65,8 @@ class HealthKudosEvent < ApplicationRecord
       points ||= POINTS[fix_type.to_sym] || 1
 
       create!(
-        actor_type: 'system',
-        action: 'auto_fix',
+        actor_type: "system",
+        action: "auto_fix",
         fix_type: fix_type.to_s,
         record_type: record&.class&.name,
         record_id: record&.id,
@@ -81,9 +81,9 @@ class HealthKudosEvent < ApplicationRecord
       points ||= POINTS[fix_type.to_sym] || 5
 
       create!(
-        actor_type: 'user',
+        actor_type: "user",
         user: user,
-        action: 'manual_fix',
+        action: "manual_fix",
         fix_type: fix_type.to_s,
         record_type: record&.class&.name,
         record_id: record&.id,
@@ -100,9 +100,9 @@ class HealthKudosEvent < ApplicationRecord
       total_points = points_per * record_ids.length
 
       create!(
-        actor_type: user ? 'user' : 'system',
+        actor_type: user ? "user" : "system",
         user: user,
-        action: user ? 'manual_fix' : 'auto_fix',
+        action: user ? "manual_fix" : "auto_fix",
         fix_type: fix_type.to_s,
         record_type: record_type,
         records_fixed: record_ids.length,
@@ -115,10 +115,10 @@ class HealthKudosEvent < ApplicationRecord
     # Get leaderboard data
     def leaderboard(timeframe: :this_week)
       scope = case timeframe
-              when :today then today
-              when :this_week then this_week
-              else all
-              end
+      when :today then today
+      when :this_week then this_week
+      else all
+      end
 
       # System total
       system_points = scope.by_system.sum(:points)
@@ -134,11 +134,11 @@ class HealthKudosEvent < ApplicationRecord
 
       # Add system as first entry
       entries << {
-        id: 'system',
-        name: 'System',
+        id: "system",
+        name: "System",
         points: system_points,
         is_system: true,
-        trend: calculate_trend('system', timeframe)
+        trend: calculate_trend("system", timeframe)
       }
 
       # Add users
@@ -148,7 +148,7 @@ class HealthKudosEvent < ApplicationRecord
 
         entries << {
           id: "user-#{user_id}",
-          name: user.name || user.email&.split('@')&.first || "User #{user_id}",
+          name: user.name || user.email&.split("@")&.first || "User #{user_id}",
           points: points,
           is_system: false,
           trend: calculate_trend(user_id, timeframe)
@@ -193,8 +193,8 @@ class HealthKudosEvent < ApplicationRecord
       health_data[:checks]&.group_by { |c| c[:check_type] }&.each do |check_type, checks|
         next if check_type.blank?
 
-        critical_count = checks.select { |c| c[:severity] == 'critical' }.sum { |c| c[:count].to_i }
-        warning_count = checks.select { |c| c[:severity] == 'warning' && !c[:auto_fixable] }.sum { |c| c[:count].to_i }
+        critical_count = checks.select { |c| c[:severity] == "critical" }.sum { |c| c[:count].to_i }
+        warning_count = checks.select { |c| c[:severity] == "warning" && !c[:auto_fixable] }.sum { |c| c[:count].to_i }
 
         if critical_count > 0
           wins << {
@@ -203,7 +203,7 @@ class HealthKudosEvent < ApplicationRecord
             description: "Fix critical data issues",
             count: critical_count,
             points: critical_count * POINTS[:critical_fix],
-            fix_type: 'review',
+            fix_type: "review",
             check_type: check_type,
             auto_fixable: false
           }
@@ -216,7 +216,7 @@ class HealthKudosEvent < ApplicationRecord
             description: "Review and fix data warnings",
             count: warning_count,
             points: warning_count * POINTS[:warning_fix],
-            fix_type: 'review',
+            fix_type: "review",
             check_type: check_type,
             auto_fixable: false
           }
@@ -224,7 +224,7 @@ class HealthKudosEvent < ApplicationRecord
       end
 
       # Sort: auto-fixable first (easiest wins), then by points
-      wins.sort_by { |w| [w[:auto_fixable] ? 0 : 1, -w[:points]] }.first(5)
+      wins.sort_by { |w| [ w[:auto_fixable] ? 0 : 1, -w[:points] ] }.first(5)
     end
 
     private
@@ -232,21 +232,21 @@ class HealthKudosEvent < ApplicationRecord
     def calculate_trend(actor_id, timeframe)
       # Compare current period to previous period
       current_scope = case timeframe
-                      when :today then today
-                      when :this_week then this_week
-                      else all
-                      end
+      when :today then today
+      when :this_week then this_week
+      else all
+      end
 
       previous_scope = case timeframe
-                       when :today
+      when :today
                          where(created_at: 1.day.ago.beginning_of_day..1.day.ago.end_of_day)
-                       when :this_week
+      when :this_week
                          where(created_at: 1.week.ago.beginning_of_week..1.week.ago.end_of_week)
-                       else
+      else
                          none
-                       end
+      end
 
-      if actor_id == 'system'
+      if actor_id == "system"
         current = current_scope.by_system.sum(:points)
         previous = previous_scope.by_system.sum(:points)
       else
@@ -255,11 +255,11 @@ class HealthKudosEvent < ApplicationRecord
       end
 
       if current > previous
-        'up'
+        "up"
       elsif current < previous
-        'down'
+        "down"
       else
-        'same'
+        "same"
       end
     end
   end

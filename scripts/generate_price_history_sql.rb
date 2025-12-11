@@ -23,7 +23,7 @@ end
 def parse_date(date_str)
   return 'NULL' if date_str.nil? || date_str.to_s.strip.empty?
 
-  formats = ['%d/%m/%Y %H:%M', '%d/%m/%Y', '%Y-%m-%d']
+  formats = [ '%d/%m/%Y %H:%M', '%d/%m/%Y', '%Y-%m-%d' ]
   formats.each do |format|
     begin
       return "'#{DateTime.strptime(date_str.strip, format).to_date}'"

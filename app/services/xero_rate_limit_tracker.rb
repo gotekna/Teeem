@@ -45,20 +45,22 @@ class XeroRateLimitTracker
         minute: {
           used: minute_count,
           limit: MINUTE_LIMIT,
-          remaining: [MINUTE_LIMIT - minute_count, 0].max,
+          remaining: [ MINUTE_LIMIT - minute_count, 0 ].max,
           percentage: (minute_count.to_f / MINUTE_LIMIT * 100).round(1)
         },
         daily: {
           used: daily_count,
           limit: DAILY_LIMIT,
-          remaining: [DAILY_LIMIT - daily_count, 0].max,
+          remaining: [ DAILY_LIMIT - daily_count, 0 ].max,
           percentage: (daily_count.to_f / DAILY_LIMIT * 100).round(1)
         },
         total_7d: total_count,
         can_make_request: minute_count < MINUTE_LIMIT && daily_count < DAILY_LIMIT,
+        # SSoT: Xero daily limit resets at midnight UTC (10:00 AM Brisbane AEST)
+        # Use UTC times for accurate reset calculation regardless of server timezone
         resets: {
-          minute: Time.current.end_of_minute,
-          daily: Time.current.end_of_day
+          minute: Time.current.utc.end_of_minute,
+          daily: Time.current.utc.end_of_day  # UTC midnight = 10:00 AM Brisbane
         }
       }
     end
@@ -129,12 +131,15 @@ class XeroRateLimitTracker
     private
 
     def minute_key_for(tenant_id)
-      minute = Time.current.strftime('%Y%m%d%H%M')
+      minute = Time.current.strftime("%Y%m%d%H%M")
       "xero:rate:minute:#{tenant_id}:#{minute}"
     end
 
     def daily_key_for(tenant_id)
-      day = Time.current.strftime('%Y%m%d')
+      # SSoT: Use UTC date because Xero's daily rate limit resets at midnight UTC
+      # (which is 10:00 AM Brisbane AEST). Using UTC ensures our tracking
+      # matches Xero's actual reset behavior.
+      day = Time.current.utc.strftime("%Y%m%d")
       "xero:rate:daily:#{tenant_id}:#{day}"
     end
 

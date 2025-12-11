@@ -29,6 +29,28 @@ class DocumentFolder < ApplicationRecord
     parent&.name
   end
 
+  # SSoT: Compute the SharePoint path from template + folder hierarchy
+  # This is derived, not stored - the template in system_settings is the SSoT
+  def computed_path
+    template = SystemSetting.sharepoint_path_templates[:company]
+    return nil unless template
+
+    folder_path = build_hierarchy_path
+    template.gsub("{{Folder}}", folder_path)
+  end
+
+  # Build the folder path from hierarchy (e.g., "Xero/BankStatements")
+  def build_hierarchy_path
+    parts = []
+    current = self
+    while current
+      # Remove spaces for cleaner paths
+      parts.unshift(current.name.gsub(/\s+/, ""))
+      current = current.parent
+    end
+    parts.join("/")
+  end
+
   def as_nested_json
     {
       id: id,
@@ -36,7 +58,8 @@ class DocumentFolder < ApplicationRecord
       description: description,
       order_position: order_position,
       entity_types: entity_types,
-      sharepoint_path: sharepoint_path,
+      computed_path: computed_path,  # SSoT: computed from template
+      sharepoint_path: sharepoint_path,  # Deprecated: keeping for backwards compatibility
       active: active,
       parent_id: parent_id,
       parent_name: parent_name,

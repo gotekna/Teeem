@@ -83,10 +83,10 @@ module Api
       def fix
         fix_type = params[:fix_type]
         item_ids = params[:item_ids] || []
-        auto = params[:auto] == true || params[:auto] == 'true'
+        auto = params[:auto] == true || params[:auto] == "true"
 
         unless fix_type.present?
-          return render json: { success: false, error: 'fix_type is required' }, status: :bad_request
+          return render json: { success: false, error: "fix_type is required" }, status: :bad_request
         end
 
         result = perform_fix(fix_type, item_ids, auto)
@@ -407,35 +407,35 @@ module Api
       def build_infrastructure_status
         [
           {
-            id: 'database',
-            name: 'Database',
+            id: "database",
+            name: "Database",
             status: check_database_status,
-            message: 'Connected'
+            message: "Connected"
           },
           {
-            id: 'jobs_queue',
-            name: 'Jobs Queue',
+            id: "jobs_queue",
+            name: "Jobs Queue",
             status: check_jobs_queue_status,
             value: get_pending_jobs_count,
             message: "#{get_pending_jobs_count} pending, #{get_failed_jobs_count} failed"
           },
           {
-            id: 'memory',
-            name: 'Memory',
-            status: 'healthy',
+            id: "memory",
+            name: "Memory",
+            status: "healthy",
             value: "#{get_memory_usage}MB",
-            max_value: '2GB',
-            percentage: [(get_memory_usage / 2048.0 * 100).round, 100].min,
-            message: 'OK'
+            max_value: "2GB",
+            percentage: [ (get_memory_usage / 2048.0 * 100).round, 100 ].min,
+            message: "OK"
           },
           {
-            id: 'workers',
-            name: 'Workers',
-            status: 'healthy',
+            id: "workers",
+            name: "Workers",
+            status: "healthy",
             value: get_active_workers.to_s,
-            max_value: '4',
+            max_value: "4",
             percentage: 100,
-            message: 'All active'
+            message: "All active"
           }
         ]
       end
@@ -446,44 +446,44 @@ module Api
         # Xero
         xero_status = get_xero_status
         integrations << {
-          id: 'xero',
-          name: 'Xero',
-          status: xero_status[:connected] ? 'connected' : 'disconnected',
-          status_message: xero_status[:connected] ? (xero_status[:organisation_name] || 'Connected') : 'Not connected',
+          id: "xero",
+          name: "Xero",
+          status: xero_status[:connected] ? "connected" : "disconnected",
+          status_message: xero_status[:connected] ? (xero_status[:organisation_name] || "Connected") : "Not connected",
           last_synced: xero_status[:last_synced],
-          action_label: xero_status[:connected] ? 'View' : 'Connect',
-          action_type: xero_status[:connected] ? 'view' : 'connect',
-          href: '/settings/integrations/xero'
+          action_label: xero_status[:connected] ? "View" : "Connect",
+          action_type: xero_status[:connected] ? "view" : "connect",
+          href: "/settings/integrations/xero"
         }
 
         # OneDrive (placeholder - check for actual status)
         integrations << {
-          id: 'onedrive',
-          name: 'OneDrive',
-          status: 'connected',
-          status_message: 'Connected',
-          action_label: 'View',
-          action_type: 'view',
-          href: '/settings/integrations'
+          id: "onedrive",
+          name: "OneDrive",
+          status: "connected",
+          status_message: "Connected",
+          action_label: "View",
+          action_type: "view",
+          href: "/settings/integrations"
         }
 
         # Email (placeholder)
         integrations << {
-          id: 'email',
-          name: 'Email',
-          status: 'connected',
-          status_message: 'Synced',
-          action_label: 'View',
-          action_type: 'view',
-          href: '/settings/integrations'
+          id: "email",
+          name: "Email",
+          status: "connected",
+          status_message: "Synced",
+          action_label: "View",
+          action_type: "view",
+          href: "/settings/integrations"
         }
 
         # ABN Lookup
         integrations << {
-          id: 'abn',
-          name: 'ABN Lookup',
-          status: 'connected',
-          status_message: 'Available'
+          id: "abn",
+          name: "ABN Lookup",
+          status: "connected",
+          status_message: "Available"
         }
 
         integrations
@@ -495,7 +495,7 @@ module Api
           queue_count: 8,
           average_confidence: 78,
           failed_today: 2,
-          status: 'healthy'
+          status: "healthy"
         }
       end
 
@@ -506,16 +506,16 @@ module Api
         wins += HealthKudosEvent.quick_wins_from_health(data_health)
 
         # Add Xero reconnect if disconnected
-        xero = integrations.find { |i| i[:id] == 'xero' }
-        if xero && xero[:status] == 'disconnected'
+        xero = integrations.find { |i| i[:id] == "xero" }
+        if xero && xero[:status] == "disconnected"
           wins.unshift({
-            id: 'xero-connect',
-            title: 'Connect Xero',
-            description: 'Sync your accounting data',
+            id: "xero-connect",
+            title: "Connect Xero",
+            description: "Sync your accounting data",
             count: 1,
             points: 50,
-            fix_type: 'connect',
-            check_type: 'xero'
+            fix_type: "connect",
+            check_type: "xero"
           })
         end
 
@@ -524,17 +524,17 @@ module Api
 
       def perform_fix(fix_type, item_ids, auto)
         case fix_type.to_s
-        when 'name_casing', 'all_caps_names', 'lowercase_names'
+        when "name_casing", "all_caps_names", "lowercase_names"
           fix_name_casing(item_ids, auto)
-        when 'website_prefix'
+        when "website_prefix"
           fix_website_prefix(item_ids, auto)
-        when 'phone_format'
+        when "phone_format"
           fix_phone_format(item_ids, auto)
-        when 'email_lowercase'
+        when "email_lowercase"
           fix_email_lowercase(item_ids, auto)
-        when 'abn_format'
+        when "abn_format"
           fix_abn_format(item_ids, auto)
-        when 'acn_format'
+        when "acn_format"
           fix_acn_format(item_ids, auto)
         else
           { success: false, error: "Unknown fix type: #{fix_type}" }
@@ -571,8 +571,8 @@ module Api
         if fixed_count > 0
           HealthKudosEvent.record_bulk_fix(
             user: auto ? nil : current_user,
-            fix_type: 'name_casing',
-            record_type: 'Contact',
+            fix_type: "name_casing",
+            record_type: "Contact",
             record_ids: item_ids.presence || [],
             points_per_record: HealthKudosEvent::POINTS[:name_casing]
           )
@@ -587,7 +587,7 @@ module Api
       end
 
       def needs_name_casing_fix?(contact)
-        [contact.first_name, contact.last_name].compact.any? do |name|
+        [ contact.first_name, contact.last_name ].compact.any? do |name|
           name.present? && (name == name.upcase || name == name.downcase)
         end
       end
@@ -622,12 +622,12 @@ module Api
           contacts = Contact.where(id: item_ids)
         else
           # Find contacts with websites missing http/https prefix
-          contacts = Contact.where.not(website: [nil, ''])
+          contacts = Contact.where.not(website: [ nil, "" ])
                            .where.not("website LIKE 'http://%' OR website LIKE 'https://%'")
         end
 
         contacts.find_each do |contact|
-          next unless contact.website.present? && !contact.website.start_with?('http')
+          next unless contact.website.present? && !contact.website.start_with?("http")
 
           contact.website = "https://#{contact.website}"
           if contact.save(validate: false)
@@ -640,8 +640,8 @@ module Api
         if fixed_count > 0
           HealthKudosEvent.record_bulk_fix(
             user: auto ? nil : current_user,
-            fix_type: 'website_prefix',
-            record_type: 'Contact',
+            fix_type: "website_prefix",
+            record_type: "Contact",
             record_ids: fixed_ids,
             points_per_record: HealthKudosEvent::POINTS[:website_prefix]
           )
@@ -665,17 +665,17 @@ module Api
         else
           # Find contacts with Australian phone numbers that need formatting
           # Australian numbers: 0X XXXX XXXX (10 digits) or +61 X XXXX XXXX
-          contacts = Contact.where.not(mobile_phone: [nil, ''])
+          contacts = Contact.where.not(mobile_phone: [ nil, "" ])
         end
 
         contacts.find_each do |contact|
           next unless contact.mobile_phone.present?
 
           # Remove all non-digit characters
-          digits = contact.mobile_phone.gsub(/\D/, '')
+          digits = contact.mobile_phone.gsub(/\D/, "")
 
           # Skip if not a valid Australian phone number length
-          next unless [10, 11, 12].include?(digits.length)
+          next unless [ 10, 11, 12 ].include?(digits.length)
 
           formatted = format_australian_phone(digits)
           next if formatted == contact.mobile_phone
@@ -691,8 +691,8 @@ module Api
         if fixed_count > 0
           HealthKudosEvent.record_bulk_fix(
             user: auto ? nil : current_user,
-            fix_type: 'phone_format',
-            record_type: 'Contact',
+            fix_type: "phone_format",
+            record_type: "Contact",
             record_ids: fixed_ids,
             points_per_record: HealthKudosEvent::POINTS[:phone_format]
           )
@@ -715,7 +715,7 @@ module Api
           contacts = Contact.where(id: item_ids)
         else
           # Find contacts with uppercase characters in email
-          contacts = Contact.where.not(email: [nil, ''])
+          contacts = Contact.where.not(email: [ nil, "" ])
                            .where("email != LOWER(email)")
         end
 
@@ -733,8 +733,8 @@ module Api
         if fixed_count > 0
           HealthKudosEvent.record_bulk_fix(
             user: auto ? nil : current_user,
-            fix_type: 'email_lowercase',
-            record_type: 'Contact',
+            fix_type: "email_lowercase",
+            record_type: "Contact",
             record_ids: fixed_ids,
             points_per_record: HealthKudosEvent::POINTS[:email_lowercase]
           )
@@ -757,13 +757,13 @@ module Api
           companies = CorporateCompany.where(id: item_ids)
         else
           # Find companies with ABN that needs formatting (should be XX XXX XXX XXX)
-          companies = CorporateCompany.where.not(abn: [nil, ''])
+          companies = CorporateCompany.where.not(abn: [ nil, "" ])
         end
 
         companies.find_each do |company|
           next unless company.abn.present?
 
-          digits = company.abn.gsub(/\D/, '')
+          digits = company.abn.gsub(/\D/, "")
           next unless digits.length == 11
 
           formatted = "#{digits[0..1]} #{digits[2..4]} #{digits[5..7]} #{digits[8..10]}"
@@ -780,8 +780,8 @@ module Api
         if fixed_count > 0
           HealthKudosEvent.record_bulk_fix(
             user: auto ? nil : current_user,
-            fix_type: 'abn_format',
-            record_type: 'CorporateCompany',
+            fix_type: "abn_format",
+            record_type: "CorporateCompany",
             record_ids: fixed_ids,
             points_per_record: HealthKudosEvent::POINTS[:abn_format]
           )
@@ -804,13 +804,13 @@ module Api
           companies = CorporateCompany.where(id: item_ids)
         else
           # Find companies with ACN that needs formatting (should be XXX XXX XXX)
-          companies = CorporateCompany.where.not(acn: [nil, ''])
+          companies = CorporateCompany.where.not(acn: [ nil, "" ])
         end
 
         companies.find_each do |company|
           next unless company.acn.present?
 
-          digits = company.acn.gsub(/\D/, '')
+          digits = company.acn.gsub(/\D/, "")
           next unless digits.length == 9
 
           formatted = "#{digits[0..2]} #{digits[3..5]} #{digits[6..8]}"
@@ -827,8 +827,8 @@ module Api
         if fixed_count > 0
           HealthKudosEvent.record_bulk_fix(
             user: auto ? nil : current_user,
-            fix_type: 'acn_format',
-            record_type: 'CorporateCompany',
+            fix_type: "acn_format",
+            record_type: "CorporateCompany",
             record_ids: fixed_ids,
             points_per_record: HealthKudosEvent::POINTS[:acn_format]
           )
@@ -849,14 +849,14 @@ module Api
           "#{digits[0..1]} #{digits[2..5]} #{digits[6..9]}"
         when 11
           # +61 X XXXX XXXX (assuming starts with 61)
-          if digits.start_with?('61')
+          if digits.start_with?("61")
             "+61 #{digits[2]} #{digits[3..6]} #{digits[7..10]}"
           else
             digits # Return as-is if not valid Australian format
           end
         when 12
           # Possibly +614 XXXX XXXX
-          if digits.start_with?('614')
+          if digits.start_with?("614")
             "+61 4#{digits[3..6]} #{digits[7..10]}"
           else
             digits
@@ -867,16 +867,16 @@ module Api
       end
 
       def check_database_status
-        ActiveRecord::Base.connection.active? ? 'healthy' : 'critical'
+        ActiveRecord::Base.connection.active? ? "healthy" : "critical"
       rescue StandardError
-        'critical'
+        "critical"
       end
 
       def check_jobs_queue_status
         failed = get_failed_jobs_count
-        return 'critical' if failed > 50
-        return 'warning' if failed > 10
-        'healthy'
+        return "critical" if failed > 50
+        return "warning" if failed > 10
+        "healthy"
       end
 
       def get_pending_jobs_count
@@ -912,8 +912,8 @@ module Api
 
         # Use the SSoT status field from XeroCredential model
         # status: 'connected', 'degraded', or 'disconnected'
-        is_connected = credential.status == 'connected'
-        is_degraded = credential.status == 'degraded'
+        is_connected = credential.status == "connected"
+        is_degraded = credential.status == "degraded"
 
         {
           connected: is_connected || is_degraded, # Show connected if usable
@@ -921,7 +921,7 @@ module Api
           health_status: credential.health_status.to_s,
           organisation_name: credential.tenant_name,
           last_synced: credential.last_successful_api_call_at&.iso8601,
-          needs_attention: is_degraded || credential.status == 'disconnected'
+          needs_attention: is_degraded || credential.status == "disconnected"
         }
       rescue StandardError => e
         Rails.logger.error("Health check Xero status error: #{e.message}")
@@ -930,11 +930,11 @@ module Api
 
       def determine_health_status(score)
         if score >= 90
-          'healthy'
+          "healthy"
         elsif score >= 70
-          'warning'
+          "warning"
         else
-          'critical'
+          "critical"
         end
       end
     end

@@ -9,12 +9,16 @@ class PurchaseOrder < ApplicationRecord
   has_many :payments, dependent: :destroy
   has_many :project_tasks, dependent: :nullify
   has_many :schedule_tasks, dependent: :nullify
-  has_many :workflow_instances, as: :subject, dependent: :destroy
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
   has_many :kudos_events, dependent: :destroy
   has_many :subcontractor_invoices, dependent: :destroy
   has_many :pay_now_requests, dependent: :destroy
+
+  # Finance / Accounts Payable
+  has_many :bill_inboxes, foreign_key: :matched_purchase_order_id, dependent: :nullify
+  has_many :bill_payments, dependent: :nullify
+  belongs_to :last_bill_inbox, class_name: "BillInbox", optional: true
 
   # Documents attached to this PO (via polymorphic documentable)
   has_many :corporate_company_documents, as: :documentable, dependent: :nullify
@@ -196,23 +200,6 @@ class PurchaseOrder < ApplicationRecord
       end
     end
     warnings
-  end
-
-  # Workflow helper methods
-  def active_workflow
-    workflow_instances.find_by(status: [ "pending", "in_progress" ])
-  end
-
-  def has_active_workflow?
-    active_workflow.present?
-  end
-
-  def workflow_status
-    active_workflow&.status || "none"
-  end
-
-  def current_workflow_step
-    active_workflow&.workflow_steps&.find_by(status: [ "pending", "in_progress" ])
   end
 
   # Determine payment status based on invoice amount

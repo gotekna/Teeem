@@ -72,15 +72,17 @@ module Api
             # Build search conditions: exact ILIKE OR fuzzy similarity (pg_trgm)
             # Fuzzy search catches typos like "coasal" -> "coastal"
             sanitized_search = ActiveRecord::Base.connection.quote(search)
+            conn = ActiveRecord::Base.connection
 
             # ILIKE conditions for exact substring matches
-            ilike_conditions = searchable_columns.map { |col| "#{col} ILIKE :search" }.join(" OR ")
+            # Security: Quote column names to prevent SQL injection
+            ilike_conditions = searchable_columns.map { |col| "#{conn.quote_column_name(col)} ILIKE :search" }.join(" OR ")
 
             # Fuzzy word_similarity conditions (matches search term against words in text)
             # word_similarity > 0.4 catches typos like "tekan" -> "Tekna Admin"
             # Only apply to first few columns to keep it fast
             fuzzy_columns = searchable_columns.first(3)
-            fuzzy_conditions = fuzzy_columns.map { |col| "word_similarity(#{sanitized_search}, COALESCE(#{col}, '')) > 0.4" }.join(" OR ")
+            fuzzy_conditions = fuzzy_columns.map { |col| "word_similarity(#{sanitized_search}, COALESCE(#{conn.quote_column_name(col)}, '')) > 0.4" }.join(" OR ")
 
             # Combine: match if ILIKE OR fuzzy match
             combined_conditions = "(#{ilike_conditions}) OR (#{fuzzy_conditions})"

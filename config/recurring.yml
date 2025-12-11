@@ -46,6 +46,14 @@ refresh_integration_tokens:
 # ============================================
 # XERO INTEGRATION
 # ============================================
+
+# SELF-HEALING: Health monitor checks for stalled syncs and auto-triggers them
+# This prevents sync outages by detecting when next_sync_at is overdue
+xero_health_monitor:
+  class: XeroHealthMonitorJob
+  queue: default
+  schedule: every 15 minutes
+
 xero_invoice_incremental_sync:
   class: XeroInvoiceSyncJob
   queue: default
@@ -98,6 +106,16 @@ warehouse_job_documents_sync:
   class: JobDocumentSyncJob
   queue: low
   schedule: every 6 hours at minute 15
+
+# ============================================
+# ACCOUNTS PAYABLE - BILL INBOX
+# ============================================
+
+# Monitor Pay@tekna.com.au for incoming invoices
+bill_inbox_sync:
+  class: BillInboxSyncJob
+  queue: default
+  schedule: every 15 minutes
 
 # ============================================
 # EMAIL MAINTENANCE

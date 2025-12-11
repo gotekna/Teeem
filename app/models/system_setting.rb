@@ -41,12 +41,39 @@ class SystemSetting < ApplicationRecord
   end
 
   # Get all SharePoint path templates
+  # SSoT: These templates are the single source of truth for folder paths
   def self.sharepoint_path_templates
     {
-      company: get("sharepoint_path_template_company") || "/Corporate/{{CompanyCode}}/{{Folder}}",
-      job: get("sharepoint_path_template_job") || "/Jobs/{{JobCode}}/{{Category}}",
-      people: get("sharepoint_path_template_people") || "/Contacts/{{ContactName}}"
+      company: get("sharepoint_path_template_company") || "/Teeem/Companies/{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
+      job: get("sharepoint_path_template_job") || "/Teeem/Jobs/{{JobCode}}/{{Category}}",
+      people: get("sharepoint_path_template_people") || "/Teeem/People/{{ContactName}}"
     }
+  end
+
+  # Compute the full SharePoint path for a folder
+  # SSoT: Path is derived from template + folder hierarchy, not stored per-folder
+  def self.compute_folder_path(folder, scope: :company)
+    template = sharepoint_path_templates[scope]
+    return nil unless template
+
+    # Build the folder path from hierarchy
+    folder_path = build_folder_hierarchy_path(folder)
+
+    # Replace {{Folder}} with the computed folder path
+    template.gsub("{{Folder}}", folder_path)
+  end
+
+  # Build folder path from hierarchy (e.g., "Xero/BankStatements" for a sub-folder)
+  def self.build_folder_hierarchy_path(folder)
+    return folder.name unless folder.respond_to?(:parent) && folder.parent
+
+    parts = []
+    current = folder
+    while current
+      parts.unshift(current.name.gsub(/\s+/, "")) # Remove spaces for path
+      current = current.respond_to?(:parent) ? current.parent : nil
+    end
+    parts.join("/")
   end
 
   # Update SharePoint path templates
