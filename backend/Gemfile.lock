@@ -93,6 +93,9 @@ GEM
     brakeman (7.1.1)
       racc
     builder (3.3.0)
+    business_time (0.13.0)
+      activesupport (>= 3.2.0)
+      tzinfo
     caxlsx (4.1.0)
       htmlentities (~> 4.3, >= 4.3.4)
       marcel (~> 1.0)
@@ -523,6 +526,7 @@ DEPENDENCIES
   bcrypt (~> 3.1.7)
   bootsnap
   brakeman
+  business_time (~> 0.13)
   caxlsx (~> 4.1.0)
   caxlsx_rails (~> 0.6.3)
   cloudinary (~> 2.1)
