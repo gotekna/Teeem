@@ -118,6 +118,16 @@ bill_inbox_sync:
   schedule: every 15 minutes
 
 # ============================================
+# BPMN WORKFLOW TASKS
+# ============================================
+
+# Send reminder notifications for tasks due soon or overdue
+bpmn_due_date_reminders:
+  class: BpmnDueDateReminderJob
+  queue: default
+  schedule: every 2 hours
+
+# ============================================
 # EMAIL MAINTENANCE
 # ============================================
 
