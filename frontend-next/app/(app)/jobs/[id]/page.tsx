@@ -45,6 +45,7 @@ import {
 import { api } from "@/lib/api";
 import dynamic from "next/dynamic";
 import { JobActivityTab } from "@/components/jobs/JobActivityTab";
+import { JobContractTab } from "@/components/jobs/JobContractTab";
 import { JobPeopleTab } from "@/components/jobs/JobPeopleTab";
 import { RainLogTab } from "@/components/jobs/RainLogTab";
 import { JobDocumentsTab } from "@/components/jobs/JobDocumentsTab";
