@@ -537,17 +537,19 @@ export default function BillDetailPage() {
               )}
             </div>
 
-            {bill.ai_confidence && (
+            {bill.ai_confidence != null && (
               <div className="pt-2">
                 <p className="text-sm text-muted-foreground">AI Confidence</p>
                 <div className="flex items-center gap-2 mt-1">
                   <div className="flex-1 h-2 bg-gray-200 rounded-full">
                     <div
                       className="h-2 bg-blue-500 rounded-full"
-                      style={{ width: `${bill.ai_confidence}%` }}
+                      style={{ width: `${bill.ai_confidence <= 1 ? bill.ai_confidence * 100 : bill.ai_confidence}%` }}
                     />
                   </div>
-                  <span className="text-sm font-medium">{bill.ai_confidence}%</span>
+                  <span className="text-sm font-medium">
+                    {bill.ai_confidence <= 1 ? Math.round(bill.ai_confidence * 100) : bill.ai_confidence}%
+                  </span>
                 </div>
               </div>
             )}
