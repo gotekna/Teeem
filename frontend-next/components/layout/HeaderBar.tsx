@@ -18,6 +18,7 @@ import {
   Users,
   Briefcase,
   Package,
+  ListTodo,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +37,7 @@ import {
 } from "@/components/ui/popover";
 import { InspiringBanner } from "./InspiringBanner";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
+import { HeaderDebugTools } from "@/components/debug/HeaderDebugTools";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -69,6 +71,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [unreadCount, setUnreadCount] = React.useState(0);
+  const [workflowTaskCount, setWorkflowTaskCount] = React.useState(0);
   const [xeroStatus, setXeroStatus] = React.useState<ConnectionStatus>('disconnected');
   const [office365Status, setOffice365Status] = React.useState<ConnectionStatus>('disconnected');
   const [xeroTooltip, setXeroTooltip] = React.useState('Xero: Not Connected');
@@ -87,6 +90,17 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         }
       } catch (error) {
         console.debug("Failed to fetch unread count:", error);
+      }
+    };
+
+    const fetchWorkflowTaskCount = async () => {
+      try {
+        const response = await api.get<{ total: number; success: boolean }>("/api/v1/bpmn_tasks");
+        if (response?.success && response?.total !== undefined) {
+          setWorkflowTaskCount(response.total);
+        }
+      } catch (error) {
+        console.debug("Failed to fetch workflow task count:", error);
       }
     };
 
@@ -190,10 +204,14 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     fetchingRef.current = true;
 
     fetchUnreadCount();
+    fetchWorkflowTaskCount();
     fetchIntegrationStatus();
 
-    // Poll every 30 seconds for unread count
-    const interval = setInterval(fetchUnreadCount, 30000);
+    // Poll every 30 seconds for unread count and workflow tasks
+    const interval = setInterval(() => {
+      fetchUnreadCount();
+      fetchWorkflowTaskCount();
+    }, 30000);
     return () => {
       clearInterval(interval);
       fetchingRef.current = false;
@@ -296,6 +314,24 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             <GraduationCap className="h-4 w-4" />
           </Link>
 
+          {/* Workflow Tasks */}
+          <Link
+            href="/tasks?tab=workflow"
+            className="relative p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
+            title={workflowTaskCount > 0 ? `${workflowTaskCount} pending workflow task${workflowTaskCount !== 1 ? 's' : ''}` : 'Workflow Tasks'}
+          >
+            <span className="sr-only">Workflow Tasks</span>
+            <ListTodo className="h-4 w-4" />
+            {workflowTaskCount > 0 && (
+              <Badge
+                variant="default"
+                className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center p-0 text-[10px] bg-blue-500"
+              >
+                {workflowTaskCount > 9 ? "9+" : workflowTaskCount}
+              </Badge>
+            )}
+          </Link>
+
           {/* Notifications */}
           <Link
             href="/notifications"
@@ -368,6 +404,9 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Help Button */}
           <FloatingHelpButton inline={true} />
+
+          {/* Debug Tools - dev/staging only */}
+          <HeaderDebugTools />
 
           {/* Separator */}
           <div
