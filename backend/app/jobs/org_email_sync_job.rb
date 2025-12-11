@@ -147,25 +147,39 @@ class OrgEmailSyncJob < ApplicationJob
     from_data = email_data["from"]&.dig("emailAddress") || {}
     from_email = from_data["address"]
     subject = email_data["subject"] || ""
+    has_attachments = email_data["hasAttachments"] || false
 
-    # FILTER: Skip system/automated emails
-    automated_senders = ["noreply@", "no-reply@", "security@", "donotreply@"]
-    if from_email && automated_senders.any? { |pattern| from_email.downcase.include?(pattern) }
-      Rails.logger.debug "[OrgEmailSync] Skipping automated email: #{subject}"
-      return nil
-    end
+    # NEVER FILTER: Sent items (unless internal)
+    if folder_name == "Sent Items"
+      # Skip internal emails in Sent Items (we'll get them from recipient's inbox)
+      to_emails = (email_data["toRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
+      cc_emails = (email_data["ccRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
+      all_recipients = (to_emails + cc_emails).map { |email| email.downcase }
+      org_domain = owner_email.split("@").last # e.g., "lyw.org.au"
 
-    automated_subjects = ["verification", "verify your", "security alert", "password reset", "confirm a", "reset password"]
-    if automated_subjects.any? { |pattern| subject.downcase.include?(pattern) }
-      Rails.logger.debug "[OrgEmailSync] Skipping automated email by subject: #{subject}"
-      return nil
-    end
+      # If ALL recipients are internal (same domain), skip this sent email
+      if all_recipients.any? && all_recipients.all? { |recipient| recipient.end_with?("@#{org_domain}") }
+        Rails.logger.debug "[OrgEmailSync] Skipping internal sent email (will sync from inbox): #{subject}"
+        return nil
+      end
+      # Otherwise, sync external sent emails
+    # NEVER FILTER: Emails with attachments
+    elsif has_attachments
+      # Always sync emails with attachments (important business emails)
+    # FILTER: Skip marketing/advertising emails
+    else
+      marketing_patterns = ["marketing@", "promo@", "newsletter@", "unsubscribe", "opt-out", "advertis"]
+      if from_email && marketing_patterns.any? { |pattern| from_email.downcase.include?(pattern) }
+        Rails.logger.debug "[OrgEmailSync] Skipping marketing email: #{subject}"
+        return nil
+      end
 
-    # FILTER: Skip marketing emails
-    marketing_patterns = ["events.", "optin@", "marketing@", "promo@", "newsletter@"]
-    if from_email && marketing_patterns.any? { |pattern| from_email.downcase.include?(pattern) }
-      Rails.logger.debug "[OrgEmailSync] Skipping marketing email: #{subject}"
-      return nil
+      # Skip emails with marketing keywords in subject
+      marketing_subjects = ["unsubscribe", "opt out", "manage preferences", "view in browser"]
+      if marketing_subjects.any? { |pattern| subject.downcase.include?(pattern) }
+        Rails.logger.debug "[OrgEmailSync] Skipping marketing email by subject: #{subject}"
+        return nil
+      end
     end
 
     # Find or create - use composite key (internet_message_id + mailbox_owner_email)
