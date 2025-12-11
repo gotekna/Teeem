@@ -123,12 +123,12 @@ module Api
           if params[:search_all].to_s == "true"
             # Search across multiple columns
             @jobs = @jobs.where(
-              "LOWER(jobs.title) LIKE ? OR LOWER(jobs.address) LIKE ? OR CAST(jobs.id AS TEXT) LIKE ?",
+              "LOWER(jobs.name) LIKE ? OR LOWER(jobs.address) LIKE ? OR CAST(jobs.id AS TEXT) LIKE ?",
               search_term, search_term, search_term
             )
           else
-            # Default: search title only
-            @jobs = @jobs.where("LOWER(jobs.title) LIKE ?", search_term)
+            # Default: search name only
+            @jobs = @jobs.where("LOWER(jobs.name) LIKE ?", search_term)
           end
         end
 
@@ -544,18 +544,27 @@ module Api
           # Numeric ID - direct lookup
           @job = Job.find(id_or_slug)
         else
-          # Slug - search by title (convert slug back to search term)
+          # Slug - search by name (convert slug back to search term)
           # Remove the _God_Loves_You_ suffix if present
           slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, "")
           search_term = slug.gsub("-", " ")
-          @job = Job.where("LOWER(title) LIKE ?", "%#{search_term.downcase}%").first
+          @job = Job.where("LOWER(name) LIKE ?", "%#{search_term.downcase}%").first
           raise ActiveRecord::RecordNotFound, "Job not found with slug: #{id_or_slug}" unless @job
         end
       end
 
       def job_params
         params.require(:job).permit(
-          :title,
+          :name,
+          :title, # Keep for backward compatibility during transition
+          :lot_number,
+          :street_number,
+          :street_name,
+          :street_type,
+          :suburb,
+          :postcode,
+          :state,
+          :council,
           :contract_value,
           # live_profit and profit_percentage are calculated fields, not user-editable
           :stage,
