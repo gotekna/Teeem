@@ -458,9 +458,17 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
   }, [onPublish, process?.id]);
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full border-4 border-blue-500 bg-blue-50/20">
+      {/* UI DEBUG LABEL */}
+      <div className="absolute top-2 left-2 z-50 bg-blue-600 text-white px-3 py-1 text-xs font-bold rounded shadow-lg">
+        [1] MAIN CONTAINER (BLUE) - flex h-full
+      </div>
+
       {/* Left Panel - Tools & Node Palette */}
-      <div className="w-64 flex-shrink-0 overflow-y-auto border-r bg-slate-50/50 p-4 dark:bg-slate-900/50">
+      <div className="w-64 flex-shrink-0 overflow-y-auto border-r border-4 border-green-500 bg-green-50/50 p-4 dark:bg-green-900/20">
+        <div className="bg-green-600 text-white px-2 py-1 text-xs font-bold mb-2 rounded">
+          [2] LEFT PANEL (GREEN) - w-64 flex-shrink-0
+        </div>
         <ToolPalette
           toolMode={toolMode}
           onToolModeChange={setToolMode}
@@ -472,7 +480,10 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
       </div>
 
       {/* Main Canvas */}
-      <div className="flex-1" ref={reactFlowWrapper}>
+      <div className="flex-1 border-4 border-purple-500 bg-purple-50/20 relative" ref={reactFlowWrapper}>
+        <div className="absolute top-2 left-2 z-50 bg-purple-600 text-white px-3 py-1 text-xs font-bold rounded shadow-lg">
+          [3] CANVAS (PURPLE) - flex-1
+        </div>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -506,7 +517,10 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
 
           {/* Top Toolbar */}
           <Panel position="top-center">
-            <div className="flex items-center gap-3 rounded-lg border bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center gap-3 rounded-lg border-4 border-yellow-500 bg-yellow-50 p-2 shadow-lg dark:bg-yellow-900/20 relative">
+              <div className="absolute -top-8 left-0 bg-yellow-600 text-white px-2 py-1 text-xs font-bold rounded">
+                [4] TOP TOOLBAR (YELLOW) - Panel position="top-center"
+              </div>
               <Input
                 value={processName}
                 onChange={(e) => setProcessName(e.target.value)}
@@ -629,7 +643,10 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
       </div>
 
       {/* Right Panel - Properties */}
-      <div className="w-80 flex-shrink-0 border-l bg-slate-50/50 dark:bg-slate-900/50">
+      <div className="w-80 flex-shrink-0 border-l border-4 border-orange-500 bg-orange-50/50 dark:bg-orange-900/20 relative">
+        <div className="bg-orange-600 text-white px-2 py-1 text-xs font-bold rounded m-2">
+          [5] RIGHT PANEL (ORANGE) - w-80 flex-shrink-0
+        </div>
         <Tabs
           value={activePanel}
           onValueChange={(v) => setActivePanel(v as typeof activePanel)}

@@ -2,20 +2,21 @@ import dagre from "dagre";
 import { Node, Edge } from "@xyflow/react";
 
 // Node dimensions for layout calculation (horizontal flow)
+// IMPORTANT: These must match the actual component widths in the node files
 const NODE_DIMENSIONS: Record<string, { width: number; height: number }> = {
   start_event: { width: 100, height: 40 },
   end_event: { width: 80, height: 40 },
-  timer_event: { width: 120, height: 50 },
-  intermediate_event: { width: 160, height: 50 },
-  user_task: { width: 160, height: 50 },
-  service_task: { width: 160, height: 50 },
+  timer_event: { width: 140, height: 50 },
+  intermediate_event: { width: 180, height: 50 },
+  user_task: { width: 180, height: 60 },
+  service_task: { width: 180, height: 60 },
   exclusive_gateway: { width: 120, height: 50 },
   parallel_gateway: { width: 120, height: 50 },
-  data_store_reference: { width: 160, height: 40 },
-  sub_process: { width: 160, height: 50 },
-  annotation: { width: 180, height: 60 },
+  data_store_reference: { width: 180, height: 60 },
+  sub_process: { width: 180, height: 60 },
+  annotation: { width: 200, height: 80 },
   pool: { width: 200, height: 60 },
-  lane: { width: 160, height: 50 },
+  lane: { width: 180, height: 60 },
 };
 
 const DEFAULT_DIMENSIONS = { width: 150, height: 60 };
@@ -29,7 +30,17 @@ export interface LayoutOptions {
 }
 
 /**
- * Applies automatic layout to nodes using dagre algorithm
+ * Snaps a value to the nearest grid point
+ * @param value - Value to snap
+ * @param gridSize - Grid size
+ * @returns Snapped value
+ */
+function snapToGrid(value: number, gridSize: number): number {
+  return Math.round(value / gridSize) * gridSize;
+}
+
+/**
+ * Applies automatic layout to nodes using dagre algorithm with grid snapping
  * @param nodes - Array of React Flow nodes
  * @param edges - Array of React Flow edges
  * @param options - Layout options
@@ -55,6 +66,8 @@ export function getLayoutedElements<T extends Record<string, unknown>>(
     ranksep: rankSpacing,
     marginx: 50,
     marginy: 50,
+    // Enable alignment for cleaner layouts
+    align: direction === "LR" || direction === "RL" ? "UL" : "UL",
   });
 
   // Add nodes to dagre graph
@@ -75,25 +88,32 @@ export function getLayoutedElements<T extends Record<string, unknown>>(
   // Run the layout algorithm
   dagre.layout(dagreGraph);
 
-  // Apply calculated positions to nodes
+  // Grid size for snapping (20px matches ReactFlow snap grid)
+  const GRID_SIZE = 20;
+
+  // Apply calculated positions to nodes with grid snapping
   return nodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
     const nodeType = node.type || "default";
     const dimensions = NODE_DIMENSIONS[nodeType] || DEFAULT_DIMENSIONS;
 
+    // Calculate position (centered on dagre position)
+    const rawX = nodeWithPosition.x - dimensions.width / 2;
+    const rawY = nodeWithPosition.y - dimensions.height / 2;
+
     return {
       ...node,
       position: {
-        // Center the node on the calculated position
-        x: nodeWithPosition.x - dimensions.width / 2,
-        y: nodeWithPosition.y - dimensions.height / 2,
+        // Snap to grid for perfect alignment
+        x: snapToGrid(rawX, GRID_SIZE),
+        y: snapToGrid(rawY, GRID_SIZE),
       },
     };
   });
 }
 
 /**
- * Aligns selected nodes horizontally (same Y position)
+ * Aligns selected nodes horizontally (same Y position) with grid snapping
  * @param nodes - All nodes
  * @param selectedNodeIds - IDs of selected nodes
  * @returns Updated nodes with aligned positions
@@ -104,20 +124,24 @@ export function alignNodesHorizontally<T extends Record<string, unknown>>(
 ): Node<T>[] {
   if (selectedNodeIds.length < 2) return nodes;
 
+  const GRID_SIZE = 20;
   const selectedNodes = nodes.filter((n) => selectedNodeIds.includes(n.id));
   const avgY =
     selectedNodes.reduce((sum, n) => sum + n.position.y, 0) /
     selectedNodes.length;
 
+  // Snap to grid for perfect alignment
+  const alignedY = snapToGrid(avgY, GRID_SIZE);
+
   return nodes.map((node) =>
     selectedNodeIds.includes(node.id)
-      ? { ...node, position: { ...node.position, y: avgY } }
+      ? { ...node, position: { ...node.position, y: alignedY } }
       : node
   );
 }
 
 /**
- * Aligns selected nodes vertically (same X position)
+ * Aligns selected nodes vertically (same X position) with grid snapping
  * @param nodes - All nodes
  * @param selectedNodeIds - IDs of selected nodes
  * @returns Updated nodes with aligned positions
@@ -128,14 +152,18 @@ export function alignNodesVertically<T extends Record<string, unknown>>(
 ): Node<T>[] {
   if (selectedNodeIds.length < 2) return nodes;
 
+  const GRID_SIZE = 20;
   const selectedNodes = nodes.filter((n) => selectedNodeIds.includes(n.id));
   const avgX =
     selectedNodes.reduce((sum, n) => sum + n.position.x, 0) /
     selectedNodes.length;
 
+  // Snap to grid for perfect alignment
+  const alignedX = snapToGrid(avgX, GRID_SIZE);
+
   return nodes.map((node) =>
     selectedNodeIds.includes(node.id)
-      ? { ...node, position: { ...node.position, x: avgX } }
+      ? { ...node, position: { ...node.position, x: alignedX } }
       : node
   );
 }

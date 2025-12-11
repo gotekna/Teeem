@@ -22,12 +22,17 @@ export const ServiceTaskNode = memo(({ data, selected }: NodeProps<Node<BpmnNode
   return (
     <div
       className={cn(
-        "w-[180px] rounded border bg-white px-3 py-2 shadow-sm transition-all dark:bg-slate-900",
+        "w-[180px] rounded border-2 border-red-500 bg-red-50/50 px-3 py-2 shadow-sm transition-all dark:bg-red-900/20 relative",
         selected
-          ? "border-blue-500 ring-2 ring-blue-300"
-          : "border-slate-300 dark:border-slate-600"
+          ? "ring-2 ring-blue-300"
+          : ""
       )}
     >
+      {/* UI DEBUG LABEL */}
+      <div className="absolute -top-6 left-0 bg-red-600 text-white px-2 py-0.5 text-[10px] font-bold rounded whitespace-nowrap">
+        [NODE] w-[180px] - ServiceTask
+      </div>
+
       {/* Left handle for incoming */}
       <Handle
         type="target"
