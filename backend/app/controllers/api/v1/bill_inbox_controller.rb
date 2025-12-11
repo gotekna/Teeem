@@ -66,7 +66,7 @@ module Api
           include: {
             corporate_company: { only: [ :id, :name, :code, :abn ] },
             detected_company: { only: [ :id, :name, :code, :abn ] },
-            supplier: { only: [ :id, :display_name, :tax_number, :bank_bsb, :bank_account_number ] },
+            supplier: { only: [ :id, :display_name, :tax_number, :bank_bsb, :bank_account_number, :has_trust_account, :trust_bsb, :trust_account_number, :trust_account_name, :payment_terms ] },
             matched_purchase_order: {
               only: [ :id, :purchase_order_number, :total, :status ],
               include: { supplier: { only: [ :id, :display_name ] } }

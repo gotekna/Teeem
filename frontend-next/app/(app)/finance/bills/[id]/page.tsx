@@ -139,12 +139,19 @@ interface BillDetail {
     tax_number: string;
     bank_bsb: string;
     bank_account_number: string;
+    // Trust account fields for lawyers, accountants, real estate agents, etc.
+    has_trust_account?: boolean;
+    trust_bsb?: string;
+    trust_account_number?: string;
+    trust_account_name?: string;
+    payment_terms?: string; // e.g., "7 days", "Net 30", "EOM+30"
   } | null;
   matched_purchase_order: {
     id: number;
     purchase_order_number: string;
     total: number;
     status: string;
+    payment_terms?: string; // e.g., "Net 30", "7 days", "EOM+30"
     supplier: {
       id: number;
       display_name: string;
@@ -208,6 +215,7 @@ export default function BillDetailPage() {
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [pdfExpandedOpen, setPdfExpandedOpen] = useState(false);
   const [highlightedField, setHighlightedField] = useState<string | null>(null);
+  const [notesExpanded, setNotesExpanded] = useState(false);
 
   // Build highlights array from field_locations
   const pdfHighlights: FieldHighlight[] = React.useMemo(() => {
@@ -446,61 +454,50 @@ export default function BillDetailPage() {
   };
 
   return (
-    <div className="flex gap-4 border-4 border-blue-500 bg-blue-50 dark:bg-blue-900/10 p-2 relative w-full overflow-hidden -mt-4">
-      <div className="absolute top-0 left-0 bg-blue-600 text-white px-2 py-1 text-xs font-bold z-50">
-        [1] PAGE CONTAINER (BLUE) - flex gap-4
-      </div>
-
+    <div className="flex gap-4 p-2 w-full overflow-hidden -mt-4">
       {/* LEFT HALF - Header + Details (flexible width) */}
-      <div className="flex-1 min-w-0 flex flex-col gap-4 border-4 border-green-500 bg-green-50 dark:bg-green-900/10 p-2 relative overflow-y-auto h-[calc(100vh-60px)]">
-        <div className="absolute -top-3 left-0 bg-green-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-          [2] LEFT HALF (GREEN) - flex col
-        </div>
-
+      <div className="flex-1 min-w-0 flex flex-col gap-2 overflow-hidden h-[calc(100vh-80px)]">
       {/* Header */}
-      <div className="flex items-center justify-between border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/10 p-2 relative">
-        <div className="absolute -top-3 left-0 bg-purple-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-          [3] HEADER (PURPLE)
-        </div>
+      <div className="flex items-center justify-between p-1 shrink-0 bg-muted/30 rounded">
         {/* Left - Pay From / Pay To */}
         <div className="flex items-center gap-2">
           {/* Company Box - Pay From */}
-          <div className="px-4 py-2 bg-blue-600 text-white rounded-lg border-2 border-yellow-400 min-w-[280px]">
-            <div className="text-xs uppercase tracking-wide opacity-80">Pay From</div>
-            <div className="font-bold text-lg truncate" title={bill.corporate_company?.name || bill.xero_tenant_name || "Not Assigned"}>
+          <div className="px-3 py-1 bg-blue-600 text-white rounded min-w-[200px]">
+            <div className="text-[10px] uppercase tracking-wide opacity-80">Pay From</div>
+            <div className="font-bold text-sm truncate" title={bill.corporate_company?.name || bill.xero_tenant_name || "Not Assigned"}>
               {bill.corporate_company?.name || bill.xero_tenant_name || "Not Assigned"}
             </div>
           </div>
           {/* Arrow */}
-          <ArrowLeft className="h-6 w-6 text-gray-500 rotate-180" />
+          <ArrowLeft className="h-5 w-5 text-gray-500 rotate-180" />
           {/* Supplier Box - Pay To */}
-          <div className="px-4 py-2 bg-green-600 text-white rounded-lg border-2 border-yellow-400 min-w-[280px]">
-            <div className="text-xs uppercase tracking-wide opacity-80">Pay To</div>
-            <div className="font-bold text-lg truncate" title={bill.supplier?.display_name || bill.supplier_name_raw || "Unknown Supplier"}>
+          <div className="px-3 py-1 bg-green-600 text-white rounded min-w-[200px]">
+            <div className="text-[10px] uppercase tracking-wide opacity-80">Pay To</div>
+            <div className="font-bold text-sm truncate" title={bill.supplier?.display_name || bill.supplier_name_raw || "Unknown Supplier"}>
               {bill.supplier?.display_name || bill.supplier_name_raw || "Unknown Supplier"}
             </div>
           </div>
         </div>
         {/* Right - Invoice/PO/Match */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {/* Invoice Number Box */}
-          <div className="px-3 py-2 bg-gray-700 text-white rounded-lg min-w-[100px]">
-            <div className="text-xs uppercase tracking-wide opacity-80">Invoice #</div>
-            <div className="font-bold font-mono">{bill.invoice_number || "-"}</div>
+          <div className="px-2 py-1 bg-gray-700 text-white rounded min-w-[80px]">
+            <div className="text-[10px] uppercase tracking-wide opacity-80">Invoice #</div>
+            <div className="font-bold text-sm font-mono">{bill.invoice_number || "-"}</div>
           </div>
           {/* PO Number Box */}
-          <div className="px-3 py-2 bg-purple-600 text-white rounded-lg min-w-[100px]">
-            <div className="text-xs uppercase tracking-wide opacity-80">PO #</div>
-            <div className="font-bold font-mono">{bill.matched_purchase_order?.purchase_order_number || bill.ai_extraction_result?.purchase_order_number || "-"}</div>
+          <div className="px-2 py-1 bg-purple-600 text-white rounded min-w-[80px]">
+            <div className="text-[10px] uppercase tracking-wide opacity-80">PO #</div>
+            <div className="font-bold text-sm font-mono">{bill.matched_purchase_order?.purchase_order_number || bill.ai_extraction_result?.purchase_order_number || "-"}</div>
           </div>
           {/* Match % Box */}
-          <div className={`px-3 py-2 rounded-lg min-w-[100px] ${
+          <div className={`px-2 py-1 rounded min-w-[70px] ${
             bill.ai_confidence && bill.ai_confidence >= 0.9 ? 'bg-green-600' :
             bill.ai_confidence && bill.ai_confidence >= 0.7 ? 'bg-yellow-500' :
             'bg-orange-500'
           } text-white`}>
-            <div className="text-xs uppercase tracking-wide opacity-80">Match %</div>
-            <div className="font-bold font-mono">
+            <div className="text-[10px] uppercase tracking-wide opacity-80">Match %</div>
+            <div className="font-bold text-sm font-mono">
               {bill.ai_confidence ? `${Math.round((bill.ai_confidence <= 1 ? bill.ai_confidence * 100 : bill.ai_confidence))}%` : "-"}
             </div>
           </div>
@@ -508,170 +505,235 @@ export default function BillDetailPage() {
       </div>
 
       {/* Payment Confirmation - Above Grid */}
-      <Card className="border border-emerald-500 relative">
-        <div className="absolute -top-3 left-0 bg-emerald-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-          [8] Payment (EMERALD)
+      {(() => {
+        // Supplier bank accounts - some suppliers (like lawyers) have both Trust and Business accounts
+        // TODO: Get these from supplier record - supplier.trust_bsb, supplier.trust_account_number
+        const hasTrustAccount = bill.supplier?.trust_bsb || bill.supplier?.has_trust_account;
+        const supplierTrustBSB = bill.supplier?.trust_bsb || "XXX-XXX";
+        const supplierTrustAccount = bill.supplier?.trust_account_number || "XXXXXXXX";
+        const supplierBusinessBSB = bill.supplier?.bank_bsb || "";
+        const supplierBusinessAccount = bill.supplier?.bank_account_number || "";
+
+        // Payment terms from supplier or extracted from invoice
+        const supplierTerms = bill.ai_extraction_result?.payment_terms || bill.supplier?.payment_terms || "Net 30";
+
+        // For split payments - amounts going to each account
+        // TODO: Get from line items or bill allocation
+        const trustLineItems = bill.ai_extraction_result?.line_items?.filter(item =>
+          item.description?.toLowerCase().includes('disbursement') ||
+          item.description?.toLowerCase().includes('trust')
+        ) || [];
+        const trustAmount = trustLineItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+        const businessAmount = (bill.total_amount || 0) - trustAmount;
+        const hasSplitPayment = hasTrustAccount && trustAmount > 0 && businessAmount > 0;
+
+        return (
+          <Card className="shrink-0">
+            <CardContent className="py-1.5 px-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs flex-wrap">
+                  {hasSplitPayment ? (
+                    <>
+                      {/* Split Payment - Trust + Business */}
+                      <div className="flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 rounded border border-purple-300">
+                        <Wallet className="h-3 w-3 text-purple-600" />
+                        <span className="text-purple-700 font-medium">Trust:</span>
+                        <span className="font-mono font-bold text-purple-700">${trustAmount.toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                        <span className="text-purple-500 text-[10px]">→ {supplierTrustBSB}/{supplierTrustAccount}</span>
+                      </div>
+                      <span className="text-muted-foreground">+</span>
+                      <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded border border-blue-300">
+                        <Building2 className="h-3 w-3 text-blue-600" />
+                        <span className="text-blue-700 font-medium">Fees:</span>
+                        <span className="font-mono font-bold text-blue-700">${businessAmount.toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                        <span className="text-blue-500 text-[10px]">→ {supplierBusinessBSB}/{supplierBusinessAccount}</span>
+                      </div>
+                    </>
+                  ) : hasTrustAccount ? (
+                    <>
+                      {/* Single payment to Trust OR Business account */}
+                      <span className="font-mono font-bold text-emerald-700">${(bill.remaining_balance || bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 rounded text-[10px]">
+                        <Wallet className="h-3 w-3 text-purple-600" />
+                        <span className="text-purple-600">Trust: {supplierTrustBSB}/{supplierTrustAccount}</span>
+                      </div>
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">
+                        <Building2 className="h-3 w-3 text-gray-500" />
+                        <span className="text-gray-500">Bus: {supplierBusinessBSB}/{supplierBusinessAccount}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Single payment - standard supplier */}
+                      <span className="font-mono font-bold text-emerald-700">${(bill.remaining_balance || bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
+                      <span className="text-muted-foreground">|</span>
+                      <span className="font-mono text-muted-foreground">{supplierBusinessBSB ? `${supplierBusinessBSB}/${supplierBusinessAccount}` : "No bank"}</span>
+                    </>
+                  )}
+                  <span className="text-muted-foreground">|</span>
+                  <span>{bill.due_date ? new Date(bill.due_date).toLocaleDateString("en-AU") : "-"}</span>
+                  <span className="text-muted-foreground">|</span>
+                  <span className="text-blue-600 font-medium">{supplierTerms}</span>
+                  <Badge className={`${statusColors[bill.status] || statusColors.pending} text-[10px] px-1.5 py-0`}>{bill.status.replace("_", " ")}</Badge>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={actionLoading}>Amend</Button>
+                  {bill.status === "approval_pending" && (
+                    <>
+                      <Button variant="outline" size="sm" className="h-6 px-2 text-xs text-red-600" onClick={() => setRejectDialogOpen(true)} disabled={actionLoading}>Reject</Button>
+                      {hasSplitPayment ? (
+                        <>
+                          <Button size="sm" className="h-6 px-2 text-xs bg-purple-600 hover:bg-purple-700" onClick={handleApprove} disabled={actionLoading}>
+                            <Wallet className="h-3 w-3 mr-1" />
+                            Pay Trust ${trustAmount.toLocaleString()}
+                          </Button>
+                          <Button size="sm" className="h-6 px-2 text-xs bg-blue-600 hover:bg-blue-700" onClick={handleApprove} disabled={actionLoading}>
+                            <Building2 className="h-3 w-3 mr-1" />
+                            Pay Fees ${businessAmount.toLocaleString()}
+                          </Button>
+                        </>
+                      ) : hasTrustAccount ? (
+                        <>
+                          <Button size="sm" className="h-6 px-2 text-xs bg-purple-600 hover:bg-purple-700" onClick={handleApprove} disabled={actionLoading}>
+                            <Wallet className="h-3 w-3 mr-1" />
+                            Pay to Trust
+                          </Button>
+                          <Button size="sm" className="h-6 px-2 text-xs bg-gray-600 hover:bg-gray-700" onClick={handleApprove} disabled={actionLoading}>
+                            <Building2 className="h-3 w-3 mr-1" />
+                            Pay to Business
+                          </Button>
+                        </>
+                      ) : (
+                        <Button size="sm" className="h-6 px-2 text-xs bg-green-600 hover:bg-green-700" onClick={handleApprove} disabled={actionLoading}>Approve & Send to Bank</Button>
+                      )}
+                    </>
+                  )}
+                  {bill.status === "approved" && <Button size="sm" className="h-6 px-2 text-xs bg-blue-600 hover:bg-blue-700" disabled={actionLoading}>Send to Bank</Button>}
+                  {bill.status === "pending" && <Button size="sm" className="h-6 px-2 text-xs" onClick={handleExtract} disabled={actionLoading}>Extract</Button>}
+                  {bill.status === "extracted" && <Button size="sm" className="h-6 px-2 text-xs" onClick={handleMatch} disabled={actionLoading}>Match</Button>}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Notes - Collapsible */}
+      {bill.notes && (
+        <div className="border border-gray-300 rounded shrink-0">
+          <button
+            onClick={() => setNotesExpanded(!notesExpanded)}
+            className="w-full flex items-center justify-between px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <span>Notes</span>
+            <span className="text-gray-400">{notesExpanded ? '▲' : '▼'}</span>
+          </button>
+          {notesExpanded && (
+            <div className="px-2 py-1 text-xs text-gray-600 border-t max-h-20 overflow-auto">
+              <p className="whitespace-pre-wrap">{bill.notes}</p>
+            </div>
+          )}
         </div>
-        <CardContent className="py-2 px-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3 text-sm">
-              <span className="font-mono font-bold text-emerald-700">${(bill.remaining_balance || bill.total_amount || 0).toLocaleString()}</span>
-              <span className="text-muted-foreground">|</span>
-              <span className="text-muted-foreground">{bill.due_date ? new Date(bill.due_date).toLocaleDateString("en-AU") : "-"}</span>
-              <span className="text-muted-foreground">|</span>
-              <span className="text-xs text-blue-600">{bill.ai_extraction_result?.payment_terms || "No terms"}</span>
-              <span className="text-muted-foreground">|</span>
-              <span className="font-mono text-xs text-muted-foreground">{bill.supplier?.bank_bsb ? `${bill.supplier.bank_bsb}/${bill.supplier.bank_account_number}` : "No bank"}</span>
-              <Badge className={`${statusColors[bill.status] || statusColors.pending} text-xs`}>{bill.status.replace("_", " ")}</Badge>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" className="h-7 text-xs" disabled={actionLoading}>Amend</Button>
-              {bill.status === "approval_pending" && (
-                <>
-                  <Button variant="outline" size="sm" className="h-7 text-xs text-red-600" onClick={() => setRejectDialogOpen(true)} disabled={actionLoading}>Reject</Button>
-                  <Button size="sm" className="h-7 text-xs bg-green-600" onClick={handleApprove} disabled={actionLoading}>Approve & Send to Bank</Button>
-                </>
-              )}
-              {bill.status === "approved" && <Button size="sm" className="h-7 text-xs bg-blue-600" disabled={actionLoading}>Send to Bank</Button>}
-              {bill.status === "pending" && <Button size="sm" className="h-7 text-xs" onClick={handleExtract} disabled={actionLoading}>Extract</Button>}
-              {bill.status === "extracted" && <Button size="sm" className="h-7 text-xs" onClick={handleMatch} disabled={actionLoading}>Match</Button>}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      )}
 
       {/* Details Grid - in left half - flex-1 to fill space */}
-      <div className="grid grid-cols-2 gap-4 border-4 border-red-500 bg-red-50 dark:bg-red-900/10 p-2 relative flex-1">
-        <div className="absolute -top-3 left-0 bg-red-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-          [4] DETAILS GRID (RED) - 2 col flex-1
-        </div>
-        {/* Invoice Details - Portrait A4 aspect ratio (1:1.414) */}
-        <Card className="border-2 border-cyan-500 relative aspect-[1/1.414] overflow-auto">
-          <div className="absolute -top-3 left-0 bg-cyan-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-            [6] Invoice (CYAN) - A4
-          </div>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
+      <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
+        {/* Invoice Details - A4 Portrait */}
+        <Card className="overflow-auto aspect-[1/1.414] max-h-[calc(100vh-220px)]">
+          <CardHeader className="py-2 px-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <FileText className="h-4 w-4" />
               Invoice Details
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              {/* Invoice Number - clickable to highlight on PDF */}
-              <div
-                className={`p-2 rounded cursor-pointer transition-colors ${highlightedField === 'invoice_number' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('invoice_number') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
-                onClick={() => hasLocation('invoice_number') && toggleHighlight('invoice_number')}
-              >
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  Invoice Number
-                  {hasLocation('invoice_number') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                </p>
-                <p className="font-medium font-mono">{bill.invoice_number || "-"}</p>
+          <CardContent className="space-y-2 px-3 py-0 text-xs">
+            {/* Row 1: Invoice # and Date */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                <p className="text-[10px] text-muted-foreground uppercase">Invoice #</p>
+                <p className="font-mono font-medium">{bill.invoice_number || "-"}</p>
               </div>
-              {/* Invoice Date */}
-              <div
-                className={`p-2 rounded cursor-pointer transition-colors ${highlightedField === 'invoice_date' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('invoice_date') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
-                onClick={() => hasLocation('invoice_date') && toggleHighlight('invoice_date')}
-              >
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  Invoice Date
-                  {hasLocation('invoice_date') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                </p>
-                <p className="font-medium">
-                  {bill.invoice_date
-                    ? new Date(bill.invoice_date).toLocaleDateString("en-AU")
-                    : "-"}
-                </p>
+              <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                <p className="text-[10px] text-muted-foreground uppercase">Invoice Date</p>
+                <p className="font-medium">{bill.invoice_date ? new Date(bill.invoice_date).toLocaleDateString("en-AU") : "-"}</p>
               </div>
-              {/* Due Date */}
-              <div
-                className={`p-2 rounded cursor-pointer transition-colors ${highlightedField === 'due_date' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('due_date') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
-                onClick={() => hasLocation('due_date') && toggleHighlight('due_date')}
-              >
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  Due Date
-                  {hasLocation('due_date') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                </p>
+            </div>
+
+            {/* Row 2: Due Date and Supplier ABN */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className={`p-1.5 rounded ${isOverdue ? 'bg-red-50 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-gray-800'}`}>
+                <p className="text-[10px] text-muted-foreground uppercase">Due Date</p>
                 <p className={`font-medium ${isOverdue ? "text-red-600" : ""}`}>
-                  {bill.due_date
-                    ? new Date(bill.due_date).toLocaleDateString("en-AU")
-                    : "-"}
-                  {isOverdue && (
-                    <span className="ml-2 text-xs">(Overdue)</span>
-                  )}
+                  {bill.due_date ? new Date(bill.due_date).toLocaleDateString("en-AU") : "-"}
+                  {isOverdue && <span className="ml-1 text-[10px]">(Overdue)</span>}
                 </p>
               </div>
-              {/* Supplier ABN */}
-              <div
-                className={`p-2 rounded cursor-pointer transition-colors ${highlightedField === 'supplier_abn' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('supplier_abn') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
-                onClick={() => hasLocation('supplier_abn') && toggleHighlight('supplier_abn')}
-              >
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  Supplier ABN
-                  {hasLocation('supplier_abn') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                </p>
-                <div className="flex items-center gap-2">
-                  <p className="font-medium font-mono">{bill.ai_extraction_result?.supplier_abn || bill.supplier?.tax_number || "-"}</p>
+              <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                <p className="text-[10px] text-muted-foreground uppercase">Supplier ABN</p>
+                <div className="flex items-center gap-1">
+                  <p className="font-mono font-medium">
+                    {(() => {
+                      const abn = bill.ai_extraction_result?.supplier_abn || bill.supplier?.tax_number || "";
+                      if (!abn) return "-";
+                      const clean = abn.replace(/\s/g, '');
+                      return clean.length === 11 ? `${clean.slice(0,2)} ${clean.slice(2,5)} ${clean.slice(5,8)} ${clean.slice(8)}` : abn;
+                    })()}
+                  </p>
                   {(() => {
                     const match = abnMatches(bill.ai_extraction_result?.supplier_abn, bill.supplier?.tax_number);
-                    if (match === true) {
-                      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-                    } else if (match === false) {
-                      return <XCircle2 className="h-4 w-4 text-red-500" />;
-                    }
+                    if (match === true) return <CheckCircle2 className="h-3 w-3 text-green-500" />;
+                    if (match === false) return <XCircle2 className="h-3 w-3 text-red-500" />;
                     return null;
                   })()}
                 </div>
               </div>
             </div>
 
-            <Separator />
+            {/* Row 3: Billing Company ABN */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                <p className="text-[10px] text-muted-foreground uppercase">Bill To (Company)</p>
+                <p className="font-medium truncate">{bill.detected_company?.name || bill.corporate_company?.name || "-"}</p>
+              </div>
+              <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                <p className="text-[10px] text-muted-foreground uppercase">Company ABN</p>
+                <p className="font-mono font-medium">
+                  {(() => {
+                    const abn = bill.detected_company?.abn || bill.corporate_company?.abn || "";
+                    if (!abn) return "-";
+                    const clean = abn.replace(/\s/g, '');
+                    return clean.length === 11 ? `${clean.slice(0,2)} ${clean.slice(2,5)} ${clean.slice(5,8)} ${clean.slice(8)}` : abn;
+                  })()}
+                </p>
+              </div>
+            </div>
 
-            <div className="space-y-2">
-              {/* Subtotal */}
-              <div
-                className={`flex justify-between p-2 rounded cursor-pointer transition-colors ${highlightedField === 'subtotal' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('subtotal') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
-                onClick={() => hasLocation('subtotal') && toggleHighlight('subtotal')}
-              >
-                <span className="text-muted-foreground flex items-center gap-1">
-                  Subtotal
-                  {hasLocation('subtotal') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                </span>
-                <span className="font-mono">${(bill.subtotal || 0).toLocaleString()}</span>
+            <Separator className="my-2" />
+
+            {/* Amounts */}
+            <div className="space-y-1">
+              <div className="flex justify-between p-1">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="font-mono">${(bill.subtotal || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
               </div>
-              {/* Tax */}
-              <div
-                className={`flex justify-between p-2 rounded cursor-pointer transition-colors ${highlightedField === 'tax_amount' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('tax_amount') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
-                onClick={() => hasLocation('tax_amount') && toggleHighlight('tax_amount')}
-              >
-                <span className="text-muted-foreground flex items-center gap-1">
-                  Tax (GST)
-                  {hasLocation('tax_amount') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                </span>
-                <span className="font-mono">${(bill.tax_amount || 0).toLocaleString()}</span>
+              <div className="flex justify-between p-1">
+                <span className="text-muted-foreground">GST</span>
+                <span className="font-mono">${(bill.tax_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
               </div>
-              <Separator />
-              {/* Total */}
-              <div
-                className={`flex justify-between text-lg font-bold p-2 rounded cursor-pointer transition-colors ${highlightedField === 'total_amount' ? 'bg-yellow-200 dark:bg-yellow-900/50 ring-2 ring-yellow-500' : hasLocation('total_amount') ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/30' : ''}`}
-                onClick={() => hasLocation('total_amount') && toggleHighlight('total_amount')}
-              >
-                <span className="flex items-center gap-1">
-                  Total
-                  {hasLocation('total_amount') && <MapPin className="h-3 w-3 text-yellow-500" />}
-                </span>
-                <span className="font-mono">${(bill.total_amount || 0).toLocaleString()}</span>
+              <Separator className="my-1" />
+              <div className="flex justify-between p-1 font-bold text-sm bg-gray-100 dark:bg-gray-800 rounded">
+                <span>Total</span>
+                <span className="font-mono">${(bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
               </div>
               {totalPaid > 0 && (
                 <>
-                  <div className="flex justify-between text-green-600 p-2">
+                  <div className="flex justify-between text-green-600 p-1">
                     <span>Paid</span>
-                    <span className="font-mono">-${totalPaid.toLocaleString()}</span>
+                    <span className="font-mono">-${totalPaid.toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
                   </div>
-                  <div className="flex justify-between font-medium p-2">
+                  <div className="flex justify-between font-medium p-1 bg-blue-50 dark:bg-blue-900/20 rounded">
                     <span>Remaining</span>
-                    <span className="font-mono">${(bill.remaining_balance || 0).toLocaleString()}</span>
+                    <span className="font-mono">${(bill.remaining_balance || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</span>
                   </div>
                 </>
               )}
@@ -710,11 +772,7 @@ export default function BillDetailPage() {
                             FileText;
 
           return (
-            <Card className={`border-4 ${borderColor} ${bgColor} relative aspect-[1/1.414] overflow-auto`}>
-              <div className={`absolute -top-3 left-0 ${headerBg} text-white px-2 py-0.5 text-xs font-bold z-50 flex items-center gap-1`}>
-                <StatusIcon className="h-3 w-3" />
-                [7] PO - {statusText}
-              </div>
+            <Card className={`border-2 ${borderColor} ${bgColor} overflow-auto aspect-[1/1.414] max-h-[calc(100vh-220px)]`}>
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
@@ -732,37 +790,45 @@ export default function BillDetailPage() {
               <CardContent className="space-y-4">
                 {bill.matched_purchase_order ? (
                   <>
-                    <div>
-                      <p className="text-sm text-muted-foreground">PO Number</p>
-                      <Link
-                        href={`/purchase_orders/${bill.matched_purchase_order.id}`}
-                        className="font-bold text-xl text-blue-600 hover:underline inline-flex items-center gap-1"
-                      >
-                        {bill.matched_purchase_order.purchase_order_number}
-                        <ExternalLink className="h-4 w-4" />
-                      </Link>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                        <p className="text-[10px] text-muted-foreground uppercase">PO Number</p>
+                        <Link
+                          href={`/purchase_orders/${bill.matched_purchase_order.id}`}
+                          className="font-bold text-sm text-blue-600 hover:underline inline-flex items-center gap-1 font-mono"
+                        >
+                          {bill.matched_purchase_order.purchase_order_number}
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </div>
+                      <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                        <p className="text-[10px] text-muted-foreground uppercase">Payment Terms</p>
+                        <p className="font-medium text-sm text-blue-600">
+                          {bill.matched_purchase_order.payment_terms || bill.supplier?.payment_terms || "Net 30"}
+                        </p>
+                      </div>
                     </div>
 
-                    <Separator />
+                    <Separator className="my-2" />
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">PO Total</p>
-                        <p className="font-mono font-bold text-lg">${bill.matched_purchase_order.total?.toLocaleString()}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                        <p className="text-[10px] text-muted-foreground uppercase">PO Total</p>
+                        <p className="font-mono font-bold text-sm">${bill.matched_purchase_order.total?.toLocaleString('en-AU', {minimumFractionDigits: 2})}</p>
                       </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Invoice Total</p>
-                        <p className="font-mono font-bold text-lg">${(bill.total_amount || 0).toLocaleString()}</p>
+                      <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                        <p className="text-[10px] text-muted-foreground uppercase">Invoice Total</p>
+                        <p className="font-mono font-bold text-sm">${(bill.total_amount || 0).toLocaleString('en-AU', {minimumFractionDigits: 2})}</p>
                       </div>
                     </div>
 
                     {bill.variance_amount !== null && bill.variance_amount !== 0 && (
                       <>
-                        <Separator />
-                        <div className={`p-3 rounded-lg ${isMismatch ? "bg-red-100 dark:bg-red-900/30" : "bg-amber-100 dark:bg-amber-900/30"}`}>
-                          <p className="text-sm text-muted-foreground">Variance</p>
-                          <p className={`font-mono font-bold text-lg ${isMismatch ? "text-red-600" : "text-amber-600"}`}>
-                            {bill.variance_amount > 0 ? "+" : ""}${bill.variance_amount.toLocaleString()}
+                        <Separator className="my-2" />
+                        <div className={`p-2 rounded ${isMismatch ? "bg-red-100 dark:bg-red-900/30 border border-red-300" : "bg-amber-100 dark:bg-amber-900/30 border border-amber-300"}`}>
+                          <p className="text-[10px] text-muted-foreground uppercase">Variance</p>
+                          <p className={`font-mono font-bold text-sm ${isMismatch ? "text-red-600" : "text-amber-600"}`}>
+                            {bill.variance_amount > 0 ? "+" : ""}${bill.variance_amount.toLocaleString('en-AU', {minimumFractionDigits: 2})}
                             {bill.variance_percent && ` (${bill.variance_percent.toFixed(1)}%)`}
                           </p>
                         </div>
@@ -896,25 +962,11 @@ export default function BillDetailPage() {
           </Card>
         )}
 
-        {/* Notes */}
-        {bill.notes && (
-          <Card className="col-span-2">
-            <CardHeader>
-              <CardTitle>Notes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="whitespace-pre-wrap">{bill.notes}</p>
-            </CardContent>
-          </Card>
-        )}
         </div>{/* End Details Grid */}
       </div>{/* End Left Half */}
 
       {/* RIGHT HALF - PDF Preview (A4 portrait aspect ratio) */}
-      <div className="shrink-0 border-4 border-orange-500 bg-orange-50 dark:bg-orange-900/10 p-2 relative sticky top-0 h-[calc(100vh-60px)] aspect-[1/1.414]">
-        <div className="absolute -top-3 left-0 bg-orange-600 text-white px-2 py-0.5 text-xs font-bold z-50">
-          [5] PDF (ORANGE) - A4 Portrait
-        </div>
+      <div className="shrink-0 sticky top-0 h-[calc(100vh-80px)] aspect-[1/1.414]">
         <Card className="h-full w-full">
           <CardContent className="p-2 h-full">
             {pdfLoading ? (
