@@ -62,7 +62,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ### Step 5 - Push to GitHub
 ```bash
-ALLOW_PUSH=1 git push origin Live
+git push origin Live
 ```
 *Vercel auto-deploys frontend from this push*
 
@@ -75,17 +75,19 @@ git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy 
 
 **If backend changed**, deploy to Heroku using FAST method (no history processing):
 ```bash
-# FAST DEPLOY - creates orphan branch with current backend state only
-# This takes ~5 seconds vs ~2 minutes for subtree split
+# ULTRA-FAST DEPLOY - direct push from temp directory (~5 seconds total)
+# Avoids slow git subtree split entirely
 cd /Users/robertharder/GitHub/teeem
-git checkout --orphan heroku-deploy-temp
-git reset
-git add backend/
+DEPLOY_DIR=$(mktemp -d)
+cp -r backend/* "$DEPLOY_DIR/"
+cd "$DEPLOY_DIR"
+git init
+git add .
 git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
-git subtree split --prefix backend -b heroku-push-temp
-ALLOW_PUSH=1 git push heroku-teeemlive heroku-push-temp:main --force
-git checkout Live
-git branch -D heroku-deploy-temp heroku-push-temp
+git remote add heroku https://git.heroku.com/teeemlive.git
+git push heroku HEAD:main --force
+cd /Users/robertharder/GitHub/teeem
+rm -rf "$DEPLOY_DIR"
 ```
 
 **If no backend changes, skip this step entirely.**
@@ -110,9 +112,8 @@ If any step fails:
 2. Stay on Live branch
 3. Provide recovery instructions
 
-## Heroku Remote Setup
+## Notes
 
-The `heroku-teeemlive` remote must be configured:
-```bash
-git remote add heroku-teeemlive https://git.heroku.com/teeemlive.git
-```
+- No pre-configured Heroku remote needed - the deploy script creates it on-the-fly
+- Frontend deploys automatically via Vercel on GitHub push
+- Backend only deploys if changes detected in `backend/` directory

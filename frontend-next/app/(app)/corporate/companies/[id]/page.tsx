@@ -68,6 +68,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { format, isValid } from "date-fns";
+import { useToast } from "@/components/ui/use-toast";
 
 // Safe date formatter that handles null/invalid dates
 const safeFormatDate = (dateValue: string | Date | null | undefined, formatStr: string, fallback = "—"): string => {
@@ -3313,6 +3314,7 @@ interface TenantStats {
 }
 
 function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnectionChange }: { companyId: string; companyName?: string; onSyncComplete?: () => void; onConnectionChange?: (connected: boolean) => void }) {
+  const { toast } = useToast();
   const [status, setStatus] = React.useState<XeroConnectionStatus | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [connecting, setConnecting] = React.useState(false);
@@ -3423,11 +3425,38 @@ function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnecti
   const handleSync = async () => {
     try {
       setSyncing(true);
-      await api.post(`/api/v1/companies/${companyId}/xero/sync`);
+      const response = await api.post<{
+        success: boolean;
+        message?: string;
+        bank_accounts_synced?: number;
+        transactions_synced?: number;
+        error?: string;
+      }>(`/api/v1/companies/${companyId}/xero/sync`);
+
+      if (response && response.success) {
+        const bankAccountsMsg = response.bank_accounts_synced
+          ? `${response.bank_accounts_synced} bank account${response.bank_accounts_synced !== 1 ? 's' : ''}`
+          : '0 bank accounts';
+        const transactionsMsg = response.transactions_synced
+          ? `${response.transactions_synced} transaction${response.transactions_synced !== 1 ? 's' : ''}`
+          : '0 transactions';
+
+        toast({
+          title: "Sync completed successfully",
+          description: `Synced ${bankAccountsMsg} and ${transactionsMsg}`,
+        });
+      }
+
       await loadStatus();
       onSyncComplete?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to sync with Xero:", error);
+      const errorMessage = error?.response?.data?.error || error?.message || "Failed to sync with Xero";
+      toast({
+        title: "Sync failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setSyncing(false);
     }
