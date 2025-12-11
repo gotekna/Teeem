@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_11_124666) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_11_124667) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -523,6 +523,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_124666) do
     t.integer "retry_count", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "assigned_to_role"
     t.index ["assigned_to_type", "assigned_to_id"], name: "idx_on_assigned_to_type_assigned_to_id_c36150f21d"
     t.index ["bpmn_node_id"], name: "index_bpmn_task_instances_on_bpmn_node_id"
     t.index ["bpmn_token_id"], name: "index_bpmn_task_instances_on_bpmn_token_id"

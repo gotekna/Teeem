@@ -37,6 +37,8 @@ import {
   Eye,
   FileWarning,
   ImageIcon,
+  Maximize2,
+  X,
 } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
@@ -143,6 +145,7 @@ export default function BillDetailPage() {
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfExpandedOpen, setPdfExpandedOpen] = useState(false);
 
   const loadBill = async () => {
     setLoading(true);
@@ -415,6 +418,10 @@ export default function BillDetailPage() {
               </span>
               {pdfBlobUrl && (
                 <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setPdfExpandedOpen(true)} title="View fullscreen">
+                    <Maximize2 className="h-4 w-4 mr-1" />
+                    Expand
+                  </Button>
                   <Button variant="outline" size="sm" onClick={handleOpenInApp} title="Open in Preview/PDF app">
                     <ExternalLink className="h-4 w-4 mr-1" />
                     Open

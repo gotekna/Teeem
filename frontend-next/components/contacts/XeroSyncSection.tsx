@@ -7,6 +7,7 @@ import {
   XCircle,
   AlertTriangle,
   LinkIcon,
+  Unlink2,
   Settings,
   ChevronDown,
   ChevronRight,
@@ -67,6 +68,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
   const [availableTenants, setAvailableTenants] = useState<XeroTenant[]>([]);
   const [loadingTenants, setLoadingTenants] = useState(true);
   const [linkingToTenant, setLinkingToTenant] = useState<string | null>(null);
+  const [unlinkingLinkId, setUnlinkingLinkId] = useState<number | null>(null);
   const [xeroContactData, setXeroContactData] = useState<XeroContact | null>(null);
   const [syncConfig, setSyncConfig] = useState<SyncConfiguration | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -166,6 +168,37 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
       console.error("Link to tenant error:", _err);
     } finally {
       setLinkingToTenant(null);
+    }
+  };
+
+  const handleUnlink = async (linkId: number, tenantName: string) => {
+    if (!confirm(`Are you sure you want to unlink this contact from ${tenantName}? This will not delete any data in Xero.`)) {
+      return;
+    }
+
+    setUnlinkingLinkId(linkId);
+    setSyncError(null);
+    try {
+      const response = await api.delete<{ success: boolean }>(
+        `/api/v1/contacts/${contact.id}/xero_links/${linkId}`
+      );
+
+      if (response?.success) {
+        // Remove from local state
+        setXeroLinks((prev) => prev.filter((link) => link.id !== linkId));
+
+        // If we unlinked the selected one, select another or clear
+        if (selectedLinkId === linkId) {
+          const remaining = xeroLinks.filter((link) => link.id !== linkId);
+          setSelectedLinkId(remaining.length > 0 ? remaining[0].id : null);
+          setXeroContactData(null);
+        }
+      }
+    } catch (_err) {
+      setSyncError(_err instanceof Error ? _err.message : "Failed to unlink from Xero");
+      console.error("Unlink error:", _err);
+    } finally {
+      setUnlinkingLinkId(null);
     }
   };
 
@@ -436,10 +469,10 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
           </CardHeader>
           <CardContent className="space-y-2">
             {xeroLinks.map((link) => (
-              <button
+              <div
                 key={link.id}
                 onClick={() => setSelectedLinkId(link.id)}
-                className={`w-full text-left p-4 rounded-lg border transition-colors ${
+                className={`w-full text-left p-4 rounded-lg border transition-colors cursor-pointer ${
                   selectedLinkId === link.id
                     ? "border-primary bg-primary/5"
                     : "border-border hover:border-primary/50 hover:bg-accent"
@@ -470,9 +503,26 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
                         Synced {new Date(link.last_synced_at).toLocaleDateString()}
                       </span>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent selecting when clicking unlink
+                        handleUnlink(link.id, link.xero_tenant_name);
+                      }}
+                      disabled={unlinkingLinkId === link.id}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10 ml-2"
+                      title={`Unlink from ${link.xero_tenant_name}`}
+                    >
+                      {unlinkingLinkId === link.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Unlink2 className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
           </CardContent>
         </Card>

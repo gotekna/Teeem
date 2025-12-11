@@ -57,6 +57,7 @@ import { XeroSyncSection } from "@/components/contacts/XeroSyncSection";
 import { XeroTransactionsSection } from "@/components/contacts/XeroTransactionsSection";
 import { XeroInvoiceDetailModal } from "@/components/contacts/XeroInvoiceDetailModal";
 import { XeroInvoicesListByTenant } from "@/components/contacts/XeroInvoicesListByTenant";
+import { PendingXeroReviewPanel } from "@/components/contacts/PendingXeroReviewPanel";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
@@ -4644,6 +4645,7 @@ export default function ContactDetailPage() {
             {/* Xero Sub-Tab */}
             <TabsContent value="xero" className="mt-4">
               <div className="space-y-6">
+                <PendingXeroReviewPanel />
                 <XeroSyncSection
                   contact={contact}
                   onContactUpdate={(updatedContact) => setContact(updatedContact as Contact)}
