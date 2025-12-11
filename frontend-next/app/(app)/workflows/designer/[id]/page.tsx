@@ -25,35 +25,38 @@ export default function WorkflowDesignerPage() {
         const response = await api.get(`/bpmn_processes/${processId}`) as { data: { success: boolean; bpmn_process: Record<string, unknown> } };
         if (response.data.success) {
           const p = response.data.bpmn_process;
+          const nodes = (p.nodes || []) as Record<string, unknown>[];
+          const edges = (p.edges || []) as Record<string, unknown>[];
+          const triggers = (p.triggers || []) as BpmnProcess["triggers"];
           setProcess({
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            isPublished: p.is_published,
-            publishedAt: p.published_at,
-            version: p.version,
-            canvasData: p.canvas_data || {},
-            nodes: (p.nodes || []).map((n: Record<string, unknown>) => ({
-              id: n.node_key,
-              nodeKey: n.node_key,
-              nodeType: n.node_type,
-              name: n.name,
-              description: n.description,
-              config: n.config || {},
-              position: n.position || { x: 0, y: 0 },
+            id: p.id as number,
+            name: p.name as string,
+            description: p.description as string | undefined,
+            isPublished: p.is_published as boolean,
+            publishedAt: p.published_at as string | undefined,
+            version: p.version as number | undefined,
+            canvasData: (p.canvas_data || {}) as BpmnProcess["canvasData"],
+            nodes: nodes.map((n) => ({
+              id: n.node_key as string,
+              nodeKey: n.node_key as string,
+              nodeType: n.node_type as BpmnProcess["nodes"][0]["nodeType"],
+              name: n.name as string,
+              description: n.description as string | undefined,
+              config: (n.config || {}) as BpmnProcess["nodes"][0]["config"],
+              position: (n.position || { x: 0, y: 0 }) as { x: number; y: number },
             })),
-            edges: (p.edges || []).map((e: Record<string, unknown>) => ({
-              id: e.edge_key,
-              edgeKey: e.edge_key,
-              source: e.source_key,
-              target: e.target_key,
-              name: e.name,
-              conditionExpression: e.condition_expression,
-              isDefault: e.is_default,
+            edges: edges.map((e) => ({
+              id: e.edge_key as string,
+              edgeKey: e.edge_key as string,
+              source: e.source_key as string,
+              target: e.target_key as string,
+              name: e.name as string | undefined,
+              conditionExpression: e.condition_expression as string | undefined,
+              isDefault: e.is_default as boolean | undefined,
             })),
-            triggers: p.triggers || [],
-            createdAt: p.created_at,
-            updatedAt: p.updated_at,
+            triggers,
+            createdAt: p.created_at as string | undefined,
+            updatedAt: p.updated_at as string | undefined,
           });
         } else {
           setError("Failed to load workflow");

@@ -362,6 +362,25 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
 
               <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
 
+              {/* Hidden file input for BPMN import */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".bpmn,.xml"
+                onChange={handleImport}
+                className="hidden"
+              />
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                {importing ? "Importing..." : "Import"}
+              </Button>
+
               <Button
                 variant="outline"
                 size="sm"
