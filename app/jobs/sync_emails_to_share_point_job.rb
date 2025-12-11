@@ -64,14 +64,8 @@ class SyncEmailsToSharePointJob < ApplicationJob
     skipped = 0
     created = 0
 
-    # Get recent emails with attachments from this org that haven't been uploaded yet
-    sync_config = @credential.sync_config || {}
-    user_emails = get_user_emails_for_org(sync_config)
-
-    if user_emails.empty?
-      Rails.logger.info "[SyncToSharePoint] No user emails configured"
-      return { uploaded: 0, skipped: 0, created: 0 }
-    end
+    # TEMPORARILY SKIP user email fetching - directly process all emails with attachments for this org
+    # This is to isolate the 404 bug
 
     # Find emails with attachments that haven't been processed yet
     # Simple approach: process emails where has_attachments=true but no EmailAttachment records exist
