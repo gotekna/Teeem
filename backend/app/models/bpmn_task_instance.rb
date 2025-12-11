@@ -28,6 +28,7 @@ class BpmnTaskInstance < ApplicationRecord
 
   # Callbacks
   after_create :log_task_created
+  after_create :notify_assignee
 
   # Instance methods
   def pending?
@@ -136,6 +137,7 @@ class BpmnTaskInstance < ApplicationRecord
     return false unless can_action?(user)
 
     update!(assigned_to: user, status: "in_progress", started_at: Time.current)
+    notify_task_claimed(user)
     true
   end
 
@@ -181,5 +183,39 @@ class BpmnTaskInstance < ApplicationRecord
 
   def log_task_failed(error)
     Rails.logger.error("BPMN Task ##{id} failed: #{error}")
+  end
+
+  def notify_assignee
+    return unless user_task?
+    return unless assigned_to.is_a?(User)
+
+    create_task_notification(assigned_to, "task_assigned", "New task: #{display_name}")
+  end
+
+  def notify_task_claimed(user)
+    create_task_notification(user, "task_started", "Task claimed: #{display_name}")
+  end
+
+  def create_task_notification(user, type, title)
+    subject_name = subject&.try(:name) || subject&.try(:title) || "Unknown"
+    process = bpmn_process_instance&.bpmn_process
+
+    Notification.create!(
+      user: user,
+      notification_type: type,
+      title: title,
+      body: "#{process&.name || 'Workflow'} task for #{subject_name}.",
+      notifiable: self,
+      data: {
+        task_id: id,
+        task_name: display_name,
+        process_name: process&.name,
+        subject_type: bpmn_process_instance&.subject_type,
+        subject_id: bpmn_process_instance&.subject_id,
+        subject_name: subject_name
+      }
+    )
+  rescue StandardError => e
+    Rails.logger.error("Failed to create notification: #{e.message}")
   end
 end
