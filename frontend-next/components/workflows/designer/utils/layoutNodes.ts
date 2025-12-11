@@ -79,6 +79,87 @@ function groupAndAlignValues(values: number[], threshold: number = 40): Map<numb
 }
 
 /**
+ * Simple custom grid layout - ignores dagre and uses fixed grid positions
+ */
+function simpleGridLayout<T extends Record<string, unknown>>(
+  nodes: Node<T>[],
+  edges: Edge[]
+): Node<T>[] {
+  const COL_WIDTH = 250;  // Horizontal spacing between columns
+  const ROW_HEIGHT = 150; // Vertical spacing between rows
+
+  // Build adjacency lists
+  const outgoing = new Map<string, string[]>();
+  const incoming = new Map<string, string[]>();
+
+  edges.forEach(edge => {
+    if (!outgoing.has(edge.source)) outgoing.set(edge.source, []);
+    if (!incoming.has(edge.target)) incoming.set(edge.target, []);
+    outgoing.get(edge.source)!.push(edge.target);
+    incoming.get(edge.target)!.push(edge.source);
+  });
+
+  // Find start nodes (no incoming edges)
+  const startNodes = nodes.filter(n => !incoming.has(n.id) || incoming.get(n.id)!.length === 0);
+
+  // Assign column (depth) to each node using BFS
+  const nodeColumns = new Map<string, number>();
+  const nodeRows = new Map<string, number>();
+  const queue: Array<{id: string, col: number, row: number}> = [];
+
+  startNodes.forEach((n, idx) => {
+    queue.push({id: n.id, col: 0, row: idx});
+    nodeColumns.set(n.id, 0);
+    nodeRows.set(n.id, idx);
+  });
+
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const {id, col, row} = queue.shift()!;
+    if (visited.has(id)) continue;
+    visited.add(id);
+
+    const neighbors = outgoing.get(id) || [];
+
+    // Check if this is a parallel gateway (multiple outgoing edges)
+    if (neighbors.length > 1) {
+      // Parallel split - assign each branch to a different row
+      neighbors.forEach((neighborId, idx) => {
+        if (!nodeColumns.has(neighborId)) {
+          nodeColumns.set(neighborId, col + 1);
+          nodeRows.set(neighborId, idx);
+          queue.push({id: neighborId, col: col + 1, row: idx});
+        }
+      });
+    } else {
+      // Single path - continue in same row
+      neighbors.forEach(neighborId => {
+        if (!nodeColumns.has(neighborId)) {
+          nodeColumns.set(neighborId, col + 1);
+          nodeRows.set(neighborId, row);
+          queue.push({id: neighborId, col: col + 1, row: row});
+        }
+      });
+    }
+  }
+
+  // Apply grid positions
+  return nodes.map(node => {
+    const col = nodeColumns.get(node.id) ?? 0;
+    const row = nodeRows.get(node.id) ?? 0;
+
+    return {
+      ...node,
+      position: {
+        x: col * COL_WIDTH,
+        y: row * ROW_HEIGHT,
+      },
+    };
+  });
+}
+
+/**
  * Applies automatic layout to nodes using dagre algorithm with grid snapping
  * @param nodes - Array of React Flow nodes
  * @param edges - Array of React Flow edges
@@ -90,89 +171,10 @@ export function getLayoutedElements<T extends Record<string, unknown>>(
   edges: Edge[],
   options: LayoutOptions = {}
 ): Node<T>[] {
-  const {
-    direction = "LR",
-    nodeSpacing = 50,
-    rankSpacing = 80,
-  } = options;
-
-  // Create a new dagre graph
-  const dagreGraph = new dagre.graphlib.Graph();
-  dagreGraph.setDefaultEdgeLabel(() => ({}));
-  dagreGraph.setGraph({
-    rankdir: direction,
-    nodesep: nodeSpacing,
-    ranksep: rankSpacing,
-    marginx: 50,
-    marginy: 50,
-    // Enable alignment for cleaner layouts
-    align: direction === "LR" || direction === "RL" ? "UL" : "UL",
-  });
-
-  // Add nodes to dagre graph
-  nodes.forEach((node) => {
-    const nodeType = node.type || "default";
-    const dimensions = NODE_DIMENSIONS[nodeType] || DEFAULT_DIMENSIONS;
-    dagreGraph.setNode(node.id, {
-      width: dimensions.width,
-      height: dimensions.height,
-    });
-  });
-
-  // Add edges to dagre graph
-  edges.forEach((edge) => {
-    dagreGraph.setEdge(edge.source, edge.target);
-  });
-
-  // Run the layout algorithm
-  dagre.layout(dagreGraph);
-
-  // LANE-BASED ALIGNMENT: Force all nodes to snap to horizontal lanes
-  const LANE_HEIGHT = 120; // Height of each horizontal lane (matches nodeSpacing)
-  const GRID_SIZE = 20;
-
-  // Get all positions from dagre
-  const positions = nodes.map((node) => {
-    const nodeWithPosition = dagreGraph.node(node.id);
-    const nodeType = node.type || "default";
-    const dimensions = NODE_DIMENSIONS[nodeType] || DEFAULT_DIMENSIONS;
-
-    return {
-      id: node.id,
-      x: nodeWithPosition.x - dimensions.width / 2,
-      y: nodeWithPosition.y - dimensions.height / 2,
-    };
-  });
-
-  // Snap X positions to grid and align nodes in same column
-  const xPositions = positions.map(p => p.x);
-  const xGroups = groupAndAlignValues(xPositions, 100); // Group nodes in same column
-
-  // Snap Y positions to fixed lanes (every LANE_HEIGHT pixels)
-  // This forces perfect horizontal alignment
-  const alignedPositions = positions.map(pos => {
-    const laneIndex = Math.round(pos.y / LANE_HEIGHT);
-    const laneY = laneIndex * LANE_HEIGHT;
-
-    return {
-      id: pos.id,
-      x: xGroups.get(pos.x) ?? snapToGrid(pos.x, GRID_SIZE),
-      y: snapToGrid(laneY, GRID_SIZE),
-    };
-  });
-
-  // Apply aligned positions to nodes
-  return nodes.map((node) => {
-    const alignedPos = alignedPositions.find(p => p.id === node.id)!;
-    return {
-      ...node,
-      position: {
-        x: alignedPos.x,
-        y: alignedPos.y,
-      },
-    };
-  });
+  // Use simple grid layout instead of dagre for perfect alignment
+  return simpleGridLayout(nodes, edges);
 }
+
 
 /**
  * Aligns selected nodes horizontally (same Y position) with grid snapping
