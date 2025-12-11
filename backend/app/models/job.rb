@@ -89,11 +89,11 @@ class Job < ApplicationRecord
     purchase_orders.for_schedule.any?
   end
 
-  # Calculate live profit based on contract value minus all PO totals
+  # Calculate live profit ex-GST: (contract_value - PO totals) / 1.1
   def calculate_live_profit
     contract = contract_value || 0
     po_total = purchase_orders.sum(:total) || 0
-    contract - po_total
+    ((contract - po_total) / 1.1).round(2)
   end
 
   # Calculate profit percentage
@@ -124,7 +124,6 @@ class Job < ApplicationRecord
   def site_supervisor_info
     {
       name: site_supervisor_name,
-      email: site_supervisor_email,
       phone: site_supervisor_phone
     }
   end

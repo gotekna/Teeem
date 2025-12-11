@@ -9,7 +9,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TeeemTableView } from "@/components/table";
 import type { TableColumn, TableRow, SavedView } from "@/components/table/types";
 import { api } from "@/lib/api";
-import { slugifyJobTitle } from "@/lib/url-utils";
 import { getTableUIConfig } from "@/lib/table-ui-config";
 import { Loader } from "@/components/ui/loader";
 import { Plus } from "lucide-react";
@@ -256,9 +255,8 @@ export default function JobsPage() {
   };
 
   const handleRowDoubleClick = (row: TableRow) => {
-    // Navigate to full job page on double-click
-    const slug = row.title ? slugifyJobTitle(String(row.title)) : String(row.id);
-    router.push(`/jobs/${slug}`);
+    // Navigate to full job page on double-click using numeric ID
+    router.push(`/jobs/${row.id}`);
   };
 
   const handleEdit = (row: TableRow) => {
