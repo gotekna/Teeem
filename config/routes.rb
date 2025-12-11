@@ -243,6 +243,18 @@ Rails.application.routes.draw do
         end
       end
 
+      # Document Templates for mail merge
+      resources :document_templates, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          get :categories
+          get :sharepoint_files
+        end
+        member do
+          get :preview
+          post :link_sharepoint
+        end
+      end
+
       # Purchase Orders management
       resources :purchase_orders do
         collection do
