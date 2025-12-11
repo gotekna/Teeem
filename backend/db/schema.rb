@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_11_124665) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_11_124666) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1075,8 +1075,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_124665) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "source", default: "xero", null: false
+    t.boolean "needs_review", default: false, null: false
+    t.string "match_type"
+    t.decimal "match_confidence", precision: 5, scale: 4
+    t.datetime "reviewed_at"
+    t.string "reviewed_by"
     t.index ["contact_id", "source", "tenant_id"], name: "idx_contact_external_links_unique", unique: true
     t.index ["contact_id"], name: "index_contact_external_links_on_contact_id"
+    t.index ["needs_review"], name: "idx_contact_external_links_needs_review", where: "(needs_review = true)"
     t.index ["source", "tenant_id", "external_contact_id"], name: "idx_contact_external_links_external", unique: true
     t.index ["source"], name: "index_contact_external_links_on_source"
     t.index ["sync_enabled"], name: "index_contact_external_links_on_sync_enabled"

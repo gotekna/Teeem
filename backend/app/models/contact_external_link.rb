@@ -7,6 +7,9 @@ class ContactExternalLink < ApplicationRecord
   # Sync directions
   SYNC_DIRECTIONS = %w[import_only export_only bidirectional].freeze
 
+  # Match types for cross-tenant matching
+  MATCH_TYPES = %w[exact_abn exact_email fuzzy_name manual].freeze
+
   validates :source, presence: true, inclusion: { in: SOURCES }
   validates :tenant_id, presence: true
   validates :external_contact_id, presence: true
@@ -22,6 +25,8 @@ class ContactExternalLink < ApplicationRecord
   scope :quickbooks, -> { for_source("quickbooks") }
   scope :with_errors, -> { where.not(sync_error: nil) }
   scope :with_conflicts, -> { where("conflict_fields != '{}'") }
+  scope :pending_review, -> { where(needs_review: true) }
+  scope :reviewed, -> { where(needs_review: false).where.not(reviewed_at: nil) }
 
   # Check if this link has sync conflicts
   def has_conflicts?
@@ -103,5 +108,30 @@ class ContactExternalLink < ApplicationRecord
   # Convenience: is this a QuickBooks link?
   def quickbooks?
     source == "quickbooks"
+  end
+
+  # Approve a fuzzy match review
+  def approve_review!(reviewer_email = nil)
+    update!(
+      needs_review: false,
+      sync_enabled: true,
+      reviewed_at: Time.current,
+      reviewed_by: reviewer_email
+    )
+  end
+
+  # Check if this link was auto-matched (not manually linked)
+  def auto_matched?
+    match_type.present? && match_type != "manual"
+  end
+
+  # Check if this was a high-confidence match
+  def high_confidence?
+    match_confidence.present? && match_confidence >= 0.95
+  end
+
+  # Check if this was a fuzzy match
+  def fuzzy_match?
+    match_type == "fuzzy_name"
   end
 end

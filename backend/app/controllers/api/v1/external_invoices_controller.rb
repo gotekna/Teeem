@@ -4,7 +4,7 @@ module Api
       # GET /api/v1/external_invoices
       # List invoices with optional filtering
       def index
-        invoices = ExternalInvoice.active
+        invoices = ExternalInvoice.active.includes(:job)
 
         # Filter by source
         invoices = invoices.where(source: params[:source]) if params[:source].present?
@@ -87,6 +87,7 @@ module Api
         job = Job.find(params[:job_id])
 
         invoices = ExternalInvoice.active
+                                  .includes(:job)
                                   .where(job_id: job.id)
                                   .order(invoice_date: :desc)
 
@@ -140,10 +141,10 @@ module Api
 
         if job
           # Use job_id for fast lookup
-          invoices = ExternalInvoice.active.where(job_id: job.id)
+          invoices = ExternalInvoice.active.includes(:job).where(job_id: job.id)
         else
           # Fall back to searching tracking_data JSON (slower but works for unlinked)
-          invoices = ExternalInvoice.active.with_tracking(tracking_option_name)
+          invoices = ExternalInvoice.active.includes(:job).with_tracking(tracking_option_name)
         end
 
         invoices = invoices.order(invoice_date: :desc)
@@ -177,6 +178,7 @@ module Api
         contact = Contact.find(params[:contact_id])
 
         invoices = ExternalInvoice.active
+                                  .includes(:job)
                                   .where(contact_id: contact.id)
                                   .order(invoice_date: :desc)
 

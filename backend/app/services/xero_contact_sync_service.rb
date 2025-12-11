@@ -383,7 +383,124 @@ class XeroContactSyncService
     matched_name ? contact_names[matched_name] : nil
   end
 
-  def create_or_update_xero_link(teeem_contact, xero_contact, tenant_id)
+  # Cross-tenant matching with metadata for review flagging
+  # Searches ALL TEEEM contacts (not just unmatched) to find existing contacts
+  # that may have been imported from a different Xero tenant
+  def detect_cross_tenant_match(xero_contact)
+    xero_tax = xero_contact["TaxNumber"]
+    xero_email = extract_xero_email(xero_contact)
+    xero_name = xero_contact["Name"]
+
+    # Priority 1: Exact ABN match (100% confidence, auto-link)
+    if xero_tax.present?
+      normalized_tax = normalize_tax_number(xero_tax)
+      existing_contact = Contact.find_by(tax_number: normalized_tax)
+      if existing_contact
+        Rails.logger.info("Cross-tenant match by ABN: #{xero_name} -> #{existing_contact.display_name}")
+        return {
+          contact: existing_contact,
+          match_type: "exact_abn",
+          match_confidence: 1.0,
+          needs_review: false
+        }
+      end
+    end
+
+    # Priority 2: Exact email match (100% confidence, auto-link)
+    if xero_email.present?
+      existing_contact = Contact.find_by("LOWER(email) = ?", xero_email.downcase.strip)
+      if existing_contact
+        Rails.logger.info("Cross-tenant match by email: #{xero_name} -> #{existing_contact.display_name}")
+        return {
+          contact: existing_contact,
+          match_type: "exact_email",
+          match_confidence: 1.0,
+          needs_review: false
+        }
+      end
+    end
+
+    # Priority 3: Fuzzy name match (requires review)
+    if xero_name.present?
+      contacts_to_check = Contact.where(entity_type: %w[company trust sole_trader])
+      result = fuzzy_match_by_name_with_score(xero_name, contacts_to_check)
+      if result
+        Rails.logger.info("Cross-tenant fuzzy match: #{xero_name} -> #{result[:contact].display_name} (#{(result[:score] * 100).round}%)")
+        return {
+          contact: result[:contact],
+          match_type: "fuzzy_name",
+          match_confidence: result[:score],
+          needs_review: true  # Flag for manual review
+        }
+      end
+    end
+
+    nil
+  end
+
+  # Fuzzy matching that returns both contact and confidence score
+  def fuzzy_match_by_name_with_score(xero_name, contacts)
+    return nil if contacts.empty?
+
+    # Normalize the Xero name for comparison
+    normalized_xero_name = xero_name.downcase.gsub(/\s+/, " ").strip
+
+    best_match = nil
+    best_score = 0.0
+
+    contacts.find_each do |contact|
+      next unless contact.display_name.present?
+
+      normalized_contact_name = contact.display_name.downcase.gsub(/\s+/, " ").strip
+
+      # Calculate similarity using Levenshtein-based approach
+      matcher = FuzzyMatch.new([ normalized_contact_name ])
+      score = calculate_name_similarity(normalized_xero_name, normalized_contact_name)
+
+      if score > best_score && score >= SIMILARITY_THRESHOLD
+        best_score = score
+        best_match = { contact: contact, score: score }
+      end
+    end
+
+    best_match
+  end
+
+  # Calculate similarity between two names (0.0 to 1.0)
+  def calculate_name_similarity(name1, name2)
+    return 1.0 if name1 == name2
+
+    # Use Levenshtein distance normalized by max length
+    distance = levenshtein_distance(name1, name2)
+    max_len = [ name1.length, name2.length ].max
+    return 0.0 if max_len.zero?
+
+    1.0 - (distance.to_f / max_len)
+  end
+
+  # Simple Levenshtein distance implementation
+  def levenshtein_distance(s1, s2)
+    m = s1.length
+    n = s2.length
+    return m if n.zero?
+    return n if m.zero?
+
+    d = Array.new(m + 1) { Array.new(n + 1) }
+
+    (0..m).each { |i| d[i][0] = i }
+    (0..n).each { |j| d[0][j] = j }
+
+    (1..m).each do |i|
+      (1..n).each do |j|
+        cost = s1[i - 1] == s2[j - 1] ? 0 : 1
+        d[i][j] = [ d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost ].min
+      end
+    end
+
+    d[m][n]
+  end
+
+  def create_or_update_xero_link(teeem_contact, xero_contact, tenant_id, match_type: "manual", match_confidence: nil, needs_review: false)
     xero_id = xero_contact["ContactID"]
 
     link = teeem_contact.xero_links.find_or_initialize_by(
