@@ -128,6 +128,25 @@ class BillInboxSyncService
       return
     end
 
+    # Prioritize PDFs over images (images are often just email signatures)
+    pdf_attachments = invoice_attachments.select { |a| a["contentType"]&.downcase == "application/pdf" }
+    if pdf_attachments.any?
+      invoice_attachments = pdf_attachments
+    else
+      # If no PDFs, filter out small images (< 50KB) which are likely signatures
+      invoice_attachments = invoice_attachments.reject do |a|
+        is_image = a["contentType"]&.downcase&.start_with?("image/")
+        is_small = (a["size"] || 0) < 50_000
+        is_image && is_small
+      end
+    end
+
+    if invoice_attachments.empty?
+      results[:skipped] += 1
+      Rails.logger.debug "[BillInboxSync] No valid invoice attachments after filtering"
+      return
+    end
+
     # Store email in warehouse first
     warehouse_email = store_email_in_warehouse(email)
 
