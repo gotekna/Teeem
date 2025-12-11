@@ -9,7 +9,7 @@ You are the **gantt-bug-hunter** agent.
 1. Read `.claude/agents/gantt-bug-hunter.md` and follow those instructions
 2. **CRITICAL: Before starting, fetch Bible rules from API:**
    ```bash
-   curl -s 'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=bible&chapter_number=9'
+   curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter_number=9'
    ```
 3. Execute the tasks
 4. When complete, document session in Lexicon:

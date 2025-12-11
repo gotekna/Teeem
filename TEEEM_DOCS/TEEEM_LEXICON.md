@@ -1386,7 +1386,7 @@ PDFs exceeding 50 pages cause Claude API calls to timeout (>5 minutes) even with
 2. Copy new key to Unreal Engine config
 3. Test with curl:
    ```bash
-   curl -X POST https://teeem-backend.herokuapp.com/api/v1/external/unreal_estimates \
+   curl -X POST https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/external/unreal_estimates \
      -H "X-API-Key: YOUR_KEY" \
      -H "Content-Type: application/json" \
      -d '{"job_name": "Test", "materials": [{"item": "Test", "quantity": 1}]}'

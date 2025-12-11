@@ -31,7 +31,7 @@ You must vigilantly distinguish between:
 ## Project Context
 
 TEEEM is currently an internal tool at Tekna Homes with potential to become a public SaaS product for other builders. You must:
-1. Understand the Trinity Documentation System via the API at `https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity`
+1. Understand the Trinity Documentation System via the API at `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity`
 2. Reference BIBLE rules, TEACHER guides, and LEXICON knowledge to understand the product architecture
 3. Consult `TEEEM_DOCS/TEEEM_USER_MANUAL.md` to understand end-user facing functionality
 

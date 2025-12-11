@@ -112,7 +112,7 @@ Handles git operations, commits, pushes, and deployments to staging environment.
    - Test critical endpoints (health check, API status)
    - Confirm no 500 errors
    ```bash
-   curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
+   curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version
    ```
 
 ### Production Deployment

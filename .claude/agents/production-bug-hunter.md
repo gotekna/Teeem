@@ -86,7 +86,7 @@ This ensures:
 
 **For Gantt/Schedule Master bugs:**
 
-1. **ALWAYS fetch Trinity API first:** `curl -s 'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=bible&chapter=9'`
+1. **ALWAYS fetch Trinity API first:** `curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter=9'`
 2. **Run static code analysis:**
    - Verify all 13 RULES compliance
    - Check 3 Protected Code Patterns

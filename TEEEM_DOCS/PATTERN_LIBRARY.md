@@ -807,9 +807,9 @@ Option 2: Move setState to async callback:
 
 - **Gantt Bug Hunter Lexicon:** `/public/GANTT_BUG_HUNTER_LEXICON.md`
 - **Pre-Commit Guardian:** `/scripts/safeguard-checker.js`
-- **Trinity Bible:** `https://teeem-backend.../api/v1/trinity?category=bible`
-- **Trinity Lexicon:** `https://teeem-backend.../api/v1/trinity?category=lexicon`
-- **Teacher Guides:** `https://teeem-backend.../api/v1/trinity?category=teacher`
+- **Trinity Bible:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible`
+- **Trinity Lexicon:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=lexicon`
+- **Teacher Guides:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher`
 
 ---
 

@@ -40,7 +40,7 @@ The CSV files are already in the GitHub repository and will auto-deploy to Herok
 Just run:
 
 ```bash
-heroku run rails pricebook:deploy_to_production --app teeem-backend
+heroku run rails pricebook:deploy_to_production --app teeemlive
 ```
 
 That's it! The command will:
@@ -85,7 +85,7 @@ Data successfully deployed to production!
 After deployment, verify the data:
 
 ```bash
-heroku run rails runner "puts 'Suppliers: ' + Supplier.count.to_s; puts 'Items: ' + PricebookItem.count.to_s; puts 'Histories: ' + PriceHistory.count.to_s" --app teeem-backend
+heroku run rails runner "puts 'Suppliers: ' + Supplier.count.to_s; puts 'Items: ' + PricebookItem.count.to_s; puts 'Histories: ' + PriceHistory.count.to_s" --app teeemlive
 ```
 
 Expected output:
@@ -149,7 +149,7 @@ bundle exec rails pricebook:deploy_to_production
 
 ## Next Steps
 
-1. Run the deployment command: `heroku run rails pricebook:deploy_to_production --app teeem-backend`
+1. Run the deployment command: `heroku run rails pricebook:deploy_to_production --app teeemlive`
 2. Wait 2-3 minutes for import to complete
 3. Verify data counts match expected values
 4. Visit https://teeem.vercel.app/price-books

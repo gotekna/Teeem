@@ -45,7 +45,7 @@ TEEEM Document Management
 
 For **Production** (Heroku):
 ```
-https://teeem-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback
+https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/onedrive/callback
 ```
 
 For **Local Development**:
@@ -175,7 +175,7 @@ Send the following information **SECURELY** to the development team:
 ```
 ONEDRIVE_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ONEDRIVE_CLIENT_SECRET=abc123~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-ONEDRIVE_REDIRECT_URI=https://teeem-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback
+ONEDRIVE_REDIRECT_URI=https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/onedrive/callback
 ```
 
 ⚠️ **Security Notes:**

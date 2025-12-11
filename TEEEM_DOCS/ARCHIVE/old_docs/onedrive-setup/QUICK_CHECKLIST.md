@@ -12,7 +12,7 @@
 - [ ] Search "App registrations" → New registration
 - [ ] Name: `TEEEM Document Management`
 - [ ] Account type: Multitenant + personal accounts
-- [ ] Redirect URI: `https://teeem-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback`
+- [ ] Redirect URI: `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/onedrive/callback`
 - [ ] Click Register
 
 ### 3. Save Application ID
@@ -51,7 +51,7 @@ After setup, you'll have these three values:
 ```
 ONEDRIVE_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ONEDRIVE_CLIENT_SECRET=abc123~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-ONEDRIVE_REDIRECT_URI=https://teeem-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback
+ONEDRIVE_REDIRECT_URI=https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/onedrive/callback
 ```
 
 ---

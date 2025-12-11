@@ -43,8 +43,8 @@
           ▼         ▼                            ▼
     ┌─────────────────────┐          ┌─────────────────────┐
     │  Production Backend │          │  Staging Backend    │
-    │  teeem-backend     │          │  (Optional)         │
-    │  Heroku             │          │  teeem-backend-    │
+    │  teeemlive         │          │  (Optional)         │
+    │  Heroku             │          │  teeemlive-        │
     │  .herokuapp.com     │          │  staging            │
     └─────────────────────┘          └─────────────────────┘
 ```
@@ -54,7 +54,7 @@
 ### Production (teeem.vercel.app)
 
 ```
-VITE_API_URL=https://teeem-backend-447058022b51.herokuapp.com
+VITE_API_URL=https://teeemlive-ce8e2660a615.herokuapp.com
 CLOUDINARY_CLOUD_NAME=<your-cloud-name>
 VITE_XERO_CLIENT_ID=<your-xero-client-id>
 ```
@@ -63,14 +63,14 @@ VITE_XERO_CLIENT_ID=<your-xero-client-id>
 
 **Option 1: Shared Backend**
 ```
-VITE_API_URL=https://teeem-backend-447058022b51.herokuapp.com
+VITE_API_URL=https://teeemlive-ce8e2660a615.herokuapp.com
 CLOUDINARY_CLOUD_NAME=<your-cloud-name>
 VITE_XERO_CLIENT_ID=<your-xero-client-id>
 ```
 
 **Option 2: Separate Backend**
 ```
-VITE_API_URL=https://teeem-backend-staging.herokuapp.com
+VITE_API_URL=https://teeemlive-staging.herokuapp.com
 CLOUDINARY_CLOUD_NAME=<your-staging-cloud-name>
 VITE_XERO_CLIENT_ID=<your-staging-xero-client-id>
 ```
@@ -105,7 +105,7 @@ VITE_XERO_CLIENT_ID=<your-staging-xero-client-id>
 
 ### User Visits Production
 ```
-User → teeem.vercel.app → Vite SPA → API calls → teeem-backend.herokuapp.com → PostgreSQL
+User → teeem.vercel.app → Vite SPA → API calls → teeemlive-ce8e2660a615.herokuapp.com → PostgreSQL
 ```
 
 ### User Visits Staging
@@ -192,7 +192,7 @@ end
 ### Check Production Status
 ```bash
 curl -I https://teeem.vercel.app
-curl https://teeem-backend-447058022b51.herokuapp.com/api/v1/tables
+curl https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/tables
 ```
 
 ### Check Staging Status

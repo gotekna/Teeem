@@ -243,7 +243,7 @@ OneDrive integration enables document storage and management for construction jo
    - **Redirect URI:**
      - Type: Web
      - URL: `http://localhost:3000/api/v1/onedrive/callback` (development)
-     - For production, add: `https://teeem-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback`
+     - For production, add: `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/onedrive/callback`
    - Click **Register**
 
 3. **Get Client ID**
@@ -517,15 +517,15 @@ Backend environment variables are set via Heroku:
 
 ```bash
 # Set via Heroku Dashboard or CLI
-heroku config:set DATABASE_URL=<heroku_postgres_url> --app teeem-backend
-heroku config:set FRONTEND_URL=https://teeem.vercel.app --app teeem-backend
-heroku config:set ONEDRIVE_REDIRECT_URI=https://teeem-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback --app teeem-backend
-heroku config:set XERO_REDIRECT_URI=https://teeem.vercel.app/settings/xero/callback --app teeem-backend
+heroku config:set DATABASE_URL=<heroku_postgres_url> --app teeemlive
+heroku config:set FRONTEND_URL=https://teeem.vercel.app --app teeemlive
+heroku config:set ONEDRIVE_REDIRECT_URI=https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/onedrive/callback --app teeemlive
+heroku config:set XERO_REDIRECT_URI=https://teeem.vercel.app/settings/xero/callback --app teeemlive
 ```
 
 Frontend environment variables in Vercel:
 - Go to Vercel Dashboard → Project Settings → Environment Variables
-- Add: `VITE_API_URL=https://teeem-backend-447058022b51.herokuapp.com`
+- Add: `VITE_API_URL=https://teeemlive-ce8e2660a615.herokuapp.com`
 
 ---
 

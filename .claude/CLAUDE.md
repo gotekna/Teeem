@@ -30,7 +30,7 @@ Frontend: v[number] (teeemlive.vercel.app)
 ```
 
 To get version numbers:
-- Backend version: `curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version | jq -r '.version'`
+- Backend version: `curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version | jq -r '.version'`
 - Heroku release: `heroku releases --app teeemlive -n 1` (shows vXXX)
 - Frontend: Check Vercel deployment or `git log --oneline -1` for frontend
 
@@ -136,7 +136,7 @@ git branch -D temp-backend-deploy
 | ~~Staging~~ | ~~`teeem-backend`~~ | ~~DEPRECATED~~ | ~~DO NOT USE~~ |
 
 **Production URLs:**
-- Backend: https://teeem-backend-39604ccca45a.herokuapp.com/ (runs on `teeemlive` app)
+- Backend: https://teeemlive-ce8e2660a615.herokuapp.com/ (runs on `teeemlive` app)
 - Frontend: https://teeemlive.vercel.app/
 
 **IMPORTANT:** The backend URL domain name contains "teeem-backend" but it actually runs on the `teeemlive` Heroku app. Don't be confused by the domain name - always use `--app teeemlive` for Heroku commands.

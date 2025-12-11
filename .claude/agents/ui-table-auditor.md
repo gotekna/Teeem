@@ -37,17 +37,17 @@ Before performing any audit, the agent MUST gather the latest table-related rule
 
 ### 1. Fetch Chapter 19 (UI/UX Standards) - Bible
 ```bash
-curl -s 'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=bible&chapter_number=19'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter_number=19'
 ```
 
 ### 2. Fetch Chapter 19 (UI/UX Standards) - Teacher
 ```bash
-curl -s 'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=19'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=19'
 ```
 
 ### 3. Fetch Table-Related Lexicon Entries
 ```bash
-curl -s 'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=lexicon' | jq 'select(.title | test("table|datatable|trinity|column|row|inline.edit|sort|filter"; "i"))'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=lexicon' | jq 'select(.title | test("table|datatable|trinity|column|row|inline.edit|sort|filter"; "i"))'
 ```
 
 **Why all sources?**

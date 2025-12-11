@@ -344,13 +344,13 @@ ALWAYS:
 Fetch from Trinity API:
 ```bash
 # Get all Bible rules
-curl https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible
+curl https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible
 # Get all Lexicon entries
-curl https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=lexicon
+curl https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=lexicon
 # Get all Teacher guides 
-curl https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=teacher
+curl https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher
 # Get specific chapter
-curl https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter=21
+curl https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter=21
 ```
 Export to Markdown (for git backup):
 ```bash

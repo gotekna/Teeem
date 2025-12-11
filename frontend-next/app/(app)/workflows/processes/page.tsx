@@ -31,7 +31,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { AxiosResponse } from "axios";
 
 interface BpmnProcessSummary {
   id: number;
@@ -62,10 +61,10 @@ export default function BpmnProcessesPage() {
 
   const fetchProcesses = useCallback(async () => {
     try {
-      const response: AxiosResponse<ApiResponse> = await api.get("/api/v1/bpmn_processes");
-      if (response.data.success && response.data.bpmn_processes) {
+      const response = await api.get<ApiResponse>("/api/v1/bpmn_processes");
+      if (response?.success && response.bpmn_processes) {
         setProcesses(
-          response.data.bpmn_processes.map((p) => ({
+          response.bpmn_processes.map((p) => ({
             id: p.id as number,
             name: p.name as string,
             description: p.description as string | undefined,
@@ -94,14 +93,14 @@ export default function BpmnProcessesPage() {
 
   const handleCreate = async () => {
     try {
-      const response = await api.post("/api/v1/bpmn_processes", {
+      const response = await api.post<ApiResponse>("/api/v1/bpmn_processes", {
         bpmn_process: {
           name: "New Workflow",
           description: "",
         },
-      }) as AxiosResponse<ApiResponse> | null;
-      if (response?.data.success && response.data.bpmn_process) {
-        router.push(`/workflows/designer/${response.data.bpmn_process.id}`);
+      });
+      if (response?.success && response.bpmn_process) {
+        router.push(`/workflows/designer/${response.bpmn_process.id}`);
       }
     } catch (error) {
       console.error("Failed to create process:", error);
@@ -111,8 +110,8 @@ export default function BpmnProcessesPage() {
 
   const handleDuplicate = async (id: number) => {
     try {
-      const response = await api.post(`/api/v1/bpmn_processes/${id}/duplicate`) as AxiosResponse<ApiResponse> | null;
-      if (response?.data.success) {
+      const response = await api.post<ApiResponse>(`/api/v1/bpmn_processes/${id}/duplicate`);
+      if (response?.success) {
         toast({ title: "Success", description: "Workflow duplicated" });
         fetchProcesses();
       }
@@ -126,8 +125,8 @@ export default function BpmnProcessesPage() {
     if (!confirm("Are you sure you want to delete this workflow?")) return;
 
     try {
-      const response = await api.delete(`/api/v1/bpmn_processes/${id}`) as AxiosResponse<ApiResponse> | null;
-      if (response?.data.success) {
+      const response = await api.delete<ApiResponse>(`/api/v1/bpmn_processes/${id}`);
+      if (response?.success) {
         toast({ title: "Success", description: "Workflow deleted" });
         fetchProcesses();
       }
@@ -139,12 +138,12 @@ export default function BpmnProcessesPage() {
 
   const handlePublish = async (id: number) => {
     try {
-      const response = await api.post(`/api/v1/bpmn_processes/${id}/publish`) as AxiosResponse<ApiResponse> | null;
-      if (response?.data.success) {
+      const response = await api.post<ApiResponse>(`/api/v1/bpmn_processes/${id}/publish`);
+      if (response?.success) {
         toast({ title: "Success", description: "Workflow published" });
         fetchProcesses();
       } else if (response) {
-        toast({ title: "Error", description: response.data.errors?.join(", ") || "Failed to publish", variant: "destructive" });
+        toast({ title: "Error", description: response.errors?.join(", ") || "Failed to publish", variant: "destructive" });
       }
     } catch (error) {
       console.error("Failed to publish:", error);
@@ -154,8 +153,8 @@ export default function BpmnProcessesPage() {
 
   const handleUnpublish = async (id: number) => {
     try {
-      const response = await api.post(`/api/v1/bpmn_processes/${id}/unpublish`) as AxiosResponse<ApiResponse> | null;
-      if (response?.data.success) {
+      const response = await api.post<ApiResponse>(`/api/v1/bpmn_processes/${id}/unpublish`);
+      if (response?.success) {
         toast({ title: "Success", description: "Workflow unpublished" });
         fetchProcesses();
       }

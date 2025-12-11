@@ -10,7 +10,7 @@ Fetch rules from the live Bible API (database-backed) to understand the rules fo
 - Chapter 15: Xero Accounting Integration
 - Chapter 20: Agent System & Automation
 
-**API Endpoint:** `https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=bible&chapter_number=X`
+**API Endpoint:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter_number=X`
 
 **Example:** "Read Bible Chapter 9 for Gantt rules"
 

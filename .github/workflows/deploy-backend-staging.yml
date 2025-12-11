@@ -27,7 +27,7 @@ jobs:
       - name: Deploy backend to Heroku
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-          HEROKU_APP_NAME: teeem-backend
+          HEROKU_APP_NAME: teeemlive
         run: |
           # Configure git user (required for subtree split)
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -49,5 +49,5 @@ jobs:
         if: success()
         run: |
           echo "✅ Backend deployed to Heroku successfully"
-          echo "🔗 Backend URL: https://teeem-backend-447058022b51.herokuapp.com/"
-          echo "📊 View logs: heroku logs --tail --app teeem-backend"
+          echo "🔗 Backend URL: https://teeemlive-ce8e2660a615.herokuapp.com/"
+          echo "📊 View logs: heroku logs --tail --app teeemlive"

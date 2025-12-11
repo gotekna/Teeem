@@ -84,7 +84,7 @@ cd /Users/jakebaird/teeem/frontend
 
 # Set to production backend
 vercel env add VITE_API_URL production
-# When prompted: https://teeem-backend-447058022b51.herokuapp.com
+# When prompted: https://teeemlive-ce8e2660a615.herokuapp.com
 
 # Copy other env vars
 vercel env add CLOUDINARY_CLOUD_NAME production
@@ -95,12 +95,12 @@ vercel env add VITE_XERO_CLIENT_ID production
 ```
 
 **Choice 2: Create Separate Staging Backend** (True isolation)
-1. Create new Heroku app: `heroku create teeem-backend-staging`
+1. Create new Heroku app: `heroku create teeemlive-staging`
 2. Deploy backend to new app
 3. Set staging API URL:
 ```bash
 vercel env add VITE_API_URL production
-# Enter: https://teeem-backend-staging.herokuapp.com
+# Enter: https://teeemlive-staging.herokuapp.com
 ```
 
 #### 5. Update CORS (If Using Production Backend)
@@ -117,7 +117,7 @@ cd /Users/jakebaird/teeem
 git add backend/config/initializers/cors.rb
 git commit -m "Update CORS for staging environment"
 git subtree push --prefix backend heroku main
-heroku restart --app teeem-backend
+heroku restart --app teeemlive
 ```
 
 #### 6. Test the Deployment
@@ -167,7 +167,7 @@ feature/my-feature → rob (staging) → main (production)
 
 - **Production**: https://teeem.vercel.app (from `main` branch)
 - **Staging**: https://teeem-staging.vercel.app (from `rob` branch)
-- **Backend**: https://teeem-backend-447058022b51.herokuapp.com (shared or separate)
+- **Backend**: https://teeemlive-ce8e2660a615.herokuapp.com (shared or separate)
 
 ## Quick Commands
 
@@ -207,7 +207,7 @@ git push origin rob
 
 ### CORS errors in staging
 - Update `backend/config/initializers/cors.rb` to allow staging domain
-- Restart Heroku: `heroku restart --app teeem-backend`
+- Restart Heroku: `heroku restart --app teeemlive`
 
 ### Environment variables not working
 - Ensure vars are set for "Production" environment in Vercel

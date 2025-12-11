@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_11_124661) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_11_124663) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1220,6 +1220,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_124661) do
     t.string "company_number"
     t.string "fax_phone"
     t.jsonb "email_domains", default: [], null: false, comment: "Email domains for auto-linking employees (e.g., ['tekna.com.au', 'bunnings.com.au']). Used by rake task to create employee_of relationships."
+    t.text "notes"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
@@ -1867,6 +1868,115 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_124661) do
     t.datetime "updated_at", null: false
     t.string "folder_path"
     t.index ["name"], name: "index_documentation_categories_on_name", unique: true
+  end
+
+  create_table "e_signature_certificates", force: :cascade do |t|
+    t.bigint "e_signature_request_id", null: false
+    t.string "certificate_number", null: false
+    t.string "original_document_hash", null: false
+    t.string "signed_document_hash", null: false
+    t.text "signature_chain"
+    t.jsonb "signers_summary", default: []
+    t.string "certificate_sharepoint_file_id"
+    t.string "verification_token"
+    t.datetime "generated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["certificate_number"], name: "index_e_signature_certificates_on_certificate_number", unique: true
+    t.index ["e_signature_request_id"], name: "index_e_signature_certificates_on_e_signature_request_id"
+    t.index ["verification_token"], name: "index_e_signature_certificates_on_verification_token", unique: true
+  end
+
+  create_table "e_signature_events", force: :cascade do |t|
+    t.bigint "e_signature_request_id", null: false
+    t.bigint "e_signature_signer_id"
+    t.string "event_type", null: false
+    t.string "event_description"
+    t.jsonb "event_data", default: {}
+    t.string "actor_type"
+    t.string "actor_name"
+    t.string "actor_email"
+    t.bigint "actor_user_id"
+    t.string "ip_address"
+    t.string "user_agent"
+    t.string "document_hash"
+    t.datetime "occurred_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actor_user_id"], name: "index_e_signature_events_on_actor_user_id"
+    t.index ["e_signature_request_id", "occurred_at"], name: "idx_on_e_signature_request_id_occurred_at_050cd1cbe8"
+    t.index ["e_signature_request_id"], name: "index_e_signature_events_on_e_signature_request_id"
+    t.index ["e_signature_signer_id"], name: "index_e_signature_events_on_e_signature_signer_id"
+    t.index ["event_type"], name: "index_e_signature_events_on_event_type"
+    t.index ["occurred_at"], name: "index_e_signature_events_on_occurred_at"
+  end
+
+  create_table "e_signature_requests", force: :cascade do |t|
+    t.string "request_number", null: false
+    t.string "title", null: false
+    t.text "description"
+    t.string "status", default: "draft", null: false
+    t.string "documentable_type"
+    t.bigint "documentable_id"
+    t.string "original_document_hash"
+    t.string "signed_document_hash"
+    t.string "original_sharepoint_file_id"
+    t.string "signed_sharepoint_file_id"
+    t.string "sharepoint_site_id"
+    t.string "sharepoint_drive_id"
+    t.datetime "sent_at"
+    t.datetime "expires_at"
+    t.datetime "completed_at"
+    t.datetime "declined_at"
+    t.bigint "created_by_id"
+    t.integer "signing_order", default: 0
+    t.boolean "send_reminders", default: true
+    t.integer "reminder_interval_days", default: 3
+    t.datetime "last_reminder_sent_at"
+    t.text "message_to_signers"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_e_signature_requests_on_created_by_id"
+    t.index ["documentable_type", "documentable_id"], name: "index_e_signature_requests_on_documentable"
+    t.index ["expires_at"], name: "index_e_signature_requests_on_expires_at"
+    t.index ["request_number"], name: "index_e_signature_requests_on_request_number", unique: true
+    t.index ["status"], name: "index_e_signature_requests_on_status"
+  end
+
+  create_table "e_signature_signers", force: :cascade do |t|
+    t.bigint "e_signature_request_id", null: false
+    t.string "name", null: false
+    t.string "email", null: false
+    t.string "role"
+    t.integer "signing_order", default: 0
+    t.string "status", default: "pending", null: false
+    t.datetime "notified_at"
+    t.datetime "viewed_at"
+    t.datetime "signed_at"
+    t.datetime "declined_at"
+    t.string "access_token_hash"
+    t.datetime "access_token_expires_at"
+    t.string "email_verification_code"
+    t.datetime "email_verification_expires_at"
+    t.datetime "email_verified_at"
+    t.integer "email_verification_attempts", default: 0
+    t.text "signature_data"
+    t.string "signature_type"
+    t.string "typed_signature_font"
+    t.string "ip_address"
+    t.string "user_agent"
+    t.string "signing_device"
+    t.string "browser_fingerprint"
+    t.bigint "contact_id"
+    t.text "decline_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["access_token_hash"], name: "index_e_signature_signers_on_access_token_hash"
+    t.index ["contact_id"], name: "index_e_signature_signers_on_contact_id"
+    t.index ["e_signature_request_id", "signing_order"], name: "idx_on_e_signature_request_id_signing_order_31457daad3"
+    t.index ["e_signature_request_id"], name: "index_e_signature_signers_on_e_signature_request_id"
+    t.index ["email"], name: "index_e_signature_signers_on_email"
+    t.index ["status"], name: "index_e_signature_signers_on_status"
   end
 
   create_table "email_attachments", force: :cascade do |t|
@@ -5282,6 +5392,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_124661) do
   add_foreign_key "document_type_folders", "document_types"
   add_foreign_key "document_verification_feedbacks", "corporate_company_documents", column: "company_document_id"
   add_foreign_key "document_verification_feedbacks", "users"
+  add_foreign_key "e_signature_certificates", "e_signature_requests"
+  add_foreign_key "e_signature_events", "e_signature_requests"
+  add_foreign_key "e_signature_events", "e_signature_signers"
+  add_foreign_key "e_signature_events", "users", column: "actor_user_id"
+  add_foreign_key "e_signature_requests", "users", column: "created_by_id"
+  add_foreign_key "e_signature_signers", "contacts"
+  add_foreign_key "e_signature_signers", "e_signature_requests"
   add_foreign_key "email_attachments", "attachments"
   add_foreign_key "email_attachments", "email_warehouse"
   add_foreign_key "email_case_proposals", "cases", column: "case_record_id"

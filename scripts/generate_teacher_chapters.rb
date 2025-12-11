@@ -8,7 +8,7 @@ require 'fileutils'
 puts '🔧 Generating Teacher chapter files from API...'
 
 # Fetch data from API
-api_url = 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=teacher'
+api_url = 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher'
 uri = URI(api_url)
 response = Net::HTTP.get(uri)
 data = JSON.parse(response)

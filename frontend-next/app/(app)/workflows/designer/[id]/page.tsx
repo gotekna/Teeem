@@ -22,9 +22,9 @@ export default function WorkflowDesignerPage() {
   useEffect(() => {
     const fetchProcess = async () => {
       try {
-        const response = await api.get(`/api/v1/bpmn_processes/${processId}`) as { data: { success: boolean; bpmn_process: Record<string, unknown> } };
-        if (response.data.success) {
-          const p = response.data.bpmn_process;
+        const response = await api.get<{ success: boolean; bpmn_process: Record<string, unknown> }>(`/api/v1/bpmn_processes/${processId}`);
+        if (response?.success) {
+          const p = response.bpmn_process;
           const nodes = (p.nodes || []) as Record<string, unknown>[];
           const edges = (p.edges || []) as Record<string, unknown>[];
           const triggers = (p.triggers || []) as BpmnProcess["triggers"];
@@ -112,18 +112,19 @@ export default function WorkflowDesignerPage() {
           })),
         };
 
-        let response: { data: { success: boolean; bpmn_process?: Record<string, unknown>; errors?: string[] } };
+        type SaveResponse = { success: boolean; bpmn_process?: Record<string, unknown>; errors?: string[] };
+        let response: SaveResponse | null;
         if (process?.id) {
-          response = await api.patch(`/api/v1/bpmn_processes/${process.id}`, payload) as typeof response;
+          response = await api.patch<SaveResponse>(`/api/v1/bpmn_processes/${process.id}`, payload);
         } else {
-          response = await api.post("/api/v1/bpmn_processes", payload) as typeof response;
+          response = await api.post<SaveResponse>("/api/v1/bpmn_processes", payload);
         }
 
-        if (response.data.success) {
+        if (response?.success) {
           toast({ title: "Success", description: "Workflow saved" });
 
           // Update local state
-          const p = response.data.bpmn_process!;
+          const p = response.bpmn_process!;
           setProcess((prev) => ({
             ...prev!,
             id: p.id as number,
@@ -135,8 +136,8 @@ export default function WorkflowDesignerPage() {
           if (!process?.id && p.id) {
             router.replace(`/workflows/designer/${p.id}`);
           }
-        } else {
-          toast({ title: "Error", description: response.data.errors?.join(", ") || "Failed to save", variant: "destructive" });
+        } else if (response) {
+          toast({ title: "Error", description: response.errors?.join(", ") || "Failed to save", variant: "destructive" });
         }
       } catch (err) {
         console.error("Failed to save:", err);
@@ -149,12 +150,12 @@ export default function WorkflowDesignerPage() {
   const handlePublish = useCallback(
     async (id: number) => {
       try {
-        const response = await api.post(`/api/v1/bpmn_processes/${id}/publish`) as { data: { success: boolean; errors?: string[] } };
-        if (response.data.success) {
+        const response = await api.post<{ success: boolean; errors?: string[] }>(`/api/v1/bpmn_processes/${id}/publish`);
+        if (response?.success) {
           toast({ title: "Success", description: "Workflow published" });
           setProcess((prev) => (prev ? { ...prev, isPublished: true } : prev));
-        } else {
-          toast({ title: "Error", description: response.data.errors?.join(", ") || "Failed to publish", variant: "destructive" });
+        } else if (response) {
+          toast({ title: "Error", description: response.errors?.join(", ") || "Failed to publish", variant: "destructive" });
         }
       } catch (err) {
         console.error("Failed to publish:", err);

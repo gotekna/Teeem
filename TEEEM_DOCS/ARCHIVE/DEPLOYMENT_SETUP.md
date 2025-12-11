@@ -9,7 +9,7 @@ The GitHub Actions workflow (`.github/workflows/deploy-staging.yml`) automatical
 **Deployment Flow:**
 1. Push code to `rob` branch
 2. GitHub Actions triggers automatically
-3. Backend deploys to Heroku (`teeem-backend`)
+3. Backend deploys to Heroku (`teeemlive`)
 4. Database migrations run automatically
 5. Frontend deploys to Vercel (`teeem-staging`)
 
@@ -152,7 +152,7 @@ Once all secrets are configured:
 3. Go to GitHub → **Actions** tab
 4. Watch the workflow run in real-time
 5. Verify deployments:
-   - Backend: https://teeem-backend-447058022b51.herokuapp.com/
+   - Backend: https://teeemlive-ce8e2660a615.herokuapp.com/
    - Frontend: https://teeem-staging.vercel.app/
 
 ---
@@ -166,9 +166,9 @@ Once all secrets are configured:
 
 ### Heroku Deployment Failing
 - Verify `HEROKU_API_KEY` is correct
-- Check Heroku app name is `teeem-backend`
+- Check Heroku app name is `teeemlive`
 - Ensure you have access to the Heroku app
-- Check Heroku logs: `heroku logs --tail --app teeem-backend`
+- Check Heroku logs: `heroku logs --tail --app teeemlive`
 
 ### Vercel Deployment Failing
 - Verify all three Vercel secrets are correct
@@ -178,8 +178,8 @@ Once all secrets are configured:
 
 ### Database Migrations Not Running
 - Check Heroku logs for migration output
-- Manually run migrations: `heroku run bin/rails db:migrate --app teeem-backend`
-- Verify database is accessible: `heroku pg:info --app teeem-backend`
+- Manually run migrations: `heroku run bin/rails db:migrate --app teeemlive`
+- Verify database is accessible: `heroku pg:info --app teeemlive`
 
 ---
 
@@ -187,7 +187,7 @@ Once all secrets are configured:
 
 If you prefer not to use GitHub Actions, you can enable auto-deploy via Heroku dashboard:
 
-1. Go to https://dashboard.heroku.com/apps/teeem-backend
+1. Go to https://dashboard.heroku.com/apps/teeemlive
 2. Click **Deploy** tab
 3. Under **Deployment method**, click **GitHub**
 4. Connect your GitHub account if not connected
@@ -201,7 +201,7 @@ If you prefer not to use GitHub Actions, you can enable auto-deploy via Heroku d
 
 ## Current Deployment URLs
 
-- **Backend (Heroku):** https://teeem-backend-447058022b51.herokuapp.com/
+- **Backend (Heroku):** https://teeemlive-ce8e2660a615.herokuapp.com/
 - **Frontend (Vercel):** https://teeem-staging.vercel.app/
 - **Dashboard:** https://teeem-staging.vercel.app/dashboard
 
@@ -211,6 +211,6 @@ If you prefer not to use GitHub Actions, you can enable auto-deploy via Heroku d
 
 If you encounter any issues:
 1. Check GitHub Actions logs (Actions tab)
-2. Check Heroku logs: `heroku logs --tail --app teeem-backend`
+2. Check Heroku logs: `heroku logs --tail --app teeemlive`
 3. Check Vercel deployment logs in Vercel dashboard
 4. Verify all secrets are correctly configured

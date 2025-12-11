@@ -54,7 +54,7 @@ Files to update:
 
 1. Rename Heroku app: `teeem-backend` → `teeem-backend`
    ```bash
-   heroku apps:rename teeem-backend --app teeem-backend
+   heroku apps:rename teeem-backend --app teeemlive
    ```
    Note: This changes the URL to `teeem-backend-xxx.herokuapp.com`
 

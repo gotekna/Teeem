@@ -413,9 +413,9 @@ import TEEEMTableView from './TEEEMTableView'
 - BUG-003: Predecessor IDs Cleared (Nov 2025)
 
 ### Trinity System:
-- **Bible API:** `https://teeem-backend.../api/v1/trinity?category=bible`
-- **Teacher API:** `https://teeem-backend.../api/v1/trinity?category=teacher`
-- **Lexicon API:** `https://teeem-backend.../api/v1/trinity?category=lexicon`
+- **Bible API:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible`
+- **Teacher API:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher`
+- **Lexicon API:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=lexicon`
 
 ---
 

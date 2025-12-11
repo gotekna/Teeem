@@ -133,7 +133,7 @@
 
 ### Backend (Rails 8.0.4 + PostgreSQL)
 - **Hosting**: Heroku
-- **URL**: https://teeem-backend-447058022b51.herokuapp.com
+- **URL**: https://teeemlive-ce8e2660a615.herokuapp.com
 - **Key Features**:
   - Dynamic table/column generation
   - CSV/Excel import with type detection
@@ -415,7 +415,7 @@ vercel --prod
 **Frontend (.env)**:
 ```
 VITE_API_URL=http://localhost:3000  # Local
-VITE_API_URL=https://teeem-backend-447058022b51.herokuapp.com  # Production
+VITE_API_URL=https://teeemlive-ce8e2660a615.herokuapp.com  # Production
 ```
 
 **Backend (.env)**:

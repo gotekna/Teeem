@@ -39,27 +39,27 @@ Before performing any audit, the agent MUST gather the latest rules from all thr
 
 ### 1. Fetch Chapter 19 (UI/UX Standards) - Bible
 ```bash
-curl -s 'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=bible&chapter_number=19'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter_number=19'
 ```
 
 ### 2. Fetch Chapter 19 (UI/UX Standards) - Teacher
 ```bash
-curl -s 'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=19'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=19'
 ```
 
 ### 3. Fetch Chapter 20 (Agent System) - Bible
 ```bash
-curl -s 'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=bible&chapter_number=20'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter_number=20'
 ```
 
 ### 4. Fetch Chapter 20 (Agent System) - Teacher
 ```bash
-curl -s 'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=20'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=20'
 ```
 
 ### 5. Fetch UI/UX Related Lexicon Entries (Excluding Tables)
 ```bash
-curl -s 'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=lexicon' | jq 'select(.title | test("ui|ux|component|dark|mode|icon|button|form|modal|navigation"; "i")) | select(.title | test("table"; "i") | not)'
+curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=lexicon' | jq 'select(.title | test("ui|ux|component|dark|mode|icon|button|form|modal|navigation"; "i")) | select(.title | test("table"; "i") | not)'
 ```
 
 **Why all sources?**
