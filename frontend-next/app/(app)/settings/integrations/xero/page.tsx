@@ -36,6 +36,8 @@ import { XeroPdfSyncStatus } from "./components/XeroPdfSyncStatus";
 import { XeroSyncStats } from "./components/XeroSyncStats";
 import { XeroConnectionsPopup } from "@/components/xero/XeroConnectionsPopup";
 import { XeroCommonContacts } from "./components/XeroCommonContacts";
+import { DuplicateContactsTab } from "@/components/settings/xero/DuplicateContactsTab";
+import { useGetDuplicateCount } from "@/lib/hooks/useDuplicateContacts";
 
 interface XeroStatus {
   connected: boolean;
@@ -96,6 +98,9 @@ export default function XeroIntegrationPage() {
   const [companyConnections, setCompanyConnections] = React.useState<CompanyXeroConnection[]>([]);
   const [settingPrimary, setSettingPrimary] = React.useState<string | null>(null);
   const [organizationsExpanded, setOrganizationsExpanded] = React.useState<boolean | null>(null);
+
+  // Get duplicate contacts count for badge
+  const duplicateCount = useGetDuplicateCount();
 
   // Compute if any tenant needs attention (for default expanded state)
   // SSoT: Auto-expand when any tenant needs re-auth, is degraded, disconnected, or expired
@@ -274,7 +279,7 @@ export default function XeroIntegrationPage() {
         }}
         className="space-y-6"
       >
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="connection">
             <Link2 className="h-4 w-4 mr-2" />
             Connection
@@ -298,6 +303,15 @@ export default function XeroIntegrationPage() {
           <TabsTrigger value="common">
             <Users className="h-4 w-4 mr-2" />
             Common
+          </TabsTrigger>
+          <TabsTrigger value="duplicates">
+            <Users className="h-4 w-4 mr-2" />
+            Duplicates
+            {duplicateCount > 0 && (
+              <Badge className="ml-2 bg-red-600 text-white hover:bg-red-600">
+                {duplicateCount}
+              </Badge>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -733,6 +747,11 @@ export default function XeroIntegrationPage() {
         {/* Common Contacts Tab */}
         <TabsContent value="common">
           <XeroCommonContacts />
+        </TabsContent>
+
+        {/* Duplicates Tab */}
+        <TabsContent value="duplicates">
+          <DuplicateContactsTab />
         </TabsContent>
       </Tabs>
 
