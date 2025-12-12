@@ -219,22 +219,22 @@ class EmailWarehouse < ApplicationRecord
       end
     end
 
-    # Match by job title/address in subject or body
+    # Match by job name/address in subject or body
     Job.find_each do |job|
-      next if job.title.blank?
+      next if job.name.blank?
 
       # Check if job address appears in subject
-      if subject&.downcase&.include?(job.title.downcase)
+      if subject&.downcase&.include?(job.name.downcase)
         matches << {
           job: job,
           match_type: "address_in_subject",
           confidence: 0.85,
-          reason: "Job address '#{job.title}' found in subject"
+          reason: "Job address '#{job.name}' found in subject"
         }
       end
 
       # Check if street name appears in subject
-      street_match = job.title.match(/\d+\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl)/i)
+      street_match = job.name.match(/\d+\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl)/i)
       if street_match
         street_name = street_match[1].downcase
         if subject&.downcase&.include?(street_name)
@@ -261,12 +261,12 @@ class EmailWarehouse < ApplicationRecord
     # Check subject for job ID
     return true if subject&.include?(job.id.to_s)
 
-    # Check subject for job title/address
-    return true if job.title.present? && subject&.downcase&.include?(job.title.downcase)
+    # Check subject for job name/address
+    return true if job.name.present? && subject&.downcase&.include?(job.name.downcase)
 
     # Check for street name match
-    if job.title.present?
-      street_match = job.title.match(/\d+\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl)/i)
+    if job.name.present?
+      street_match = job.name.match(/\d+\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl)/i)
       if street_match
         street_name = street_match[1].downcase
         return true if subject&.downcase&.include?(street_name)
