@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { api } from '@/lib/api';
 
 // Types
 export interface XeroTenant {
@@ -62,8 +62,8 @@ export function useGetDuplicateGroups() {
   return useQuery<DuplicateGroupsResponse>({
     queryKey: ['duplicate-contacts', 'groups'],
     queryFn: async () => {
-      const response = await apiClient.get('/duplicate_contacts/groups');
-      return response.data;
+      const response = await api.get<DuplicateGroupsResponse>('/api/v1/duplicate_contacts/groups');
+      return response;
     },
   });
 }
@@ -90,11 +90,11 @@ export function useMergeDuplicateGroup() {
       groupId: string;
       targetId: number;
     }) => {
-      const response = await apiClient.post(
-        `/duplicate_contacts/groups/${groupId}/merge`,
+      const response = await api.post<MergeResponse>(
+        `/api/v1/duplicate_contacts/groups/${groupId}/merge`,
         { target_contact_id: targetId }
       );
-      return response.data as MergeResponse;
+      return response as MergeResponse;
     },
     onSuccess: () => {
       // Invalidate and refetch duplicate groups
@@ -113,10 +113,10 @@ export function useDismissDuplicateGroup() {
 
   return useMutation({
     mutationFn: async (groupId: string) => {
-      const response = await apiClient.post(
-        `/duplicate_contacts/groups/${groupId}/dismiss`
+      const response = await api.post(
+        `/api/v1/duplicate_contacts/groups/${groupId}/dismiss`
       );
-      return response.data;
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['duplicate-contacts', 'groups'] });
