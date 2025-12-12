@@ -143,6 +143,7 @@ export function ViewManagerSheet({
 
   // State
   const [views, setViews] = React.useState<SavedView[]>([]);
+  const [allFoundationColumns, setAllFoundationColumns] = React.useState<Column[]>(columns); // Use prop as fallback
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [activeViewId, setActiveViewId] = React.useState<number | string | null>(null);
@@ -192,12 +193,30 @@ export function ViewManagerSheet({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  // Load all Foundation columns (not just visible ones)
+  const loadFoundationColumns = async () => {
+    try {
+      const response = await api.get<{ success: boolean; foundation: { columns: Column[] } }>(
+        `/api/v1/foundations/${foundationId}`
+      );
+
+      if (response?.success && response.foundation?.columns) {
+        setAllFoundationColumns(response.foundation.columns);
+      }
+    } catch (error) {
+      console.error("Failed to load foundation columns:", error);
+      // Fallback to prop columns if API fails
+      setAllFoundationColumns(columns);
+    }
+  };
+
   // Load views
   React.useEffect(() => {
     if (open && foundationId) {
+      loadFoundationColumns(); // Fetch all Foundation columns
       loadViews();
     }
-     
+
   }, [open, foundationId]);
 
   const loadViews = async (selectViewByName?: string) => {
@@ -277,10 +296,10 @@ export function ViewManagerSheet({
     const hasVisibleColumns = view.visibleColumns && Object.keys(view.visibleColumns).length > 0;
     const visibleColumnsToSet = hasVisibleColumns
       ? view.visibleColumns
-      : Object.fromEntries(columns.map(c => [c.column_name, true]));
+      : Object.fromEntries(allFoundationColumns.map(c => [c.column_name, true]));
     setEditVisibleColumns(visibleColumnsToSet!);
 
-    setEditColumnOrder(view.columnOrder || columns.map(c => c.column_name));
+    setEditColumnOrder(view.columnOrder || allFoundationColumns.map(c => c.column_name));
     setEditColumnWidths(view.columnWidths || {});
     setEditAutoFitColumns(view.autoFitColumns || false);
     setEditSmartFit(view.smartFit !== false); // Default to true for TEEEM Smart
@@ -318,8 +337,8 @@ export function ViewManagerSheet({
       filters: baseView?.filters || [],
       filterGroups: baseView?.filterGroups || [{ id: "default", logic: "AND" }],
       interGroupLogic: baseView?.interGroupLogic || "OR",
-      visibleColumns: baseView?.visibleColumns || Object.fromEntries(columns.map(c => [c.column_name, true])),
-      columnOrder: baseView?.columnOrder || columns.map(c => c.column_name),
+      visibleColumns: baseView?.visibleColumns || Object.fromEntries(allFoundationColumns.map(c => [c.column_name, true])),
+      columnOrder: baseView?.columnOrder || allFoundationColumns.map(c => c.column_name),
       columnWidths: baseView?.columnWidths || {},
       sortColumns: baseView?.sortColumns || [],
       groupByColumns: baseView?.groupByColumns || [],
@@ -843,7 +862,7 @@ export function ViewManagerSheet({
 
   // Sort management
   const addSortColumn = () => {
-    const availableCols = columns.filter(c =>
+    const availableCols = allFoundationColumns.filter(c =>
       !["id", "created_at", "updated_at"].includes(c.column_name) &&
       !editSortColumns.some(s => s.column === c.column_name)
     );
@@ -922,7 +941,7 @@ export function ViewManagerSheet({
     setEditColumnOrder([...newVisibleOrder, ...hiddenCols]);
   };
 
-  const filteredColumns = columns.filter(c => !["id", "created_at", "updated_at"].includes(c.column_name));
+  const filteredColumns = allFoundationColumns.filter(c => !["id", "created_at", "updated_at"].includes(c.column_name));
 
   // Calculate smart width for a column based on priority
   const calculateSmartWidth = (col: Column): number => {
