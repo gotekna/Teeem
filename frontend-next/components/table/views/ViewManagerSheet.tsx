@@ -648,7 +648,7 @@ export function ViewManagerSheet({
     let resolvedColumn = column;
     if (!column && filter.column.endsWith('_id')) {
       const baseColumnName = filter.column.replace(/_id$/, '');
-      resolvedColumn = columns.find(c => c.column_name === baseColumnName);
+      resolvedColumn = allFoundationColumns.find(c => c.column_name === baseColumnName);
     }
     column = resolvedColumn;
 
@@ -894,8 +894,8 @@ export function ViewManagerSheet({
   };
 
   const showAllColumns = () => {
-    setEditVisibleColumns(Object.fromEntries(columns.map(c => [c.column_name, true])));
-    const allColumnNames = columns.map(c => c.column_name);
+    setEditVisibleColumns(Object.fromEntries(allFoundationColumns.map(c => [c.column_name, true])));
+    const allColumnNames = allFoundationColumns.map(c => c.column_name);
     const missingFromOrder = allColumnNames.filter(name => !editColumnOrder.includes(name));
     if (missingFromOrder.length > 0) {
       setEditColumnOrder([...editColumnOrder, ...missingFromOrder]);
@@ -903,13 +903,13 @@ export function ViewManagerSheet({
   };
 
   const hideAllColumns = () => {
-    setEditVisibleColumns(Object.fromEntries(columns.map(c => [c.column_name, c.column_name === "id"])));
+    setEditVisibleColumns(Object.fromEntries(allFoundationColumns.map(c => [c.column_name, c.column_name === "id"])));
   };
 
   // Get sorted columns for display
   const getSortedColumns = () => {
     const orderMap = new Map(editColumnOrder.map((name, idx) => [name, idx]));
-    return [...columns].sort((a, b) => {
+    return [...allFoundationColumns].sort((a, b) => {
       const aIdx = orderMap.get(a.column_name) ?? 999;
       const bIdx = orderMap.get(b.column_name) ?? 999;
       return aIdx - bIdx;
@@ -1005,7 +1005,7 @@ export function ViewManagerSheet({
     }
     if (!enabled && Object.keys(editColumnWidths).length === 0) {
       const defaultWidths: Record<string, number> = {};
-      columns.forEach(col => {
+      allFoundationColumns.forEach(col => {
         if (editVisibleColumns[col.column_name]) {
           defaultWidths[col.column_name] = getDefaultColumnWidth(col);
         }
@@ -1360,7 +1360,7 @@ export function ViewManagerSheet({
 
                                                 {/* Value Input */}
                                                 {filter.operator !== "is_empty" && filter.operator !== "is_not_empty" && (
-                                                  renderFilterValueInput(filter, columns.find(c => c.column_name === filter.column))
+                                                  renderFilterValueInput(filter, allFoundationColumns.find(c => c.column_name === filter.column))
                                                 )}
 
                                                 {/* Delete Button */}
@@ -1477,7 +1477,7 @@ export function ViewManagerSheet({
                                   >
                                     <div className="space-y-2">
                                       {editGroupByColumns.map((col) => {
-                                        const columnInfo = columns.find(c => c.column_name === col);
+                                        const columnInfo = allFoundationColumns.find(c => c.column_name === col);
                                         return (
                                           <SortableGroupByItem
                                             key={col}
