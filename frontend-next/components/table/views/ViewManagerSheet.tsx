@@ -153,6 +153,9 @@ export function ViewManagerSheet({
   // Use all foundation columns if loaded, otherwise fall back to prop columns
   const effectiveColumns = allFoundationColumns.length > 0 ? allFoundationColumns : columns;
 
+  // Foundation names for lookup columns
+  const [foundationNames, setFoundationNames] = React.useState<Record<number, string>>({});
+
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [activeViewId, setActiveViewId] = React.useState<number | string | null>(null);
@@ -208,6 +211,28 @@ export function ViewManagerSheet({
       loadViews();
     }
   }, [open, foundationId]);
+
+  // Load foundation names for lookup columns
+  React.useEffect(() => {
+    if (open) {
+      loadFoundationNames();
+    }
+  }, [open]);
+
+  const loadFoundationNames = async () => {
+    try {
+      const response = await api.get<{ success: boolean; foundations: Array<{ id: number; name: string }> }>('/api/v1/foundations');
+      if (response?.success && response.foundations) {
+        const nameMap: Record<number, string> = {};
+        response.foundations.forEach(f => {
+          nameMap[f.id] = f.name;
+        });
+        setFoundationNames(nameMap);
+      }
+    } catch (error) {
+      console.error('[ViewManagerSheet] Failed to load foundation names:', error);
+    }
+  };
 
   const loadViews = async (selectViewByName?: string) => {
     try {
@@ -1624,6 +1649,7 @@ export function ViewManagerSheet({
                                             smartFit={editSmartFit}
                                             priority={editSmartFit ? getColumnPriority(col.column_name, col.column_type) : undefined}
                                             smartWidth={editSmartFit ? calculateSmartWidth(col) : undefined}
+                                            lookupFoundationName={col.lookup_foundation_id ? foundationNames[col.lookup_foundation_id] : undefined}
                                           />
                                         );
                                       });
@@ -1667,6 +1693,7 @@ export function ViewManagerSheet({
                                               column={col}
                                               isVisible={false}
                                               onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
+                                              lookupFoundationName={col.lookup_foundation_id ? foundationNames[col.lookup_foundation_id] : undefined}
                                             />
                                           ))}
                                         </div>
