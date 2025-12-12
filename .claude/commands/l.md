@@ -155,6 +155,56 @@ Heroku: v[XXX] or "Skipped"
 ========================================
 ```
 
+### Step 7 - Post-Deploy Verification (Backend only)
+
+**If backend was deployed, verify critical systems are healthy:**
+
+```bash
+# Wait for dyno to restart
+sleep 10
+
+# 1. Check recurring tasks are registered
+heroku run rails runner "
+  tasks = SolidQueue::RecurringTask.pluck(:key)
+  critical = ['xero_health_monitor', 'refresh_integration_tokens', 'daily_health_check']
+  missing = critical - tasks
+  if missing.any?
+    puts '❌ MISSING RECURRING TASKS: ' + missing.join(', ')
+    exit 1
+  else
+    puts '✅ Recurring tasks OK (' + tasks.count.to_s + ' registered)'
+  end
+" --app teeemlive
+
+# 2. Check recent health monitor ran successfully
+heroku run rails runner "
+  last = XeroSyncEvent.where(sync_type: 'health_check').order(created_at: :desc).first
+  if last.nil?
+    puts '⚠️  No health monitor runs found'
+  elsif last.event_type == 'completed'
+    puts '✅ Health monitor OK (last: ' + last.created_at.in_time_zone('Australia/Brisbane').strftime('%H:%M') + ')'
+  else
+    puts '❌ Health monitor failed: ' + (last.error_message || 'unknown')
+  end
+" --app teeemlive
+
+# 3. Check Xero credentials status
+heroku run rails runner "
+  total = XeroCredential.count
+  expired = XeroCredential.all.count { |c| c.expired? }
+  if expired > 0
+    puts '⚠️  Xero: ' + expired.to_s + '/' + total.to_s + ' tokens expired (will auto-refresh)'
+  else
+    puts '✅ Xero: ' + total.to_s + ' credentials, all tokens valid'
+  end
+" --app teeemlive
+```
+
+**If any check fails:**
+- Recurring tasks missing → Check `config/recurring.yml` syntax
+- Health monitor failed → Check logs: `heroku logs --app teeemlive -n 100 | grep -i health`
+- Tokens expired → Will auto-refresh on next health monitor run (every 15 min)
+
 ## Error Handling
 
 If any step fails:
