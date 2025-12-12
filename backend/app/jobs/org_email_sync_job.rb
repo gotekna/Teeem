@@ -155,6 +155,12 @@ class OrgEmailSyncJob < ApplicationJob
       return nil
     end
 
+    # ALWAYS FILTER: Junk/Spam emails (already classified as spam by email provider)
+    if folder_name == "Junk Email"
+      Rails.logger.debug "[OrgEmailSync] Skipping junk/spam email: #{subject} from #{from_email}"
+      return nil
+    end
+
     # NEVER FILTER: Sent items (unless internal)
     if folder_name == "Sent Items"
       # Skip internal emails in Sent Items (we'll get them from recipient's inbox)
@@ -185,11 +191,10 @@ class OrgEmailSyncJob < ApplicationJob
       end
     end
 
-    # Find or create - use composite key (internet_message_id + mailbox_owner_email)
-    # This ensures each mailbox has its own copy with the correct outlook_id
+    # Find or create - use internet_message_id as unique identifier
+    # Each email is stored once globally, regardless of which mailbox synced it
     email = EmailWarehouse.find_or_initialize_by(
-      internet_message_id: internet_message_id,
-      mailbox_owner_email: owner_email
+      internet_message_id: internet_message_id
     )
 
     # Extract recipients

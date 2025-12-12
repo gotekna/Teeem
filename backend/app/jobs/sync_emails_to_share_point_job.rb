@@ -242,7 +242,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
   def build_folder_path(email_date)
     year = email_date.year
     month = email_date.strftime("%m")
-    "#{@credential.attachment_root_path}/#{year}/#{month}"
+    "Documents/Emails/Attachments/#{@credential.name}/#{year}/#{month}"
   end
 
   def sync_emails_to_sharepoint
@@ -313,10 +313,10 @@ class SyncEmailsToSharePointJob < ApplicationJob
   def upload_email_to_sharepoint(teeem_client, email, mime_content)
     sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
 
-    # Build folder path: /Emails/{org_name}/{year}/{month}
+    # Build folder path: Documents/Emails/eml/{org_name}/{year}/{month}
     year = email.received_at.year
     month = email.received_at.strftime("%m")
-    folder_path = "Emails/#{@credential.name}/#{year}/#{month}"
+    folder_path = "Documents/Emails/eml/#{@credential.name}/#{year}/#{month}"
 
     # Build filename: {email_id}.eml
     filename = "#{email.id}.eml"
