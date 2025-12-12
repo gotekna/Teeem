@@ -1,6 +1,4 @@
----
-description: Fast deploy to teeem-sam-dev Heroku (backend only)
----
+# Deploy to teeem-sam-dev (Fast Method)
 
 Deploy the backend to teeem-sam-dev Heroku app using the fast method:
 
