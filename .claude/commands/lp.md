@@ -66,7 +66,54 @@ git push origin Live
 ```
 *Vercel auto-deploys frontend from this push*
 
-### Step 6 - Deploy Backend (ONLY if backend changed)
+### Step 6 - Pre-Flight Checks (Fail Fast)
+
+**Run before deploying to Heroku to catch errors early:**
+
+```bash
+echo "🔍 Pre-flight checks..."
+
+# Check Ruby syntax in changed backend files
+if git diff --name-only HEAD~1 HEAD | grep "^backend/.*\.rb$" > /dev/null; then
+  echo "Checking Ruby syntax..."
+  git diff --name-only HEAD~1 HEAD | grep "^backend/.*\.rb$" | while read file; do
+    if [ -f "$file" ]; then
+      ruby -c "$file" > /dev/null 2>&1 || {
+        echo "❌ Syntax error in $file"
+        ruby -c "$file"
+        exit 1
+      }
+    fi
+  done
+  echo "✅ Ruby syntax OK"
+fi
+
+# Check migrations can run locally
+if git diff --name-only HEAD~1 HEAD | grep "^backend/db/migrate/" > /dev/null; then
+  echo "Checking migrations..."
+  cd backend && bin/rails db:migrate:status > /dev/null 2>&1 || {
+    echo "❌ Migration check failed - fix locally first"
+    cd ..
+    exit 1
+  }
+  cd ..
+  echo "✅ Migrations OK"
+fi
+
+# Check Gemfile.lock updated if Gemfile changed
+if git diff --name-only HEAD~1 HEAD | grep "^backend/Gemfile$" > /dev/null; then
+  if ! git diff --name-only HEAD~1 HEAD | grep "^backend/Gemfile.lock" > /dev/null; then
+    echo "❌ Gemfile changed but Gemfile.lock not updated"
+    echo "   Run: cd backend && bundle install"
+    exit 1
+  fi
+  echo "✅ Gemfile.lock updated"
+fi
+
+echo "✅ Pre-flight checks passed"
+```
+
+### Step 7 - Deploy Backend (ONLY if backend changed)
 
 **Check if backend files were in the commit:**
 ```bash
@@ -92,7 +139,7 @@ rm -rf "$DEPLOY_DIR"
 
 **If no backend changes, skip this step entirely.**
 
-### Step 7 - Report Status
+### Step 8 - Report Status
 
 **Show Brisbane time:**
 ```
