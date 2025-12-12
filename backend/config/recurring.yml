@@ -94,11 +94,11 @@ warehouse_xero_attachments:
   args: [null, { limit: 50 }]
   schedule: every 2 hours at minute 45
 
-# SSoT Health Monitor - checks for stale syncs and triggers auto-recovery
-xero_sync_health_monitor:
-  class: XeroSyncHealthMonitorJob
-  queue: default
-  schedule: every 5 minutes
+# SSoT Health Monitor - DISABLED (job removed, depends on unmigrated table)
+# xero_sync_health_monitor:
+#   class: XeroSyncHealthMonitorJob
+#   queue: default
+#   schedule: every 5 minutes
 
 # Batch document verification (AI classification)
 warehouse_document_verification:
