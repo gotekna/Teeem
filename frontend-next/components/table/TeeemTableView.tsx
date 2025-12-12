@@ -1923,6 +1923,10 @@ export default function TeeemTableView({
 
     // Apply sorting
     if (sortColumns.length > 0) {
+      // Debug: log sort configuration
+      console.log('[filteredAndSortedEntries] Applying sort with sortColumns:',
+        sortColumns.map(s => ({ column: s.column, dir: s.dir, hasCustomOrder: !!s.customOrder, customOrderLength: s.customOrder?.length }))
+      );
       result.sort((a, b) => {
         for (const { column, dir, customOrder } of sortColumns) {
           const aVal = a[column];
