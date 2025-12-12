@@ -618,6 +618,13 @@ Rails.application.routes.draw do
         end
       end
 
+      # Email Blacklist (spam/marketing filters)
+      resources :email_blacklist, only: [ :index, :create, :update, :destroy ] do
+        collection do
+          post :test
+        end
+      end
+
       # Email Job Proposals (AI-powered job creation from emails)
       resources :email_job_proposals, only: [ :index, :show, :create ] do
         member do

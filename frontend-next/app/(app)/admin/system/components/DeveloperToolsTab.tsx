@@ -45,12 +45,14 @@ import {
   X,
   ChevronUp,
   ChevronDown,
+  Ban,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { EmailBlacklistTab } from "./EmailBlacklistTab";
 
 // Types
 interface TableInfo {
@@ -329,6 +331,10 @@ export function DeveloperToolsTab() {
           <TabsTrigger value="schema" className="flex items-center gap-2">
             <FileCode className="h-4 w-4" />
             Database Schema
+          </TabsTrigger>
+          <TabsTrigger value="blacklist" className="flex items-center gap-2">
+            <Ban className="h-4 w-4" />
+            Email Blacklist
           </TabsTrigger>
           <TabsTrigger value="branches" className="flex items-center gap-2">
             <GitBranch className="h-4 w-4" />
@@ -767,6 +773,11 @@ export function DeveloperToolsTab() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Email Blacklist Tab */}
+        <TabsContent value="blacklist">
+          <EmailBlacklistTab />
         </TabsContent>
 
         {/* Agent Status Tab */}

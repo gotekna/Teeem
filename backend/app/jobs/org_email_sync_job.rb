@@ -166,18 +166,15 @@ class OrgEmailSyncJob < ApplicationJob
     # NEVER FILTER: Emails with attachments
     elsif has_attachments
       # Always sync emails with attachments (important business emails)
-    # FILTER: Skip marketing/advertising emails
+    # FILTER: Check against blacklist
     else
-      marketing_patterns = ["marketing@", "promo@", "newsletter@", "unsubscribe", "opt-out", "advertis"]
-      if from_email && marketing_patterns.any? { |pattern| from_email.downcase.include?(pattern) }
-        Rails.logger.debug "[OrgEmailSync] Skipping marketing email: #{subject}"
-        return nil
-      end
-
-      # Skip emails with marketing keywords in subject
-      marketing_subjects = ["unsubscribe", "opt out", "manage preferences", "view in browser"]
-      if marketing_subjects.any? { |pattern| subject.downcase.include?(pattern) }
-        Rails.logger.debug "[OrgEmailSync] Skipping marketing email by subject: #{subject}"
+      # Use database-backed blacklist (supports incremental & full sync)
+      if EmailBlacklistItem.should_filter?(
+        from_email: from_email,
+        from_name: from_data["name"],
+        subject: subject
+      )
+        Rails.logger.debug "[OrgEmailSync] Skipping blacklisted email: #{subject} from #{from_email}"
         return nil
       end
     end
