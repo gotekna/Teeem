@@ -137,7 +137,7 @@ export function EmailBlacklistTab() {
 
     try {
       setSubmitting(true);
-      const response = await api.post("/email_blacklist", {
+      const response = await api.post<{ success: boolean }>("/email_blacklist", {
         email_blacklist_item: {
           pattern: pattern.trim(),
           pattern_type: patternType,
@@ -171,7 +171,7 @@ export function EmailBlacklistTab() {
 
     try {
       setSubmitting(true);
-      const response = await api.patch(`/email_blacklist/${editingItem.id}`, {
+      const response = await api.patch<{ success: boolean }>(`/email_blacklist/${editingItem.id}`, {
         email_blacklist_item: {
           pattern: pattern.trim(),
           pattern_type: patternType,
@@ -207,8 +207,8 @@ export function EmailBlacklistTab() {
     }
 
     try {
-      const response = await api.delete(`/email_blacklist/${item.id}`);
-      if (response.success) {
+      const response = await api.delete<{ success: boolean }>(`/email_blacklist/${item.id}`);
+      if (response?.success) {
         toast({
           title: "Success",
           description: "Blacklist pattern deleted successfully",
@@ -226,7 +226,7 @@ export function EmailBlacklistTab() {
 
   const handleToggleActive = async (item: BlacklistItem) => {
     try {
-      const response = await api.patch(`/email_blacklist/${item.id}`, {
+      const response = await api.patch<{ success: boolean }>(`/email_blacklist/${item.id}`, {
         email_blacklist_item: {
           active: !item.active,
         },
@@ -251,7 +251,11 @@ export function EmailBlacklistTab() {
   const handleTest = async () => {
     try {
       setSubmitting(true);
-      const response = await api.post("/email_blacklist/test", {
+      const response = await api.post<{
+        success: boolean;
+        would_filter: boolean;
+        matched_pattern: string | null;
+      }>("/email_blacklist/test", {
         from_email: testFromEmail,
         from_name: testFromName,
         subject: testSubject,
