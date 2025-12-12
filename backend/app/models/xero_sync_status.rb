@@ -61,8 +61,8 @@ class XeroSyncStatus < ApplicationRecord
     def health_summary(tenant_id: nil)
       statuses = tenant_id ? for_tenant(tenant_id) : all
 
-      STALE_THRESHOLD = 5.minutes
-      CRITICAL_THRESHOLD = 10.minutes
+      stale_threshold = 5.minutes
+      critical_threshold = 10.minutes
 
       result = {}
       health_statuses = []
@@ -79,15 +79,15 @@ class XeroSyncStatus < ApplicationRecord
           # Determine health status: green (< 5 min), yellow (5-10 min), red (> 10 min)
           health_status = if age_seconds.nil?
             "red"
-          elsif age_seconds <= STALE_THRESHOLD
+          elsif age_seconds <= stale_threshold
             "green"
-          elsif age_seconds <= CRITICAL_THRESHOLD
+          elsif age_seconds <= critical_threshold
             "yellow"
           else
             "red"
           end
 
-          is_stale = age_seconds.nil? || age_seconds > STALE_THRESHOLD
+          is_stale = age_seconds.nil? || age_seconds > stale_threshold
 
           health_statuses << health_status
 
