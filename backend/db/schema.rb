@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_11_233346) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_12_011816) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1254,6 +1254,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_233346) do
     t.string "trust_account_number"
     t.string "trust_account_name"
     t.string "payment_terms"
+    t.integer "employees_count", default: 0, null: false
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"

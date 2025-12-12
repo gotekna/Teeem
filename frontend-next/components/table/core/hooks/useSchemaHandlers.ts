@@ -8,7 +8,9 @@
  */
 
 import { useCallback } from 'react';
+import { useSetAtom } from 'jotai';
 import { api } from '@/lib/api';
+import { invalidateColumnsCacheAtom } from '@/lib/column-state-atoms';
 import type { TableColumn } from '../../types';
 
 export interface UseSchemaHandlersProps {
@@ -115,6 +117,9 @@ export function useSchemaHandlers(props: UseSchemaHandlersProps): UseSchemaHandl
     columnEditMode,
   } = props;
 
+  // Get cache invalidation function
+  const invalidateColumnsCache = useSetAtom(invalidateColumnsCacheAtom);
+
   // Create new column
   const handleCreateColumn = useCallback(async () => {
     if (!newColumnName.trim()) {
@@ -136,6 +141,10 @@ export function useSchemaHandlers(props: UseSchemaHandlersProps): UseSchemaHandl
           },
         });
         toast({ title: "Success", description: `Column "${newColumnName}" created` });
+
+        // Invalidate columns cache so ViewManagerSheet shows the new column
+        invalidateColumnsCache(foundationIdNumeric);
+
         onRefresh?.();
       }
       setShowCreateColumnModal(false);
@@ -147,7 +156,7 @@ export function useSchemaHandlers(props: UseSchemaHandlersProps): UseSchemaHandl
     } finally {
       setSchemaLoading(false);
     }
-  }, [newColumnName, newColumnType, foundationIdNumeric, onCreateColumn, onRefresh, toast, setSchemaLoading, setShowCreateColumnModal, setNewColumnName, setNewColumnType]);
+  }, [newColumnName, newColumnType, foundationIdNumeric, onCreateColumn, onRefresh, toast, setSchemaLoading, setShowCreateColumnModal, setNewColumnName, setNewColumnType, invalidateColumnsCache]);
 
   // Delete column
   const handleDeleteColumn = useCallback(async () => {
@@ -166,6 +175,10 @@ export function useSchemaHandlers(props: UseSchemaHandlersProps): UseSchemaHandl
         if (col && "id" in col) {
           await api.delete(`/api/v1/foundations/${foundationIdNumeric}/columns/${(col as { id: number }).id}`);
           toast({ title: "Success", description: `Column deleted` });
+
+          // Invalidate columns cache so ViewManagerSheet removes the deleted column
+          invalidateColumnsCache(foundationIdNumeric);
+
           onRefresh?.();
         }
       }
@@ -177,7 +190,7 @@ export function useSchemaHandlers(props: UseSchemaHandlersProps): UseSchemaHandl
     } finally {
       setSchemaLoading(false);
     }
-  }, [selectedColumnToDelete, foundationIdNumeric, COLUMNS, onDeleteColumn, onRefresh, toast, setSchemaLoading, setShowDeleteColumnModal, setSelectedColumnToDelete]);
+  }, [selectedColumnToDelete, foundationIdNumeric, COLUMNS, onDeleteColumn, onRefresh, toast, setSchemaLoading, setShowDeleteColumnModal, setSelectedColumnToDelete, invalidateColumnsCache]);
 
   // Copy table ID to clipboard
   const handleCopyTableId = useCallback(() => {
@@ -215,6 +228,10 @@ export function useSchemaHandlers(props: UseSchemaHandlersProps): UseSchemaHandl
             },
           });
           toast({ title: "Success", description: "Column updated successfully" });
+
+          // Invalidate columns cache so ViewManagerSheet shows the updated column
+          invalidateColumnsCache(foundationIdNumeric);
+
           // Trigger refresh callback to reload data
           onColumnUpdate?.();
           onRefresh?.();
@@ -228,7 +245,7 @@ export function useSchemaHandlers(props: UseSchemaHandlersProps): UseSchemaHandl
     } finally {
       setSchemaLoading(false);
     }
-  }, [editingColumnKey, editColumnName, editColumnType, foundationIdNumeric, COLUMNS, onColumnUpdate, onRefresh, toast, setSchemaLoading, setShowEditColumnModal, setEditingColumnKey]);
+  }, [editingColumnKey, editColumnName, editColumnType, foundationIdNumeric, COLUMNS, onColumnUpdate, onRefresh, toast, setSchemaLoading, setShowEditColumnModal, setEditingColumnKey, invalidateColumnsCache]);
 
   // Toggle column edit mode
   const toggleColumnEditMode = useCallback(() => {

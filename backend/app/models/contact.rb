@@ -49,7 +49,7 @@ class Contact < ApplicationRecord
   has_many :related_contacts, through: :outgoing_relationships, source: :related_contact
 
   # Primary company relationship (person works for company)
-  belongs_to :primary_company, class_name: "Contact", optional: true
+  belongs_to :primary_company, class_name: "Contact", optional: true, counter_cache: :employees_count
   has_many :employees, class_name: "Contact", foreign_key: :primary_company_id, dependent: :nullify
 
   # Employment relationships are now handled via ContactRelationship with relationship_type="employee_of"
