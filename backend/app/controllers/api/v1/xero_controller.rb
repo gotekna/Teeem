@@ -782,7 +782,7 @@ module Api
       # SSoT: Includes all 3 sync timestamps (contact, invoices, PDFs) per contact
       def contacts_sync_list
         begin
-          contacts = Contact.includes(:primary_company, :external_invoices, :contact_external_links).all
+          contacts = Contact.includes(:primary_company, :external_invoices, :external_links).all
 
           # Pre-calculate invoice/bill counts and PDF sync stats per contact
           invoice_counts = ExternalInvoice.where.not(contact_id: nil)
@@ -819,7 +819,7 @@ module Api
             pdf_sync_percent = total_docs > 0 ? ((pdfs_synced.to_f / total_docs) * 100).round(0) : nil
 
             # Get sync info from ContactExternalLink (SSoT for sync status)
-            xero_link = contact.contact_external_links.xero.first
+            xero_link = contact.external_links.xero.first
 
             {
               id: contact.id,
@@ -1975,11 +1975,11 @@ module Api
 
           # Get full contact info with their links
           contacts = Contact.where(id: contact_ids_with_multiple_links)
-                           .includes(:contact_external_links)
+                           .includes(:external_links)
                            .order(:display_name)
 
           common_contacts_data = contacts.map do |contact|
-            xero_links = contact.contact_external_links.xero.to_a
+            xero_links = contact.external_links.xero.to_a
             tenant_ids = xero_links.map(&:tenant_id).uniq
 
             {
