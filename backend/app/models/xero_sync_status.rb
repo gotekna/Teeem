@@ -58,11 +58,18 @@ class XeroSyncStatus < ApplicationRecord
     end
 
     # Get health summary for all sync types
+    # SSoT: Thresholds based on actual sync schedules from recurring.yml:
+    # - invoices/contacts: every 30 min → stale after 45 min
+    # - pdfs: every 2 hours → stale after 3 hours
+    # - bank_transactions: every 6 hours → stale after 8 hours
+    # Using conservative defaults here; UI can check next_sync_at for accuracy
     def health_summary(tenant_id: nil)
       statuses = tenant_id ? for_tenant(tenant_id) : all
 
-      stale_threshold = 5.minutes
-      critical_threshold = 10.minutes
+      # SSoT: Thresholds should be > expected sync interval
+      # Most syncs run every 30 min, so stale = 45 min, critical = 90 min
+      stale_threshold = 45.minutes
+      critical_threshold = 90.minutes
 
       result = {}
       health_statuses = []
