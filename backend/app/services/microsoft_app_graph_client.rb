@@ -50,7 +50,7 @@ class MicrosoftAppGraphClient
     params = {
       "$top" => top,
       "$orderby" => "receivedDateTime DESC",
-      "$select" => "id,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,bodyPreview,internetMessageId,conversationId,isRead"
+      "$select" => "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,bodyPreview,body,internetMessageId,conversationId,isRead,importance,inReplyTo,references"
     }
 
     params["$skip"] = skip if skip
@@ -139,7 +139,7 @@ class MicrosoftAppGraphClient
       # Initial delta request
       endpoint = "/users/#{CGI.escape(user_identifier)}/mailFolders/#{folder}/messages/delta"
       params = {
-        "$select" => "id,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,bodyPreview,internetMessageId,conversationId,isRead"
+        "$select" => "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,bodyPreview,body,internetMessageId,conversationId,isRead,importance,inReplyTo,references"
       }
       response = get(endpoint, params)
     end
