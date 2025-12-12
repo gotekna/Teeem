@@ -260,24 +260,34 @@ class XeroHealthMonitorJob < ApplicationJob
     disconnected
   end
 
-  # Attempt to recover degraded credentials
+  # Attempt to recover degraded OR expired credentials
   def attempt_degraded_recovery
     recovered = 0
 
-    XeroCredential.where(status: "degraded").find_each do |credential|
-      # If refresh_failure_count is low, try refreshing again
+    # Find credentials that need token refresh:
+    # 1. status="degraded" (explicit degraded state)
+    # 2. status="connected" but token expired (needs proactive refresh)
+    credentials_to_refresh = XeroCredential.all.select do |cred|
+      cred.status == "degraded" || (cred.status == "connected" && cred.expired?)
+    end
+
+    credentials_to_refresh.each do |credential|
+      # If refresh_failure_count is high, skip (avoid hammering failed refreshes)
       next if credential.refresh_failure_count >= XeroTokenManager::MAX_REFRESH_ATTEMPTS
 
-      Rails.logger.info "[XeroHealthMonitor] Attempting recovery for degraded credential: #{credential.tenant_name}"
+      reason = credential.expired? ? "token expired" : "degraded status"
+      Rails.logger.info "[XeroHealthMonitor] Attempting token refresh for #{credential.tenant_name} (#{reason})"
 
       result = XeroTokenManager.refresh_credential(credential)
 
       if result[:success]
-        Rails.logger.info "[XeroHealthMonitor] Recovered credential: #{credential.tenant_name}"
+        Rails.logger.info "[XeroHealthMonitor] Refreshed token for: #{credential.tenant_name}"
         recovered += 1
 
         # Trigger sync restart to resume syncing after recovery
         XeroTokenManager.trigger_sync_restart(reason: "health_monitor_recovery")
+      else
+        Rails.logger.warn "[XeroHealthMonitor] Failed to refresh #{credential.tenant_name}: #{result[:error]}"
       end
     end
 
