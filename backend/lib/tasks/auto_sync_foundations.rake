@@ -40,7 +40,7 @@ namespace :foundation do
 
           # Add orphaned columns
           orphans.each do |col_name|
-            next if col_name.in?(['id', 'created_at', 'updated_at'])
+            next if col_name.in?([ "id", "created_at", "updated_at" ])
 
             db_col = ActiveRecord::Base.connection.columns(foundation.database_table_name).find { |c| c.name == col_name }
             next unless db_col

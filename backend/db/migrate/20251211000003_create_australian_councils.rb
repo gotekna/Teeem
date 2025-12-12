@@ -11,7 +11,7 @@ class CreateAustralianCouncils < ActiveRecord::Migration[8.0]
 
       t.timestamps
 
-      t.index [:postcode, :suburb], name: 'idx_councils_postcode_suburb'
+      t.index [ :postcode, :suburb ], name: 'idx_councils_postcode_suburb'
       t.index :council_name
     end
   end

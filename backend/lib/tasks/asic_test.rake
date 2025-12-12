@@ -40,7 +40,7 @@ namespace :asic do
       print "Would you like to enter the password now for testing? (y/n): "
       response = STDIN.gets.chomp.downcase
 
-      if response == 'y'
+      if response == "y"
         print "Enter ASIC password for #{company.name}: "
         password = STDIN.noecho(&:gets).chomp
         puts

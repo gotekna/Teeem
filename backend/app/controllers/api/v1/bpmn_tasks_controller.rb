@@ -1,7 +1,7 @@
 module Api
   module V1
     class BpmnTasksController < ApplicationController
-      before_action :set_task, only: [:show, :complete, :claim, :unclaim, :skip]
+      before_action :set_task, only: [ :show, :complete, :claim, :unclaim, :skip ]
 
       # List all actionable tasks for current user
       def index

@@ -467,7 +467,7 @@ module HealthChecks
     def check_duplicate_xero_ids
       # Find xero_ids that appear more than once
       duplicate_xero_ids = Contact.all
-                                 .where.not(xero_id: [nil, ""])
+                                 .where.not(xero_id: [ nil, "" ])
                                  .group(:xero_id)
                                  .having("COUNT(*) > 1")
                                  .pluck(:xero_id)

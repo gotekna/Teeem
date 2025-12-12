@@ -44,7 +44,7 @@ class DailyHealthCheckJob < ApplicationJob
 
       # Cache individual foundation health checks
       foundations_cached = 0
-      Foundation.where(id: [204, 205, 214, 353, 357]).find_each do |foundation|
+      Foundation.where(id: [ 204, 205, 214, 353, 357 ]).find_each do |foundation|
         begin
           result = HealthChecks::Registry.run_all(
             foundation_id: foundation.id,

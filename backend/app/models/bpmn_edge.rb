@@ -10,7 +10,7 @@ class BpmnEdge < ApplicationRecord
 
   # Scopes
   scope :default_edges, -> { where(is_default: true) }
-  scope :conditional, -> { where.not(condition_expression: [nil, ""]) }
+  scope :conditional, -> { where.not(condition_expression: [ nil, "" ]) }
 
   # Instance methods
   def conditional?

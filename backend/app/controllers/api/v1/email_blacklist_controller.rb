@@ -1,5 +1,5 @@
 class Api::V1::EmailBlacklistController < ApplicationController
-  before_action :set_blacklist_item, only: [:update, :destroy]
+  before_action :set_blacklist_item, only: [ :update, :destroy ]
 
   # GET /api/v1/email_blacklist
   def index

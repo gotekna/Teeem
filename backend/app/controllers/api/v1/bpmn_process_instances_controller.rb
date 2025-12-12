@@ -14,7 +14,7 @@ module Api
         QuoteRequest
       ].freeze
 
-      before_action :set_instance, only: [:show, :cancel, :suspend, :resume]
+      before_action :set_instance, only: [ :show, :cancel, :suspend, :resume ]
 
       def index
         @instances = BpmnProcessInstance

@@ -2179,8 +2179,20 @@ export default function TeeemTableView({
   // Get visible columns in order
   const visibleColumnsInOrder = useMemo(() => {
     const startTime = performance.now();
+    const columnKeys = COLUMNS.map(c => c.key);
+    console.log('[visibleColumnsInOrder] COLUMNS keys:', columnKeys);
     console.log('[visibleColumnsInOrder] columnOrder:', columnOrder);
     console.log('[visibleColumnsInOrder] visibleColumns:', visibleColumns);
+
+    // Debug: show which columns pass each filter step
+    const visibleKeys = columnOrder.filter((key) => visibleColumns[key] === true);
+    console.log('[visibleColumnsInOrder] After visibility filter:', visibleKeys);
+
+    const keysNotInCOLUMNS = visibleKeys.filter(key => !COLUMNS.find(c => c.key === key));
+    if (keysNotInCOLUMNS.length > 0) {
+      console.warn('[visibleColumnsInOrder] Keys in columnOrder but NOT in COLUMNS:', keysNotInCOLUMNS);
+    }
+
     // Start with columns from columnOrder that are visible
     const orderedVisible = columnOrder
       .filter((key) => visibleColumns[key] === true)

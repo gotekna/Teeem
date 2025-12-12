@@ -64,7 +64,7 @@ class FoundationSyncMonitorJob < ApplicationJob
 
       # Get actual DB columns (excluding auto-generated)
       db_cols = ActiveRecord::Base.connection.columns(table_name).map(&:name)
-      db_cols -= ['id', 'created_at', 'updated_at']
+      db_cols -= [ "id", "created_at", "updated_at" ]
 
       # Get Foundation metadata columns
       meta_cols = foundation.columns.pluck(:column_name)

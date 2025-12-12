@@ -472,7 +472,7 @@ namespace :pricebook do
     puts "  SharePoint: ✓ Configured (via Organization Microsoft App)"
     puts ""
 
-    unless ENV['GOOGLE_SEARCH_API_KEY'].present? && ENV['GOOGLE_CX'].present?
+    unless ENV["GOOGLE_SEARCH_API_KEY"].present? && ENV["GOOGLE_CX"].present?
       puts "⚠️  WARNING: Google Search API is not configured!"
       puts "Without Google API, no images will be found."
       puts ""
@@ -485,7 +485,7 @@ namespace :pricebook do
       puts ""
       print "Continue anyway? (y/n): "
       confirmation = STDIN.gets.chomp.downcase
-      next unless confirmation == 'y'
+      next unless confirmation == "y"
     end
 
     # Use new SharePoint-based fetcher service

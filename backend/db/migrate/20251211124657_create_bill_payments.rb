@@ -28,7 +28,7 @@ class CreateBillPayments < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :bill_payments, [:bill_payment_batch_id, :bill_inbox_id], unique: true, name: 'idx_bill_payments_batch_inbox_unique'
+    add_index :bill_payments, [ :bill_payment_batch_id, :bill_inbox_id ], unique: true, name: 'idx_bill_payments_batch_inbox_unique'
     add_index :bill_payments, :status
   end
 end

@@ -259,7 +259,7 @@ class Job < ApplicationRecord
     parts << abbreviate_state(state) if state.present?
 
     if parts.any?
-      self.name = parts.join(' ')
+      self.name = parts.join(" ")
     elsif new_record?
       # Generate placeholder for new records without address
       self.name = "New Job (Pending Address)"
@@ -307,14 +307,14 @@ class Job < ApplicationRecord
   def abbreviate_state(state_value)
     return nil if state_value.blank?
     state_map = {
-      'queensland' => 'QLD',
-      'new south wales' => 'NSW',
-      'victoria' => 'VIC',
-      'south australia' => 'SA',
-      'western australia' => 'WA',
-      'tasmania' => 'TAS',
-      'northern territory' => 'NT',
-      'australian capital territory' => 'ACT'
+      "queensland" => "QLD",
+      "new south wales" => "NSW",
+      "victoria" => "VIC",
+      "south australia" => "SA",
+      "western australia" => "WA",
+      "tasmania" => "TAS",
+      "northern territory" => "NT",
+      "australian capital territory" => "ACT"
     }
     state_map[state_value.downcase] || state_value.upcase
   end

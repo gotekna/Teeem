@@ -15,7 +15,7 @@ module Api
       ].freeze
 
       before_action :set_process
-      before_action :set_trigger, only: [:show, :update, :destroy, :activate, :deactivate, :fire]
+      before_action :set_trigger, only: [ :show, :update, :destroy, :activate, :deactivate, :fire ]
 
       def index
         @triggers = @process.bpmn_triggers.order(:created_at)

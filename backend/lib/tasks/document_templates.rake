@@ -470,7 +470,7 @@ namespace :document_templates do
 
       # Date fields
       "{Today}" => "{{generated_date}}",
-      "{Date}" => "{{generated_date}}",
+      "{Date}" => "{{generated_date}}"
     }.freeze
 
     sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config

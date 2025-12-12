@@ -39,7 +39,7 @@ class PricebookImageFetcherService
 
     # Get SharePoint site and drive info
     sites = @graph_client.get_all_sites
-    teeem_site = sites.find { |s| s[:display_name]&.include?('TEEEM') || s[:name]&.include?('teeem') }
+    teeem_site = sites.find { |s| s[:display_name]&.include?("TEEEM") || s[:name]&.include?("teeem") }
     raise FetchError, "TEEEM site not found" unless teeem_site
 
     drives = @graph_client.get_site_drives(teeem_site[:id])
@@ -128,7 +128,7 @@ class PricebookImageFetcherService
       # Step 5: Update pricebook item (optional - just mark as fetched)
       item.update(
         image_fetch_status: "fetched_to_test_folder",
-        notes: [item.notes, "Test image uploaded to SharePoint: #{Time.current}"].compact.join("\n")
+        notes: [ item.notes, "Test image uploaded to SharePoint: #{Time.current}" ].compact.join("\n")
       )
 
       { success: true, image_url: sharepoint_url, sharepoint_path: "#{SHAREPOINT_TEST_FOLDER}/#{filename}" }
@@ -303,7 +303,7 @@ class PricebookImageFetcherService
       Rails.logger.info "[ImageFetcher] Original image: #{width}x#{height}, #{(original_size / 1024.0).round(1)} KB"
 
       # Make image square by adding white padding (extend to square)
-      max_dimension = [width, height].max
+      max_dimension = [ width, height ].max
 
       # Calculate padding needed
       if width < max_dimension || height < max_dimension
@@ -412,10 +412,10 @@ class PricebookImageFetcherService
     # Replace characters that SharePoint interprets as path separators
     # Replace / and \ with dash
     # Remove other problematic characters: : * ? " < > |
-    sanitized = filename.gsub(/[\/\\:*?"<>|]/, '-')
+    sanitized = filename.gsub(/[\/\\:*?"<>|]/, "-")
 
     # Collapse multiple dashes/spaces to single
-    sanitized.gsub(/[-\s]+/, ' ').strip
+    sanitized.gsub(/[-\s]+/, " ").strip
   end
 
   # Ensure Photo Test folder exists in SharePoint
@@ -424,14 +424,14 @@ class PricebookImageFetcherService
     root_items = @graph_client.list_drive_items(@drive_id)
 
     # Find or create Warehousing folder
-    warehousing = root_items.find { |item| item[:is_folder] && item[:name]&.downcase&.include?('warehous') }
+    warehousing = root_items.find { |item| item[:is_folder] && item[:name]&.downcase&.include?("warehous") }
     unless warehousing
       warehousing = @graph_client.create_folder(@site_id, @drive_id, "", "Warehousing")
     end
 
     # Find or create Photo Test subfolder
     warehousing_items = @graph_client.list_drive_items(@drive_id, folder_id: warehousing[:id])
-    photo_test = warehousing_items.find { |item| item[:is_folder] && item[:name]&.downcase == 'photo test' }
+    photo_test = warehousing_items.find { |item| item[:is_folder] && item[:name]&.downcase == "photo test" }
 
     unless photo_test
       begin
@@ -441,7 +441,7 @@ class PricebookImageFetcherService
         # Folder might already exist - try to find it again
         Rails.logger.warn "[ImageFetcher] Error creating Photo Test folder (#{e.message}), attempting to find it..."
         warehousing_items = @graph_client.list_drive_items(@drive_id, folder_id: warehousing[:id])
-        photo_test = warehousing_items.find { |item| item[:is_folder] && item[:name]&.downcase == 'photo test' }
+        photo_test = warehousing_items.find { |item| item[:is_folder] && item[:name]&.downcase == "photo test" }
 
         raise FetchError, "Could not find or create Photo Test folder: #{e.message}" unless photo_test
       end

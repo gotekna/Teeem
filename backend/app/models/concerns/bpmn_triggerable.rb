@@ -20,7 +20,7 @@ module BpmnTriggerable
   class_methods do
     # Register a field as a status trigger
     def bpmn_status_trigger(field_name)
-      self._bpmn_status_fields = _bpmn_status_fields + [field_name.to_s]
+      self._bpmn_status_fields = _bpmn_status_fields + [ field_name.to_s ]
     end
 
     # Register fields for field change triggers

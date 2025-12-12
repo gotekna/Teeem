@@ -9,7 +9,7 @@ class XeroDuplicateFixService
 
     # Only check contacts that have Xero links (duplicates from Xero sync)
     # This dramatically reduces the search space
-    xero_contact_ids = ContactExternalLink.where(source: 'xero').distinct.pluck(:contact_id)
+    xero_contact_ids = ContactExternalLink.where(source: "xero").distinct.pluck(:contact_id)
 
     # Find contacts with duplicate display names (normalized)
     duplicate_names = Contact.where(is_active: true)
@@ -17,7 +17,7 @@ class XeroDuplicateFixService
                              .select("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) as normalized_name, COUNT(*) as count")
                              .group("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g')))")
                              .having("COUNT(*) > 1")
-                             .where.not(display_name: [nil, ""])
+                             .where.not(display_name: [ nil, "" ])
 
     duplicate_names.each do |dup|
       normalized = dup.normalized_name
@@ -104,7 +104,7 @@ class XeroDuplicateFixService
     target = Contact.find(target_contact_id)
 
     # Find all contacts in this group (same normalized name)
-    normalized_name = group_id.parameterize == group_id ? group_id.gsub('-', ' ') : group_id
+    normalized_name = group_id.parameterize == group_id ? group_id.gsub("-", " ") : group_id
 
     contacts = Contact.where(is_active: true)
                      .where("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) = ?", normalized_name)
@@ -116,7 +116,7 @@ class XeroDuplicateFixService
     ActiveRecord::Base.transaction do
       contacts.each do |source|
         # 1. Move Xero links to target
-        merge_xero_links(target, [source])
+        merge_xero_links(target, [ source ])
 
         # 2. Transfer relationships
         transfer_relationships(target, source)

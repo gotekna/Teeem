@@ -580,6 +580,28 @@ class XeroApiClient
     { success: false, error: e.message }
   end
 
+  # Get a credit note as a PDF
+  # @param credit_note_id [String] - The Xero CreditNote GUID
+  # @param options [Hash] - :tenant_id to specify which tenant
+  def get_credit_note_pdf(credit_note_id, options = {})
+    endpoint = "CreditNotes/#{credit_note_id}"
+
+    result = make_binary_request(:get, endpoint, options.merge(accept: "application/pdf"))
+
+    if result[:success]
+      result[:filename] ||= "CreditNote-#{credit_note_id[0..7]}.pdf"
+      result[:mime_type] = "application/pdf"
+    end
+
+    result
+  rescue RateLimitError => e
+    # Re-raise rate limit errors so caller can implement backoff
+    raise e
+  rescue StandardError => e
+    Rails.logger.error("[Xero] Error fetching PDF for credit note #{credit_note_id}: #{e.message}")
+    { success: false, error: e.message }
+  end
+
   # Upload an attachment to a Xero entity (invoice, contact, etc.)
   # Requires accounting.attachments scope (not just .read)
   #
