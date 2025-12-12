@@ -214,12 +214,32 @@ heroku run rails runner "
     puts '✅ Xero: ' + total.to_s + ' credentials, all tokens valid'
   end
 " --app teeemlive
+
+# 4. Check Xero sync health (are syncs running? check ALL tenants)
+heroku run rails runner "
+  stale_threshold = 60.minutes.ago
+  stale_count = 0
+  total = 0
+  XeroSyncStatus.where(sync_type: 'invoices').where.not(tenant_id: nil).each do |s|
+    total += 1
+    if s.last_synced_at.nil? || s.last_synced_at < stale_threshold
+      stale_count += 1
+    end
+  end
+  if stale_count > 0
+    puts '❌ STALE SYNCS: ' + stale_count.to_s + '/' + total.to_s + ' tenants not synced in 60min'
+    puts '   Run: heroku run rails runner \"XeroHealthMonitorJob.perform_now\" --app teeemlive'
+  else
+    puts '✅ Xero syncs OK (' + total.to_s + ' tenants all synced within 60min)'
+  end
+" --app teeemlive
 ```
 
 **If any check fails:**
 - Recurring tasks missing → Check `config/recurring.yml` syntax
 - Health monitor failed → Check logs: `heroku logs --app teeemlive -n 100 | grep -i health`
 - Tokens expired → Will auto-refresh on next health monitor run (every 15 min)
+- Stale syncs → Run health monitor manually to trigger self-heal
 
 ## Error Handling
 
