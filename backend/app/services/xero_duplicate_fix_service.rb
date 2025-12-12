@@ -273,7 +273,7 @@ class XeroDuplicateFixService
 
     # Merge roles (union)
     if source.roles.present?
-      target.roles = (target.roles + source.roles).uniq
+      target.roles = (Array(target.roles) + Array(source.roles)).uniq
     end
 
     # Don't save here - let merge_group handle it
