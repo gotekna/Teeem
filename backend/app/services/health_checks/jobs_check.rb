@@ -22,9 +22,10 @@ module HealthChecks
 
     # Jobs missing start date
     def check_jobs_without_start_date
-      jobs = Job.where(start_date: nil)
-               .where.not(stage: [ "completed", "cancelled", "on_hold" ])
-               .select(:id, :title, :ted_number, :stage)
+      jobs = Job.includes(:job_status)
+               .where(start_date: nil)
+               .where.not(job_statuses: { name: [ "Completed", "Cancelled", "Archived" ] })
+               .select(:id, :name, :job_status_id)
 
       build_result(
         name: "Jobs Without Start Date",
@@ -38,9 +39,10 @@ module HealthChecks
 
     # Jobs missing contract value
     def check_jobs_without_contract_value
-      jobs = Job.where(contract_value: [ nil, 0 ])
-               .where.not(stage: [ "completed", "cancelled", "on_hold" ])
-               .select(:id, :title, :ted_number, :stage)
+      jobs = Job.includes(:job_status)
+               .where(contract_value: [ nil, 0 ])
+               .where.not(job_statuses: { name: [ "Completed", "Cancelled", "Archived" ] })
+               .select(:id, :name, :job_status_id)
 
       build_result(
         name: "Jobs Without Contract Value",
@@ -53,14 +55,18 @@ module HealthChecks
     end
 
     # Jobs without project manager
+    # Note: Jobs don't have direct project_manager_id - they have projects which have PMs
+    # This checks for jobs without a project, or with a project that has no PM
     def check_jobs_without_pm
-      jobs = Job.where(project_manager_id: nil)
-               .where.not(stage: [ "completed", "cancelled", "on_hold", "lead" ])
-               .select(:id, :title, :ted_number, :stage)
+      jobs = Job.includes(:job_status, :project)
+               .where.not(job_statuses: { name: [ "Completed", "Cancelled", "Archived", "Enquiry" ] })
+               .where("projects.id IS NULL OR projects.project_manager_id IS NULL")
+               .references(:projects)
+               .select(:id, :name, :job_status_id)
 
       build_result(
         name: "Jobs Without Project Manager",
-        description: "Active jobs without an assigned project manager.",
+        description: "Active jobs without a project or assigned project manager.",
         severity: :info,
         items: jobs,
         icon: "user",
@@ -74,13 +80,12 @@ module HealthChecks
       items.map do |item|
         if item.is_a?(Hash)
           item
-        elsif item.respond_to?(:ted_number)
+        elsif item.respond_to?(:name)
           {
             id: item.id,
-            display: "#{item.ted_number || 'No TED'} - #{item.title}",
-            ted_number: item.ted_number,
-            title: item.title,
-            stage: item.try(:stage)
+            display: item.name,
+            name: item.name,
+            status: item.job_status&.name
           }
         else
           super
