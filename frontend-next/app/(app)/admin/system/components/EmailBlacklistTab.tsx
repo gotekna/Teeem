@@ -146,7 +146,7 @@ export function EmailBlacklistTab() {
         },
       });
 
-      if (response.success) {
+      if (response?.success) {
         toast({
           title: "Success",
           description: "Blacklist pattern added successfully",
@@ -180,7 +180,7 @@ export function EmailBlacklistTab() {
         },
       });
 
-      if (response.success) {
+      if (response?.success) {
         toast({
           title: "Success",
           description: "Blacklist pattern updated successfully",
@@ -232,7 +232,7 @@ export function EmailBlacklistTab() {
         },
       });
 
-      if (response.success) {
+      if (response?.success) {
         toast({
           title: "Success",
           description: item.active ? "Pattern disabled" : "Pattern enabled",
@@ -261,7 +261,7 @@ export function EmailBlacklistTab() {
         subject: testSubject,
       });
 
-      if (response.success) {
+      if (response?.success) {
         setTestResult({
           would_filter: response.would_filter,
           matched_pattern: response.matched_pattern,
