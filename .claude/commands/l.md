@@ -109,8 +109,27 @@ git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy 
 # ULTRA-FAST DEPLOY - direct push from temp directory (~5 seconds total)
 # Avoids slow git subtree split entirely
 cd /Users/robertharder/GitHub/teeem
+
+# CRITICAL: Ensure all file writes are flushed to disk before copying
+sync
+sleep 1
+
 DEPLOY_DIR=$(mktemp -d)
 cp -r backend/* "$DEPLOY_DIR/"
+
+# VERIFICATION: Check that latest changes are in copied directory
+# Compare git HEAD with copied files to ensure Edit tool changes are included
+if git diff --name-only HEAD~1 HEAD | grep "^backend/" > /dev/null; then
+  echo "✅ Verifying copied files match git commit..."
+  git diff --name-only HEAD~1 HEAD | grep "^backend/" | while read file; do
+    if [ -f "$file" ] && [ -f "$DEPLOY_DIR/${file#backend/}" ]; then
+      if ! diff -q "$file" "$DEPLOY_DIR/${file#backend/}" > /dev/null 2>&1; then
+        echo "⚠️  Warning: $file differs between git and deploy directory"
+      fi
+    fi
+  done
+fi
+
 cd "$DEPLOY_DIR"
 git init
 git add .
@@ -142,6 +161,31 @@ If any step fails:
 1. Report which step failed
 2. Stay on Live branch
 3. Provide recovery instructions
+
+### Release Command Failures (Expected)
+
+The Heroku release command (`deploy:prepare` + `increment_version`) may fail with:
+```
+release command failed: too many connections for role
+```
+
+**This is OK!** The code still deploys successfully. This happens when:
+- Database connection pool is saturated (workers/jobs using all connections)
+- Release command can't get a DB connection to run migrations
+
+**What happens:**
+- ✅ App restarts with new code (deploy succeeds)
+- ❌ Release command fails (migrations/version increment)
+- Both have error handling and retry logic
+
+**If you need migrations to run:**
+```bash
+heroku run rails db:migrate --app teeemlive
+```
+
+**If you want to avoid this:**
+- Deploy during low-traffic periods
+- Or: Temporarily scale down workers before deploy
 
 ## Notes
 

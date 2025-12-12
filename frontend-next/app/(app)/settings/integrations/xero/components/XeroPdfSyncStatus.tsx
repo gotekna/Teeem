@@ -160,6 +160,7 @@ interface PdfSyncStatus {
 export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
   const [data, setData] = React.useState<PdfSyncStatus | null>(null);
   const [rateLimits, setRateLimits] = React.useState<RateLimitsData | null>(null);
+  const [health, setHealth] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [rateLimitsLoading, setRateLimitsLoading] = React.useState(false);
@@ -169,12 +170,20 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
       const url = tenantId
         ? `/api/v1/xero/pdf_sync_status?tenant_id=${tenantId}`
         : "/api/v1/xero/pdf_sync_status";
-      const response = await api.get<{ success: boolean; data: PdfSyncStatus }>(url);
-      if (response.success) {
-        setData(response.data);
+      const [statusResponse, healthResponse] = await Promise.all([
+        api.get<{ success: boolean; data: PdfSyncStatus }>(url),
+        api.get<{ success: boolean; data: any }>("/api/v1/xero/sync_health")
+      ]);
+
+      if (statusResponse.success) {
+        setData(statusResponse.data);
         setError(null);
       } else {
         setError("Failed to load PDF sync status");
+      }
+
+      if (healthResponse.success) {
+        setHealth(healthResponse.data);
       }
     } catch (err) {
       console.error("Failed to fetch PDF sync status:", err);
