@@ -293,10 +293,14 @@ class PricebookImageFetcherService
 
       # Calculate padding needed
       if width < max_dimension || height < max_dimension
-        # Extent creates a canvas of the specified size and centers the image
-        image.gravity "center"
+        # Set background color and gravity, then extend canvas to center the image
         image.background "white"
-        image.extent "#{max_dimension}x#{max_dimension}"
+
+        # Use combine_options to ensure gravity is applied correctly
+        image.combine_options do |c|
+          c.gravity "center"
+          c.extent "#{max_dimension}x#{max_dimension}"
+        end
 
         Rails.logger.info "[ImageFetcher] Padded to square: #{max_dimension}x#{max_dimension}"
       end
