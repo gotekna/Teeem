@@ -716,7 +716,7 @@ export default function PurchaseOrderDetailPage() {
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? (
                   <>
-                    <Spinner2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner className="h-4 w-4 mr-2 animate-spin" />
                     Saving...
                   </>
                 ) : (

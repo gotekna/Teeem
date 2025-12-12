@@ -15,10 +15,11 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 /**
  * Health check item from the API
@@ -223,69 +224,75 @@ export function DataHealthWidget({
   return (
     <div className="bg-background border rounded-lg overflow-hidden max-h-[40vh] overflow-y-auto flex-shrink-0">
       {/* Header */}
-      <Collapsible open={expanded} onOpenChange={setExpanded}>
-        <div className="px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors">
-          <CollapsibleTrigger showIcon={false} className="flex items-center gap-3 flex-1 cursor-pointer">
-            <div
-              className={cn(
-                "flex items-center justify-center w-10 h-10 rounded-lg",
-                overallColor === "green" && "bg-green-100 dark:bg-green-900/30",
-                overallColor === "orange" && "bg-orange-100 dark:bg-orange-900/30",
-                overallColor === "red" && "bg-red-100 dark:bg-red-900/30"
-              )}
-            >
-              {overallColor === "green" ? (
-                <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
-              ) : (
-                <AlertTriangle
+      <Accordion
+        type="single"
+        collapsible
+        value={expanded ? "health" : ""}
+        onValueChange={(v) => setExpanded(v === "health")}
+      >
+        <AccordionItem value="health" className="border-none">
+          <div className="px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors">
+            <AccordionTrigger className="flex items-center gap-3 flex-1 cursor-pointer p-0 hover:no-underline [&>svg]:hidden">
+              <div
+                className={cn(
+                  "flex items-center justify-center w-10 h-10 rounded-lg",
+                  overallColor === "green" && "bg-green-100 dark:bg-green-900/30",
+                  overallColor === "orange" && "bg-orange-100 dark:bg-orange-900/30",
+                  overallColor === "red" && "bg-red-100 dark:bg-red-900/30"
+                )}
+              >
+                {overallColor === "green" ? (
+                  <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+                ) : (
+                  <AlertTriangle
+                    className={cn(
+                      "h-6 w-6",
+                      overallColor === "orange" && "text-orange-600 dark:text-orange-400",
+                      overallColor === "red" && "text-red-600 dark:text-red-400"
+                    )}
+                  />
+                )}
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">Data Health</h3>
+                <p className="text-xs text-muted-foreground">
+                  {allChecks.length} health check{allChecks.length !== 1 ? 's' : ''} • {healthData.total_issues} issue{healthData.total_issues !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 ml-auto">
+                <span
                   className={cn(
-                    "h-6 w-6",
+                    "text-2xl font-bold",
+                    overallColor === "green" && "text-green-600 dark:text-green-400",
                     overallColor === "orange" && "text-orange-600 dark:text-orange-400",
                     overallColor === "red" && "text-red-600 dark:text-red-400"
                   )}
-                />
-              )}
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold">Data Health</h3>
-              <p className="text-xs text-muted-foreground">
-                {allChecks.length} health check{allChecks.length !== 1 ? 's' : ''} • {healthData.total_issues} issue{healthData.total_issues !== 1 ? 's' : ''}
-              </p>
-            </div>
-            <div className="flex items-center gap-3 ml-auto">
-              <span
-                className={cn(
-                  "text-2xl font-bold",
-                  overallColor === "green" && "text-green-600 dark:text-green-400",
-                  overallColor === "orange" && "text-orange-600 dark:text-orange-400",
-                  overallColor === "red" && "text-red-600 dark:text-red-400"
+                >
+                  {healthData.overall_health}%
+                </span>
+                {expanded ? (
+                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
                 )}
-              >
-                {healthData.overall_health}%
-              </span>
-              {expanded ? (
-                <ChevronDown className="h-5 w-5 text-muted-foreground" />
-              ) : (
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-              )}
-            </div>
-          </CollapsibleTrigger>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 ml-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              loadHealthData(true); // Force refresh with fresh health check
-            }}
-            title="Refresh"
-          >
-            <RefreshCw className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </div>
+              </div>
+            </AccordionTrigger>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 ml-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                loadHealthData(true); // Force refresh with fresh health check
+              }}
+              title="Refresh"
+            >
+              <RefreshCw className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </div>
 
-        {/* Expanded Details */}
-        <CollapsibleContent>
+          {/* Expanded Details */}
+          <AccordionContent>
           <div className="border-t divide-y">
             {allChecks.map((check) => {
               const color = check.count > 0 ? getSeverityColor(check.severity) : "green";
@@ -439,8 +446,9 @@ export function DataHealthWidget({
               </Link>
             </div>
           </div>
-        </CollapsibleContent>
-      </Collapsible>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

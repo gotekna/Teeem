@@ -32,10 +32,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Sheet,
   SheetContent,
@@ -1220,18 +1221,24 @@ export function ViewManagerSheet({
                       <ScrollArea className="w-[400px] shrink-0 p-4 border-r">
                         <div className="space-y-4">
                           {/* View Filter Section */}
-                          <Collapsible open={filtersExpanded} onOpenChange={setFiltersExpanded}>
-                          <CollapsibleTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary">
-                            {filtersExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            <Filter className="h-4 w-4" />
-                            View Filter
-                            {editFilters.length > 0 && (
-                              <Badge variant="secondary" className="ml-2">
-                                {editFilters.length} active
-                              </Badge>
-                            )}
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="pt-3">
+                          <Accordion
+                            type="single"
+                            collapsible
+                            value={filtersExpanded ? "filters" : ""}
+                            onValueChange={(v) => setFiltersExpanded(v === "filters")}
+                          >
+                            <AccordionItem value="filters" className="border-none">
+                              <AccordionTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary p-0 hover:no-underline [&>svg]:hidden">
+                                {filtersExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                <Filter className="h-4 w-4" />
+                                View Filter
+                                {editFilters.length > 0 && (
+                                  <Badge variant="secondary" className="ml-2">
+                                    {editFilters.length} active
+                                  </Badge>
+                                )}
+                              </AccordionTrigger>
+                              <AccordionContent className="pt-3">
                             <Card>
                               <CardContent className="p-4">
                                 {/* Filter Groups Controls */}
@@ -1400,24 +1407,31 @@ export function ViewManagerSheet({
                                 </div>
                               </CardContent>
                             </Card>
-                          </CollapsibleContent>
-                        </Collapsible>
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
 
                         <Separator />
 
                         {/* Sort By Section */}
-                        <Collapsible open={sortExpanded} onOpenChange={setSortExpanded}>
-                          <CollapsibleTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary">
-                            {sortExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            <ArrowUpDown className="h-4 w-4" />
-                            Sort By
-                            {editSortColumns.length > 0 && (
-                              <Badge variant="secondary" className="ml-2">
-                                {editSortColumns.length} column{editSortColumns.length !== 1 ? "s" : ""}
-                              </Badge>
-                            )}
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="pt-3">
+                        <Accordion
+                          type="single"
+                          collapsible
+                          value={sortExpanded ? "sort" : ""}
+                          onValueChange={(v) => setSortExpanded(v === "sort")}
+                        >
+                          <AccordionItem value="sort" className="border-none">
+                            <AccordionTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary p-0 hover:no-underline [&>svg]:hidden">
+                              {sortExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <ArrowUpDown className="h-4 w-4" />
+                              Sort By
+                              {editSortColumns.length > 0 && (
+                                <Badge variant="secondary" className="ml-2">
+                                  {editSortColumns.length} column{editSortColumns.length !== 1 ? "s" : ""}
+                                </Badge>
+                              )}
+                            </AccordionTrigger>
+                            <AccordionContent className="pt-3">
                             <Card>
                               <CardContent className="p-4">
                                 <DndContext
@@ -1458,24 +1472,31 @@ export function ViewManagerSheet({
                                 </Button>
                               </CardContent>
                             </Card>
-                          </CollapsibleContent>
-                        </Collapsible>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
 
                         <Separator />
 
                         {/* Group By Section */}
-                        <Collapsible open={groupByExpanded} onOpenChange={setGroupByExpanded}>
-                          <CollapsibleTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary">
-                            {groupByExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            <Columns3 className="h-4 w-4" />
-                            Group By
-                            {editGroupByColumns.length > 0 && (
+                        <Accordion
+                          type="single"
+                          collapsible
+                          value={groupByExpanded ? "groupBy" : ""}
+                          onValueChange={(v) => setGroupByExpanded(v === "groupBy")}
+                        >
+                          <AccordionItem value="groupBy" className="border-none">
+                            <AccordionTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary p-0 hover:no-underline [&>svg]:hidden">
+                              {groupByExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <Columns3 className="h-4 w-4" />
+                              Group By
+                              {editGroupByColumns.length > 0 && (
                               <Badge variant="secondary" className="ml-2">
                                 {editGroupByColumns.length} column{editGroupByColumns.length !== 1 ? "s" : ""}
                               </Badge>
                             )}
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="pt-3">
+                            </AccordionTrigger>
+                            <AccordionContent className="pt-3">
                             <Card>
                               <CardContent className="p-4">
                                 <DndContext
@@ -1530,23 +1551,31 @@ export function ViewManagerSheet({
                                 </Button>
                               </CardContent>
                             </Card>
-                          </CollapsibleContent>
-                        </Collapsible>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
 
                         </div>
                       </ScrollArea>
 
-                      {/* Right Side - Columns (Collapsible) */}
-                      <Collapsible open={columnsExpanded} onOpenChange={setColumnsExpanded} className={cn("flex flex-col p-4 overflow-hidden border-l transition-all", columnsExpanded ? "flex-1 min-w-0" : "w-auto")}>
+                      {/* Right Side - Columns */}
+                      <Accordion
+                        type="single"
+                        collapsible
+                        value={columnsExpanded ? "columns" : ""}
+                        onValueChange={(v) => setColumnsExpanded(v === "columns")}
+                        className={cn("flex flex-col p-4 overflow-hidden border-l transition-all", columnsExpanded ? "flex-1 min-w-0" : "w-auto")}
+                      >
+                        <AccordionItem value="columns" className="border-none flex flex-col flex-1">
                         <div className="flex items-center justify-between mb-3 -mx-2 px-2 py-1 shrink-0">
-                          <CollapsibleTrigger showIcon={false} className="flex items-center gap-2 font-semibold text-sm cursor-pointer hover:bg-muted/50 px-2 py-1 rounded">
+                          <AccordionTrigger className="flex items-center gap-2 font-semibold text-sm cursor-pointer hover:bg-muted/50 px-2 py-1 rounded p-0 hover:no-underline [&>svg]:hidden">
                             {columnsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             <Eye className="h-4 w-4" />
                             Columns
                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                               {Object.values(editVisibleColumns).filter(Boolean).length}
                             </Badge>
-                          </CollapsibleTrigger>
+                          </AccordionTrigger>
                           {columnsExpanded && (
                             <div className="flex items-center gap-4">
                               <div className="flex items-center gap-2">
@@ -1600,7 +1629,7 @@ export function ViewManagerSheet({
                             )}
                           </div>
                         )}
-                        <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto -mx-4 px-4">
+                        <AccordionContent className="flex-1 min-h-0 overflow-y-auto -mx-4 px-4">
                             <DndContext
                               sensors={sensors}
                               collisionDetection={closestCenter}
@@ -1710,8 +1739,9 @@ export function ViewManagerSheet({
                                 </div>
                               </SortableContext>
                             </DndContext>
-                        </CollapsibleContent>
-                      </Collapsible>
+                        </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     </div>
                   </>
                 ) : (

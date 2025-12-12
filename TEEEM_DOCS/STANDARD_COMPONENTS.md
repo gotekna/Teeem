@@ -15,7 +15,7 @@
 | Data Table | `TeeemTableView` | `data-table.tsx` |
 | Simple Dropdown | `Select` | - |
 | Searchable Select | `ComboboxDropdown` | `combobox.tsx` |
-| Multi-Select | `MultipleSelector` | `multi-select-combobox.tsx` |
+| Multi-Select | `MultiSelectCombobox` | `multiple-selector.tsx` |
 | Loading Spinner | `Spinner` | `loader.tsx` |
 | Side Panel | `Sheet` | `drawer.tsx` |
 | Modal Dialog | `Dialog` | - |
@@ -76,37 +76,28 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown"
 
 **Deprecated:** `combobox.tsx` - Use `combobox-dropdown.tsx` instead
 
-### 1.3 MultipleSelector (Multi-Select) - THE ONE
+### 1.3 MultiSelectCombobox (Multi-Select) - THE ONE
 
-**File:** `frontend-next/components/ui/multiple-selector.tsx` (624 lines)
+**File:** `frontend-next/components/ui/multi-select-combobox.tsx` (192 lines)
 
 **Use When:**
 - Multiple values can be selected
 - Tags/chips display for selections
-- Async loading support needed
 - Search within options
-
-**Features:**
-- Creatable options
-- Async data loading
-- Group support
-- Max items limit
-- Custom rendering
 
 **Example:**
 ```tsx
-import MultipleSelector from "@/components/ui/multiple-selector"
+import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox"
 
-<MultipleSelector
-  value={selectedTags}
-  onChange={setSelectedTags}
-  options={tags.map(t => ({ value: t.id, label: t.name }))}
-  placeholder="Select tags..."
-  creatable
+<MultiSelectCombobox
+  options={[{ value: "1", label: "Item 1" }, { value: "2", label: "Item 2" }]}
+  selected={selectedValues}
+  onChange={setSelectedValues}
+  placeholder="Select items..."
 />
 ```
 
-**Deprecated:** `multi-select-combobox.tsx` - Use `multiple-selector.tsx` instead
+**Deprecated:** `multiple-selector.tsx` - Overly complex for most use cases
 
 ---
 
@@ -470,11 +461,11 @@ These are TEEEM-specific components for business features:
 | Deprecated | Replace With | Reason |
 |------------|--------------|--------|
 | `combobox.tsx` | `combobox-dropdown.tsx` | Older, less features |
-| `multi-select-combobox.tsx` | `multiple-selector.tsx` | Less features, no async |
+| `multiple-selector.tsx` | `multi-select-combobox.tsx` | Overly complex for most cases |
 | `loader.tsx` | `spinner.tsx` | Redundant |
 | `data-table.tsx` | `TeeemTableView` | Not TEEEM integrated |
 | `drawer.tsx` | `sheet.tsx` | Redundant functionality |
-| `collapsible.tsx` | `accordion.tsx` | Less features |
+| `collapsible.tsx` | `accordion.tsx` | Less features, deprecated |
 
 ---
 

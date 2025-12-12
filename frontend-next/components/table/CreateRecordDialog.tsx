@@ -36,10 +36,11 @@ import { Loader2, Plus, Settings, Eye, EyeOff, GripVertical } from "lucide-react
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import type { TableColumn } from "./types";
 
 interface CreateRecordDialogProps {
@@ -542,24 +543,31 @@ export function CreateRecordDialog({
           ))}
         </div>
 
-        {/* Hidden Fields - Collapsible */}
+        {/* Hidden Fields - Accordion */}
         {getSortedColumns().filter((col) => !visibleFields.has(col.key)).length > 0 && (
-          <Collapsible open={showMoreFields} onOpenChange={setShowMoreFields}>
-            <CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
-              {showMoreFields ? "Hide" : "Show"} Hidden Fields ({getSortedColumns().filter((col) => !visibleFields.has(col.key)).length})
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
-                {getSortedColumns()
-                  .filter((col) => !visibleFields.has(col.key))
-                  .map((col) => (
-                  <div key={col.key}>
-                    {renderFormField(col)}
-                  </div>
-                ))}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+          <Accordion
+            type="single"
+            collapsible
+            value={showMoreFields ? "hidden-fields" : ""}
+            onValueChange={(v) => setShowMoreFields(v === "hidden-fields")}
+          >
+            <AccordionItem value="hidden-fields" className="border-none">
+              <AccordionTrigger className="text-muted-foreground hover:text-foreground py-0 hover:no-underline">
+                Hidden Fields ({getSortedColumns().filter((col) => !visibleFields.has(col.key)).length})
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
+                  {getSortedColumns()
+                    .filter((col) => !visibleFields.has(col.key))
+                    .map((col) => (
+                    <div key={col.key}>
+                      {renderFormField(col)}
+                    </div>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         )}
 
         {visibleFields.size === 0 && !showMoreFields && (

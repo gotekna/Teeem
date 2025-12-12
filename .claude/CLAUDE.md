@@ -168,6 +168,23 @@ When I say something seems impossible, that's your cue to ultrathink harder. The
 - Accessibility (ARIA labels, keyboard navigation, focus states)
 - Use config colors, not hex values (`text-indigo-600` not `text-[#4F46E5]`)
 
+## 🔴 CRITICAL: Standard Components (SSoT)
+
+**BEFORE creating any UI, use THE ONE component for each use case:**
+
+| Need | THE ONE | Never Use |
+|------|---------|-----------|
+| Data Table | `TeeemTableView` | `data-table.tsx` |
+| Searchable Select | `ComboboxDropdown` | `combobox.tsx` |
+| Multi-Select | `MultiSelectCombobox` | `multiple-selector.tsx` |
+| Simple Dropdown | `Select` | - |
+| Loading Spinner | `Spinner` | `loader.tsx` |
+| Side Panel | `Sheet` | `drawer.tsx` |
+| Modal | `Dialog` | - |
+| Collapsible | `Accordion` | `collapsible.tsx` |
+
+**Full reference:** `TEEEM_DOCS/STANDARD_COMPONENTS.md`
+
 ## 🔴 CRITICAL: Git Branch - Rob Works on Live
 
 **Rob works directly on the `Live` branch.** No feature branches needed for Rob.

@@ -1,5 +1,19 @@
 "use client";
 
+/**
+ * @deprecated Use Accordion component instead.
+ *
+ * Migration guide:
+ * - <Collapsible open={x} onOpenChange={setX}> → <Accordion type="single" collapsible value={x ? "item" : ""} onValueChange={(v) => setX(v === "item")}>
+ * - <CollapsibleTrigger> → <AccordionTrigger>
+ * - <CollapsibleContent> → <AccordionContent>
+ * - Wrap content in <AccordionItem value="item">
+ * - Add className="border-none" to AccordionItem to remove default borders
+ * - Add className="hover:no-underline [&>svg]:hidden" to AccordionTrigger to hide built-in chevron
+ *
+ * See: TEEEM_DOCS/STANDARD_COMPONENTS.md
+ */
+
 import * as CollapsiblePrimitive from "@radix-ui/react-collapsible";
 import { ChevronDown } from "lucide-react";
 import * as React from "react";

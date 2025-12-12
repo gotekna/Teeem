@@ -63,6 +63,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
+import { ContactHeader } from "./components/ContactHeader";
 import {
   Select,
   SelectContent,
@@ -2568,64 +2569,13 @@ export default function ContactDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
-          <Button variant="ghost" onClick={() => router.back()}>
-            <ArrowLeft className="h-5 w-5 mr-2" />
-            Contacts
-          </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight font-serif">
-                {contact.display_name || contact.display_name}
-              </h1>
-              {contact["is_supplier?"] && (
-                <Badge className="bg-purple-100 text-purple-700">Supplier</Badge>
-              )}
-              {contact["is_customer?"] && (
-                <Badge className="bg-blue-100 text-blue-700">Customer</Badge>
-              )}
-              {contact.is_family_member && (
-                <Badge className="bg-green-100 text-green-700">Family</Badge>
-              )}
-              {contact.xero_contact_id && (
-                <Badge variant="outline" className="gap-1">
-                  <ShieldCheck className="h-3 w-3" />
-                  Xero Linked
-                </Badge>
-              )}
-            </div>
-            {contact.company_name && (
-              <p className="text-sm text-muted-foreground mt-1">
-                {contact.position && `${contact.position} at `}{contact.company_name}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={handleEnrichFromWeb}
-            disabled={enrichingFromWeb || (!contact?.email && !contact?.website)}
-          >
-            {enrichingFromWeb ? (
-              <>
-                <Spinner2 className="h-4 w-4 mr-2 animate-spin" />
-                Enriching...
-              </>
-            ) : (
-              <>
-                <Globe className="h-4 w-4 mr-2" />
-                Get Info from Web
-              </>
-            )}
-          </Button>
-          <Button variant="destructive" onClick={handleDelete}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </Button>
-        </div>
-      </div>
+      <ContactHeader
+        contact={contact}
+        onBack={() => router.back()}
+        onDelete={handleDelete}
+        onEnrichFromWeb={handleEnrichFromWeb}
+        enrichingFromWeb={enrichingFromWeb}
+      />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
@@ -2708,7 +2658,7 @@ export default function ContactDetailPage() {
                     </CardTitle>
                     {hasChanges && (
                       <Button onClick={handleSave} disabled={saving} size="sm">
-                        {saving ? <Spinner2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                        {saving ? <Spinner className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                         Save
                       </Button>
                     )}
@@ -2834,7 +2784,7 @@ export default function ContactDetailPage() {
                                   disabled={creatingCompany || !newCompanyName.trim()}
                                 >
                                   {creatingCompany ? (
-                                    <Spinner2 className="h-3 w-3 mr-1 animate-spin" />
+                                    <Spinner className="h-3 w-3 mr-1 animate-spin" />
                                   ) : (
                                     <Plus className="h-3 w-3 mr-1" />
                                   )}
@@ -2936,7 +2886,7 @@ export default function ContactDetailPage() {
                                   disabled={creatingEmployee || !newEmployeeFirstName.trim()}
                                 >
                                   {creatingEmployee ? (
-                                    <Spinner2 className="h-3 w-3 mr-1 animate-spin" />
+                                    <Spinner className="h-3 w-3 mr-1 animate-spin" />
                                   ) : (
                                     <Plus className="h-3 w-3 mr-1" />
                                   )}
@@ -3808,7 +3758,7 @@ export default function ContactDetailPage() {
                 <Card className="border-primary/50 bg-primary/5">
                   <CardContent className="pt-6">
                     <Button onClick={handleSave} disabled={saving} className="w-full">
-                      {saving ? <Spinner2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                      {saving ? <Spinner className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                       Save Changes
                     </Button>
                   </CardContent>
@@ -4799,7 +4749,7 @@ export default function ContactDetailPage() {
             <CardContent>
               {loadingCaseRelationships ? (
                 <div className="flex items-center justify-center py-8">
-                  <Spinner2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Spinner className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : caseRelationships && caseRelationships.length > 0 ? (
                 <div className="space-y-4">
@@ -5176,7 +5126,7 @@ export default function ContactDetailPage() {
 
             {loadingDirectorships && (
               <div className="flex items-center justify-center py-8">
-                <Spinner2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <Spinner className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             )}
 

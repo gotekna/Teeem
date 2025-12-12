@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   ArrowLeft,
   Mail,
@@ -200,43 +201,49 @@ export default function MicrosoftIntegrationPage() {
         </div>
       </div>
 
-      {/* Main Status Card - Collapsible */}
-      <Collapsible open={mainOpen} onOpenChange={setMainOpen}>
-        <Card>
-          <CollapsibleTrigger className="w-full text-left">
-            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <Mail className="h-6 w-6 text-blue-600" />
+      {/* Main Status Card - Accordion */}
+      <Accordion
+        type="single"
+        collapsible
+        value={mainOpen ? "main" : ""}
+        onValueChange={(v) => setMainOpen(v === "main")}
+      >
+        <AccordionItem value="main" className="border-none">
+          <Card>
+            <AccordionTrigger className="w-full text-left p-0 hover:no-underline [&>svg]:hidden">
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors w-full">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-blue-100 rounded-lg">
+                      <Mail className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <CardTitle>Microsoft 365</CardTitle>
+                      <CardDescription>Outlook, SharePoint, Calendar</CardDescription>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle>Microsoft 365</CardTitle>
-                    <CardDescription>Outlook, SharePoint, Calendar</CardDescription>
+                  <div className="flex items-center gap-2">
+                    {status?.connected ? (
+                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Connected
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Not Connected
+                      </Badge>
+                    )}
+                    <ChevronDown
+                      className={`h-5 w-5 text-muted-foreground transition-transform ${
+                        mainOpen ? "rotate-180" : ""
+                      }`}
+                    />
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {status?.connected ? (
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Connected
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary">
-                      <XCircle className="h-3 w-3 mr-1" />
-                      Not Connected
-                    </Badge>
-                  )}
-                  <ChevronDown
-                    className={`h-5 w-5 text-muted-foreground transition-transform ${
-                      mainOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
+              </CardHeader>
+            </AccordionTrigger>
+            <AccordionContent>
             <CardContent className="space-y-6 pt-0">
               {status?.connected ? (
                 <>
@@ -296,95 +303,109 @@ export default function MicrosoftIntegrationPage() {
                 </>
               )}
             </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-
-      {/* Connected Services - Collapsible */}
-      {connections && (
-        <Collapsible open={servicesOpen} onOpenChange={setServicesOpen}>
-          <Card>
-            <CollapsibleTrigger className="w-full text-left">
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <CardTitle className="text-lg">Connected Services</CardTitle>
-                    <Badge variant="secondary" className="text-xs">
-                      {connectedCount}/4
-                    </Badge>
-                  </div>
-                  <ChevronDown
-                    className={`h-5 w-5 text-muted-foreground transition-transform ${
-                      servicesOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </div>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="pt-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* SharePoint Card */}
-                  <ConnectionCard
-                    connection={connections.sharepoint}
-                    icon={<Cloud className="h-5 w-5 text-blue-600" />}
-                    iconBg="bg-blue-100"
-                  />
-
-                  {/* OneDrive Card */}
-                  <ConnectionCard
-                    connection={connections.onedrive}
-                    icon={<FolderOpen className="h-5 w-5 text-green-600" />}
-                    iconBg="bg-green-100"
-                  />
-
-                  {/* Email Card */}
-                  <ConnectionCard
-                    connection={connections.email}
-                    icon={<Mail className="h-5 w-5 text-purple-600" />}
-                    iconBg="bg-purple-100"
-                  />
-
-                  {/* Calendar Card */}
-                  <ConnectionCard
-                    connection={connections.calendar}
-                    icon={<Calendar className="h-5 w-5 text-orange-600" />}
-                    iconBg="bg-orange-100"
-                  />
-                </div>
-              </CardContent>
-            </CollapsibleContent>
+            </AccordionContent>
           </Card>
-        </Collapsible>
+        </AccordionItem>
+      </Accordion>
+
+      {/* Connected Services - Accordion */}
+      {connections && (
+        <Accordion
+          type="single"
+          collapsible
+          value={servicesOpen ? "services" : ""}
+          onValueChange={(v) => setServicesOpen(v === "services")}
+        >
+          <AccordionItem value="services" className="border-none">
+            <Card>
+              <AccordionTrigger className="w-full text-left p-0 hover:no-underline [&>svg]:hidden">
+                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4 w-full">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <CardTitle className="text-lg">Connected Services</CardTitle>
+                      <Badge variant="secondary" className="text-xs">
+                        {connectedCount}/4
+                      </Badge>
+                    </div>
+                    <ChevronDown
+                      className={`h-5 w-5 text-muted-foreground transition-transform ${
+                        servicesOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </div>
+                </CardHeader>
+              </AccordionTrigger>
+              <AccordionContent>
+                <CardContent className="pt-0">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* SharePoint Card */}
+                    <ConnectionCard
+                      connection={connections.sharepoint}
+                      icon={<Cloud className="h-5 w-5 text-blue-600" />}
+                      iconBg="bg-blue-100"
+                    />
+
+                    {/* OneDrive Card */}
+                    <ConnectionCard
+                      connection={connections.onedrive}
+                      icon={<FolderOpen className="h-5 w-5 text-green-600" />}
+                      iconBg="bg-green-100"
+                    />
+
+                    {/* Email Card */}
+                    <ConnectionCard
+                      connection={connections.email}
+                      icon={<Mail className="h-5 w-5 text-purple-600" />}
+                      iconBg="bg-purple-100"
+                    />
+
+                    {/* Calendar Card */}
+                    <ConnectionCard
+                      connection={connections.calendar}
+                      icon={<Calendar className="h-5 w-5 text-orange-600" />}
+                      iconBg="bg-orange-100"
+                    />
+                  </div>
+                </CardContent>
+              </AccordionContent>
+            </Card>
+          </AccordionItem>
+        </Accordion>
       )}
 
-      {/* My Data - Collapsible */}
+      {/* My Data - Accordion */}
       {status?.connected && myDataStats && (
-        <Collapsible open={myDataOpen} onOpenChange={setMyDataOpen}>
-          <Card>
-            <CollapsibleTrigger className="w-full text-left">
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-100 rounded-lg">
-                      <Database className="h-5 w-5 text-purple-600" />
+        <Accordion
+          type="single"
+          collapsible
+          value={myDataOpen ? "myData" : ""}
+          onValueChange={(v) => setMyDataOpen(v === "myData")}
+        >
+          <AccordionItem value="myData" className="border-none">
+            <Card>
+              <AccordionTrigger className="w-full text-left p-0 hover:no-underline [&>svg]:hidden">
+                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4 w-full">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <Database className="h-5 w-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">My Data</CardTitle>
+                        <CardDescription className="text-xs">
+                          Your personal sync activity
+                        </CardDescription>
+                      </div>
                     </div>
-                    <div>
-                      <CardTitle className="text-lg">My Data</CardTitle>
-                      <CardDescription className="text-xs">
-                        Your personal sync activity
-                      </CardDescription>
-                    </div>
+                    <ChevronDown
+                      className={`h-5 w-5 text-muted-foreground transition-transform ${
+                        myDataOpen ? "rotate-180" : ""
+                      }`}
+                    />
                   </div>
-                  <ChevronDown
-                    className={`h-5 w-5 text-muted-foreground transition-transform ${
-                      myDataOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </div>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
+                </CardHeader>
+              </AccordionTrigger>
+              <AccordionContent>
               <CardContent className="pt-0">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Email Stats */}
@@ -487,9 +508,10 @@ export default function MicrosoftIntegrationPage() {
                   </div>
                 </div>
               </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+              </AccordionContent>
+            </Card>
+          </AccordionItem>
+        </Accordion>
       )}
 
       {/* Email Rules Section */}
@@ -661,31 +683,37 @@ function EmailRulesSection() {
   const rules = rulesData.rules;
 
   return (
-    <Collapsible open={rulesOpen} onOpenChange={setRulesOpen}>
-      <Card>
-        <CollapsibleTrigger className="w-full text-left">
-          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-100 rounded-lg">
-                  <Filter className="h-5 w-5 text-indigo-600" />
+    <Accordion
+      type="single"
+      collapsible
+      value={rulesOpen ? "rules" : ""}
+      onValueChange={(v) => setRulesOpen(v === "rules")}
+    >
+      <AccordionItem value="rules" className="border-none">
+        <Card>
+          <AccordionTrigger className="w-full text-left p-0 hover:no-underline [&>svg]:hidden">
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4 w-full">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-100 rounded-lg">
+                    <Filter className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Email Rules & Classification</CardTitle>
+                    <CardDescription className="text-xs">
+                      How your emails are categorized and cleaned up
+                    </CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle className="text-lg">Email Rules & Classification</CardTitle>
-                  <CardDescription className="text-xs">
-                    How your emails are categorized and cleaned up
-                  </CardDescription>
-                </div>
+                <ChevronDown
+                  className={`h-5 w-5 text-muted-foreground transition-transform ${
+                    rulesOpen ? "rotate-180" : ""
+                  }`}
+                />
               </div>
-              <ChevronDown
-                className={`h-5 w-5 text-muted-foreground transition-transform ${
-                  rulesOpen ? "rotate-180" : ""
-                }`}
-              />
-            </div>
-          </CardHeader>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
+            </CardHeader>
+          </AccordionTrigger>
+          <AccordionContent>
           <CardContent className="pt-0 space-y-6">
             {/* Your Email Stats */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -851,9 +879,10 @@ function EmailRulesSection() {
               </Alert>
             )}
           </CardContent>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
+          </AccordionContent>
+        </Card>
+      </AccordionItem>
+    </Accordion>
   );
 }
 
@@ -1236,43 +1265,49 @@ function OrganizationCard({
   };
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <Card className={org.status === "connected" ? "border-green-200 bg-green-50/30" : org.status === "error" ? "border-red-200 bg-red-50/30" : "border-yellow-200 bg-yellow-50/30"}>
-        <CollapsibleTrigger className="w-full text-left">
-          <CardHeader className="cursor-pointer hover:bg-opacity-50 transition-colors py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${org.status === "connected" ? "bg-green-100" : org.status === "error" ? "bg-red-100" : "bg-yellow-100"}`}>
-                  <Shield className={`h-5 w-5 ${org.status === "connected" ? "text-green-600" : org.status === "error" ? "text-red-600" : "text-yellow-600"}`} />
+    <Accordion
+      type="single"
+      collapsible
+      value={open ? "org" : ""}
+      onValueChange={(v) => setOpen(v === "org")}
+    >
+      <AccordionItem value="org" className="border-none">
+        <Card className={org.status === "connected" ? "border-green-200 bg-green-50/30" : org.status === "error" ? "border-red-200 bg-red-50/30" : "border-yellow-200 bg-yellow-50/30"}>
+          <AccordionTrigger className="w-full text-left p-0 hover:no-underline [&>svg]:hidden">
+            <CardHeader className="cursor-pointer hover:bg-opacity-50 transition-colors py-4 w-full">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${org.status === "connected" ? "bg-green-100" : org.status === "error" ? "bg-red-100" : "bg-yellow-100"}`}>
+                    <Shield className={`h-5 w-5 ${org.status === "connected" ? "text-green-600" : org.status === "error" ? "text-red-600" : "text-yellow-600"}`} />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">{org.name}</CardTitle>
+                    <CardDescription className="text-xs font-mono">{org.tenant_id}</CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle className="text-base">{org.name}</CardTitle>
-                  <CardDescription className="text-xs font-mono">{org.tenant_id}</CardDescription>
+                <div className="flex items-center gap-2">
+                  {org.status === "connected" ? (
+                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Active
+                    </Badge>
+                  ) : org.status === "pending" ? (
+                    <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Pending Consent
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Error
+                    </Badge>
+                  )}
+                  <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {org.status === "connected" ? (
-                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Active
-                  </Badge>
-                ) : org.status === "pending" ? (
-                  <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    Pending Consent
-                  </Badge>
-                ) : (
-                  <Badge variant="destructive">
-                    <XCircle className="h-3 w-3 mr-1" />
-                    Error
-                  </Badge>
-                )}
-                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
-              </div>
-            </div>
-          </CardHeader>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
+            </CardHeader>
+          </AccordionTrigger>
+          <AccordionContent>
           <CardContent className="pt-0 space-y-4">
             {error && (
               <Alert variant="destructive">
@@ -1426,8 +1461,9 @@ function OrganizationCard({
               </Alert>
             )}
           </CardContent>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
+          </AccordionContent>
+        </Card>
+      </AccordionItem>
+    </Accordion>
   );
 }

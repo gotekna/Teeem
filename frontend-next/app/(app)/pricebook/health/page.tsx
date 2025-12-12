@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Table,
   TableBody,
@@ -878,41 +879,47 @@ export default function PricebookHealthPage() {
           {/* Xero Sync Health Section */}
           {xeroSyncHealth && (
             <Card>
-              <Collapsible open={expandedSections.xeroSync} onOpenChange={() => toggleSection("xeroSync")}>
-                <CollapsibleTrigger asChild>
-                  <CardHeader className="cursor-pointer hover:bg-muted/50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <CardTitle>Xero Contact Sync Health</CardTitle>
-                        <Badge
-                          variant={
-                            xeroSyncHealth.overall_status === "healthy"
-                              ? "default"
+              <Accordion
+                type="single"
+                collapsible
+                value={expandedSections.xeroSync ? "xeroSync" : ""}
+                onValueChange={(v) => setExpandedSections(prev => ({ ...prev, xeroSync: v === "xeroSync" }))}
+              >
+                <AccordionItem value="xeroSync" className="border-none">
+                  <CardHeader className="p-0">
+                    <AccordionTrigger className="px-6 py-4 hover:bg-muted/50 hover:no-underline [&>svg]:hidden">
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-3">
+                          <CardTitle>Xero Contact Sync Health</CardTitle>
+                          <Badge
+                            variant={
+                              xeroSyncHealth.overall_status === "healthy"
+                                ? "default"
+                                : xeroSyncHealth.overall_status === "warning"
+                                ? "secondary"
+                                : xeroSyncHealth.overall_status === "error"
+                                ? "destructive"
+                                : "outline"
+                            }
+                          >
+                            {xeroSyncHealth.overall_status === "healthy"
+                              ? "Healthy"
                               : xeroSyncHealth.overall_status === "warning"
-                              ? "secondary"
+                              ? "Warning"
                               : xeroSyncHealth.overall_status === "error"
-                              ? "destructive"
-                              : "outline"
-                          }
-                        >
-                          {xeroSyncHealth.overall_status === "healthy"
-                            ? "Healthy"
-                            : xeroSyncHealth.overall_status === "warning"
-                            ? "Warning"
-                            : xeroSyncHealth.overall_status === "error"
-                            ? "Errors"
-                            : "Disabled"}
-                        </Badge>
+                              ? "Errors"
+                              : "Disabled"}
+                          </Badge>
+                        </div>
+                        {expandedSections.xeroSync ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
                       </div>
-                      {expandedSections.xeroSync ? (
-                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                      )}
-                    </div>
+                    </AccordionTrigger>
                   </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
+                  <AccordionContent>
                   <CardContent>
                     {/* Overview Stats */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -1048,33 +1055,40 @@ export default function PricebookHealthPage() {
                       </Link>
                     </div>
                   </CardContent>
-                </CollapsibleContent>
-              </Collapsible>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </Card>
           )}
 
           {/* Xero Invoice Sync Health Section */}
           {xeroInvoiceSyncHealth && (
             <Card>
-              <Collapsible open={expandedSections.xeroInvoiceSync} onOpenChange={() => toggleSection("xeroInvoiceSync")}>
-                <CollapsibleTrigger asChild>
-                  <CardHeader className="cursor-pointer hover:bg-muted/50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <CardTitle>Xero Invoice Data Warehouse</CardTitle>
-                        <Badge variant={xeroInvoiceSyncHealth.with_errors_count > 0 ? "destructive" : "default"}>
-                          {xeroInvoiceSyncHealth.with_errors_count > 0 ? "Errors" : "Healthy"}
-                        </Badge>
+              <Accordion
+                type="single"
+                collapsible
+                value={expandedSections.xeroInvoiceSync ? "xeroInvoiceSync" : ""}
+                onValueChange={(v) => setExpandedSections(prev => ({ ...prev, xeroInvoiceSync: v === "xeroInvoiceSync" }))}
+              >
+                <AccordionItem value="xeroInvoiceSync" className="border-none">
+                  <CardHeader className="p-0">
+                    <AccordionTrigger className="px-6 py-4 hover:bg-muted/50 hover:no-underline [&>svg]:hidden">
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-3">
+                          <CardTitle>Xero Invoice Data Warehouse</CardTitle>
+                          <Badge variant={xeroInvoiceSyncHealth.with_errors_count > 0 ? "destructive" : "default"}>
+                            {xeroInvoiceSyncHealth.with_errors_count > 0 ? "Errors" : "Healthy"}
+                          </Badge>
+                        </div>
+                        {expandedSections.xeroInvoiceSync ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
                       </div>
-                      {expandedSections.xeroInvoiceSync ? (
-                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                      )}
-                    </div>
+                    </AccordionTrigger>
                   </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
+                  <AccordionContent>
                   <CardContent>
                     {/* Overview Stats */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -1167,35 +1181,42 @@ export default function PricebookHealthPage() {
                       </div>
                     </div>
                   </CardContent>
-                </CollapsibleContent>
-              </Collapsible>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </Card>
           )}
 
           {/* Possible Duplicate Contacts Section */}
           <Card>
-            <Collapsible open={expandedSections.duplicateContacts} onOpenChange={() => toggleSection("duplicateContacts")}>
-              <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer hover:bg-muted/50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {expandedSections.duplicateContacts ? (
-                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                      )}
-                      <CardTitle>Possible Duplicate Contacts</CardTitle>
-                      {duplicateContacts && (
-                        <Badge variant={duplicateContacts.total_duplicate_groups > 0 ? "secondary" : "default"}>
-                          {duplicateContacts.total_duplicate_groups} groups
-                        </Badge>
-                      )}
+            <Accordion
+              type="single"
+              collapsible
+              value={expandedSections.duplicateContacts ? "duplicateContacts" : ""}
+              onValueChange={(v) => setExpandedSections(prev => ({ ...prev, duplicateContacts: v === "duplicateContacts" }))}
+            >
+              <AccordionItem value="duplicateContacts" className="border-none">
+                <CardHeader className="p-0">
+                  <AccordionTrigger className="px-6 py-4 hover:bg-muted/50 hover:no-underline [&>svg]:hidden">
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-3">
+                        {expandedSections.duplicateContacts ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <CardTitle>Possible Duplicate Contacts</CardTitle>
+                        {duplicateContacts && (
+                          <Badge variant={duplicateContacts.total_duplicate_groups > 0 ? "secondary" : "default"}>
+                            {duplicateContacts.total_duplicate_groups} groups
+                          </Badge>
+                        )}
+                      </div>
+                      {loadingDuplicates && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
                     </div>
-                    {loadingDuplicates && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
-                  </div>
+                  </AccordionTrigger>
                 </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
+                <AccordionContent>
                 <CardContent>
                   {loadingDuplicates ? (
                     <div className="flex items-center justify-center py-8">
@@ -1301,8 +1322,9 @@ export default function PricebookHealthPage() {
                     <div className="text-muted-foreground text-center py-4">Failed to load duplicate contacts data</div>
                   )}
                 </CardContent>
-              </CollapsibleContent>
-            </Collapsible>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </Card>
         </div>
       </div>

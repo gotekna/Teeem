@@ -182,6 +182,8 @@ import {
   type TeeemTableViewProps,
   type VisibleColumnsState,
   type ColumnWidthsState,
+  type GroupEntry,
+  type GroupedEntries,
   getSortDirectionLabel,
   STATUS_COLORS,
   SEVERITY_COLORS,
@@ -394,20 +396,20 @@ const FILTER_OPERATOR_LABELS: Record<string, string> = {
 interface VirtualizedGroupTableProps {
   fullKey: string;
   depth: number;
-  rows: any[];
+  rows: TableRowType[];
   selectedRows: Set<number | string>;
-  visibleColumnsInOrder: any[];
+  visibleColumnsInOrder: TableColumn[];
   columnWidths: Record<string, number>;
   rowIdToGlobalIndex: Map<number | string, number>;  // Pre-computed map for O(1) lookup
   getStickyColumnStyles: (key: string, isHeader: boolean) => React.CSSProperties;
-  isSystemGeneratedColumn: (column: any) => boolean;
+  isSystemGeneratedColumn: (column: TableColumn) => boolean;
   SYSTEM_COLUMN_BG: string;
   getToggleCallback: (id: number | string) => () => void;
   handleSelectMouseDown: (rowId: number | string, rowIndex: number, e: React.MouseEvent) => void;
   handleRowMouseEnter: (rowId: number | string, rowIndex: number) => void;
-  onRowClick?: (row: any) => void;
-  onRowDoubleClick?: (row: any) => void;
-  renderCellValue: (row: any, column: any) => React.ReactNode;
+  onRowClick?: (row: TableRowType) => void;
+  onRowDoubleClick?: (row: TableRowType) => void;
+  renderCellValue: (row: TableRowType, column: TableColumn) => React.ReactNode;
   renderTableHeader: () => React.ReactNode;
   isEditMode: boolean;
 }
@@ -1513,7 +1515,7 @@ export default function TeeemTableView({
           console.error('[Bulk Update] Errors:', response?.errors);
 
           // Check if this is an entity_type validation error
-          const hasEntityTypeErrors = response?.errors && response.errors.some((err: any) =>
+          const hasEntityTypeErrors = response?.errors && response.errors.some((err: { id: number | string; errors: string[] }) =>
             err.errors && err.errors.some((msg: string) =>
               msg.toLowerCase().includes('first name') ||
               msg.toLowerCase().includes('full name') ||
@@ -1528,7 +1530,7 @@ export default function TeeemTableView({
 
           if (response?.errors && response.errors.length > 0) {
             errorMessage += '\n\nValidation errors:\n';
-            response.errors.slice(0, 3).forEach((err: any) => {
+            response.errors.slice(0, 3).forEach((err: { id: number | string; errors: string[] }) => {
               errorMessage += `\n• Record ${err.id}: ${err.errors.join(', ')}`;
             });
             if (response.errors.length > 3) {
@@ -2207,7 +2209,7 @@ export default function TeeemTableView({
 
     if (groupedEntries) {
       const collectVisibleRows = (
-        groups: Record<string, { rows: any[]; subgroups?: any }>,
+        groups: GroupedEntries,
         parentKey: string = ""
       ) => {
         Object.entries(groups).forEach(([groupKey, group]) => {

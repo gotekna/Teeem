@@ -212,8 +212,15 @@ Frontend fetches once, uses everywhere.
 ### Phase 1: Quick Wins (This Week)
 - [x] Replace Loader → Spinner (40 files)
 - [x] Fix dark mode violations (UI components)
-- [ ] Extract `ContactHeader.tsx` from contacts page
-- [ ] Create `Syncable` concern for backend services
+- [x] Create `Syncable` concern for backend services
+- [x] Add TypeScript interfaces to TeeemTableView (remove `any` types)
+- [x] Replace deprecated combobox components (2 files)
+- [x] Collapsible → Accordion migration (10 files converted) ✅
+  - CreateRecordDialog, GoldStandardTab, document-templates, XeroSyncSection, XeroTabs
+  - ViewManagerSheet (5 usages), DataHealthWidget, microsoft/page (5 usages), pricebook/health (3 usages)
+- [x] Extract `ContactHeader.tsx` from contacts page ✅
+  - Created: `app/(app)/contacts/[id]/components/ContactHeader.tsx` (~90 lines)
+  - Page reduced by ~50 lines
 
 ### Phase 2: Tab Extraction (Next Week)
 - [ ] Extract all tabs from `contacts/[id]/page.tsx`

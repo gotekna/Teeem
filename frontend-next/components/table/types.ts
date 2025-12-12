@@ -165,6 +165,14 @@ export type VisibleColumnsState = Record<string, boolean>;
 // Column widths state
 export type ColumnWidthsState = Record<string, number>;
 
+// Grouped entries structure for multi-level grouping
+export interface GroupEntry {
+  rows: TableRow[];
+  subgroups?: Record<string, GroupEntry>;
+}
+
+export type GroupedEntries = Record<string, GroupEntry>;
+
 // Get sort direction label based on column type
 export const getSortDirectionLabel = (columnType: string | undefined, direction: "asc" | "desc"): string => {
   const numericTypes = ["number", "whole_number", "currency", "percentage", "computed"];
