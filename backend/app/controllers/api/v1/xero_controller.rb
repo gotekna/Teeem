@@ -1996,7 +1996,7 @@ module Api
                   tenant_id: tid,
                   tenant_name: cred&.tenant_name || "Unknown",
                   external_contact_id: link&.external_contact_id,
-                  external_contact_name: link&.external_contact_name,
+                  external_contact_name: link&.metadata&.dig("name") || link&.external_contact_id,
                   match_type: link&.match_type,
                   sync_enabled: link&.sync_enabled,
                   last_synced_at: link&.last_synced_at
