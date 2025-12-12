@@ -214,12 +214,28 @@ class XeroTokenManager
     end
 
     # Get health summary for all credentials
+    # IMPORTANT: Counts by ACTUAL status (token expiry), not just DB status column
     def health_summary
+      connected = 0
+      degraded = 0
+      disconnected = 0
+
+      XeroCredential.all.each do |cred|
+        if cred.status == "disconnected" || cred.poisoned?
+          disconnected += 1
+        elsif cred.status == "connected" && !cred.expired?
+          connected += 1
+        else
+          # status="connected" but expired, OR status="degraded"
+          degraded += 1
+        end
+      end
+
       {
         total: XeroCredential.count,
-        connected: XeroCredential.where(status: "connected").count,
-        degraded: XeroCredential.where(status: "degraded").count,
-        disconnected: XeroCredential.where(status: "disconnected").count,
+        connected: connected,
+        degraded: degraded,
+        disconnected: disconnected,
         circuit_open: XeroCredential.where(circuit_state: "open").count,
         expiring_soon: credentials_needing_refresh.count,
         at_risk_of_inactivity: XeroCredential.where(status: %w[connected degraded])
