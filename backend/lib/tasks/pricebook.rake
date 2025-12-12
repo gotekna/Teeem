@@ -437,4 +437,153 @@ namespace :pricebook do
 
     puts "\n" + "="*80
   end
+
+  desc "Fetch images from internet for PLUMBING FITOFF GEAR items without photos (saves to SharePoint test folder)"
+  task fetch_plumbing_fitoff_images: :environment do
+    require_relative "../../app/services/pricebook_image_fetcher_service"
+
+    puts "=" * 80
+    puts "Fetching images for PLUMBING FITOFF GEAR items without photos"
+    puts "Uses Google Images + Claude AI to find and select best product photos"
+    puts "Images will be uploaded to SharePoint: Warehousing/Photo Test"
+    puts "=" * 80
+    puts ""
+
+    # Find all PLUMBING FITOFF GEAR items without photos
+    items = PricebookItem
+            .where(category: "PLUMBING FITOFF GEAR")
+            .where(image_url: nil)
+            .order(:item_code)
+
+    total_count = items.count
+    puts "Found #{total_count} PLUMBING FITOFF GEAR items without photos"
+    puts ""
+
+    if total_count.zero?
+      puts "✓ All PLUMBING FITOFF GEAR items already have photos!"
+      next
+    end
+
+    # Check API configuration
+    puts "API Configuration:"
+    puts "  Google Search API: #{ENV['GOOGLE_SEARCH_API_KEY'].present? ? '✓ Configured' : '✗ NOT CONFIGURED (required!)'}"
+    puts "  Google CX: #{ENV['GOOGLE_CX'].present? ? '✓ Configured' : '✗ NOT CONFIGURED (required!)'}"
+    puts "  Anthropic API: #{ENV['ANTHROPIC_API_KEY'].present? ? '✓ Configured' : '✗ Not configured (optional)'}"
+    puts "  SharePoint: ✓ Configured (via Organization Microsoft App)"
+    puts ""
+
+    unless ENV['GOOGLE_SEARCH_API_KEY'].present? && ENV['GOOGLE_CX'].present?
+      puts "⚠️  WARNING: Google Search API is not configured!"
+      puts "Without Google API, no images will be found."
+      puts ""
+      puts "To configure:"
+      puts "  heroku config:set GOOGLE_SEARCH_API_KEY=your_key --app teeem-sam-dev"
+      puts "  heroku config:set GOOGLE_CX=your_cx_id --app teeem-sam-dev"
+      puts ""
+      puts "Get API key from: https://console.developers.google.com/"
+      puts "Get CX from: https://programmablesearchengine.google.com/"
+      puts ""
+      print "Continue anyway? (y/n): "
+      confirmation = STDIN.gets.chomp.downcase
+      next unless confirmation == 'y'
+    end
+
+    # Use new SharePoint-based fetcher service
+    service = PricebookImageFetcherService.new
+    results = service.fetch_images_for_items(items)
+
+    # Print summary
+    puts ""
+    puts "=" * 80
+    puts "SUMMARY"
+    puts "=" * 80
+    puts "Total items:     #{results[:total]}"
+    puts "✓ Success:       #{results[:success]}"
+    puts "✗ Failed:        #{results[:failed]}"
+    puts ""
+
+    if results[:test_folder_url]
+      puts "📁 Test images uploaded to:"
+      puts "   #{results[:test_folder_url]}"
+      puts ""
+    end
+
+    if results[:errors].any?
+      puts "ERRORS (first 20):"
+      results[:errors].first(20).each do |error|
+        puts "  #{error[:item_code]}: #{error[:error]}"
+      end
+      if results[:errors].length > 20
+        puts "  ... and #{results[:errors].length - 20} more errors"
+      end
+    end
+
+    puts "=" * 80
+  end
+
+  desc "Fetch images from internet for all pricebook items without photos (batch mode)"
+  task fetch_missing_images: :environment do
+    puts "=" * 80
+    puts "Fetching images for all pricebook items without photos"
+    puts "Uses Google Images + Claude AI to find and select best product photos"
+    puts "=" * 80
+    puts ""
+
+    # Find all items without photos
+    items = PricebookItem
+            .where(image_url: nil)
+            .where("image_fetch_status IS NULL OR image_fetch_status != ?", "fetching")
+            .order(:category, :item_code)
+
+    total_count = items.count
+    puts "Found #{total_count} pricebook items without photos"
+    puts ""
+
+    if total_count.zero?
+      puts "✓ All pricebook items already have photos!"
+      next
+    end
+
+    # Show breakdown by category
+    by_category = items.group(:category).count
+    puts "Breakdown by category:"
+    by_category.sort_by { |_, count| -count }.each do |category, count|
+      puts "  #{category}: #{count} items"
+    end
+    puts ""
+
+    # Check API configuration
+    puts "API Configuration:"
+    puts "  Google Search API: #{ENV['GOOGLE_SEARCH_API_KEY'].present? ? '✓ Configured' : '✗ Not configured (will use fallback)'}"
+    puts "  Anthropic API: #{ENV['ANTHROPIC_API_KEY'].present? ? '✓ Configured' : '✗ Not configured (will use fallback)'}"
+    puts ""
+
+    # Process using existing batch method
+    puts "Processing #{total_count} items..."
+    puts ""
+
+    results = ProductImageScraper.fetch_images_for_all_items(limit: total_count)
+
+    # Print summary
+    puts ""
+    puts "=" * 80
+    puts "SUMMARY"
+    puts "=" * 80
+    puts "Total items:     #{results[:total]}"
+    puts "✓ Success:       #{results[:success]}"
+    puts "✗ Failed:        #{results[:failed]}"
+    puts ""
+
+    if results[:errors].any?
+      puts "ERRORS (first 20):"
+      results[:errors].first(20).each do |error|
+        puts "  #{error[:item_name]}: #{error[:error]}"
+      end
+      if results[:errors].length > 20
+        puts "  ... and #{results[:errors].length - 20} more errors"
+      end
+    end
+
+    puts "=" * 80
+  end
 end

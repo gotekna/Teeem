@@ -6,6 +6,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster } from "@/components/ui/toaster";
+import { DynamicTitle } from "@/components/dynamic-title";
 
 const hedvigSerif = Hedvig_Letters_Serif({
   weight: "400",
@@ -40,6 +41,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
+            <DynamicTitle />
             {children}
             <Toaster />
           </AuthProvider>

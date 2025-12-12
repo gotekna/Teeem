@@ -251,7 +251,7 @@ export default function JobsPage() {
       (j) => j.stage === "Slab" || j.stage === "Frame" || j.stage === "Lockup"
     ).length;
     const completed = jobs.filter((j) => j.stage === "Completion").length;
-    const totalValue = jobs.reduce((sum, j) => sum + (j.contract_value || 0), 0);
+    const totalValue = jobs.reduce((sum, j) => sum + (Number(j.contract_value) || 0), 0);
 
     return { total: jobs.length, inProgress, completed, totalValue };
   }, [jobs]);

@@ -276,9 +276,9 @@ class PricebookPhotoSyncService
   private
 
   # Detect if a file is a QR code based on filename
-  # Patterns: "ITEMCODE QR.png", "QR_ITEMCODE.png", "ITEMCODE-QR-Code.png", etc.
+  # Patterns: "qrcode_supplier.com.png", "ITEMCODE QR.png", "QR_ITEMCODE.png", etc.
   def qr_code_file?(filename)
-    filename.match?(/\bqr\b/i)
+    filename.match?(/^qrcode_/i) || filename.match?(/\bqr\b/i)
   end
 
   # Normalize name for comparison
