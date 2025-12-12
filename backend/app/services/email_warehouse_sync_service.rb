@@ -344,12 +344,12 @@ class EmailWarehouseSyncService
   def build_job_search_terms(job)
     terms = []
 
-    # Add job title/address
-    terms << job.title if job.title.present?
+    # Add job name/address
+    terms << job.name if job.name.present?
 
     # Add street name
-    if job.title.present?
-      street_match = job.title.match(/\d+\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl)/i)
+    if job.name.present?
+      street_match = job.name.match(/\d+\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl)/i)
       terms << street_match[1] if street_match
     end
 

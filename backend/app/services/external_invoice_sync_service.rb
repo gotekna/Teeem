@@ -477,6 +477,9 @@ class ExternalInvoiceSyncService
         payment_status: invoice.status == "paid" ? "complete" : "pending"
       )
 
+      # Generate PO number before saving (since we skip validation which would trigger the callback)
+      po.send(:generate_po_number)
+
       # Set totals manually and skip callbacks to preserve values
       po.save!(validate: false)
       po.update_columns(
@@ -485,7 +488,7 @@ class ExternalInvoiceSyncService
         tax: invoice.total_tax || 0
       )
 
-      Rails.logger.info("Auto-created PO #{po.purchase_order_number} for bill #{invoice.invoice_number} (Job: #{invoice.job&.title}, Supplier: #{invoice.contact&.display_name})")
+      Rails.logger.info("Auto-created PO #{po.purchase_order_number} for bill #{invoice.invoice_number} (Job: #{invoice.job&.name}, Supplier: #{invoice.contact&.display_name})")
 
       # Add to stats if we have a place for it
       @stats[:pos_auto_created] ||= 0
