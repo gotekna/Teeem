@@ -254,7 +254,7 @@ export function EmailBlacklistTab() {
       const response = await api.post<{
         success: boolean;
         would_filter: boolean;
-        matched_pattern: string | null;
+        matched_pattern: BlacklistItem | null;
       }>("/email_blacklist/test", {
         from_email: testFromEmail,
         from_name: testFromName,
