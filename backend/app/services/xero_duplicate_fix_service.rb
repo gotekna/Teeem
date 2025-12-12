@@ -7,8 +7,13 @@ class XeroDuplicateFixService
   def find_duplicate_groups
     groups = []
 
+    # Only check contacts that have Xero links (duplicates from Xero sync)
+    # This dramatically reduces the search space
+    xero_contact_ids = ContactExternalLink.where(source: 'xero').distinct.pluck(:contact_id)
+
     # Find contacts with duplicate display names (normalized)
     duplicate_names = Contact.where(is_active: true)
+                             .where(id: xero_contact_ids)
                              .select("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) as normalized_name, COUNT(*) as count")
                              .group("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g')))")
                              .having("COUNT(*) > 1")
@@ -39,9 +44,9 @@ class XeroDuplicateFixService
             { tenant_id: link.tenant_id, tenant_name: link.tenant_name }
           },
           relationships: {
-            jobs: contact.jobs.count,
-            purchase_orders: contact.purchase_orders.count,
-            cases: contact.case_contacts.count
+            jobs: contact.jobs.size,
+            purchase_orders: contact.purchase_orders.size,
+            cases: contact.case_contacts.size
           }
         }
       end
@@ -73,8 +78,8 @@ class XeroDuplicateFixService
     # Older contacts are more likely to be the original (created first)
     score += 20 if contact.created_at < 1.year.ago
 
-    # Xero connection is valuable
-    score += 100 if contact.xero_links.any?
+    # Xero connection is valuable (use size > 0 to leverage preloaded association)
+    score += 100 if contact.xero_links.size > 0
 
     # Contact info completeness
     score += 10 if contact.email.present?
@@ -83,10 +88,10 @@ class XeroDuplicateFixService
     score += 5 if contact.office_phone.present?
     score += 3 if contact.website.present?
 
-    # Relationships indicate this is the "main" contact
-    score += 15 if contact.jobs.any?
-    score += 10 if contact.purchase_orders.any?
-    score += 5 if contact.case_contacts.any?
+    # Relationships indicate this is the "main" contact (use size > 0 to leverage preloaded associations)
+    score += 15 if contact.jobs.size > 0
+    score += 10 if contact.purchase_orders.size > 0
+    score += 5 if contact.case_contacts.size > 0
 
     score
   end
@@ -196,9 +201,8 @@ class XeroDuplicateFixService
     end
 
     # Transfer purchase orders
-    source.purchase_orders.each do |po|
-      po.update!(supplier_id: target.id)
-    end
+    # Use update_all to avoid association cache issues that prevent destroy
+    source.purchase_orders.update_all(supplier_id: target.id)
 
     # Transfer pricebook items
     source.pricebook_items.each do |item|
@@ -268,7 +272,7 @@ class XeroDuplicateFixService
 
     # Merge roles (union)
     if source.roles.present?
-      target.roles = (target.roles + source.roles).uniq
+      target.roles = (Array(target.roles) + Array(source.roles)).uniq
     end
 
     # Don't save here - let merge_group handle it

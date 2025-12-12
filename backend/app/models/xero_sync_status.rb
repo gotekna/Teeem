@@ -61,29 +61,75 @@ class XeroSyncStatus < ApplicationRecord
     def health_summary(tenant_id: nil)
       statuses = tenant_id ? for_tenant(tenant_id) : all
 
+      stale_threshold = 5.minutes
+      critical_threshold = 10.minutes
+
       result = {}
+      health_statuses = []
+
       SYNC_TYPES.each do |sync_type|
         status = statuses.find { |s| s.sync_type == sync_type }
-        result[sync_type] = if status
-          {
+
+        if status
+          # Calculate freshness
+          last_synced = status.last_synced_at
+          age_seconds = last_synced ? (Time.current - last_synced).to_i : nil
+          age_minutes = age_seconds ? (age_seconds / 60.0).round(1) : nil
+
+          # Determine health status: green (< 5 min), yellow (5-10 min), red (> 10 min)
+          health_status = if age_seconds.nil?
+            "red"
+          elsif age_seconds <= stale_threshold
+            "green"
+          elsif age_seconds <= critical_threshold
+            "yellow"
+          else
+            "red"
+          end
+
+          is_stale = age_seconds.nil? || age_seconds > stale_threshold
+
+          health_statuses << health_status
+
+          result[sync_type] = {
             status: status.status,
+            health_status: health_status,  # SSoT: red/yellow/green freshness
+            stale: is_stale,
             last_synced_at: status.last_synced_at&.iso8601,
+            age_seconds: age_seconds,
+            age_minutes: age_minutes,
             next_sync_at: status.next_sync_at&.iso8601,
             records_synced: status.records_synced,
-            last_error: status.last_error
+            last_error: status.last_error,
+            message: is_stale ? "Sync stale: #{age_minutes || '∞'} min ago" : "Healthy"
           }
         else
-          {
+          health_statuses << "red"
+          result[sync_type] = {
             status: nil,
+            health_status: "red",
+            stale: true,
             last_synced_at: nil,
+            age_seconds: nil,
+            age_minutes: nil,
             next_sync_at: nil,
             records_synced: nil,
-            last_error: nil
+            last_error: nil,
+            message: "No sync status record found"
           }
         end
       end
 
-      # Calculate overall status
+      # Calculate overall health status (prioritize worst status)
+      overall_health = if health_statuses.include?("red")
+        "red"
+      elsif health_statuses.include?("yellow")
+        "yellow"
+      else
+        "green"
+      end
+
+      # Calculate overall status (original logic for backwards compatibility)
       all_statuses = result.values.map { |v| v[:status] }.compact
       overall_status = if all_statuses.empty?
         "unknown"
@@ -102,6 +148,7 @@ class XeroSyncStatus < ApplicationRecord
 
       {
         overall_status: overall_status,
+        overall_health: overall_health,  # SSoT: red/yellow/green system health
         last_activity_at: last_activity,
         sync_types: result
       }
