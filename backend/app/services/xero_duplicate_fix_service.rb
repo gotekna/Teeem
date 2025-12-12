@@ -201,9 +201,8 @@ class XeroDuplicateFixService
     end
 
     # Transfer purchase orders
-    source.purchase_orders.each do |po|
-      po.update!(supplier_id: target.id)
-    end
+    # Use update_all to avoid association cache issues that prevent destroy
+    source.purchase_orders.update_all(supplier_id: target.id)
 
     # Transfer pricebook items
     source.pricebook_items.each do |item|
