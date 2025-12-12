@@ -22,7 +22,7 @@ import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDow
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
+import MultipleSelector from "@/components/ui/multiple-selector";
 
 // Available folders/tabs
 const FOLDER_OPTIONS = [
@@ -1462,16 +1462,17 @@ export default function DocumentTypeDetailPage() {
               <p className="text-xs text-muted-foreground mb-2">
                 Select all tabs where this document type should appear
               </p>
-              <MultiSelectCombobox
+              <MultipleSelector
                 placeholder="Select folders/tabs..."
-                searchPlaceholder="Search folders..."
-                items={folderOptions.map(folder => ({
-                  id: folder,
+                options={folderOptions.map(folder => ({
+                  value: folder,
                   label: folder + (documentType.primary_tab === folder ? " ★" : ""),
                 }))}
-                selectedIds={documentType.tabs || []}
-                onSelect={(selectedIds) => updateField("tabs", selectedIds)}
-                maxDisplay={4}
+                value={(documentType.tabs || []).map(tab => ({
+                  value: tab,
+                  label: tab + (documentType.primary_tab === tab ? " ★" : ""),
+                }))}
+                onChange={(options) => updateField("tabs", options.map(o => o.value))}
               />
               <p className="text-xs text-muted-foreground mt-1">
                 ★ indicates primary tab

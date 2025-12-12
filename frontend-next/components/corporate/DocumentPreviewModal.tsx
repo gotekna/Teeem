@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Combobox } from "@/components/ui/combobox";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { api } from "@/lib/api";
 import {
   FileText,
@@ -1294,23 +1294,22 @@ export default function DocumentPreviewModal({
                 <div className="grid grid-cols-2 gap-1">
                   <div>
                     <Label className="text-[10px] text-muted-foreground">Company</Label>
-                    <Combobox
-                      options={companies.map(c => ({
+                    <ComboboxDropdown
+                      items={companies.map(c => ({
                         id: String(c.id),
-                        name: `${c.code ? `[${c.code}] ` : ''}${c.name}`,
-                        data: c
+                        label: `${c.code ? `[${c.code}] ` : ''}${c.name}`,
                       }))}
-                      value={editedCompanyId ? {
+                      selectedItem={editedCompanyId ? {
                         id: editedCompanyId,
-                        name: (() => {
+                        label: (() => {
                           const c = companies.find(c => String(c.id) === editedCompanyId);
                           return c ? `${c.code ? `[${c.code}] ` : ''}${c.name}` : '';
                         })()
                       } : undefined}
-                      onSelect={(option) => option && setEditedCompanyId(option.id)}
+                      onSelect={(item) => setEditedCompanyId(item.id)}
                       placeholder="Search..."
-                      className="mt-0.5 h-7 text-xs border rounded-md px-2"
-                      showIcon={false}
+                      searchInTrigger
+                      className="mt-0.5 h-7 text-xs"
                     />
                   </div>
                   <div>
