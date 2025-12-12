@@ -602,12 +602,24 @@ export default function Home() {
                 </TableRow>
               </TableBody>
             </Table>
-            <div className="pt-4 border-t text-[11px] text-[#878787] space-y-1">
-              <p><strong>Header:</strong> 11px #878787, font-medium, h-10</p>
-              <p><strong>Cell:</strong> 11px foreground, py-2 px-4</p>
-              <p><strong>Amounts:</strong> font-mono, text-right</p>
-              <p><strong>IDs/Codes:</strong> font-mono</p>
-              <p><strong>Borders:</strong> border-b on rows, border-r on cells (except last)</p>
+            <div className="pt-4 border-t text-[11px] text-[#878787] space-y-2">
+              <p className="font-medium text-foreground text-xs mb-2">Typography & Sizing</p>
+              <p><strong>Table Headers:</strong> 14px, uppercase, font-medium (500), letter-spacing 0.05em</p>
+              <p><strong>Cascading Headers:</strong> 13px, bold (700)</p>
+              <p><strong>Table Cells:</strong> 13px, py-0.25 (1px vertical padding), px-1.5</p>
+              <p><strong>Amounts:</strong> 13px, font-mono, text-right</p>
+              <p><strong>IDs/Codes:</strong> 13px, font-mono</p>
+
+              <p className="font-medium text-foreground text-xs mt-4 mb-2">Layout & Spacing</p>
+              <p><strong>Table Layout:</strong> tableLayout: 'auto' (fills container width)</p>
+              <p><strong>Page Padding:</strong> py-6 px-4 (24px vertical, 16px horizontal)</p>
+              <p><strong>Column Width:</strong> Columns auto-expand to fill available space</p>
+
+              <p className="font-medium text-foreground text-xs mt-4 mb-2">Action Buttons</p>
+              <p><strong>Variant:</strong> ghost (no border, no background)</p>
+              <p><strong>Size:</strong> h-6 w-6 (24px square)</p>
+              <p><strong>Icons:</strong> h-4 w-4 (16px), Edit (Pencil) + Delete (Trash) only</p>
+              <p><strong>Hover:</strong> bg-gray-100, delete shows red text</p>
             </div>
           </CardContent>
         </Card>

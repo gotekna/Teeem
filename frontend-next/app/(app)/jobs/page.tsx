@@ -326,7 +326,7 @@ export default function JobsPage() {
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Jobs</h1>
+          <h1 className="text-3xl font-bold tracking-tight font-serif">Jobs</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage your construction projects and jobs
             <span className="ml-2 text-xs font-mono">Table #{JOBS_TABLE_ID}</span>
