@@ -109,7 +109,7 @@ export function EmailBlacklistTab() {
   const loadItems = async () => {
     try {
       setLoading(true);
-      const response = await api.get<EmailBlacklistResponse>("/email_blacklist");
+      const response = await api.get<EmailBlacklistResponse>("/api/v1/email_blacklist");
       if (response.success) {
         setItems(response.items);
       }
@@ -137,7 +137,7 @@ export function EmailBlacklistTab() {
 
     try {
       setSubmitting(true);
-      const response = await api.post<{ success: boolean }>("/email_blacklist", {
+      const response = await api.post<{ success: boolean }>("/api/v1/email_blacklist", {
         email_blacklist_item: {
           pattern: pattern.trim(),
           pattern_type: patternType,
@@ -171,7 +171,7 @@ export function EmailBlacklistTab() {
 
     try {
       setSubmitting(true);
-      const response = await api.patch<{ success: boolean }>(`/email_blacklist/${editingItem.id}`, {
+      const response = await api.patch<{ success: boolean }>(`/api/v1/email_blacklist/${editingItem.id}`, {
         email_blacklist_item: {
           pattern: pattern.trim(),
           pattern_type: patternType,
@@ -207,7 +207,7 @@ export function EmailBlacklistTab() {
     }
 
     try {
-      const response = await api.delete<{ success: boolean }>(`/email_blacklist/${item.id}`);
+      const response = await api.delete<{ success: boolean }>(`/api/v1/email_blacklist/${item.id}`);
       if (response?.success) {
         toast({
           title: "Success",
@@ -226,7 +226,7 @@ export function EmailBlacklistTab() {
 
   const handleToggleActive = async (item: BlacklistItem) => {
     try {
-      const response = await api.patch<{ success: boolean }>(`/email_blacklist/${item.id}`, {
+      const response = await api.patch<{ success: boolean }>(`/api/v1/email_blacklist/${item.id}`, {
         email_blacklist_item: {
           active: !item.active,
         },
@@ -255,7 +255,7 @@ export function EmailBlacklistTab() {
         success: boolean;
         would_filter: boolean;
         matched_pattern: BlacklistItem | null;
-      }>("/email_blacklist/test", {
+      }>("/api/v1/email_blacklist/test", {
         from_email: testFromEmail,
         from_name: testFromName,
         subject: testSubject,
