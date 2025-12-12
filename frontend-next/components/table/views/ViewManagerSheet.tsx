@@ -72,6 +72,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { useFoundationColumns } from "@/lib/column-state-atoms";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { sortHiddenColumnsAlphabetically } from "../column-utils";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
@@ -143,6 +144,18 @@ export function ViewManagerSheet({
 
   // State
   const [views, setViews] = React.useState<SavedView[]>([]);
+
+  // Load all Foundation columns with caching
+  const { columns: allFoundationColumns, loading: columnsLoading } = useFoundationColumns(
+    open ? foundationId : null
+  );
+
+  // Use all foundation columns if loaded, otherwise fall back to prop columns
+  const effectiveColumns = allFoundationColumns.length > 0 ? allFoundationColumns : columns;
+
+  // Foundation names for lookup columns
+  const [foundationNames, setFoundationNames] = React.useState<Record<number, string>>({});
+
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [activeViewId, setActiveViewId] = React.useState<number | string | null>(null);
@@ -197,8 +210,29 @@ export function ViewManagerSheet({
     if (open && foundationId) {
       loadViews();
     }
-     
   }, [open, foundationId]);
+
+  // Load foundation names for lookup columns
+  React.useEffect(() => {
+    if (open) {
+      loadFoundationNames();
+    }
+  }, [open]);
+
+  const loadFoundationNames = async () => {
+    try {
+      const response = await api.get<{ success: boolean; foundations: Array<{ id: number; name: string }> }>('/api/v1/foundations');
+      if (response?.success && response.foundations) {
+        const nameMap: Record<number, string> = {};
+        response.foundations.forEach(f => {
+          nameMap[f.id] = f.name;
+        });
+        setFoundationNames(nameMap);
+      }
+    } catch (error) {
+      console.error('[ViewManagerSheet] Failed to load foundation names:', error);
+    }
+  };
 
   const loadViews = async (selectViewByName?: string) => {
     try {
@@ -277,10 +311,10 @@ export function ViewManagerSheet({
     const hasVisibleColumns = view.visibleColumns && Object.keys(view.visibleColumns).length > 0;
     const visibleColumnsToSet = hasVisibleColumns
       ? view.visibleColumns
-      : Object.fromEntries(columns.map(c => [c.column_name, true]));
+      : Object.fromEntries(effectiveColumns.map(c => [c.column_name, true]));
     setEditVisibleColumns(visibleColumnsToSet!);
 
-    setEditColumnOrder(view.columnOrder || columns.map(c => c.column_name));
+    setEditColumnOrder(view.columnOrder || effectiveColumns.map(c => c.column_name));
     setEditColumnWidths(view.columnWidths || {});
     setEditAutoFitColumns(view.autoFitColumns || false);
     setEditSmartFit(view.smartFit !== false); // Default to true for TEEEM Smart
@@ -318,8 +352,8 @@ export function ViewManagerSheet({
       filters: baseView?.filters || [],
       filterGroups: baseView?.filterGroups || [{ id: "default", logic: "AND" }],
       interGroupLogic: baseView?.interGroupLogic || "OR",
-      visibleColumns: baseView?.visibleColumns || Object.fromEntries(columns.map(c => [c.column_name, true])),
-      columnOrder: baseView?.columnOrder || columns.map(c => c.column_name),
+      visibleColumns: baseView?.visibleColumns || Object.fromEntries(effectiveColumns.map(c => [c.column_name, true])),
+      columnOrder: baseView?.columnOrder || effectiveColumns.map(c => c.column_name),
       columnWidths: baseView?.columnWidths || {},
       sortColumns: baseView?.sortColumns || [],
       groupByColumns: baseView?.groupByColumns || [],
@@ -629,7 +663,7 @@ export function ViewManagerSheet({
     let resolvedColumn = column;
     if (!column && filter.column.endsWith('_id')) {
       const baseColumnName = filter.column.replace(/_id$/, '');
-      resolvedColumn = columns.find(c => c.column_name === baseColumnName);
+      resolvedColumn = effectiveColumns.find(c => c.column_name === baseColumnName);
     }
     column = resolvedColumn;
 
@@ -843,7 +877,7 @@ export function ViewManagerSheet({
 
   // Sort management
   const addSortColumn = () => {
-    const availableCols = columns.filter(c =>
+    const availableCols = effectiveColumns.filter(c =>
       !["id", "created_at", "updated_at"].includes(c.column_name) &&
       !editSortColumns.some(s => s.column === c.column_name)
     );
@@ -875,8 +909,8 @@ export function ViewManagerSheet({
   };
 
   const showAllColumns = () => {
-    setEditVisibleColumns(Object.fromEntries(columns.map(c => [c.column_name, true])));
-    const allColumnNames = columns.map(c => c.column_name);
+    setEditVisibleColumns(Object.fromEntries(effectiveColumns.map(c => [c.column_name, true])));
+    const allColumnNames = effectiveColumns.map(c => c.column_name);
     const missingFromOrder = allColumnNames.filter(name => !editColumnOrder.includes(name));
     if (missingFromOrder.length > 0) {
       setEditColumnOrder([...editColumnOrder, ...missingFromOrder]);
@@ -884,13 +918,13 @@ export function ViewManagerSheet({
   };
 
   const hideAllColumns = () => {
-    setEditVisibleColumns(Object.fromEntries(columns.map(c => [c.column_name, c.column_name === "id"])));
+    setEditVisibleColumns(Object.fromEntries(effectiveColumns.map(c => [c.column_name, c.column_name === "id"])));
   };
 
   // Get sorted columns for display
   const getSortedColumns = () => {
     const orderMap = new Map(editColumnOrder.map((name, idx) => [name, idx]));
-    return [...columns].sort((a, b) => {
+    return [...effectiveColumns].sort((a, b) => {
       const aIdx = orderMap.get(a.column_name) ?? 999;
       const bIdx = orderMap.get(b.column_name) ?? 999;
       return aIdx - bIdx;
@@ -922,7 +956,7 @@ export function ViewManagerSheet({
     setEditColumnOrder([...newVisibleOrder, ...hiddenCols]);
   };
 
-  const filteredColumns = columns.filter(c => !["id", "created_at", "updated_at"].includes(c.column_name));
+  const filteredColumns = effectiveColumns.filter(c => !["id", "created_at", "updated_at"].includes(c.column_name));
 
   // Calculate smart width for a column based on priority
   const calculateSmartWidth = (col: Column): number => {
@@ -986,7 +1020,7 @@ export function ViewManagerSheet({
     }
     if (!enabled && Object.keys(editColumnWidths).length === 0) {
       const defaultWidths: Record<string, number> = {};
-      columns.forEach(col => {
+      effectiveColumns.forEach(col => {
         if (editVisibleColumns[col.column_name]) {
           defaultWidths[col.column_name] = getDefaultColumnWidth(col);
         }
@@ -1341,7 +1375,7 @@ export function ViewManagerSheet({
 
                                                 {/* Value Input */}
                                                 {filter.operator !== "is_empty" && filter.operator !== "is_not_empty" && (
-                                                  renderFilterValueInput(filter, columns.find(c => c.column_name === filter.column))
+                                                  renderFilterValueInput(filter, effectiveColumns.find(c => c.column_name === filter.column))
                                                 )}
 
                                                 {/* Delete Button */}
@@ -1458,7 +1492,7 @@ export function ViewManagerSheet({
                                   >
                                     <div className="space-y-2">
                                       {editGroupByColumns.map((col) => {
-                                        const columnInfo = columns.find(c => c.column_name === col);
+                                        const columnInfo = effectiveColumns.find(c => c.column_name === col);
                                         return (
                                           <SortableGroupByItem
                                             key={col}
@@ -1615,6 +1649,7 @@ export function ViewManagerSheet({
                                             smartFit={editSmartFit}
                                             priority={editSmartFit ? getColumnPriority(col.column_name, col.column_type) : undefined}
                                             smartWidth={editSmartFit ? calculateSmartWidth(col) : undefined}
+                                            lookupFoundationName={col.lookup_foundation_id ? foundationNames[col.lookup_foundation_id] : undefined}
                                           />
                                         );
                                       });
@@ -1658,6 +1693,7 @@ export function ViewManagerSheet({
                                               column={col}
                                               isVisible={false}
                                               onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
+                                              lookupFoundationName={col.lookup_foundation_id ? foundationNames[col.lookup_foundation_id] : undefined}
                                             />
                                           ))}
                                         </div>

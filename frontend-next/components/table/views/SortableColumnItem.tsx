@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
 import { Badge } from "@/components/ui/badge";
 import type { ColumnPriority } from "@/lib/column-priority";
+import { getColumnTypeLabel, getColumnTypeIcon } from "@/lib/column-types";
 
 interface Column {
   id: number;
@@ -39,6 +40,7 @@ interface SortableColumnItemProps {
   smartFit?: boolean;
   priority?: ColumnPriority;
   smartWidth?: number;
+  lookupFoundationName?: string; // Name of the foundation this lookup links to
 }
 
 export function SortableColumnItem({
@@ -56,6 +58,7 @@ export function SortableColumnItem({
   smartFit,
   priority,
   smartWidth,
+  lookupFoundationName,
 }: SortableColumnItemProps) {
   const [isEditingPosition, setIsEditingPosition] = React.useState(false);
   const [positionValue, setPositionValue] = React.useState(String(index || 1));
@@ -156,16 +159,29 @@ export function SortableColumnItem({
       )}
       <button
         onClick={onToggleVisibility}
-        className="flex items-center gap-1 flex-1 text-left hover:opacity-70 min-w-0"
+        className="flex flex-col gap-0.5 flex-1 text-left hover:opacity-70 min-w-0"
       >
-        {isVisible ? (
-          <Check className="h-3 w-3 text-primary shrink-0" />
-        ) : (
-          <EyeOff className="h-3 w-3 text-muted-foreground shrink-0" />
-        )}
-        <span className={cn("text-xs font-medium truncate", !isVisible && "text-muted-foreground font-normal")}>
-          {column.name || column.column_name}
-        </span>
+        <div className="flex items-center gap-1">
+          {isVisible ? (
+            <Check className="h-3 w-3 text-primary shrink-0" />
+          ) : (
+            <EyeOff className="h-3 w-3 text-muted-foreground shrink-0" />
+          )}
+          <span className={cn("text-xs font-medium truncate", !isVisible && "text-muted-foreground font-normal")}>
+            {column.name || column.column_name}
+          </span>
+        </div>
+
+        {/* Column type and lookup info */}
+        <div className="flex items-center gap-1 ml-4 text-[10px] text-muted-foreground">
+          <span className="truncate">{getColumnTypeLabel(column.column_type)}</span>
+          {(column.column_type === 'lookup' || column.column_type === 'multiple_lookups') && lookupFoundationName && (
+            <span className="truncate">→ {lookupFoundationName}</span>
+          )}
+          {column.column_type === 'choice' && column.available_choices && (
+            <span className="truncate">({Array.isArray(column.available_choices) ? column.available_choices.length : 0} options)</span>
+          )}
+        </div>
       </button>
 
       {/* Priority badge when TEEEM Smart is enabled */}

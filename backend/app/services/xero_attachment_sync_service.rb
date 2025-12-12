@@ -110,6 +110,19 @@ class XeroAttachmentSyncService
     else
       results[:errors] << "Failed to save PDF: #{document.errors.full_messages.join(', ')}"
     end
+  rescue ActiveRecord::RecordNotUnique => e
+    # Race condition: another process created this PDF between our check and save
+    # This is OK - just find the existing record and use it
+    existing = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
+    if existing
+      results[:pdf] = existing
+      results[:skipped] = true
+      Rails.logger.info("[XeroAttachmentSync] PDF already exists (race condition avoided): #{filename}")
+    else
+      # Shouldn't happen, but log it
+      results[:errors] << "Unique constraint violation but couldn't find existing record: #{e.message}"
+      Rails.logger.error("[XeroAttachmentSync] Unique constraint violation: #{e.message}")
+    end
   rescue XeroApiClient::RateLimitError => e
     # Re-raise rate limit errors so the caller can handle with backoff
     raise e
@@ -206,6 +219,16 @@ class XeroAttachmentSyncService
       end
     else
       results[:errors] << "Failed to save #{filename}: #{document.errors.full_messages.join(', ')}"
+    end
+  rescue ActiveRecord::RecordNotUnique => e
+    # Race condition: another process created this attachment between our check and save
+    existing = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
+    if existing
+      results[:attachments] << existing
+      Rails.logger.info("[XeroAttachmentSync] Attachment already exists (race condition avoided): #{filename}")
+    else
+      results[:errors] << "Unique constraint violation but couldn't find existing record: #{e.message}"
+      Rails.logger.error("[XeroAttachmentSync] Unique constraint violation: #{e.message}")
     end
   rescue StandardError => e
     results[:errors] << "Attachment sync error (#{filename}): #{e.message}"

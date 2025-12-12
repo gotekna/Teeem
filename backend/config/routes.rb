@@ -451,6 +451,12 @@ Rails.application.routes.draw do
         resources :contact_groups, only: [ :index ]
       end
 
+      # Duplicate contacts management (Xero multi-tenant sync)
+      get "duplicate_contacts/groups", to: "duplicate_contacts#groups"
+      get "duplicate_contacts/groups/:id", to: "duplicate_contacts#show"
+      post "duplicate_contacts/groups/:id/merge", to: "duplicate_contacts#merge"
+      post "duplicate_contacts/groups/:id/dismiss", to: "duplicate_contacts#dismiss"
+
       # SMS webhooks (Twilio callbacks - not nested)
       post "sms/webhook", to: "sms_messages#webhook"
       post "sms/status", to: "sms_messages#status_webhook"

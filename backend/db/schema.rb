@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_11_233346) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_12_015319) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1254,6 +1254,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_233346) do
     t.string "trust_account_number"
     t.string "trust_account_name"
     t.string "payment_terms"
+    t.integer "employees_count", default: 0, null: false
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
@@ -1465,13 +1466,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_11_233346) do
     t.index ["document_type"], name: "index_corporate_company_documents_on_document_type"
     t.index ["document_type_id"], name: "index_corporate_company_documents_on_document_type_id"
     t.index ["documentable_type", "documentable_id"], name: "idx_company_docs_documentable"
-    t.index ["external_id"], name: "index_corporate_company_documents_on_external_id"
     t.index ["financial_years"], name: "index_corporate_company_documents_on_financial_years", using: :gin
     t.index ["focus"], name: "index_corporate_company_documents_on_focus"
     t.index ["folder"], name: "index_corporate_company_documents_on_folder"
     t.index ["job_id"], name: "index_corporate_company_documents_on_job_id"
     t.index ["loan_id"], name: "index_corporate_company_documents_on_loan_id"
     t.index ["onedrive_file_id"], name: "index_corporate_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
+    t.index ["source", "external_id"], name: "index_corporate_company_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
     t.index ["source"], name: "index_corporate_company_documents_on_source"
     t.index ["storage_type"], name: "index_corporate_company_documents_on_storage_type"
     t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_corp_docs_pending_xero_sync"

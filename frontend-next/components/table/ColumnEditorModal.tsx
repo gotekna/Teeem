@@ -47,6 +47,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { getColumnTypeEmoji, COLUMN_TYPES } from "@/lib/column-types";
 import type { TableColumn } from "./types";
+import { useSetAtom } from "jotai";
+import { invalidateColumnsCacheAtom } from "@/lib/column-state-atoms";
 
 interface ColumnEditorModalProps {
   isOpen: boolean;
@@ -106,6 +108,10 @@ export function ColumnEditorModal({
   onUpdate,
 }: ColumnEditorModalProps) {
   const { toast } = useToast();
+
+  // Get cache invalidation function
+  const invalidateColumnsCache = useSetAtom(invalidateColumnsCacheAtom);
+
   const [activeTab, setActiveTab] = useState<"info" | "type" | "formula" | "choices" | "lookup">("info");
   const [editedColumn, setEditedColumn] = useState<EditedColumn>({
     name: "",
@@ -263,6 +269,12 @@ export function ColumnEditorModal({
 
       console.log('[ColumnEditorModal] Saved column with choices:', editedColumn.choices);
       toast({ title: "Success", description: "Column updated successfully" });
+
+      // Invalidate columns cache so ViewManagerSheet shows the updated column
+      if (foundationId) {
+        invalidateColumnsCache(foundationId);
+      }
+
       onUpdate();
       onClose();
     } catch (error) {
@@ -307,6 +319,12 @@ export function ColumnEditorModal({
       });
 
       toast({ title: "Success", description: "Column type changed successfully" });
+
+      // Invalidate columns cache so ViewManagerSheet shows the type change
+      if (foundationId) {
+        invalidateColumnsCache(foundationId);
+      }
+
       onUpdate();
       onClose();
     } catch (error) {

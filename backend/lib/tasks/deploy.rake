@@ -9,8 +9,20 @@ namespace :deploy do
     puts ("=" * 80)
 
     # 1. Run pending migrations
-    puts "\n📦 Running migrations..."
-    Rake::Task["db:migrate"].invoke
+    begin
+      # Rails 8 compatible migration check
+      if ActiveRecord::Base.connection.schema_migration.all_versions.empty? ||
+         ActiveRecord::MigrationContext.new(ActiveRecord::Migrator.migrations_paths).needs_migration?
+        puts "\n📦 Running pending migrations..."
+        Rake::Task["db:migrate"].invoke
+      else
+        puts "\n✅ No pending migrations"
+      end
+    rescue => e
+      puts "\n⚠️  Migration check failed: #{e.message}"
+      puts "   Attempting to run migrations anyway..."
+      Rake::Task["db:migrate"].invoke
+    end
 
     # 2. Auto-sync Foundation metadata
     puts "\n🔄 Syncing Foundation metadata..."
