@@ -561,7 +561,7 @@ export default function XeroIntegrationPage() {
 
           {/* PDF Sync Status - Above Health Check */}
           {status?.connected && (
-            <XeroPdfSyncStatus />
+            <XeroPdfSyncStatus tenantId={tenants.find(t => t.is_primary)?.tenant_id} />
           )}
 
         </TabsContent>

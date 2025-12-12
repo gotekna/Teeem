@@ -157,7 +157,7 @@ interface PdfSyncStatus {
   };
 }
 
-export function XeroPdfSyncStatus() {
+export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
   const [data, setData] = React.useState<PdfSyncStatus | null>(null);
   const [rateLimits, setRateLimits] = React.useState<RateLimitsData | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -166,7 +166,10 @@ export function XeroPdfSyncStatus() {
 
   const fetchStatus = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: PdfSyncStatus }>("/api/v1/xero/pdf_sync_status");
+      const url = tenantId
+        ? `/api/v1/xero/pdf_sync_status?tenant_id=${tenantId}`
+        : "/api/v1/xero/pdf_sync_status";
+      const response = await api.get<{ success: boolean; data: PdfSyncStatus }>(url);
       if (response.success) {
         setData(response.data);
         setError(null);
@@ -179,7 +182,7 @@ export function XeroPdfSyncStatus() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tenantId]);
 
   const fetchRateLimits = React.useCallback(async () => {
     setRateLimitsLoading(true);
