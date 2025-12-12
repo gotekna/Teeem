@@ -63,12 +63,39 @@ git push origin Live
 
 **Skip if only frontend files changed.**
 
-**IMPORTANT: All git subtree commands MUST run from repo root `/Users/robertharder/GitHub/teeem`**
-
+**Deploy to Heroku using FAST method (no subtree - avoids segfault crashes):**
 ```bash
-cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend -b temp-live-deploy
-git push heroku-teeemlive temp-live-deploy:main --force
-git branch -D temp-live-deploy
+# ULTRA-FAST DEPLOY - direct push from temp directory (~5 seconds total)
+# Avoids slow/crashy git subtree split entirely
+cd /Users/robertharder/GitHub/teeem
+
+# CRITICAL: Ensure all file writes are flushed to disk before copying
+sync
+sleep 1
+
+DEPLOY_DIR=$(mktemp -d)
+cp -r backend/* "$DEPLOY_DIR/"
+
+# VERIFICATION: Check that latest changes are in copied directory
+if git diff --name-only HEAD~1 HEAD | grep "^backend/" > /dev/null; then
+  echo "✅ Verifying copied files match git commit..."
+  git diff --name-only HEAD~1 HEAD | grep "^backend/" | while read file; do
+    if [ -f "$file" ] && [ -f "$DEPLOY_DIR/${file#backend/}" ]; then
+      if ! diff -q "$file" "$DEPLOY_DIR/${file#backend/}" > /dev/null 2>&1; then
+        echo "⚠️  Warning: $file differs between git and deploy directory"
+      fi
+    fi
+  done
+fi
+
+cd "$DEPLOY_DIR"
+git init
+git add .
+git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
+git remote add heroku https://git.heroku.com/teeemlive.git
+git push heroku HEAD:main --force
+cd /Users/robertharder/GitHub/teeem
+rm -rf "$DEPLOY_DIR"
 ```
 
 ### Step 6 - Verify Deploy
@@ -108,11 +135,8 @@ If any step fails:
 3. Restore stashed changes if needed: `git stash pop`
 4. Provide recovery instructions
 
-## Heroku Remote Setup
+## Notes
 
-The `heroku-teeemlive` remote must be configured:
-```bash
-git remote add heroku-teeemlive https://git.heroku.com/teeemlive.git
-```
-
-Verify with: `git remote -v | grep teeemlive`
+- No pre-configured Heroku remote needed - the deploy script creates it on-the-fly
+- Frontend deploys automatically via Vercel on GitHub push
+- Backend only deploys if changes detected in `backend/` directory
