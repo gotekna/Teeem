@@ -1109,8 +1109,15 @@ export default function ContactDetailPage() {
 
   useEffect(() => {
     loadContact();
-     
+
   }, [id]);
+
+  // Load directorships on page load to show tab immediately if data exists
+  useEffect(() => {
+    if (contact?.id && directorships.length === 0 && !loadingDirectorships) {
+      loadDirectorships();
+    }
+  }, [contact?.id]);
 
   // Initialize contact_emails and contact_phones from legacy fields if needed
   useEffect(() => {

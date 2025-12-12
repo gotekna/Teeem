@@ -70,24 +70,14 @@ export const ActionsButtons = memo(function ActionsButtons<T extends { id: strin
 
   return (
     <div className="flex items-center justify-center gap-1">
-      {/* View button - always shown if handler provided */}
-      {onView && (
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8 bg-white hover:bg-gray-100 border-2 border-gray-400 rounded-lg shadow-md hover:shadow-lg"
-          onClick={() => onView(entry)}
-        >
-          <Eye className="h-4 w-4" />
-        </Button>
-      )}
+      {/* View button - removed */}
 
       {/* Edit button - hidden when viewOnly=true */}
       {!viewOnly && (onRowUpdate || onEdit) && (
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
-          className="h-8 w-8 bg-white hover:bg-gray-100 border-2 border-gray-400 rounded-lg shadow-md hover:shadow-lg"
+          className="h-6 w-6 hover:bg-gray-100"
           onClick={handleEditClick}
           onDoubleClick={(e) => e.stopPropagation()}
         >
@@ -98,9 +88,9 @@ export const ActionsButtons = memo(function ActionsButtons<T extends { id: strin
       {/* Delete button - hidden when viewOnly=true */}
       {!viewOnly && onDelete && (
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
-          className="h-8 w-8 bg-white hover:bg-gray-100 border-2 border-gray-400 rounded-lg shadow-md hover:shadow-lg"
+          className="h-6 w-6 hover:bg-gray-100 hover:text-red-600"
           onClick={(e) => {
             e.stopPropagation();
             onDelete(entry);

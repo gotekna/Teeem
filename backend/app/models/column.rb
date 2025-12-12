@@ -55,7 +55,8 @@ class Column < ApplicationRecord
   validate :lookup_configuration_valid, if: -> { column_type.in?([ "lookup", "multiple_lookups" ]) }
   validate :column_name_not_reserved
 
-  # Clean up saved views when a column is deleted
+  # Auto-sync views when columns are created or destroyed
+  after_commit :add_to_saved_views, on: :create
   before_destroy :remove_from_saved_views
 
   # Map column types to database column types
@@ -323,6 +324,11 @@ class Column < ApplicationRecord
     # but the TableBuilder will skip them when creating the database table
     # This validation only warns and doesn't block to avoid breaking existing data
     # The actual protection is in TableBuilder which skips these columns
+  end
+
+  # Add this column to all saved views for this foundation (defaults to hidden)
+  def add_to_saved_views
+    FoundationViewSyncService.sync_foundation_views(foundation, column_name: column_name)
   end
 
   # Remove this column from all saved views for this foundation

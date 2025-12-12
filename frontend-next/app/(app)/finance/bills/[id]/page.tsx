@@ -274,44 +274,9 @@ export default function BillDetailPage() {
   const [mismatchDetailsOpen, setMismatchDetailsOpen] = useState(false);
 
   // Build highlights array from OCR coordinates (exact) or AI field_locations (estimated)
+  // Show ALL fields with coordinates, and emphasize the focused field
   const pdfHighlights: FieldHighlight[] = React.useMemo(() => {
-    if (!highlightedField) return [];
-
-    // Priority 1: Use exact OCR coordinates from comparison_data
-    const ocrCoordinates = bill?.comparison_data?.fields[highlightedField]?.coordinates;
-    if (ocrCoordinates && ocrCoordinates.x !== undefined) {
-      const fieldLabels: Record<string, string> = {
-        supplier_name: "Supplier Name",
-        supplier_abn: "Supplier ABN",
-        invoice_number: "Invoice #",
-        invoice_date: "Invoice Date",
-        due_date: "Due Date",
-        total_amount: "Total Amount",
-        subtotal: "Subtotal",
-        tax_amount: "Tax/GST",
-        billing_company_name: "Bill To Company",
-        billing_company_abn: "Bill To ABN",
-        payment_reference: "Payment Reference",
-        balance_due: "Balance Due",
-        trust_deduction: "Trust Deduction",
-        supplier_bank_bsb: "Bank BSB",
-        supplier_bank_account: "Bank Account",
-      };
-
-      return [{
-        x: ocrCoordinates.x,
-        y: ocrCoordinates.y,
-        width: ocrCoordinates.width,
-        height: ocrCoordinates.height,
-        page: ocrCoordinates.page || 1,
-        label: `${fieldLabels[highlightedField] || highlightedField} (OCR)`,
-        color: "#10b981" // green for exact OCR match
-      }];
-    }
-
-    // Priority 2: Fall back to AI estimated field_locations
-    const aiLocation = bill?.ai_extraction_result?.field_locations?.[highlightedField];
-    if (!aiLocation) return [];
+    if (!bill) return [];
 
     const fieldLabels: Record<string, string> = {
       supplier_name: "Supplier Name",
@@ -322,29 +287,65 @@ export default function BillDetailPage() {
       total_amount: "Total Amount",
       subtotal: "Subtotal",
       tax_amount: "Tax/GST",
-      billing_company_name: "Bill To Company",
+      billing_company_name: "Bill To",
       billing_company_abn: "Bill To ABN",
-      payment_reference: "Payment Reference",
+      payment_reference: "Payment Ref",
       balance_due: "Balance Due",
-      trust_deduction: "Trust Deduction",
+      trust_deduction: "Trust",
       supplier_bank_bsb: "Bank BSB",
       supplier_bank_account: "Bank Account",
     };
 
-    return [{
-      x: aiLocation.x,
-      y: aiLocation.y,
-      width: aiLocation.width,
-      height: aiLocation.height,
-      page: aiLocation.page || 1,
-      label: `${fieldLabels[highlightedField] || highlightedField} (AI Est.)`,
-      color: "#eab308" // yellow for AI estimated
-    }];
-  }, [highlightedField, bill?.comparison_data, bill?.ai_extraction_result?.field_locations]);
+    const highlights: FieldHighlight[] = [];
 
-  // Helper to check if a field has location data
+    // First, collect all fields from comparison_data (OCR exact matches)
+    const comparisonFields = bill.comparison_data?.fields || {};
+    Object.entries(comparisonFields).forEach(([fieldName, fieldData]: [string, any]) => {
+      const coords = fieldData?.coordinates;
+      if (coords && coords.x !== undefined) {
+        highlights.push({
+          id: fieldName,
+          x: coords.x,
+          y: coords.y,
+          width: coords.width,
+          height: coords.height,
+          page: coords.page || 1,
+          label: `${fieldLabels[fieldName] || fieldName}`,
+          color: "#10b981", // green for OCR
+          focused: fieldName === highlightedField
+        });
+      }
+    });
+
+    // Then, add AI-estimated locations for fields not found in OCR
+    const aiLocations = bill.ai_extraction_result?.field_locations || {};
+    Object.entries(aiLocations).forEach(([fieldName, location]: [string, any]) => {
+      // Skip if already added from OCR
+      if (comparisonFields[fieldName]?.coordinates) return;
+
+      if (location && location.x !== undefined) {
+        highlights.push({
+          id: fieldName,
+          x: location.x,
+          y: location.y,
+          width: location.width,
+          height: location.height,
+          page: location.page || 1,
+          label: `${fieldLabels[fieldName] || fieldName}`,
+          color: "#eab308", // yellow for AI
+          focused: fieldName === highlightedField
+        });
+      }
+    });
+
+    return highlights;
+  }, [highlightedField, bill?.comparison_data, bill?.ai_extraction_result?.field_locations, bill]);
+
+  // Helper to check if a field has location data (OCR or AI)
   const hasLocation = (fieldName: string): boolean => {
-    return !!bill?.ai_extraction_result?.field_locations?.[fieldName];
+    const hasOcr = !!bill?.comparison_data?.fields[fieldName]?.coordinates;
+    const hasAi = !!bill?.ai_extraction_result?.field_locations?.[fieldName];
+    return hasOcr || hasAi;
   };
 
   // Toggle highlight for a field

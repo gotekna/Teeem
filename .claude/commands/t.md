@@ -6,19 +6,20 @@ Performs a full codebase audit across security, SSoT compliance, code quality, a
 
 ## What This Command Does
 
-The `/t` command runs a comprehensive code review checking 11 categories:
+The `/t` command runs a comprehensive code review checking 12 categories:
 
 1. **Security Scan** - Brakeman + manual review for vulnerabilities
-2. **SSoT Violations** - Duplicate definitions, conflicting sources
-3. **UI/UX Compliance** - Chapter 19/20 standards adherence
-4. **Code Quality** - Redundant code, bottlenecks, oversized files
-5. **Database Schema Health** - Missing indexes, foreign keys
-6. **Test Coverage Gaps** - Models/controllers without specs
-7. **API Consistency** - Authentication, pagination, response format
-8. **Performance Red Flags** - N+1 queries, missing eager loading
-9. **Documentation Freshness** - Stale docs, old TODOs
-10. **TeeemTableView Compliance** - foundationIdNumeric, Gold Standard column types
-11. **Frontend Performance** - Lazy loading, eager fetches, redundant API calls
+2. **SSoT Violations** - Duplicate definitions, conflicting sources, Foundation sync
+3. **SSoT Prevention System** - Verify 5-layer auto-sync system is installed (NEW)
+4. **UI/UX Compliance** - Chapter 19/20 standards adherence
+5. **Code Quality** - Redundant code, bottlenecks, oversized files
+6. **Database Schema Health** - Missing indexes, foreign keys
+7. **Test Coverage Gaps** - Models/controllers without specs
+8. **API Consistency** - Authentication, pagination, response format
+9. **Performance Red Flags** - N+1 queries, missing eager loading
+10. **Documentation Freshness** - Stale docs, old TODOs
+11. **TeeemTableView Compliance** - foundationIdNumeric, Gold Standard column types
+12. **Frontend Performance** - Lazy loading, eager fetches, redundant API calls
 
 ## Execution Protocol
 
@@ -64,6 +65,72 @@ cd backend && bin/rails foundation:check
 - Log as SSoT violation in report
 - Recommend: `rails foundation:sync` to auto-fix
 - Check if caused by recent migration
+
+**Foundation Sync Prevention System Check (NEW):**
+
+Verify all 5 prevention layers are installed and working:
+
+```bash
+# Layer 1: Post-migration auto-sync hook
+test -f backend/lib/tasks/auto_sync_foundations.rake && echo "✅ Auto-sync hook installed" || echo "❌ Missing: auto_sync_foundations.rake"
+
+# Layer 2: CI/CD health check
+test -f backend/lib/tasks/foundation_health_check.rake && echo "✅ CI/CD health check installed" || echo "❌ Missing: foundation_health_check.rake"
+
+# Layer 3: Daily monitoring job
+test -f backend/app/jobs/foundation_sync_monitor_job.rb && echo "✅ Monitoring job installed" || echo "❌ Missing: foundation_sync_monitor_job.rb"
+
+# Layer 4: Deployment auto-sync
+grep -q "deploy:prepare" backend/Procfile && echo "✅ Deployment hook configured" || echo "❌ Procfile not configured for auto-sync"
+
+# Layer 5: Recurring schedule configured
+grep -q "foundation_sync_monitor" backend/config/recurring.yml && echo "✅ Daily monitoring scheduled" || echo "❌ Not scheduled in recurring.yml"
+
+# Bonus: Verify deploy.rake exists
+test -f backend/lib/tasks/deploy.rake && echo "✅ Deploy tasks installed" || echo "❌ Missing: deploy.rake"
+```
+
+**Expected Output (ALL GREEN):**
+```
+✅ Auto-sync hook installed
+✅ CI/CD health check installed
+✅ Monitoring job installed
+✅ Deployment hook configured
+✅ Daily monitoring scheduled
+✅ Deploy tasks installed
+```
+
+**If any missing:**
+- Log as CRITICAL SSoT violation
+- System vulnerable to column drift
+- Run setup from: `backend/FOUNDATION_SYNC_PREVENTION.md`
+
+**FoundationView Sync Check:**
+
+Check that all FoundationViews are synchronized with their Foundation's columns:
+
+```bash
+# Check if any views need syncing (dry run)
+cd backend && bin/rails foundation_views:check
+```
+
+**Expected Output (GOOD):**
+```
+✓ All foundations are in sync!
+```
+
+**Problem Output:**
+```
+Found X foundations that need syncing:
+  Foundation Name
+    Mismatched views: Y/Z
+```
+
+**If issues found:**
+- Log as SSoT violation in report
+- Recommend: `rails foundation_views:sync_all` to auto-fix
+- This prevents "can't see all columns in View Manager" bugs
+- Auto-sync now prevents this (see Column model callbacks)
 
 **Column Type SSoT Check (31 types):**
 
@@ -197,19 +264,20 @@ Compile all findings into standardized format:
                     [Brisbane Time]
 ════════════════════════════════════════════════════════════════
 
-SUMMARY (11 Categories)
+SUMMARY (12 Categories)
 ───────────────────────
-[PASS/WARN/FAIL] 1. Security:            X issues
-[PASS/WARN/FAIL] 2. SSoT:                X issues
-[PASS/WARN/FAIL] 3. UI/UX:               X issues
-[PASS/WARN/FAIL] 4. Code Quality:        X issues
-[PASS/WARN/FAIL] 5. DB Schema:           X issues
-[PASS/WARN/FAIL] 6. Test Coverage:       X issues
-[PASS/WARN/FAIL] 7. API Consistency:     X issues
-[PASS/WARN/FAIL] 8. Backend Performance: X issues
-[PASS/WARN/FAIL] 9. Documentation:       X issues
-[PASS/WARN/FAIL] 10. TeeemTableView:     X issues
-[PASS/WARN/FAIL] 11. Frontend Perf:      X issues (PERF-001 to 005)
+[PASS/WARN/FAIL] 1. Security:              X issues
+[PASS/WARN/FAIL] 2. SSoT:                  X issues
+[PASS/WARN/FAIL] 3. SSoT Prevention:       X issues (NEW - 5 layers)
+[PASS/WARN/FAIL] 4. UI/UX:                 X issues
+[PASS/WARN/FAIL] 5. Code Quality:          X issues
+[PASS/WARN/FAIL] 6. DB Schema:             X issues
+[PASS/WARN/FAIL] 7. Test Coverage:         X issues
+[PASS/WARN/FAIL] 8. API Consistency:       X issues
+[PASS/WARN/FAIL] 9. Backend Performance:   X issues
+[PASS/WARN/FAIL] 10. Documentation:        X issues
+[PASS/WARN/FAIL] 11. TeeemTableView:       X issues
+[PASS/WARN/FAIL] 12. Frontend Perf:        X issues (PERF-001 to 005)
 
 Total: X issues (Y critical, Z warnings)
 
@@ -248,6 +316,7 @@ PRIORITY FIXES
 
 This command leverages checks from:
 - `foundation-schema-sync.md` - Database ↔ Foundation metadata sync validation
+- `foundation-view-sync.md` - FoundationView ↔ Foundation columns sync validation (NEW)
 - `gold-standard-sst.md` - Column type SSoT (31 types)
 - `code-guardian.md` - Pattern detection (5 patterns)
 - `performance-auditor.md` - Frontend performance (PERF-001 to 005)

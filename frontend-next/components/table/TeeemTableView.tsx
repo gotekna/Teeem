@@ -446,7 +446,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
       className="mb-4"
       style={{ marginLeft: `${(depth + 1) * 24}px`, marginRight: '16px' }}
     >
-      <Table className="w-full border rounded" style={{ tableLayout: 'fixed' }}>
+      <Table className="w-full border-t border-b" style={{ tableLayout: 'auto' }}>
         {renderTableHeader()}
         <TableBody>
           <tr>
@@ -483,7 +483,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                           transform: `translateY(${virtualRow.start}px)`,
                         }}
                       >
-                        <table style={{ width: '100%', tableLayout: 'fixed' }}>
+                        <table style={{ width: '100%', tableLayout: 'auto' }}>
                           <tbody>
                             <TableRow
                               className={cn(
@@ -510,7 +510,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                                     }}
                                     className={cn(
                                       column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
-                                      column.key === "actions" && "!border-l-0"
+                                      column.key === "actions" && "!border-l-0 !bg-white"
                                     )}
                                     onClick={(e) => {
                                       if (column.key === "select") {
@@ -2713,7 +2713,8 @@ export default function TeeemTableView({
           // Fall through to normal rendering
         } else {
           // Show the value with a subtle indicator it's not editable
-          const displayValue = value == null || value === "" ? "-" : String(value);
+          // Use getDisplayValue to handle objects (e.g., lookup values)
+          const displayValue = value == null || value === "" ? "-" : getDisplayValue(value);
           return (
             <span className="text-muted-foreground italic text-[11px]" title={isComputed ? "Computed column" : "System column - not editable"}>
               {displayValue}
@@ -2725,7 +2726,8 @@ export default function TeeemTableView({
       // Global edit mode - show clickable cells that start row editing on click
       // Cells stay as lightweight text until clicked
       if (isEditMode && isColumnEditable) {
-        const displayValue = value == null || value === "" ? "-" : String(value);
+        // Use getDisplayValue to handle objects (e.g., lookup values)
+        const displayValue = value == null || value === "" ? "-" : getDisplayValue(value);
         return (
           <div
             className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px] text-[11px]"
@@ -2884,7 +2886,9 @@ export default function TeeemTableView({
         return <span className="text-muted-foreground text-[11px]">—</span>;
       }
 
-      const strValue = String(value);
+      // Extract display value (handles objects like lookup values)
+      // For objects like {id: 123, name: "Company"}, this extracts "Company"
+      const strValue = getDisplayValue(value);
 
       // Get priority for smart truncation
       const priority = getColumnPriority(column.key, column.column_type);
@@ -3024,8 +3028,11 @@ export default function TeeemTableView({
       result.push(
         <div
           key={`nav-${fullKey}`}
-          className="cursor-pointer hover:bg-muted/50 py-2 px-4 border rounded-md bg-muted/30 mb-2"
-          style={{ paddingLeft: `${16 + depth * 24}px` }}
+          className="cursor-pointer hover:opacity-80 py-2 px-4 border rounded-md mb-2"
+          style={{
+            paddingLeft: `${16 + depth * 24}px`,
+            backgroundColor: `rgba(242, 241, 239, ${Math.max(0.15, 0.95 - depth * 0.30)})` // Brand secondary #F2F1EF: dramatic contrast between levels
+          }}
           onClick={() => toggleGroupCollapse(fullKey)}
         >
           <div className="flex items-center gap-2">
@@ -3034,10 +3041,10 @@ export default function TeeemTableView({
             ) : (
               <ChevronDown className="h-4 w-4" />
             )}
-            <span className="font-medium text-[11px]">
+            <span className="font-bold text-[13px]">
               {groupKey}
             </span>
-            <Badge variant="secondary" className="text-xs">{rowCount} rows</Badge>
+            <span className="text-xs bg-white px-2 py-0.5 rounded">({rowCount})</span>
           </div>
         </div>
       );
@@ -3157,7 +3164,7 @@ export default function TeeemTableView({
               }}
               className={cn(
                 column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
-                column.key === "actions" && "!border-l-0"
+                column.key === "actions" && "!border-l-0 !bg-white"
               )}
               onClick={(e) => {
                 if (column.key === "select") {
@@ -3205,10 +3212,10 @@ export default function TeeemTableView({
       result.push(
         <TableRow
           key={`group-${fullKey}`}
-          className={cn(
-            "cursor-pointer hover:bg-muted/50",
-            depth === 0 ? "bg-muted/30" : "bg-muted/20"
-          )}
+          className="cursor-pointer hover:opacity-80"
+          style={{
+            backgroundColor: `rgba(242, 241, 239, ${Math.max(0.15, 0.95 - depth * 0.30)})` // Brand secondary #F2F1EF: dramatic contrast between levels
+          }}
           onClick={() => toggleGroupCollapse(fullKey)}
         >
           <TableCell
@@ -3222,10 +3229,10 @@ export default function TeeemTableView({
               ) : (
                 <ChevronDown className="h-4 w-4" />
               )}
-              <span className="font-medium text-[11px]">
+              <span className="font-bold text-[13px]">
                 {groupKey}
               </span>
-              <Badge variant="secondary" className="text-xs">{rowCount} rows</Badge>
+              <span className="text-xs bg-white px-2 py-0.5 rounded">({rowCount})</span>
             </div>
           </TableCell>
         </TableRow>
@@ -3279,7 +3286,7 @@ export default function TeeemTableView({
                     }}
                     className={cn(
                       column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
-                      column.key === "actions" && "!border-l-0"
+                      column.key === "actions" && "!border-l-0 !bg-white"
                     )}
                     onClick={(e) => {
                       if (column.key === "select") {
@@ -3333,12 +3340,12 @@ export default function TeeemTableView({
     const visibleRows = getVisibleRows();
 
     return (
-      <div style={{ width: `${totalTableWidth}px` }}>
+      <div className="w-full">
         {/* Selection controls moved to saved views row in toolbar (lines 3467-3560) */}
 
         {groupViewMode === "inline" ? (
           /* Inline mode (default) - groups as rows in table body */
-          <Table className="w-full" style={{ tableLayout: 'fixed' }}>
+          <Table className="w-full" style={{ tableLayout: 'auto' }}>
             {renderTableHeader()}
             <TableBody>
               {renderInlineGroupRows(groupedEntries)}
@@ -3357,12 +3364,12 @@ export default function TeeemTableView({
   // Render flat table
   const renderFlatTable = () => {
     return (
-    <Table className="w-full" style={{ tableLayout: 'fixed', width: `${totalTableWidth}px` }}>
+    <Table className="w-full" style={{ tableLayout: 'auto' }}>
         <colgroup>
           {visibleColumnsInOrder.map((column) => (
             <col
               key={column.key}
-              style={{ width: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 50) }}
+              style={{ minWidth: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 50) }}
             />
           ))}
         </colgroup>
@@ -3429,7 +3436,7 @@ export default function TeeemTableView({
                       }}
                       className={cn(
                         column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
-                        column.key === "actions" && "!border-l-0"
+                        column.key === "actions" && "!border-l-0 !bg-white"
                       )}
                       onClick={(e) => {
                         if (column.key === "select") {
@@ -4075,7 +4082,7 @@ export default function TeeemTableView({
       {/* Account for: nav(64) + page header(80) + data health(60 collapsed/40vh expanded) + toolbar(50) + footer(30) */}
       <div
         ref={tableContainerRef}
-        className="flex-1 min-h-[200px] max-h-[calc(100vh-420px)] w-full overflow-auto relative border rounded-md"
+        className="flex-1 min-h-[200px] max-h-[calc(100vh-420px)] w-full overflow-auto relative border-t border-b"
       >
         {groupedEntries ? renderGroupedTable() : renderFlatTable()}
       </div>

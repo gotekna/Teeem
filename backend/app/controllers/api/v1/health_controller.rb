@@ -15,7 +15,26 @@ module Api
     class HealthController < ApplicationController
       # GET /api/v1/health/unified
       # Returns unified health data for the new gamified dashboard
+      # Supports caching with optional ?refresh=true parameter to force fresh calculation
       def unified
+        # Check if user wants to force refresh
+        force_refresh = params[:refresh] == "true"
+
+        # Try to get cached results first (unless forcing refresh)
+        unless force_refresh
+          cached = HealthCheckCache.system_wide.first
+          if cached&.fresh?
+            Rails.logger.info "[Health] Serving cached system health (age: #{cached.age_in_hours}h)"
+            return render json: cached.results.merge(
+              cached: true,
+              cached_at: cached.last_run_at.iso8601
+            )
+          end
+        end
+
+        # Run fresh health check
+        Rails.logger.info "[Health] Running fresh system health check (forced: #{force_refresh})"
+
         # Get data health from HealthChecks::Registry
         data_health = HealthChecks::Registry.system_health
 
@@ -37,7 +56,7 @@ module Api
         # Calculate overall score
         overall_score = data_health[:overall_health] || 0
 
-        render json: {
+        result = {
           success: true,
           overall_score: overall_score,
           status: determine_health_status(overall_score),
@@ -74,8 +93,15 @@ module Api
             companies_count: CorporateCompany.count,
             pending_jobs: get_pending_jobs_count,
             failed_jobs: get_failed_jobs_count
-          }
+          },
+
+          cached: false
         }
+
+        # Cache the fresh results
+        HealthCheckCache.cache_system_health(result)
+
+        render json: result
       end
 
       # POST /api/v1/health/fix
