@@ -149,6 +149,12 @@ class OrgEmailSyncJob < ApplicationJob
     subject = email_data["subject"] || ""
     has_attachments = email_data["hasAttachments"] || false
 
+    # ALWAYS FILTER: Draft emails (incomplete, no sender info)
+    if folder_name == "Drafts"
+      Rails.logger.debug "[OrgEmailSync] Skipping draft email: #{subject}"
+      return nil
+    end
+
     # NEVER FILTER: Sent items (unless internal)
     if folder_name == "Sent Items"
       # Skip internal emails in Sent Items (we'll get them from recipient's inbox)

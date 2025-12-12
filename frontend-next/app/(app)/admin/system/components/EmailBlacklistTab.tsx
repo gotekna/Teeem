@@ -53,6 +53,7 @@ interface BlacklistItem {
   description: string | null;
   active: boolean;
   match_count: number;
+  warehouse_match_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -337,7 +338,7 @@ export function EmailBlacklistTab() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Total Patterns</CardTitle>
@@ -368,11 +369,21 @@ export function EmailBlacklistTab() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Matches</CardTitle>
+            <CardTitle className="text-sm font-medium">Historical Matches</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
               {items.reduce((sum, i) => sum + i.match_count, 0)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Warehouse Matches</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {items.reduce((sum, i) => sum + i.warehouse_match_count, 0)}
             </div>
           </CardContent>
         </Card>
@@ -400,7 +411,8 @@ export function EmailBlacklistTab() {
                   <TableHead>Pattern</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead className="text-center">Matches</TableHead>
+                  <TableHead className="text-center">Historical</TableHead>
+                  <TableHead className="text-center">Warehouse</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -419,6 +431,11 @@ export function EmailBlacklistTab() {
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="secondary">{item.match_count}</Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                        {item.warehouse_match_count}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-center">
                       <Switch

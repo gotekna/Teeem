@@ -101,6 +101,7 @@ class Api::V1::EmailBlacklistController < ApplicationController
       description: item.description,
       active: item.active,
       match_count: item.match_count,
+      warehouse_match_count: item.warehouse_match_count,
       created_at: item.created_at,
       updated_at: item.updated_at
     }
