@@ -231,7 +231,10 @@ export const applyViewAtom = atom(
       set(currentVisibleColumnsAtom, view.visibleColumns);
     }
     if (view.columnOrder) {
+      console.log('[applyViewAtom] Setting columnOrder:', view.columnOrder);
       set(currentColumnOrderAtom, view.columnOrder);
+    } else {
+      console.log('[applyViewAtom] No columnOrder in view:', view);
     }
 
     // Only load saved column widths if auto-fit is NOT enabled

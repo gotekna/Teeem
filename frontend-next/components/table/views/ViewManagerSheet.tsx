@@ -462,6 +462,7 @@ export function ViewManagerSheet({
 
         // Apply the view state immediately using captured state
         // This ensures display type changes take effect immediately
+        console.log('[ViewManagerSheet] Applying saved view with columnOrder:', savedView.columnOrder);
         onApplyView?.(savedView);
 
         // Trigger data refresh to apply new filters/sorting/etc

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_12_015319) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_12_020402) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2023,6 +2023,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_12_015319) do
     t.index ["email_warehouse_id", "attachment_id"], name: "index_email_attachments_unique", unique: true
     t.index ["email_warehouse_id"], name: "index_email_attachments_on_email_warehouse_id"
     t.index ["outlook_attachment_id"], name: "index_email_attachments_on_outlook_attachment_id"
+  end
+
+  create_table "email_blacklist_items", force: :cascade do |t|
+    t.string "pattern", null: false
+    t.string "pattern_type", null: false
+    t.text "description"
+    t.boolean "active", default: true, null: false
+    t.integer "match_count", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_email_blacklist_items_on_active"
+    t.index ["pattern", "pattern_type"], name: "index_email_blacklist_items_on_pattern_and_pattern_type", unique: true
   end
 
   create_table "email_case_proposals", force: :cascade do |t|

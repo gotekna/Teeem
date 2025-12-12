@@ -2179,11 +2179,14 @@ export default function TeeemTableView({
   // Get visible columns in order
   const visibleColumnsInOrder = useMemo(() => {
     const startTime = performance.now();
+    console.log('[visibleColumnsInOrder] columnOrder:', columnOrder);
+    console.log('[visibleColumnsInOrder] visibleColumns:', visibleColumns);
     // Start with columns from columnOrder that are visible
     const orderedVisible = columnOrder
       .filter((key) => visibleColumns[key] === true)
       .map((key) => COLUMNS.find((c) => c.key === key))
       .filter((col): col is TableColumn => col !== undefined);
+    console.log('[visibleColumnsInOrder] result:', orderedVisible.map(c => c.key));
 
     // Ensure select is always first if it exists in COLUMNS
     const selectCol = COLUMNS.find(c => c.key === 'select');
