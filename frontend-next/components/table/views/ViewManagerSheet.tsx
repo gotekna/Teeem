@@ -877,9 +877,9 @@ export function ViewManagerSheet({
   };
 
   // Sort management
+  // Per GOLD_STANDARD_TABLE.md: System columns should be available for sorting
   const addSortColumn = () => {
     const availableCols = effectiveColumns.filter(c =>
-      !["id", "created_at", "updated_at"].includes(c.column_name) &&
       !editSortColumns.some(s => s.column === c.column_name)
     );
     if (availableCols.length > 0) {
@@ -957,7 +957,9 @@ export function ViewManagerSheet({
     setEditColumnOrder([...newVisibleOrder, ...hiddenCols]);
   };
 
-  const filteredColumns = effectiveColumns.filter(c => !["id", "created_at", "updated_at"].includes(c.column_name));
+  // Per GOLD_STANDARD_TABLE.md: System columns should be visible (but not editable)
+  // Include all columns - system columns are available for filtering, sorting, grouping
+  const filteredColumns = effectiveColumns;
 
   // Calculate smart width for a column based on priority
   const calculateSmartWidth = (col: Column): number => {

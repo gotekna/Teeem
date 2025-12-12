@@ -226,6 +226,35 @@ grep -r "useEffect.*modalOpen\|dialogOpen\|showDialog" frontend-next/app --inclu
 grep -r 'foundationId=' frontend-next --include="*.tsx" | grep -v 'foundationIdNumeric'
 ```
 
+**TeeemTableView Column SSoT Check (NEW):**
+- Tables with `foundationIdNumeric` should NOT have hardcoded `columns` prop
+- TeeemTableView auto-fetches columns from Foundation API when `foundationIdNumeric` is set
+- Passing `columns` prop when `foundationIdNumeric` is set is an SSoT violation
+
+```bash
+# Find tables that have BOTH foundationIdNumeric AND columns prop (SSoT violation)
+grep -r 'foundationIdNumeric' frontend-next/app --include="*.tsx" -A 5 -B 5 | grep -E "columns=\{[A-Z_]+\}|columns=\{[a-z]+Columns\}"
+```
+
+**Expected:** Zero matches (TeeemTableView should auto-fetch columns from Foundation API)
+
+**If matches found:**
+- Remove the `columns` prop from TeeemTableView
+- Add comment: `// columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)`
+- Foundation columns are the single source of truth
+
+**System Column Filter Check (NEW):**
+- System columns (id, created_at, updated_at) MUST be visible per GOLD_STANDARD_TABLE.md
+- Look for code that filters out system columns
+
+```bash
+# Find system column filters (SSoT violation)
+grep -rn "created_at.*updated_at\|!.*id.*created_at\|SYSTEM_COLUMNS.*filter" frontend-next --include="*.tsx" --include="*.ts"
+```
+
+**Expected:** No filters that exclude id, created_at, updated_at from display
+**Exception:** Filtering for editable columns is OK (system columns should be read-only, not hidden)
+
 **Column Type Validation:**
 - Check all columns in database use one of the 31 valid Gold Standard types
 - Flag any columns with invalid/undocumented types:

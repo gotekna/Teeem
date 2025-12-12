@@ -378,7 +378,7 @@ export default function JobsPage() {
       <div className="flex-1 min-h-0">
         <TeeemTableView
           entries={tableRows}
-          columns={tableColumns}
+          // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
           foundationId="jobs"
           foundationIdNumeric={JOBS_TABLE_ID}
           tableName="Jobs"

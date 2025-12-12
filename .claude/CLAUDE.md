@@ -77,6 +77,27 @@ When discovering duplicate/conflicting implementations:
 >
 > Which should be the single source of truth? Want me to consolidate?"
 
+## 🔴 CRITICAL: Standard UI Components (SSoT)
+
+**BEFORE creating any UI, use THE ONE component for each use case:**
+
+| Need | THE ONE | Location | Never Use |
+|------|---------|----------|-----------|
+| **Data Table** | `TeeemTableView` | `components/table/TeeemTableView.tsx` | `data-table.tsx` |
+| **Simple Dropdown** | `Select` | `components/ui/select.tsx` | - |
+| **Searchable Select** | `ComboboxDropdown` | `components/ui/combobox-dropdown.tsx` | `combobox.tsx` |
+| **Multi-Select** | `MultipleSelector` | `components/ui/multiple-selector.tsx` | `multi-select-combobox.tsx` |
+| **Loading Spinner** | `Spinner` | `components/ui/spinner.tsx` | `loader.tsx` |
+| **Side Panel** | `Sheet` | `components/ui/sheet.tsx` | `drawer.tsx` |
+| **Modal Dialog** | `Dialog` | `components/ui/dialog.tsx` | - |
+| **Collapsible** | `Accordion` | `components/ui/accordion.tsx` | `collapsible.tsx` |
+| **Tooltip** | `Tooltip` | `components/ui/tooltip.tsx` | - |
+| **Small Overlay** | `Popover` | `components/ui/popover.tsx` | - |
+
+**Migration Policy:** "Fix it when you touch it" - When editing a file that uses a deprecated component, update the import to THE ONE.
+
+**Full Reference:** `TEEEM_DOCS/STANDARD_COMPONENTS.md`
+
 ## 🔴 CRITICAL: Git Branch - Rob Works on Live
 
 **Rob works directly on the `Live` branch.** No feature branches needed for Rob.

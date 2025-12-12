@@ -138,7 +138,7 @@ export default function PriceHistoriesPage() {
             foundationIdNumeric={foundation.id}
             tableName={foundation.name || "Price Histories"}
             entries={records}
-            columns={columns}
+            // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
             onRowUpdate={handleRowUpdate}
             onRefresh={refresh}
             onServerSearch={serverSearch}

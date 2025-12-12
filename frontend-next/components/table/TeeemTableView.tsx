@@ -99,6 +99,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG } from "@/lib/column-priority";
+import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -626,13 +627,65 @@ export default function TeeemTableView({
   const effectiveEnableExport = enableExport || shouldAutoEnable;
   const effectiveEnableSchemaEditor = enableSchemaEditor || shouldAutoEnable;
 
+  // ============================================================================
+  // AUTO-FETCH COLUMNS FROM FOUNDATION API (SSoT ENFORCEMENT)
+  // When foundationIdNumeric is set, columns MUST come from Foundation API
+  // This makes it IMPOSSIBLE to be out of sync with Foundation schema
+  // ============================================================================
+  const [foundationColumns, setFoundationColumns] = useState<TableColumn[] | null>(null);
+  const [columnsLoading, setColumnsLoading] = useState(false);
+
+  // Auto-fetch columns when foundationIdNumeric is set
+  useEffect(() => {
+    if (!foundationIdNumeric) {
+      setFoundationColumns(null);
+      return;
+    }
+
+    const fetchColumns = async () => {
+      setColumnsLoading(true);
+      try {
+        const response = await api.get<{ foundation: { columns: ApiColumn[] } }>(
+          `/api/v1/foundations/${foundationIdNumeric}`
+        );
+        const dbColumns = response?.foundation?.columns || [];
+        const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, foundationIdNumeric);
+        setFoundationColumns(teeemColumns);
+
+        // SSoT VIOLATION WARNING: Alert if parent passed hardcoded columns that differ
+        if (columns && columns.length > 0 && teeemColumns.length > 0) {
+          const propColumnCount = columns.filter(c => !['select', 'actions'].includes(c.key)).length;
+          const foundationColumnCount = teeemColumns.filter(c => !['select', 'actions'].includes(c.key)).length;
+          if (propColumnCount !== foundationColumnCount) {
+            console.warn(
+              `[TeeemTableView] SSoT VIOLATION: columns prop has ${propColumnCount} columns, ` +
+              `but Foundation #${foundationIdNumeric} has ${foundationColumnCount} columns. ` +
+              `Using Foundation columns (SSoT).`
+            );
+          }
+        }
+      } catch (error) {
+        console.error(`[TeeemTableView] Failed to fetch columns for Foundation #${foundationIdNumeric}:`, error);
+        // Fall back to props if fetch fails
+        setFoundationColumns(null);
+      } finally {
+        setColumnsLoading(false);
+      }
+    };
+
+    fetchColumns();
+  }, [foundationIdNumeric, columns]);
+
+  // Use Foundation columns when available (SSoT), otherwise fall back to props
+  const effectiveColumns = foundationIdNumeric && foundationColumns ? foundationColumns : columns;
+
   // Use custom columns if provided, otherwise use defaults
   const COLUMNS = useMemo(() => {
-    if (!columns) return DEFAULT_COLUMNS;
+    if (!effectiveColumns) return DEFAULT_COLUMNS;
     // Ensure select and actions columns are included
-    const hasSelect = columns.some(c => c.key === 'select');
-    const hasActions = columns.some(c => c.key === 'actions');
-    const result = [...columns];
+    const hasSelect = effectiveColumns.some(c => c.key === 'select');
+    const hasActions = effectiveColumns.some(c => c.key === 'actions');
+    const result = [...effectiveColumns];
     if (!hasSelect) {
       result.unshift({ key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 });
     }
@@ -640,7 +693,7 @@ export default function TeeemTableView({
       result.push({ key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 180 });
     }
     return result;
-  }, [columns]);
+  }, [effectiveColumns]);
 
   // Detect if table has email columns for Email to Contacts extraction feature
   // Check both column definitions AND actual data structure
@@ -2178,27 +2231,11 @@ export default function TeeemTableView({
 
   // Get visible columns in order
   const visibleColumnsInOrder = useMemo(() => {
-    const startTime = performance.now();
-    const columnKeys = COLUMNS.map(c => c.key);
-    console.log('[visibleColumnsInOrder] COLUMNS keys:', columnKeys);
-    console.log('[visibleColumnsInOrder] columnOrder:', columnOrder);
-    console.log('[visibleColumnsInOrder] visibleColumns:', visibleColumns);
-
-    // Debug: show which columns pass each filter step
-    const visibleKeys = columnOrder.filter((key) => visibleColumns[key] === true);
-    console.log('[visibleColumnsInOrder] After visibility filter:', visibleKeys);
-
-    const keysNotInCOLUMNS = visibleKeys.filter(key => !COLUMNS.find(c => c.key === key));
-    if (keysNotInCOLUMNS.length > 0) {
-      console.warn('[visibleColumnsInOrder] Keys in columnOrder but NOT in COLUMNS:', keysNotInCOLUMNS);
-    }
-
     // Start with columns from columnOrder that are visible
     const orderedVisible = columnOrder
       .filter((key) => visibleColumns[key] === true)
       .map((key) => COLUMNS.find((c) => c.key === key))
       .filter((col): col is TableColumn => col !== undefined);
-    console.log('[visibleColumnsInOrder] result:', orderedVisible.map(c => c.key));
 
     // Ensure select is always first if it exists in COLUMNS
     const selectCol = COLUMNS.find(c => c.key === 'select');

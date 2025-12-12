@@ -1754,7 +1754,7 @@ export default function CorporateDashboardPage() {
             foundationIdNumeric={COMPANIES_TABLE_ID}
             tableName="All Companies"
             entries={companies}
-            columns={columns}
+            // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
             onEdit={handleEdit}
             onDelete={handleDelete}
             onBulkDelete={handleBulkDelete}

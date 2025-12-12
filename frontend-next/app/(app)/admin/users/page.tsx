@@ -242,7 +242,7 @@ export default function UsersPage() {
             foundationIdNumeric={212}
             tableName="Users"
             entries={users}
-            columns={USER_COLUMNS}
+            // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
             onEdit={handleEdit}
             onDelete={handleDelete}
             onBulkDelete={handleBulkDelete}
