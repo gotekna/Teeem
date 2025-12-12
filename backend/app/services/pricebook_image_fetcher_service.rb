@@ -384,8 +384,17 @@ class PricebookImageFetcherService
     photo_test = warehousing_items.find { |item| item[:is_folder] && item[:name]&.downcase == 'photo test' }
 
     unless photo_test
-      photo_test = @graph_client.create_folder(@site_id, @drive_id, "Warehousing", "Photo Test")
-      Rails.logger.info "[ImageFetcher] Created Photo Test folder in SharePoint"
+      begin
+        photo_test = @graph_client.create_folder(@site_id, @drive_id, "Warehousing", "Photo Test")
+        Rails.logger.info "[ImageFetcher] Created Photo Test folder in SharePoint"
+      rescue StandardError => e
+        # Folder might already exist - try to find it again
+        Rails.logger.warn "[ImageFetcher] Error creating Photo Test folder (#{e.message}), attempting to find it..."
+        warehousing_items = @graph_client.list_drive_items(@drive_id, folder_id: warehousing[:id])
+        photo_test = warehousing_items.find { |item| item[:is_folder] && item[:name]&.downcase == 'photo test' }
+
+        raise FetchError, "Could not find or create Photo Test folder: #{e.message}" unless photo_test
+      end
     end
 
     photo_test

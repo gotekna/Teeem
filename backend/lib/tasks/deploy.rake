@@ -9,12 +9,8 @@ namespace :deploy do
     puts ("=" * 80)
 
     # 1. Run pending migrations
-    if ActiveRecord::Base.connection.migration_context.needs_migration?
-      puts "\n📦 Running pending migrations..."
-      Rake::Task["db:migrate"].invoke
-    else
-      puts "\n✅ No pending migrations"
-    end
+    puts "\n📦 Running migrations..."
+    Rake::Task["db:migrate"].invoke
 
     # 2. Auto-sync Foundation metadata
     puts "\n🔄 Syncing Foundation metadata..."

@@ -12,7 +12,7 @@ export function DynamicTitle() {
 
     if (hostname.includes("localhost")) {
       envPrefix = "Teeem Local";
-    } else if (hostname.includes("teeem-sam-dev")) {
+    } else if (hostname.includes("teeem-sam-dev") || hostname.includes("teeemsam")) {
       envPrefix = "Teeem Sam";
     } else if (hostname.includes("teeemlive")) {
       envPrefix = "Teeem Live";
