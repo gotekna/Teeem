@@ -18,8 +18,8 @@ class PricebookImageFetcherService
 
   SHAREPOINT_TEST_FOLDER = "Warehousing/Photo Test"
 
-  # Standard image dimensions to match existing photos
-  IMAGE_SIZE = 800  # 800x800 pixels (square)
+  # Maximum file size for compressed images
+  MAX_FILE_SIZE = 900 * 1024  # 900 KB in bytes
 
   class FetchError < StandardError; end
 
@@ -110,13 +110,15 @@ class PricebookImageFetcherService
     return { success: false, error: "Failed to download image" } unless temp_file
 
     begin
-      # Step 4: Process image (resize to square, convert to PNG)
-      processed_file = process_image(temp_file.path)
-      return { success: false, error: "Failed to process image" } unless processed_file
+      # Step 4: Compress image to be under 900KB
+      processed_file = compress_image(temp_file.path)
+      return { success: false, error: "Failed to compress image" } unless processed_file
 
       # Step 5: Upload to SharePoint test folder
       # Use item_name for filename to match existing photo naming convention
-      filename = "#{item.item_name}.png"
+      # Include source URL in filename for reference
+      # Sanitize filename to prevent folder creation
+      filename = sanitize_filename("#{item.item_name} [#{best_image_url}].png")
       sharepoint_url = upload_to_sharepoint(processed_file.path, filename)
 
       return { success: false, error: "Failed to upload to SharePoint" } unless sharepoint_url
@@ -274,44 +276,63 @@ class PricebookImageFetcherService
     nil
   end
 
-  # Process image: resize to square and convert to PNG
-  def process_image(source_path)
+  # Compress image to be under MAX_FILE_SIZE (900KB) and make it square with padding
+  def compress_image(source_path)
     begin
       image = MiniMagick::Image.open(source_path)
 
-      # Get current dimensions
+      # Get current dimensions and file size
       width = image.width
       height = image.height
+      original_size = File.size(source_path)
 
-      Rails.logger.info "[ImageFetcher] Original image: #{width}x#{height}"
+      Rails.logger.info "[ImageFetcher] Original image: #{width}x#{height}, #{(original_size / 1024.0).round(1)} KB"
 
-      # Resize and crop to square (center crop)
-      # First resize so the smallest dimension is IMAGE_SIZE
-      if width > height
-        image.resize "#{(IMAGE_SIZE * width / height).to_i}x#{IMAGE_SIZE}"
-      else
-        image.resize "#{IMAGE_SIZE}x#{(IMAGE_SIZE * height / width).to_i}"
+      # Make image square by adding white padding (extend to square)
+      max_dimension = [width, height].max
+
+      # Calculate padding needed
+      if width < max_dimension || height < max_dimension
+        # Extent creates a canvas of the specified size and centers the image
+        image.gravity "center"
+        image.background "white"
+        image.extent "#{max_dimension}x#{max_dimension}"
+
+        Rails.logger.info "[ImageFetcher] Padded to square: #{max_dimension}x#{max_dimension}"
       end
-
-      # Then crop to exact square from center
-      image.crop "#{IMAGE_SIZE}x#{IMAGE_SIZE}+0+0"
-      image.gravity "center"
 
       # Convert to PNG format
       image.format "png"
 
       # Create output temp file
-      output_file = Tempfile.new([ "processed_image", ".png" ])
+      output_file = Tempfile.new([ "compressed_image", ".png" ])
       output_file.close
 
-      # Write processed image
-      image.write(output_file.path)
+      # Try different quality/compression levels to get under MAX_FILE_SIZE
+      quality = 85
 
-      Rails.logger.info "[ImageFetcher] Processed image: #{IMAGE_SIZE}x#{IMAGE_SIZE} PNG"
+      loop do
+        # Set compression quality (0-100, higher = better quality but larger file)
+        image.quality quality.to_s
+
+        # Write to temp file
+        image.write(output_file.path)
+
+        file_size = File.size(output_file.path)
+
+        # If file is small enough or quality is already at minimum, we're done
+        if file_size <= MAX_FILE_SIZE || quality <= 60
+          Rails.logger.info "[ImageFetcher] Compressed image: #{max_dimension}x#{max_dimension}, #{(file_size / 1024.0).round(1)} KB (quality: #{quality})"
+          break
+        end
+
+        # Reduce quality for next attempt
+        quality -= 5
+      end
 
       output_file
     rescue StandardError => e
-      Rails.logger.error "[ImageFetcher] Image processing failed: #{e.message}"
+      Rails.logger.error "[ImageFetcher] Image compression failed: #{e.message}"
       nil
     end
   end
@@ -366,6 +387,17 @@ class PricebookImageFetcherService
   rescue StandardError => e
     Rails.logger.error "[ImageFetcher] SharePoint upload failed: #{e.message}"
     nil
+  end
+
+  # Sanitize filename to prevent SharePoint folder creation
+  def sanitize_filename(filename)
+    # Replace characters that SharePoint interprets as path separators
+    # Replace / and \ with dash
+    # Remove other problematic characters: : * ? " < > |
+    sanitized = filename.gsub(/[\/\\:*?"<>|]/, '-')
+
+    # Collapse multiple dashes/spaces to single
+    sanitized.gsub(/[-\s]+/, ' ').strip
   end
 
   # Ensure Photo Test folder exists in SharePoint
