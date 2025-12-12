@@ -249,10 +249,7 @@ export const applyViewAtom = atom(
 
     // Sorting and grouping
     if (view.sortColumns) {
-      console.log('[applyViewAtom] Setting sortColumns:', view.sortColumns);
       set(currentSortColumnsAtom, view.sortColumns);
-    } else {
-      console.log('[applyViewAtom] No sortColumns in view:', view.id, view.name);
     }
     if (view.groupByColumns && view.groupByColumns.length > 0) {
       set(currentGroupByColumnsAtom, view.groupByColumns);

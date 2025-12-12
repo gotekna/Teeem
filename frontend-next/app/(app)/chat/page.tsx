@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -539,7 +539,7 @@ export default function ChatPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }
@@ -638,7 +638,7 @@ export default function ChatPage() {
               <div className="px-3 pb-3 space-y-1">
                 {loadingUsers ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader />
+                    <Spinner />
                   </div>
                 ) : (
                   sortedOnlineUsers.map((user) => (
@@ -796,7 +796,7 @@ export default function ChatPage() {
               <CardContent className="flex-1 p-3 overflow-hidden min-h-0">
                 {loadingMessages ? (
                   <div className="flex items-center justify-center h-full">
-                    <Loader />
+                    <Spinner />
                   </div>
                 ) : (
                   <ScrollArea className="h-full pr-2">

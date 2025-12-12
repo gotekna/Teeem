@@ -8,7 +8,7 @@ import { currentFiltersAtom, currentFilterGroupsAtom, foundationViewsAtom, activ
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
@@ -2547,7 +2547,7 @@ export default function ContactDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }
@@ -2610,7 +2610,7 @@ export default function ContactDetailPage() {
           >
             {enrichingFromWeb ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner2 className="h-4 w-4 mr-2 animate-spin" />
                 Enriching...
               </>
             ) : (
@@ -2708,7 +2708,7 @@ export default function ContactDetailPage() {
                     </CardTitle>
                     {hasChanges && (
                       <Button onClick={handleSave} disabled={saving} size="sm">
-                        {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                        {saving ? <Spinner2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                         Save
                       </Button>
                     )}
@@ -2834,7 +2834,7 @@ export default function ContactDetailPage() {
                                   disabled={creatingCompany || !newCompanyName.trim()}
                                 >
                                   {creatingCompany ? (
-                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                    <Spinner2 className="h-3 w-3 mr-1 animate-spin" />
                                   ) : (
                                     <Plus className="h-3 w-3 mr-1" />
                                   )}
@@ -2936,7 +2936,7 @@ export default function ContactDetailPage() {
                                   disabled={creatingEmployee || !newEmployeeFirstName.trim()}
                                 >
                                   {creatingEmployee ? (
-                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                    <Spinner2 className="h-3 w-3 mr-1 animate-spin" />
                                   ) : (
                                     <Plus className="h-3 w-3 mr-1" />
                                   )}
@@ -3808,7 +3808,7 @@ export default function ContactDetailPage() {
                 <Card className="border-primary/50 bg-primary/5">
                   <CardContent className="pt-6">
                     <Button onClick={handleSave} disabled={saving} className="w-full">
-                      {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                      {saving ? <Spinner2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                       Save Changes
                     </Button>
                   </CardContent>
@@ -4033,7 +4033,7 @@ export default function ContactDetailPage() {
                 <Card>
                   <CardContent className="py-8">
                     <div className="flex items-center justify-center">
-                      <Loader />
+                      <Spinner />
                     </div>
                   </CardContent>
                 </Card>
@@ -4345,7 +4345,7 @@ export default function ContactDetailPage() {
                 <CardContent>
                   {loadingOwnershipChain || loadingDirectorships ? (
                     <div className="flex items-center justify-center py-12">
-                      <Loader />
+                      <Spinner />
                     </div>
                   ) : ownershipChain.length > 0 || directorships.length > 0 ? (
                     <PersonStructureChart
@@ -4799,7 +4799,7 @@ export default function ContactDetailPage() {
             <CardContent>
               {loadingCaseRelationships ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Spinner2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : caseRelationships && caseRelationships.length > 0 ? (
                 <div className="space-y-4">
@@ -4895,7 +4895,7 @@ export default function ContactDetailPage() {
           </div>
           {loadingEmails ? (
             <div className="flex items-center justify-center py-8">
-              <Loader />
+              <Spinner />
             </div>
           ) : emails.length === 0 ? (
             <Card>
@@ -5176,7 +5176,7 @@ export default function ContactDetailPage() {
 
             {loadingDirectorships && (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <Spinner2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             )}
 

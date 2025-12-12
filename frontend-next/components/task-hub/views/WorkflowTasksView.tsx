@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader } from '@/components/ui/loader';
+import { Spinner } from '@/components/ui/spinner';
 import {
   Dialog,
   DialogContent,
@@ -190,7 +190,7 @@ export function WorkflowTasksView() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader />
+        <Spinner />
       </div>
     );
   }
@@ -397,7 +397,7 @@ export function WorkflowTasksView() {
             <Button onClick={handleCompleteTask} disabled={completing}>
               {completing ? (
                 <>
-                  <Loader className="h-3 w-3 mr-2" />
+                  <Spinner className="h-3 w-3 mr-2" />
                   Completing...
                 </>
               ) : (

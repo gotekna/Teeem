@@ -1923,10 +1923,6 @@ export default function TeeemTableView({
 
     // Apply sorting
     if (sortColumns.length > 0) {
-      // Debug: log sort configuration
-      console.log('[filteredAndSortedEntries] Applying sort with sortColumns:',
-        sortColumns.map(s => ({ column: s.column, dir: s.dir, hasCustomOrder: !!s.customOrder, customOrderLength: s.customOrder?.length }))
-      );
       result.sort((a, b) => {
         for (const { column, dir, customOrder } of sortColumns) {
           const aVal = a[column];
@@ -2098,12 +2094,32 @@ export default function TeeemTableView({
   };
 
   // Group entries hierarchically if grouping is enabled (supports nested group columns)
+  // Groups are sorted by customOrder if available for the group column
   const groupedEntries = useMemo((): Record<string, NestedGroup> | null => {
     if (groupByColumns.length === 0) {
       return null;
     }
 
-    const startTime = performance.now();
+    // Helper to get customOrder for a column from sortColumns
+    const getCustomOrderForColumn = (columnName: string): string[] | undefined => {
+      const sortConfig = sortColumns.find(s => s.column === columnName);
+      return sortConfig?.customOrder;
+    };
+
+    // Helper to sort group keys by customOrder
+    const sortGroupKeys = (keys: string[], customOrder: string[] | undefined): string[] => {
+      if (!customOrder || customOrder.length === 0) {
+        return keys; // No custom order, keep insertion order
+      }
+      return [...keys].sort((a, b) => {
+        const aIndex = customOrder.indexOf(a);
+        const bIndex = customOrder.indexOf(b);
+        // Items not in customOrder go to the end
+        const aPos = aIndex === -1 ? customOrder.length + keys.indexOf(a) : aIndex;
+        const bPos = bIndex === -1 ? customOrder.length + keys.indexOf(b) : bIndex;
+        return aPos - bPos;
+      });
+    };
 
     const buildNestedGroups = (
       entries: TableRowType[],
@@ -2115,14 +2131,24 @@ export default function TeeemTableView({
       }
 
       const currentCol = columns[depth];
-      const groups: Record<string, NestedGroup> = {};
+      const unsortedGroups: Record<string, NestedGroup> = {};
 
       for (const entry of entries) {
         const groupKey = getDisplayValue(entry[currentCol]);
-        if (!groups[groupKey]) {
-          groups[groupKey] = { rows: [] };
+        if (!unsortedGroups[groupKey]) {
+          unsortedGroups[groupKey] = { rows: [] };
         }
-        groups[groupKey].rows.push(entry);
+        unsortedGroups[groupKey].rows.push(entry);
+      }
+
+      // Sort group keys by customOrder if available for this column
+      const customOrder = getCustomOrderForColumn(currentCol);
+      const sortedKeys = sortGroupKeys(Object.keys(unsortedGroups), customOrder);
+
+      // Rebuild groups object with sorted keys (maintains order)
+      const groups: Record<string, NestedGroup> = {};
+      for (const key of sortedKeys) {
+        groups[key] = unsortedGroups[key];
       }
 
       // If there are more columns, recursively build subgroups
@@ -2137,7 +2163,7 @@ export default function TeeemTableView({
 
     const result = buildNestedGroups(filteredAndSortedEntries, groupByColumns, 0);
     return result;
-  }, [filteredAndSortedEntries, groupByColumns, getDisplayValue]);
+  }, [filteredAndSortedEntries, groupByColumns, getDisplayValue, sortColumns]);
 
   // Expand/collapse all group handlers (must be after groupedEntries)
   const expandAllGroups = useCallback(() => {

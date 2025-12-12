@@ -10,7 +10,7 @@ import { TeeemTableView } from "@/components/table";
 import type { TableColumn, TableRow, SavedView } from "@/components/table/types";
 import { api } from "@/lib/api";
 import { getTableUIConfig } from "@/lib/table-ui-config";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { Plus } from "lucide-react";
 
 interface Job {
@@ -316,7 +316,7 @@ export default function JobsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }

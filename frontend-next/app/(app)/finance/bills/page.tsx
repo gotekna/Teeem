@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -344,7 +344,7 @@ export default function BillInboxPage() {
       {/* Bills Table */}
       {loading ? (
         <div className="flex items-center justify-center min-h-[300px]">
-          <Loader />
+          <Spinner />
         </div>
       ) : bills.length === 0 ? (
         <Card>

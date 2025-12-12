@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Mail,
   CheckCircle,
@@ -239,7 +239,7 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[300px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }
