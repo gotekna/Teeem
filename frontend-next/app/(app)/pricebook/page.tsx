@@ -101,6 +101,11 @@ export default function PriceBookPage() {
     }
   };
 
+  // Handle add item - MUST be before early return to avoid hook count mismatch
+  const handleAddItem = useCallback(() => {
+    router.push('/pricebook/new');
+  }, [router]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -108,11 +113,6 @@ export default function PriceBookPage() {
       </div>
     );
   }
-
-  // Handle add item
-  const handleAddItem = useCallback(() => {
-    router.push('/pricebook/new');
-  }, [router]);
 
   return (
     <div className="space-y-6">
