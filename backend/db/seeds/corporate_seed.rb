@@ -38,12 +38,12 @@ directors.each do |d|
   Contact.find_or_create_by!(display_name: d[:display_name]) do |c|
     c.first_name = d[:first_name]
     c.last_name = d[:last_name]
-    c.director_id = d[:director_id]
+    # director_id column was removed - ASIC director IDs are stored in CorporateCompanyDirector
     c.entity_type = 'person'
     c.is_active = true
   end
 end
-puts "  Created #{Contact.where.not(director_id: nil).count} directors"
+puts "  Created #{directors.count} directors"
 
 # Companies
 puts "Creating Companies..."
