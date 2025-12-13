@@ -12,8 +12,11 @@ class XeroDuplicateFixService
     xero_contact_ids = ContactExternalLink.where(source: "xero").distinct.pluck(:contact_id)
 
     # Find contacts with duplicate display names (normalized)
+    # Exclude contacts with " - " pattern (e.g., "Accounts Team - Survey Mark Pty Ltd")
+    # These are intentionally separate team/department contacts for different companies
     duplicate_names = Contact.where(is_active: true)
                              .where(id: xero_contact_ids)
+                             .where("display_name NOT LIKE '% - %'")  # Exclude "Team - Company" pattern
                              .select("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) as normalized_name, COUNT(*) as count")
                              .group("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g')))")
                              .having("COUNT(*) > 1")
@@ -23,8 +26,10 @@ class XeroDuplicateFixService
       normalized = dup.normalized_name
 
       # Get all contacts with this normalized name
+      # Also exclude "Team - Company" pattern contacts
       contacts = Contact.where(is_active: true)
                        .where("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) = ?", normalized)
+                       .where("display_name NOT LIKE '% - %'")
                        .includes(:xero_links, :jobs, :purchase_orders, :case_contacts)
 
       next if contacts.count < 2
