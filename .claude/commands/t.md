@@ -4,14 +4,15 @@
 
 A focused code review aligned with CLAUDE.md philosophy. Checks the things that matter.
 
-## What This Checks (4 Categories)
+## What This Checks (5 Categories)
 
 | # | Category | Why It Matters |
 |---|----------|----------------|
 | 1 | **SSoT Violations** | The core philosophy - find duplicates |
 | 2 | **Standard Components** | THE ONE component for each use case |
 | 3 | **Gold Standard** | 31 valid column types |
-| 4 | **Security** | Always important |
+| 4 | **SSoT Model Auditor** | Find NoMethodError time bombs |
+| 5 | **Security** | Always important |
 
 ## Execution
 
@@ -70,15 +71,32 @@ cd backend && bin/rails runner "
   valid_types = Column::COLUMN_TYPE_MAP.keys
   invalid = Column.where.not(column_type: valid_types)
   if invalid.any?
-    puts '❌ INVALID COLUMN TYPES:'
+    puts 'INVALID COLUMN TYPES:'
     invalid.group(:column_type).count.each { |t, c| puts \"  #{t}: #{c} columns\" }
   else
-    puts '✅ All columns use valid Gold Standard types'
+    puts 'All columns use valid Gold Standard types'
   end
 "
 ```
 
-### Step 4: Security Scan
+### Step 4: SSoT Model Auditor
+
+**Find NoMethodError time bombs - method calls on models that don't exist:**
+
+```bash
+# Run the SSoT Model Auditor
+cd backend && bin/rails ssot:audit
+```
+
+**What it checks:**
+- Scans controllers, services, jobs, models, mailers
+- Finds method calls like `job.title` when the method is actually `job.name`
+- Suggests similar methods that likely match intent
+- Prevents runtime NoMethodError crashes
+
+**Expected:** 0 issues found
+
+### Step 5: Security Scan
 
 ```bash
 # Quick security check
@@ -96,7 +114,8 @@ cd backend && bundle exec brakeman -q --no-pager -w2 2>/dev/null | head -30 || e
 1. SSoT Violations:     [PASS/X issues]
 2. Standard Components: [PASS/X issues]
 3. Gold Standard:       [PASS/X issues]
-4. Security:            [PASS/X issues]
+4. Model Auditor:       [PASS/X issues]
+5. Security:            [PASS/X issues]
 
 ────────────────────────────────────────
 Total: X issues to fix
@@ -109,20 +128,22 @@ Total: X issues to fix
 
 | Command | Scope |
 |---------|-------|
-| `/t` | Full review (all 4 checks) |
+| `/t` | Full review (all 5 checks) |
 | `/t ssot` | SSoT violations only |
 | `/t ui` | Standard components only |
 | `/t gold` | Gold Standard only |
+| `/t model` | Model Auditor only |
 | `/t sec` | Security only |
 
 ## Philosophy
 
 This command embodies the Ultrathink principle: **"Simplify ruthlessly."**
 
-We don't check 12 categories. We check 4 that matter:
+We don't check 12 categories. We check 5 that matter:
 - SSoT violations break the codebase philosophy
 - Wrong components create maintenance debt
 - Invalid column types break the data model
+- Missing model methods cause runtime crashes
 - Security issues risk the business
 
 Everything else is noise.

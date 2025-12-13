@@ -96,7 +96,7 @@ module Api
       # GET /api/v1/jobs?status=Active
       # GET /api/v1/jobs?contact_id=123
       def index
-        @jobs = Job.includes(:job_type, :job_status, :job_stage).all
+        @jobs = Job.includes(:job_type, :job_status, :job_stage)
 
         # Filter by contact_id if provided - only return jobs where this contact is a client
         # (not representative, broker, etc. - only actual client role)
@@ -136,20 +136,41 @@ module Api
         page = params[:page]&.to_i || 1
         per_page = params[:per_page]&.to_i || 500
 
-        # Get total count before limiting results to avoid separate COUNT query
+        # Get total count before limiting results
         total_count = @jobs.count
         total_pages = (total_count.to_f / per_page).ceil
 
-        @jobs = @jobs.order(created_at: :desc)
-                                       .limit(per_page)
-                                       .offset((page - 1) * per_page)
+        # Performance optimization: only select columns needed for list view
+        # Full job data is loaded via show action when viewing a specific job
+        list_columns = %i[
+          id name contract_value start_date location
+          site_supervisor_name job_type_id job_status_id job_stage_id
+          created_at updated_at
+        ]
+
+        @jobs = @jobs.select(list_columns)
+                     .order(created_at: :desc)
+                     .limit(per_page)
+                     .offset((page - 1) * per_page)
 
         # Include job_type and job_status in response
+        # Only serialize the columns we selected for list view (not all 50+ columns)
         jobs_with_associations = @jobs.map do |job|
-          job.as_json.merge(
+          {
+            id: job.id,
+            name: job.name,
+            contract_value: job.contract_value,
+            start_date: job.start_date,
+            location: job.location,
+            site_supervisor_name: job.site_supervisor_name,
+            job_type_id: job.job_type_id,
+            job_status_id: job.job_status_id,
+            job_stage_id: job.job_stage_id,
+            created_at: job.created_at,
+            updated_at: job.updated_at,
             job_type: job.job_type&.as_json(only: [ :id, :name, :icon ]),
             job_status: job.job_status&.as_json(only: [ :id, :name, :color ])
-          )
+          }
         end
 
         render json: {

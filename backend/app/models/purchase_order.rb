@@ -1,4 +1,13 @@
 class PurchaseOrder < ApplicationRecord
+  # SSoT Aliases - Backwards compatibility
+  alias_attribute :po_number, :purchase_order_number
+  alias_attribute :notes, :description
+
+  # Metadata helper for templates (returns nil if not available)
+  def metadata
+    nil
+  end
+
   # Associations
   belongs_to :job, counter_cache: true
   alias_method :construction, :job  # Backwards compatibility

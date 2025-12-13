@@ -1,16 +1,8 @@
 {
   "ignored_warnings": [
     {
-      "fingerprint": "06c2bde37f001894ef3c43d3bbd6c38964b3c2725442d6eb112ddb4cacc0d332",
-      "note": "File extension sanitized with regex, path confined to /tmp/imports/"
-    },
-    {
       "fingerprint": "244cbfa5641d385c945c5269e6048b1b1fdb665be6792807d4ac8da33e82e253",
       "note": "Case contact role - business relationship type, not privilege escalation"
-    },
-    {
-      "fingerprint": "2d50c0f961301b6717487115c442b54f4a60493a1acec037db8f1d3655b9a062",
-      "note": "Cloudinary URL set by backend, not user-controlled"
     },
     {
       "fingerprint": "304c6e23282ba90054fa3df50989580e88e3abd824409a01157a90e2c917e176",
@@ -29,36 +21,12 @@
       "note": "VIEW_CHECKS constant whitelist - view names are hardcoded"
     },
     {
-      "fingerprint": "60c9fe4ab9c64d941d302d17954dcd3a99c158fd1198eb026fcfb654fe7a7478",
-      "note": "Cloudinary URL set by backend, not user-controlled"
-    },
-    {
       "fingerprint": "6778086d5b9f4e2315f05cf9aa7961f71e1dc10e5bf4541b159a419b352f75e0",
       "note": "Uses permit() for updates and Integer() for task_ids - properly sanitized"
     },
     {
       "fingerprint": "6edd0e8e3e49a3f35b1930bb38e3098f6f5b0c9c7cdc6c6a5cba4dbd5373539a",
       "note": "Contact person role - organization role, not privilege escalation"
-    },
-    {
-      "fingerprint": "9dd83e7ea3d2dc44c549773d5443eb102788f909382c3263603f27eece86069e",
-      "note": "File path from ImportSession model, originally sanitized on upload"
-    },
-    {
-      "fingerprint": "aadba596954e41cf9c48a66d10fc695b41f2c1262feb1219b92b80821812269c",
-      "note": "Cloudinary URL set by backend, not user-controlled"
-    },
-    {
-      "fingerprint": "afb5629768dff73ab121af5aaab8cb4ebb59f23ec55bc5aaa4a6601929530741",
-      "note": "BPMN conditions admin-only, regex validation limits allowed characters"
-    },
-    {
-      "fingerprint": "c6ed92540e88c59c35abc4d2f848d4aa5c6f0e9667a6b21928bea80805ee8716",
-      "note": "File extension sanitized with regex, path confined to /tmp/imports/"
-    },
-    {
-      "fingerprint": "c9b3c25bb3b51506044c44d2e247d49742288306ef8b86974026697d7fe12618",
-      "note": "File extension sanitized with regex, path confined to /tmp/imports/"
     },
     {
       "fingerprint": "df1cf0fd61a4d21dbbedfcb7aab4ec7d20b0cbd16e6d3711b891461529538a0b",
