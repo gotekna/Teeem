@@ -2,7 +2,8 @@
 # This is a join table between cases and company_documents (SSoT)
 class CaseDocument < ApplicationRecord
   belongs_to :case_record, foreign_key: :case_id, class_name: "CaseRecord"
-  belongs_to :company_document
+  # Note: class_name needed because table was renamed from company_documents to corporate_company_documents
+  belongs_to :company_document, class_name: "CorporateCompanyDocument"
   belongs_to :added_by, class_name: "User", optional: true
 
   validates :case_id, uniqueness: { scope: :company_document_id }

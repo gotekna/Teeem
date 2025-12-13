@@ -4,7 +4,8 @@
 class EmailAttachment < ApplicationRecord
   belongs_to :email_warehouse
   belongs_to :attachment, optional: true  # Link to Attachment model (SharePoint-stored attachments)
-  belongs_to :company_document, optional: true  # If linking to existing doc
+  # Note: class_name needed because table was renamed from company_documents to corporate_company_documents
+  belongs_to :company_document, class_name: "CorporateCompanyDocument", optional: true  # If linking to existing doc
 
   # Note: filename is optional when linking to an Attachment record (which has the filename)
 
