@@ -318,7 +318,7 @@ module Api
           .map do |jc|
             {
               job_id: jc.job_id,
-              job_title: jc.job.title,
+              job_title: jc.job.name,
               location: jc.job.location,
               role: jc.role,
               primary: jc.primary,

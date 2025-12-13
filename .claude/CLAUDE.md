@@ -205,17 +205,33 @@ cd frontend-next && npm run dev
 
 ## 🔴 Production Deployment
 
-**Deploy to production (`teeemlive`) using the `/l` command or manually:**
+**Deploy to production (`teeemlive`) using the `/l` command (RECOMMENDED):**
 
 ```bash
-# Using /l command (recommended)
+# THE SSoT - Use /l command
 /l
-
-# Or manually deploy backend to Heroku:
-cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend -b temp-backend-deploy
-ALLOW_PUSH=1 git push heroku-teeemlive temp-backend-deploy:main --force
-git branch -D temp-backend-deploy
 ```
+
+**Manual deploy (only if /l unavailable) - Fast Orphan Method:**
+
+```bash
+# ULTRA-FAST DEPLOY (~5 seconds, no memory issues)
+# Avoids slow git subtree split entirely
+cd /Users/robertharder/GitHub/teeem
+DEPLOY_DIR=$(mktemp -d)
+cp -r backend/* "$DEPLOY_DIR/"
+cd "$DEPLOY_DIR"
+git init && git add . && git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
+git remote add heroku https://git.heroku.com/teeemlive.git
+git push heroku HEAD:main --force
+cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
+```
+
+**Why this method:**
+- O(1) time - no git history processing
+- No memory issues regardless of repo size
+- 5 seconds vs 2+ minutes with git subtree
+- Heroku doesn't need history anyway
 
 ### Heroku Environments
 
