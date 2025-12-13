@@ -6,11 +6,12 @@ description: |
   ║  Lazy Loading Check:        Modal/popover data      [PASS]║
   ║  N+1 Endpoint Detection:    ALL vs single records   [PASS]║
   ║  Redundant Fetch Prevention: Re-fetch guards        [PASS]║
+  ║  API Payload Bloat:         Column count vs usage   [PASS]║
   ╠═══════════════════════════════════════════════════════════╣
   ║  Focus: End-user perceived performance                    ║
-  ║  Trigger: Page load, modal open, user interaction         ║
+  ║  Trigger: Page load, modal open, "slow", "optimize"       ║
   ╠═══════════════════════════════════════════════════════════╣
-  ║  Est. Tokens:           ~2,500                            ║
+  ║  Est. Tokens:           ~3,000                            ║
   ╚═══════════════════════════════════════════════════════════╝
 model: sonnet
 color: yellow
@@ -428,6 +429,119 @@ function detectPERF005(fileContent, filePath) {
 
 ---
 
+### PERF-006: API Payload Bloat (Backend Returns Too Many Columns)
+
+**Problem:** Backend API returns ALL columns for a model when the frontend only displays a subset. This wastes bandwidth and slows page loads.
+
+**The Math:**
+```
+Before: 58 jobs × 50 columns × ~100 bytes = 290KB payload
+After:  58 jobs × 10 columns × ~50 bytes = 29KB payload
+Result: 90% reduction, 10x faster
+```
+
+**Detection Method:**
+
+Step 1 - Check what the API returns:
+```bash
+cd backend && bin/rails runner "
+  model = Job  # or Contact, PurchaseOrder, etc.
+  record = model.first
+  columns = record.as_json.keys
+  puts \"API returns #{columns.count} columns:\"
+  puts columns.sort.join(', ')
+"
+```
+
+Step 2 - Check what the frontend actually uses:
+```bash
+# Find columns actually referenced in the list view
+grep -rn "job\." frontend-next/app/jobs/page.tsx | grep -oE "job\.[a-z_]+" | sort | uniq
+```
+
+Step 3 - Calculate the waste:
+```bash
+# If API returns 50 columns but UI uses 10, that's 80% waste!
+# Response size estimate: columns × records × ~100 bytes
+```
+
+**Real Example Fixed (Jobs List):**
+
+```ruby
+# BEFORE (returns ALL 50 columns per job)
+def index
+  @jobs = Job.all
+  render json: { success: true, data: @jobs }
+end
+
+# AFTER (returns only 10 columns needed for list view)
+def index
+  @jobs = Job.select(
+    :id, :name, :status, :created_at, :updated_at,
+    :job_type_id, :total_price, :site_address, :code, :suburb
+  ).includes(:job_type)
+
+  render json: { success: true, data: @jobs.as_json(include: { job_type: { only: [:id, :name] } }) }
+end
+```
+
+**Priority Endpoints to Audit:**
+
+| Endpoint | Expected Columns | Max Payload |
+|----------|------------------|-------------|
+| GET /api/v1/jobs | ~10 | <30KB |
+| GET /api/v1/contacts | ~12 | <50KB |
+| GET /api/v1/purchase_orders | ~10 | <40KB |
+| GET /api/v1/schedule_tasks | ~8 | <30KB |
+| GET /api/v1/corporate_companies | ~10 | <30KB |
+
+**Note:** Single record endpoints (GET /api/v1/jobs/:id) should return ALL columns - that's appropriate for detail views.
+
+**Automated Detection Commands:**
+
+1. **Check if Foundation hooks use `fields=minimal`** (most important):
+```bash
+# Frontend MUST use fields=minimal for 90%+ payload reduction
+grep -rn "fields.*minimal" frontend-next/hooks frontend-next/lib/server --include="*.ts*"
+# Expected: Should find matches in useFoundationBySlug.ts and foundation-api.ts
+```
+
+2. **Check Foundation API minimal mode effectiveness:**
+```bash
+cd backend && bin/rails runner "
+  puts 'FOUNDATION API - MINIMAL MODE ANALYSIS'
+  puts '=' * 60
+  Foundation.where(slug: %w[contacts jobs purchase_orders company]).each do |f|
+    model = f.dynamic_model rescue nil
+    next unless model
+    full = model.column_names.count
+    minimal = 3 + f.columns.where('is_title = ? OR position <= ?', true, 4).limit(5).count
+    savings = ((full - minimal).to_f / full * 100).round
+    status = savings >= 80 ? 'OK' : 'NEEDS REVIEW'
+    puts \"#{f.name}: #{full} full -> #{minimal} minimal (#{savings}% reduction) [#{status}]\"
+  end
+"
+```
+
+3. **Backup: Check model-level payload bloat** (if not using Foundation API):
+```bash
+cd backend && bin/rails runner "
+  models = %w[Job Contact PurchaseOrder CorporateCompany ScheduleTask]
+  puts 'MODEL DEFAULT PAYLOAD AUDIT'
+  puts '=' * 60
+  models.each do |model_name|
+    klass = model_name.constantize
+    record = klass.first
+    next unless record
+    columns = record.as_json.keys.count
+    status = columns > 20 ? 'CHECK CONTROLLER' : 'OK'
+    puts \"#{model_name}: #{columns} columns [#{status}]\"
+  end
+"
+```
+
+---
+
 ## Audit Workflow
 
 ### Step 1: Identify High-Traffic Pages
@@ -540,9 +654,10 @@ end
 ║  N+1 Endpoint Detection:  Single-resource endpoints     [PASS]  ║
 ║  Redundant Fetch Guards:  All fetches guarded           [PASS]  ║
 ║  Pagination Check:        Large datasets limited        [PASS]  ║
+║  API Payload Bloat:       All endpoints optimized       [PASS]  ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  Pages Audited:           [X]                                   ║
-║  Patterns Checked:        5 (PERF-001 to 005)                   ║
+║  Patterns Checked:        6 (PERF-001 to 006)                   ║
 ║  Issues Found:            0                                     ║
 ╚════════════════════════════════════════════════════════════════╝
 ```
@@ -559,6 +674,7 @@ end
 ║  PERF-003 (N+1 endpoints):      [X] issues                      ║
 ║  PERF-004 (Redundant fetches):  [X] issues                      ║
 ║  PERF-005 (No pagination):      [X] issues                      ║
+║  PERF-006 (Payload bloat):      [X] issues                      ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  ISSUES:                                                        ║
 ║  - [File:line] PERF-XXX: Description                            ║

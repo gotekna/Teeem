@@ -134,6 +134,7 @@ Total: X issues to fix
 | `/t gold` | Gold Standard only |
 | `/t model` | Model Auditor only |
 | `/t sec` | Security only |
+| `/t perf` | Performance Auditor (PERF-001 to PERF-006) |
 
 ## Philosophy
 

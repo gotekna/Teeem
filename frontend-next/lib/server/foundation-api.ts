@@ -111,9 +111,10 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
     const foundationData = await foundationRes.json();
     const foundation = foundationData.foundation as Foundation;
 
-    // Fetch records
+    // Fetch records with fields=minimal for 90%+ payload reduction
+    // Only loads essential columns for list view (id, title, key columns)
     const recordsRes = await fetch(
-      `${API_BASE_URL}/api/v1/foundations/${foundation.id}/records?per_page=2000`,
+      `${API_BASE_URL}/api/v1/foundations/${foundation.id}/records?per_page=2000&fields=minimal`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
