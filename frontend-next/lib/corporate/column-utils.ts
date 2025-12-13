@@ -102,9 +102,15 @@ export const SYSTEM_DISPLAY_COLUMNS = ['id', 'created_at', 'updated_at'];
 
 /**
  * ID columns that SHOULD be visible (exceptions to the _id hiding rule).
+ * Add any _id columns here that users need to see/select in tables.
  */
 const VISIBLE_ID_COLUMNS = [
-  'product_id', 'contact_id', 'job_id', 'job_type_id', 'job_status_id', 'company_id'
+  // Core entity IDs
+  'product_id', 'contact_id', 'job_id', 'job_type_id', 'job_status_id', 'company_id',
+  // Relationship IDs (needed for Contacts, Companies, etc.)
+  'primary_company_id', 'linked_company_id', 'company_group_id',
+  // External system IDs
+  'xero_id'
 ];
 
 /**
