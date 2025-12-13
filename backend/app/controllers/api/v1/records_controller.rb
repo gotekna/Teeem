@@ -448,22 +448,24 @@ module Api
         end
 
         # PHASE 2: Smart defaults based on column metadata
-        if foundation.table_type == "system"
-          # For system foundations, use model introspection
-          model = foundation.dynamic_model
-          # Get first 5 non-system columns
-          essential = model.column_names
-            .reject { |col| [ "created_at", "updated_at", "id" ].include?(col) }
-            .first(5)
-            .map(&:to_sym)
-        else
-          # For user foundations, use column metadata
+        # First try to use Foundation's configured columns (works for both system and user foundations)
+        if foundation.columns.any?
           essential = foundation.columns
             .where("is_title = ? OR position <= ?", true, 4)
             .order(:position)
             .limit(5)
             .pluck(:column_name)
             .map(&:to_sym)
+        elsif foundation.table_type == "system"
+          # Fallback for system foundations without configured columns: use model introspection
+          model = foundation.dynamic_model
+          essential = model.column_names
+            .reject { |col| [ "created_at", "updated_at", "id" ].include?(col) }
+            .first(5)
+            .map(&:to_sym)
+        else
+          # User foundation without columns (shouldn't happen)
+          essential = []
         end
 
         # Always include id and timestamps (required for record operations)
@@ -549,8 +551,11 @@ module Api
         }
 
         # For system foundations, return all model attributes directly
+        # IMPORTANT: Only access attributes that were actually loaded (supports fields=minimal SELECT queries)
         if @foundation.table_type == "system"
-          record.attributes.each do |key, value|
+          # Get only the columns that were actually loaded (not full schema)
+          loaded_columns = record.attributes.keys
+          loaded_columns.each do |key|
             next if [ "id", "created_at", "updated_at" ].include?(key)
             # Use send to go through model accessors (which may have safe decryption wrappers)
             begin
@@ -560,15 +565,23 @@ module Api
             rescue ActiveRecord::Encryption::Errors::Decryption => e
               Rails.logger.warn "Decryption failed for #{record.class.name}##{record.id}.#{key}: #{e.message}"
               json[key] = nil
+            rescue ActiveModel::MissingAttributeError => e
+              # Column wasn't loaded (fields=minimal mode) - skip silently
+              next
             rescue => e
               Rails.logger.warn "Error reading #{record.class.name}##{record.id}.#{key}: #{e.message}"
-              json[key] = value
+              json[key] = record.attributes[key]
             end
           end
 
           # Expand _id columns to include display value for lookup columns
           # e.g., job_type_id => { id: 1, display: "Residential" }
-          record.attributes.keys.select { |k| k.to_s.end_with?("_id") && k != "id" }.each do |id_column|
+          # IMPORTANT: Only expand _id columns that were actually loaded
+          loaded_id_columns = loaded_columns.select { |k| k.to_s.end_with?("_id") && k != "id" }
+          loaded_id_columns.each do |id_column|
+            # Skip if the _id column wasn't loaded or has no value
+            next unless json.key?(id_column) && json[id_column].present?
+
             association_name = id_column.to_s.sub(/_id$/, "")
             if record.respond_to?(association_name)
               begin
@@ -578,6 +591,9 @@ module Api
                   display_value = DisplayValueResolver.resolve(related)
                   json[id_column] = { id: json[id_column], display: display_value }
                 end
+              rescue ActiveModel::MissingAttributeError
+                # Column wasn't loaded - skip expansion
+                next
               rescue => e
                 Rails.logger.warn "Error expanding #{association_name}: #{e.message}"
               end
