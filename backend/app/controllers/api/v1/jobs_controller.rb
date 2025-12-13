@@ -12,7 +12,8 @@ module Api
         enquiry_stages = JobStage.where(job_status_id: enquiry_status&.id).order(:position)
 
         # Get all jobs with Enquiry status
-        jobs = Job.includes(:job_type, :job_status, :job_stage, job_contacts: :contact)
+        # SSoT: Use Job.with_contacts scope for standard includes
+        jobs = Job.with_contacts
                   .where(job_status_id: enquiry_status&.id)
                   .order(created_at: :desc)
 
@@ -96,7 +97,8 @@ module Api
       # GET /api/v1/jobs?status=Active
       # GET /api/v1/jobs?contact_id=123
       def index
-        @jobs = Job.includes(:job_type, :job_status, :job_stage)
+        # SSoT: Use Job.with_lookups scope for standard includes
+        @jobs = Job.with_lookups
 
         # Filter by contact_id if provided - only return jobs where this contact is a client
         # (not representative, broker, etc. - only actual client role)

@@ -7,6 +7,7 @@ import {
   GripVertical,
   Check,
   EyeOff,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
@@ -29,7 +30,9 @@ interface SortableColumnItemProps {
   id: string;
   column: Column;
   isVisible: boolean;
+  isSearchable?: boolean;
   onToggleVisibility: () => void;
+  onToggleSearchable?: () => void;
   index?: number;
   totalVisible?: number;
   onReorder?: (newIndex: number) => void;
@@ -47,7 +50,9 @@ export function SortableColumnItem({
   id,
   column,
   isVisible,
+  isSearchable,
   onToggleVisibility,
+  onToggleSearchable,
   index,
   totalVisible,
   onReorder,
@@ -183,6 +188,25 @@ export function SortableColumnItem({
           )}
         </div>
       </button>
+
+      {/* Search toggle - shows if column is included in search */}
+      {onToggleSearchable && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSearchable();
+          }}
+          className={cn(
+            "shrink-0 p-0.5 rounded transition-colors",
+            isSearchable
+              ? "text-primary bg-primary/10 hover:bg-primary/20"
+              : "text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted"
+          )}
+          title={isSearchable ? "Click to exclude from search" : "Click to include in search"}
+        >
+          <Search className="h-3 w-3" />
+        </button>
+      )}
 
       {/* Priority badge when TEEEM Smart is enabled */}
       {smartFit && priority && (

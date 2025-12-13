@@ -98,6 +98,7 @@ interface Column {
   lookup_foundation_id?: number;
   lookup_display_column?: string;
   available_choices?: { id: number; value: string }[] | string[];
+  searchable?: boolean;
 }
 
 interface ViewManagerSheetProps {
@@ -184,6 +185,7 @@ export function ViewManagerSheet({
   const [editAutoFitColumns, setEditAutoFitColumns] = React.useState(false);
   const [editSmartFit, setEditSmartFit] = React.useState(true); // Default to TEEEM Smart
   const [editShowTotals, setEditShowTotals] = React.useState(true);
+  const [editSearchableColumns, setEditSearchableColumns] = React.useState<Record<string, boolean>>({});
 
   // Collapse state
   const [filtersExpanded, setFiltersExpanded] = React.useState(true);
@@ -251,6 +253,7 @@ export function ViewManagerSheet({
           filterGroups: v.filters?.filterGroups || [{ id: "default", logic: "AND" }],
           interGroupLogic: v.filters?.interGroupLogic || "OR",
           visibleColumns: v.columns?.visible || {},
+          searchableColumns: v.columns?.searchable || {},
           columnOrder: v.columns?.order || [],
           columnWidths: v.columns?.widths || {},
           autoFitColumns: v.columns?.autoFitColumns === true,
@@ -320,6 +323,13 @@ export function ViewManagerSheet({
     setEditAutoFitColumns(view.autoFitColumns || false);
     setEditSmartFit(view.smartFit !== false); // Default to true for TEEEM Smart
     setEditShowTotals(view.showTotals !== false);
+
+    // Load searchable columns - default to foundation schema's searchable settings
+    const hasSearchableColumns = view.searchableColumns && Object.keys(view.searchableColumns).length > 0;
+    const searchableColumnsToSet = hasSearchableColumns
+      ? view.searchableColumns
+      : Object.fromEntries(effectiveColumns.map(c => [c.column_name, c.searchable ?? false]));
+    setEditSearchableColumns(searchableColumnsToSet!);
   };
 
   const handleSelectView = (view: SavedView) => {
@@ -387,6 +397,7 @@ export function ViewManagerSheet({
         autoFitColumns: editAutoFitColumns,
         smartFit: editSmartFit,
         showTotals: editShowTotals,
+        searchableColumns: editSearchableColumns,
         filters: editFilters,
         filterGroups: editFilterGroups,
         interGroupLogic: editInterGroupLogic,
@@ -412,6 +423,7 @@ export function ViewManagerSheet({
           autoFitColumns: currentEditState.autoFitColumns,
           smartFit: currentEditState.smartFit,
           showTotals: currentEditState.showTotals,
+          searchable: currentEditState.searchableColumns,
         },
         sort_order: currentEditState.sortColumns,
         group_by_columns: currentEditState.groupByColumns,
@@ -448,6 +460,7 @@ export function ViewManagerSheet({
           autoFitColumns: currentEditState.autoFitColumns,
           smartFit: currentEditState.smartFit,
           showTotals: currentEditState.showTotals,
+          searchableColumns: currentEditState.searchableColumns,
           filters: currentEditState.filters,
           filterGroups: currentEditState.filterGroups,
           interGroupLogic: currentEditState.interGroupLogic,
@@ -908,6 +921,14 @@ export function ViewManagerSheet({
     if (newVisible && !editColumnOrder.includes(columnName)) {
       setEditColumnOrder([...editColumnOrder, columnName]);
     }
+  };
+
+  // Toggle whether a column is included in search for this view
+  const toggleColumnSearchable = (columnName: string) => {
+    setEditSearchableColumns({
+      ...editSearchableColumns,
+      [columnName]: !editSearchableColumns[columnName],
+    });
   };
 
   const showAllColumns = () => {
@@ -1671,7 +1692,9 @@ export function ViewManagerSheet({
                                             id={col.column_name}
                                             column={col}
                                             isVisible={true}
+                                            isSearchable={editSearchableColumns[col.column_name] === true}
                                             onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
+                                            onToggleSearchable={() => toggleColumnSearchable(col.column_name)}
                                             index={originalIndex + 1}
                                             totalVisible={visibleCols.length}
                                             onReorder={(newPos) => reorderColumnToPosition(col.column_name, newPos)}
@@ -1724,7 +1747,9 @@ export function ViewManagerSheet({
                                               id={col.column_name}
                                               column={col}
                                               isVisible={false}
+                                              isSearchable={editSearchableColumns[col.column_name] === true}
                                               onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
+                                              onToggleSearchable={() => toggleColumnSearchable(col.column_name)}
                                               lookupFoundationName={col.lookup_foundation_id ? foundationNames[col.lookup_foundation_id] : undefined}
                                             />
                                           ))}

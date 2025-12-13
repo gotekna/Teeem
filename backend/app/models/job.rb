@@ -6,6 +6,11 @@ class Job < ApplicationRecord
   include BpmnTriggerable
   bpmn_status_trigger :job_status_id
 
+  # SSoT: Standard includes - define once, use everywhere
+  # Use Job.with_lookups for list views, Job.with_contacts for detail views
+  scope :with_lookups, -> { includes(:job_type, :job_status, :job_stage) }
+  scope :with_contacts, -> { includes(:job_type, :job_status, :job_stage, job_contacts: :contact) }
+
   # Associations
   has_many :purchase_orders, dependent: :destroy
   has_many :job_claims, dependent: :destroy

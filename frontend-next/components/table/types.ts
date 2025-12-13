@@ -28,6 +28,7 @@ export interface TableColumn {
   editable?: boolean; // Whether the column can be edited (default: true)
   system?: boolean; // System column like id, created_at, updated_at (default: false)
   defaultHidden?: boolean; // Whether the column is hidden by default (default: false)
+  searchable?: boolean; // Whether this column is included in search (from foundation schema)
 }
 
 // Row data - generic record with id
@@ -68,6 +69,7 @@ export interface SavedView {
   filterGroups?: FilterGroup[];
   interGroupLogic?: "AND" | "OR";
   visibleColumns?: Record<string, boolean>;
+  searchableColumns?: Record<string, boolean>; // Which columns to include in search for this view
   columnOrder?: string[];
   columnWidths?: Record<string, number>;
   sortColumns?: SortColumn[];

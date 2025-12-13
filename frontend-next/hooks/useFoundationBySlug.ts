@@ -41,6 +41,7 @@ interface ApiColumn {
   lookup_display_column?: string;
   required?: boolean;
   is_unique?: boolean;
+  searchable?: boolean;
 }
 
 /**
@@ -256,6 +257,7 @@ export function useFoundationBySlug(
         choices: col.available_choices,
         lookup_foundation_id: col.lookup_foundation_id,
         lookup_display_column: col.lookup_display_column,
+        searchable: col.searchable ?? false,
       });
     });
 

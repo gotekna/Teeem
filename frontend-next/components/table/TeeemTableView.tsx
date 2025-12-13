@@ -748,6 +748,17 @@ export default function TeeemTableView({
     [COLUMNS]
   );
 
+  // Get default searchable columns from foundation schema (SSoT)
+  const getDefaultSearchableColumns = useCallback(
+    () =>
+      COLUMNS.reduce((acc, col) => {
+        // Use the searchable flag from foundation schema, default to false
+        acc[col.key] = col.searchable ?? false;
+        return acc;
+      }, {} as Record<string, boolean>),
+    [COLUMNS]
+  );
+
   // ============================================================================
   // STATE - Migrating to atoms for SSoT compliance
   // ============================================================================
@@ -762,6 +773,14 @@ export default function TeeemTableView({
   const [columnWidths, setColumnWidths] = useAtom(currentColumnWidthsAtom);
   const [columnOrder, setColumnOrder] = useAtom(currentColumnOrderAtom);
   const [visibleColumns, setVisibleColumns] = useAtom(currentVisibleColumnsAtom);
+
+  // Searchable columns state - controls which columns are included in search for this view
+  const [searchableColumns, setSearchableColumns] = useState<Record<string, boolean>>(() => getDefaultSearchableColumns());
+
+  // Sync searchable columns when COLUMNS changes (foundation schema is SSoT)
+  useEffect(() => {
+    setSearchableColumns(getDefaultSearchableColumns());
+  }, [getDefaultSearchableColumns]);
 
   // Sync column order and visibility when COLUMNS changes (e.g., select/actions added)
   useEffect(() => {
@@ -4251,6 +4270,8 @@ export default function TeeemTableView({
         COLUMNS={COLUMNS}
         visibleColumns={visibleColumns}
         setVisibleColumns={setVisibleColumns}
+        searchableColumns={searchableColumns}
+        setSearchableColumns={setSearchableColumns}
         columnWidths={columnWidths}
         setColumnWidths={setColumnWidths}
         getSortedColumnsForModal={getSortedColumnsForModal}
