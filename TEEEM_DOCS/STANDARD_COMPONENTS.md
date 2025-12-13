@@ -10,18 +10,18 @@
 
 ## Quick Reference - THE ONE for Each Use Case
 
-| Need | THE ONE | Never Use |
-|------|---------|-----------|
-| Data Table | `TeeemTableView` | `data-table.tsx` |
-| Simple Dropdown | `Select` | - |
-| Searchable Select | `ComboboxDropdown` | `combobox.tsx` |
-| Multi-Select | `MultiSelectCombobox` | `multiple-selector.tsx` |
-| Loading Spinner | `Spinner` | `loader.tsx` |
-| Side Panel | `Sheet` | `drawer.tsx` |
-| Modal Dialog | `Dialog` | - |
-| Collapsible | `Accordion` | `collapsible.tsx` |
-| Tooltip | `Tooltip` | - |
-| Small Overlay | `Popover` | - |
+| Need | THE ONE | When | Never Use |
+|------|---------|------|-----------|
+| Data Table | `TeeemTableView` | Any data table | `data-table.tsx` |
+| Simple Dropdown | `Select` | **< 5 options** | - |
+| Searchable Select | `ComboboxDropdown` + `searchInTrigger` | **5+ options** | `combobox.tsx` |
+| Multi-Select | `MultiSelectCombobox` | Multiple selections | `multiple-selector.tsx` |
+| Loading Spinner | `Spinner` | Any loading state | `loader.tsx` |
+| Side Panel | `Sheet` | Detail/edit panels | `drawer.tsx` |
+| Modal Dialog | `Dialog` | Confirmations, small forms | - |
+| Collapsible | `Accordion` | Expandable sections | `collapsible.tsx` |
+| Tooltip | `Tooltip` | Hover hints | - |
+| Small Overlay | `Popover` | Rich tooltips, pickers | - |
 
 ---
 
@@ -32,7 +32,7 @@
 **File:** `frontend-next/components/ui/select.tsx`
 
 **Use When:**
-- Fixed list of options (< 10 items)
+- **< 5 options** (Yes/No, Active/Inactive, small fixed lists)
 - No search needed
 - Simple value selection
 
@@ -57,22 +57,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 **File:** `frontend-next/components/ui/combobox-dropdown.tsx`
 
 **Use When:**
-- List needs search/filter (> 10 items)
+- **5+ options** (job types, statuses, suppliers, contacts, etc.)
 - User needs to find options quickly
-- Single selection from large list
+- Single selection from medium/large list
+
+**ALWAYS use `searchInTrigger` mode** - makes the field itself searchable (no separate search box).
 
 **Example:**
 ```tsx
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown"
 
 <ComboboxDropdown
-  options={suppliers.map(s => ({ value: s.id.toString(), label: s.name }))}
-  value={selectedSupplier}
-  onValueChange={setSelectedSupplier}
-  placeholder="Search suppliers..."
-  searchPlaceholder="Type to search..."
+  items={jobTypes.map(t => ({ id: t.id.toString(), label: t.name }))}
+  selectedItem={selectedType ? { id: selectedType.id.toString(), label: selectedType.name } : undefined}
+  onSelect={(item) => setSelectedTypeId(parseInt(item.id))}
+  placeholder="Search job types..."
+  searchInTrigger
 />
 ```
+
+**Props:**
+- `items`: Array of `{ id: string, label: string }`
+- `selectedItem`: Current selection (same shape as items)
+- `onSelect`: Called with selected item
+- `placeholder`: Shown when no selection / as search hint
+- `searchInTrigger`: **REQUIRED** - makes field itself searchable
 
 **Deprecated:** `combobox.tsx` - Use `combobox-dropdown.tsx` instead
 
