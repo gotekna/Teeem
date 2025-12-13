@@ -656,14 +656,25 @@ export default function TeeemTableView({
 
         // SSoT VIOLATION WARNING: Alert if parent passed hardcoded columns that differ
         if (columns && columns.length > 0 && teeemColumns.length > 0) {
-          const propColumnCount = columns.filter(c => !['select', 'actions'].includes(c.key)).length;
-          const foundationColumnCount = teeemColumns.filter(c => !['select', 'actions'].includes(c.key)).length;
-          if (propColumnCount !== foundationColumnCount) {
+          const propKeys = columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
+          const foundationKeys = teeemColumns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
+
+          if (propKeys.length !== foundationKeys.length) {
+            // Find the difference
+            const inPropsNotFoundation = propKeys.filter(k => !foundationKeys.includes(k));
+            const inFoundationNotProps = foundationKeys.filter(k => !propKeys.includes(k));
+
             console.warn(
-              `[TeeemTableView] SSoT VIOLATION: columns prop has ${propColumnCount} columns, ` +
-              `but Foundation #${foundationIdNumeric} has ${foundationColumnCount} columns. ` +
+              `[TeeemTableView] SSoT VIOLATION: columns prop has ${propKeys.length} columns, ` +
+              `but Foundation #${foundationIdNumeric} has ${foundationKeys.length} columns. ` +
               `Using Foundation columns (SSoT).`
             );
+            if (inPropsNotFoundation.length > 0) {
+              console.warn(`[TeeemTableView] In PROPS but not Foundation:`, inPropsNotFoundation);
+            }
+            if (inFoundationNotProps.length > 0) {
+              console.warn(`[TeeemTableView] In FOUNDATION but not Props:`, inFoundationNotProps);
+            }
           }
         }
       } catch (error) {
