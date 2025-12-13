@@ -32,12 +32,51 @@ grep -rn "resources :" backend/config/routes.rb | sort | uniq -d
 
 # Multiple deployment methods (we fixed this!)
 ls .claude/commands/ | grep -E "^(d|fd|l|lp)\.md$"
+
+# Missing system columns (id, created_at, updated_at) in foundations
+echo "=== Checking for missing system columns ==="
+cd backend && bin/rails runner "
+  system_columns = %w[id created_at updated_at]
+  foundations_missing = []
+
+  Foundation.find_each do |f|
+    existing = f.columns.where(column_name: system_columns).pluck(:column_name)
+    missing = system_columns - existing
+    if missing.any?
+      foundations_missing << { id: f.id, name: f.name, missing: missing }
+    end
+  end
+
+  if foundations_missing.any?
+    puts '❌ FOUND: Foundations missing system columns:'
+    foundations_missing.each do |f|
+      puts \"  Foundation #{f[:id]} (#{f[:name]}): missing #{f[:missing].join(', ')}\"
+    end
+  else
+    puts '✅ All foundations have system columns (id, created_at, updated_at)'
+  end
+"
+
+# Custom header buttons instead of leftActions (Gold Standard pattern)
+echo ""
+echo "=== Checking for custom header buttons (should use leftActions) ==="
+echo "Files with TeeemTableView but no leftActions:"
+for file in $(grep -rl "TeeemTableView" frontend-next/app --include="*.tsx"); do
+  if ! grep -q "leftActions" "$file"; then
+    # Check if file has Plus/Add buttons that might be in custom header
+    if grep -q "Plus.*Add\|Add.*Item\|New.*Button" "$file"; then
+      echo "  ⚠️  $file - has Add button but no leftActions"
+    fi
+  fi
+done
 ```
 
 **Expected:**
 - Only `/l` and `/lp` for deployment (SSoT)
 - No duplicate constants
 - No duplicate routes
+- All foundations have system columns (id, created_at, updated_at)
+- All tables use `leftActions` for Add buttons (Gold Standard pattern)
 
 ### Step 2: Sync Risk Patterns (NEW - Catches Manual Lists)
 
