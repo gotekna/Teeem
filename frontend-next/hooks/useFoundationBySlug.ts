@@ -4,9 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
 import type { Foundation } from './useFoundationData';
-
-// System columns to hide from table views
-const SYSTEM_COLUMNS = ['created_at', 'updated_at', 'deleted_at'];
+import { isSystemOrHiddenColumn } from '@/lib/corporate/column-utils';
 
 /**
  * Extended return type with server-side search support
@@ -241,8 +239,8 @@ export function useFoundationBySlug(
     ];
 
     foundation.columns.forEach((col: ApiColumn) => {
-      // Skip system columns
-      if (SYSTEM_COLUMNS.includes(col.column_name)) return;
+      // Skip system columns (SSoT: uses same logic as column-utils.ts)
+      if (isSystemOrHiddenColumn(col.column_name)) return;
 
       tableColumns.push({
         id: col.id,
