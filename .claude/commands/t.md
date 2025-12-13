@@ -4,17 +4,18 @@
 
 A focused code review aligned with CLAUDE.md philosophy. Checks the things that matter.
 
-## What This Checks (7 Categories)
+## What This Checks (8 Categories)
 
 | # | Category | Why It Matters |
 |---|----------|----------------|
 | 1 | **SSoT Violations** | The core philosophy - find duplicates |
-| 2 | **Standard Components** | THE ONE component for each use case |
-| 3 | **Gold Standard** | 31 valid column types |
-| 4 | **SSoT Model Auditor** | Find NoMethodError time bombs |
-| 5 | **Security** | Always important |
-| 6 | **Performance** | PERF-001 to PERF-006 anti-patterns |
-| 7 | **Code Quality** | Bug patterns, dead code, over-engineering |
+| 2 | **Sync Risk Patterns** | Code that will get out of sync with source of truth |
+| 3 | **Standard Components** | THE ONE component for each use case |
+| 4 | **Gold Standard** | 31 valid column types |
+| 5 | **SSoT Model Auditor** | Find NoMethodError time bombs |
+| 6 | **Security** | Always important |
+| 7 | **Performance** | PERF-001 to PERF-006 anti-patterns |
+| 8 | **Code Quality** | Bug patterns, dead code, over-engineering |
 
 ## Execution
 
@@ -38,7 +39,72 @@ ls .claude/commands/ | grep -E "^(d|fd|l|lp)\.md$"
 - No duplicate constants
 - No duplicate routes
 
-### Step 2: Standard Component Usage
+### Step 2: Sync Risk Patterns (NEW - Catches Manual Lists)
+
+**Find code that manually lists things that should be auto-derived from a source of truth.**
+
+This catches mistakes like:
+- `case model.name when "Job"... when "Contact"...` (should use Rails reflections)
+- Hardcoded table lists (should query Foundation or schema)
+- Manual association lists (should use `reflect_on_all_associations`)
+
+```bash
+echo "=== SYNC RISK: Manual Model/Table Lists ==="
+
+# Pattern 1: case statements on model.name or model.class.name
+# These almost always should use reflection instead
+echo ""
+echo "--- Case statements on model names (should use reflection) ---"
+grep -rn "case.*model\\.name\|when.*\"Job\"\|when.*\"Contact\"\|when.*\"PricebookItem\"" backend/app --include="*.rb" | grep -v "#.*case" | head -10
+
+# Pattern 2: Hardcoded arrays of table/model names
+echo ""
+echo "--- Hardcoded model/table arrays (should query schema) ---"
+grep -rn "%w\[.*Job.*Contact\|%w\[.*jobs.*contacts\|\[.*\"Job\".*\"Contact\"" backend/app --include="*.rb" | head -10
+
+# Pattern 3: Manual association includes (should use reflect_on_all_associations)
+echo ""
+echo "--- Manual includes lists (should auto-derive from model) ---"
+grep -rn "includes(.*:job_type.*:job_status\|includes(.*:supplier.*:category" backend/app --include="*.rb" | head -10
+
+# Pattern 4: Manual column lists that duplicate schema
+echo ""
+echo "--- Hardcoded column lists (should query model.column_names) ---"
+grep -rn "select(:id.*:name.*:status\|pluck(:id.*:name" backend/app --include="*.rb" | grep -v "\.select\s*{" | head -10
+
+# Pattern 5: system_searchable or similar manual mappings
+echo ""
+echo "--- Manual table-specific mappings (SSoT risk) ---"
+grep -rn "\"contacts\".*=>\|\"jobs\".*=>\|\"pricebook" backend/app/controllers --include="*.rb" | head -10
+```
+
+**What to do when found:**
+1. Ask: "Is there a source of truth for this data?"
+2. If YES → Refactor to read from that source
+3. Common sources:
+   - Model associations → `Model.reflect_on_all_associations`
+   - Table columns → `Model.column_names`
+   - Foundation columns → `foundation.columns`
+   - All tables → `Foundation.all` or `ActiveRecord::Base.connection.tables`
+
+**Example fix (what we just did):**
+```ruby
+# ❌ BAD: Manual list that will get out of sync
+case model.name
+when "Job"
+  query.includes(:job_type, :job_status)
+when "Contact"
+  query.includes(:corporate_group)
+end
+
+# ✅ GOOD: Auto-derive from model (SSoT)
+associations = model.reflect_on_all_associations(:belongs_to).map(&:name)
+query.includes(*associations)
+```
+
+**Expected:** Zero manual lists that duplicate model/schema information
+
+### Step 3: Standard Component Usage
 
 **Check files use THE ONE component per CLAUDE.md:**
 
@@ -63,7 +129,7 @@ grep -rn "from.*collapsible" frontend-next/app --include="*.tsx" | head -5
 
 **Expected:** Zero matches (all using THE ONE)
 
-### Step 3: Gold Standard Column Types
+### Step 4: Gold Standard Column Types
 
 **Validate all columns use one of the 31 valid types:**
 
@@ -81,7 +147,7 @@ cd backend && bin/rails runner "
 "
 ```
 
-### Step 4: SSoT Model Auditor
+### Step 5: SSoT Model Auditor
 
 **Find NoMethodError time bombs - method calls on models that don't exist:**
 
@@ -98,14 +164,14 @@ cd backend && bin/rails ssot:audit
 
 **Expected:** 0 issues found
 
-### Step 5: Security Scan
+### Step 6: Security Scan
 
 ```bash
 # Quick security check
 cd backend && bundle exec brakeman -q --no-pager -w2 2>/dev/null | head -30 || echo "Brakeman not available"
 ```
 
-### Step 6: Performance Auditor (Masterpiece Level)
+### Step 7: Performance Auditor (Masterpiece Level)
 
 **CRITICAL: Slow UI = bad product. Take whatever time needed to guarantee great performance.**
 
@@ -367,14 +433,13 @@ done
 echo "=== Foundation API Optimization ==="
 echo ""
 
-# Check if fields=minimal is used
-echo "--- Hooks using fields=minimal ---"
-grep -rn "fields.*minimal" frontend-next/hooks --include="*.ts*"
-grep -rn "fields.*minimal" frontend-next/lib/server --include="*.ts*"
+# Check that eager loading is being used (SSoT approach)
+echo "--- Backend: Auto eager loading check ---"
+grep -rn "apply_eager_loading\|reflect_on_all_associations" backend/app/controllers --include="*.rb" | head -5
 
 echo ""
-echo "--- Foundation fetches WITHOUT minimal ---"
-grep -rn "foundation" frontend-next --include="*.ts*" | grep -v "fields.*minimal" | grep -E "fetch|api\." | head -10
+echo "--- Foundation API usage ---"
+grep -rn "useFoundationBySlug\|/api/v1/foundations" frontend-next/app --include="*.tsx" | head -10
 ```
 
 ##### C3. Caching Analysis
@@ -493,14 +558,13 @@ After running all checks, provide:
 - ✅ Every high-traffic page loads <3 API calls on mount
 - ✅ All modals lazy load their data
 - ✅ No useEffect hooks with missing/wrong dependencies
-- ✅ No N+1 queries in controllers
+- ✅ No N+1 queries in controllers (auto eager loading via SSoT)
 - ✅ All foreign keys have indexes
-- ✅ List endpoints return <20 columns
-- ✅ Foundation API uses fields=minimal everywhere
+- ✅ Associations auto-derived from model reflections (not manual lists)
 - ✅ API response times <500ms
 - ✅ Payload sizes <50KB for list views
 
-### Step 7: Code Quality (Bug Patterns, Dead Code, Over-Engineering)
+### Step 8: Code Quality (Bug Patterns, Dead Code, Over-Engineering)
 
 **Quick automated checks from Code Guardian:**
 
@@ -539,12 +603,13 @@ find backend/app -name "*.rb" -exec wc -l {} \; | awk '$1 > 500 {print $1, $2}' 
 ════════════════════════════════════════
 
 1. SSoT Violations:     [PASS/X issues]
-2. Standard Components: [PASS/X issues]
-3. Gold Standard:       [PASS/X issues]
-4. Model Auditor:       [PASS/X issues]
-5. Security:            [PASS/X issues]
-6. Performance:         [PASS/X issues]
-7. Code Quality:        [PASS/X issues]
+2. Sync Risk Patterns:  [PASS/X issues]  ← NEW: Catches manual lists
+3. Standard Components: [PASS/X issues]
+4. Gold Standard:       [PASS/X issues]
+5. Model Auditor:       [PASS/X issues]
+6. Security:            [PASS/X issues]
+7. Performance:         [PASS/X issues]
+8. Code Quality:        [PASS/X issues]
 
 ────────────────────────────────────────
 Total: X issues to fix
@@ -557,8 +622,9 @@ Total: X issues to fix
 
 | Command | Scope | Time |
 |---------|-------|------|
-| `/t` | Full review (all 7 checks) | ~10-15 min |
+| `/t` | Full review (all 8 checks) | ~10-15 min |
 | `/t ssot` | SSoT violations only | ~10 sec |
+| `/t sync` | **Sync Risk Patterns** - catches manual lists that should be auto-derived | ~15 sec |
 | `/t ui` | Standard components only | ~10 sec |
 | `/t gold` | Gold Standard only | ~10 sec |
 | `/t model` | Model Auditor only | ~15 sec |
@@ -592,14 +658,15 @@ When you want to ensure code is **masterpiece quality**, run `/t deep`. This spa
 
 This command embodies the Ultrathink principle: **"Simplify ruthlessly."**
 
-**Standard mode (`/t`)** - 7 checks that matter:
+**Standard mode (`/t`)** - 8 checks that matter:
 1. SSoT violations break the codebase philosophy
-2. Wrong components create maintenance debt
-3. Invalid column types break the data model
-4. Missing model methods cause runtime crashes
-5. Security issues risk the business
-6. Performance anti-patterns slow users down
-7. Code quality catches bugs before production
+2. Sync risk patterns create future bugs (manual lists that should be auto-derived)
+3. Wrong components create maintenance debt
+4. Invalid column types break the data model
+5. Missing model methods cause runtime crashes
+6. Security issues risk the business
+7. Performance anti-patterns slow users down
+8. Code quality catches bugs before production
 
 **Deep mode (`/t deep`)** - Full Code Guardian:
 - When you need to verify code is a **masterpiece**

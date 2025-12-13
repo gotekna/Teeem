@@ -27,7 +27,7 @@ interface JobType {
 export default function JobsPage() {
   const router = useRouter();
 
-  // Use Foundation API with fields=minimal for 96% payload reduction (50 → ~5 columns)
+  // Use Foundation API (associations are eager-loaded on backend for performance)
   const {
     foundation,
     columns,
