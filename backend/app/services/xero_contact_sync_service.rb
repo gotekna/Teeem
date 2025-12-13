@@ -1174,9 +1174,7 @@ class XeroContactSyncService
       Rails.logger.info("Creating primary person contact #{main_first_name} #{main_last_name} for company #{teeem_contact.display_name}")
       primary_person_contact = create_or_update_contact_person_as_contact(teeem_contact, main_person, true)
 
-      if primary_person_contact && teeem_contact.director_id != primary_person_contact.id
-        teeem_contact.update!(director_id: primary_person_contact.id)
-      end
+      # director_id column was removed - primary person is tracked via primary_company_id on the person contact
     end
 
     return if xero_persons.empty?
@@ -1273,9 +1271,7 @@ class XeroContactSyncService
       @stats[:created_in_teeem] += 1
     end
 
-    if is_primary && company_contact.director_id != person_contact.id
-      company_contact.update!(director_id: person_contact.id)
-    end
+    # director_id column was removed - primary person is tracked via primary_company_id on the person contact
 
     person_contact
   rescue StandardError => e

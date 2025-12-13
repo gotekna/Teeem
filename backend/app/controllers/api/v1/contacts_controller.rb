@@ -1810,7 +1810,7 @@ module Api
               appointment_date: d.appointment_date,
               resignation_date: d.resignation_date,
               is_current: d.is_current,
-              director_id: @contact.director_id,
+              contact_id: d.contact_id,
               created_at: d.created_at,
               updated_at: d.updated_at
             }
