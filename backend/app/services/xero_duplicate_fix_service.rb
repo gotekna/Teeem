@@ -276,10 +276,23 @@ class XeroDuplicateFixService
     target.address = source.address if target.address.blank? && source.address.present?
 
     # Merge roles (union)
-    if source.roles.present?
-      target.roles = (Array(target.roles) + Array(source.roles)).uniq
+    # Handle roles stored as JSON strings (e.g., "[]" or "[\"role1\"]")
+    source_roles = parse_roles(source.roles)
+    target_roles = parse_roles(target.roles)
+    if source_roles.any?
+      target.roles = (target_roles + source_roles).uniq
     end
 
     # Don't save here - let merge_group handle it
+  end
+
+  # Parse roles that might be stored as JSON string or array
+  def parse_roles(roles)
+    return [] if roles.blank?
+    return roles if roles.is_a?(Array)
+    return JSON.parse(roles) if roles.is_a?(String) && roles.start_with?('[')
+    []
+  rescue JSON::ParserError
+    []
   end
 end
