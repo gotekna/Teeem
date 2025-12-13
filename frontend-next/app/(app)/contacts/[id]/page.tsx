@@ -747,10 +747,25 @@ export default function ContactDetailPage() {
 
   // Fetch all companies for multi-select dropdown - load when contact is a person type
   useEffect(() => {
-    // Only fetch for person entity types that can have employers, and if not already loaded
-    if (!contact || availableCompanies.length > 0) return;
-    if (!canHaveEmployer(contact.entity_type)) return;
+    console.log('[Company Multi-Select] useEffect triggered:', {
+      hasContact: !!contact,
+      contactId: contact?.id,
+      entityType: contact?.entity_type,
+      availableCompaniesLength: availableCompanies.length,
+      canHaveEmployer: contact ? canHaveEmployer(contact.entity_type) : 'N/A',
+    });
 
+    // Only fetch for person entity types that can have employers, and if not already loaded
+    if (!contact || availableCompanies.length > 0) {
+      console.log('[Company Multi-Select] Early return - contact:', !!contact, 'companies already loaded:', availableCompanies.length > 0);
+      return;
+    }
+    if (!canHaveEmployer(contact.entity_type)) {
+      console.log('[Company Multi-Select] Early return - entity type cannot have employer:', contact.entity_type);
+      return;
+    }
+
+    console.log('[Company Multi-Select] Fetching companies...');
     const fetchCompanies = async () => {
       setLoadingCompanies(true);
       try {
@@ -765,9 +780,11 @@ export default function ContactDetailPage() {
         }));
         console.log('[Company Multi-Select] Company options:', companyOptions);
         setAvailableCompanies(companyOptions);
+        console.log('[Company Multi-Select] Companies loaded successfully, count:', companyOptions.length);
       } catch (err) {
-        console.error("Failed to fetch companies:", err);
+        console.error("[Company Multi-Select] Failed to fetch companies:", err);
       } finally {
+        console.log('[Company Multi-Select] Setting loadingCompanies to false');
         setLoadingCompanies(false);
       }
     };

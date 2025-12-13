@@ -444,8 +444,19 @@ class ExternalInvoiceSyncService
   end
 
   # Auto-create a TEEEM contact from Xero contact data embedded in invoice
+  # BUG FIX: Added duplicate detection to prevent creating duplicate contacts
   def auto_create_contact_from_xero(invoice, warehouse_contact = nil)
     return nil if invoice.contact_name.blank?
+
+    normalized_name = invoice.contact_name.downcase.strip
+
+    # Check for existing contact by normalized name BEFORE creating
+    existing_contact = Contact.where("LOWER(TRIM(display_name)) = ?", normalized_name).first
+    if existing_contact
+      Rails.logger.info("Found existing contact #{existing_contact.id} for '#{invoice.contact_name}' - linking instead of creating")
+      link_existing_contact(existing_contact, invoice, warehouse_contact)
+      return existing_contact
+    end
 
     Rails.logger.info("Auto-creating contact for Xero contact: #{invoice.contact_name}")
 
@@ -482,6 +493,26 @@ class ExternalInvoiceSyncService
     rescue StandardError => e
       Rails.logger.error("Error auto-creating contact for #{invoice.contact_name}: #{e.message}")
       nil
+    end
+  end
+
+  # Link an existing contact to WarehouseContact/ExternalLink (used when duplicate detected)
+  def link_existing_contact(contact, invoice, warehouse_contact)
+    if warehouse_contact && warehouse_contact.contact_id.nil?
+      warehouse_contact.link_to_contact!(contact, match_type: "matched_by_name", confidence: 0.95)
+      Rails.logger.info("Linked WarehouseContact #{warehouse_contact.id} to existing contact #{contact.id}")
+    elsif invoice.external_contact_id.present?
+      # Create ContactExternalLink if it doesn't exist
+      link = ContactExternalLink.find_or_initialize_by(
+        source: @source,
+        tenant_id: @tenant_id,
+        external_contact_id: invoice.external_contact_id
+      )
+      if link.new_record? || link.contact_id.nil?
+        link.contact = contact
+        link.save!
+        Rails.logger.info("Created/updated ContactExternalLink for existing contact #{contact.id}")
+      end
     end
   end
 
