@@ -103,11 +103,11 @@ class XeroDuplicateFixService
   def merge_group(group_id, target_contact_id)
     target = Contact.find(target_contact_id)
 
-    # Find all contacts in this group (same normalized name)
-    normalized_name = group_id.parameterize == group_id ? group_id.gsub("-", " ") : group_id
-
+    # Find all contacts in this group by matching against target's normalized name
+    # This ensures we use the same normalization as find_duplicate_groups
+    # Don't try to reverse parameterize - special chars like & get lost
     contacts = Contact.where(is_active: true)
-                     .where("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) = ?", normalized_name)
+                     .where("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) = LOWER(TRIM(REGEXP_REPLACE(?, '\\s+', ' ', 'g')))", target.display_name)
                      .where.not(id: target_contact_id)
 
     deleted_ids = []
