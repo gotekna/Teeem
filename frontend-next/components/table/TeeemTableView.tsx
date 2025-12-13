@@ -2286,9 +2286,19 @@ export default function TeeemTableView({
 
   // Get visible columns in order
   const visibleColumnsInOrder = useMemo(() => {
+    // If visibleColumns is empty (initial state), treat all non-system columns as visible
+    // This prevents hydration mismatch between server (empty) and client (populated)
+    const isVisibilityInitialized = Object.keys(visibleColumns).length > 0;
+
     // Start with columns from columnOrder that are visible
     const orderedVisible = columnOrder
-      .filter((key) => visibleColumns[key] === true)
+      .filter((key) => {
+        if (!isVisibilityInitialized) {
+          // Not initialized yet - show all except system columns
+          return !SYSTEM_DISPLAY_COLUMNS.includes(key);
+        }
+        return visibleColumns[key] === true;
+      })
       .map((key) => COLUMNS.find((c) => c.key === key))
       .filter((col): col is TableColumn => col !== undefined);
 
