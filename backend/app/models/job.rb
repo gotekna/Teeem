@@ -104,7 +104,7 @@ class Job < ApplicationRecord
   after_update :log_status_and_stage_changes
 
   # Scopes
-  scope :active, -> { joins(:job_status).where(job_statuses: { name: "Active Job" }) }
+  scope :active, -> { joins(:job_status).where(job_status: { name: "Active Job" }) }
 
   # Archival scopes (Sprint 8: Scale Preparation)
   scope :archived, -> { where.not(archived_at: nil) }
