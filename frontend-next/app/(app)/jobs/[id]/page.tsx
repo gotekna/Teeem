@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -841,21 +842,13 @@ export default function JobDetailPage() {
                           <span className="text-muted-foreground">{job.job_type?.name || "Loading..."}</span>
                         </div>
                       ) : (
-                        <Select
-                          value={editForm.job_type_id?.toString() || ""}
-                          onValueChange={(value) => setEditForm({ ...editForm, job_type_id: parseInt(value) })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={job.job_type?.name || "Select job type"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {jobTypes.map((type) => (
-                              <SelectItem key={type.id} value={type.id.toString()}>
-                                {type.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <ComboboxDropdown
+                          items={jobTypes.map((type) => ({ id: type.id.toString(), label: type.name }))}
+                          selectedItem={editForm.job_type_id ? { id: editForm.job_type_id.toString(), label: jobTypes.find(t => t.id === editForm.job_type_id)?.name || "" } : undefined}
+                          onSelect={(item) => setEditForm({ ...editForm, job_type_id: parseInt(item.id) })}
+                          placeholder="Select job type"
+                          searchPlaceholder="Search job types..."
+                        />
                       )
                     ) : (
                       <Input value={job.job_type?.name || "-"} readOnly />
@@ -870,21 +863,13 @@ export default function JobDetailPage() {
                           <span className="text-muted-foreground">{job.job_status?.name || "Loading..."}</span>
                         </div>
                       ) : (
-                        <Select
-                          value={editForm.job_status_id?.toString() || ""}
-                          onValueChange={(value) => setEditForm({ ...editForm, job_status_id: parseInt(value) })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={job.job_status?.name || "Select status"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {jobStatuses.map((status) => (
-                              <SelectItem key={status.id} value={status.id.toString()}>
-                                {status.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <ComboboxDropdown
+                          items={jobStatuses.map((status) => ({ id: status.id.toString(), label: status.name }))}
+                          selectedItem={editForm.job_status_id ? { id: editForm.job_status_id.toString(), label: jobStatuses.find(s => s.id === editForm.job_status_id)?.name || "" } : undefined}
+                          onSelect={(item) => setEditForm({ ...editForm, job_status_id: parseInt(item.id) })}
+                          placeholder="Select status"
+                          searchPlaceholder="Search statuses..."
+                        />
                       )
                     ) : (
                       <Input value={job.job_status?.name || "-"} readOnly />
