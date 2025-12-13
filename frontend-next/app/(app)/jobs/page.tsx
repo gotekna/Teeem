@@ -155,12 +155,6 @@ export default function JobsPage() {
             <span className="ml-2 text-xs font-mono">Table #{JOBS_TABLE_ID}</span>
           </p>
         </div>
-        <Button asChild>
-          <Link href="/jobs/new">
-            <Plus className="h-4 w-4 mr-2" />
-            New Job
-          </Link>
-        </Button>
       </div>
 
       {/* Stats */}
@@ -217,6 +211,14 @@ export default function JobsPage() {
           enableImport={tableConfig.enableImport}
           enableSchemaEditor={tableConfig.enableSchemaEditor}
           onRefresh={refresh}
+          leftActions={
+            <Button variant="default" size="sm" asChild>
+              <Link href="/jobs/new">
+                <Plus className="h-4 w-4 mr-2" />
+                New Job
+              </Link>
+            </Button>
+          }
         />
       </div>
     </div>

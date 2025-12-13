@@ -11,8 +11,6 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Plus,
-  Download,
-  Upload,
   DollarSign,
   Package,
   AlertTriangle,
@@ -111,6 +109,11 @@ export default function PriceBookPage() {
     );
   }
 
+  // Handle add item
+  const handleAddItem = useCallback(() => {
+    router.push('/pricebook/new');
+  }, [router]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -120,20 +123,6 @@ export default function PriceBookPage() {
           <p className="text-sm text-muted-foreground mt-1">
             {stats.total.toLocaleString()} items across {stats.categoriesCount} categories
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" />
-            Import
-          </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </Button>
         </div>
       </div>
 
@@ -222,6 +211,12 @@ export default function PriceBookPage() {
               onRowUpdate={handleRowUpdate}
               onServerSearch={serverSearch}
               serverSearchLoading={isSearching}
+              leftActions={
+                <Button variant="default" size="sm" onClick={handleAddItem}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Item
+                </Button>
+              }
             />
           </TabsContent>
         ))}
