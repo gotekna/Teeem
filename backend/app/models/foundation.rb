@@ -10,6 +10,7 @@ class Foundation < ApplicationRecord
 
   before_validation :generate_database_table_name, if: -> { database_table_name.blank? }
   before_validation :generate_slug, if: -> { slug.blank? || name_changed? }
+  after_create :add_system_columns
 
   # Get the dynamically created ActiveRecord model for this foundation
   def dynamic_model
@@ -126,5 +127,22 @@ class Foundation < ApplicationRecord
         Rails.logger.error "Failed to add belongs_to association for #{association_name}: #{e.message}"
       end
     end
+  end
+
+  private
+
+  # Automatically add system columns (id, created_at, updated_at) when foundation is created
+  def add_system_columns
+    system_columns = [
+      { name: "ID", column_name: "id", column_type: "whole_number", column_group: "System", searchable: false, position: 0 },
+      { name: "Created At", column_name: "created_at", column_type: "date_and_time", column_group: "System", searchable: false, position: 998 },
+      { name: "Updated At", column_name: "updated_at", column_type: "date_and_time", column_group: "System", searchable: false, position: 999 }
+    ]
+
+    system_columns.each do |attrs|
+      columns.create(attrs)
+    end
+
+    Rails.logger.info "Added system columns to Foundation ##{id} (#{name})"
   end
 end
