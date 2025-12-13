@@ -82,6 +82,9 @@ export const COLUMN_TYPE_DEFAULTS: Record<string, ColumnTypeDefault> = {
  * These are internal columns not meant for user display.
  */
 const SYSTEM_COLUMNS = [
+  // Auto-generated Rails columns (SSoT: matches useFoundationBySlug.ts)
+  'id', 'created_at', 'updated_at', 'deleted_at',
+  // Legacy TED columns
   'sys_type_id', 'deleted', 'drive_id', 'folder_id',
   'parent_id', 'parent$type', 'range$type', 'colour_spec$type',
   'tedmodel$type', 'pricebook$type'
