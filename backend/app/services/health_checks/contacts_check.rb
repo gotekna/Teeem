@@ -473,7 +473,8 @@ module HealthChecks
                                  .pluck(:xero_id)
 
       items = duplicate_xero_ids.map do |xero_id|
-        contacts = Contact.where(xero_id: xero_id).select(:id, :display_name, :xero_id)
+        # Load all columns - display_name method needs is_team_contact, entity_type, etc.
+        contacts = Contact.where(xero_id: xero_id).includes(:primary_company)
         {
           id: contacts.first.id,
           display: "Xero ID #{xero_id[0..7]}... shared by: #{contacts.map(&:display_name).join(', ')}",
