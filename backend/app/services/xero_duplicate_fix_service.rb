@@ -124,7 +124,12 @@ class XeroDuplicateFixService
         # 3. Merge contact data (fill missing fields on target)
         merge_contact_data(target, source)
 
-        # 4. Hard-delete source contact
+        # 4. Reload source to clear association caches (critical for destroy!)
+        #    After update_all transfers, Rails cache still shows old associations
+        #    This prevents dependent: :restrict_with_error from false-triggering
+        source.reload
+
+        # 5. Hard-delete source contact
         deleted_ids << source.id
         source.destroy!
 
