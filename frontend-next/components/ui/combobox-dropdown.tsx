@@ -113,7 +113,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
             return (
               <CommandItem
                 disabled={item.disabled}
-                className={cn("cursor-pointer", className)}
+                className={cn("cursor-pointer whitespace-nowrap", className)}
                 key={item.id}
                 value={item.id}
                 onSelect={(id) => {
@@ -173,7 +173,14 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   }
 
   // Search in trigger mode - input is in the button area
+  // When closed: show selected value as display text
+  // When open: show empty input for searching (clears on open)
   if (searchInTrigger) {
+    // Display value: when closed show selected item label, when open show search input
+    const displayValue = open
+      ? inputValue
+      : (selectedItem ? (typeof renderSelectedItem(selectedItem) === 'string' ? renderSelectedItem(selectedItem) as string : selectedItem.label) : "");
+
     return (
       <Popover open={open} onOpenChange={(isOpen) => {
         setOpen(isOpen);
@@ -186,16 +193,18 @@ export function ComboboxDropdown<T extends ComboboxItem>({
             <input
               ref={inputRef}
               type="text"
-              value={inputValue || (selectedItem ? "" : "")}
+              value={displayValue}
               onChange={handleInputChange}
-              onFocus={() => setOpen(true)}
-              placeholder={selectedItem ? (renderSelectedItem ? renderSelectedItem(selectedItem) as string : selectedItem.label) : (placeholder as string ?? "Search...")}
+              onFocus={() => {
+                setOpen(true);
+                setInputValue(""); // Clear to allow fresh search
+              }}
+              placeholder={placeholder as string ?? "Search..."}
               disabled={disabled}
               className={cn(
                 "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors",
                 "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                "disabled:cursor-not-allowed disabled:opacity-50",
-                selectedItem && !inputValue && "placeholder:text-foreground"
+                "disabled:cursor-not-allowed disabled:opacity-50"
               )}
             />
             <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -203,10 +212,10 @@ export function ComboboxDropdown<T extends ComboboxItem>({
         </PopoverTrigger>
 
         <PopoverContent
-          className="p-0"
+          className="p-0 w-auto"
           {...popoverProps}
           style={{
-            width: "var(--radix-popover-trigger-width)",
+            minWidth: "var(--radix-popover-trigger-width)",
             ...popoverProps?.style,
           }}
           onOpenAutoFocus={(e) => {
@@ -243,10 +252,10 @@ export function ComboboxDropdown<T extends ComboboxItem>({
       </PopoverTrigger>
 
       <PopoverContent
-        className="p-0"
+        className="p-0 w-auto"
         {...popoverProps}
         style={{
-          width: "var(--radix-popover-trigger-width)",
+          minWidth: "var(--radix-popover-trigger-width)",
           ...popoverProps?.style,
         }}
       >
