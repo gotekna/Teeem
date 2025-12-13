@@ -8,6 +8,7 @@
 class SmSupplierAccess < ApplicationRecord
   belongs_to :contact # The supplier contact
   belongs_to :job
+  alias_method :construction, :job  # Backwards compatibility
   belongs_to :created_by, class_name: "User", optional: true
 
   # Generate secure token

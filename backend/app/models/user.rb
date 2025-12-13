@@ -11,6 +11,12 @@ class User < ApplicationRecord
   has_one :microsoft_token, class_name: "UserMicrosoftToken", dependent: :destroy
   has_many :notifications, dependent: :destroy
 
+  # Placeholder for company association (not yet implemented)
+  # Returns nil - callers should handle this gracefully
+  def company
+    nil
+  end
+
   # Role constants
   ROLES = %w[user admin product_owner estimator supervisor builder].freeze
 

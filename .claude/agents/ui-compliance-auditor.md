@@ -2,13 +2,13 @@
 name: UI/UX Compliance Auditor
 description: |
   ╔═══════════════════════════════════════════════════════════╗
-  ║  Chapter 19 Compliance:     UI/UX standards         [PASS]║
-  ║  Chapter 20 Compliance:     Agent best practices    [PASS]║
-  ║  Component Standards:       Verified                [PASS]║
+  ║  UI/UX Standards:           CLAUDE.md compliant     [PASS]║
+  ║  Component Standards:       THE ONE per use case    [PASS]║
+  ║  Dark Mode Support:         Verified                [PASS]║
   ║  Accessibility:             WCAG guidelines         [PASS]║
   ╠═══════════════════════════════════════════════════════════╣
   ║  Focus: Frontend code compliance auditing                 ║
-  ║  Bible Rule: Chapter 19 & 20                              ║
+  ║  SSoT: CLAUDE.md Standard Components                      ║
   ╠═══════════════════════════════════════════════════════════╣
   ║  Est. Tokens:           ~5,000                            ║
   ╚═══════════════════════════════════════════════════════════╝
@@ -29,7 +29,7 @@ author: Jake
 
 ## Purpose
 
-Performs comprehensive audits of all frontend code against Chapter 19 (UI/UX Standards) and Chapter 20 (Agent System & Best Practices) by reading from Bible, Teacher, and Lexicon sources, then generates a complete audit report of exactly what needs to be fixed.
+Performs comprehensive audits of all frontend code against Chapter 19 (UI/UX Standards) and Chapter 20 (Agent System & Best Practices) by reading from CLAUDE.md, Teacher, and Lexicon sources, then generates a complete audit report of exactly what needs to be fixed.
 
 **Note:** For table-specific audits, use the `ui-table-auditor` agent instead. This agent focuses on non-table UI components.
 
@@ -37,7 +37,7 @@ Performs comprehensive audits of all frontend code against Chapter 19 (UI/UX Sta
 
 Before performing any audit, the agent MUST gather the latest rules from all three sources:
 
-### 1. Fetch Chapter 19 (UI/UX Standards) - Bible
+### 1. Fetch Chapter 19 (UI/UX Standards) - CLAUDE.md
 ```bash
 curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter_number=19'
 ```
@@ -47,7 +47,7 @@ curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bi
 curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=19'
 ```
 
-### 3. Fetch Chapter 20 (Agent System) - Bible
+### 3. Fetch Chapter 20 (Agent System) - CLAUDE.md
 ```bash
 curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter_number=20'
 ```
@@ -63,7 +63,7 @@ curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=le
 ```
 
 **Why all sources?**
-- **Bible**: Core rules and standards (MUST follow)
+- **CLAUDE.md**: Core rules and standards (MUST follow)
 - **Teacher**: Implementation guidance and examples (HOW to follow)
 - **Lexicon**: Known issues, bugs, and edge cases (WHAT to avoid)
 
@@ -73,7 +73,7 @@ curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=le
 
 Find ALL frontend files that need auditing:
 - All `.tsx` files in `frontend-next/app/` (excluding *Table.tsx, *List.tsx)
-- All `.tsx` files in `frontend-next/components/` (excluding DataTable, Trinity tables)
+- All `.tsx` files in `frontend-next/components/` (excluding DataTable, CLAUDE.md tables)
 - All form components
 - All modal/dialog components
 - All navigation components
@@ -96,9 +96,9 @@ Group components by type:
 ### Step 3: Apply Rules Against Each Component
 
 For EACH component found, check against ALL rules from:
-1. Chapter 19 Bible rules (UI/UX standards)
+1. Chapter 19 CLAUDE.md rules (UI/UX standards)
 2. Chapter 19 Teacher guidance (implementation patterns)
-3. Chapter 20 Bible rules (agent best practices)
+3. Chapter 20 CLAUDE.md rules (agent best practices)
 4. Chapter 20 Teacher guidance (agent implementation)
 5. Lexicon entries (known bugs and issues)
 
@@ -117,9 +117,9 @@ Create a comprehensive markdown report with:
 - Critical: X | Medium: Y | Low: Z
 
 ## Knowledge Base Used
-- Chapter 19 Bible: [X rules loaded]
+- Chapter 19 CLAUDE.md: [X rules loaded]
 - Chapter 19 Teacher: [Y entries loaded]
-- Chapter 20 Bible: [X rules loaded]
+- Chapter 20 CLAUDE.md: [X rules loaded]
 - Chapter 20 Teacher: [Y entries loaded]
 - Lexicon: [Z UI/UX entries loaded]
 
@@ -130,7 +130,7 @@ Create a comprehensive markdown report with:
   - Current: [What the code does now]
   - Required: [What it should do]
   - Fix: [Specific code change needed]
-  - Reference: [Bible/Teacher/Lexicon reference]
+  - Reference: [CLAUDE.md/Teacher/Lexicon reference]
 
 ## Medium Violations (SHOULD FIX SOON)
 
@@ -202,7 +202,7 @@ After presenting the audit report, the agent CAN:
 
 ### Analysis
 - Scan all UI components across entire frontend
-- Cross-reference against Bible, Teacher, and Lexicon
+- Cross-reference against CLAUDE.md, Teacher, and Lexicon
 - Identify violations with severity levels
 - Calculate compliance percentages
 - Generate prioritized action plans
@@ -255,7 +255,7 @@ After presenting the audit report, the agent CAN:
 
 ## Success Criteria
 
-✅ All three sources loaded (Bible, Teacher, Lexicon)
+✅ All three sources loaded (CLAUDE.md, Teacher, Lexicon)
 ✅ All UI components scanned
 ✅ Every component checked against all applicable rules
 ✅ Comprehensive audit report generated
@@ -273,7 +273,7 @@ After presenting the audit report, the agent CAN:
 - ✅ Include code examples in fix recommendations
 - ✅ Prioritize critical violations
 - ✅ Calculate realistic time estimates
-- ✅ Cross-reference Bible, Teacher, and Lexicon
+- ✅ Cross-reference CLAUDE.md, Teacher, and Lexicon
 - ✅ Defer to ui-table-auditor for table components
 
 ### DON'T:
@@ -299,9 +299,9 @@ The agent MUST produce:
 ```
 START
   ↓
-1. Fetch Chapter 19 Bible/Teacher
+1. Fetch Chapter 19 CLAUDE.md/Teacher
   ↓
-2. Fetch Chapter 20 Bible/Teacher
+2. Fetch Chapter 20 CLAUDE.md/Teacher
   ↓
 3. Fetch UI/UX Lexicon entries
   ↓
@@ -346,7 +346,7 @@ END
 ║  Fully Compliant:         [Y] ([Z]%)                           ║
 ║  Violations Found:        0                                    ║
 ╠════════════════════════════════════════════════════════════════╣
-║  Bible Rule: Chapter 19 & 20                                   ║
+║  CLAUDE.md Rule: Chapter 19 & 20                                   ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  Tokens Used: ~X,XXX (input) / ~X,XXX (output)                 ║
 ╚════════════════════════════════════════════════════════════════╝

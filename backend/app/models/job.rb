@@ -45,6 +45,32 @@ class Job < ApplicationRecord
     failed: "failed"
   }, prefix: :folders, default: :not_requested
 
+  # Alias title to name for backwards compatibility
+  # Many parts of the codebase reference job.title but the column is 'name'
+  alias_attribute :title, :name
+
+  # Address method for backwards compatibility
+  # Combines address components into a single string (same as name)
+  def address
+    name
+  end
+
+  # Status method for backwards compatibility (used in document templates)
+  # Returns the job_status name
+  def status
+    job_status&.name
+  end
+
+  # Job number for document templates (uses ID with padding)
+  def job_number
+    id&.to_s&.rjust(4, "0")
+  end
+
+  # Description placeholder for document templates
+  def description
+    nil
+  end
+
   # Validations
   validates :name, presence: true
   validates :site_supervisor_name, presence: true, unless: -> { imported_from_xero? || enquiry_status? }

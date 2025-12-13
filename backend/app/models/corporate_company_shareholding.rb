@@ -3,6 +3,9 @@ class CorporateCompanyShareholding < ApplicationRecord
   belongs_to :corporate_company, foreign_key: "company_id"
   belongs_to :shareholder, polymorphic: true
 
+  # Alias company to corporate_company for backwards compatibility
+  alias_method :company, :corporate_company
+
   # Validations
   validates :number_of_shares, presence: true, numericality: { greater_than: 0 }
   validates :share_class, presence: true

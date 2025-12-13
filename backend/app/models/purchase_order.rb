@@ -1,6 +1,7 @@
 class PurchaseOrder < ApplicationRecord
   # Associations
   belongs_to :job, counter_cache: true
+  alias_method :construction, :job  # Backwards compatibility
   belongs_to :supplier, class_name: "Contact", optional: true
   alias_method :contact, :supplier  # Alias for backwards compatibility
   belongs_to :estimate, optional: true

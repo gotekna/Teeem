@@ -111,6 +111,53 @@ class Contact < ApplicationRecord
   ENTITY_TYPES = %w[person company trust sole_trader price_only].freeze
   EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
 
+  # Alias name to display_name for backwards compatibility
+  # Many parts of the codebase reference contact.name but the column is 'display_name'
+  alias_attribute :name, :display_name
+
+  # Full name method for person contacts
+  def full_name
+    [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence || display_name
+  end
+
+  # Phone aliases for document templates
+  def phone
+    mobile_phone.presence || office_phone
+  end
+
+  def mobile
+    mobile_phone
+  end
+
+  # Company name alias for document templates
+  def company_name
+    company_name_or_trust
+  end
+
+  # ABN alias (tax_number is the column)
+  def abn
+    tax_number
+  end
+
+  # Suburb alias (city is the column)
+  def suburb
+    city
+  end
+
+  # Address helpers for document templates
+  def address_line_1
+    address.to_s.split("\n").first
+  end
+
+  def address_line_2
+    lines = address.to_s.split("\n")
+    lines.length > 1 ? lines[1..].join(", ") : nil
+  end
+
+  def full_address
+    [address, city, state, postcode].compact.reject(&:blank?).join(", ")
+  end
+
   # Xero-synced accounting fields - READ ONLY in TEEEM (synced from Xero)
   # These fields should only be updated via Xero sync, not manual edits
   XERO_READ_ONLY_FIELDS = %w[
