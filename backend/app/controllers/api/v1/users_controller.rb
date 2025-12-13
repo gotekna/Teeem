@@ -35,7 +35,7 @@ class Api::V1::UsersController < ApplicationController
     if @user.update(update_params)
       render json: {
         success: true,
-        user: @user.as_json(only: [ :id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at ])
+        user: @user.as_json
       }
     else
       render json: {
@@ -136,7 +136,7 @@ class Api::V1::UsersController < ApplicationController
     integrations << "microsoft" if microsoft_token.present?
     integrations << "outlook" if outlook_credential.present?
 
-    user.as_json(only: [ :id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at, :last_seen_at ]).merge(
+    user.as_json.merge(
       presence_status: presence_status,
       integrations: integrations,
       integrations_count: integrations.count,

@@ -189,7 +189,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
       investigated_by_user: {},
       whs_action_items: {
         include: {
-          assigned_to_user: { only: [ :id, :name ] }
+          assigned_to_user: {}
         }
       }
     }

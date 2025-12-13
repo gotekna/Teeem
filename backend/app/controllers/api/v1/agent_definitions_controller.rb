@@ -63,9 +63,7 @@ module Api
 
         render json: {
           success: true,
-          data: agent.as_json(
-            only: [ :id, :agent_id, :name, :last_run_at, :last_status, :last_message, :last_run_by_name, :total_runs, :successful_runs, :failed_runs, :last_run_tokens, :total_tokens ]
-          )
+          data: agent.as_json
         }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Agent not found" }, status: :not_found

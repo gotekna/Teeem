@@ -68,12 +68,10 @@ module Api
             detected_company: {},
             supplier: {},
             matched_purchase_order: {
-              only: [ :id, :purchase_order_number, :total, :status ],
               include: { supplier: {} }
             },
             approved_by: {},
             bill_payments: {
-              only: [ :id, :amount, :status, :payee_name ],
               include: { bill_payment_batch: {} }
             }
           },

@@ -48,7 +48,7 @@ module Api
                 source: "user_microsoft_token",
                 drive_name: "Personal OneDrive",
                 connected_at: microsoft_token.created_at,
-                connected_by: current_user&.as_json(only: [ :id, :email ]),
+                connected_by: current_user&.as_json(),
                 token_expires_at: microsoft_token.token_expires_at,
                 message: "Using your Microsoft 365 connection for OneDrive access"
               }
@@ -91,7 +91,7 @@ module Api
             root_folder_path: credential.root_folder_path,
             root_folder_web_url: credential.metadata&.dig("root_folder_web_url"),
             connected_at: credential.created_at,
-            connected_by: credential.connected_by&.as_json(only: [ :id, :email ]),
+            connected_by: credential.connected_by&.as_json(),
             metadata: credential.metadata,
             token_expires_at: credential.token_expires_at
           }

@@ -61,7 +61,6 @@ module Api
             include: {
               corporate_company: {},
               company_xero_accounts: {
-                only: [ :id, :account_code, :account_name, :account_type, :status ],
                 methods: [ :display_name, :mapped? ]
               }
             },

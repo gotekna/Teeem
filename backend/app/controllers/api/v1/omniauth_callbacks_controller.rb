@@ -13,7 +13,7 @@ module Api
           token = JsonWebToken.encode(user_id: @user.id)
 
           # Redirect to frontend with token
-          redirect_to "#{ENV['FRONTEND_URL']}/auth/callback?token=#{token}&user=#{CGI.escape(@user.to_json(only: [ :id, :email, :name ]))}"
+          redirect_to "#{ENV['FRONTEND_URL']}/auth/callback?token=#{token}&user=#{CGI.escape(@user.to_json)}"
         else
           redirect_to "#{ENV['FRONTEND_URL']}/login?error=authentication_failed"
         end

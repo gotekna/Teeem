@@ -157,7 +157,7 @@ class Api::V1::WHSInductionsController < ApplicationController
 
   def serialization_includes
     {
-      whs_induction_template: { only: [ :id, :name, :version, :has_quiz ] },
+      whs_induction_template: {},
       user: {},
       job: {},
       inducted_by_user: {}

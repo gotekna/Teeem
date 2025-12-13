@@ -79,7 +79,6 @@ module Api
             success: true,
             message: "Successfully linked company to #{credential.tenant_name}",
             connection: connection.as_json(
-              only: [ :id, :xero_tenant_id, :xero_tenant_name, :connection_status ],
               methods: [ :connected? ]
             )
           }

@@ -56,11 +56,10 @@ module Api
             include: {
               supplier: { methods: [ :display_name ] },
               job: {
-                only: [ :id, :title ],
                 methods: [ :site_supervisor_info ]
               },
               line_items: {
-                include: { pricebook_item: { only: [ :id, :item_code, :item_name, :current_price ] } },
+                include: { pricebook_item: {} },
                 methods: [ :price_drift, :price_outdated?, :price_status, :price_status_label ]
               }
             },
@@ -84,26 +83,23 @@ module Api
             include: {
               supplier: { methods: [ :display_name ] },
               job: {
-                only: [ :id, :title ],
                 methods: [ :site_supervisor_info ]
               },
-              schedule_tasks: { only: [ :id, :title, :supplier_category ] },
+              schedule_tasks: {},
               line_items: {
-                include: { pricebook_item: { only: [ :id, :item_code, :item_name, :unit_of_measure ], methods: [ :active_price ] } },
+                include: { pricebook_item: { methods: [ :active_price ] } },
                 methods: [ :price_drift, :price_outdated?, :price_status, :price_status_label ]
               },
               project_tasks: {
-                only: [ :id, :name, :planned_start_date, :planned_end_date, :status ],
                 methods: [ :materials_status ]
               },
               document_tasks: {
-                only: [ :id, :name, :description, :category, :has_document, :is_validated ],
                 methods: [ :document_url ]
               }
             },
             methods: [ :timing_warnings, :delivery_aligned_with_tasks? ]
           ),
-          company_setting: company_setting.as_json(only: [ :company_name, :abn, :gst_number, :email, :phone, :address, :logo_url ])
+          company_setting: company_setting.as_json
         }
       end
 

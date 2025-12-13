@@ -832,9 +832,6 @@ module Api
       # Minimal JSON for fast loading - skips expensive risk calculations
       def item_minimal_json(item)
         item_json = item.as_json(
-          only: [ :id, :item_code, :item_name, :category, :current_price, :unit_of_measure,
-                 :brand, :notes, :gst_code, :is_active, :needs_pricing_review,
-                 :created_at, :updated_at, :image_url ],
           include: {
             supplier: {},
             default_supplier: {}

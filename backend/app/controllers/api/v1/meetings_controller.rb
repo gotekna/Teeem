@@ -159,8 +159,8 @@ class Api::V1::MeetingsController < ApplicationController
       },
       meeting_agenda_items: {
         include: {
-          presenter: { only: [ :id, :name ] },
-          created_task: { only: [ :id, :title, :status ] }
+          presenter: {},
+          created_task: {}
         }
       }
     }

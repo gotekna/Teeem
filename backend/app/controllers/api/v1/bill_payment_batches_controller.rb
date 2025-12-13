@@ -41,8 +41,7 @@ module Api
             bill_payments: {
               include: {
                 bill_inbox: {
-                  only: [ :id, :invoice_number, :supplier_name_raw, :total_amount ],
-                  include: { supplier: { only: [ :id, :display_name ] } }
+                  include: { supplier: {} }
                 }
               }
             }
@@ -230,7 +229,6 @@ module Api
         end
 
         render json: bills.as_json(
-          only: [ :id, :invoice_number, :supplier_name_raw, :total_amount, :due_date ],
           include: {
             supplier: {},
             matched_purchase_order: {}

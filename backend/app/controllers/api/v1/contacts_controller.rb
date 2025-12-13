@@ -102,10 +102,9 @@ module Api
         director_fields = params[:is_director] == "true" ? [ :place_of_birth, :birth_state, :birth_country, :residential_address ] : []
 
         contacts_json = @contacts.as_json(
-          only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :is_active, :address, :lgas, :xero_id, :xero_synced, :sync_with_xero, :total_purchase_orders_count, :total_purchase_orders_value, :entity_type, :is_family_member, :is_potential_director, :company_group_id, :is_team_contact ] + director_fields,
           include: {
-            portal_user: { only: [ :id, :email, :portal_type, :active ] },
-            corporate_group: { only: [ :id, :name ] }
+            portal_user: {},
+            corporate_group: {}
           },
           methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?, :company_group_memberships_count ]
         )
@@ -161,30 +160,14 @@ module Api
       def show
         # If this contact is a supplier, include their supplier-specific data
         contact_json = @contact.as_json(
-          only: [
-            :id, :display_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :website,
-            :tax_number, :xero_id, :xero_synced, :sync_with_xero,
-            :created_at, :updated_at,
-            :roles, :is_active, :address, :lgas,
-            :entity_type, :primary_company_id, :company_name_or_trust,
-            # Family/Director flags
-            :is_family_member, :is_potential_director, :company_group_id, :is_team_contact,
-            # Xero fields
-            :bank_bsb, :bank_account_number, :bank_account_name,
-            :default_purchase_account, :default_sales_account,
-            :bill_due_day, :bill_due_type, :sales_due_day, :sales_due_type,
-            :xero_contact_number, :xero_contact_status, :xero_account_number, :default_discount,
-            # Director details fields
-            :place_of_birth, :birth_state, :birth_country, :residential_address
-          ],
           include: {
-            contact_emails: { only: [ :id, :email, :is_primary, :label, :position ] },
-            contact_phones: { only: [ :id, :phone_number, :phone_type, :is_primary, :label, :position ] },
-            contact_persons: { only: [ :id, :first_name, :last_name, :email, :mobile, :role, :include_in_emails, :is_primary, :xero_contact_person_id ] },
-            contact_addresses: { only: [ :id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary ] },
-            contact_groups: { only: [ :id, :name, :status, :xero_contact_group_id ] },
-            portal_user: { only: [ :id, :email, :portal_type, :active, :last_login_at, :created_at ] },
-            corporate_group: { only: [ :id, :name ] }
+            contact_emails: {},
+            contact_phones: {},
+            contact_persons: {},
+            contact_addresses: {},
+            contact_groups: {},
+            portal_user: {},
+            corporate_group: {}
           },
           methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies, :display_name ]
         )
@@ -215,12 +198,10 @@ module Api
               .sort_by { |ph| [ (ph.date_effective || Time.at(0)).to_time, (ph.created_at || Time.at(0)).to_time ] }
               .reverse
               .map do |ph|
-                ph.as_json(only: [ :id, :old_price, :new_price, :date_effective, :lga, :change_reason, :user_name, :created_at ])
+                ph.as_json
               end
 
-            item.as_json(
-              only: [ :id, :item_code, :item_name, :category, :current_price, :unit, :price_last_updated_at ]
-            ).merge(
+            item.as_json.merge(
               is_default_supplier: item.default_supplier_id == @contact.id,
               price_histories: price_histories
             )
@@ -447,7 +428,6 @@ module Api
           render json: {
             success: true,
             contact: @contact.as_json(
-              only: [ :id, :display_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :is_team_contact, :is_family_member ],
               methods: [ :is_employee?, :is_sales?, :is_land_agent? ]
             )
           }
@@ -1547,9 +1527,7 @@ module Api
         render json: {
           success: true,
           message: "Successfully merged #{source_contacts.count} contact(s) into #{target_contact.display_name}",
-          contact: target_contact.as_json(
-            only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles ]
-          )
+          contact: target_contact.as_json
         }
       rescue ActiveRecord::RecordNotFound => e
         render json: {

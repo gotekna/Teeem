@@ -140,16 +140,14 @@ class Api::V1::WHSInspectionsController < ApplicationController
   def serialization_includes
     {
       job: {},
-      whs_inspection_template: { only: [ :id, :name, :inspection_type ] },
+      whs_inspection_template: {},
       inspector_user: {},
       created_by: {},
-      meeting: { only: [ :id, :title, :start_time ] },
-      whs_inspection_items: {
-        only: [ :id, :item_description, :category, :result, :notes, :photo_urls, :action_required, :position ]
-      },
+      meeting: {},
+      whs_inspection_items: {},
       whs_action_items: {
         include: {
-          assigned_to_user: { only: [ :id, :name ] }
+          assigned_to_user: {}
         }
       }
     }

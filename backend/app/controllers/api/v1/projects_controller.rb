@@ -10,7 +10,7 @@ module Api
         render json: {
           projects: @projects.as_json(
             include: {
-              project_manager: { only: [ :id, :name, :email ] },
+              project_manager: {},
               construction: {}
             },
             methods: [ :total_tasks, :completed_tasks ]
@@ -23,7 +23,7 @@ module Api
         render json: {
           project: @project.as_json(
             include: {
-              project_manager: { only: [ :id, :name, :email ] },
+              project_manager: {},
               construction: {}
             },
             methods: [ :total_tasks, :completed_tasks, :progress_percentage ]

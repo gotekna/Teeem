@@ -13,9 +13,7 @@ module Api
         render json: {
           tasks: tasks.as_json(
             include: {
-              purchase_order: {
-                only: [ :id, :purchase_order_number, :required_on_site_date, :expected_delivery_date, :status ]
-              }
+              purchase_order: {}
             },
             methods: [ :materials_status ]
           )

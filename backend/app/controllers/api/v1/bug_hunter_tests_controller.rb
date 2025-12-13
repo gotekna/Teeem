@@ -152,7 +152,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
   def history
     runs = BugHunterTestRun.recent
 
-    render json: runs.as_json(only: [ :id, :test_id, :status, :message, :duration, :template_id, :created_at, :console_output ])
+    render json: runs.as_json
   end
 
   # DELETE /api/v1/bug_hunter_tests/cleanup

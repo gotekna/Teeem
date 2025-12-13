@@ -28,7 +28,6 @@ class Api::V1::FeatureTrackersController < ApplicationController
         methods: [ :completion_percentage, :fully_complete?, :chapter_display ],
         include: {
           feature_chapter: {
-            only: [ :id, :chapter_number, :name ],
             methods: [ :display_name ]
           }
         }

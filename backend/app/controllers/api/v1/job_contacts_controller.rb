@@ -91,15 +91,11 @@ module Api
         }
 
         if job_contact.user.present?
-          response[:user] = job_contact.user.as_json(
-            only: [ :id, :name, :email ]
-          )
+          response[:user] = job_contact.user.as_json
           response[:relationships_count] = 0
           response[:relationships] = []
         elsif job_contact.contact.present?
-          response[:contact] = job_contact.contact.as_json(
-            only: [ :id, :first_name, :last_name, :display_name, :company_name_or_trust, :email, :mobile_phone, :office_phone ]
-          )
+          response[:contact] = job_contact.contact.as_json
           # Add company_name alias for frontend compatibility
           response[:contact][:company_name] = job_contact.contact.company_name_or_trust
 

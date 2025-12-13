@@ -220,16 +220,16 @@ class Api::V1::WHSSWMSController < ApplicationController
     {
       job: {},
       created_by: {},
-      approved_by: { only: [ :id, :name, :email ] },
-      superseded_by: { only: [ :id, :swms_number, :version ] },
+      approved_by: {},
+      superseded_by: {},
       whs_swms_hazards: {
         include: {
-          whs_swms_controls: { only: [ :id, :control_description, :control_type, :residual_risk_score ] }
+          whs_swms_controls: {}
         }
       },
       whs_swms_acknowledgments: {
         include: {
-          user: { only: [ :id, :name ] }
+          user: {}
         }
       }
     }
