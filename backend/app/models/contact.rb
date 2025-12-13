@@ -139,6 +139,10 @@ class Contact < ApplicationRecord
     tax_number
   end
 
+  def abn=(value)
+    self.tax_number = value
+  end
+
   # Suburb alias (city is the column)
   def suburb
     city
