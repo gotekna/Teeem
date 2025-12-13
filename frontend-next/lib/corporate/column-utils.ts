@@ -128,8 +128,8 @@ export function isSystemOrHiddenColumn(columnName: string): boolean {
   // Hide $type suffix columns (used for polymorphic associations)
   if (columnName.endsWith('$type')) return true;
 
-  // Hide _id columns except for specific allowed ones
-  if (columnName.endsWith('_id') && !VISIBLE_ID_COLUMNS.includes(columnName)) return true;
+  // NOTE: We no longer hide _id columns. If a column is in a Foundation,
+  // it should be visible. If it shouldn't be visible, remove it from the Foundation.
 
   // NOTE: id, created_at, updated_at are NOT filtered here
   // They're in SYSTEM_DISPLAY_COLUMNS and should be hidden by DEFAULT
