@@ -60,7 +60,9 @@ cd backend && bin/rails runner "
 # Custom header buttons instead of leftActions (Gold Standard pattern)
 echo ""
 echo "=== Checking for custom header buttons (should use leftActions) ==="
-echo "Files with TeeemTableView but no leftActions:"
+
+# Pattern 1: Pages without leftActions (original check)
+echo "--- Files with Add buttons but no leftActions ---"
 for file in $(grep -rl "TeeemTableView" frontend-next/app --include="*.tsx"); do
   if ! grep -q "leftActions" "$file"; then
     # Check if file has Plus/Add buttons that might be in custom header
@@ -69,6 +71,22 @@ for file in $(grep -rl "TeeemTableView" frontend-next/app --include="*.tsx"); do
     fi
   fi
 done
+
+# Pattern 2: Standalone Export/Import buttons in header (should be in TeeemTableView dropdown)
+echo ""
+echo "--- Custom Export/Import buttons (should use TeeemTableView's built-in) ---"
+grep -rn "Button.*Export\|Button.*Import" frontend-next/app/\(app\) --include="*.tsx" 2>/dev/null | \
+  grep -v "leftActions\|TeeemTableView" | \
+  grep "variant.*outline\|variant.*default" | \
+  head -10
+
+# Pattern 3: Add buttons in page header instead of leftActions
+echo ""
+echo "--- Add buttons in page header (should use leftActions) ---"
+grep -rn "<div.*justify-between" frontend-next/app/\(app\) --include="*.tsx" -A 20 2>/dev/null | \
+  grep -B 5 "Plus.*Add\|Add.*Item" | \
+  grep -v "leftActions" | \
+  head -15
 ```
 
 **Expected:**
