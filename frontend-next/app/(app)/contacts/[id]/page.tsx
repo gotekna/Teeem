@@ -144,6 +144,8 @@ interface CompanyListContact {
   last_name: string | null;
   email: string | null;
   entity_type: string | null;
+  is_team_contact?: boolean;
+  primary_company?: { id: number; name: string } | null;
 }
 
 // API response for company list
@@ -743,10 +745,11 @@ export default function ContactDetailPage() {
      
   }, [contact?.id]);
 
-  // Fetch all companies for multi-select dropdown - lazy load when edit modal opens
+  // Fetch all companies for multi-select dropdown - load when contact is a person type
   useEffect(() => {
-    // Only fetch when edit modal opens and we haven't loaded companies yet
-    if (!editModalOpen || availableCompanies.length > 0) return;
+    // Only fetch for person entity types that can have employers, and if not already loaded
+    if (!contact || availableCompanies.length > 0) return;
+    if (!canHaveEmployer(contact.entity_type)) return;
 
     const fetchCompanies = async () => {
       setLoadingCompanies(true);
@@ -769,7 +772,7 @@ export default function ContactDetailPage() {
       }
     };
     fetchCompanies();
-  }, [editModalOpen, availableCompanies.length]);
+  }, [contact?.id, contact?.entity_type, availableCompanies.length]);
 
   // Populate selected companies and roles from contact.additional_companies
   useEffect(() => {
@@ -810,13 +813,20 @@ export default function ContactDetailPage() {
       setLoadingPeople(true);
       try {
         const response = await api.get<CompanyListResponse>("/api/v1/contacts", {
-          params: { entity_type: "person" },
+          params: { entity_type: "person", include_companies: "true" },
         });
         const people = response.contacts || [];
-        const peopleOptions: Option[] = people.map((p: CompanyListContact) => ({
-          value: p.id.toString(),
-          label: `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.display_name || "Unknown Person",
-        }));
+        const peopleOptions: Option[] = people.map((p: CompanyListContact) => {
+          let label = `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.display_name || "Unknown Person";
+          // For team contacts, append company name to differentiate (e.g., "Accounts Team - Buildcraft")
+          if (p.is_team_contact && p.primary_company?.name) {
+            label = `${label} - ${p.primary_company.name}`;
+          }
+          return {
+            value: p.id.toString(),
+            label,
+          };
+        });
         setAvailablePeople(peopleOptions);
       } catch (err) {
         console.error("Failed to fetch people:", err);
