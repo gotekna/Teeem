@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronsUpDown, Search } from "lucide-react";
+import { Check, ChevronsUpDown, Search, X, Loader2 } from "lucide-react";
 import * as React from "react";
 
 import { CommandList } from "cmdk";
@@ -39,8 +39,18 @@ type Props<T> = {
   onCreate?: (value: string) => void;
   headless?: boolean;
   className?: string;
-  /** Show search input in the trigger button instead of inside the dropdown */
+  /**
+   * Show search input in the trigger button instead of inside the dropdown.
+   * DEFAULT: true (TEEEM standard - field itself is searchable)
+   * Set to false only for legacy/special cases.
+   */
   searchInTrigger?: boolean;
+  /** Show loading spinner while items are being fetched */
+  isLoading?: boolean;
+  /** Allow clearing the selection (shows X button) */
+  clearable?: boolean;
+  /** Called when selection is cleared */
+  onClear?: () => void;
 };
 
 export function ComboboxDropdown<T extends ComboboxItem>({
@@ -58,7 +68,10 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   disabled,
   onCreate,
   className,
-  searchInTrigger = false,
+  searchInTrigger = true, // TEEEM standard: field itself is searchable
+  isLoading = false,
+  clearable = false,
+  onClear,
 }: Props<T>) {
   const [open, setOpen] = React.useState(false);
   const [internalSelectedItem, setInternalSelectedItem] = React.useState<
@@ -94,6 +107,15 @@ export function ComboboxDropdown<T extends ComboboxItem>({
     setOpen(false);
   };
 
+  // Handle clear selection
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setInternalSelectedItem(undefined);
+    setInputValue("");
+    onClear?.();
+  };
+
   const Component = (
     <Command loop shouldFilter={false}>
       {!searchInTrigger && (
@@ -107,61 +129,69 @@ export function ComboboxDropdown<T extends ComboboxItem>({
 
       <CommandGroup>
         <CommandList className="max-h-[225px] overflow-auto">
-          {filteredItems.map((item) => {
-            const isChecked = selectedItem?.id === item.id;
+          {isLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              {filteredItems.map((item) => {
+                const isChecked = selectedItem?.id === item.id;
 
-            return (
-              <CommandItem
-                disabled={item.disabled}
-                className={cn("cursor-pointer whitespace-nowrap", className)}
-                key={item.id}
-                value={item.id}
-                onSelect={(id) => {
-                  // cmdk lowercases the value, so we need case-insensitive comparison
-                  const foundItem = safeItems.find((i) => i.id.toLowerCase() === id.toLowerCase());
+                return (
+                  <CommandItem
+                    disabled={item.disabled}
+                    className={cn("cursor-pointer whitespace-nowrap", className)}
+                    key={item.id}
+                    value={item.id}
+                    onSelect={(id) => {
+                      // cmdk lowercases the value, so we need case-insensitive comparison
+                      const foundItem = safeItems.find((i) => i.id.toLowerCase() === id.toLowerCase());
 
-                  if (!foundItem) {
-                    return;
-                  }
+                      if (!foundItem) {
+                        return;
+                      }
 
-                  handleSelectItem(foundItem);
-                }}
-              >
-                {renderListItem ? (
-                  renderListItem({ isChecked, item })
-                ) : (
-                  <>
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        isChecked ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                    {item.label}
-                  </>
-                )}
-              </CommandItem>
-            );
-          })}
+                      handleSelectItem(foundItem);
+                    }}
+                  >
+                    {renderListItem ? (
+                      renderListItem({ isChecked, item })
+                    ) : (
+                      <>
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            isChecked ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                        {item.label}
+                      </>
+                    )}
+                  </CommandItem>
+                );
+              })}
 
-          <CommandEmpty>{emptyResults ?? "No item found"}</CommandEmpty>
+              <CommandEmpty>{emptyResults ?? "No item found"}</CommandEmpty>
 
-          {showCreate && (
-            <CommandItem
-              key={inputValue}
-              value={inputValue}
-              onSelect={() => {
-                onCreate(inputValue);
-                setOpen(false);
-                setInputValue("");
-              }}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-              }}
-            >
-              {renderOnCreate ? renderOnCreate(inputValue) : null}
-            </CommandItem>
+              {showCreate && (
+                <CommandItem
+                  key={inputValue}
+                  value={inputValue}
+                  onSelect={() => {
+                    onCreate(inputValue);
+                    setOpen(false);
+                    setInputValue("");
+                  }}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                >
+                  {renderOnCreate ? renderOnCreate(inputValue) : null}
+                </CommandItem>
+              )}
+            </>
           )}
         </CommandList>
       </CommandGroup>
@@ -188,7 +218,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
           setInputValue(""); // Clear search when closing
         }
       }} modal>
-        <PopoverTrigger asChild disabled={disabled} className="w-full">
+        <PopoverTrigger asChild disabled={disabled || isLoading} className="w-full">
           <div className="relative w-full">
             <input
               ref={inputRef}
@@ -200,14 +230,24 @@ export function ComboboxDropdown<T extends ComboboxItem>({
                 setInputValue(""); // Clear to allow fresh search
               }}
               placeholder={placeholder as string ?? "Search..."}
-              disabled={disabled}
+              disabled={disabled || isLoading}
               className={cn(
-                "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors",
+                "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-8 text-sm shadow-sm transition-colors",
                 "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                 "disabled:cursor-not-allowed disabled:opacity-50"
               )}
             />
-            <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            {/* Icon: Loading > Clear > Search */}
+            {isLoading ? (
+              <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+            ) : clearable && selectedItem && !open ? (
+              <X
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                onClick={handleClear}
+              />
+            ) : (
+              <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            )}
           </div>
         </PopoverTrigger>
 

@@ -847,7 +847,6 @@ export default function JobDetailPage() {
                           selectedItem={editForm.job_type_id ? { id: editForm.job_type_id.toString(), label: jobTypes.find(t => t.id === editForm.job_type_id)?.name || "" } : undefined}
                           onSelect={(item) => setEditForm({ ...editForm, job_type_id: parseInt(item.id) })}
                           placeholder="Search job types..."
-                          searchInTrigger
                         />
                       )
                     ) : (
@@ -868,7 +867,6 @@ export default function JobDetailPage() {
                           selectedItem={editForm.job_status_id ? { id: editForm.job_status_id.toString(), label: jobStatuses.find(s => s.id === editForm.job_status_id)?.name || "" } : undefined}
                           onSelect={(item) => setEditForm({ ...editForm, job_status_id: parseInt(item.id) })}
                           placeholder="Search statuses..."
-                          searchInTrigger
                         />
                       )
                     ) : (

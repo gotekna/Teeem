@@ -14,7 +14,7 @@
 |------|---------|------|-----------|
 | Data Table | `TeeemTableView` | Any data table | `data-table.tsx` |
 | Simple Dropdown | `Select` | **< 5 options** | - |
-| Searchable Select | `ComboboxDropdown` + `searchInTrigger` | **5+ options** | `combobox.tsx` |
+| Searchable Select | `ComboboxDropdown` | **5+ options** | `combobox.tsx` |
 | Multi-Select | `MultiSelectCombobox` | Multiple selections | `multiple-selector.tsx` |
 | Loading Spinner | `Spinner` | Any loading state | `loader.tsx` |
 | Side Panel | `Sheet` | Detail/edit panels | `drawer.tsx` |
@@ -61,7 +61,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 - User needs to find options quickly
 - Single selection from medium/large list
 
-**ALWAYS use `searchInTrigger` mode** - makes the field itself searchable (no separate search box).
+**Default behavior:** Field itself is searchable (no separate search box) - this is the TEEEM standard.
 
 **Example:**
 ```tsx
@@ -72,7 +72,6 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown"
   selectedItem={selectedType ? { id: selectedType.id.toString(), label: selectedType.name } : undefined}
   onSelect={(item) => setSelectedTypeId(parseInt(item.id))}
   placeholder="Search job types..."
-  searchInTrigger
 />
 ```
 
@@ -81,7 +80,10 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown"
 - `selectedItem`: Current selection (same shape as items)
 - `onSelect`: Called with selected item
 - `placeholder`: Shown when no selection / as search hint
-- `searchInTrigger`: **REQUIRED** - makes field itself searchable
+- `isLoading`: Shows spinner while loading items
+- `clearable`: Shows X button to clear selection
+- `onClear`: Called when selection is cleared
+- `searchInTrigger`: Default `true` - field is searchable (set `false` for legacy button mode)
 
 **Deprecated:** `combobox.tsx` - Use `combobox-dropdown.tsx` instead
 
