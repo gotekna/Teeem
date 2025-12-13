@@ -24,10 +24,6 @@ class CorporateCompanyDocument < ApplicationRecord
   # Note: foreign_key is :company_document_id (legacy name from before table rename)
   has_many :document_verification_feedbacks, foreign_key: :company_document_id, dependent: :destroy
 
-  # Email attachments that link to this document
-  # Note: foreign_key is :company_document_id (legacy name from before table rename)
-  has_many :email_attachments, foreign_key: :company_document_id, dependent: :nullify
-
   # Duplicate tracking
   has_many :duplicate_reviews_as_existing, class_name: "DocumentDuplicateReview", foreign_key: :existing_document_id, dependent: :destroy
   has_many :duplicate_reviews_as_new, class_name: "DocumentDuplicateReview", foreign_key: :new_document_id, dependent: :nullify

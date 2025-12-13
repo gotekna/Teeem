@@ -4,8 +4,8 @@
 class EmailAttachment < ApplicationRecord
   belongs_to :email_warehouse
   belongs_to :attachment, optional: true  # Link to Attachment model (SharePoint-stored attachments)
-  # Note: class_name needed because table was renamed from company_documents to corporate_company_documents
-  belongs_to :company_document, class_name: "CorporateCompanyDocument", optional: true  # If linking to existing doc
+  # NOTE: company_document association removed - column doesn't exist in database
+  # If needed, add migration: add_reference :email_attachments, :company_document
 
   # Note: filename is optional when linking to an Attachment record (which has the filename)
 
@@ -23,14 +23,15 @@ class EmailAttachment < ApplicationRecord
   end
 
   # Link this attachment to an existing company document (avoid storing twice)
-  def link_to_document!(document)
-    update!(
-      company_document: document,
-      is_existing_doc: true,
-      sharepoint_file_id: document.sharepoint_file_id,
-      sharepoint_path: document.sharepoint_path
-    )
-  end
+  # NOTE: Disabled - company_document_id column doesn't exist in database
+  # def link_to_document!(document)
+  #   update!(
+  #     company_document: document,
+  #     is_existing_doc: true,
+  #     sharepoint_file_id: document.sharepoint_file_id,
+  #     sharepoint_path: document.sharepoint_path
+  #   )
+  # end
 
   # Calculate content hash from binary data
   def self.compute_hash(content)
