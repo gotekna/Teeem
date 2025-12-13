@@ -21,9 +21,16 @@ Pull the production database (teeemlive) to local environment.
 ┌─────────────┐
 │   LOCAL     │
 │ teeem_dev   │
+└──────┬──────┘
+       │
+       │ Step 3b: Ensure foundations
+       ▼
+┌─────────────┐
+│ Foundations │
+│ + Columns   │
 └─────────────┘
 
-Step 2: Restart local frontend & backend servers
+Step 4-5: Clean up & restart servers
 ```
 
 ## Auto-Execute
@@ -37,6 +44,14 @@ cd /Users/robertharder/GitHub/teeem/backend && heroku pg:backups:capture --app t
 
 # Step 3: Restore to local
 pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump 2>&1 | tail -20 && bin/rails db:migrate
+
+# Step 3b: Ensure system foundations exist (safety net)
+bin/rails teeem:create_system_foundations 2>&1 | tail -5
+
+# Step 3c: Show login credentials (copied from production)
+echo ""
+echo "🔑 LOCAL LOGIN CREDENTIALS (from production):"
+bin/rails runner "u = User.find_by(email: 'robert@tekna.com.au'); puts \"   Email: #{u&.email}\"; puts \"   Password: [same as production]\""
 
 # Step 4: Clean up
 rm -f latest.dump
@@ -61,6 +76,8 @@ echo "✅ Database synced and servers restarted"
 |------|------|-----|--------|
 | 1 | teeemlive | Heroku backup | `pg:backups:capture` |
 | 2 | Heroku backup | local file | `pg:backups:download` |
-| 3 | local file | teeem_development | `pg_restore` |
+| 3 | local file | teeem_development | `pg_restore` + `db:migrate` |
+| 3b | - | foundations | `teeem:create_system_foundations` (safety net) |
+| 3c | - | - | Show login credentials reminder |
 | 4 | - | - | Clean up dump file |
 | 5 | - | localhost:3000 + 3001 | Restart Next.js + Rails |
