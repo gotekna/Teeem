@@ -63,15 +63,33 @@ module Api
             sanitized_search = ActiveRecord::Base.connection.quote(search)
             conn = ActiveRecord::Base.connection
 
+            # Get column type information to handle non-text columns
+            column_types = model.columns.each_with_object({}) { |c, h| h[c.name] = c.type }
+
             # ILIKE conditions for exact substring matches
             # Security: Quote column names to prevent SQL injection
-            ilike_conditions = searchable_columns.map { |col| "#{conn.quote_column_name(col)} ILIKE :search" }.join(" OR ")
+            # Cast non-text columns to TEXT to support searching numeric/date columns
+            ilike_conditions = searchable_columns.map do |col|
+              column_sql = if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime].include?(column_types[col])
+                "CAST(#{conn.quote_column_name(col)} AS TEXT)"
+              else
+                conn.quote_column_name(col)
+              end
+              "#{column_sql} ILIKE :search"
+            end.join(" OR ")
 
             # Fuzzy word_similarity conditions (matches search term against words in text)
             # word_similarity > 0.4 catches typos like "tekan" -> "Tekna Admin"
             # Only apply to first few columns to keep it fast
             fuzzy_columns = searchable_columns.first(3)
-            fuzzy_conditions = fuzzy_columns.map { |col| "word_similarity(#{sanitized_search}, COALESCE(#{conn.quote_column_name(col)}, '')) > 0.4" }.join(" OR ")
+            fuzzy_conditions = fuzzy_columns.map do |col|
+              column_sql = if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime].include?(column_types[col])
+                "CAST(#{conn.quote_column_name(col)} AS TEXT)"
+              else
+                conn.quote_column_name(col)
+              end
+              "word_similarity(#{sanitized_search}, COALESCE(#{column_sql}, '')) > 0.4"
+            end.join(" OR ")
 
             # Combine: match if ILIKE OR fuzzy match
             combined_conditions = "(#{ilike_conditions}) OR (#{fuzzy_conditions})"
