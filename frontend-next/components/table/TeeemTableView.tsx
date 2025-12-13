@@ -2102,14 +2102,9 @@ export default function TeeemTableView({
       return null;
     }
 
-    // DEBUG: Log sortColumns to verify customOrder is present
-    console.log('[groupedEntries] sortColumns:', JSON.stringify(sortColumns, null, 2));
-    console.log('[groupedEntries] groupByColumns:', groupByColumns);
-
     // Helper to get customOrder for a column from sortColumns
     const getCustomOrderForColumn = (columnName: string): string[] | undefined => {
       const sortConfig = sortColumns.find(s => s.column === columnName);
-      console.log(`[groupedEntries] getCustomOrderForColumn("${columnName}"):`, sortConfig?.customOrder);
       return sortConfig?.customOrder;
     };
 
