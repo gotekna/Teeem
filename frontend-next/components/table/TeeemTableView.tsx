@@ -98,7 +98,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { getColumnPriority, COLUMN_PRIORITY_CONFIG } from "@/lib/column-priority";
+import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
 import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2373,51 +2373,24 @@ export default function TeeemTableView({
   }, [visibleColumnsInOrder, filteredAndSortedEntries]);
 
   // Calculate TEEEM Smart widths based on column priority
+  // Excel-style: measures actual content for essential + supporting columns
+  // Technical columns stay compact, tiered expansion fills available space
   const calculateSmartFitWidths = useCallback(() => {
     const newWidths: ColumnWidthsState = {};
+    const columnPriorities: Record<string, ColumnPriority> = {};
     const HEADER_PADDING = 28;
     const CELL_PADDING = 24;
 
-    // Create canvas for measurement (only for essential columns)
+    // Create canvas for measurement
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
     const headerFont = '600 14px ui-sans-serif, system-ui, sans-serif';
     const cellFont = '14px ui-sans-serif, system-ui, sans-serif';
 
-    // Helper function to get type-based default width
-    const getTypeBasedWidth = (col: TableColumn): number => {
-      const type = col.column_type?.toLowerCase() || 'text';
-      switch (type) {
-        case 'id': return 60;
-        case 'boolean': return 80;
-        case 'date': return 100;
-        case 'date_time':
-        case 'datetime': return 150;
-        case 'currency':
-        case 'percentage':
-        case 'number':
-        case 'decimal':
-        case 'whole_number': return 100;
-        case 'phone':
-        case 'mobile': return 120;
-        case 'email':
-        case 'url': return 200;
-        case 'choice':
-        case 'lookup':
-        case 'relation': return 150;
-        case 'multiple_lookups': return 200;
-        case 'text':
-        case 'single_line_text': return 150;
-        case 'multiple_lines_text':
-        case 'textarea': return 250;
-        default: return 150;
-      }
-    };
-
-    // Helper to measure column width using canvas
+    // Helper to measure column width using canvas (Excel-style)
     const measureColumnWidth = (col: TableColumn): number => {
-      if (!ctx) return getTypeBasedWidth(col);
+      if (!ctx) return 150;
 
       ctx.font = headerFont;
       const headerText = col.label || col.key;
@@ -2432,16 +2405,19 @@ export default function TeeemTableView({
         if (value === null || value === undefined) {
           displayText = '-';
         } else if (typeof value === 'object') {
-          const obj = value as { display?: string; name?: string };
-          displayText = obj.display || obj.name || String(value);
+          const obj = value as { display_value?: string; display?: string; name?: string };
+          displayText = obj.display_value || obj.display || obj.name || String(value);
         } else {
           displayText = String(value);
         }
 
+        // Format numbers for accurate measurement
         if (col.column_type === 'currency' && typeof value === 'number') {
           displayText = `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
         } else if (col.column_type === 'percentage' && typeof value === 'number') {
           displayText = `${value.toFixed(1)}%`;
+        } else if (col.column_type === 'date' && value) {
+          displayText = new Date(value as string).toLocaleDateString();
         }
 
         const contentWidth = ctx.measureText(displayText).width + CELL_PADDING;
@@ -2451,10 +2427,11 @@ export default function TeeemTableView({
       return Math.ceil(maxWidth);
     };
 
+    // First pass: calculate base widths and track priorities
     visibleColumnsInOrder.forEach(col => {
-      // Get priority tier for this column
       const priority = getColumnPriority(col.key, col.column_type);
       const config = COLUMN_PRIORITY_CONFIG[priority];
+      columnPriorities[col.key] = priority;
 
       // Skip hidden columns
       if (priority === 'hidden') return;
@@ -2469,42 +2446,47 @@ export default function TeeemTableView({
         return;
       }
 
-      // For essential: use full auto-fit calculation (canvas measurement)
-      if (priority === 'essential') {
-        const measuredWidth = measureColumnWidth(col);
-        newWidths[col.key] = Math.max(config.minWidth, Math.min(config.maxWidth, measuredWidth));
-        return;
-      }
-
-      // For technical: use minimal width (will truncate and show on hover)
+      // Technical columns: stay at minimum (no content measurement)
       if (priority === 'technical') {
         newWidths[col.key] = config.minWidth;
         return;
       }
 
-      // For supporting: use type-based optimal width
-      if (priority === 'supporting') {
-        const typeWidth = getTypeBasedWidth(col);
-        newWidths[col.key] = Math.max(config.minWidth, Math.min(config.maxWidth, typeWidth));
-        return;
-      }
+      // Essential + Supporting: Excel-style content measurement
+      const measuredWidth = measureColumnWidth(col);
+      newWidths[col.key] = Math.max(config.minWidth, Math.min(config.maxWidth, measuredWidth));
     });
 
-    // Calculate total width of all columns
+    // Calculate total width and available space
     const totalColumnsWidth = Object.values(newWidths).reduce((sum, width) => sum + width, 0);
-
-    // Get available table width (subtract scrollbar width ~17px)
     const tableWidth = tableContainerRef.current?.clientWidth || 0;
     const availableWidth = tableWidth - 17; // Account for scrollbar
+    const extraSpace = availableWidth - totalColumnsWidth;
 
-    // If columns don't fill the page, expand them proportionally
-    if (totalColumnsWidth > 0 && availableWidth > totalColumnsWidth) {
-      const expansionRatio = availableWidth / totalColumnsWidth;
-
-      // Expand all columns proportionally to fill the page
+    // Tiered expansion: only expand essential + supporting columns
+    if (extraSpace > 0) {
+      // Calculate weighted expansion (essential=2x, supporting=1x, technical=0x)
+      let totalWeight = 0;
       Object.keys(newWidths).forEach(key => {
-        newWidths[key] = Math.floor(newWidths[key] * expansionRatio);
+        const priority = columnPriorities[key];
+        if (priority === 'essential') totalWeight += 2;
+        else if (priority === 'supporting') totalWeight += 1;
+        // Technical columns get 0 weight (no expansion)
       });
+
+      if (totalWeight > 0) {
+        const spacePerWeight = extraSpace / totalWeight;
+        Object.keys(newWidths).forEach(key => {
+          const priority = columnPriorities[key];
+          const config = COLUMN_PRIORITY_CONFIG[priority];
+          if (priority === 'essential') {
+            newWidths[key] = Math.min(config.maxWidth, newWidths[key] + Math.floor(spacePerWeight * 2));
+          } else if (priority === 'supporting') {
+            newWidths[key] = Math.min(config.maxWidth, newWidths[key] + Math.floor(spacePerWeight));
+          }
+          // Technical columns unchanged
+        });
+      }
     }
 
     return newWidths;
