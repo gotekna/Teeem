@@ -1,5 +1,6 @@
 class WarehouseBankTransaction < ApplicationRecord
   belongs_to :contact, optional: true
+  belongs_to :warehouse_contact, optional: true
 
   # Sources (for future multi-accounting support)
   SOURCES = %w[xero myob quickbooks].freeze

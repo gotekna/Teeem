@@ -1222,6 +1222,22 @@ Rails.application.routes.draw do
         end
       end
 
+      # Warehouse Contacts (Xero contact data - SSoT for Xero↔TEEEM contact linking)
+      resources :warehouse_contacts, only: [ :index, :show ] do
+        collection do
+          get :stats
+          get :tenants
+          get :sync_status
+          post :trigger_sync
+        end
+        member do
+          post :link
+          delete :unlink
+          post :auto_link
+        end
+      end
+      get "warehouse_contacts/by_xero_id/:xero_id", to: "warehouse_contacts#by_xero_id", as: :warehouse_contact_by_xero_id
+
       # Bank Statement Reports (stored PDFs for ATO compliance)
       resources :bank_statement_reports, only: [ :index, :show ] do
         collection do

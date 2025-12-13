@@ -576,7 +576,9 @@ class XeroContactSyncService
   def update_teeem_from_xero(teeem_contact, xero_contact, link = nil)
     updates = {}
 
-    # Also update legacy xero_id field for backwards compatibility
+    # DEPRECATED: Legacy xero_id field - use WarehouseContact.xero_id instead
+    # Keeping for backwards compatibility during migration period
+    # TODO: Remove after Phase 5 migration is verified complete
     updates[:xero_id] = xero_contact["ContactID"] if teeem_contact.xero_id.blank?
 
     # Get field mappings from sync config
@@ -966,7 +968,9 @@ class XeroContactSyncService
           last_synced_at: @sync_timestamp
         )
 
-        # Update legacy xero_id field for first link
+        # DEPRECATED: Legacy xero_id field - use WarehouseContact.xero_id instead
+        # Keeping for backwards compatibility during migration period
+        # TODO: Remove after Phase 5 migration is verified complete
         if teeem_contact.xero_id.blank?
           teeem_contact.update!(xero_id: created_contact["ContactID"])
         end

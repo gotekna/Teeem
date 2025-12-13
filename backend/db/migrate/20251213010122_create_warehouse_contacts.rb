@@ -50,7 +50,7 @@ class CreateWarehouseContacts < ActiveRecord::Migration[8.0]
       # Unique constraint on xero_id + tenant_id
       t.index [:xero_id, :tenant_id], unique: true, name: "idx_warehouse_contacts_xero_tenant"
       t.index :tenant_id
-      t.index :contact_id
+      # Note: contact_id index is created automatically by t.references :contact above
       t.index :email_address
       t.index :name
       t.index [:is_customer, :tenant_id], name: "idx_warehouse_contacts_customers"

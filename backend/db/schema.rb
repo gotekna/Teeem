@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_12_020402) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_13_012024) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2326,6 +2326,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_12_020402) do
     t.datetime "xero_updated_at"
     t.datetime "local_updated_at"
     t.boolean "sync_conflict", default: false, null: false
+    t.bigint "warehouse_contact_id"
     t.index ["contact_id"], name: "index_external_invoices_on_contact_id"
     t.index ["created_in_teeem"], name: "index_external_invoices_on_created_in_teeem"
     t.index ["external_contact_id"], name: "index_external_invoices_on_external_contact_id"
@@ -2343,6 +2344,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_12_020402) do
     t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_external_invoices_pending_sync"
     t.index ["tenant_id"], name: "index_external_invoices_on_tenant_id"
     t.index ["tracking_data"], name: "index_external_invoices_on_tracking_data", using: :gin
+    t.index ["warehouse_contact_id"], name: "index_external_invoices_on_warehouse_contact_id"
   end
 
   create_table "fact_job_daily_snapshots", force: :cascade do |t|
@@ -4914,14 +4916,64 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_12_020402) do
     t.datetime "xero_updated_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "warehouse_contact_id"
     t.index ["bank_account_id"], name: "index_warehouse_bank_transactions_on_bank_account_id"
     t.index ["contact_id"], name: "index_warehouse_bank_transactions_on_contact_id"
     t.index ["financial_year"], name: "index_warehouse_bank_transactions_on_financial_year"
     t.index ["tenant_id"], name: "index_warehouse_bank_transactions_on_tenant_id"
     t.index ["transaction_date"], name: "index_warehouse_bank_transactions_on_transaction_date"
     t.index ["transaction_year", "transaction_month"], name: "idx_on_transaction_year_transaction_month_398491194a"
+    t.index ["warehouse_contact_id"], name: "index_warehouse_bank_transactions_on_warehouse_contact_id"
     t.index ["xero_contact_id"], name: "index_warehouse_bank_transactions_on_xero_contact_id"
     t.index ["xero_id"], name: "index_warehouse_bank_transactions_on_xero_id", unique: true
+  end
+
+  create_table "warehouse_contacts", force: :cascade do |t|
+    t.string "xero_id", null: false
+    t.string "tenant_id", null: false
+    t.string "source", default: "xero", null: false
+    t.string "name"
+    t.string "first_name"
+    t.string "last_name"
+    t.string "email_address"
+    t.string "phone_number"
+    t.string "abn"
+    t.string "tax_number"
+    t.string "account_number"
+    t.string "contact_status"
+    t.string "currency_code"
+    t.boolean "is_customer", default: false
+    t.boolean "is_supplier", default: false
+    t.jsonb "addresses", default: []
+    t.jsonb "phones", default: []
+    t.string "bank_account_details"
+    t.string "batch_payments_bank_account_name"
+    t.string "batch_payments_bank_account_number"
+    t.string "batch_payments_bank_bsb"
+    t.bigint "contact_id"
+    t.datetime "xero_updated_at"
+    t.datetime "last_synced_at"
+    t.jsonb "raw_data"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "sync_enabled", default: true
+    t.string "sync_direction", default: "bidirectional"
+    t.text "sync_error"
+    t.jsonb "conflict_fields", default: {}
+    t.string "match_type"
+    t.decimal "match_confidence", precision: 5, scale: 4
+    t.boolean "needs_review", default: false
+    t.datetime "reviewed_at"
+    t.string "reviewed_by"
+    t.index ["contact_id"], name: "index_warehouse_contacts_on_contact_id"
+    t.index ["email_address"], name: "index_warehouse_contacts_on_email_address"
+    t.index ["is_customer", "tenant_id"], name: "idx_warehouse_contacts_customers"
+    t.index ["is_supplier", "tenant_id"], name: "idx_warehouse_contacts_suppliers"
+    t.index ["name"], name: "index_warehouse_contacts_on_name"
+    t.index ["needs_review"], name: "index_warehouse_contacts_on_needs_review"
+    t.index ["sync_enabled"], name: "index_warehouse_contacts_on_sync_enabled"
+    t.index ["tenant_id"], name: "index_warehouse_contacts_on_tenant_id"
+    t.index ["xero_id", "tenant_id"], name: "idx_warehouse_contacts_xero_tenant", unique: true
   end
 
   create_table "whs_action_items", force: :cascade do |t|
@@ -5541,6 +5593,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_12_020402) do
   add_foreign_key "estimates", "jobs"
   add_foreign_key "external_invoices", "contacts"
   add_foreign_key "external_invoices", "jobs"
+  add_foreign_key "external_invoices", "warehouse_contacts"
   add_foreign_key "fact_job_daily_snapshots", "jobs"
   add_foreign_key "feature_trackers", "feature_chapters"
   add_foreign_key "financial_transactions", "corporate_companies", column: "company_id"
@@ -5731,6 +5784,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_12_020402) do
   add_foreign_key "user_permissions", "users"
   add_foreign_key "users", "user_groups"
   add_foreign_key "warehouse_bank_transactions", "contacts"
+  add_foreign_key "warehouse_bank_transactions", "warehouse_contacts"
+  add_foreign_key "warehouse_contacts", "contacts"
   add_foreign_key "whs_action_items", "project_tasks"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
   add_foreign_key "whs_action_items", "users", column: "created_by_id"

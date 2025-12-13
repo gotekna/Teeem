@@ -91,6 +91,13 @@ class XeroBankTransactionSyncJob < ApplicationJob
     # Extract line item descriptions
     line_items = txn["LineItems"] || []
 
+    # Resolve xero_contact_id to warehouse_contact_id (SSoT for contact linking)
+    xero_contact_id = txn.dig("Contact", "ContactID")
+    warehouse_contact = nil
+    if xero_contact_id.present?
+      warehouse_contact = WarehouseContact.find_by(xero_id: xero_contact_id, tenant_id: tenant_id)
+    end
+
     # Build attributes
     attrs = {
       tenant_id: tenant_id,
@@ -103,7 +110,8 @@ class XeroBankTransactionSyncJob < ApplicationJob
       reference: txn["Reference"],
       status: txn["Status"],
       is_reconciled: txn["IsReconciled"] || false,
-      xero_contact_id: txn.dig("Contact", "ContactID"),
+      xero_contact_id: xero_contact_id,
+      warehouse_contact_id: warehouse_contact&.id,
       contact_name: txn.dig("Contact", "Name"),
       sub_total: txn["SubTotal"],
       total_tax: txn["TotalTax"],

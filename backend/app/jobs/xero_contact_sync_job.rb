@@ -227,6 +227,10 @@ class XeroContactSyncJob < ApplicationJob
     retry_count = 0
 
     begin
+      # WAREHOUSE FIRST: Upsert to WarehouseContact (SSoT for Xero contact data)
+      tenant_id = @xero_client&.current_tenant_id || XeroCredential.current&.tenant_id
+      warehouse_contact = WarehouseContact.upsert_from_xero(xero_contact, tenant_id) if tenant_id.present?
+
       teeem_contact = find_matching_teeem_contact(
         xero_contact,
         by_xero_id,
@@ -240,11 +244,19 @@ class XeroContactSyncJob < ApplicationJob
         matched_teeem_ids.add(teeem_contact.id)
         matched_xero_ids.add(xero_contact["ContactID"])
         update_teeem_from_xero(teeem_contact, xero_contact)
+
+        # Link WarehouseContact to TEEEM Contact (SSoT for linking)
+        warehouse_contact&.update!(contact_id: teeem_contact.id) if warehouse_contact && warehouse_contact.contact_id.nil?
+
         @stats[:matched] += 1
       else
         # No match - create in TEEEM
-        create_teeem_contact_from_xero(xero_contact)
+        new_contact = create_teeem_contact_from_xero(xero_contact)
         matched_xero_ids.add(xero_contact["ContactID"])
+
+        # Link WarehouseContact to newly created TEEEM Contact
+        warehouse_contact&.update!(contact_id: new_contact.id) if warehouse_contact && new_contact
+
         @stats[:created_in_teeem] += 1
       end
 
@@ -286,6 +298,8 @@ class XeroContactSyncJob < ApplicationJob
       if result[:success]
         created_contact = result[:data]["Contacts"]&.first
         if created_contact
+          # DEPRECATED: Contact.xero_id - use WarehouseContact.xero_id instead
+          # Keeping for backwards compatibility during migration period
           teeem_contact.update!(
             xero_id: created_contact["ContactID"],
             last_synced_at: @sync_timestamp,
@@ -407,6 +421,8 @@ class XeroContactSyncJob < ApplicationJob
   end
 
   def update_teeem_from_xero(teeem_contact, xero_contact)
+    # DEPRECATED: Contact.xero_id - use WarehouseContact.xero_id instead
+    # Keeping for backwards compatibility during migration period
     updates = {
       xero_id: xero_contact["ContactID"],
       last_synced_at: @sync_timestamp,
@@ -519,6 +535,8 @@ class XeroContactSyncJob < ApplicationJob
   def create_teeem_contact_from_xero(xero_contact)
     Rails.logger.info("Creating TEEEM contact from Xero: #{xero_contact['Name']}")
 
+    # DEPRECATED: Contact.xero_id - use WarehouseContact.xero_id instead
+    # Keeping for backwards compatibility during migration period
     contact_data = {
       xero_id: xero_contact["ContactID"],
       display_name: xero_contact["Name"],
@@ -614,6 +632,7 @@ class XeroContactSyncJob < ApplicationJob
     sync_contact_groups_from_xero(teeem_contact, xero_contact)
 
     Rails.logger.info("Created TEEEM contact from Xero: #{xero_contact['Name']}")
+    teeem_contact
   rescue StandardError => e
     error_msg = "Failed to create TEEEM contact from Xero: #{e.message}"
     Rails.logger.error(error_msg)
