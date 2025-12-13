@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronsUpDown, X } from "lucide-react";
+import { Check, ChevronsUpDown, X, Loader2 } from "lucide-react";
 import * as React from "react";
 
 import { CommandList } from "cmdk";
@@ -33,6 +33,8 @@ type Props = {
   disabled?: boolean;
   className?: string;
   maxDisplay?: number; // Max badges to show before "X more"
+  /** Show loading spinner while items are being fetched */
+  isLoading?: boolean;
 };
 
 export function MultiSelectCombobox({
@@ -46,6 +48,7 @@ export function MultiSelectCombobox({
   disabled,
   className,
   maxDisplay = 3,
+  isLoading = false,
 }: Props) {
   const [open, setOpen] = React.useState(false);
   const [inputValue, setInputValue] = React.useState("");
@@ -153,35 +156,43 @@ export function MultiSelectCombobox({
 
           <CommandGroup>
             <CommandList className="max-h-[300px] overflow-auto">
-              {filteredItems.map((item) => {
-                const isChecked = safeSelectedIds.includes(item.id);
+              {isLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <>
+                  {filteredItems.map((item) => {
+                    const isChecked = safeSelectedIds.includes(item.id);
 
-                return (
-                  <CommandItem
-                    disabled={item.disabled}
-                    className={cn("cursor-pointer", className)}
-                    key={item.id}
-                    value={item.id}
-                    onSelect={(id) => {
-                      handleToggleItem(id);
-                    }}
-                  >
-                    <div
-                      className={cn(
-                        "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                        isChecked
-                          ? "bg-primary text-primary-foreground"
-                          : "opacity-50 [&_svg]:invisible"
-                      )}
-                    >
-                      <Check className="h-4 w-4" />
-                    </div>
-                    {item.label}
-                  </CommandItem>
-                );
-              })}
+                    return (
+                      <CommandItem
+                        disabled={item.disabled}
+                        className={cn("cursor-pointer", className)}
+                        key={item.id}
+                        value={item.id}
+                        onSelect={(id) => {
+                          handleToggleItem(id);
+                        }}
+                      >
+                        <div
+                          className={cn(
+                            "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                            isChecked
+                              ? "bg-primary text-primary-foreground"
+                              : "opacity-50 [&_svg]:invisible"
+                          )}
+                        >
+                          <Check className="h-4 w-4" />
+                        </div>
+                        {item.label}
+                      </CommandItem>
+                    );
+                  })}
 
-              <CommandEmpty>{emptyResults ?? "No items found"}</CommandEmpty>
+                  <CommandEmpty>{emptyResults ?? "No items found"}</CommandEmpty>
+                </>
+              )}
             </CommandList>
           </CommandGroup>
         </Command>

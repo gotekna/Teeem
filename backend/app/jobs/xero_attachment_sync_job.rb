@@ -43,8 +43,12 @@ class XeroAttachmentSyncJob < ApplicationJob
   end
 
   def sync_batch_with_rate_limiting(options)
-    # Mark sync as in progress
-    XeroSyncStatus.start_sync!("pdfs")
+    # Get tenant_id for per-tenant status tracking
+    tenant_id = options[:tenant_id] || XeroCredential.where(status: %w[connected degraded]).first&.tenant_id
+
+    # Mark sync as in progress (global and per-tenant)
+    XeroSyncStatus.start_sync!("pdfs", tenant_id: nil)
+    XeroSyncStatus.start_sync!("pdfs", tenant_id: tenant_id) if tenant_id.present?
 
     begin
       results = smart_batch_sync(options)
@@ -59,11 +63,23 @@ class XeroAttachmentSyncJob < ApplicationJob
                     5.minutes.from_now   # Still catching up - go fast
       end
 
+      # Update global status
       XeroSyncStatus.complete_sync!(
         "pdfs",
+        tenant_id: nil,
         records_synced: results[:success],
         next_sync_at: next_sync
       )
+
+      # Update per-tenant status (for self-healing to work)
+      if tenant_id.present?
+        XeroSyncStatus.complete_sync!(
+          "pdfs",
+          tenant_id: tenant_id,
+          records_synced: results[:success],
+          next_sync_at: next_sync
+        )
+      end
 
       # If there's more work and we have rate limit headroom, queue another batch
       if remaining > 0 && can_continue_syncing?
@@ -74,7 +90,8 @@ class XeroAttachmentSyncJob < ApplicationJob
       results
     rescue StandardError => e
       Rails.logger.error("[XeroAttachmentSync] Batch failed: #{e.message}")
-      XeroSyncStatus.fail_sync!("pdfs", error: e.message)
+      XeroSyncStatus.fail_sync!("pdfs", tenant_id: nil, error: e.message)
+      XeroSyncStatus.fail_sync!("pdfs", tenant_id: tenant_id, error: e.message) if tenant_id.present?
       raise
     end
   end

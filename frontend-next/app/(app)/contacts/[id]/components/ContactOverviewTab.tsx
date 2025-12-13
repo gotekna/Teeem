@@ -63,6 +63,7 @@ import {
   isPerson,
   isTrust,
   isPriceOnly,
+  type EntityTypeMetadata,
 } from "@/lib/entity-types";
 import type {
   Contact,
@@ -78,14 +79,6 @@ import {
   formatPhoneNumber,
   validatePhoneNumber,
 } from "../types";
-
-// Entity type metadata
-interface EntityTypeMetadata {
-  value: string;
-  label: string;
-  category: string;
-  description: string;
-}
 
 // Form data shape
 interface ContactFormData {
@@ -1412,7 +1405,7 @@ function CompanyContactInfo({ contact }: { contact: Contact }) {
 // ================================
 
 interface SortableEmployeeItemProps {
-  employee: Contact['employees'][0];
+  employee: NonNullable<Contact['employees']>[number];
   index: number;
   employeeRoles: Record<string, string[]>;
   onRolesChange: (employeeId: number, roleTypes: string[]) => void;

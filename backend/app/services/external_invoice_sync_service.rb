@@ -113,16 +113,8 @@ class ExternalInvoiceSyncService
 
       Rails.logger.info("Full sync completed: #{@stats.inspect}")
 
-      # Update per-tenant sync status (for self-healing to work)
-      # This ensures each tenant has an accurate last_synced_at and next_sync_at
-      records_synced = @stats[:created].to_i + @stats[:updated].to_i
-      XeroSyncStatus.complete_sync!(
-        "invoices",
-        tenant_id: tenant_id,
-        records_synced: records_synced,
-        next_sync_at: 30.minutes.from_now
-      )
-      Rails.logger.info("Updated XeroSyncStatus for tenant #{tenant_id}")
+      # NOTE: XeroSyncStatus updates are handled by the Job, not the Service
+      # Services are pure business logic; Jobs own status tracking
 
       {
         success: true,
@@ -131,13 +123,10 @@ class ExternalInvoiceSyncService
         synced_at: @sync_timestamp
       }
     rescue XeroApiClient::AuthenticationError => e
-      XeroSyncStatus.fail_sync!("invoices", tenant_id: tenant_id, error: e.message)
       handle_sync_error("Authentication error", e)
     rescue XeroApiClient::RateLimitError => e
-      XeroSyncStatus.fail_sync!("invoices", tenant_id: tenant_id, error: e.message)
       handle_sync_error("Rate limit exceeded", e)
     rescue StandardError => e
-      XeroSyncStatus.fail_sync!("invoices", tenant_id: tenant_id, error: e.message)
       handle_sync_error("Sync failed", e, include_backtrace: true)
     end
   end
@@ -421,15 +410,7 @@ class ExternalInvoiceSyncService
       return
     end
 
-    # Fallback: Find contact directly by xero_id on Contact model
-    contact = Contact.find_by(xero_id: invoice.external_contact_id)
-    if contact
-      invoice.update!(contact: contact)
-      @stats[:linked_to_contacts] += 1
-      Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{contact.display_name} via xero_id")
-      return
-    end
-
+    # NOTE: Removed Contact.find_by(xero_id:) fallback - ContactExternalLink is SSoT
     # Auto-create contact if not found (new Xero contact)
     contact = auto_create_contact_from_xero(invoice)
     if contact
@@ -451,11 +432,22 @@ class ExternalInvoiceSyncService
         display_name: invoice.contact_name,
         company_name_or_trust: invoice.contact_name,
         entity_type: "company",
-        xero_id: invoice.external_contact_id,
+        # NOTE: xero_id is deprecated - using ContactExternalLink instead
         sync_with_xero: true
       )
 
       if contact.save
+        # Create ContactExternalLink to track the Xero relationship (SSoT)
+        if invoice.external_contact_id.present?
+          ContactExternalLink.find_or_create_by!(
+            contact: contact,
+            source: @source,
+            tenant_id: @tenant_id,
+            external_contact_id: invoice.external_contact_id
+          )
+          Rails.logger.info("Created ContactExternalLink for contact #{contact.id}")
+        end
+
         Rails.logger.info("Successfully created contact #{contact.id}: #{contact.display_name}")
         contact
       else
@@ -563,7 +555,6 @@ class ExternalInvoiceSyncService
     })
 
     unless result[:success]
-      XeroSyncStatus.fail_sync!("invoices", tenant_id: tenant_id, error: result[:error])
       raise XeroApiClient::ApiError, "Failed to fetch invoices: #{result[:error]}"
     end
 
@@ -574,15 +565,8 @@ class ExternalInvoiceSyncService
       process_invoice(invoice_data, tenant_id)
     end
 
-    # Update per-tenant sync status (for self-healing to work)
-    records_synced = @stats[:created].to_i + @stats[:updated].to_i
-    XeroSyncStatus.complete_sync!(
-      "invoices",
-      tenant_id: tenant_id,
-      records_synced: records_synced,
-      next_sync_at: 30.minutes.from_now
-    )
-    Rails.logger.info("Updated XeroSyncStatus for tenant #{tenant_id}")
+    # NOTE: XeroSyncStatus updates are handled by the Job, not the Service
+    # Services are pure business logic; Jobs own status tracking
 
     {
       success: true,

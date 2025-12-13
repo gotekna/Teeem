@@ -22,7 +22,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { PersonStructureChart } from "@/components/corporate/PersonStructureChart";
+import PersonStructureChart from "@/components/corporate/PersonStructureChart";
 import type {
   Contact,
   Directorship,
@@ -722,7 +722,7 @@ function StructureSubTab({
               position: d.formatted_position || d.position,
               is_current: d.is_current,
             }))}
-            onCompanyClick={(companyId) => router.push(`/corporate/companies/${companyId}`)}
+            onCompanyClick={(companyId: number) => router.push(`/corporate/companies/${companyId}`)}
           />
         ) : (
           <div className="text-center py-12 text-muted-foreground">

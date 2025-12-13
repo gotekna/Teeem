@@ -36,7 +36,7 @@ export function ContactEmailsTab({
           <Mail className="h-5 w-5" />
           <span className="font-medium">Emails</span>
           {emailsPagination && (
-            <Badge variant="secondary">{emailsPagination.total_count}</Badge>
+            <Badge variant="secondary">{emailsPagination.total}</Badge>
           )}
         </div>
         <label className="flex items-center gap-2 text-sm cursor-pointer">

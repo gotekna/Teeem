@@ -221,10 +221,10 @@ export interface EmailMessage {
 }
 
 export interface EmailsPagination {
-  current_page: number;
-  total_pages: number;
-  total_count: number;
+  page: number;
   per_page: number;
+  total: number;
+  total_pages: number;
 }
 
 // Case relationship (from case_contacts join)
@@ -235,13 +235,13 @@ export interface CaseRelationship {
   case_title?: string;
   relationship_type?: string;
   formatted_relationship_type?: string;
-  alignment?: 'friendly' | 'opposing' | 'neutral';
-  role?: string;
-  reason?: string;
-  notes?: string;
+  alignment?: 'friendly' | 'opposing' | 'neutral' | null;
+  role?: string | null;
+  reason?: string | null;
+  notes?: string | null;
   is_primary?: boolean;
-  added_at?: string;
-  added_by?: string;
+  added_at?: string | null;
+  added_by?: string | null;
 }
 
 // Contact relationship for related entities

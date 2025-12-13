@@ -15,10 +15,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { XeroSyncSection } from "@/components/xero/XeroSyncSection";
-import { XeroTransactionsSection } from "@/components/xero/XeroTransactionsSection";
-import { PendingXeroReviewPanel } from "@/components/xero/PendingXeroReviewPanel";
-import { XeroInvoicesListByTenant } from "@/components/xero/XeroInvoicesListByTenant";
+import { XeroSyncSection } from "@/components/contacts/XeroSyncSection";
+import { XeroTransactionsSection } from "@/components/contacts/XeroTransactionsSection";
+import { PendingXeroReviewPanel } from "@/components/contacts/PendingXeroReviewPanel";
+import { XeroInvoicesListByTenant } from "@/components/contacts/XeroInvoicesListByTenant";
 import type { Contact } from "../types";
 import { formatABN } from "../types";
 
@@ -383,7 +383,7 @@ function XeroSubTab({
       <XeroTransactionsSection
         contactId={contact.id}
         xeroLink={null}
-        onViewInvoiceDetail={(invoiceId) => {
+        onViewInvoiceDetail={(invoiceId: string) => {
           setSelectedInvoiceId(invoiceId);
           setShowInvoiceDetail(true);
         }}

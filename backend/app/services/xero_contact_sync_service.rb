@@ -111,15 +111,8 @@ class XeroContactSyncService
 
       Rails.logger.info("Xero contact sync for tenant #{tenant_id} completed: #{@stats.inspect}")
 
-      # Update per-tenant sync status (for self-healing to work)
-      records_synced = @stats[:matched].to_i + @stats[:created_in_teeem].to_i + @stats[:updated].to_i
-      XeroSyncStatus.complete_sync!(
-        "contacts",
-        tenant_id: tenant_id,
-        records_synced: records_synced,
-        next_sync_at: 30.minutes.from_now
-      )
-      Rails.logger.info("Updated XeroSyncStatus for contacts tenant #{tenant_id}")
+      # NOTE: XeroSyncStatus updates are handled by the Job, not the Service
+      # Services are pure business logic; Jobs own status tracking
 
       {
         success: true,
@@ -129,13 +122,10 @@ class XeroContactSyncService
         synced_at: @sync_timestamp
       }
     rescue XeroApiClient::AuthenticationError => e
-      XeroSyncStatus.fail_sync!("contacts", tenant_id: tenant_id, error: e.message)
       handle_sync_error("Authentication error", e)
     rescue XeroApiClient::RateLimitError => e
-      XeroSyncStatus.fail_sync!("contacts", tenant_id: tenant_id, error: e.message)
       handle_sync_error("Rate limit exceeded", e)
     rescue StandardError => e
-      XeroSyncStatus.fail_sync!("contacts", tenant_id: tenant_id, error: e.message)
       handle_sync_error("Sync failed", e, include_backtrace: true)
     end
   end
