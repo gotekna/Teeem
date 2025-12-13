@@ -227,14 +227,21 @@ export interface EmailsPagination {
   per_page: number;
 }
 
-// Case relationship
+// Case relationship (from case_contacts join)
 export interface CaseRelationship {
   id: number;
-  name: string;
-  reference: string;
-  role: string;
-  status: string;
   case_id: number;
+  case_number?: string;
+  case_title?: string;
+  relationship_type?: string;
+  formatted_relationship_type?: string;
+  alignment?: 'friendly' | 'opposing' | 'neutral';
+  role?: string;
+  reason?: string;
+  notes?: string;
+  is_primary?: boolean;
+  added_at?: string;
+  added_by?: string;
 }
 
 // Contact relationship for related entities
