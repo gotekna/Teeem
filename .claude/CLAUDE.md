@@ -51,6 +51,36 @@ To get version numbers:
 - Making any code change (wait for user approval)
 - Even if deployment is failing (ask user first)
 
+## 🔴 CRITICAL: Quality Triggers (Correction Keywords)
+
+**These are things Claude MUST do by default. If Claude forgets, user types the keyword to correct.**
+
+| Keyword | What Claude Missed | What To Do |
+|---------|-------------------|------------|
+| `ssot` | Duplicate logic/config exists | Find both locations, flag to user, ask which is SSoT |
+| `ultra` | Lazy thinking, jumped to first solution | Stop. Present 3 approaches. Question assumptions. Simplify. |
+| `gold` | Wrong component or bad UI | Check THE ONE table, TeeemTableView, Tailwind config, dark mode |
+
+**MANDATORY: Before ANY code change, Claude must:**
+
+1. **SSoT Check** (always)
+   - Is this logic/config defined elsewhere? Search first.
+   - Does this match the documented SSoT source?
+   - If violation found → STOP and flag to user
+
+2. **Ultra Think** (for non-trivial changes)
+   - What are 3 different approaches?
+   - What assumptions am I making?
+   - What can be removed instead of added?
+
+3. **Gold Standard** (for any UI/frontend work)
+   - Am I using THE ONE component from the table below?
+   - Does this follow Tailwind config (colors, spacing)?
+   - Dark mode classes included?
+   - Using TeeemTableView for any table?
+
+**If user types `ssot`, `ultra`, or `gold` - Claude got caught slipping. Fix it immediately.**
+
 ## 🔴 CRITICAL: SSoT (Single Source of Truth) Violations
 
 **If you find multiple ways to do the same thing, STOP and alert the user.**
