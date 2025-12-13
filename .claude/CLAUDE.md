@@ -33,18 +33,18 @@ This allows the user to authorize Claude to push without having to run commands 
 
 **After committing or deploying, ALWAYS show:**
 ```
-================================================
-DEPLOYED: [Brisbane Time - e.g., 2025-12-05 3:45 PM AEST]
-Backend:  v[number] (teeemlive)
-Heroku:   v[release number] (e.g., v130)
-Frontend: v[number] (teeemlive.vercel.app)
-================================================
+========================================
+DEPLOYED: HH:MM DD/MM (Brisbane)
+Commit: [hash] - [message]
+Backend: v[XXX] or "No changes - skipped"
+Frontend: Auto-deployed via Vercel
+Heroku: v[XXX] or "Skipped"
+========================================
 ```
 
 To get version numbers:
 - Backend version: `curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version | jq -r '.version'`
-- Heroku release: `heroku releases --app teeemlive -n 1` (shows vXXX)
-- Frontend: Check Vercel deployment or `git log --oneline -1` for frontend
+- Heroku release: `heroku releases --app teeemlive -n 1`
 
 **Examples of when NOT to commit/deploy:**
 - Fixing a bug (wait for user to test and confirm)
@@ -140,17 +140,14 @@ When I say something seems impossible, that's your cue to ultrathink harder. The
 
 **Migration Policy:** "Fix it when you touch it" - When editing a file that uses a deprecated component, update the import to THE ONE.
 
-**Full Reference:** `TEEEM_DOCS/STANDARD_COMPONENTS.md`
-
 ## 🔴 CRITICAL: Design System References
 
 **Primary Sources for UI Design:**
 
 | Resource | Location | Contains |
 |----------|----------|----------|
-| **Bible Chapter 20** | `TEEEM_DOCS/TEEEM_BIBLE.md` | UI/UX rules (tables, columns, scroll, interactions) |
 | **Tailwind Config** | `frontend-next/tailwind.config.ts` | Colors, spacing, typography, theme |
-| **Standard Components** | `TEEEM_DOCS/STANDARD_COMPONENTS.md` | THE ONE component for each use case |
+| **Gold Standard Table** | `TEEEM_DOCS/GOLD_STANDARD_TABLE.md` | Column types, validation rules |
 
 **Template Sources (Decision Framework):**
 
@@ -236,321 +233,66 @@ git branch -D temp-backend-deploy
 
 ---
 
-## 🔴 CRITICAL: Efficient Documentation Access
+## 🔴 CRITICAL: API Response Format
 
-**ALWAYS use the Dense Index pattern to find relevant documentation before reading full files.**
+**All API responses MUST use this format:**
 
----
+```json
+// Success
+{ "success": true, "data": { ... } }
 
-## 📚 Trinity Documentation System
-
-The Trinity system uses a **database-first architecture** with three categories:
-- **Bible (RULES):** What you MUST/NEVER/ALWAYS do
-- **Teacher (HOW-TO):** Step-by-step implementation patterns and code examples
-- **Lexicon (KNOWLEDGE):** Bug history, architecture decisions, test catalog
-
-**Base API:** `https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/api/v1/trinity`
-
----
-
-## ⚡ Dense Index Workflow (MANDATORY)
-
-**CRITICAL:** Files are too large to read directly. ALWAYS use this 2-step workflow:
-
-### Step 1: Search Dense Index via API
-
-Use the Trinity API to search the `dense_index` field for relevant entries:
-
-```bash
-# Search across all documentation
-GET /api/v1/trinity/search?q=your_search_term
-
-# Filter by category
-GET /api/v1/trinity?category=bible&search=your_term
-GET /api/v1/trinity?category=teacher&search=your_term
-GET /api/v1/trinity?category=lexicon&search=your_term
+// Error
+{ "success": false, "error": "Error message here" }
 ```
-
-**Dense Index Format:**
-Each entry has a `dense_index` field containing ultra-compressed keywords for fast searching:
-- Chapter number (e.g., "191" = Chapter 19, Section 1)
-- Entry title (lowercase, no spaces)
-- Entry type (component/rule/bug/etc)
-- Category (bible/teacher/lexicon)
-- Key concepts and related terms
-- File paths (if applicable)
-
-**Example:**
-```
-"191 teeemtableviewtheonetablestandard component teacher teeemtableview the only table component for teeem frontend src components documentation"
-```
-
-### Step 2: Read ONLY Relevant Chapter Files
-
-Once you identify the relevant chapter from Step 1, read the specific chapter file:
-
-**Teacher Chapters:**
-- `TEEEM_DOCS/TEACHER/CHAPTER_XX_TOPIC_NAME.md` (XX = chapter number with leading zero)
-- Average size: ~8KB per chapter (vs 770KB monolithic file)
-- Example: `TEEEM_DOCS/TEACHER/CHAPTER_19_UI_UX.md`
-
-**Bible & Lexicon:**
-- `TEEEM_DOCS/TEEEM_BIBLE.md` (~56KB total, organized by chapters)
-- `TEEEM_DOCS/TEEEM_LEXICON.md` (~107KB total, organized by chapters)
-
-**User Manual:**
-- `TEEEM_DOCS/TEEEM_USER_MANUAL.md` (end-user facing documentation)
-
----
-
-## 🎯 Documentation Categories Explained
-
-### 📖 Bible (RULES)
-**What it contains:** Authoritative rules that MUST be followed
-- MUST/NEVER/ALWAYS statements
-- Coding standards and conventions
-- Security requirements
-- Database schema rules
-- API design patterns
-
-**When to consult:**
-- Before implementing ANY feature
-- When making architectural decisions
-- When code review identifies non-compliance
-- When in doubt about "the right way"
-
-**Access:**
-1. Search dense index: `/api/v1/trinity?category=bible&search=table`
-2. Read relevant Bible section from `TEEEM_DOCS/TEEEM_BIBLE.md`
-
-### 🔧 Teacher (HOW-TO)
-**What it contains:** Step-by-step implementation patterns
-- Complete code examples
-- Component templates
-- Feature implementation guides
-- Integration tutorials
-- Common patterns and utilities
-
-**When to consult:**
-- When implementing a new feature
-- When learning how to use a component
-- When looking for code examples
-- When following Bible rules (Teacher shows HOW)
-
-**Access:**
-1. Search dense index: `/api/v1/trinity?category=teacher&search=teeemtableview`
-2. Identify chapter number from results
-3. Read specific chapter: `TEEEM_DOCS/TEACHER/CHAPTER_XX_TOPIC.md`
-
-### 📕 Lexicon (KNOWLEDGE)
-**What it contains:** Historical knowledge and decisions
-- Bug history (what went wrong, how it was fixed)
-- Architecture decisions (why we chose X over Y)
-- Test catalog (what tests exist)
-- Performance notes
-- Common issues and solutions
-
-**When to consult:**
-- When encountering a bug
-- When making architecture decisions
-- When wondering "why is it built this way?"
-- Before refactoring (check if there's history)
-
-**Access:**
-1. Search dense index: `/api/v1/trinity?category=lexicon&search=performance`
-2. Read relevant Lexicon section from `TEEEM_DOCS/TEEEM_LEXICON.md`
-
----
-
-## 🚫 What NOT to Do
 
 **NEVER:**
-- ❌ Read entire TEEEM_TEACHER.md (770KB - will fail or waste tokens)
-- ❌ Skip the dense index search step
-- ❌ Assume you know the right chapter without searching
-- ❌ Ignore Bible rules because they're "too strict"
-- ❌ Implement features without consulting Teacher examples
-- ❌ Repeat past bugs without checking Lexicon history
-
-**ALWAYS:**
-- ✅ Search dense index FIRST via API
-- ✅ Read ONLY the relevant chapter files
-- ✅ Check Bible for rules before implementing
-- ✅ Check Teacher for implementation patterns
-- ✅ Check Lexicon for historical context
-- ✅ Follow the 2-step workflow: Search → Read Specific Chapter
+- Return data without the `success` wrapper
+- Use different error formats across endpoints
 
 ---
 
-## 📊 Token Efficiency
+## 🔴 CRITICAL: Timezone Handling
 
-**Old Approach (WRONG):**
-- Read entire TEEEM_TEACHER.md: ~553,000 tokens ❌ (file too large, fails)
-- Read all three docs: ~716,000 tokens ❌ (exceeds limits)
+**Company timezone: Australia/Brisbane**
 
-**New Approach (CORRECT):**
-- Search dense index via API: ~100 tokens ✅
-- Read relevant Teacher chapter: ~15,000 tokens ✅
-- Total: ~15,100 tokens (98% reduction) ✅
+**Backend (Ruby):**
+```ruby
+# ALWAYS use CompanySetting timezone methods
+CompanySetting.in_company_timezone { Date.today }
+CompanySetting.company_time_now
 
----
-
-## 🔍 Example Workflow
-
-**Scenario:** Need to implement a new data table
-
-**Step 1 - Search Dense Index:**
-```bash
-GET /api/v1/trinity/search?q=table
+# NEVER use these without timezone context
+Date.today        # ❌ Wrong - uses server timezone
+Time.now          # ❌ Wrong - uses server timezone
 ```
 
-**Result:**
-```json
-{
-  "success": true,
-  "results": [
-    {
-      "id": 200,
-      "chapter_number": 19,
-      "section_number": "19.1",
-      "title": "TEEEMTableView - The One Table Standard",
-      "category": "teacher",
-      "dense_index": "191 teeemtableviewtheonetablestandard component teacher..."
-    }
-  ]
-}
-```
-
-**Step 2 - Read Specific Chapter:**
-Read `TEEEM_DOCS/TEACHER/CHAPTER_19_UI_UX.md` (Chapter 19 identified from search)
-
-**Step 3 - Check Bible Rules:**
-Search `/api/v1/trinity?category=bible&search=table` for any related rules
-
-**Step 4 - Implement:**
-Follow Teacher patterns while adhering to Bible rules
-
----
-
-## 🎓 Best Practices
-
-1. **Search is Cheap, Reading is Expensive**
-   - API search: ~100 tokens
-   - Reading wrong file: ~50,000+ tokens wasted
-   - Always search first
-
-2. **Chapter Numbers are Your Friend**
-   - Chapter 0-2: Core System (auth, database, API)
-   - Chapter 3-7: Data Management (tables, imports, exports)
-   - Chapter 8-12: Business Logic (jobs, suppliers, quotes)
-   - Chapter 13-17: Integrations (Xero, OneDrive, AI)
-   - Chapter 18-21: UI/UX & Documentation
-
-3. **When in Doubt, Ask the API**
-   - Unsure which chapter? Search the dense index
-   - Need quick lookup? Use `/api/v1/trinity/search`
-   - Want related entries? Check `related_rules` field
-
-4. **Update Documentation as You Go**
-   - Found a bug? Add to Lexicon via UI
-   - Created a pattern? Add to Teacher via UI
-   - Discovered a rule? Add to Bible via UI
-   - Run export tasks to update markdown files
-
----
-
-## 📁 File Structure Reference
-
-```
-TEEEM_DOCS/
-├── TEEEM_BIBLE.md              # All Bible rules (~56KB)
-├── TEEEM_LEXICON.md            # All Lexicon entries (~107KB)
-├── TEEEM_TEACHER.md            # Full Teacher index (DO NOT READ - too large)
-├── TEEEM_USER_MANUAL.md        # End-user documentation
-└── TEACHER/                     # Split Teacher chapters (READ THESE)
-    ├── CHAPTER_19_UI_UX.md                    # ~8KB
-    ├── CHAPTER_19_CUSTOM_TABLES_FORMULAS.md   # ~9KB
-    └── (more chapters as they're populated)
+**Frontend (TypeScript):**
+```typescript
+// Display dates in Brisbane timezone
+// Store dates in UTC, display in local
 ```
 
 ---
 
-## 🔄 Keeping Documentation in Sync
-
-**Database is Source of Truth:**
-- All edits happen in the TEEEM UI (Documentation page)
-- Markdown files are auto-generated exports for git history
-
-**To Export Latest Changes:**
-```bash
-# Export all Teacher chapters to split files
-cd backend && bin/rails teeem:export_teacher_split
-
-# Or use the Ruby script (works without local DB)
-ruby scripts/generate_teacher_chapters.rb
-
-# Export Bible
-cd backend && bin/rails teeem:export_bible
-
-# Export Lexicon
-cd backend && bin/rails teeem:export_lexicon
-```
-
-**Commit Message Format:**
-```
-docs: Update [Bible|Teacher|Lexicon] from database export
-```
-
----
-
-## 🎯 Gold Standard Table MD is Single Source of Truth
+## 🎯 Gold Standard Table - Column Types SSoT
 
 **TEEEM_DOCS/GOLD_STANDARD_TABLE.md is THE SINGLE SOURCE OF TRUTH for all table and column behavior.**
-
-See Bible Rule #19.002.
 
 **The Hierarchy:**
 ```
 TEEEM_DOCS/GOLD_STANDARD_TABLE.md (SSoT - THE SPEC)
     │
-    │ Defines: All 31 column types, validation rules, SQL types, TeeemTableView features
+    │ Defines: All 31 column types, validation rules, SQL types
     │
     ├──► Backend code must match this
     ├──► Frontend code must match this
-    ├──► API must return this
     └──► Gold Standard Table (ID: 1) demonstrates this
 ```
 
-**Troubleshooting Workflow:**
-1. Problem with a table? → Read GOLD_STANDARD_TABLE.md
-2. Something wrong? → Fix the MD first (it's the spec)
-3. Update code to match the MD
-
 **Code Locations (must match the MD):**
 - `backend/app/models/column.rb` → COLUMN_SQL_TYPE_MAP
-- `backend/app/controllers/api/v1/column_types_controller.rb`
 - `frontend-next/components/table/TeeemTableView.tsx`
 - `frontend-next/lib/column-types.ts`
-
-**NEVER:**
-- ❌ Have code that contradicts GOLD_STANDARD_TABLE.md
-- ❌ Add column types without updating the MD first
-- ❌ Fix table bugs without checking the MD first
-
-**ALWAYS:**
-- ✅ Read GOLD_STANDARD_TABLE.md first when debugging tables
-- ✅ Update the MD before updating code
-- ✅ Test changes in Gold Standard Table (ID: 1) first
-
----
-
-## Summary: The Golden Rule
-
-**🔴 BEFORE reading ANY documentation file:**
-1. Search the dense index via API
-2. Identify the relevant chapter number
-3. Read ONLY that specific chapter file
-4. Save 98% of your tokens
 
 ---
 
@@ -655,16 +397,9 @@ grep "ERROR" backend/log/development.log | grep -v "SELECT\|INSERT\|UPDATE" | ta
 - Request context (endpoint, user_id, params)
 - Reproduction steps
 
-**Step 3: Search Lexicon**
-```bash
-# Check if this error has history
-GET /api/v1/trinity?category=lexicon&search=error_keywords
-```
-
-**Step 4: Fix & Document**
+**Step 3: Fix**
 - Implement fix
-- Add to Lexicon if new bug pattern
-- Update related Bible rules if needed
+- Test thoroughly
 
 ### 📊 Token Savings Examples
 
@@ -679,8 +414,7 @@ GET /api/v1/trinity?category=lexicon&search=error_keywords
 **✅ New Way (CORRECT):**
 - Query Sentry API for recent 500 errors (200 tokens)
 - Get structured error with context (300 tokens)
-- Search Lexicon for similar bugs (100 tokens)
-- **Total: ~600 tokens (99% savings)**
+- **Total: ~500 tokens (99% savings)**
 
 ### 🎓 Best Practices for Developers
 
