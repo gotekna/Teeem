@@ -184,9 +184,9 @@ class Api::V1::WHSIncidentsController < ApplicationController
 
   def serialization_includes
     {
-      job: { only: [ :id, :name, :construction_number ] },
-      reported_by_user: { only: [ :id, :name, :email ] },
-      investigated_by_user: { only: [ :id, :name, :email ] },
+      job: {},
+      reported_by_user: {},
+      investigated_by_user: {},
       whs_action_items: {
         include: {
           assigned_to_user: { only: [ :id, :name ] }

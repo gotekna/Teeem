@@ -218,8 +218,8 @@ class Api::V1::WHSSWMSController < ApplicationController
 
   def serialization_includes
     {
-      job: { only: [ :id, :title, :ted_number ] },
-      created_by: { only: [ :id, :name, :email ] },
+      job: {},
+      created_by: {},
       approved_by: { only: [ :id, :name, :email ] },
       superseded_by: { only: [ :id, :swms_number, :version ] },
       whs_swms_hazards: {

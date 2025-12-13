@@ -139,12 +139,11 @@ class EmailCaseProposal < ApplicationRecord
     super(options.merge(
       include: {
         email_warehouse: {
-          only: [ :id, :subject, :from_email, :from_name, :received_at, :has_attachments, :conversation_id ],
           methods: [ :display_from, :preview_body ]
         },
-        created_by: { only: [ :id, :name, :email ] },
-        approved_by: { only: [ :id, :name, :email ] },
-        case_record: { only: [ :id, :case_number, :title ] }
+        created_by: {},
+        approved_by: {},
+        case_record: {}
       },
       methods: [
         :case_title,

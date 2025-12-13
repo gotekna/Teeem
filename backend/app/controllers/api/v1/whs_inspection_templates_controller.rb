@@ -94,7 +94,7 @@ class Api::V1::WHSInspectionTemplatesController < ApplicationController
 
   def serialization_includes
     {
-      created_by: { only: [ :id, :name, :email ] }
+      created_by: {}
     }
   end
 end

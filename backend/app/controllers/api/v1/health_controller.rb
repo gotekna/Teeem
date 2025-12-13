@@ -214,7 +214,6 @@ module Api
 
         items_without_default_supplier_count = items_without_default_supplier_query.count
         items_without_default_supplier = items_without_default_supplier_query
-          .select(:id, :item_code, :item_name, :category, :current_price)
           .order(:item_code)
           .limit(100)
 
@@ -233,7 +232,6 @@ module Api
 
         items_requiring_photo_count = items_requiring_photo_query.count
         items_requiring_photo_without_image = items_requiring_photo_query
-          .select(:id, :item_code, :item_name, :category, :current_price)
           .order(:item_code)
           .limit(100)
 
@@ -288,7 +286,6 @@ module Api
         # Get the missing items with details
         missing_items = PricebookItem.active
           .where(id: missing_item_ids)
-          .select(:id, :item_code, :item_name, :category, :current_price)
           .order(:item_code)
 
         render json: {

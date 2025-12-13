@@ -43,9 +43,9 @@ module Api
           success: true,
           documents: @documents.as_json(
             include: {
-              company: { only: [ :id, :name, :code ] },
-              user: { only: [ :id, :name, :email ] },
-              asset: { only: [ :id, :name, :description, :abbreviation ], methods: [ :display_name ] }
+              company: {},
+              user: {},
+              asset: { methods: [ :display_name ] }
             },
             methods: [ :formatted_document_type, :file_size_mb ]
           )
@@ -58,9 +58,9 @@ module Api
           success: true,
           document: @document.as_json(
             include: {
-              company: { only: [ :id, :name, :code ] },
-              user: { only: [ :id, :name, :email ] },
-              asset: { only: [ :id, :name, :description, :abbreviation ], methods: [ :display_name ] }
+              company: {},
+              user: {},
+              asset: { methods: [ :display_name ] }
             },
             methods: [ :formatted_document_type, :file_size_mb ]
           )
@@ -274,8 +274,8 @@ module Api
           message: "Document validated successfully",
           document: @document.as_json(
             include: {
-              company: { only: [ :id, :name, :code ] },
-              user: { only: [ :id, :name, :email ] }
+              company: {},
+              user: {}
             },
             methods: [ :formatted_document_type, :file_size_mb ]
           )
@@ -321,8 +321,8 @@ module Api
             auto_applied: auto_applied,
             document: @document.as_json(
               include: {
-                company: { only: [ :id, :name, :code ] },
-                user: { only: [ :id, :name, :email ] }
+                company: {},
+                user: {}
               },
               methods: [ :formatted_document_type, :file_size_mb ]
             )
@@ -364,8 +364,8 @@ module Api
           message: "Document renamed from '#{old_title}' to '#{@document.title}'",
           document: @document.as_json(
             include: {
-              company: { only: [ :id, :name, :code ] },
-              user: { only: [ :id, :name, :email ] }
+              company: {},
+              user: {}
             },
             methods: [ :formatted_document_type, :file_size_mb ]
           )
@@ -489,8 +489,8 @@ module Api
             actions: result[:actions],
             document: @document.as_json(
               include: {
-                company: { only: [ :id, :name, :code ] },
-                user: { only: [ :id, :name, :email ] }
+                company: {},
+                user: {}
               },
               methods: [ :formatted_document_type, :file_size_mb ]
             )
@@ -555,7 +555,7 @@ module Api
               success: true,
               message: "New document created successfully",
               document: new_document.as_json(
-                include: { company: { only: [ :id, :name, :code ] } },
+                include: { company: {} },
                 methods: [ :formatted_document_type, :file_size_mb ]
               )
             }
@@ -573,7 +573,7 @@ module Api
               success: true,
               message: "Document updated successfully",
               document: @document.reload.as_json(
-                include: { company: { only: [ :id, :name, :code ] } },
+                include: { company: {} },
                 methods: [ :formatted_document_type, :file_size_mb ]
               )
             }
@@ -602,7 +602,7 @@ module Api
             message: "Document split into #{result[:documents].length} files",
             documents: result[:documents].map do |doc|
               doc.as_json(
-                include: { company: { only: [ :id, :name, :code ] } },
+                include: { company: {} },
                 methods: [ :formatted_document_type, :file_size_mb ]
               )
             end

@@ -142,41 +142,19 @@ module Api
         total_count = @jobs.count
         total_pages = (total_count.to_f / per_page).ceil
 
-        # Performance optimization: only select columns needed for list view
-        # Full job data is loaded via show action when viewing a specific job
-        list_columns = %i[
-          id name contract_value start_date location
-          site_supervisor_name job_type_id job_status_id job_stage_id
-          created_at updated_at
-        ]
-
-        @jobs = @jobs.select(list_columns)
-                     .order(created_at: :desc)
+        # Return all columns - no column limiting
+        @jobs = @jobs.order(created_at: :desc)
                      .limit(per_page)
                      .offset((page - 1) * per_page)
 
-        # Include job_type and job_status in response
-        # Only serialize the columns we selected for list view (not all 50+ columns)
-        jobs_with_associations = @jobs.map do |job|
-          {
-            id: job.id,
-            name: job.name,
-            contract_value: job.contract_value,
-            start_date: job.start_date,
-            location: job.location,
-            site_supervisor_name: job.site_supervisor_name,
-            job_type_id: job.job_type_id,
-            job_status_id: job.job_status_id,
-            job_stage_id: job.job_stage_id,
-            created_at: job.created_at,
-            updated_at: job.updated_at,
-            job_type: job.job_type&.as_json(only: [ :id, :name, :icon ]),
-            job_status: job.job_status&.as_json(only: [ :id, :name, :color ])
-          }
-        end
-
         render json: {
-          jobs: jobs_with_associations,
+          jobs: @jobs.as_json(
+            include: {
+              job_type: {},
+              job_status: {},
+              job_stage: {}
+            }
+          ),
           pagination: {
             current_page: page,
             total_pages: total_pages,
@@ -191,10 +169,10 @@ module Api
         # Include contacts with their relationships in the response
         job_json = @job.as_json
 
-        # Include job_type, job_status, and job_stage associations
-        job_json[:job_type] = @job.job_type&.as_json(only: [ :id, :name, :icon ])
-        job_json[:job_status] = @job.job_status&.as_json(only: [ :id, :name, :color ])
-        job_json[:job_stage] = @job.job_stage&.as_json(only: [ :id, :name ])
+        # Include job_type, job_status, and job_stage associations - all columns
+        job_json[:job_type] = @job.job_type&.as_json
+        job_json[:job_status] = @job.job_status&.as_json
+        job_json[:job_stage] = @job.job_stage&.as_json
 
         job_json[:contacts] = @job.job_contacts
                                                      .includes(contact: :outgoing_relationships)
@@ -208,9 +186,7 @@ module Api
             contact_id: cc.contact_id,
             primary: cc.primary,
             role: cc.role,
-            contact: cc.contact.as_json(
-              only: [ :id, :first_name, :last_name, :display_name, :company_name, :email, :mobile_phone, :office_phone ]
-            ),
+            contact: cc.contact.as_json,
             relationships_count: cc.contact.outgoing_relationships.count
           }
         end.compact
@@ -290,7 +266,7 @@ module Api
                                   .order(created_at: :desc)
 
         render json: @messages.as_json(
-          include: { user: { only: [ :id, :name, :email ] } },
+          include: { user: {} },
           methods: :formatted_timestamp
         )
       end
@@ -323,8 +299,8 @@ module Api
         render json: {
           sms_messages: messages.as_json(
             include: {
-              contact: { only: [ :id, :display_name, :mobile_phone ] },
-              user: { only: [ :id, :name, :email ] }
+              contact: {},
+              user: {}
             }
           )
         }
@@ -374,7 +350,7 @@ module Api
         )
           render json: {
             success: true,
-            job: @job.as_json(only: [ :id, :title, :xero_tracking_option_id, :xero_tracking_option_name ])
+            job: @job.as_json
           }
         else
           render json: { success: false, errors: @job.errors.full_messages }, status: :unprocessable_entity

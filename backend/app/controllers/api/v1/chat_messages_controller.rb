@@ -2,8 +2,7 @@ class Api::V1::ChatMessagesController < ApplicationController
   # GET /api/v1/chat_messages/online_users
   # Returns list of users with their online status
   def online_users
-    users = User.select(:id, :name, :email, :last_seen_at)
-                .where.not(id: current_user.id)
+    users = User.where.not(id: current_user.id)
                 .order(:name)
 
     render json: users.map { |user|
@@ -113,7 +112,7 @@ class Api::V1::ChatMessagesController < ApplicationController
     end
 
     messages_with_files = @messages.map do |msg|
-      json = msg.as_json(include: { user: { only: [ :id, :name, :email ] } }, methods: :formatted_timestamp)
+      json = msg.as_json(include: { user: {} }, methods: :formatted_timestamp)
       if msg.file.attached?
         json[:file_url] = url_for(msg.file)
         json[:file_name] = msg.file_name
@@ -137,7 +136,7 @@ class Api::V1::ChatMessagesController < ApplicationController
 
     if @message.save
       # Include file URL in response if file is attached
-      response_data = @message.as_json(include: { user: { only: [ :id, :name, :email ] } }, methods: :formatted_timestamp)
+      response_data = @message.as_json(include: { user: {} }, methods: :formatted_timestamp)
       if @message.file.attached?
         response_data[:file_url] = url_for(@message.file)
         response_data[:file_name] = @message.file_name
@@ -186,7 +185,7 @@ class Api::V1::ChatMessagesController < ApplicationController
     end
 
     @message.update(construction_id: construction_id, saved_to_job: true)
-    render json: @message.as_json(include: { user: { only: [ :id, :name, :email ] } }, methods: :formatted_timestamp)
+    render json: @message.as_json(include: { user: {} }, methods: :formatted_timestamp)
   end
 
   # POST /api/v1/chat_messages/save_conversation_to_job
@@ -212,7 +211,7 @@ class Api::V1::ChatMessagesController < ApplicationController
 
     # Return updated messages
     @messages = ChatMessage.where(id: message_ids).includes(:user).order(created_at: :asc)
-    render json: @messages.as_json(include: { user: { only: [ :id, :name, :email ] } }, methods: :formatted_timestamp)
+    render json: @messages.as_json(include: { user: {} }, methods: :formatted_timestamp)
   end
 
   private

@@ -54,7 +54,7 @@ module Api
         render json: {
           purchase_orders: @purchase_orders.as_json(
             include: {
-              supplier: { only: [ :id, :display_name ], methods: [ :display_name ] },
+              supplier: { methods: [ :display_name ] },
               job: {
                 only: [ :id, :title ],
                 methods: [ :site_supervisor_info ]
@@ -82,7 +82,7 @@ module Api
         render json: {
           **@purchase_order.as_json(
             include: {
-              supplier: { only: [ :id, :display_name, :email, :phone, :address ], methods: [ :display_name ] },
+              supplier: { methods: [ :display_name ] },
               job: {
                 only: [ :id, :title ],
                 methods: [ :site_supervisor_info ]

@@ -45,9 +45,9 @@ module Api
 
         render json: {
           bills: bills.as_json(include: {
-            corporate_company: { only: [ :id, :name, :code ] },
-            supplier: { only: [ :id, :display_name, :tax_number ] },
-            matched_purchase_order: { only: [ :id, :purchase_order_number, :total ] }
+            corporate_company: {},
+            supplier: {},
+            matched_purchase_order: {}
           }),
           meta: {
             total_count: total_count,
@@ -64,17 +64,17 @@ module Api
 
         render json: @bill.as_json(
           include: {
-            corporate_company: { only: [ :id, :name, :code, :abn ] },
-            detected_company: { only: [ :id, :name, :code, :abn ] },
-            supplier: { only: [ :id, :display_name, :tax_number, :bank_bsb, :bank_account_number, :has_trust_account, :trust_bsb, :trust_account_number, :trust_account_name, :payment_terms ] },
+            corporate_company: {},
+            detected_company: {},
+            supplier: {},
             matched_purchase_order: {
               only: [ :id, :purchase_order_number, :total, :status ],
-              include: { supplier: { only: [ :id, :display_name ] } }
+              include: { supplier: {} }
             },
-            approved_by: { only: [ :id, :first_name, :last_name, :email ] },
+            approved_by: {},
             bill_payments: {
               only: [ :id, :amount, :status, :payee_name ],
-              include: { bill_payment_batch: { only: [ :id, :batch_reference, :status ] } }
+              include: { bill_payment_batch: {} }
             }
           },
           methods: [ :remaining_balance, :variance_percent, :status_color, :has_invoice_file?, :invoice_file_content_type, :invoice_file_filename ]

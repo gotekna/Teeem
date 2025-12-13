@@ -312,6 +312,37 @@ TEEEM_DOCS/GOLD_STANDARD_TABLE.md (SSoT - THE SPEC)
 
 ---
 
+## 🔴 CRITICAL: No Column Limiting Policy
+
+**ALL API endpoints MUST return ALL columns. NEVER limit columns in responses.**
+
+**Rationale:**
+- Column limiting breaks features (cascading filters, column selection, associations)
+- Performance is achieved through eager loading and pagination, NOT column limiting
+- Frontend needs flexibility to access all data without backend changes
+
+**FORBIDDEN Patterns:**
+- ❌ `.select(:id, :name)` in controllers
+- ❌ `params[:fields] == "minimal"`
+- ❌ `as_json(only: [...])` for associations
+- ❌ `.pluck()` for API responses (use for internal queries only)
+
+**ALLOWED for Performance:**
+- ✅ `.includes()` / `.preload()` for eager loading
+- ✅ `paginate()` / `.limit()` for pagination
+- ✅ Database indexes
+- ✅ SQL-level optimizations (EXPLAIN ANALYZE)
+
+**Why This Matters:**
+The Foundation API previously implemented `fields=minimal` but removed it because it broke:
+1. Cascading filters
+2. Column selection features
+3. Dynamic association loading
+
+Performance MUST be achieved through proper database design and eager loading, not by crippling API responses.
+
+---
+
 ## 🐛 Token-Efficient Debugging Workflow
 
 **CRITICAL:** Raw log files are extremely verbose and waste tokens. ALWAYS use this hierarchy:

@@ -32,38 +32,29 @@ module Api
         sort_order = params[:sort_order] || "asc"
         @companies = @companies.order("#{sort_by} #{sort_order}")
 
-        # Performance: fields=minimal returns only essential columns for list views
-        if params[:fields] == "minimal"
-          render json: {
-            success: true,
-            companies: @companies.select(:id, :name, :code, :entity_type, :abn, :acn, :status, :health_score, :company_group_id)
-                                 .as_json(methods: [ :formatted_acn, :formatted_abn ]),
-            total: @companies.count
-          }
-        else
-          render json: {
-            success: true,
-            companies: @companies.as_json(
-              include: {
-                current_directors: { only: [ :id, :display_name, :email ] },
-                corporate_company_xero_connection: { only: [ :id, :connection_status, :xero_tenant_name ] }
-              },
-              methods: [ :formatted_acn, :formatted_abn, :has_xero_connection? ]
-            ),
-            total: @companies.count
-          }
-        end
+        # Return all columns - no column limiting
+        render json: {
+          success: true,
+          companies: @companies.as_json(
+            include: {
+              current_directors: {},
+              corporate_company_xero_connection: {}
+            },
+            methods: [ :formatted_acn, :formatted_abn, :has_xero_connection? ]
+          ),
+          total: @companies.count
+        }
       end
 
       # GET /api/v1/companies/:id
       def show
         company_json = @company.as_json(
           include: {
-            bank_accounts: { only: [ :id, :institution_name, :status ], methods: [ :display_name, :masked_account_number ] },
+            bank_accounts: { methods: [ :display_name, :masked_account_number ] },
             # Note: active_assets removed - assets table not yet migrated
-            pending_compliance_items: { only: [ :id, :title, :due_date, :completed ], methods: [ :days_until_due ] },
-            corporate_company_xero_connection: { only: [ :id, :connection_status, :xero_tenant_name, :last_sync_at ] },
-            consolidation_parent: { only: [ :id, :name ] }
+            pending_compliance_items: { methods: [ :days_until_due ] },
+            corporate_company_xero_connection: {},
+            consolidation_parent: {}
           },
           methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :sharepoint_folder_url ]
           # Note: total_asset_value removed - depends on assets table
@@ -72,7 +63,7 @@ module Api
         # Serialize current directors separately (corporate_company_directors returns CorporateCompanyDirector objects)
         company_json["current_directors"] = @company.corporate_company_directors.current.includes(:contact).map do |director|
           director.as_json(
-            include: { contact: { only: [ :id, :display_name, :email, :mobile_phone ] } },
+            include: { contact: {} },
             methods: [ :formatted_position ]
           )
         end
@@ -132,7 +123,6 @@ module Api
           directors: directors.as_json(
             include: {
               contact: {
-                only: [ :id, :display_name, :email, :mobile_phone, :director_id, :date_of_birth ],
                 methods: [ :display_name ]
               }
             },
@@ -157,7 +147,7 @@ module Api
             success: true,
             message: "Director added successfully",
             director: director.as_json(
-              include: { contact: { only: [ :id, :display_name, :email ] } },
+              include: { contact: {} },
               methods: [ :formatted_position ]
             )
           }, status: :created
@@ -178,7 +168,7 @@ module Api
             success: true,
             message: "Director updated successfully",
             director: director.as_json(
-              include: { contact: { only: [ :id, :display_name, :email ] } },
+              include: { contact: {} },
               methods: [ :formatted_position ]
             )
           }
@@ -260,7 +250,7 @@ module Api
           success: true,
           assets: assets.as_json(
             include: {
-              asset_insurance: { only: [ :id, :renewal_date, :status ], methods: [ :days_until_renewal ] }
+              asset_insurance: { methods: [ :days_until_renewal ] }
             },
             methods: [ :display_name, :needs_attention? ]
           )

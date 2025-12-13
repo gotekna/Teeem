@@ -19,9 +19,9 @@ module Api
 
         render json: {
           batches: batches.as_json(include: {
-            bank_account: { only: [ :id, :account_name, :bsb, :account_number ] },
-            created_by: { only: [ :id, :first_name, :last_name ] },
-            approved_by: { only: [ :id, :first_name, :last_name ] }
+            bank_account: {},
+            created_by: {},
+            approved_by: {}
           }),
           meta: {
             total_count: batches.total_count,
@@ -35,9 +35,9 @@ module Api
       def show
         render json: @batch.as_json(
           include: {
-            bank_account: { only: [ :id, :account_name, :bsb, :account_number, :institution_name ] },
-            created_by: { only: [ :id, :first_name, :last_name, :email ] },
-            approved_by: { only: [ :id, :first_name, :last_name, :email ] },
+            bank_account: {},
+            created_by: {},
+            approved_by: {},
             bill_payments: {
               include: {
                 bill_inbox: {
@@ -232,8 +232,8 @@ module Api
         render json: bills.as_json(
           only: [ :id, :invoice_number, :supplier_name_raw, :total_amount, :due_date ],
           include: {
-            supplier: { only: [ :id, :display_name, :bank_bsb, :bank_account_number ] },
-            matched_purchase_order: { only: [ :id, :purchase_order_number ] }
+            supplier: {},
+            matched_purchase_order: {}
           },
           methods: [ :remaining_balance ]
         )

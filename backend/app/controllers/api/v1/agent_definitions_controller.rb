@@ -15,9 +15,9 @@ module Api
           data: agents.as_json(
             methods: [ :status_emoji, :success_rate ],
             include: {
-              created_by: { only: [ :id, :name, :email ] },
-              updated_by: { only: [ :id, :name, :email ] },
-              last_run_by: { only: [ :id, :name, :email ] }
+              created_by: {},
+              updated_by: {},
+              last_run_by: {}
             }
           )
         }
@@ -33,9 +33,9 @@ module Api
           data: agent.as_json(
             methods: [ :status_emoji, :success_rate ],
             include: {
-              created_by: { only: [ :id, :name, :email ] },
-              updated_by: { only: [ :id, :name, :email ] },
-              last_run_by: { only: [ :id, :name, :email ] }
+              created_by: {},
+              updated_by: {},
+              last_run_by: {}
             }
           )
         }

@@ -104,12 +104,11 @@ class EmailJobProposal < ApplicationRecord
     super(options.merge(
       include: {
         email_warehouse: {
-          only: [ :id, :subject, :from_email, :from_name, :received_at, :has_attachments ],
           methods: [ :display_from, :preview_body ]
         },
-        created_by_user: { only: [ :id, :name, :email ] },
-        approved_by_user: { only: [ :id, :name, :email ] },
-        job: { only: [ :id, :title ] }
+        created_by_user: {},
+        approved_by_user: {},
+        job: {}
       },
       methods: [
         :customer_name,

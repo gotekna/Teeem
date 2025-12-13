@@ -1992,7 +1992,6 @@ module Api
         # Find contacts with similar display_name (case insensitive, ignoring extra whitespace)
         # Group by normalized name
         contacts_by_name = Contact.all
-          .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| normalize_name(c.display_name) }
 
         contacts_by_name.each do |normalized_name, contacts|
@@ -2011,7 +2010,6 @@ module Api
         contacts_by_first_last = Contact.all
           .where.not(first_name: [ nil, "" ])
           .where.not(last_name: [ nil, "" ])
-          .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| "#{normalize_name(c.first_name)}|#{normalize_name(c.last_name)}" }
 
         contacts_by_first_last.each do |name_key, contacts|
@@ -2035,7 +2033,6 @@ module Api
         # Check for same email (different contacts with same email)
         contacts_by_email = Contact.all
           .where.not(email: [ nil, "" ])
-          .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| c.email&.downcase&.strip }
 
         contacts_by_email.each do |email, contacts|
@@ -2174,7 +2171,6 @@ module Api
         valid_types = Contact::ENTITY_TYPES
         invalid = Contact.where.not(entity_type: valid_types)
           .or(Contact.where(entity_type: nil))
-          .select(:id, :display_name, :entity_type, :is_active, :xero_id)
 
         render json: {
           success: true,
@@ -2200,7 +2196,6 @@ module Api
       def price_only_with_xero
         violations = Contact.where(entity_type: "price_only")
           .where.not(xero_id: nil)
-          .select(:id, :display_name, :xero_id, :xero_contact_types, :is_active)
 
         render json: {
           success: true,
@@ -2226,7 +2221,6 @@ module Api
       def company_with_first_name
         violations = Contact.where(entity_type: [ "company", "trust", "price_only" ])
           .where("first_name IS NOT NULL OR last_name IS NOT NULL")
-          .select(:id, :display_name, :entity_type, :first_name, :last_name, :company_name_or_trust, :is_active)
 
         render json: {
           success: true,
@@ -2254,7 +2248,6 @@ module Api
       def person_without_name
         violations = Contact.where(entity_type: [ "person", "sole_trader" ])
           .where("first_name IS NULL OR first_name = ''")
-          .select(:id, :display_name, :entity_type, :first_name, :last_name, :is_active)
 
         render json: {
           success: true,
@@ -2282,8 +2275,7 @@ module Api
         begin
           # Exclude price_only - they're just pricebook placeholders
           violations = Contact.where.not(entity_type: "price_only")
-            .where("(mobile_phone IS NULL OR mobile_phone = '') AND (email IS NULL OR email = '')")
-            .select(:id, :display_name, :entity_type, :mobile_phone, :email, :is_active)
+            .where("(mobile_phone IS NULL OR mobile_phone = '') AND (email IS NULL OR email = ''")
 
           render json: {
             success: true,
@@ -3221,7 +3213,6 @@ module Api
       # Find all contact IDs that are possible duplicates (share normalized name with another contact)
       def find_duplicate_contact_ids
         contacts_by_name = Contact.all
-          .select(:id, :display_name)
           .group_by { |c| normalize_name(c.display_name) }
 
         duplicate_ids = []

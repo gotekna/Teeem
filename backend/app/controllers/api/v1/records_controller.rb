@@ -723,7 +723,6 @@ module Api
       # Find all contact IDs that are possible duplicates (share normalized name with another contact)
       def find_duplicate_contact_ids
         contacts_by_name = Contact.where(deleted: [ false, nil ])
-          .select(:id, :display_name)
           .group_by { |c| normalize_contact_name(c.display_name) }
 
         duplicate_ids = []
