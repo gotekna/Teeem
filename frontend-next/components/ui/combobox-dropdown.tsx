@@ -117,7 +117,8 @@ export function ComboboxDropdown<T extends ComboboxItem>({
                 key={item.id}
                 value={item.id}
                 onSelect={(id) => {
-                  const foundItem = safeItems.find((item) => item.id === id);
+                  // cmdk lowercases the value, so we need case-insensitive comparison
+                  const foundItem = safeItems.find((i) => i.id.toLowerCase() === id.toLowerCase());
 
                   if (!foundItem) {
                     return;

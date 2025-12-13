@@ -113,6 +113,17 @@ class ExternalInvoiceSyncService
 
       Rails.logger.info("Full sync completed: #{@stats.inspect}")
 
+      # Update per-tenant sync status (for self-healing to work)
+      # This ensures each tenant has an accurate last_synced_at and next_sync_at
+      records_synced = @stats[:created].to_i + @stats[:updated].to_i
+      XeroSyncStatus.complete_sync!(
+        "invoices",
+        tenant_id: tenant_id,
+        records_synced: records_synced,
+        next_sync_at: 30.minutes.from_now
+      )
+      Rails.logger.info("Updated XeroSyncStatus for tenant #{tenant_id}")
+
       {
         success: true,
         tenant_id: tenant_id,
@@ -120,10 +131,13 @@ class ExternalInvoiceSyncService
         synced_at: @sync_timestamp
       }
     rescue XeroApiClient::AuthenticationError => e
+      XeroSyncStatus.fail_sync!("invoices", tenant_id: tenant_id, error: e.message)
       handle_sync_error("Authentication error", e)
     rescue XeroApiClient::RateLimitError => e
+      XeroSyncStatus.fail_sync!("invoices", tenant_id: tenant_id, error: e.message)
       handle_sync_error("Rate limit exceeded", e)
     rescue StandardError => e
+      XeroSyncStatus.fail_sync!("invoices", tenant_id: tenant_id, error: e.message)
       handle_sync_error("Sync failed", e, include_backtrace: true)
     end
   end
@@ -549,6 +563,7 @@ class ExternalInvoiceSyncService
     })
 
     unless result[:success]
+      XeroSyncStatus.fail_sync!("invoices", tenant_id: tenant_id, error: result[:error])
       raise XeroApiClient::ApiError, "Failed to fetch invoices: #{result[:error]}"
     end
 
@@ -558,6 +573,16 @@ class ExternalInvoiceSyncService
     invoices.each do |invoice_data|
       process_invoice(invoice_data, tenant_id)
     end
+
+    # Update per-tenant sync status (for self-healing to work)
+    records_synced = @stats[:created].to_i + @stats[:updated].to_i
+    XeroSyncStatus.complete_sync!(
+      "invoices",
+      tenant_id: tenant_id,
+      records_synced: records_synced,
+      next_sync_at: 30.minutes.from_now
+    )
+    Rails.logger.info("Updated XeroSyncStatus for tenant #{tenant_id}")
 
     {
       success: true,
