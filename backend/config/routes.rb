@@ -1743,6 +1743,11 @@ Rails.application.routes.draw do
       end
 
       # WHS (Workplace Health & Safety) Module
+      # WHS Dashboard & Stats
+      get "whs/stats", to: "whs#stats"
+      get "whs/incidents", to: "whs#incidents"
+      get "whs/swms", to: "whs#swms"
+
       # SWMS (Safe Work Method Statements)
       resources :whs_swms, only: [ :index, :show, :create, :update, :destroy ] do
         member do
