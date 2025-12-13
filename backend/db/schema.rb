@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_13_012024) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_13_211645) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4825,6 +4825,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_13_012024) do
     t.text "sync_error"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "refresh_token_dead", default: false, null: false
+    t.integer "consecutive_failures", default: 0, null: false
+    t.datetime "last_refresh_attempt_at"
     t.index ["email"], name: "index_user_microsoft_tokens_on_email"
     t.index ["status"], name: "index_user_microsoft_tokens_on_status"
     t.index ["user_id"], name: "index_user_microsoft_tokens_on_user_id"

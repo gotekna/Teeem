@@ -78,17 +78,27 @@ export const COLUMN_TYPE_DEFAULTS: Record<string, ColumnTypeDefault> = {
 };
 
 /**
- * System columns that should be hidden by default.
- * These are internal columns not meant for user display.
+ * Columns that should be COMPLETELY HIDDEN (not even in column selector).
+ * These are internal columns not meant for user display at all.
+ *
+ * NOTE: id, created_at, updated_at are NOT here - they're "system" columns
+ * that are hidden by DEFAULT but can be shown via column selector.
+ * See SYSTEM_DISPLAY_COLUMNS below.
  */
-const SYSTEM_COLUMNS = [
-  // Auto-generated Rails columns (SSoT: matches useFoundationBySlug.ts)
-  'id', 'created_at', 'updated_at', 'deleted_at',
+const HIDDEN_COLUMNS = [
+  // Truly internal - never show
+  'deleted_at',
   // Legacy TED columns
   'sys_type_id', 'deleted', 'drive_id', 'folder_id',
   'parent_id', 'parent$type', 'range$type', 'colour_spec$type',
   'tedmodel$type', 'pricebook$type'
 ];
+
+/**
+ * System columns that ARE in the column list but hidden by DEFAULT.
+ * Users can toggle these on via the column selector.
+ */
+export const SYSTEM_DISPLAY_COLUMNS = ['id', 'created_at', 'updated_at'];
 
 /**
  * ID columns that SHOULD be visible (exceptions to the _id hiding rule).
@@ -116,14 +126,18 @@ export const SYSTEM_GENERATED_TYPES = [
  * @returns true if the column should be hidden
  */
 export function isSystemOrHiddenColumn(columnName: string): boolean {
-  // Check explicit system columns
-  if (SYSTEM_COLUMNS.includes(columnName)) return true;
+  // Check completely hidden columns (not even in column selector)
+  if (HIDDEN_COLUMNS.includes(columnName)) return true;
 
   // Hide $type suffix columns (used for polymorphic associations)
   if (columnName.endsWith('$type')) return true;
 
   // Hide _id columns except for specific allowed ones
   if (columnName.endsWith('_id') && !VISIBLE_ID_COLUMNS.includes(columnName)) return true;
+
+  // NOTE: id, created_at, updated_at are NOT filtered here
+  // They're in SYSTEM_DISPLAY_COLUMNS and should be hidden by DEFAULT
+  // but available in the column selector
 
   return false;
 }

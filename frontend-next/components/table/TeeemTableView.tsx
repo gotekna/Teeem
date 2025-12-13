@@ -99,7 +99,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
-import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
+import { convertColumnsToTEEEMFormat, SYSTEM_DISPLAY_COLUMNS, type ApiColumn } from "@/lib/corporate/column-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -803,7 +803,11 @@ export default function TeeemTableView({
       const newKeys = COLUMNS.map(c => c.key);
       const updates: VisibleColumnsState = { ...prev };
       newKeys.forEach(k => {
-        if (!(k in updates)) updates[k] = true;
+        if (!(k in updates)) {
+          // System display columns (id, created_at, updated_at) are hidden by default
+          // but can be shown via column selector
+          updates[k] = !SYSTEM_DISPLAY_COLUMNS.includes(k);
+        }
       });
       return updates;
     });

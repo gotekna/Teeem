@@ -12,20 +12,40 @@ class RefreshIntegrationTokensJob < ApplicationJob
   private
 
   # Refresh personal Microsoft tokens (for individual users)
+  # Only refreshes tokens that are:
+  # 1. Connected (status = "connected")
+  # 2. Expiring within 15 minutes
+  # 3. NOT marked as dead (refresh_token_dead = false)
   def refresh_user_microsoft_tokens
-    # Find tokens expiring in the next 15 minutes
-    UserMicrosoftToken.connected.needs_refresh.find_each do |token|
+    # Find tokens expiring in the next 15 minutes that are still alive
+    UserMicrosoftToken.connected.alive.needs_refresh.find_each do |token|
       Rails.logger.info "[TokenRefresh] Refreshing UserMicrosoftToken for user #{token.user_id} expiring at #{token.token_expires_at}"
 
       begin
         if token.refresh_access_token!
+          token.record_refresh_success!
           Rails.logger.info "[TokenRefresh] UserMicrosoftToken refreshed successfully for user #{token.user_id}"
         else
-          Rails.logger.warn "[TokenRefresh] UserMicrosoftToken refresh failed for user #{token.user_id}: #{token.sync_error}"
+          # Refresh failed - record failure and check if token is dead
+          error_message = token.sync_error || "Unknown refresh error"
+          token.record_refresh_failure!(error_message)
+
+          if token.refresh_token_dead?
+            Rails.logger.error "[TokenRefresh] UserMicrosoftToken DEAD for user #{token.user_id}: #{error_message}"
+          else
+            Rails.logger.warn "[TokenRefresh] UserMicrosoftToken refresh failed for user #{token.user_id} (attempt #{token.consecutive_failures}): #{error_message}"
+          end
         end
       rescue StandardError => e
+        token.record_refresh_failure!(e.message)
         Rails.logger.error "[TokenRefresh] Failed to refresh UserMicrosoftToken for user #{token.user_id}: #{e.message}"
       end
+    end
+
+    # Log summary of dead tokens that need user re-auth
+    dead_count = UserMicrosoftToken.dead.count
+    if dead_count > 0
+      Rails.logger.warn "[TokenRefresh] #{dead_count} Microsoft token(s) require user re-authentication"
     end
   end
 

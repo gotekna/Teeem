@@ -1,5 +1,6 @@
 class DocumentActivity < ApplicationRecord
-  belongs_to :company_document
+  # Note: class_name needed because table was renamed from company_documents to corporate_company_documents
+  belongs_to :company_document, class_name: "CorporateCompanyDocument"
   belongs_to :user, optional: true
 
   # Action types

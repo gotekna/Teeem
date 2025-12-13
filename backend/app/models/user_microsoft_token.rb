@@ -19,12 +19,24 @@ class UserMicrosoftToken < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
 
   scope :connected, -> { where(status: "connected") }
-  scope :needs_refresh, -> { where("token_expires_at < ?", 5.minutes.from_now) }
+  scope :needs_refresh, -> { where("token_expires_at < ?", 15.minutes.from_now) }
   scope :with_errors, -> { where(status: "error") }
+  scope :alive, -> { where(refresh_token_dead: false) }
+  scope :dead, -> { where(refresh_token_dead: true) }
 
-  # Check if token needs refresh
+  # AADSTS error codes that indicate the refresh token is permanently dead
+  # and requires user to re-authenticate via OAuth flow
+  DEAD_TOKEN_ERROR_CODES = [
+    "AADSTS65001",  # User has not consented / consent revoked
+    "AADSTS70000",  # Grant has been revoked
+    "AADSTS70008",  # Refresh token expired (90+ days)
+    "AADSTS54005",  # OAuth2 authorization code invalid
+    "invalid_grant" # Generic dead token error
+  ].freeze
+
+  # Check if token needs refresh (15 min buffer for proactive refresh)
   def needs_refresh?
-    token_expires_at.nil? || token_expires_at < 5.minutes.from_now
+    token_expires_at.nil? || token_expires_at < 15.minutes.from_now
   end
 
   # Alias for compatibility with MicrosoftGraphClient which expects token_expired?
@@ -40,6 +52,64 @@ class UserMicrosoftToken < ApplicationRecord
     update!(status: "error", sync_error: message)
   end
 
+  # Mark refresh token as dead (requires full re-auth via OAuth)
+  def mark_refresh_token_dead!(error_message = nil)
+    update!(
+      refresh_token_dead: true,
+      status: "error",
+      sync_error: error_message || "Refresh token expired - please reconnect",
+      last_refresh_attempt_at: Time.current
+    )
+  end
+
+  # Record a failed refresh attempt
+  def record_refresh_failure!(error_message)
+    new_count = (consecutive_failures || 0) + 1
+
+    # Check if this is a permanent failure (dead token)
+    if dead_token_error?(error_message)
+      mark_refresh_token_dead!(error_message)
+    else
+      update!(
+        consecutive_failures: new_count,
+        sync_error: error_message,
+        last_refresh_attempt_at: Time.current
+      )
+    end
+  end
+
+  # Record a successful refresh
+  def record_refresh_success!
+    update!(
+      consecutive_failures: 0,
+      refresh_token_dead: false,
+      last_refresh_attempt_at: Time.current
+    )
+  end
+
+  # Check if an error message indicates the refresh token is permanently dead
+  def dead_token_error?(error_message)
+    return false if error_message.blank?
+    DEAD_TOKEN_ERROR_CODES.any? { |code| error_message.include?(code) }
+  end
+
+  # Get the reason for reconnection (for frontend display)
+  def reconnect_reason
+    return nil unless refresh_token_dead? || status == "error"
+
+    if sync_error&.include?("AADSTS65001")
+      "consent_revoked"
+    elsif sync_error&.include?("AADSTS70008")
+      "token_expired"
+    elsif sync_error&.include?("AADSTS70000")
+      "grant_revoked"
+    elsif refresh_token_dead?
+      "refresh_token_dead"
+    else
+      "unknown_error"
+    end
+  end
+
   # Mark as connected after successful OAuth
   def mark_connected!(tokens)
     update!(
@@ -49,7 +119,9 @@ class UserMicrosoftToken < ApplicationRecord
       scopes: tokens[:scope],
       email: tokens[:email],
       status: "connected",
-      sync_error: nil
+      sync_error: nil,
+      refresh_token_dead: false,
+      consecutive_failures: 0
     )
   end
 

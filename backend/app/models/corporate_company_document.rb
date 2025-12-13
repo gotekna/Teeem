@@ -12,7 +12,8 @@ class CorporateCompanyDocument < ApplicationRecord
   belongs_to :documentable, polymorphic: true, optional: true
 
   # Activity log for tracking changes
-  has_many :document_activities, dependent: :destroy
+  # Note: foreign_key is :company_document_id (legacy name from before table rename)
+  has_many :document_activities, foreign_key: :company_document_id, dependent: :destroy
 
   # Case links
   has_many :case_documents, dependent: :destroy
