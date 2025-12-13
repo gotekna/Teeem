@@ -130,7 +130,7 @@ When I say something seems impossible, that's your cue to ultrathink harder. The
 | **Data Table** | `TeeemTableView` | `components/table/TeeemTableView.tsx` | `data-table.tsx` |
 | **Simple Dropdown** | `Select` | `components/ui/select.tsx` | - |
 | **Searchable Select** | `ComboboxDropdown` | `components/ui/combobox-dropdown.tsx` | `combobox.tsx` |
-| **Multi-Select** | `MultiSelectCombobox` | `components/ui/multi-select-combobox.tsx` | `multiple-selector.tsx` |
+| **Multi-Select** | `MultipleSelector` | `components/ui/multiple-selector.tsx` | `multi-select-combobox.tsx` |
 | **Loading Spinner** | `Spinner` | `components/ui/spinner.tsx` | `loader.tsx` |
 | **Side Panel** | `Sheet` | `components/ui/sheet.tsx` | `drawer.tsx` |
 | **Modal Dialog** | `Dialog` | `components/ui/dialog.tsx` | - |

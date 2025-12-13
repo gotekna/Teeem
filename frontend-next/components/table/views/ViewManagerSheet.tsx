@@ -709,7 +709,7 @@ export function ViewManagerSheet({
               onSelect={(item) => updateFilter(filter.id, { value: item.id })}
               placeholder="Search value..."
               searchInTrigger={true}
-              popoverProps={{ className: "w-[200px]" }}
+              popoverProps={{ className: "min-w-[200px] w-auto" }}
             />
           </div>
         );
@@ -770,7 +770,7 @@ export function ViewManagerSheet({
             onSelect={(item) => updateFilter(filter.id, { value: item.id })}
             placeholder={ssotConfig.placeholder}
             searchInTrigger={true}
-            popoverProps={{ className: "w-[200px]" }}
+            popoverProps={{ className: "min-w-[200px] w-auto" }}
           />
         </div>
       );
@@ -794,7 +794,7 @@ export function ViewManagerSheet({
               onSelect={(item) => updateFilter(filter.id, { value: item.id })}
               placeholder="Search value..."
               searchInTrigger={true}
-              popoverProps={{ className: "w-[200px]" }}
+              popoverProps={{ className: "min-w-[200px] w-auto" }}
             />
           </div>
         );
@@ -850,7 +850,7 @@ export function ViewManagerSheet({
               placeholder="Search value..."
               searchInTrigger={true}
               emptyResults="No options available"
-              popoverProps={{ className: "w-[200px]" }}
+              popoverProps={{ className: "min-w-[200px] w-auto" }}
             />
           </div>
         );
@@ -1358,7 +1358,7 @@ export function ViewManagerSheet({
                                                     onSelect={(item) => updateFilter(filter.id, { column: item.id })}
                                                     placeholder="Search column..."
                                                     searchInTrigger={true}
-                                                    popoverProps={{ className: "w-[200px]" }}
+                                                    popoverProps={{ className: "min-w-[200px] w-auto" }}
                                                   />
                                                 </div>
 

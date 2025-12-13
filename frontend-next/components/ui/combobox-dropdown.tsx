@@ -78,7 +78,9 @@ export function ComboboxDropdown<T extends ComboboxItem>({
     T | undefined
   >();
   const [inputValue, setInputValue] = React.useState("");
+  const [highlightedIndex, setHighlightedIndex] = React.useState(0);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const listRef = React.useRef<HTMLDivElement>(null);
 
   const selectedItem = incomingSelectedItem ?? internalSelectedItem;
 
@@ -90,6 +92,62 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   );
 
   const showCreate = onCreate && Boolean(inputValue) && !filteredItems.length;
+
+  // Reset highlighted index when filtered items change
+  React.useEffect(() => {
+    setHighlightedIndex(0);
+  }, [filteredItems.length]);
+
+  // Scroll highlighted item into view
+  React.useEffect(() => {
+    if (listRef.current && open) {
+      const items = listRef.current.querySelectorAll('[cmdk-item]');
+      const highlightedItem = items[highlightedIndex] as HTMLElement;
+      if (highlightedItem) {
+        highlightedItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedIndex, open]);
+
+  // Keyboard navigation handler for searchInTrigger mode
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        setOpen(true);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlightedIndex((prev) =>
+          prev < filteredItems.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlightedIndex((prev) =>
+          prev > 0 ? prev - 1 : filteredItems.length - 1
+        );
+        break;
+      case "Enter":
+        e.preventDefault();
+        // Auto-select if exactly one match or select highlighted item
+        if (filteredItems.length === 1) {
+          handleSelectItem(filteredItems[0]);
+        } else if (filteredItems.length > 0 && highlightedIndex < filteredItems.length) {
+          handleSelectItem(filteredItems[highlightedIndex]);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setOpen(false);
+        setInputValue("");
+        break;
+    }
+  };
 
   // Handle input change for searchInTrigger mode
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -128,20 +186,25 @@ export function ComboboxDropdown<T extends ComboboxItem>({
       )}
 
       <CommandGroup>
-        <CommandList className="max-h-[225px] overflow-auto">
+        <CommandList ref={listRef} className="max-h-[300px] overflow-y-auto overflow-x-hidden">
           {isLoading ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <>
-              {filteredItems.map((item) => {
+              {filteredItems.map((item, index) => {
                 const isChecked = selectedItem?.id === item.id;
+                const isHighlighted = index === highlightedIndex;
 
                 return (
                   <CommandItem
                     disabled={item.disabled}
-                    className={cn("cursor-pointer whitespace-nowrap", className)}
+                    className={cn(
+                      "cursor-pointer whitespace-nowrap",
+                      isHighlighted && "bg-accent",
+                      className
+                    )}
                     key={item.id}
                     value={item.id}
                     onSelect={(id) => {
@@ -154,6 +217,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
 
                       handleSelectItem(foundItem);
                     }}
+                    onMouseEnter={() => setHighlightedIndex(index)}
                   >
                     {renderListItem ? (
                       renderListItem({ isChecked, item })
@@ -225,6 +289,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
               type="text"
               value={displayValue}
               onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
               onFocus={() => {
                 setOpen(true);
                 setInputValue(""); // Clear to allow fresh search

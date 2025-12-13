@@ -12,7 +12,7 @@
 | Data Table | `TeeemTableView` | `data-table.tsx` | Replace on touch |
 | Simple Dropdown | `Select` | - | - |
 | Searchable Select | `ComboboxDropdown` | `combobox.tsx` | Replace on touch |
-| Multi-Select | `MultiSelectCombobox` | `multiple-selector.tsx` | Replace on touch |
+| Multi-Select | `MultipleSelector` | `multi-select-combobox.tsx` | Replace on touch |
 | Loading | `Spinner` | `loader.tsx` | Replace on touch |
 | Side Panel | `Sheet` | `drawer.tsx` | Replace on touch |
 | Modal | `Dialog` | - | - |
@@ -113,28 +113,36 @@ const options = [
 
 ---
 
-## 4. MultiSelectCombobox (Multi-Select)
+## 4. MultipleSelector (Multi-Select)
 
-**Location:** `components/ui/multi-select-combobox.tsx`
+**Location:** `components/ui/multiple-selector.tsx`
 
 **When to use:** Select multiple items from a list.
 
 ```tsx
-import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
+import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
 
-const roles = [
+const roles: Option[] = [
   { value: "admin", label: "Admin" },
   { value: "manager", label: "Manager" },
   { value: "user", label: "User" },
 ];
 
-<MultiSelectCombobox
+<MultipleSelector
   options={roles}
-  selected={selectedRoles}
+  value={selectedRoles}
   onChange={setSelectedRoles}
   placeholder="Select roles..."
+  emptyIndicator={<p className="text-center text-sm">No results found</p>}
 />
 ```
+
+**Advanced Features:**
+- `onSearch` - Async search callback for server-side filtering
+- `creatable` - Allow creating new options on the fly
+- `groupBy` - Group options by category
+- `badgeClassName` - Custom styling for selected badges
+- `maxSelected` - Limit number of selections
 
 ---
 
@@ -362,7 +370,7 @@ When editing a file that uses a deprecated component:
 |-----------|--------|--------------|
 | `data-table.tsx` | Use TeeemTableView for consistency | `TeeemTableView` |
 | `combobox.tsx` | Less features than dropdown variant | `ComboboxDropdown` |
-| `multiple-selector.tsx` | Overcomplicated, 624 lines | `MultiSelectCombobox` |
+| `multi-select-combobox.tsx` | Less featured, unused in codebase | `MultipleSelector` |
 | `loader.tsx` | Spinner is simpler and sufficient | `Spinner` |
 | `drawer.tsx` | Sheet is the standard | `Sheet` |
 | `collapsible.tsx` | Accordion is more featured | `Accordion` |
