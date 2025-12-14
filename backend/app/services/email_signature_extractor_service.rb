@@ -84,7 +84,14 @@ class EmailSignatureExtractorService
     # Only update fields that are currently empty
     updates[:mobile_phone] = extracted[:mobile] if contact.mobile_phone.blank? && extracted[:mobile].present?
     updates[:office_phone] = extracted[:office_phone] || extracted[:phone] if contact.office_phone.blank? && (extracted[:office_phone].present? || extracted[:phone].present?)
-    updates[:address] = extracted[:address] if contact.address.blank? && extracted[:address].present?
+    # Create contact_address if extracted and contact has none (SSoT)
+    if contact.contact_addresses.empty? && extracted[:address].present?
+      contact.contact_addresses.create!(
+        address_type: "STREET",
+        line1: extracted[:address],
+        is_primary: true
+      )
+    end
     updates[:title] = extracted[:title] if contact.title.blank? && extracted[:title].present?
 
     return false if updates.empty?

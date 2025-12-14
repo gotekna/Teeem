@@ -117,6 +117,12 @@ export const COLUMN_TYPE_REGISTRY: Record<string, ColumnTypeHandler> = {
     display: Display.displayUrl,
     editor: null,
   },
+  website: {
+    // Alias for url
+    validate: Validation.validateUrl,
+    display: Display.displayUrl,
+    editor: null,
+  },
 
   // Number Types (4)
   number: {
@@ -170,7 +176,7 @@ export const COLUMN_TYPE_REGISTRY: Record<string, ColumnTypeHandler> = {
   },
   action_buttons: {
     validate: Validation.validateDefault,
-    display: Display.displayDefault,
+    display: Display.displayActionButtons,
     editor: null,
   },
 
@@ -209,6 +215,12 @@ export const COLUMN_TYPE_REGISTRY: Record<string, ColumnTypeHandler> = {
     display: Display.displayComputed,
     editor: null, // Read-only
   },
+  formula: {
+    // Alias for computed
+    validate: Validation.validateComputed,
+    display: Display.displayComputed,
+    editor: null, // Read-only
+  },
 
   // Advanced (3)
   structured_data: {
@@ -223,39 +235,63 @@ export const COLUMN_TYPE_REGISTRY: Record<string, ColumnTypeHandler> = {
   },
   searchable_text: {
     validate: Validation.validateSearchableText,
-    display: Display.displayDefault,
+    display: Display.displaySearchableText,
     editor: null, // Read-only
   },
 
   // Australian (6)
   abn: {
     validate: Validation.validateAbn,
-    display: Display.displayDefault,
+    display: Display.displayAbn,
     editor: null,
   },
   acn: {
     validate: Validation.validateAcn,
-    display: Display.displayDefault,
+    display: Display.displayAcn,
     editor: null,
   },
   bsb: {
     validate: Validation.validateBsb,
-    display: Display.displayDefault,
+    display: Display.displayBsb,
     editor: null,
   },
   bank_account: {
     validate: Validation.validateBankAccount,
-    display: Display.displayDefault,
+    display: Display.displayBankAccount,
     editor: null,
   },
   postcode: {
     validate: Validation.validatePostcode,
-    display: Display.displayDefault,
+    display: Display.displayPostcode,
     editor: null,
   },
   tfn: {
     validate: Validation.validateTfn,
-    display: Display.displayDefault,
+    display: Display.displayTfn,
+    editor: null,
+  },
+
+  // System Types (timestamps, auto-generated)
+  created_time: {
+    validate: Validation.validateDateTime,
+    display: Display.displayDateTime,
+    editor: null, // Read-only
+  },
+  modified_time: {
+    validate: Validation.validateDateTime,
+    display: Display.displayDateTime,
+    editor: null, // Read-only
+  },
+  auto_number: {
+    validate: Validation.validateNumber,
+    display: Display.displayNumber,
+    editor: null, // Read-only
+  },
+
+  // Relation type (alias for lookup)
+  relation: {
+    validate: Validation.validateLookup,
+    display: Display.displayLookup,
     editor: null,
   },
 };

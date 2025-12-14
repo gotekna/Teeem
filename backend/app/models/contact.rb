@@ -143,55 +143,66 @@ class Contact < ApplicationRecord
     self.tax_number = value
   end
 
-  # Suburb alias (city is the column)
+  # ============================================
+  # SSoT: Address Helper Methods
+  # ============================================
+  # contact_addresses table is the SSoT for all address data.
+  # These helper methods read from the SSoT table and provide
+  # a uniform interface for document templates and display.
+  # Legacy columns (address, city, state, postcode) have been removed.
+
+  # Primary address lookup (cached per request)
+  def primary_street_address
+    @primary_street_address ||= contact_addresses.find_by(address_type: "STREET") ||
+                                 contact_addresses.find_by(is_primary: true) ||
+                                 contact_addresses.first
+  end
+
+  # Clear cached address (call after modifying contact_addresses)
+  def clear_address_cache!
+    @primary_street_address = nil
+  end
+
+  # Suburb/city - locality name
   def suburb
-    city
+    primary_street_address&.city
+  end
+
+  def city
+    primary_street_address&.city
+  end
+
+  # State/region
+  def state
+    primary_street_address&.region
+  end
+
+  # Postal code
+  def postcode
+    primary_street_address&.postal_code
+  end
+
+  # Multi-line address text (for legacy compatibility)
+  def address
+    primary_street_address&.multi_line
   end
 
   # Address helpers for document templates
   def address_line_1
-    address.to_s.split("\n").first
+    primary_street_address&.line1
   end
 
   def address_line_2
-    lines = address.to_s.split("\n")
-    lines.length > 1 ? lines[1..].join(", ") : nil
+    lines = [
+      primary_street_address&.line2,
+      primary_street_address&.line3,
+      primary_street_address&.line4
+    ].compact.reject(&:blank?)
+    lines.any? ? lines.join(", ") : nil
   end
 
   def full_address
-    [address, city, state, postcode].compact.reject(&:blank?).join(", ")
-  end
-
-  # SSoT: Sync from contact_addresses table → legacy address fields
-  # contact_addresses is the SSoT, this keeps legacy fields in sync for:
-  # - Document templates (which use address_line_1, address_line_2, suburb, state, postcode)
-  # - Backwards compatibility with existing code
-  def sync_legacy_address_fields_from_contact_addresses
-    # Get the STREET address (primary source) or first available address
-    street_addr = contact_addresses.reload.find_by(address_type: "STREET")
-    street_addr ||= contact_addresses.first
-
-    if street_addr.present?
-      # Build multi-line address for legacy 'address' field
-      # This is what document templates parse with address_line_1 and address_line_2
-      new_address = street_addr.multi_line
-
-      # Update legacy fields without triggering callbacks (to avoid infinite loop)
-      update_columns(
-        address: new_address,
-        city: street_addr.city,
-        state: street_addr.region,
-        postcode: street_addr.postal_code
-      )
-    else
-      # No contact_addresses - clear legacy fields
-      update_columns(
-        address: nil,
-        city: nil,
-        state: nil,
-        postcode: nil
-      )
-    end
+    primary_street_address&.display_address
   end
 
   # Xero-synced accounting fields - READ ONLY in TEEEM (synced from Xero)

@@ -2817,11 +2817,10 @@ export default function TeeemTableView({
           // Fall through to normal rendering
         } else {
           // Show the value with a subtle indicator it's not editable
-          // Use getDisplayValue to handle objects (e.g., lookup values)
-          const displayValue = value == null || value === "" ? "-" : getDisplayValue(value);
+          // Use registry for display, wrapped in italic styling
           return (
-            <span className="text-muted-foreground italic text-[11px]" title={isComputed ? "Computed column" : "System column - not editable"}>
-              {displayValue}
+            <span className="text-muted-foreground italic" title={isComputed ? "Computed column" : "System column - not editable"}>
+              {renderCellWithRegistry(value, column, entry, "display")}
             </span>
           );
         }
@@ -2830,11 +2829,9 @@ export default function TeeemTableView({
       // Global edit mode - show clickable cells that start row editing on click
       // Cells stay as lightweight text until clicked
       if (isEditMode && isColumnEditable) {
-        // Use getDisplayValue to handle objects (e.g., lookup values)
-        const displayValue = value == null || value === "" ? "-" : getDisplayValue(value);
         return (
           <div
-            className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px] text-[11px]"
+            className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
             onClick={(e) => {
               e.stopPropagation();
               // Start editing this row when cell is clicked
@@ -2842,198 +2839,18 @@ export default function TeeemTableView({
             }}
             title="Click to edit"
           >
-            {displayValue}
+            {renderCellWithRegistry(value, column, entry, "display")}
           </div>
         );
       }
 
-      // Handle searchable_text - read-only search terms display
-      if (column.column_type === "searchable_text" && value) {
-        return (
-          <span className="font-mono text-xs text-muted-foreground italic">
-            🔍 {String(value).slice(0, 30)}...
-          </span>
-        );
-      }
-
-      // Handle action_buttons - render configured buttons
-      if (column.column_type === "action_buttons" && value) {
-        try {
-          const config = typeof value === 'string' ? JSON.parse(value) : value;
-          const buttons = config.buttons || [];
-          return (
-            <div className="flex gap-1">
-              {buttons.slice(0, 3).map((btn: { label: string; action: string }, idx: number) => (
-                <Button key={idx} variant="outline" size="sm" className="h-6 text-xs px-2">
-                  {btn.label}
-                </Button>
-              ))}
-            </div>
-          );
-        } catch {
-          return <span className="text-muted-foreground">-</span>;
-        }
-      }
-
-      // Handle Australian types with formatted display
-      // ABN: XX XXX XXX XXX (11 digits)
-      if (column.column_type === "abn" && value) {
-        const digits = String(value).replace(/\D/g, '');
-        const formatted = digits.length === 11
-          ? `${digits.slice(0,2)} ${digits.slice(2,5)} ${digits.slice(5,8)} ${digits.slice(8,11)}`
-          : String(value);
-        return <span className="font-mono text-[11px]">{formatted}</span>;
-      }
-
-      // ACN: XXX XXX XXX (9 digits)
-      if (column.column_type === "acn" && value) {
-        const digits = String(value).replace(/\D/g, '');
-        const formatted = digits.length === 9
-          ? `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,9)}`
-          : String(value);
-        return <span className="font-mono text-[11px]">{formatted}</span>;
-      }
-
-      // BSB: XXX-XXX (6 digits)
-      if (column.column_type === "bsb" && value) {
-        const digits = String(value).replace(/\D/g, '');
-        const formatted = digits.length === 6
-          ? `${digits.slice(0,3)}-${digits.slice(3,6)}`
-          : String(value);
-        return <span className="font-mono text-[11px]">{formatted}</span>;
-      }
-
-      // Bank Account: up to 9 digits
-      if (column.column_type === "bank_account" && value) {
-        return <span className="font-mono text-[11px]">{String(value)}</span>;
-      }
-
-      // Postcode: 4 digits
-      if (column.column_type === "postcode" && value) {
-        return <span className="font-mono text-[11px]">{String(value).padStart(4, '0').slice(0,4)}</span>;
-      }
-
-      // TFN: XXX XXX XXX (9 digits) - show masked for security
-      if (column.column_type === "tfn" && value) {
-        const digits = String(value).replace(/\D/g, '');
-        // Show masked: XXX XXX XXX -> *** *** XXX
-        const masked = digits.length === 9
-          ? `*** *** ${digits.slice(6,9)}`
-          : '*** *** ***';
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="font-mono text-muted-foreground cursor-help text-[11px]">{masked}</span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <span className="text-[11px]">TFN hidden for security</span>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      }
-
-      // Email: clickable mailto link
-      if (column.column_type === "email" && value) {
-        return (
-          <a
-            href={`mailto:${value}`}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]"
-            onClick={(e) => e.stopPropagation()}
-            title={`Send email to ${value}`}
-          >
-            {String(value)}
-          </a>
-        );
-      }
-
-      // Phone/Mobile: clickable tel link
-      if ((column.column_type === "phone" || column.column_type === "mobile") && value) {
-        // Remove non-numeric characters for tel: link
-        const phoneNumber = String(value).replace(/[^\d+]/g, '');
-        return (
-          <a
-            href={`tel:${phoneNumber}`}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]"
-            onClick={(e) => e.stopPropagation()}
-            title={`Call ${value}`}
-          >
-            {String(value)}
-          </a>
-        );
-      }
-
-      // URL/Website: clickable external link
-      if ((column.column_type === "url" || column.column_type === "website") && value) {
-        const url = String(value);
-        // Add https:// if no protocol specified
-        const href = url.match(/^https?:\/\//) ? url : `https://${url}`;
-        return (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1 text-[11px]"
-            onClick={(e) => e.stopPropagation()}
-            title={`Open ${url}`}
-          >
-            {url}
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        );
-      }
-
-      // Array of items: render as badges (e.g., xero_contact_types: ["Customer", "Supplier"])
-      if (column.column_type === "array_of_items") {
-        if (!Array.isArray(value) || value.length === 0) {
-          return <span className="text-muted-foreground text-[11px]">—</span>;
-        }
-        return (
-          <div className="flex flex-wrap gap-1">
-            {value.map((item, idx) => (
-              <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
-                {String(item)}
-              </Badge>
-            ))}
-          </div>
-        );
-      }
-
-      // Default: render as string with priority-based truncation
-      // Handle null/undefined values - show empty string instead of "null"/"undefined"
-      if (value == null || value === "") {
-        return <span className="text-muted-foreground text-[11px]">—</span>;
-      }
-
-      // Extract display value (handles objects like lookup values)
-      // For objects like {id: 123, name: "Company"}, this extracts "Company"
-      const strValue = getDisplayValue(value);
-
-      // Get priority for smart truncation
-      const priority = getColumnPriority(column.key, column.column_type);
-      const config = COLUMN_PRIORITY_CONFIG[priority];
-
-      // Apply priority-based truncation
-      if (config.truncateAt !== null && strValue.length > config.truncateAt) {
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="truncate block text-[11px]">
-                  {strValue.slice(0, config.truncateAt)}...
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-md">
-                <p className="whitespace-pre-wrap text-[11px]">{strValue}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      }
-
-      // For essential/supporting: show full text with CSS truncation if needed
-      return <span className="truncate block text-[11px]">{strValue}</span>;
+      // ========================================================================
+      // DISPLAY MODE - Use ColumnRenderer Registry (SSoT)
+      // ========================================================================
+      // All column types are now handled by the centralized registry.
+      // See: components/table/core/column-renderer/ColumnRenderer.tsx
+      // See: components/table/core/column-renderer/CellDisplay.tsx
+      return renderCellWithRegistry(value, column, entry, "display");
     };
 
   // ============================================================================

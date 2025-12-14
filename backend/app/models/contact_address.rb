@@ -6,10 +6,11 @@ class ContactAddress < ApplicationRecord
   validates :address_type, inclusion: { in: ADDRESS_TYPES }, allow_nil: true
   validate :only_one_primary_per_contact, if: :is_primary?
 
-  # SSoT: Sync contact_addresses → legacy contact fields
-  # When address changes, update the parent contact's legacy address fields
-  after_save :sync_to_contact_legacy_fields
-  after_destroy :sync_to_contact_legacy_fields
+  # SSoT: contact_addresses IS the source of truth for all address data.
+  # Legacy columns on contacts table have been removed.
+  # Clear parent contact's address cache when addresses change.
+  after_save :clear_contact_address_cache
+  after_destroy :clear_contact_address_cache
 
   scope :primary, -> { where(is_primary: true) }
   scope :secondary, -> { where(is_primary: false) }
@@ -48,10 +49,8 @@ class ContactAddress < ApplicationRecord
     end
   end
 
-  # SSoT: Trigger sync of legacy fields on parent contact
-  def sync_to_contact_legacy_fields
-    return unless contact.present?
-
-    contact.sync_legacy_address_fields_from_contact_addresses
+  # Clear parent contact's cached address lookup
+  def clear_contact_address_cache
+    contact&.clear_address_cache!
   end
 end

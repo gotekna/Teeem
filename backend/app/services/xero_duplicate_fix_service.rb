@@ -277,8 +277,23 @@ class XeroDuplicateFixService
     # Fill missing website
     target.website = source.website if target.website.blank? && source.website.present?
 
-    # Fill missing address
-    target.address = source.address if target.address.blank? && source.address.present?
+    # Fill missing address from contact_addresses (SSoT)
+    if target.contact_addresses.empty? && source.contact_addresses.any?
+      source.contact_addresses.each do |addr|
+        target.contact_addresses.build(
+          address_type: addr.address_type,
+          line1: addr.line1,
+          line2: addr.line2,
+          line3: addr.line3,
+          line4: addr.line4,
+          city: addr.city,
+          region: addr.region,
+          postal_code: addr.postal_code,
+          country: addr.country,
+          is_primary: addr.is_primary
+        )
+      end
+    end
 
     # Merge roles (union)
     # Handle roles stored as JSON strings (e.g., "[]" or "[\"role1\"]")
