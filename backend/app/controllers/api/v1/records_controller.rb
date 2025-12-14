@@ -593,7 +593,9 @@ module Api
 
           # Add computed columns for contacts (employees_count for companies, display_name for team contacts)
           if record.class.name == "Contact"
-            json[:employees_count] = record.employees_count  # Cached column (counter_cache)
+            # SSoT: employees_count is now kept in sync by ContactRelationship callbacks
+            # See ContactRelationship#update_company_employees_count
+            json[:employees_count] = record.employees_count
             json[:display_name] = record.display_name  # Computed: includes company name for team contacts
           end
 

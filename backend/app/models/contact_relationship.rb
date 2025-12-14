@@ -237,6 +237,9 @@ class ContactRelationship < ApplicationRecord
   # Callback to sync primary_company_id when employee_of relationships change
   after_commit :sync_primary_company_id, if: :should_sync_primary_company?
 
+  # SSoT: Update employees_count counter_cache on company when employee_of relationships change
+  after_commit :update_company_employees_count, if: :employee_of_relationship?
+
   # Find the reverse relationship (must match relationship_type too)
   def reverse_relationship
     ContactRelationship.find_by(
@@ -359,6 +362,31 @@ class ContactRelationship < ApplicationRecord
   def should_sync_primary_company?
     relationship_type == "employee_of" &&
     (source_contact&.entity_type == "person" || source_contact&.entity_type == "sole_trader")
+  end
+
+  # Guard method for employees_count update
+  def employee_of_relationship?
+    relationship_type == "employee_of"
+  end
+
+  # SSoT: Update employees_count on company when employee_of relationships change
+  # This keeps the counter_cache in sync with ContactRelationship data
+  def update_company_employees_count
+    company = related_contact
+    return unless company&.persisted?
+    return unless company.entity_type.in?(%w[company trust sole_trader])
+
+    # Recount from SSoT (active employee_of relationships pointing to this company)
+    count = ContactRelationship.where(
+      related_contact_id: company.id,
+      relationship_type: "employee_of",
+      is_active: true
+    ).count
+
+    # Use update_column to skip callbacks and avoid infinite loops
+    company.update_column(:employees_count, count)
+  rescue StandardError => e
+    Rails.logger.error("ContactRelationship##{id}: Failed to update employees_count - #{e.message}")
   end
 
   # Sync primary_company_id field when employee_of relationships change

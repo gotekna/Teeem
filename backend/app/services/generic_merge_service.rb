@@ -50,8 +50,11 @@ class GenericMergeService
       foreign_key = reflection.foreign_key
 
       begin
-        # Update all related records to point to primary
-        secondary.send(reflection.name).update_all(foreign_key => primary.id)
+        # Use savepoint to isolate failures - prevents PG::InFailedSqlTransaction
+        ActiveRecord::Base.transaction(requires_new: true) do
+          # Update all related records to point to primary
+          secondary.send(reflection.name).update_all(foreign_key => primary.id)
+        end
       rescue StandardError => e
         Rails.logger.warn "GenericMergeService: Could not transfer #{reflection.name}: #{e.message}"
       end
@@ -65,9 +68,12 @@ class GenericMergeService
       foreign_key = reflection.foreign_key
 
       begin
-        related = secondary.send(reflection.name)
-        if related.present? && primary.send(reflection.name).blank?
-          related.update(foreign_key => primary.id)
+        # Use savepoint to isolate failures - prevents PG::InFailedSqlTransaction
+        ActiveRecord::Base.transaction(requires_new: true) do
+          related = secondary.send(reflection.name)
+          if related.present? && primary.send(reflection.name).blank?
+            related.update(foreign_key => primary.id)
+          end
         end
       rescue StandardError => e
         Rails.logger.warn "GenericMergeService: Could not transfer #{reflection.name}: #{e.message}"

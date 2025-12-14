@@ -389,6 +389,20 @@ class Contact < ApplicationRecord
     companies.uniq
   end
 
+  # SSoT: Get employees from ContactRelationship (people who work for this company)
+  # This is the inverse of employers - incoming relationships where type is employee_of
+  def relationship_employees
+    incoming_relationships
+      .where(relationship_type: "employee_of", is_active: true)
+      .includes(:source_contact)
+      .map(&:source_contact)
+  end
+
+  # SSoT: Count employees from relationships (overrides counter_cache which may be stale)
+  def relationship_employees_count
+    incoming_relationships.where(relationship_type: "employee_of", is_active: true).count
+  end
+
   def directors_of
     outgoing_relationships
       .where(relationship_type: "director_of")
