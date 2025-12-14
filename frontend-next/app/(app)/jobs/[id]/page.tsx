@@ -449,6 +449,7 @@ function AddressDetailsCard({
         suburb: job.suburb || "",
         postcode: job.postcode || "",
         state: job.state || "",
+        council: job.council || "",
       });
     }
   }, [job, isEditing]);
@@ -469,6 +470,7 @@ function AddressDetailsCard({
         suburb: job.suburb || "",
         postcode: job.postcode || "",
         state: job.state || "",
+        council: job.council || "",
       });
     } finally {
       setSaving(false);
@@ -484,7 +486,10 @@ function AddressDetailsCard({
       suburb: job.suburb || "",
       postcode: job.postcode || "",
       state: job.state || "",
+      council: job.council || "",
     });
+    setSuburbSearchQuery("");
+    setShowSuburbDropdown(false);
     setIsEditing(false);
   };
 
@@ -581,16 +586,79 @@ function AddressDetailsCard({
           </div>
         </div>
 
-        <div>
+        <div className="relative">
           <Label htmlFor="suburb">Suburb</Label>
-          <Input
-            id="suburb"
-            value={editForm.suburb}
-            onChange={(e) => setEditForm({ ...editForm, suburb: e.target.value })}
-            readOnly={!isEditing}
-            placeholder="Enter suburb"
-            className={!isEditing ? "bg-muted/50" : ""}
-          />
+          {isEditing ? (
+            <div className="relative">
+              <Input
+                ref={suburbInputRef}
+                id="suburb"
+                value={suburbSearchQuery || editForm.suburb}
+                onChange={(e) => {
+                  setSuburbSearchQuery(e.target.value);
+                  setShowSuburbDropdown(true);
+                  // Also update the form directly if typing
+                  setEditForm({ ...editForm, suburb: e.target.value });
+                }}
+                onFocus={() => {
+                  if (suburbSearchQuery.length >= 2 || editForm.suburb.length >= 2) {
+                    setShowSuburbDropdown(true);
+                  }
+                }}
+                placeholder="Search suburb or postcode..."
+                autoComplete="off"
+              />
+              {/* Suburb search dropdown */}
+              {showSuburbDropdown && (suburbSearchResults.length > 0 || suburbSearchLoading) && (
+                <div
+                  ref={dropdownRef}
+                  className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto"
+                >
+                  {suburbSearchLoading ? (
+                    <div className="p-3 text-center text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                      Searching...
+                    </div>
+                  ) : (
+                    suburbSearchResults.map((suburb) => (
+                      <button
+                        key={suburb.id}
+                        type="button"
+                        onClick={() => handleSuburbSelect(suburb)}
+                        className="w-full px-3 py-2 text-left hover:bg-muted flex items-center justify-between text-sm"
+                      >
+                        <span>
+                          <span className="font-medium">{suburb.name}</span>
+                          <span className="text-muted-foreground ml-2">{suburb.postcode}</span>
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {suburb.state}
+                          {suburb.council && (
+                            <span className="ml-1 text-green-600 dark:text-green-400">
+                              ({suburb.council.replace(" Council", "").replace(" Regional", "").replace(" City", "")})
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <Input
+              id="suburb"
+              value={editForm.suburb}
+              readOnly
+              placeholder="Enter suburb"
+              className="bg-muted/50"
+            />
+          )}
+          {isEditing && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Type to search suburbs - selecting will auto-fill postcode, state and council
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -623,14 +691,17 @@ function AddressDetailsCard({
           <Label htmlFor="council">Council</Label>
           <Input
             id="council"
-            value={job.council || ""}
-            readOnly
-            placeholder="Auto-generated from postcode/suburb"
-            className="bg-muted/50"
+            value={editForm.council || ""}
+            onChange={(e) => setEditForm({ ...editForm, council: e.target.value })}
+            readOnly={!isEditing}
+            placeholder={isEditing ? "Auto-filled from suburb or enter manually" : "Select a suburb to auto-fill"}
+            className={!isEditing ? "bg-muted/50" : ""}
           />
-          <p className="text-xs text-muted-foreground mt-1">
-            Council is automatically generated when you save
-          </p>
+          {isEditing && editForm.council && (
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+              Auto-filled from suburb lookup
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -1063,6 +1134,7 @@ export default function JobDetailPage() {
                       suburb: addressData.suburb,
                       postcode: addressData.postcode,
                       state: addressData.state,
+                      council: addressData.council,
                     },
                   });
 
