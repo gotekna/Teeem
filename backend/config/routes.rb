@@ -402,6 +402,9 @@ Rails.application.routes.draw do
           get :preview_employee_extraction
           post :extract_employees
           get :health  # Quick health score for header display
+          # Data quality review endpoints
+          get :quality_reviews      # List pending quality reviews
+          post :quality_scan        # Run quality detection scan
         end
         member do
           post :reorder_employees
@@ -428,6 +431,9 @@ Rails.application.routes.draw do
           patch :portal_user, to: "contacts#update_portal_user"
           delete :portal_user, to: "contacts#delete_portal_user"
           post :enrich_from_web
+          # Data quality endpoints
+          post :verify_abn           # Verify ABN via ABR
+          get :analyze_quality       # Analyze contact for quality issues
         end
 
         # Contact relationships (nested under contacts)
@@ -465,6 +471,18 @@ Rails.application.routes.draw do
       get "duplicate_contacts/groups/:id", to: "duplicate_contacts#show"
       post "duplicate_contacts/groups/:id/merge", to: "duplicate_contacts#merge"
       post "duplicate_contacts/groups/:id/dismiss", to: "duplicate_contacts#dismiss"
+
+      # Contact quality reviews (data quality management)
+      resources :contact_quality_reviews, only: [] do
+        member do
+          post :approve, to: "contacts#approve_quality_review"
+          post :reject, to: "contacts#reject_quality_review"
+          post :skip, to: "contacts#skip_quality_review"
+        end
+        collection do
+          post :bulk_approve, to: "contacts#bulk_approve_quality_reviews"
+        end
+      end
 
       # SMS webhooks (Twilio callbacks - not nested)
       post "sms/webhook", to: "sms_messages#webhook"
