@@ -99,6 +99,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
+import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
 import { convertColumnsToTEEEMFormat, SYSTEM_DISPLAY_COLUMNS, type ApiColumn } from "@/lib/corporate/column-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2438,61 +2439,53 @@ export default function TeeemTableView({
   }, [visibleColumnsInOrder, filteredAndSortedEntries]);
 
   // Calculate TEEEM Smart widths based on column priority
-  // Excel-style: measures actual content for essential + supporting columns
-  // Technical columns stay compact, tiered expansion fills available space
+  // Excel-style: measures ALL columns to fit content, then distributes extra space by priority
+  // Algorithm: MEASURE → CONSTRAIN → EXPAND
   const calculateSmartFitWidths = useCallback(() => {
     const newWidths: ColumnWidthsState = {};
     const columnPriorities: Record<string, ColumnPriority> = {};
-    const HEADER_PADDING = 28;
-    const CELL_PADDING = 24;
 
-    // Create canvas for measurement
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    // Helper to get display text for measurement
+    const getDisplayText = (value: unknown, columnType?: string): string => {
+      if (value === null || value === undefined) return '-';
 
-    const headerFont = '600 14px ui-sans-serif, system-ui, sans-serif';
-    const cellFont = '14px ui-sans-serif, system-ui, sans-serif';
+      if (typeof value === 'object') {
+        const obj = value as { display_value?: string; display?: string; name?: string };
+        return obj.display_value || obj.display || obj.name || String(value);
+      }
 
-    // Helper to measure column width using canvas (Excel-style)
+      // Format numbers for accurate measurement
+      if (columnType === 'currency' && typeof value === 'number') {
+        return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+      }
+      if (columnType === 'percentage' && typeof value === 'number') {
+        return `${value.toFixed(1)}%`;
+      }
+      if (columnType === 'date' && value) {
+        return new Date(value as string).toLocaleDateString();
+      }
+
+      return String(value);
+    };
+
+    // Helper to measure column width using cached canvas
     const measureColumnWidth = (col: TableColumn): number => {
-      if (!ctx) return 150;
-
-      ctx.font = headerFont;
+      // Measure header
       const headerText = col.label || col.key;
-      let maxWidth = ctx.measureText(headerText).width + HEADER_PADDING;
+      let maxWidth = measureText(headerText, TABLE_FONTS.header) + TABLE_PADDING.header;
 
-      ctx.font = cellFont;
+      // Measure content (sample first 100 rows)
       const sampleRows = filteredAndSortedEntries.slice(0, 100);
       sampleRows.forEach(row => {
-        const value = row[col.key];
-        let displayText = '';
-
-        if (value === null || value === undefined) {
-          displayText = '-';
-        } else if (typeof value === 'object') {
-          const obj = value as { display_value?: string; display?: string; name?: string };
-          displayText = obj.display_value || obj.display || obj.name || String(value);
-        } else {
-          displayText = String(value);
-        }
-
-        // Format numbers for accurate measurement
-        if (col.column_type === 'currency' && typeof value === 'number') {
-          displayText = `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-        } else if (col.column_type === 'percentage' && typeof value === 'number') {
-          displayText = `${value.toFixed(1)}%`;
-        } else if (col.column_type === 'date' && value) {
-          displayText = new Date(value as string).toLocaleDateString();
-        }
-
-        const contentWidth = ctx.measureText(displayText).width + CELL_PADDING;
+        const displayText = getDisplayText(row[col.key], col.column_type);
+        const contentWidth = measureText(displayText, TABLE_FONTS.cell) + TABLE_PADDING.cell;
         maxWidth = Math.max(maxWidth, contentWidth);
       });
 
       return Math.ceil(maxWidth);
     };
 
-    // First pass: calculate base widths and track priorities
+    // PHASE 1: MEASURE - Calculate content-based widths for ALL columns
     visibleColumnsInOrder.forEach(col => {
       const priority = getColumnPriority(col.key, col.column_type);
       const config = COLUMN_PRIORITY_CONFIG[priority];
@@ -2501,7 +2494,7 @@ export default function TeeemTableView({
       // Skip hidden columns
       if (priority === 'hidden') return;
 
-      // Special handling for select/actions
+      // Fixed widths for special columns
       if (col.key === 'select') {
         newWidths[col.key] = 40;
         return;
@@ -2511,24 +2504,20 @@ export default function TeeemTableView({
         return;
       }
 
-      // Technical columns: stay at minimum (no content measurement)
-      if (priority === 'technical') {
-        newWidths[col.key] = config.minWidth;
-        return;
-      }
-
-      // Essential + Supporting: Excel-style content measurement
+      // MEASURE ALL columns including technical (Excel-style fit to content)
       const measuredWidth = measureColumnWidth(col);
+
+      // PHASE 2: CONSTRAIN - Apply min/max limits based on priority
       newWidths[col.key] = Math.max(config.minWidth, Math.min(config.maxWidth, measuredWidth));
     });
 
-    // Calculate total width and available space
+    // PHASE 3: EXPAND - Distribute extra space to essential/supporting columns
     const totalColumnsWidth = Object.values(newWidths).reduce((sum, width) => sum + width, 0);
     const tableWidth = tableContainerRef.current?.clientWidth || 0;
     const availableWidth = tableWidth - 17; // Account for scrollbar
     const extraSpace = availableWidth - totalColumnsWidth;
 
-    // Tiered expansion: only expand essential + supporting columns
+    // Only expand if there's extra space (never shrink - horizontal scroll handles overflow)
     if (extraSpace > 0) {
       // Calculate weighted expansion (essential=2x, supporting=1x, technical=0x)
       let totalWeight = 0;
@@ -2536,7 +2525,7 @@ export default function TeeemTableView({
         const priority = columnPriorities[key];
         if (priority === 'essential') totalWeight += 2;
         else if (priority === 'supporting') totalWeight += 1;
-        // Technical columns get 0 weight (no expansion)
+        // Technical columns get 0 weight (no expansion, but keep their measured width)
       });
 
       if (totalWeight > 0) {
@@ -2549,7 +2538,7 @@ export default function TeeemTableView({
           } else if (priority === 'supporting') {
             newWidths[key] = Math.min(config.maxWidth, newWidths[key] + Math.floor(spacePerWeight));
           }
-          // Technical columns unchanged
+          // Technical columns: keep measured width, no expansion
         });
       }
     }
@@ -2572,19 +2561,27 @@ export default function TeeemTableView({
   }, [smartFit, autoFitColumns, calculateSmartFitWidths, calculateAutoFitWidths, visibleColumnsInOrder]);
 
   // Watch for container resize and recalculate widths when TEEEM Smart is enabled
+  // Debounced to prevent excessive recalculations during window drag
   useEffect(() => {
     if (!smartFit || !tableContainerRef.current) return;
 
+    let timeoutId: NodeJS.Timeout;
+
     const resizeObserver = new ResizeObserver(() => {
-      if (filteredAndSortedEntries.length > 0) {
-        const smartWidths = calculateSmartFitWidths();
-        setColumnWidths(smartWidths);
-      }
+      // Debounce: wait 150ms after last resize event
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (filteredAndSortedEntries.length > 0) {
+          const smartWidths = calculateSmartFitWidths();
+          setColumnWidths(smartWidths);
+        }
+      }, 150);
     });
 
     resizeObserver.observe(tableContainerRef.current);
 
     return () => {
+      clearTimeout(timeoutId);
       resizeObserver.disconnect();
     };
   }, [smartFit, calculateSmartFitWidths, filteredAndSortedEntries]);
