@@ -1004,7 +1004,23 @@ function ContactDetailsCard({
         {!(canHaveEmployer(formData.entity_type) && contact.primary_company) && (
           <div className="space-y-2">
             <Label htmlFor="website">Website</Label>
-            <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} onBlur={handleAutoSave} placeholder="https://example.com" />
+            <div className="flex gap-2">
+              <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} onBlur={handleAutoSave} placeholder="https://example.com" className="flex-1" />
+              {formData.website && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    const url = formData.website.startsWith('http') ? formData.website : `https://${formData.website}`;
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                  }}
+                  title="Open website"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
