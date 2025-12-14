@@ -94,19 +94,38 @@ module Api
       end
 
       # POST /api/v1/contacts/:contact_id/xero_links
+      # Push contact to Xero and create link
       def create
-        @xero_link = @contact.xero_links.build(xero_link_params)
-        @xero_link.source = "xero"
+        tenant_id = params.dig(:xero_link, :tenant_id)
 
-        if @xero_link.save
+        unless tenant_id.present?
+          return render json: {
+            success: false,
+            error: "tenant_id is required"
+          }, status: :unprocessable_entity
+        end
+
+        # Check if already linked to this tenant
+        if @contact.xero_links.exists?(tenant_id: tenant_id)
+          return render json: {
+            success: false,
+            error: "Contact already linked to this Xero organization"
+          }, status: :unprocessable_entity
+        end
+
+        # Use the sync service to push to Xero and create link
+        sync_service = XeroContactSyncService.new(tenant_id: tenant_id)
+        result = sync_service.create_xero_contact_for_tenant(@contact, tenant_id)
+
+        if result[:success]
           render json: {
             success: true,
-            xero_link: serialize_xero_link(@xero_link)
+            xero_link: serialize_xero_link(result[:link])
           }, status: :created
         else
           render json: {
             success: false,
-            errors: @xero_link.errors.full_messages
+            error: result[:error] || "Failed to push contact to Xero"
           }, status: :unprocessable_entity
         end
       end
