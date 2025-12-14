@@ -2511,38 +2511,9 @@ export default function TeeemTableView({
       newWidths[col.key] = Math.max(config.minWidth, Math.min(config.maxWidth, measuredWidth));
     });
 
-    // PHASE 3: EXPAND - Distribute extra space to essential/supporting columns
-    const totalColumnsWidth = Object.values(newWidths).reduce((sum, width) => sum + width, 0);
-    const tableWidth = tableContainerRef.current?.clientWidth || 0;
-    const availableWidth = tableWidth - 17; // Account for scrollbar
-    const extraSpace = availableWidth - totalColumnsWidth;
-
-    // Only expand if there's extra space (never shrink - horizontal scroll handles overflow)
-    if (extraSpace > 0) {
-      // Calculate weighted expansion (essential=2x, supporting=1x, technical=0x)
-      let totalWeight = 0;
-      Object.keys(newWidths).forEach(key => {
-        const priority = columnPriorities[key];
-        if (priority === 'essential') totalWeight += 2;
-        else if (priority === 'supporting') totalWeight += 1;
-        // Technical columns get 0 weight (no expansion, but keep their measured width)
-      });
-
-      if (totalWeight > 0) {
-        const spacePerWeight = extraSpace / totalWeight;
-        Object.keys(newWidths).forEach(key => {
-          const priority = columnPriorities[key];
-          const config = COLUMN_PRIORITY_CONFIG[priority];
-          if (priority === 'essential') {
-            newWidths[key] = Math.min(config.maxWidth, newWidths[key] + Math.floor(spacePerWeight * 2));
-          } else if (priority === 'supporting') {
-            newWidths[key] = Math.min(config.maxWidth, newWidths[key] + Math.floor(spacePerWeight));
-          }
-          // Technical columns: keep measured width, no expansion
-        });
-      }
-    }
-
+    // Excel-style: NO expansion. Columns fit content exactly.
+    // If total width < screen, empty space on right (like Excel)
+    // If total width > screen, horizontal scroll (like Excel)
     return newWidths;
   }, [visibleColumnsInOrder, filteredAndSortedEntries]);
 
