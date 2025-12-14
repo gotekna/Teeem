@@ -586,6 +586,11 @@ const MultipleSelector = React.forwardRef<
 
                               setSelected(newOptions);
                               onChange?.(newOptions);
+
+                              // Keep dropdown open for multiple selections
+                              setTimeout(() => {
+                                inputRef.current?.focus();
+                              }, 0);
                             }}
                             className={cn(
                               "cursor-pointer w-full",
