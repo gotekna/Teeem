@@ -36,15 +36,17 @@ This allows the user to authorize Claude to push without having to run commands 
 ========================================
 DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
-Backend: v[XXX] or "No changes - skipped"
-Frontend: Auto-deployed via Vercel
-Heroku: v[XXX] or "Skipped"
+----------------------------------------
+Backend:  v[XXX] - [REQUIRED/not required]
+Frontend: Auto via Vercel - [REQUIRED/not required]
+Heroku:   [vXXX] - [deployed/skipped]
 ========================================
 ```
 
 To get version numbers:
 - Backend version: `curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version | jq -r '.version'`
 - Heroku release: `heroku releases --app teeemlive -n 1`
+- Check if required: `git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "REQUIRED" || echo "not required"`
 
 **Examples of when NOT to commit/deploy:**
 - Fixing a bug (wait for user to test and confirm)

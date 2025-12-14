@@ -144,14 +144,28 @@ rm -rf "$DEPLOY_DIR"
 
 ### Step 6 - Report Status
 
-**Show Brisbane time:**
+**Get version numbers and show deploy status:**
+
+```bash
+# Get current versions
+BACKEND_VERSION=$(curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version | jq -r '.version' 2>/dev/null || echo "unknown")
+HEROKU_RELEASE=$(heroku releases --app teeemlive -n 1 2>/dev/null | tail -1 | awk '{print $1}')
+BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
+
+# Check what's required
+BACKEND_REQUIRED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "REQUIRED" || echo "not required")
+FRONTEND_REQUIRED=$(git diff --name-only HEAD~1 HEAD | grep -q "^frontend" && echo "REQUIRED" || echo "not required")
+```
+
+**Output format:**
 ```
 ========================================
 DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
-Backend: v[XXX] or "No changes - skipped"
-Frontend: Auto-deployed via Vercel
-Heroku: v[XXX] or "Skipped"
+----------------------------------------
+Backend:  v[XXX] - [REQUIRED/not required]
+Frontend: Auto via Vercel - [REQUIRED/not required]
+Heroku:   [vXXX] - [deployed/skipped]
 ========================================
 ```
 
